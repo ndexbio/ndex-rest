@@ -14,16 +14,28 @@ import java.util.regex.Pattern;
 ******************************************************************************/
 public class RidConverter
 {
-    public static ORID convertToRid(String Jid)
+    /**************************************************************************
+    * Converts a JID to a RID.
+    * 
+    * @param Jid The JID.
+    * @return The JID converted to a RID.
+    **************************************************************************/
+    public static ORID convertToRid(String Jid) throws ValidationException
     {
         final Matcher m = Pattern.compile("^C(\\d*)R(\\d*)$").matcher(Jid.trim());
 
         if (m.matches())
             return new ORecordId(Integer.valueOf(m.group(1)), OClusterPositionFactory.INSTANCE.valueOf(m.group(2)));
         else
-            throw new ValidationException(Jid + " is not valid JID.");
+            throw new ValidationException(Jid + " is not a valid JID.");
     }
 
+    /**************************************************************************
+    * Converts a RID to a JID.
+    * 
+    * @param Rid The RID.
+    * @return The RID converted to a JID.
+    **************************************************************************/
     public static String convertToJid(ORID Rid)
     {
         return Rid.toString().replace("#", "C").replace(":", "R");
