@@ -26,7 +26,7 @@ import com.tinkerpop.blueprints.Vertex;
 public class GroupService extends NdexService
 {
     @DELETE
-    @Path("/groups/{groupId}")
+    @Path("/{groupId}")
     @Produces("application/json")
     public void deleteGroup(@PathParam("groupId")String groupJid) throws NdexException
     {
@@ -55,7 +55,7 @@ public class GroupService extends NdexService
     }
     
     @GET
-    @Path("/groups/{groupId}")
+    @Path("/{groupId}")
     @Produces("application/json")
     public Group getGroup(@PathParam("groupId")String groupJid) throws NdexException
     {

@@ -25,7 +25,7 @@ import com.orientechnologies.orient.core.sql.OCommandSQL;
 public class UserService extends NdexService
 {
     @PUT
-    @Path("/users/{userId}/worksurface")
+    @Path("/{userId}/worksurface")
     @Produces("application/json")
     public void addNetworkToWorkSurface(@PathParam("userId")String userJid, Network networkToAdd) throws NdexException
     {
@@ -69,7 +69,7 @@ public class UserService extends NdexService
     }
 
     @DELETE
-    @Path("/users/{userId}/worksurface")
+    @Path("/{userId}/worksurface")
     @Produces("application/json")
     public void deleteNetworkFromWorkSurface(@PathParam("userId")String userJid, Network networkToDelete) throws NdexException
     {
@@ -111,7 +111,7 @@ public class UserService extends NdexService
     }
     
     @DELETE
-    @Path("/users/{userId}")
+    @Path("/{userId}")
     @Produces("application/json")
     public void deleteUser(@PathParam("userId")String userJid) throws NdexException
     {
@@ -140,7 +140,7 @@ public class UserService extends NdexService
     }
     
     @GET
-    @Path("/users/{userId}")
+    @Path("/{userId}")
     @Produces("application/json")
     public User getUser(@PathParam("userId")String userJid) throws NdexException
     {

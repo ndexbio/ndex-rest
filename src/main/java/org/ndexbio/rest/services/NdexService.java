@@ -30,7 +30,6 @@ public abstract class NdexService
     {
         try
         {
-            new OServerMain();
             _orientDbServer = OServerMain.create();
             _orientDbServer.startup();
             _orientDbServer.activate();

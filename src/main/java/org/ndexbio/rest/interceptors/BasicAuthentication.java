@@ -22,12 +22,14 @@ import org.ndexbio.rest.domain.XFunctionTerm;
 import org.ndexbio.rest.domain.XTerm;
 import org.ndexbio.rest.domain.XUser;
 import com.orientechnologies.common.log.OLogManager;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.exception.OSecurityAccessException;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.server.OServer;
+import com.orientechnologies.orient.server.OServerMain;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.frames.FramedGraph;
@@ -80,8 +82,11 @@ public class BasicAuthentication implements PreProcessInterceptor
     **************************************************************************/
     private boolean authenticateUser(final String[] authInfo) throws Exception
     {
-        final OServer orientDbServer = new OServer();
-        final FramedGraphFactory GRAPH_FACTORY = new FramedGraphFactory(new GremlinGroovyModule(),
+        final OServer orientDbServer = OServerMain.create();
+        orientDbServer.startup();
+        orientDbServer.activate();
+        
+        final FramedGraphFactory graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
             new TypedGraphModuleBuilder()
             .withClass(XTerm.class)
             .withClass(XFunctionTerm.class)
@@ -92,13 +97,13 @@ public class BasicAuthentication implements PreProcessInterceptor
         try
         {
             //TODO: Refactor this to connect using a configurable username/password, and database
-            ndexDatabase = (ODatabaseDocumentTx)orientDbServer.openDatabase("document", "ndex", "admin", "admin"); 
+            ndexDatabase = ODatabaseDocumentPool.global().acquire("plocal:/ndex", "admin", "admin");
+            final FramedGraph<OrientBaseGraph> orientDbGraph = graphFactory.create((OrientBaseGraph)new OrientGraph(ndexDatabase));
 
             Collection<ODocument> usersFound = ndexDatabase.command(new OCommandSQL("select from xUser where username equals " + authInfo[0])).execute();
             if (usersFound.size() < 1)
                 return false;
             
-            final FramedGraph<OrientBaseGraph> orientDbGraph = GRAPH_FACTORY.create((OrientBaseGraph)new OrientGraph((ODatabaseDocumentTx)ndexDatabase));
             XUser authUser = orientDbGraph.getVertex(usersFound.toArray()[0], XUser.class);
             
             if (authInfo[1] != authUser.getPassword())
@@ -106,18 +111,13 @@ public class BasicAuthentication implements PreProcessInterceptor
 
             return true;
         }
-        catch (OSecurityAccessException e)
-        {
-            return false;
-        }
         catch (Exception e)
         {
             OLogManager.instance().error(this, "Cannot access database: " + "ndex" + ".", ODatabaseException.class, e);
         }
         finally
         {
-            if (ndexDatabase != null)
-                ndexDatabase.close();
+            orientDbServer.shutdown();
         }
 
         return false;

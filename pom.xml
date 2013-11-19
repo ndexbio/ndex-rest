@@ -1,19 +1,16 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
+    <modelVersion>4.0.0</modelVersion>
     <groupId>org.ndexbio</groupId>
     <artifactId>ndexbio-rest</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <packaging>war</packaging>
+    <version>1.0-SNAPSHOT</version>
+    <name>ndexbio-rest</name>
+    <url>http://maven.apache.org</url>
 
     <repositories>
-		<repository>
-			<id>org.jboss.resteasy</id>
-			<name>JBOSS Repository</name>
-			<url>http://repository.jboss.org/maven2/</url>
-		</repository>
         <repository>
             <id>oss.sonatype.org</id>
             <name>OrientDB Maven2 Repository</name>
@@ -25,28 +22,86 @@
                 <enabled>true</enabled>
             </snapshots>
         </repository>
+
+        <repository>
+            <id>org.jboss.resteasy</id>
+            <name>JBOSS Repository</name>
+            <url>http://repository.jboss.org/maven2/</url>
+        </repository>
     </repositories>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.orientechnologies</groupId>
+            <artifactId>orientdb-server</artifactId>
+            <version>1.6</version>
+    		<scope>provided</scope>
+        </dependency>
+		
+        <dependency>
+            <groupId>com.orientechnologies</groupId>
+            <artifactId>orientdb-graphdb</artifactId>
+            <version>1.6</version>
+        </dependency>
+		
+        <dependency>
+            <groupId>com.tinkerpop</groupId>
+            <artifactId>frames</artifactId>
+            <version>2.5.0-SNAPSHOT</version>
+            <!--
+            <exclusions>
+                <exclusion>
+                    <artifactId>blueprints-core</artifactId>
+                    <groupId>com.tinkerpop.blueprints</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>gremlin-groovy</artifactId>
+                    <groupId>com.tinkerpop.gremlin</groupId>
+                </exclusion>
+            </exclusions>
+            -->
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.resteasy</groupId>
+            <artifactId>resteasy-jaxrs</artifactId>
+            <version>3.0.5.Final</version>
+        </dependency>
+	    
+        <dependency>
+            <groupId>org.jboss.resteasy</groupId>
+            <artifactId>resteasy-jaxb-provider</artifactId>
+            <version>3.0.5.Final</version>
+        </dependency>
+	    
+        <dependency>
+            <groupId>org.jboss.resteasy</groupId>
+            <artifactId>resteasy-jettison-provider</artifactId>
+            <version>3.0.5.Final</version>
+        </dependency>
+
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+            <version>3.1.0</version>
+    		<scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>javax.servlet.jsp</groupId>
+            <artifactId>javax.servlet.jsp-api</artifactId>
+            <version>2.3.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.11</version>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
-            <plugin>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.4</version>
-                <configuration>
-                    <descriptors>
-                        <descriptor>src/main/assembly/src.xml</descriptor>
-                    </descriptors>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>make-assembly</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -56,95 +111,6 @@
                     <target>1.7</target>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.13</version>
-                <configuration>
-                    <argLine>-Xss9m</argLine>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <argLine>-Xss20m</argLine>
-                </configuration>
-            </plugin>
         </plugins>
     </build>
-
-    <dependencies>
-	    <dependency>
-	        <groupId>org.jboss.resteasy</groupId>
-	        <artifactId>resteasy-jaxrs</artifactId>
-	        <version>3.0.5.Final</version>
-	    </dependency>
-	    
-	    <dependency>
-	        <groupId>org.jboss.resteasy</groupId>
-	        <artifactId>resteasy-jaxb-provider</artifactId>
-	        <version>3.0.5.Final</version>
-	    </dependency>
-	    
-	    <dependency>
-	        <groupId>org.jboss.resteasy</groupId>
-	        <artifactId>resteasy-jettison-provider</artifactId>
-	        <version>3.0.5.Final</version>
-	    </dependency>
-
-		<dependency>
-		    <groupId>com.orientechnologies</groupId>
-		    <artifactId>orientdb-server</artifactId>
-		    <version>1.6</version>
-		    <scope>provided</scope>
-		</dependency>
-		
-		<dependency>
-		    <groupId>com.orientechnologies</groupId>
-		    <artifactId>orientdb-graphdb</artifactId>
-		    <version>1.6</version>
-		    <scope>provided</scope>
-		</dependency>
-		
-		<dependency>
-		    <groupId>com.tinkerpop</groupId>
-		    <artifactId>frames</artifactId>
-		    <version>2.5.0-SNAPSHOT</version>
-		    <exclusions>
-		        <exclusion>
-		            <artifactId>blueprints-core</artifactId>
-		            <groupId>com.tinkerpop.blueprints</groupId>
-		        </exclusion>
-		        <exclusion>
-		            <artifactId>gremlin-groovy</artifactId>
-		            <groupId>com.tinkerpop.gremlin</groupId>
-		        </exclusion>
-		    </exclusions>
-		</dependency>
-		
-		<dependency>
-		    <groupId>org.codehaus.jackson</groupId>
-		    <artifactId>jackson-mapper-asl</artifactId>
-		    <version>1.9.13</version>
-		</dependency>
-
-		<dependency>
-			<groupId>javax.servlet</groupId>
-			<artifactId>javax.servlet-api</artifactId>
-			<version>3.1.0</version>
-		</dependency>
-
-		<dependency>
-			<groupId>javax.servlet.jsp</groupId>
-			<artifactId>javax.servlet.jsp-api</artifactId>
-			<version>2.3.1</version>
-		</dependency>
-
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<version>4.11</version>
-		</dependency>
-    </dependencies>
 </project>

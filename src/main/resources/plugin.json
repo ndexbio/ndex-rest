@@ -1,6 +1,0 @@
-{
-    "name": "NDEx REST Service",
-    "javaClass": "org.ndexbio.rest.ServerPlugin",
-    "version": "0.0.1-SNAPSHOT",
-    "parameters": {}
-}
