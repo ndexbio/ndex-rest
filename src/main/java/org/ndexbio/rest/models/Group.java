@@ -1,15 +1,84 @@
 package org.ndexbio.rest.models;
 
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import org.ndexbio.rest.domain.XGroup;
+import org.ndexbio.rest.domain.XNetwork;
+import org.ndexbio.rest.helpers.RidConverter;
+import com.orientechnologies.orient.core.id.ORID;
 
 public class Group
 {
+    private String _backgroundImage;
+    private Date _creationDate;
+    private String _description;
+    private String _foregroundImage;
     private String _id;
     private String _name;
-    private GroupProfile _profile;
+    private String _organizationName;
     private List<Network> _networksOwned;
+    private String _website;
+
     
     
+    public Group()
+    {
+        _networksOwned = new ArrayList<Network>();
+    }
+    
+    public Group(XGroup group)
+    {
+        _backgroundImage = group.getBackgroundImg();
+        _creationDate = group.getCreationDate();
+        _description = group.getDescription();
+        _foregroundImage = group.getForegroundImg();
+        _id = RidConverter.convertToJid((ORID)group.asVertex().getId());
+        _name = group.getGroupName();
+        _organizationName = group.getOrganizationName();
+        _website = group.getWebsite();
+        
+        _networksOwned = new ArrayList<Network>();
+        for (XNetwork ownedNetwork : group.getOwnedNetworks())
+            _networksOwned.add(new Network(ownedNetwork));
+    }
+    
+    
+    
+    public String getBackgroundImage()
+    {
+        return _backgroundImage;
+    }
+    
+    public void setBackgroundImage(String backgroundImage)
+    {
+        _backgroundImage = backgroundImage;
+    }
+    
+    public Date getCreationDate()
+    {
+        return _creationDate;
+    }
+    
+    public String getDescription()
+    {
+        return _description;
+    }
+    
+    public void setDescription(String description)
+    {
+        _description = description;
+    }
+    
+    public String getForegroundImage()
+    {
+        return _foregroundImage;
+    }
+    
+    public void setForegroundImage(String foregroundImage)
+    {
+        _foregroundImage = foregroundImage;
+    }
     
     public String getId()
     {
@@ -41,13 +110,23 @@ public class Group
         _networksOwned = networksOwned;
     }
     
-    public GroupProfile getProfile()
+    public String getOrganizationName()
     {
-        return _profile;
+        return _organizationName;
     }
     
-    public void setProfile(GroupProfile profile)
+    public void setOrganizationName(String organizationName)
     {
-        _profile = profile;
+        _organizationName = organizationName;
+    }
+    
+    public String getWebsite()
+    {
+        return _website;
+    }
+    
+    public void setProfile(String website)
+    {
+        _website = website;
     }
 }

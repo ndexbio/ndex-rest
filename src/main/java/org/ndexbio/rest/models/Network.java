@@ -1,7 +1,18 @@
 package org.ndexbio.rest.models;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.ndexbio.rest.domain.XCitation;
+import org.ndexbio.rest.domain.XEdge;
+import org.ndexbio.rest.domain.XNameSpace;
+import org.ndexbio.rest.domain.XNetwork;
+import org.ndexbio.rest.domain.XNode;
+import org.ndexbio.rest.domain.XSupport;
+import org.ndexbio.rest.domain.XTerm;
+import org.ndexbio.rest.helpers.RidConverter;
+import com.orientechnologies.orient.core.id.ORID;
 
 public class Network
 {
@@ -14,10 +25,49 @@ public class Network
     private Map<String, String> _properties;
     private List<Support> _supports;
     private List<Term> _terms;
-    private String _title;
 
     
 
+    public Network()
+    {
+        _citations = new ArrayList<Citation>();
+        _edges = new ArrayList<Edge>();
+        _namespaces = new ArrayList<Namespace>();
+        _nodes = new ArrayList<Node>();
+        _properties = new HashMap<String, String>();
+        _supports = new ArrayList<Support>();
+        _terms = new ArrayList<Term>();
+    }
+    
+    public Network(XNetwork network)
+    {
+        this();
+        
+        _format = network.getFormat();
+        _id = RidConverter.convertToJid((ORID)network.asVertex().getId());
+        _properties.putAll(network.getProperties());
+        
+        for (XCitation citation : network.getCitations())
+            _citations.add(new Citation(citation));
+        
+        for (XEdge edge : network.getNdexEdges())
+            _edges.add(new Edge(edge));
+        
+        for (XNameSpace namespace : network.getNamespaces())
+            _namespaces.add(new Namespace(namespace));
+        
+        for (XNode node : network.getNodes())
+            _nodes.add(new Node(node));
+        
+        for (XSupport support : network.getSupports())
+            _supports.add(new Support(support));
+        
+        for (XTerm term : network.getTerms())
+            _terms.add(new Term(term));
+    }
+    
+    
+    
     public List<Citation> getCitations()
     {
         return _citations;
@@ -106,15 +156,5 @@ public class Network
     public void setTerms(List<Term> terms)
     {
         _terms = terms;
-    }
-    
-    public String getTitle()
-    {
-        return _title;
-    }
-    
-    public void setTitle(String title)
-    {
-        _title = title;
     }
 }

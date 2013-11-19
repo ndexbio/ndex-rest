@@ -1,10 +1,25 @@
 package org.ndexbio.rest.models;
 
+import org.ndexbio.rest.domain.XNameSpace;
+
 public class Namespace
 {
     private String _jdexId;
     private String _prefix;
     private String _uri;
+    
+    
+    
+    public Namespace()
+    {
+    }
+    
+    public Namespace (XNameSpace namespace)
+    {
+        _jdexId = namespace.getJdexId();
+        _prefix = namespace.getPrefix();
+        _uri = namespace.getUri();
+    }
     
     
     

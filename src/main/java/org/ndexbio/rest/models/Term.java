@@ -1,10 +1,25 @@
 package org.ndexbio.rest.models;
 
+import org.ndexbio.rest.domain.XTerm;
+
 public class Term
 {
     private String _jdexId;
     private String _name;
-    private String _namespace;
+    private Namespace _namespace;
+    
+    
+    
+    public Term()
+    {
+    }
+    
+    public Term(XTerm term)
+    {
+        _jdexId = term.getJdexId();
+        _name = term.getName();
+        _namespace = new Namespace(term.getNamespace());
+    }
     
     
     
@@ -28,14 +43,13 @@ public class Term
         _name = name;
     }
     
-    public String getNamespace()
+    public Namespace getNamespace()
     {
         return _namespace;
     }
     
-    public void setNamespace(String namespace)
+    public void setNamespace(Namespace namespace)
     {
         _namespace = namespace;
     }
-
 }
