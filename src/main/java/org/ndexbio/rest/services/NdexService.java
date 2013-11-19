@@ -1,6 +1,5 @@
 package org.ndexbio.rest.services;
 
-import java.io.File;
 import org.ndexbio.rest.domain.XBaseTerm;
 import org.ndexbio.rest.domain.XFunctionTerm;
 import org.ndexbio.rest.domain.XTerm;
@@ -34,7 +33,6 @@ public abstract class NdexService
             new OServerMain();
             _orientDbServer = OServerMain.create();
             _orientDbServer.startup();
-            //_orientDbServer.startup(new File("orientdb.config"));
             _orientDbServer.activate();
             
             _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
