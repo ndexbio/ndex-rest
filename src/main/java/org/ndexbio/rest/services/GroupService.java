@@ -10,8 +10,8 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
-import org.ndexbio.rest.domain.XGroup;
-import org.ndexbio.rest.domain.XUser;
+import org.ndexbio.rest.domain.IGroup;
+import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
@@ -28,7 +28,7 @@ public class GroupService extends NdexService
     @DELETE
     @Path("/{groupId}")
     @Produces("application/json")
-    public void deleteGroup(@PathParam("groupId")String groupJid) throws NdexException
+    public void deleteGroup(@PathParam("groupId")final String groupJid) throws NdexException
     {
         final ORID groupId = RidConverter.convertToRid(groupJid);
 
@@ -50,40 +50,45 @@ public class GroupService extends NdexService
         }
         finally
         {
-            _orientDbGraph.shutdown();
+            if (_ndexDatabase != null)
+                _ndexDatabase.close();
         }
     }
     
     @GET
     @Path("/{groupId}")
     @Produces("application/json")
-    public Group getGroup(@PathParam("groupId")String groupJid) throws NdexException
+    public Group getGroup(@PathParam("groupId")final String groupJid) throws NdexException
     {
-        final ORID groupId = RidConverter.convertToRid(groupJid);
-        final XGroup group = _orientDbGraph.getVertex(groupId, XGroup.class);
-
-        if (group == null)
+        try
         {
-            final Collection<ODocument> matchingGroups = _orientDbGraph.getBaseGraph()
+            final ORID groupId = RidConverter.convertToRid(groupJid);
+            final IGroup group = _orientDbGraph.getVertex(groupId, IGroup.class);
+            
+            if (group != null)
+                return new Group(group);
+        }
+        catch (ValidationException ve)
+        {
+            final Collection<ODocument> matchingGroups = _orientDbGraph
+                .getBaseGraph()
                 .command(new OCommandSQL("select from xGroup where groupname = ?"))
                 .execute(groupJid);
 
-            if (matchingGroups.size() < 1)
-                return null;
-            else
-                return new Group(_orientDbGraph.getVertex(matchingGroups.toArray()[0], XGroup.class));
+            if (matchingGroups.size() > 0)
+                return new Group(_orientDbGraph.getVertex(matchingGroups.toArray()[0], IGroup.class), true);
         }
-        else
-            return new Group(group);
+        
+        return null;
     }
  
     @POST
     @Produces("application/json")
-    public void updateGroup(Group updatedGroup) throws NdexException
+    public void updateGroup(final Group updatedGroup) throws NdexException
     {
         ORID groupRid = RidConverter.convertToRid(updatedGroup.getId());
 
-        final XGroup groupToUpdate = _orientDbGraph.getVertex(groupRid, XGroup.class);
+        final IGroup groupToUpdate = _orientDbGraph.getVertex(groupRid, IGroup.class);
         if (groupToUpdate == null)
             throw new ObjectNotFoundException("Group", updatedGroup.getId());
 
@@ -104,17 +109,18 @@ public class GroupService extends NdexService
         }
         finally
         {
-            _orientDbGraph.shutdown();
+            if (_ndexDatabase != null)
+                _ndexDatabase.close();
         }
     }
     
     @PUT
     @Produces("application/json")
-    public Group createGroup(String ownerId, Group newGroup) throws NdexException
+    public Group createGroup(final String ownerId, final Group newGroup) throws NdexException
     {
         ORID userRid = RidConverter.convertToRid(ownerId);
         
-        final XUser groupOwner = _orientDbGraph.getVertex(userRid, XUser.class);
+        final IUser groupOwner = _orientDbGraph.getVertex(userRid, IUser.class);
         if (groupOwner == null)
             throw new ObjectNotFoundException("User", ownerId);
 
@@ -124,7 +130,7 @@ public class GroupService extends NdexService
 
         try
         {
-            final XGroup group = _orientDbGraph.addVertex("class:xGroup", XGroup.class);
+            final IGroup group = _orientDbGraph.addVertex("class:xGroup", IGroup.class);
             group.setGroupName(newGroup.getName());
             group.setCreationDate(new Date());
             groupOwner.addOwnedGroup(group);
@@ -142,7 +148,8 @@ public class GroupService extends NdexService
         }
         finally
         {
-            _orientDbGraph.shutdown();
+            if (_ndexDatabase != null)
+                _ndexDatabase.close();
         }
     }
 }

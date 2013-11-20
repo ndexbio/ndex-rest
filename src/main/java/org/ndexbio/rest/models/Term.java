@@ -1,6 +1,6 @@
 package org.ndexbio.rest.models;
 
-import org.ndexbio.rest.domain.XTerm;
+import org.ndexbio.rest.domain.ITerm;
 
 public class Term
 {
@@ -10,15 +10,25 @@ public class Term
     
     
     
+    /**************************************************************************
+    * Default constructor.
+    **************************************************************************/
     public Term()
     {
     }
     
-    public Term(XTerm term)
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * 
+    * @param term The Term with source data.
+    **************************************************************************/
+    public Term(ITerm term)
     {
         _jdexId = term.getJdexId();
         _name = term.getName();
-        _namespace = new Namespace(term.getNamespace());
+        
+        if (term.getNamespace() != null)
+            _namespace = new Namespace(term.getNamespace());
     }
     
     

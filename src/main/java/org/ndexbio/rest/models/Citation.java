@@ -2,7 +2,7 @@ package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.ndexbio.rest.domain.XCitation;
+import org.ndexbio.rest.domain.ICitation;
 
 public class Citation
 {
@@ -14,19 +14,28 @@ public class Citation
     
 
     
+    /**************************************************************************
+    * Default constructor.
+    **************************************************************************/
     public Citation()
     {
         _contributors = new ArrayList<String>();
     }
     
-    public Citation(XCitation citation)
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * 
+    * @param citation The Citation with source data.
+    **************************************************************************/
+    public Citation(ICitation citation)
     {
+        this();
+        
         _identifier = citation.getIdentifier();
         _jdexId = citation.getJdexId();
         _title = citation.getTitle();
         _type = citation.getType();
         
-        _contributors = new ArrayList<String>();
         for (String contributor : citation.getContributors())
             _contributors.add(contributor);
     }

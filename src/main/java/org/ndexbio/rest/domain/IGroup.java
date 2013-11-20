@@ -2,15 +2,10 @@ package org.ndexbio.rest.domain;
 
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
-
 import java.util.Date;
 
-/**
- * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
- * @author <a href="mailto:enisher@gmail.com">Artem Orobets</a>
- * @since 10/30/13
- */
-public interface XGroup extends XAccount {
+public interface IGroup extends IAccount
+{
     @Property("groupName")
     void setGroupName(String name);
 
@@ -54,5 +49,5 @@ public interface XGroup extends XAccount {
     public String getBackgroundImg();
 
     @Adjacency(label = "ownsNetwork")
-    Iterable<XNetwork> getOwnedNetworks();
+    Iterable<INetwork> getOwnedNetworks();
 }

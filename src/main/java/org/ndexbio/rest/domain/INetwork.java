@@ -4,14 +4,10 @@ import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
-
 import java.util.Map;
 
-/**
- * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
- * @since 10/30/13
- */
-public interface XNetwork extends VertexFrame {
+public interface INetwork extends VertexFrame
+{
     @Property("format")
     public void setFormat(String format);
 
@@ -19,16 +15,16 @@ public interface XNetwork extends VertexFrame {
     public String getFormat();
 
     @Adjacency(label = "namespaces")
-    public Iterable<XNameSpace> getNamespaces();
+    public Iterable<INamespace> getNamespaces();
 
     @Adjacency(label = "namespaces")
-    public void addNameSpace(XNameSpace nameSpace);
+    public void addNameSpace(INamespace nameSpace);
 
     @Adjacency(label = "nodes")
-    public Iterable<XNode> getNodes();
+    public Iterable<INode> getNodes();
 
     @Adjacency(label = "nodes")
-    public void addNode(XNode node);
+    public void addNode(INode node);
 
     @Property("properties")
     public Map<String, String> getProperties();
@@ -37,28 +33,28 @@ public interface XNetwork extends VertexFrame {
     public void setProperties(Map<String, String> properties);
 
     @Adjacency(label = "terms")
-    public Iterable<XTerm> getTerms();
+    public Iterable<ITerm> getTerms();
 
     @Adjacency(label = "terms")
-    public void addTerm(XTerm term);
+    public void addTerm(ITerm term);
 
     @Adjacency(label = "supports")
-    public Iterable<XSupport> getSupports();
+    public Iterable<ISupport> getSupports();
 
     @Adjacency(label = "supports")
-    public void addSupport(XSupport support);
+    public void addSupport(ISupport support);
 
     @Adjacency(label = "citations")
-    public Iterable<XCitation> getCitations();
+    public Iterable<ICitation> getCitations();
 
     @Adjacency(label = "citations")
-    public void addCitations(XCitation citation);
+    public void addCitations(ICitation citation);
 
     @Adjacency(label = "ndexEdges")
-    public Iterable<XEdge> getNdexEdges();
+    public Iterable<IEdge> getNdexEdges();
 
     @Adjacency(label = "ndexEdges")
-    public XEdge addNdexEdge(XEdge edge);
+    public IEdge addNdexEdge(IEdge edge);
 
     @Property("nodesCount")
     public void setNodesCount(int nodesCount);
@@ -73,5 +69,5 @@ public interface XNetwork extends VertexFrame {
     public int getEdgesCount();
 
     @Adjacency(label = "ownsNetwork", direction = Direction.IN)
-    public Iterable<XUser> getOwners();
+    public Iterable<IUser> getOwners();
 }

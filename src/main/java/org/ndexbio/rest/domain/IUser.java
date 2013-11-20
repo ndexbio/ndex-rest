@@ -4,11 +4,8 @@ import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 
-/**
- * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
- * @since 10/30/13
- */
-public interface XUser extends XAccount {
+public interface IUser extends IAccount
+{
     @Property("username")
     public String getUsername();
 
@@ -58,26 +55,26 @@ public interface XUser extends XAccount {
     public void setBackgroundImg(String backgroundImg);
 
     @Adjacency(label = "workspace")
-    public Iterable<XNetwork> getWorkspace();
+    public Iterable<INetwork> getWorkspace();
 
     @Adjacency(label = "workspace")
-    public void addWorkspace(XNetwork network);
+    public void addWorkspace(INetwork network);
 
     @Adjacency(label = "workspace")
-    public void removeWorkspace(XNetwork network);
+    public void removeWorkspace(INetwork network);
 
     @Adjacency(label = "ownsNetwork")
-    public Iterable<XNetwork> getOwnedNetworks();
+    public Iterable<INetwork> getOwnedNetworks();
 
     @Adjacency(label = "ownsNetwork", direction = Direction.OUT)
-    public void addOwnsNetwork(XNetwork network);
+    public void addOwnsNetwork(INetwork network);
 
     @Adjacency(label = "ownsNetwork")
-    public void removeOwnsNetwork(XNetwork network);
+    public void removeOwnsNetwork(INetwork network);
 
     @Adjacency(label = "ownsGroup")
-    public void addOwnedGroup(XGroup group);
+    public void addOwnedGroup(IGroup group);
 
     @Adjacency(label = "ownsGroup")
-    public Iterable<XGroup> getOwnedGroups();
+    public Iterable<IGroup> getOwnedGroups();
 }

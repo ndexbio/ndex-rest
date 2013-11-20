@@ -4,28 +4,24 @@ import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
-
 import java.util.Date;
 
-/**
- * @author Dexter Pratt <a href="mailto:dexterpratt.bio@gmail.com">Dexter Pratt</a>
- */
-
-public interface XRequest extends VertexFrame {
+public interface IRequest extends VertexFrame
+{
     @Adjacency(label = "fromAccount", direction = Direction.IN)
-    public Iterable<XUser> getFromAccount();
+    public Iterable<IUser> getFromAccount();
 
     @Adjacency(label = "fromAccount", direction = Direction.IN)
-    public void addFromAccount(XUser owner);
+    public void addFromAccount(IUser owner);
 
     @Adjacency(label = "toAccount", direction = Direction.IN)
-    public Iterable<XAccount> getToAccount();
+    public Iterable<IAccount> getToAccount();
 
     @Adjacency(label = "toAccount", direction = Direction.IN)
-    public void addToAccount(XAccount toAccount);
+    public void addToAccount(IAccount toAccount);
 
     @Adjacency(label = "about", direction = Direction.IN)
-    public Iterable<XUser> getAbout();
+    public Iterable<IUser> getAbout();
 
     @Adjacency(label = "about", direction = Direction.IN)
     public void addAbout(VertexFrame about);

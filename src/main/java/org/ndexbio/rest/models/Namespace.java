@@ -1,6 +1,6 @@
 package org.ndexbio.rest.models;
 
-import org.ndexbio.rest.domain.XNameSpace;
+import org.ndexbio.rest.domain.INamespace;
 
 public class Namespace
 {
@@ -10,11 +10,19 @@ public class Namespace
     
     
     
+    /**************************************************************************
+    * Default constructor.
+    **************************************************************************/
     public Namespace()
     {
     }
     
-    public Namespace (XNameSpace namespace)
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * 
+    * @param namespace The Namespace with source data.
+    **************************************************************************/
+    public Namespace (INamespace namespace)
     {
         _jdexId = namespace.getJdexId();
         _prefix = namespace.getPrefix();

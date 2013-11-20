@@ -1,6 +1,6 @@
 package org.ndexbio.rest.models;
 
-import org.ndexbio.rest.domain.XSupport;
+import org.ndexbio.rest.domain.ISupport;
 
 public class Support
 {
@@ -9,11 +9,19 @@ public class Support
     
     
     
+    /**************************************************************************
+    * Default constructor.
+    **************************************************************************/
     public Support()
     {
     }
     
-    public Support(XSupport support)
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * 
+    * @param support The Support with source data.
+    **************************************************************************/
+    public Support(ISupport support)
     {
         _jdexId = support.getJdexId();
         _text = support.getText();

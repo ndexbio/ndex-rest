@@ -6,13 +6,10 @@ import com.tinkerpop.frames.VertexFrame;
 import com.tinkerpop.frames.modules.typedgraph.TypeField;
 import com.tinkerpop.frames.modules.typedgraph.TypeValue;
 
-/**
- * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
- * @since 10/30/13
- */
 @TypeField("type")
 @TypeValue("xTerm")
-public interface XTerm extends VertexFrame {
+public interface ITerm extends VertexFrame
+{
     @Property("name")
     public String getName();
 
@@ -25,9 +22,9 @@ public interface XTerm extends VertexFrame {
     @Property("jdex_id")
     public void setJdexId(String jdexId);
 
-    @Adjacency(label =  "namespace")
-    public XNameSpace getNamespace();
+    @Adjacency(label = "namespace")
+    public INamespace getNamespace();
 
-    @Adjacency(label =  "namespace")
-    public void setNamespace(XNameSpace namespace);
+    @Adjacency(label = "namespace")
+    public void setNamespace(INamespace namespace);
 }

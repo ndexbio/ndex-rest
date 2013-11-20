@@ -3,8 +3,8 @@ package org.ndexbio.rest.models;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import org.ndexbio.rest.domain.XGroup;
-import org.ndexbio.rest.domain.XNetwork;
+import org.ndexbio.rest.domain.IGroup;
+import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.helpers.RidConverter;
 import com.orientechnologies.orient.core.id.ORID;
 
@@ -22,13 +22,36 @@ public class Group
 
     
     
+    /**************************************************************************
+    * Default constructor.
+    **************************************************************************/
     public Group()
     {
         _networksOwned = new ArrayList<Network>();
     }
     
-    public Group(XGroup group)
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * Doesn't load owned Networks.
+    * 
+    * @param group The Group with source data.
+    **************************************************************************/
+    public Group(IGroup group)
     {
+        this(group, false);
+    }
+    
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * 
+    * @param group The Group with source data.
+    * @param loadEverything True to load owned Networks, false to exclude
+    *                       them.
+    **************************************************************************/
+    public Group(IGroup group, boolean loadEverything)
+    {
+        this();
+        
         _backgroundImage = group.getBackgroundImg();
         _creationDate = group.getCreationDate();
         _description = group.getDescription();
@@ -38,9 +61,11 @@ public class Group
         _organizationName = group.getOrganizationName();
         _website = group.getWebsite();
         
-        _networksOwned = new ArrayList<Network>();
-        for (XNetwork ownedNetwork : group.getOwnedNetworks())
-            _networksOwned.add(new Network(ownedNetwork));
+        if (loadEverything)
+        {
+            for (INetwork ownedNetwork : group.getOwnedNetworks())
+                _networksOwned.add(new Network(ownedNetwork));
+        }
     }
     
     

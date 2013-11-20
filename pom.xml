@@ -22,21 +22,15 @@
                 <enabled>true</enabled>
             </snapshots>
         </repository>
-
-        <repository>
-            <id>org.jboss.resteasy</id>
-            <name>JBOSS Repository</name>
-            <url>http://repository.jboss.org/maven2/</url>
-        </repository>
     </repositories>
 
     <dependencies>
         <dependency>
-            <groupId>com.orientechnologies</groupId>
-            <artifactId>orientdb-server</artifactId>
-            <version>1.6</version>
+        	<groupId>com.orientechnologies</groupId>
+        	<artifactId>orient-commons</artifactId>
+        	<version>1.6</version>
         </dependency>
-		
+
         <dependency>
             <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-graphdb</artifactId>
@@ -44,47 +38,11 @@
         </dependency>
 
         <dependency>
-        	<groupId>com.orientechnologies</groupId>
-        	<artifactId>orient-commons</artifactId>
-        	<version>1.6</version>
+            <groupId>com.orientechnologies</groupId>
+            <artifactId>orientdb-server</artifactId>
+            <version>1.6</version>
         </dependency>
 
-		<dependency>
-        	<groupId>com.orientechnologies</groupId>
-        	<artifactId>orientdb-enterprise</artifactId>
-        	<version>1.6</version>
-        </dependency>
-
-		<dependency>
-        	<groupId>com.orientechnologies</groupId>
-        	<artifactId>orientdb-core</artifactId>
-        	<version>1.6</version>
-        </dependency>
-
-        <dependency>
-        	<groupId>com.orientechnologies</groupId>
-        	<artifactId>orientdb-client</artifactId>
-        	<version>1.6</version>
-        </dependency>
-
-        <dependency>
-        	<groupId>com.orientechnologies</groupId>
-        	<artifactId>orientdb-distributed</artifactId>
-        	<version>1.6</version>
-        </dependency>
-
-        <dependency>
-        	<groupId>com.orientechnologies</groupId>
-        	<artifactId>orientdb-object</artifactId>
-        	<version>1.6</version>
-        </dependency>
-
-        <dependency>
-        	<groupId>com.orientechnologies</groupId>
-        	<artifactId>orientdb-tools</artifactId>
-        	<version>1.6</version>
-        </dependency>
-		
         <dependency>
             <groupId>com.tinkerpop</groupId>
             <artifactId>frames</artifactId>
@@ -100,7 +58,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
-
+   
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-jaxrs</artifactId>
@@ -114,9 +72,9 @@
         </dependency>
 	    
         <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>resteasy-jettison-provider</artifactId>
-            <version>3.0.5.Final</version>
+        	<groupId>org.jboss.resteasy</groupId>
+        	<artifactId>resteasy-jackson2-provider</artifactId>
+        	<version>3.0.5.Final</version>
         </dependency>
 
         <dependency>

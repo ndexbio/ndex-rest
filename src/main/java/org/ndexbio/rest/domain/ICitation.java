@@ -2,14 +2,10 @@ package org.ndexbio.rest.domain;
 
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
-
 import java.util.List;
 
-/**
- * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
- * @since 10/30/13
- */
-public interface XCitation extends VertexFrame {
+public interface ICitation extends VertexFrame
+{
     @Property("identifier")
     public String getIdentifier();
 
@@ -33,7 +29,6 @@ public interface XCitation extends VertexFrame {
 
     @Property("contributors")
     public void setContributors(List<String> contributors);
-
 
     @Property("jdex_id")
     public String getJdexId();

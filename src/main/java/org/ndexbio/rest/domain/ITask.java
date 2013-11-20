@@ -4,19 +4,15 @@ import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
-
 import java.util.Date;
 
-/**
- * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
- * @since 11/1/13
- */
-public interface XTask extends VertexFrame {
+public interface ITask extends VertexFrame
+{
     @Adjacency(label = "owner", direction = Direction.IN)
-    public Iterable<XUser> getOwner();
+    public Iterable<IUser> getOwner();
 
     @Adjacency(label = "owner", direction = Direction.IN)
-    public void addOwner(XUser owner);
+    public void addOwner(IUser owner);
 
     @Property("status")
     public void setStatus(String status);

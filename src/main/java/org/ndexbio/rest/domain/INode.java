@@ -4,11 +4,8 @@ import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
 
-/**
- * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
- * @since 10/30/13
- */
-public interface XNode extends VertexFrame {
+public interface INode extends VertexFrame
+{
     @Property("name")
     public String getName();
 
@@ -22,8 +19,8 @@ public interface XNode extends VertexFrame {
     public String getJdexId();
 
     @Adjacency(label = "represents")
-    public Iterable<XTerm> getRepresents();
+    public Iterable<ITerm> getRepresents();
 
     @Adjacency(label = "represents")
-    public void addRepresents(XTerm term);
+    public void addRepresents(ITerm term);
 }

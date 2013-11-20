@@ -2,9 +2,9 @@ package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.ndexbio.rest.domain.XGroup;
-import org.ndexbio.rest.domain.XNetwork;
-import org.ndexbio.rest.domain.XUser;
+import org.ndexbio.rest.domain.IGroup;
+import org.ndexbio.rest.domain.INetwork;
+import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.helpers.RidConverter;
 import com.orientechnologies.orient.core.id.ORID;
 
@@ -24,6 +24,9 @@ public class User
 
     
     
+    /**************************************************************************
+    * Default constructor.
+    **************************************************************************/
     public User()
     {
         _ownedGroups = new ArrayList<Group>();
@@ -31,7 +34,25 @@ public class User
         _workSurface = new ArrayList<Network>();
     }
     
-    public User(XUser user)
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * Doesn't load owned Groups or Networks.
+    * 
+    * @param user The User with source data.
+    **************************************************************************/
+    public User(IUser user)
+    {
+        this(user, false);
+    }
+    
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * 
+    * @param user The User with source data.
+    * @param loadEverything True to load owned Groups and Networks, false to
+    *                       exclude them.
+    **************************************************************************/
+    public User(IUser user, boolean loadEverything)
     {
         this();
         
@@ -44,14 +65,17 @@ public class User
         _username = user.getUsername();
         _website = user.getWebsite();
         
-        for (XGroup ownedGroup : user.getOwnedGroups())
-            _ownedGroups.add(new Group(ownedGroup));
-        
-        for (XNetwork ownedNetwork : user.getOwnedNetworks())
-            _ownedNetworks.add(new Network(ownedNetwork));
-        
-        for (XNetwork onWorkSurface : user.getWorkspace())
+        for (INetwork onWorkSurface : user.getWorkspace())
             _workSurface.add(new Network(onWorkSurface));
+
+        if (loadEverything)
+        {
+            for (IGroup ownedGroup : user.getOwnedGroups())
+                _ownedGroups.add(new Group(ownedGroup));
+            
+            for (INetwork ownedNetwork : user.getOwnedNetworks())
+                _ownedNetworks.add(new Network(ownedNetwork));
+        }
     }
     
     

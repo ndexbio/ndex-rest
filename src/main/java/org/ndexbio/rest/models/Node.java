@@ -1,8 +1,9 @@
 package org.ndexbio.rest.models;
 
+import java.util.ArrayList;
 import java.util.List;
-import org.ndexbio.rest.domain.XNode;
-import org.ndexbio.rest.domain.XTerm;
+import org.ndexbio.rest.domain.INode;
+import org.ndexbio.rest.domain.ITerm;
 
 public class Node
 {
@@ -12,16 +13,27 @@ public class Node
     
     
     
+    /**************************************************************************
+    * Default constructor.
+    **************************************************************************/
     public Node()
     {
+        _represents = new ArrayList<Term>();
     }
     
-    public Node(XNode node)
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * 
+    * @param node The Node with source data.
+    **************************************************************************/
+    public Node(INode node)
     {
+        this();
+        
         _jdexId = node.getJdexId();
         _name = node.getName();
         
-        for (XTerm term : node.getRepresents())
+        for (ITerm term : node.getRepresents())
             _represents.add(new Term(term));
     }
     

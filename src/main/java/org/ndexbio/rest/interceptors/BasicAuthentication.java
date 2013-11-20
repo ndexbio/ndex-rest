@@ -17,19 +17,16 @@ import org.jboss.resteasy.spi.Failure;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.jboss.resteasy.spi.interception.PreProcessInterceptor;
 import org.jboss.resteasy.util.Base64;
-import org.ndexbio.rest.domain.XBaseTerm;
-import org.ndexbio.rest.domain.XFunctionTerm;
-import org.ndexbio.rest.domain.XTerm;
-import org.ndexbio.rest.domain.XUser;
+import org.ndexbio.rest.domain.IBaseTerm;
+import org.ndexbio.rest.domain.IFunctionTerm;
+import org.ndexbio.rest.domain.ITerm;
+import org.ndexbio.rest.domain.IUser;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.exception.ODatabaseException;
-import com.orientechnologies.orient.core.exception.OSecurityAccessException;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
-import com.orientechnologies.orient.server.OServer;
-import com.orientechnologies.orient.server.OServerMain;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.frames.FramedGraph;
@@ -82,15 +79,11 @@ public class BasicAuthentication implements PreProcessInterceptor
     **************************************************************************/
     private boolean authenticateUser(final String[] authInfo) throws Exception
     {
-        final OServer orientDbServer = OServerMain.create();
-        orientDbServer.startup();
-        orientDbServer.activate();
-        
         final FramedGraphFactory graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
             new TypedGraphModuleBuilder()
-            .withClass(XTerm.class)
-            .withClass(XFunctionTerm.class)
-            .withClass(XBaseTerm.class)
+            .withClass(ITerm.class)
+            .withClass(IFunctionTerm.class)
+            .withClass(IBaseTerm.class)
             .build());
 
         ODatabaseDocumentTx ndexDatabase = null;
@@ -104,7 +97,7 @@ public class BasicAuthentication implements PreProcessInterceptor
             if (usersFound.size() < 1)
                 return false;
             
-            XUser authUser = orientDbGraph.getVertex(usersFound.toArray()[0], XUser.class);
+            IUser authUser = orientDbGraph.getVertex(usersFound.toArray()[0], IUser.class);
             
             if (authInfo[1] != authUser.getPassword())
                 return false;
@@ -117,7 +110,8 @@ public class BasicAuthentication implements PreProcessInterceptor
         }
         finally
         {
-            orientDbServer.shutdown();
+            if (ndexDatabase != null)
+                ndexDatabase.close();
         }
 
         return false;

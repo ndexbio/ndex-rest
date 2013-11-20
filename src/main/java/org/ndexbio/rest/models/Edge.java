@@ -2,9 +2,9 @@ package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.ndexbio.rest.domain.XEdge;
-import org.ndexbio.rest.domain.XNode;
-import org.ndexbio.rest.domain.XTerm;
+import org.ndexbio.rest.domain.IEdge;
+import org.ndexbio.rest.domain.INode;
+import org.ndexbio.rest.domain.ITerm;
 
 public class Edge
 {
@@ -14,6 +14,9 @@ public class Edge
     
     
     
+    /**************************************************************************
+    * Default constructor.
+    **************************************************************************/
     public Edge()
     {
         _object = new ArrayList<Node>();
@@ -21,17 +24,22 @@ public class Edge
         _subject = new ArrayList<Node>();
     }
     
-    public Edge(XEdge edge)
+    /**************************************************************************
+    * Populates the class (from the database) and removes circular references.
+    * 
+    * @param edge The Edge with source data.
+    **************************************************************************/
+    public Edge(IEdge edge)
     {
         this();
         
-        for (XNode object : edge.getObject())
+        for (INode object : edge.getObject())
             _object.add(new Node(object));
 
-        for (XTerm predicate : edge.getPredicate())
+        for (ITerm predicate : edge.getPredicate())
             _predicate.add(new Term(predicate));
 
-        for (XNode subject: edge.getSubject())
+        for (INode subject: edge.getSubject())
             _subject.add(new Node(subject));
     }
     

@@ -1,15 +1,13 @@
 package org.ndexbio.rest.services;
 
 import org.ndexbio.rest.NdexSchemaManager;
-import org.ndexbio.rest.domain.XBaseTerm;
-import org.ndexbio.rest.domain.XFunctionTerm;
-import org.ndexbio.rest.domain.XTerm;
+import org.ndexbio.rest.domain.IBaseTerm;
+import org.ndexbio.rest.domain.IFunctionTerm;
+import org.ndexbio.rest.domain.ITerm;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.exception.ODatabaseException;
-//import com.orientechnologies.orient.server.OServer;
-//import com.orientechnologies.orient.server.OServerMain;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.frames.FramedGraph;
@@ -19,7 +17,6 @@ import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 public abstract class NdexService
 {
-//    protected OServer _orientDbServer = null;
     protected FramedGraphFactory _graphFactory = null;
     protected ODatabaseDocumentTx _ndexDatabase = null;
     protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
@@ -31,15 +28,11 @@ public abstract class NdexService
     {
         try
         {
-//            _orientDbServer = OServerMain.create();
-//            _orientDbServer.startup();
-//            _orientDbServer.activate();
-            
             _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
                 new TypedGraphModuleBuilder()
-                    .withClass(XTerm.class)
-                    .withClass(XFunctionTerm.class)
-                    .withClass(XBaseTerm.class)
+                    .withClass(ITerm.class)
+                    .withClass(IFunctionTerm.class)
+                    .withClass(IBaseTerm.class)
                     .build());
             
             //TODO: Refactor this to connect using a configurable username/password, and database
