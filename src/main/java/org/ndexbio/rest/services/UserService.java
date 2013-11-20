@@ -196,6 +196,7 @@ public class UserService extends NdexService
         }
         catch (ValidationException ve)
         {
+            //The user ID is actually a username
             final Iterable<ODocument> matchingUsers = _orientDbGraph
                 .getBaseGraph()
                 .command(new OCommandSQL("select from xUser where username = ?"))

@@ -28,6 +28,9 @@ public abstract class NdexService
     {
         try
         {
+            //TODO: Refactor this to connect using a configurable username/password, and database
+            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
+
             _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
                 new TypedGraphModuleBuilder()
                     .withClass(ITerm.class)
@@ -35,8 +38,6 @@ public abstract class NdexService
                     .withClass(IBaseTerm.class)
                     .build());
             
-            //TODO: Refactor this to connect using a configurable username/password, and database
-            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
             _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
             NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
         }

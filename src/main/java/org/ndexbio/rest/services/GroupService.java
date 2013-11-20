@@ -70,6 +70,7 @@ public class GroupService extends NdexService
         }
         catch (ValidationException ve)
         {
+            //The group ID is actually a group name
             final Collection<ODocument> matchingGroups = _orientDbGraph
                 .getBaseGraph()
                 .command(new OCommandSQL("select from xGroup where groupname = ?"))

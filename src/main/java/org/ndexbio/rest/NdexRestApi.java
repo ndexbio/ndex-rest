@@ -8,15 +8,15 @@ import org.ndexbio.rest.services.UserService;
 
 public class NdexRestApi extends Application
 {
-    private Set<Object> _services = new HashSet<Object>();
-    private Set<Class<?>> _empty = new HashSet<Class<?>>();
+    private final Set<Object> _providers = new HashSet<Object>();
+    private final Set<Class<?>> _resources = new HashSet<Class<?>>();
     
     
     
     public NdexRestApi()
     {
-        _services.add(new GroupService());
-        _services.add(new UserService());
+        _resources.add(GroupService.class);
+        _resources.add(UserService.class);
     }
     
     
@@ -24,12 +24,12 @@ public class NdexRestApi extends Application
     @Override
     public Set<Class<?>> getClasses()
     {
-        return _empty;
+        return _resources;
     }
     
     @Override
     public Set<Object> getSingletons()
     {
-        return _services;
+        return _providers;
     }
 }
