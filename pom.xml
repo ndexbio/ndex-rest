@@ -35,14 +35,54 @@
             <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-server</artifactId>
             <version>1.6</version>
-            <scope>provided</scope>
         </dependency>
 		
         <dependency>
             <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-graphdb</artifactId>
             <version>1.6</version>
-            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+        	<groupId>com.orientechnologies</groupId>
+        	<artifactId>orient-commons</artifactId>
+        	<version>1.6</version>
+        </dependency>
+
+		<dependency>
+        	<groupId>com.orientechnologies</groupId>
+        	<artifactId>orientdb-enterprise</artifactId>
+        	<version>1.6</version>
+        </dependency>
+
+		<dependency>
+        	<groupId>com.orientechnologies</groupId>
+        	<artifactId>orientdb-core</artifactId>
+        	<version>1.6</version>
+        </dependency>
+
+        <dependency>
+        	<groupId>com.orientechnologies</groupId>
+        	<artifactId>orientdb-client</artifactId>
+        	<version>1.6</version>
+        </dependency>
+
+        <dependency>
+        	<groupId>com.orientechnologies</groupId>
+        	<artifactId>orientdb-distributed</artifactId>
+        	<version>1.6</version>
+        </dependency>
+
+        <dependency>
+        	<groupId>com.orientechnologies</groupId>
+        	<artifactId>orientdb-object</artifactId>
+        	<version>1.6</version>
+        </dependency>
+
+        <dependency>
+        	<groupId>com.orientechnologies</groupId>
+        	<artifactId>orientdb-tools</artifactId>
+        	<version>1.6</version>
         </dependency>
 		
         <dependency>

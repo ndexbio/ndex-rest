@@ -19,7 +19,7 @@ import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 public abstract class NdexService
 {
-    //protected OServer _orientDbServer = null;
+//    protected OServer _orientDbServer = null;
     protected FramedGraphFactory _graphFactory = null;
     protected ODatabaseDocumentTx _ndexDatabase = null;
     protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
@@ -31,9 +31,9 @@ public abstract class NdexService
     {
         try
         {
-            //_orientDbServer = OServerMain.create();
-            //_orientDbServer.startup();
-            //_orientDbServer.activate();
+//            _orientDbServer = OServerMain.create();
+//            _orientDbServer.startup();
+//            _orientDbServer.activate();
             
             _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
                 new TypedGraphModuleBuilder()
