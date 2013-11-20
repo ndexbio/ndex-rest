@@ -2,8 +2,12 @@ package org.ndexbio.rest;
 
 import java.util.HashSet;
 import java.util.Set;
+
 import javax.ws.rs.core.Application;
+
 import org.ndexbio.rest.services.GroupService;
+import org.ndexbio.rest.services.RequestService;
+import org.ndexbio.rest.services.TaskService;
 import org.ndexbio.rest.services.UserService;
 
 public class NdexRestApi extends Application
@@ -15,8 +19,15 @@ public class NdexRestApi extends Application
     
     public NdexRestApi()
     {
-        _resources.add(GroupService.class);
-        _resources.add(UserService.class);
+    	_resources.add(GroupService.class); 
+        _resources.add(UserService.class); 
+        _resources.add(RequestService.class);
+        _resources.add(TaskService.class); 
+
+        _providers.add(new GroupService());
+        _providers.add(new UserService());
+        _providers.add(new  RequestService());
+        _providers.add(new TaskService());
     }
     
     
