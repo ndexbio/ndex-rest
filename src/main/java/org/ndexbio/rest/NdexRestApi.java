@@ -5,6 +5,7 @@ import java.util.Set;
 
 import javax.ws.rs.core.Application;
 
+import org.ndexbio.rest.interceptors.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.GroupService;
 import org.ndexbio.rest.services.RequestService;
 import org.ndexbio.rest.services.TaskService;
@@ -16,7 +17,6 @@ public class NdexRestApi extends Application
     private final Set<Class<?>> _resources = new HashSet<Class<?>>();
     
     
-    
     public NdexRestApi()
     {
     	_resources.add(GroupService.class); 
@@ -24,12 +24,9 @@ public class NdexRestApi extends Application
         _resources.add(RequestService.class);
         _resources.add(TaskService.class); 
 
-        _providers.add(new GroupService());
-        _providers.add(new UserService());
-        _providers.add(new  RequestService());
-        _providers.add(new TaskService());
+        _providers.add(new BasicAuthenticationFilter());
+        
     }
-    
     
     
     @Override
