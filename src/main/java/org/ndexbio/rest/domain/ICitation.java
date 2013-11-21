@@ -6,17 +6,23 @@ import java.util.List;
 
 public interface ICitation extends VertexFrame
 {
+    @Property("contributors")
+    public List<String> getContributors();
+
+    @Property("contributors")
+    public void setContributors(List<String> contributors);
+
     @Property("identifier")
     public String getIdentifier();
 
     @Property("identifier")
     public void setIdentifier(String identifier);
 
-    @Property("type")
-    public String getType();
+    @Property("jdexId")
+    public String getJdexId();
 
-    @Property("type")
-    public void setType(String type);
+    @Property("jdexId")
+    public void setJdexId(String jdexId);
 
     @Property("title")
     public String getTitle();
@@ -24,15 +30,9 @@ public interface ICitation extends VertexFrame
     @Property("title")
     public void setTitle(String title);
 
-    @Property("contributors")
-    public List<String> getContributors();
+    @Property("type")
+    public String getType();
 
-    @Property("contributors")
-    public void setContributors(List<String> contributors);
-
-    @Property("jdex_id")
-    public String getJdexId();
-
-    @Property("jdex_id")
-    public void setJdexId(String jdexId);
+    @Property("type")
+    public void setType(String type);
 }

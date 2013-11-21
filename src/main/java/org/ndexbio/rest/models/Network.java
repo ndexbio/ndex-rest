@@ -11,15 +11,12 @@ import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
-import org.ndexbio.rest.helpers.RidConverter;
-import com.orientechnologies.orient.core.id.ORID;
 
-public class Network
+public class Network extends NdexObject
 {
     private List<Citation> _citations;
     private List<Edge> _edges;
     private String _format;
-    private String _id;
     private List<Namespace> _namespaces;
     private List<Node> _nodes;
     private Map<String, String> _properties;
@@ -33,6 +30,8 @@ public class Network
     **************************************************************************/
     public Network()
     {
+        super();
+        
         _citations = new ArrayList<Citation>();
         _edges = new ArrayList<Edge>();
         _namespaces = new ArrayList<Namespace>();
@@ -62,10 +61,17 @@ public class Network
     **************************************************************************/
     public Network(INetwork network, boolean loadEverything)
     {
-        this();
+        super(network);
         
+        _citations = new ArrayList<Citation>();
+        _edges = new ArrayList<Edge>();
+        _namespaces = new ArrayList<Namespace>();
+        _nodes = new ArrayList<Node>();
+        _properties = new HashMap<String, String>();
+        _supports = new ArrayList<Support>();
+        _terms = new ArrayList<Term>();
+
         _format = network.getFormat();
-        _id = RidConverter.convertToJid((ORID)network.asVertex().getId());
         _properties.putAll(network.getProperties());
         
         for (ICitation citation : network.getCitations())
@@ -82,7 +88,7 @@ public class Network
             for (IEdge edge : network.getNdexEdges())
                 _edges.add(new Edge(edge));
             
-            for (INode node : network.getNodes())
+            for (INode node : network.getNdexNodes())
                 _nodes.add(new Node(node));
             
             for (ITerm term : network.getTerms())
@@ -102,16 +108,6 @@ public class Network
         _citations = citations;
     }
     
-    public List<Edge> getEdges()
-    {
-        return _edges;
-    }
-    
-    public void setEdges(List<Edge> edges)
-    {
-        _edges = edges;
-    }
-    
     public String getFormat()
     {
         return _format;
@@ -120,16 +116,6 @@ public class Network
     public void setFormat(String format)
     {
         _format = format;
-    }
-    
-    public String getId()
-    {
-        return _id;
-    }
-    
-    public void setId(String id)
-    {
-        _id = id;
     }
     
     public List<Namespace> getNamespaces()
@@ -142,12 +128,22 @@ public class Network
         _namespaces = namespaces;
     }
     
-    public List<Node> getNodes()
+    public List<Edge> getNdexEdges()
+    {
+        return _edges;
+    }
+    
+    public void setNdexEdges(List<Edge> edges)
+    {
+        _edges = edges;
+    }
+
+    public List<Node> getNdexNodes()
     {
         return _nodes;
     }
     
-    public void setNodes(List<Node> nodes)
+    public void setNdexNodes(List<Node> nodes)
     {
         _nodes = nodes;
     }

@@ -6,15 +6,9 @@ import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.modules.typedgraph.TypeValue;
 import java.util.Map;
 
-@TypeValue("xFunctionTerm")
+@TypeValue("functionTerm")
 public interface IFunctionTerm extends ITerm
 {
-    @Property("textParameters")
-    public void setTextParameters(Map<Integer, String> textParameters);
-
-    @Property("textParameters")
-    public Map<Integer, String> getTextParameters();
-
     @Property("linkParameters")
     public Map<Integer, ORID> getLinkParameters();
 
@@ -26,4 +20,10 @@ public interface IFunctionTerm extends ITerm
 
     @Adjacency(label = "termFunction")
     public ITerm getTermFunction();
+
+    @Property("textParameters")
+    public void setTextParameters(Map<Integer, String> textParameters);
+
+    @Property("textParameters")
+    public Map<Integer, String> getTextParameters();
 }

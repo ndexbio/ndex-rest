@@ -6,21 +6,21 @@ import com.tinkerpop.frames.VertexFrame;
 import com.tinkerpop.frames.modules.typedgraph.TypeField;
 import com.tinkerpop.frames.modules.typedgraph.TypeValue;
 
-@TypeField("type")
-@TypeValue("xTerm")
+@TypeField("termType")
+@TypeValue("term")
 public interface ITerm extends VertexFrame
 {
+    @Property("jdexId")
+    public String getJdexId();
+
+    @Property("jdexId")
+    public void setJdexId(String jdexId);
+
     @Property("name")
     public String getName();
 
     @Property("name")
     public void setName(String name);
-
-    @Property("jdex_id")
-    public String getJdexId();
-
-    @Property("jdex_id")
-    public void setJdexId(String jdexId);
 
     @Adjacency(label = "namespace")
     public INamespace getNamespace();

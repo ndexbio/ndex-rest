@@ -2,7 +2,7 @@ package org.ndexbio.rest.models;
 
 import org.ndexbio.rest.domain.INamespace;
 
-public class Namespace
+public class Namespace extends NdexObject
 {
     private String _jdexId;
     private String _prefix;
@@ -15,6 +15,7 @@ public class Namespace
     **************************************************************************/
     public Namespace()
     {
+        super();
     }
     
     /**************************************************************************
@@ -24,6 +25,8 @@ public class Namespace
     **************************************************************************/
     public Namespace (INamespace namespace)
     {
+        super(namespace);
+        
         _jdexId = namespace.getJdexId();
         _prefix = namespace.getPrefix();
         _uri = namespace.getUri();

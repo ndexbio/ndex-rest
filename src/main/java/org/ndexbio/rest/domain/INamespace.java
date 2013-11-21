@@ -5,10 +5,10 @@ import com.tinkerpop.frames.VertexFrame;
 
 public interface INamespace extends VertexFrame
 {
-    @Property("jdex_id")
+    @Property("jdexId")
     public String getJdexId();
 
-    @Property("jdex_id")
+    @Property("jdexId")
     public void setJdexId(String jdexId);
 
     @Property("prefix")

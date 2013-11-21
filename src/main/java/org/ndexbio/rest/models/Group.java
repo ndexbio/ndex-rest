@@ -5,16 +5,13 @@ import java.util.Date;
 import java.util.List;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INetwork;
-import org.ndexbio.rest.helpers.RidConverter;
-import com.orientechnologies.orient.core.id.ORID;
 
-public class Group
+public class Group extends NdexObject
 {
     private String _backgroundImage;
     private Date _creationDate;
     private String _description;
     private String _foregroundImage;
-    private String _id;
     private String _name;
     private String _organizationName;
     private List<Network> _networksOwned;
@@ -27,6 +24,8 @@ public class Group
     **************************************************************************/
     public Group()
     {
+        super();
+        
         _networksOwned = new ArrayList<Network>();
     }
     
@@ -50,14 +49,15 @@ public class Group
     **************************************************************************/
     public Group(IGroup group, boolean loadEverything)
     {
-        this();
+        super(group);
         
-        _backgroundImage = group.getBackgroundImg();
-        _creationDate = group.getCreationDate();
+        _networksOwned = new ArrayList<Network>();
+
+        _backgroundImage = group.getBackgroundImage();
+        _creationDate = group.getCreatedDate();
         _description = group.getDescription();
-        _foregroundImage = group.getForegroundImg();
-        _id = RidConverter.convertToJid((ORID)group.asVertex().getId());
-        _name = group.getGroupName();
+        _foregroundImage = group.getForegroundImage();
+        _name = group.getName();
         _organizationName = group.getOrganizationName();
         _website = group.getWebsite();
         
@@ -105,16 +105,6 @@ public class Group
         _foregroundImage = foregroundImage;
     }
     
-    public String getId()
-    {
-        return _id;
-    }
-    
-    public void setId(String id)
-    {
-        _id = id;
-    }
-    
     public String getName()
     {
         return _name;
@@ -150,7 +140,7 @@ public class Group
         return _website;
     }
     
-    public void setProfile(String website)
+    public void setWebsite(String website)
     {
         _website = website;
     }

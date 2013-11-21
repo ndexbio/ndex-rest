@@ -1,26 +1,30 @@
 package org.ndexbio.rest.domain;
 
+import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
 
 public interface INode extends VertexFrame
 {
+    @Property("jdexId")
+    public void setJdexId(String jdexId);
+
+    @Property("jdexId")
+    public String getJdexId();
+
     @Property("name")
     public String getName();
 
     @Property("name")
     public void setName(String name);
 
-    @Property("jdex_id")
-    public void setJdexId(String jdexId);
+    @Adjacency(label = "represents", direction = Direction.OUT)
+    public void addRepresents(ITerm term);
 
-    @Property("jdex_id")
-    public String getJdexId();
-
-    @Adjacency(label = "represents")
+    @Adjacency(label = "represents", direction = Direction.OUT)
     public Iterable<ITerm> getRepresents();
 
-    @Adjacency(label = "represents")
-    public void addRepresents(ITerm term);
+    @Adjacency(label = "represents", direction = Direction.OUT)
+    public void removeRepresents(ITerm term);
 }

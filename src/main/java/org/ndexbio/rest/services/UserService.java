@@ -44,7 +44,7 @@ public class UserService extends NdexService
         if (network == null)
             throw new ObjectNotFoundException("Network", networkToAdd.getId());
         
-        Iterable<INetwork> workSurface = user.getWorkspace();
+        Iterable<INetwork> workSurface = user.getWorkSurface();
         if (workSurface != null)
         {
             for (INetwork checkNetwork : workSurface)
@@ -56,7 +56,7 @@ public class UserService extends NdexService
 
         try
         {
-            user.addWorkspace(network);
+            user.addNetworkToWorkSurface(network);
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
@@ -79,7 +79,7 @@ public class UserService extends NdexService
     {
         try
         {
-            final IUser newUser = _orientDbGraph.addVertex("class:xUser", IUser.class);
+            final IUser newUser = _orientDbGraph.addVertex("class:user", IUser.class);
             newUser.setUsername(username);
             newUser.setPassword(password);
             newUser.setEmailAddress(emailAddress);
@@ -113,22 +113,30 @@ public class UserService extends NdexService
         if (user == null)
             throw new ObjectNotFoundException("User", userJid);
 
-        Iterable<INetwork> workSurface = user.getWorkspace();
-        if (workSurface == null)
-            return;
+        INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+        if (network == null)
+            throw new ObjectNotFoundException("Network", networkToDelete.getId());
+        
+
+//        Iterable<INetwork> workSurface = user.getWorkSurface();
+//        if (workSurface == null)
+//            return;
 
         try
         {
-            Iterator<INetwork> networkIterator = workSurface.iterator();
-            while (networkIterator.hasNext())
-            {
-                INetwork network = networkIterator.next();
-                if (network.asVertex().getId().equals(networkRid))
-                {
-                    networkIterator.remove();
-                    break;
-                }
-            }
+            user.removeNetworkFromWorkSurface(network);
+            _orientDbGraph.getBaseGraph().commit();
+
+//            Iterator<INetwork> networkIterator = workSurface.iterator();
+//            while (networkIterator.hasNext())
+//            {
+//                INetwork network = networkIterator.next();
+//                if (network.asVertex().getId().equals(networkRid))
+//                {
+//                    networkIterator.remove();
+//                    break;
+//                }
+//            }
         }
         catch (Exception e)
         {
@@ -177,7 +185,7 @@ public class UserService extends NdexService
     @GET
     @Path("/{userId}/owned-groups")
     @Produces("application/json")
-    public Collection<Group> getGroups(@PathParam("userId")final String userJid) throws NdexException
+    public Collection<Group> getOwnedGroups(@PathParam("userId")final String userJid) throws NdexException
     {
         final ORID userRid = RidConverter.convertToRid(userJid);
         final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
@@ -195,7 +203,7 @@ public class UserService extends NdexService
     @GET
     @Path("/{userId}/owned-networks")
     @Produces("application/json")
-    public Collection<Network> getNetworks(@PathParam("userId")final String userJid) throws NdexException
+    public Collection<Network> getOwnedNetworks(@PathParam("userId")final String userJid) throws NdexException
     {
         final ORID userRid = RidConverter.convertToRid(userJid);
         final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
@@ -250,7 +258,7 @@ public class UserService extends NdexService
         try
         {
             if (updatedUser.getBackgroundImage() != null)
-                existingUser.setBackgroundImg(updatedUser.getBackgroundImage());
+                existingUser.setBackgroundImage(updatedUser.getBackgroundImage());
     
             if (updatedUser.getDescription() != null)
                 existingUser.setDescription(updatedUser.getDescription());
@@ -259,7 +267,7 @@ public class UserService extends NdexService
                 existingUser.setFirstName(updatedUser.getFirstName());
     
             if (updatedUser.getForegroundImage() != null)
-                existingUser.setForegroundImg(updatedUser.getForegroundImage());
+                existingUser.setForegroundImage(updatedUser.getForegroundImage());
     
             if (updatedUser.getLastName() != null)
                 existingUser.setLastName(updatedUser.getLastName());

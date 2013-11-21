@@ -17,8 +17,8 @@ import org.jboss.resteasy.spi.Failure;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.jboss.resteasy.spi.interception.PreProcessInterceptor;
 import org.jboss.resteasy.util.Base64;
-import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.IFunctionTerm;
+import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.rest.domain.IUser;
 import com.orientechnologies.common.log.OLogManager;
@@ -81,10 +81,11 @@ public class BasicAuthentication implements PreProcessInterceptor
     {
         final FramedGraphFactory graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
             new TypedGraphModuleBuilder()
-            .withClass(ITerm.class)
-            .withClass(IFunctionTerm.class)
-            .withClass(IBaseTerm.class)
-            .build());
+                .withClass(IGroup.class)
+                .withClass(IUser.class)
+                .withClass(ITerm.class)
+                .withClass(IFunctionTerm.class)
+                .build());
 
         ODatabaseDocumentTx ndexDatabase = null;
         try
