@@ -5,17 +5,14 @@ import java.util.List;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
-import org.ndexbio.rest.helpers.RidConverter;
-import com.orientechnologies.orient.core.id.ORID;
 
-public class User
+public class User extends NdexObject
 {
     private String _backgroundImage;
     private String _description;
     private String _emailAddress;
     private String _firstName;
     private String _foregroundImage;
-    private String _id;
     private String _lastName;
     private List<Group> _ownedGroups;
     private List<Network> _ownedNetworks;
@@ -30,6 +27,8 @@ public class User
     **************************************************************************/
     public User()
     {
+        super();
+        
         _ownedGroups = new ArrayList<Group>();
         _ownedNetworks = new ArrayList<Network>();
         _workSurface = new ArrayList<Network>();
@@ -55,18 +54,21 @@ public class User
     **************************************************************************/
     public User(IUser user, boolean loadEverything)
     {
-        this();
+        super(user);
         
-        _backgroundImage = user.getBackgroundImg();
+        _ownedGroups = new ArrayList<Group>();
+        _ownedNetworks = new ArrayList<Network>();
+        _workSurface = new ArrayList<Network>();
+        
+        _backgroundImage = user.getBackgroundImage();
         _description = user.getDescription();
         _firstName = user.getFirstName();
-        _foregroundImage = user.getForegroundImg();
-        _id = RidConverter.convertToJid((ORID)user.asVertex().getId());
+        _foregroundImage = user.getForegroundImage();
         _lastName = user.getLastName();
         _username = user.getUsername();
         _website = user.getWebsite();
         
-        for (INetwork onWorkSurface : user.getWorkspace())
+        for (INetwork onWorkSurface : user.getWorkSurface())
             _workSurface.add(new Network(onWorkSurface));
 
         if (loadEverything)
@@ -129,16 +131,6 @@ public class User
     public void setForegroundImg(String foregroundImage)
     {
         _foregroundImage = foregroundImage;
-    }
-    
-    public String getId()
-    {
-        return _id;
-    }
-    
-    public void setId(String id)
-    {
-        _id = id;
     }
 
     public String getLastName()

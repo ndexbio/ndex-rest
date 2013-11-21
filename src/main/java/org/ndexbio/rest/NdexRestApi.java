@@ -23,11 +23,6 @@ public class NdexRestApi extends Application
         _resources.add(UserService.class); 
         _resources.add(RequestService.class);
         _resources.add(TaskService.class); 
-
-        _providers.add(new GroupService());
-        _providers.add(new UserService());
-        _providers.add(new  RequestService());
-        _providers.add(new TaskService());
     }
     
     

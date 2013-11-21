@@ -3,21 +3,11 @@ package org.ndexbio.rest.domain;
 import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
+import com.tinkerpop.frames.modules.typedgraph.TypeValue;
 
+@TypeValue("user")
 public interface IUser extends IAccount
 {
-    @Property("backgroundImg")
-    public String getBackgroundImg();
-
-    @Property("backgroundImg")
-    public void setBackgroundImg(String backgroundImg);
-
-    @Property("description")
-    public String getDescription();
-
-    @Property("description")
-    public void setDescription(String description);
-
     @Property("emailAddress")
     public String getEmailAddress();
 
@@ -30,32 +20,29 @@ public interface IUser extends IAccount
     @Property("firstName")
     public void setFirstName(String firstName);
 
-    @Property("foregroundImg")
-    public String getForegroundImg();
-
-    @Property("foregroundImg")
-    public void setForegroundImg(String foregroundImg);
-
     @Property("lastName")
     public String getLastName();
 
     @Property("lastName")
     public void setLastName(String lastName);
 
-    @Adjacency(label = "ownsGroup")
+    @Adjacency(label = "ownedGroups", direction = Direction.OUT)
     public void addOwnedGroup(IGroup group);
 
-    @Adjacency(label = "ownsGroup")
+    @Adjacency(label = "ownedGroups", direction = Direction.OUT)
     public Iterable<IGroup> getOwnedGroups();
+    
+    @Adjacency(label = "ownedGroups", direction = Direction.OUT)
+    public void removeOwnedGroup(IGroup group);
 
-    @Adjacency(label = "ownsNetwork")
+    @Adjacency(label = "ownedNetworks", direction = Direction.OUT)
     public Iterable<INetwork> getOwnedNetworks();
 
-    @Adjacency(label = "ownsNetwork", direction = Direction.OUT)
-    public void addOwnsNetwork(INetwork network);
+    @Adjacency(label = "ownedNetworks", direction = Direction.OUT)
+    public void addOwnedNetwork(INetwork network);
 
-    @Adjacency(label = "ownsNetwork")
-    public void removeOwnsNetwork(INetwork network);
+    @Adjacency(label = "ownedNetworks", direction = Direction.OUT)
+    public void removeOwnedNetwork(INetwork network);
 
     @Property("password")
     public String getPassword();
@@ -75,12 +62,12 @@ public interface IUser extends IAccount
     @Property("website")
     public String getWebsite();
 
-    @Adjacency(label = "workspace")
-    public Iterable<INetwork> getWorkspace();
+    @Adjacency(label = "workSurface", direction = Direction.OUT)
+    public Iterable<INetwork> getWorkSurface();
 
-    @Adjacency(label = "workspace")
-    public void addWorkspace(INetwork network);
+    @Adjacency(label = "workSurface", direction = Direction.OUT)
+    public void addNetworkToWorkSurface(INetwork network);
 
-    @Adjacency(label = "workspace")
-    public void removeWorkspace(INetwork network);
+    @Adjacency(label = "workSurface", direction = Direction.OUT)
+    public void removeNetworkFromWorkSurface(INetwork network);
 }

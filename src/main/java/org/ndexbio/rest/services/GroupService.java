@@ -25,6 +25,45 @@ import com.tinkerpop.blueprints.Vertex;
 @Path("/groups")
 public class GroupService extends NdexService
 {
+    @PUT
+    @Produces("application/json")
+    public Group createGroup(final String ownerId, final Group newGroup) throws NdexException
+    {
+        ORID userRid = RidConverter.convertToRid(ownerId);
+        
+        final IUser groupOwner = _orientDbGraph.getVertex(userRid, IUser.class);
+        if (groupOwner == null)
+            throw new ObjectNotFoundException("User", ownerId);
+
+        final Pattern groupNamePattern = Pattern.compile("^[A-Za-z0-9]{6,}$");
+        if (!groupNamePattern.matcher(newGroup.getName()).matches())
+            throw new ValidationException("Invalid group name: " + newGroup.getName() + ".");
+
+        try
+        {
+            final IGroup group = _orientDbGraph.addVertex("class:group", IGroup.class);
+            group.setName(newGroup.getName());
+            group.setCreatedDate(new Date());
+            groupOwner.addOwnedGroup(group);
+            _orientDbGraph.getBaseGraph().commit();
+
+            newGroup.setId(RidConverter.convertToJid((ORID)group.asVertex().getId()));
+            return newGroup;
+        }
+        catch (Exception e)
+        {
+            if (_orientDbGraph != null)
+                _orientDbGraph.getBaseGraph().rollback();
+            
+            throw e;
+        }
+        finally
+        {
+            if (_ndexDatabase != null)
+                _ndexDatabase.close();
+        }
+    }
+
     @DELETE
     @Path("/{groupId}")
     @Produces("application/json")
@@ -96,49 +135,10 @@ public class GroupService extends NdexService
         try
         {
             groupToUpdate.setDescription(updatedGroup.getDescription());
-            groupToUpdate.setGroupName(updatedGroup.getName());
+            groupToUpdate.setName(updatedGroup.getName());
             groupToUpdate.setOrganizationName(updatedGroup.getOrganizationName());
             groupToUpdate.setWebsite(updatedGroup.getWebsite());
             _orientDbGraph.getBaseGraph().commit();
-        }
-        catch (Exception e)
-        {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
-        }
-        finally
-        {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
-        }
-    }
-    
-    @PUT
-    @Produces("application/json")
-    public Group createGroup(final String ownerId, final Group newGroup) throws NdexException
-    {
-        ORID userRid = RidConverter.convertToRid(ownerId);
-        
-        final IUser groupOwner = _orientDbGraph.getVertex(userRid, IUser.class);
-        if (groupOwner == null)
-            throw new ObjectNotFoundException("User", ownerId);
-
-        final Pattern groupNamePattern = Pattern.compile("^[A-Za-z0-9]{6,}$");
-        if (!groupNamePattern.matcher(newGroup.getName()).matches())
-            throw new ValidationException("Invalid group name: " + newGroup.getName() + ".");
-
-        try
-        {
-            final IGroup group = _orientDbGraph.addVertex("class:xGroup", IGroup.class);
-            group.setGroupName(newGroup.getName());
-            group.setCreationDate(new Date());
-            groupOwner.addOwnedGroup(group);
-            _orientDbGraph.getBaseGraph().commit();
-
-            newGroup.setId(RidConverter.convertToJid((ORID)group.asVertex().getId()));
-            return newGroup;
         }
         catch (Exception e)
         {

@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.ndexbio.rest.domain.ICitation;
 
-public class Citation
+public class Citation extends NdexObject
 {
     private List<String> _contributors;
     private String _identifier;
@@ -19,6 +19,8 @@ public class Citation
     **************************************************************************/
     public Citation()
     {
+        super();
+        
         _contributors = new ArrayList<String>();
     }
     
@@ -29,8 +31,9 @@ public class Citation
     **************************************************************************/
     public Citation(ICitation citation)
     {
-        this();
+        super(citation);
         
+        _contributors = new ArrayList<String>();
         _identifier = citation.getIdentifier();
         _jdexId = citation.getJdexId();
         _title = citation.getTitle();

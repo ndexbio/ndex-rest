@@ -2,7 +2,7 @@ package org.ndexbio.rest.models;
 
 import org.ndexbio.rest.domain.ITerm;
 
-public class Term
+public class Term extends NdexObject
 {
     private String _jdexId;
     private String _name;
@@ -15,6 +15,7 @@ public class Term
     **************************************************************************/
     public Term()
     {
+        super();
     }
     
     /**************************************************************************
@@ -24,6 +25,8 @@ public class Term
     **************************************************************************/
     public Term(ITerm term)
     {
+        super(term);
+        
         _jdexId = term.getJdexId();
         _name = term.getName();
         

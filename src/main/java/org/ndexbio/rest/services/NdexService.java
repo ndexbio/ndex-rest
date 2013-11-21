@@ -1,10 +1,10 @@
 package org.ndexbio.rest.services;
 
 import org.ndexbio.rest.NdexSchemaManager;
-import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.IFunctionTerm;
+import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.ITerm;
-
+import org.ndexbio.rest.domain.IUser;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -32,9 +32,10 @@ public abstract class NdexService
         {
             _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
                 new TypedGraphModuleBuilder()
+                    .withClass(IGroup.class)
+                    .withClass(IUser.class)
                     .withClass(ITerm.class)
                     .withClass(IFunctionTerm.class)
-                    .withClass(IBaseTerm.class)
                     .build());
             
             //TODO: Refactor this to connect using a configurable username/password, and database

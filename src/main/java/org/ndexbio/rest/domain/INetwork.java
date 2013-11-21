@@ -8,23 +8,62 @@ import java.util.Map;
 
 public interface INetwork extends VertexFrame
 {
-    @Property("format")
-    public void setFormat(String format);
+    @Adjacency(label = "citations", direction = Direction.OUT)
+    public void addCitations(ICitation citation);
+
+    @Adjacency(label = "citations", direction = Direction.OUT)
+    public Iterable<ICitation> getCitations();
+    
+    @Adjacency(label = "citations", direction = Direction.OUT)
+    public void removeCitation(ICitation citation);
 
     @Property("format")
     public String getFormat();
 
-    @Adjacency(label = "namespaces")
+    @Property("format")
+    public void setFormat(String format);
+
+    @Adjacency(label = "namespaces", direction = Direction.OUT)
+    public void addNamespace(INamespace namespace);
+
+    @Adjacency(label = "namespaces", direction = Direction.OUT)
     public Iterable<INamespace> getNamespaces();
+    
+    @Adjacency(label = "namespaces", direction = Direction.OUT)
+    public void removeNamespace(INamespace namespace);
 
-    @Adjacency(label = "namespaces")
-    public void addNameSpace(INamespace nameSpace);
+    @Property("ndexEdgeCount")
+    public int getNdexEdgeCount();
 
-    @Adjacency(label = "nodes")
-    public Iterable<INode> getNodes();
+    @Property("ndexEdgeCount")
+    public void setNdexEdgeCount(int edgesCount);
 
-    @Adjacency(label = "nodes")
-    public void addNode(INode node);
+    @Adjacency(label = "ndexEdges", direction = Direction.OUT)
+    public void addNdexEdge(IEdge edge);
+
+    @Adjacency(label = "ndexEdges", direction = Direction.OUT)
+    public Iterable<IEdge> getNdexEdges();
+    
+    @Adjacency(label = "ndexEdges", direction = Direction.OUT)
+    public void removeNdexEdge(IEdge edge);
+
+    @Property("ndexNodeCount")
+    public int getNdexNodeCount();
+
+    @Property("ndexNodeCount")
+    public void setNdexNodeCount(int nodesCount);
+
+    @Adjacency(label = "ndexNodes", direction = Direction.OUT)
+    public void addNdexNode(INode node);
+
+    @Adjacency(label = "ndexNodes", direction = Direction.OUT)
+    public Iterable<INode> getNdexNodes();
+    
+    @Adjacency(label = "ndexNodes", direction = Direction.OUT)
+    public void removeNdexNode(INode node);
+
+    @Adjacency(label = "owners", direction = Direction.IN)
+    public Iterable<IUser> getOwners();
 
     @Property("properties")
     public Map<String, String> getProperties();
@@ -32,42 +71,21 @@ public interface INetwork extends VertexFrame
     @Property("properties")
     public void setProperties(Map<String, String> properties);
 
-    @Adjacency(label = "terms")
-    public Iterable<ITerm> getTerms();
-
-    @Adjacency(label = "terms")
-    public void addTerm(ITerm term);
-
-    @Adjacency(label = "supports")
-    public Iterable<ISupport> getSupports();
-
-    @Adjacency(label = "supports")
+    @Adjacency(label = "supports", direction = Direction.OUT)
     public void addSupport(ISupport support);
 
-    @Adjacency(label = "citations")
-    public Iterable<ICitation> getCitations();
+    @Adjacency(label = "supports", direction = Direction.OUT)
+    public Iterable<ISupport> getSupports();
+    
+    @Adjacency(label = "supports", direction = Direction.OUT)
+    public void removeSupport(ISupport support);
 
-    @Adjacency(label = "citations")
-    public void addCitations(ICitation citation);
+    @Adjacency(label = "terms", direction = Direction.OUT)
+    public void addTerm(ITerm term);
 
-    @Adjacency(label = "ndexEdges")
-    public Iterable<IEdge> getNdexEdges();
+    @Adjacency(label = "terms", direction = Direction.OUT)
+    public Iterable<ITerm> getTerms();
 
-    @Adjacency(label = "ndexEdges")
-    public IEdge addNdexEdge(IEdge edge);
-
-    @Property("nodesCount")
-    public void setNodesCount(int nodesCount);
-
-    @Property("nodesCount")
-    public int getNodesCount();
-
-    @Property("edgesCount")
-    public void setEdgesCount(int edgesCount);
-
-    @Property("edgesCount")
-    public int getEdgesCount();
-
-    @Adjacency(label = "ownsNetwork", direction = Direction.IN)
-    public Iterable<IUser> getOwners();
+    @Adjacency(label = "terms", direction = Direction.OUT)
+    public void removeTerm(ITerm term);
 }

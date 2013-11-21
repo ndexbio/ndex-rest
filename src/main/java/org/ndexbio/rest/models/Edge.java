@@ -6,7 +6,7 @@ import org.ndexbio.rest.domain.IEdge;
 import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.ITerm;
 
-public class Edge
+public class Edge extends NdexObject
 {
     private List<Node> _object;
     private List<Term> _predicate;
@@ -19,6 +19,8 @@ public class Edge
     **************************************************************************/
     public Edge()
     {
+        super();
+        
         _object = new ArrayList<Node>();
         _predicate = new ArrayList<Term>();
         _subject = new ArrayList<Node>();
@@ -31,7 +33,11 @@ public class Edge
     **************************************************************************/
     public Edge(IEdge edge)
     {
-        this();
+        super(edge);
+        
+        _object = new ArrayList<Node>();
+        _predicate = new ArrayList<Term>();
+        _subject = new ArrayList<Node>();
         
         for (INode object : edge.getObject())
             _object.add(new Node(object));
@@ -44,32 +50,32 @@ public class Edge
     }
     
     
-    public List<Node> getObject()
+    public List<Node> getObjects()
     {
         return _object;
     }
     
-    public void setObject(List<Node> object)
+    public void setObjects(List<Node> object)
     {
         _object = object;
     }
     
-    public List<Term> getPredicate()
+    public List<Term> getPredicates()
     {
         return _predicate;
     }
     
-    public void setPredicate(List<Term> predicate)
+    public void setPredicates(List<Term> predicate)
     {
         _predicate = predicate;
     }
     
-    public List<Node> getSubject()
+    public List<Node> getSubjects()
     {
         return _subject;
     }
     
-    public void setSubject(List<Node> subject)
+    public void setSubjects(List<Node> subject)
     {
         _subject = subject;
     }

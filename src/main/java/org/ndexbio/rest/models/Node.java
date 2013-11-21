@@ -5,7 +5,7 @@ import java.util.List;
 import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.ITerm;
 
-public class Node
+public class Node extends NdexObject
 {
     private String _jdexId;
     private String _name;
@@ -18,6 +18,8 @@ public class Node
     **************************************************************************/
     public Node()
     {
+        super();
+        
         _represents = new ArrayList<Term>();
     }
     
@@ -28,8 +30,10 @@ public class Node
     **************************************************************************/
     public Node(INode node)
     {
-        this();
+        super(node);
         
+        _represents = new ArrayList<Term>();
+
         _jdexId = node.getJdexId();
         _name = node.getName();
         

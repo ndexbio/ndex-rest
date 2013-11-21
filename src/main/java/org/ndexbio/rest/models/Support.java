@@ -2,7 +2,7 @@ package org.ndexbio.rest.models;
 
 import org.ndexbio.rest.domain.ISupport;
 
-public class Support
+public class Support extends NdexObject
 {
     private String _jdexId;
     private String _text;
@@ -14,6 +14,7 @@ public class Support
     **************************************************************************/
     public Support()
     {
+        super();
     }
     
     /**************************************************************************
@@ -23,6 +24,8 @@ public class Support
     **************************************************************************/
     public Support(ISupport support)
     {
+        super(support);
+        
         _jdexId = support.getJdexId();
         _text = support.getText();
     }
