@@ -15,17 +15,11 @@ public class Task extends NdexModel {
 	private String ownerId;
 	private String status;
 
-	public Task() {
-		super();
-	}
-	
-	public Task(ITask xt){
-		this();
-		//TODO resolve missing setters
-		//this.setId();
-		//this.setOwnerId();
-		this.setStatus(xt.getStatus());
-		this.setStartTime(xt.getStartTime());
+	public Task(ITask it){
+		super(it);
+		this.setOwnerId(resolveVertexId(it.getOwner()));
+		this.setStatus(it.getStatus());
+		this.setStartTime(it.getStartTime());
 	}
 
 	public String getOwnerId() {

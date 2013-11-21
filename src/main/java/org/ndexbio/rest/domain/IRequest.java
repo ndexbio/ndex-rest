@@ -6,25 +6,29 @@ import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
 import java.util.Date;
 
+/*
+ * mod 20NOV2013 FJC
+ * change cardinality of fromAccount, toAccount, & about properties from >= 1 to 1
+ */
 public interface IRequest extends VertexFrame
 {
     @Adjacency(label = "fromAccount", direction = Direction.IN)
-    public Iterable<IUser> getFromAccount();
+    public IUser getFromAccount();
 
     @Adjacency(label = "fromAccount", direction = Direction.IN)
-    public void addFromAccount(IUser owner);
+    public void setFromAccount(IUser owner);
 
     @Adjacency(label = "toAccount", direction = Direction.IN)
-    public Iterable<IAccount> getToAccount();
+    public IAccount getToAccount();
 
     @Adjacency(label = "toAccount", direction = Direction.IN)
-    public void addToAccount(IAccount toAccount);
+    public void setToAccount(IAccount toAccount);
 
     @Adjacency(label = "about", direction = Direction.IN)
-    public Iterable<IUser> getAbout();
+    public IAccount getAbout();
 
     @Adjacency(label = "about", direction = Direction.IN)
-    public void addAbout(VertexFrame about);
+    public void setAbout(IAccount about);
 
     @Property("message")
     public void setMessage(String message);

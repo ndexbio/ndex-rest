@@ -9,10 +9,10 @@ import java.util.Date;
 public interface ITask extends VertexFrame
 {
     @Adjacency(label = "owner", direction = Direction.IN)
-    public Iterable<IUser> getOwner();
+    public IUser getOwner();
 
     @Adjacency(label = "owner", direction = Direction.IN)
-    public void addOwner(IUser owner);
+    public void setOwner(IUser owner);
 
     @Property("status")
     public void setStatus(String status);
