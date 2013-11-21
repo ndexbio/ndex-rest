@@ -18,20 +18,14 @@ public class Request extends NdexModel{
     private String requestType;
     
     
-    public Request() {
-    	super();
-    }
-    
-    public Request(IRequest xr) {
-    	this();
-    	//TODO: resolve missing setters
-    	//this.setId(id);
-    	//this.setFromId(fromId);
-    	//this.setToId(toId);
-    	//this.setAboutId(aboutId);
-    	this.setMessage(xr.getMessage());
-    	this.setRequestType(xr.getRequestType());
-    	this.setRequestDate(xr.getRequestTime());   	
+    public Request(IRequest ir) {
+    	super(ir);   	
+    	this.setFromId(resolveVertexId(ir.getFromAccount()));
+    	this.setToId(resolveVertexId(ir.getToAccount()));
+    	this.setAboutId(resolveVertexId(ir.getAbout()));
+    	this.setMessage(ir.getMessage());
+    	this.setRequestType(ir.getRequestType());
+    	this.setRequestDate(ir.getRequestTime());   	
     }
   
 	public String getFromId() {
