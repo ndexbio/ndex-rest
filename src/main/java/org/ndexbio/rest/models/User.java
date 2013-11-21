@@ -12,6 +12,7 @@ public class User
 {
     private String _backgroundImage;
     private String _description;
+    private String _emailAddress;
     private String _firstName;
     private String _foregroundImage;
     private String _id;
@@ -98,6 +99,16 @@ public class User
     public void setDescription(String description)
     {
         _description = description;
+    }
+
+    public String getEmail()
+    {
+        return _emailAddress;
+    }
+
+    public void setEmail(String emailAddress)
+    {
+        _emailAddress = emailAddress;
     }
 
     public String getFirstName()

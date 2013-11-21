@@ -6,29 +6,11 @@ import com.tinkerpop.frames.Property;
 
 public interface IUser extends IAccount
 {
-    @Property("username")
-    public String getUsername();
+    @Property("backgroundImg")
+    public String getBackgroundImg();
 
-    @Property("username")
-    public void setUsername(String username);
-
-    @Property("password")
-    public String getPassword();
-
-    @Property("password")
-    public void setPassword(String password);
-
-    @Property("firstName")
-    public String getFirstName();
-
-    @Property("firstName")
-    public void setFirstName(String firstName);
-
-    @Property("lastName")
-    public String getLastName();
-
-    @Property("lastName")
-    public void setLastName(String lastName);
+    @Property("backgroundImg")
+    public void setBackgroundImg(String backgroundImg);
 
     @Property("description")
     public String getDescription();
@@ -36,11 +18,17 @@ public interface IUser extends IAccount
     @Property("description")
     public void setDescription(String description);
 
-    @Property("website")
-    public void setWebsite(String website);
+    @Property("emailAddress")
+    public String getEmailAddress();
 
-    @Property("website")
-    public String getWebsite();
+    @Property("firstName")
+    public void setEmailAddress(String emailAddress);
+
+    @Property("firstName")
+    public String getFirstName();
+
+    @Property("firstName")
+    public void setFirstName(String firstName);
 
     @Property("foregroundImg")
     public String getForegroundImg();
@@ -48,20 +36,17 @@ public interface IUser extends IAccount
     @Property("foregroundImg")
     public void setForegroundImg(String foregroundImg);
 
-    @Property("backgroundImg")
-    public String getBackgroundImg();
+    @Property("lastName")
+    public String getLastName();
 
-    @Property("backgroundImg")
-    public void setBackgroundImg(String backgroundImg);
+    @Property("lastName")
+    public void setLastName(String lastName);
 
-    @Adjacency(label = "workspace")
-    public Iterable<INetwork> getWorkspace();
+    @Adjacency(label = "ownsGroup")
+    public void addOwnedGroup(IGroup group);
 
-    @Adjacency(label = "workspace")
-    public void addWorkspace(INetwork network);
-
-    @Adjacency(label = "workspace")
-    public void removeWorkspace(INetwork network);
+    @Adjacency(label = "ownsGroup")
+    public Iterable<IGroup> getOwnedGroups();
 
     @Adjacency(label = "ownsNetwork")
     public Iterable<INetwork> getOwnedNetworks();
@@ -72,9 +57,30 @@ public interface IUser extends IAccount
     @Adjacency(label = "ownsNetwork")
     public void removeOwnsNetwork(INetwork network);
 
-    @Adjacency(label = "ownsGroup")
-    public void addOwnedGroup(IGroup group);
+    @Property("password")
+    public String getPassword();
 
-    @Adjacency(label = "ownsGroup")
-    public Iterable<IGroup> getOwnedGroups();
+    @Property("password")
+    public void setPassword(String password);
+
+    @Property("username")
+    public String getUsername();
+
+    @Property("username")
+    public void setUsername(String username);
+
+    @Property("website")
+    public void setWebsite(String website);
+
+    @Property("website")
+    public String getWebsite();
+
+    @Adjacency(label = "workspace")
+    public Iterable<INetwork> getWorkspace();
+
+    @Adjacency(label = "workspace")
+    public void addWorkspace(INetwork network);
+
+    @Adjacency(label = "workspace")
+    public void removeWorkspace(INetwork network);
 }

@@ -73,6 +73,34 @@ public class UserService extends NdexService
         }
     }
 
+    @PUT
+    @Produces("application/json")
+    public User createUser(final String username, final String password, final String emailAddress) throws NdexException
+    {
+        try
+        {
+            final IUser newUser = _orientDbGraph.addVertex("class:xUser", IUser.class);
+            newUser.setUsername(username);
+            newUser.setPassword(password);
+            newUser.setEmailAddress(emailAddress);
+            _orientDbGraph.getBaseGraph().commit();
+
+            return new User(newUser);
+        }
+        catch (Exception e)
+        {
+            if (_orientDbGraph != null)
+                _orientDbGraph.getBaseGraph().rollback();
+            
+            throw e;
+        }
+        finally
+        {
+            if (_ndexDatabase != null)
+                _ndexDatabase.close();
+        }
+    }
+
     @DELETE
     @Path("/{userId}/worksurface")
     @Produces("application/json")
@@ -240,33 +268,6 @@ public class UserService extends NdexService
                 existingUser.setWebsite(updatedUser.getWebsite());
 
             _orientDbGraph.getBaseGraph().commit();
-        }
-        catch (Exception e)
-        {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
-        }
-        finally
-        {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
-        }
-    }
-    
-    @PUT
-    @Produces("application/json")
-    public User createUser(final String username, final String password) throws NdexException
-    {
-        try
-        {
-            final IUser newUser = _orientDbGraph.addVertex("class:xUser", IUser.class);
-            newUser.setUsername(username);
-            newUser.setPassword(password);
-            _orientDbGraph.getBaseGraph().commit();
-
-            return new User(newUser);
         }
         catch (Exception e)
         {
