@@ -10,8 +10,6 @@ import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.Provider;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.ArrayUtils;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
@@ -20,6 +18,7 @@ import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.rest.domain.IUser;
+import org.ndexbio.rest.models.User;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -68,16 +67,15 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             try
             {
                 String[] authInfo = resolveUserCredentials(requestContext);
-                if (ArrayUtils.isEmpty(authInfo))
+                if (authInfo == null)
                 {
-                    if (!ArrayUtils.isEmpty(authInfo) && authenticateUser(authInfo))
-                        return;
-                    else
-                    {
-                        requestContext.abortWith(ACCESS_DENIED);
-                        return;
-                    }
+                    requestContext.abortWith(FORBIDDEN);
+                    return;
                 }
+                
+                User authUser = authenticateUser(authInfo); 
+                if (authUser == null)
+                    requestContext.abortWith(ACCESS_DENIED);
             }
             catch (Exception e)
             {
@@ -87,8 +85,6 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         }
     }
 
-    
-
     /**************************************************************************
     * Authenticates the user against the OrientDB database.
     * 
@@ -96,7 +92,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     * @throws Exception Various exceptions if accessing the database fails.
     * @returns True if the user is authenticated, false otherwise.
     **************************************************************************/
-    private boolean authenticateUser(final String[] authInfo) throws Exception
+    public User authenticateUser(final String[] authInfo) throws Exception
     {
         final FramedGraphFactory graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
             new TypedGraphModuleBuilder()
@@ -109,21 +105,22 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         ODatabaseDocumentTx ndexDatabase = null;
         try
         {
-            // TODO: Refactor this to connect using a configurable
-            // username/password, and database
-            ndexDatabase = ODatabaseDocumentPool.global().acquire("plocal:/ndex", "admin", "admin");
-            final FramedGraph<OrientBaseGraph> orientDbGraph = graphFactory.create((OrientBaseGraph) new OrientGraph(ndexDatabase));
+            // TODO: Refactor this to connect using a configurable username/password, and database
+            ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
+            final FramedGraph<OrientBaseGraph> orientDbGraph = graphFactory.create((OrientBaseGraph)new OrientGraph(ndexDatabase));
 
-            Collection<ODocument> usersFound = ndexDatabase.command(new OCommandSQL("select from xUser where username equals " + authInfo[0])).execute();
+            Collection<ODocument> usersFound = ndexDatabase
+                .command(new OCommandSQL("select from xUser where username = ?"))
+                .execute(authInfo[0]);
+            
             if (usersFound.size() < 1)
-                return false;
+                return null;
 
             IUser authUser = orientDbGraph.getVertex(usersFound.toArray()[0], IUser.class);
+            if (!authInfo[1].equals(authUser.getPassword()))
+                return null;
 
-            if (authInfo[1] != authUser.getPassword())
-                return false;
-
-            return true;
+            return new User(authUser, true);
         }
         catch (Exception e)
         {
@@ -135,9 +132,11 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                 ndexDatabase.close();
         }
 
-        return false;
+        return null;
     }
     
+
+
     /**************************************************************************
     * private method to resolve username and password from authorization
     * property and return username and password as a String array
@@ -147,7 +146,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         final MultivaluedMap<String, String> headers = requestContext.getHeaders();
         final List<String> authHeader = headers.get(AUTHORIZATION_PROPERTY);
         
-        if (CollectionUtils.isEmpty(authHeader))
+        if (authHeader == null || authHeader.isEmpty())
             return null;
 
         final String encodedAuthInfo = authHeader.get(0).replaceFirst(AUTHENTICATION_SCHEME + " ", "");

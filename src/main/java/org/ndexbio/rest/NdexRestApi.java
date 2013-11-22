@@ -25,7 +25,6 @@ public class NdexRestApi extends Application
         _resources.add(TaskService.class); 
 
         _providers.add(new BasicAuthenticationFilter());
-        _providers.add(new CrossOriginResourceSharingFilter());
     }
     
     

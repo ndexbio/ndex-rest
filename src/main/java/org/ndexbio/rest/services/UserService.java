@@ -3,6 +3,7 @@ package org.ndexbio.rest.services;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import javax.annotation.security.PermitAll;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -10,6 +11,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
@@ -17,6 +19,7 @@ import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.Network;
@@ -73,6 +76,26 @@ public class UserService extends NdexService
         }
     }
 
+    @GET
+    @PermitAll
+    @Path("/authenticate/{username}/{password}")
+    @Produces("application/json")
+    public User authenticateUser(@PathParam("username")final String username, @PathParam("password")final String password)
+    {
+        try
+        {
+            User authUser = new BasicAuthenticationFilter().authenticateUser(new String[] { username, password });
+            if (authUser == null)
+                throw new ResteasyAuthenticationException("Invalid username or password.");
+            
+            return authUser;
+        }
+        catch (Exception e)
+        {
+            throw new org.jboss.resteasy.client.exception.ResteasyHttpException(e.getMessage());
+        }
+    }
+    
     @PUT
     @Produces("application/json")
     public User createUser(final String username, final String password, final String emailAddress) throws NdexException
