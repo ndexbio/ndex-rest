@@ -2,9 +2,9 @@ package org.ndexbio.rest;
 
 import java.util.HashSet;
 import java.util.Set;
-
 import javax.ws.rs.core.Application;
-
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
+import org.ndexbio.rest.filters.CrossOriginResourceSharingFilter;
 import org.ndexbio.rest.services.GroupService;
 import org.ndexbio.rest.services.RequestService;
 import org.ndexbio.rest.services.TaskService;
@@ -25,7 +25,7 @@ public class NdexRestApi extends Application
         _resources.add(TaskService.class); 
 
         _providers.add(new BasicAuthenticationFilter());
-        
+        _providers.add(new CrossOriginResourceSharingFilter());
     }
     
     
