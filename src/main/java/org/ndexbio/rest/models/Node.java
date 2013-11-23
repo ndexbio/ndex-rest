@@ -9,7 +9,7 @@ public class Node extends NdexObject
 {
     private String _jdexId;
     private String _name;
-    private List<Term> _represents;
+    private Term _represents;
     
     
     
@@ -19,8 +19,6 @@ public class Node extends NdexObject
     public Node()
     {
         super();
-        
-        _represents = new ArrayList<Term>();
     }
     
     /**************************************************************************
@@ -31,16 +29,15 @@ public class Node extends NdexObject
     public Node(INode node)
     {
         super(node);
-        
-        _represents = new ArrayList<Term>();
 
         _jdexId = node.getJdexId();
         _name = node.getName();
         
-        for (ITerm term : node.getRepresents())
-            _represents.add(new Term(term));
+        ITerm termRepresented = node.getRepresents();
+        if (termRepresented != null){
+            _represents = new Term(termRepresented);
+        }
     }
-    
     
     
     public String getJdexId()
@@ -63,12 +60,12 @@ public class Node extends NdexObject
         _name = name;
     }
     
-    public List<Term> getRepresents()
+    public Term getRepresents()
     {
         return _represents;
     }
     
-    public void setRepresents(List<Term> represents)
+    public void setRepresents(Term represents)
     {
         _represents = represents;
     }

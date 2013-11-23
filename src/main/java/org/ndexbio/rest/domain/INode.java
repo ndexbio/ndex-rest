@@ -20,11 +20,9 @@ public interface INode extends VertexFrame
     public void setName(String name);
 
     @Adjacency(label = "represents", direction = Direction.OUT)
-    public void addRepresents(ITerm term);
+    public void setRepresents(ITerm term);
 
     @Adjacency(label = "represents", direction = Direction.OUT)
-    public Iterable<ITerm> getRepresents();
+    public ITerm getRepresents();
 
-    @Adjacency(label = "represents", direction = Direction.OUT)
-    public void removeRepresents(ITerm term);
 }

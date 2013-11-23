@@ -2,7 +2,9 @@ package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import org.ndexbio.rest.domain.ICitation;
+import org.ndexbio.rest.domain.IEdge;
 
 public class Citation extends NdexObject
 {
@@ -11,7 +13,7 @@ public class Citation extends NdexObject
     private String _jdexId;
     private String _title;
     private String _type;
-    
+    private List<String> _edges;  // edge ids   
 
     
     /**************************************************************************
@@ -37,13 +39,13 @@ public class Citation extends NdexObject
         _identifier = citation.getIdentifier();
         _jdexId = citation.getJdexId();
         _title = citation.getTitle();
-        _type = citation.getType();
+        _type = citation.getType();     
+        _contributors = citation.getContributors();
         
-        for (String contributor : citation.getContributors())
-            _contributors.add(contributor);
+        for (IEdge iEdge : citation.getNdexEdges()){
+        	_edges.add(iEdge.getJdexId());
+        }
     }
-
-    
     
     public List<String> getContributors()
     {
@@ -94,4 +96,14 @@ public class Citation extends NdexObject
     {
         _type = type;
     }
+
+	public List<String> getEdges() {
+		return _edges;
+	}
+
+	public void setEdges(List<String> _edges) {
+		this._edges = _edges;
+	}
+    
+    
 }

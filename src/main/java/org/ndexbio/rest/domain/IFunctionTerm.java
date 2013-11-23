@@ -9,17 +9,17 @@ import java.util.Map;
 @TypeValue("functionTerm")
 public interface IFunctionTerm extends ITerm
 {
-    @Property("linkParameters")
-    public Map<Integer, ORID> getLinkParameters();
+    @Property("termParameters")
+    public Map<Integer, ITerm> getTermParameters();
 
-    @Property("linkParameters")
-    public void setLinkParameters(Map<Integer, ORID> linkParameters);
-
-    @Adjacency(label = "termFunction")
-    public void setTermFunction(ITerm term);
+    @Property("termParameters")
+    public void setTermParameters(Map<Integer, ITerm> termParameters);
 
     @Adjacency(label = "termFunction")
-    public ITerm getTermFunction();
+    public void setTermFunction(IBaseTerm term);
+
+    @Adjacency(label = "termFunction")
+    public IBaseTerm getTermFunction();
 
     @Property("textParameters")
     public void setTextParameters(Map<Integer, String> textParameters);

@@ -38,6 +38,11 @@ public class NdexSchemaManager
             OClass termClass = orientDbGraph.createVertexType("term");
             termClass.createProperty("type", OType.STRING);
             termClass.createProperty("jdexId", OType.STRING);
+        }
+        
+        if (orientDbGraph.getVertexType("baseTerm") == null)
+        {
+            OClass termClass = orientDbGraph.createVertexType("baseTerm", "term");
             termClass.createProperty("name", OType.STRING);
         }
 
