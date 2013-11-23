@@ -5,11 +5,7 @@ import org.ndexbio.rest.domain.ITerm;
 public class Term extends NdexObject
 {
     private String _jdexId;
-    private String _name;
-    private Namespace _namespace;
-    
-    
-    
+ 
     /**************************************************************************
     * Default constructor.
     **************************************************************************/
@@ -28,14 +24,9 @@ public class Term extends NdexObject
         super(term);
         
         _jdexId = term.getJdexId();
-        _name = term.getName();
-        
-        if (term.getNamespace() != null)
-            _namespace = new Namespace(term.getNamespace());
+
     }
-    
-    
-    
+        
     public String getJdexId()
     {
         return _jdexId;
@@ -46,23 +37,4 @@ public class Term extends NdexObject
         _jdexId = jdexId;
     }
     
-    public String getName()
-    {
-        return _name;
-    }
-    
-    public void setName(String name)
-    {
-        _name = name;
-    }
-    
-    public Namespace getNamespace()
-    {
-        return _namespace;
-    }
-    
-    public void setNamespace(Namespace namespace)
-    {
-        _namespace = namespace;
-    }
 }
