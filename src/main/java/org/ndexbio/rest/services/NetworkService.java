@@ -1,6 +1,8 @@
 package org.ndexbio.rest.services;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -12,7 +14,6 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 
-import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.ITerm;
@@ -23,11 +24,9 @@ import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.IEdge;
 import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.ISupport;
-
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.helpers.RidConverter;
-import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.Namespace;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.Term;
@@ -95,7 +94,9 @@ public class NetworkService extends NdexService {
 			// Then create citations that reference edges
 			createCitations(iNetwork, network);
 			// Then create supports that reference edges and citations
-			createSupports(iNetwork, network);			
+			createSupports(iNetwork, network);	
+			// Finally add the properties
+			createProperties(iNetwork, network);	
 		} catch (Exception e)
 
 		{
@@ -268,12 +269,19 @@ public class NetworkService extends NdexService {
 		
 	}
 
-
-
-
-
-
-
+	private void createProperties(INetwork iNetwork, Network network) {
+		
+		Map<String, String> propertiesMap = new HashMap<String, String>();
+		
+		for (Map.Entry entry : network.getProperties().entrySet()){
+			String key = (String)entry.getKey();
+			String value = (String)entry.getValue();
+			propertiesMap.put(key, value);
+		}
+		
+		iNetwork.setProperties(propertiesMap);
+		
+	}
 
 	@DELETE
 	@Path("/{networkId}")
@@ -374,6 +382,148 @@ public class NetworkService extends NdexService {
 		else
 			return new Network(network);
 	}
+
+
+	/*
+	 * Get Edges
+	 * 
+	 */
+/*	@GET
+	@Path("/{networkId}/edges")
+	@Produces("application/json")
+	public Network getEdges(@PathParam("networkId") final String networkJid, Integer limit, Integer offset)
+			throws NdexException {
+		ORID networkRid = RidConverter.convertToRid(networkJid);
+		final INetwork network = _orientDbGraph.getVertex(networkRid,
+				INetwork.class);
+		if (network == null) {
+			return null;
+		} else {
+			Network networkByEdges = new Network();
+			Map<String, String> propertiesMap = new HashMap<String, String>();
+			
+			for (Map.Entry entry : network.getProperties().entrySet()){
+				String key = (String)entry.getKey();
+				String value = (String)entry.getValue();
+				propertiesMap.put(key, value);
+			}		
+			networkByEdges.setProperties(propertiesMap);
+			Integer counter = 0;
+			List<Edge> edgeList = new ArrayList<Edge>();
+			Integer startIndex = limit * offset;
+			
+			
+		       for (IEdge networkEdge : network.getNdexEdges())
+		        {
+		            if (counter >= startIndex)
+		            {
+		                edgeList.add(new Edge(networkEdge));
+		            }
+		            
+		            counter++;
+
+		            if (counter >= startIndex + limit)
+		                break;
+		        }
+			networkByEdges.setNdexEdges(edgeList);
+			return networkByEdges;
+		}
+	}
+	
+	   public static Collection<INode> loadNodeDependencies(Collection<XEdge> edges)
+	    {
+	        Set<XNode> edgeNodes = new HashSet<XNode>();
+	        for (XEdge edge : edges)
+	        {
+	            for (XNode xNode : edge.getSubject())
+	                edgeNodes.add(xNode);
+
+	            for (XNode xNode : edge.getObject())
+	                edgeNodes.add(xNode);
+	        }
+	        
+	        return edgeNodes;
+	    }
+
+	    *//**************************************************************************
+	* Loads all terms referenced by the nodes and edges.
+	*
+	* @param nodes The nodes.
+	* @param edges The edges.
+	**************************************************************************//*
+	    public static Collection<XTerm> loadTermDependencies(Collection<XNode> nodes, Collection<XEdge> edges)
+	    {
+	        Set<XTerm> terms = new HashSet<XTerm>();
+
+	        for (XNode node : nodes)
+	        {
+	            for (XTerm term : node.getRepresents())
+	                terms.add(term);
+	        }
+
+	        for (XEdge edge : edges)
+	        {
+	            for (XTerm term : edge.getPredicate())
+	                terms.add(term);
+	        }
+
+	        return terms;
+	    }*/
+	
+/*
+ *     @Override
+    protected void action(GetNetworkEdgesContext requestContext, FramedGraph<OrientBaseGraph> orientDbGraph)
+    {
+        ORID networkRid = RidConverter.convertToRid(requestContext.networkId);
+        ObjectNode serializedEdges = OBJECT_MAPPER.createObjectNode();
+
+        XNetwork network = orientDbGraph.getVertex(networkRid, XNetwork.class);
+        if (network == null)
+            throw new ObjectNotFoundException("Network", requestContext.networkId);
+
+        serializedEdges.put("Title", network.getProperties().get("title"));
+        serializedEdges.put("Total", network.getEdgesCount());
+
+        ArrayNode pageOfEdges = OBJECT_MAPPER.createArrayNode();
+        final Iterable<XEdge> networkEdges = network.getNdexEdges();
+        final int startIndex = requestContext.skip * requestContext.top;
+        Collection<XEdge> loadedEdges = new ArrayList<XEdge>(requestContext.top);
+        int counter = 0;
+        
+        for (XEdge networkEdge : networkEdges)
+        {
+            if (counter >= startIndex)
+            {
+                final ObjectNode serializedEdge = OBJECT_MAPPER.createObjectNode();
+                NetworkHelper.serializeEdge(networkEdge, serializedEdge);
+                pageOfEdges.add(serializedEdge);
+                
+                loadedEdges.add(networkEdge);
+            }
+            
+            counter++;
+
+            if (counter >= startIndex + requestContext.top)
+                break;
+        }
+
+        serializedEdges.put("Edges", pageOfEdges);
+
+        ObjectNode serializedNodes = OBJECT_MAPPER.createObjectNode();
+        Collection<XNode> loadedNodes = NetworkHelper.loadNodeDependencies(loadedEdges);
+        NetworkHelper.serializeNodes(loadedNodes, serializedNodes);
+        serializedEdges.put("Nodes", serializedNodes);
+
+        ObjectNode serializedTerms = OBJECT_MAPPER.createObjectNode();
+        Collection<XTerm> loadedTerms = NetworkHelper.loadTermDependencies(loadedNodes, loadedEdges);
+        NetworkHelper.serializeTerms(loadedTerms, serializedTerms);
+        serializedEdges.put("Terms", serializedTerms);
+
+        requestContext.network = serializedEdges;
+    }	
+ */
+	
+	
 
 	@POST
 	@Produces("application/json")
