@@ -44,16 +44,18 @@ public class NdexSchemaManager
         {
             OClass termClass = orientDbGraph.createVertexType("baseTerm", "term");
             termClass.createProperty("name", OType.STRING);
+            termClass.createIndex("termNameIndex", OClass.INDEX_TYPE.NOTUNIQUE, "name");
         }
 
         if (orientDbGraph.getVertexType("functionTerm") == null)
         {
             OClass functionTermClass = orientDbGraph.createVertexType("functionTerm", "term");
             functionTermClass.createProperty("textParameters", OType.EMBEDDEDSET);
+            functionTermClass.createProperty("linkParameters", OType.EMBEDDEDMAP, OType.LINK);
+            functionTermClass.createIndex("functionTermLinkParametersIndex", OClass.INDEX_TYPE.NOTUNIQUE, "linkParameters by value");
         }
 
-        if (orientDbGraph.getVertexType("node") == null)
-        {
+        if (orientDbGraph.getVertexType("node") == null) {
             OClass nodeClass = orientDbGraph.createVertexType("node");
             nodeClass.createProperty("name", OType.STRING);
             nodeClass.createProperty("jdexId", OType.STRING);
@@ -62,6 +64,7 @@ public class NdexSchemaManager
         if (orientDbGraph.getVertexType("edge") == null)
         {
             OClass edgeClass = orientDbGraph.createVertexType("edge");
+            edgeClass.createProperty("jdexId", OType.STRING);
         }
 
         if (orientDbGraph.getVertexType("citation") == null)
@@ -81,10 +84,15 @@ public class NdexSchemaManager
             supportClass.createProperty("jdexId", OType.STRING);
             supportClass.createProperty("text", OType.STRING);
         }
+        
+        if (orientDbGraph.getVertexType("account") == null)
+        {
+            OClass accountClass = orientDbGraph.createVertexType("account");
+        }
 
         if (orientDbGraph.getVertexType("user") == null)
         {
-            OClass userClass = orientDbGraph.createVertexType("user");
+            OClass userClass = orientDbGraph.createVertexType("user", "account");
 
             userClass.createProperty("username", OType.STRING);
             userClass.createProperty("password", OType.STRING);
@@ -100,7 +108,7 @@ public class NdexSchemaManager
 
         if (orientDbGraph.getVertexType("group") == null)
         {
-            OClass groupClass = orientDbGraph.createVertexType("group");
+            OClass groupClass = orientDbGraph.createVertexType("group", "account");
             groupClass.createProperty("name", OType.STRING);
             groupClass.createIndex("group_name_index", OClass.INDEX_TYPE.UNIQUE, "name");
         }

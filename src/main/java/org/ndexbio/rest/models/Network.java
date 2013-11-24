@@ -22,8 +22,8 @@ public class Network extends NdexObject
     private Map<String, String> _properties;
     private List<Support> _supports;
     private List<Term> _terms;
-
-    
+    private Integer _edgeCount;
+    private Integer _nodeCount;
 
     /**************************************************************************
     * Default constructor.
@@ -39,6 +39,8 @@ public class Network extends NdexObject
         _properties = new HashMap<String, String>();
         _supports = new ArrayList<Support>();
         _terms = new ArrayList<Term>();
+        _edgeCount = 0;
+        _nodeCount = 0;
     }
     
     /**************************************************************************
@@ -72,17 +74,10 @@ public class Network extends NdexObject
         _terms = new ArrayList<Term>();
 
         _format = network.getFormat();
+        _edgeCount = network.getNdexEdgeCount();
+        _nodeCount = network.getNdexNodeCount();
         _properties.putAll(network.getProperties());
         
-        for (ICitation citation : network.getCitations())
-            _citations.add(new Citation(citation));
-        
-        for (INamespace namespace : network.getNamespaces())
-            _namespaces.add(new Namespace(namespace));
-        
-        for (ISupport support : network.getSupports())
-            _supports.add(new Support(support));
-
         if (loadEverything)
         {
             for (IEdge edge : network.getNdexEdges())
@@ -93,11 +88,18 @@ public class Network extends NdexObject
             
             for (ITerm term : network.getTerms())
                 _terms.add(new Term(term));
+            
+            for (ICitation citation : network.getCitations())
+                _citations.add(new Citation(citation));
+            
+            for (INamespace namespace : network.getNamespaces())
+                _namespaces.add(new Namespace(namespace));
+            
+            for (ISupport support : network.getSupports())
+                _supports.add(new Support(support));
         }
     }
-    
-    
-    
+      
     public List<Citation> getCitations()
     {
         return _citations;
@@ -177,4 +179,21 @@ public class Network extends NdexObject
     {
         _terms = terms;
     }
+
+	public Integer getEdgeCount() {
+		return _edgeCount;
+	}
+
+	public void setEdgeCount(Integer _edgeCount) {
+		this._edgeCount = _edgeCount;
+	}
+
+	public Integer getNodeCount() {
+		return _nodeCount;
+	}
+
+	public void setNodeCount(Integer _nodeCount) {
+		this._nodeCount = _nodeCount;
+	}
+    
 }
