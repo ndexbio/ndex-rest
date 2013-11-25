@@ -19,7 +19,10 @@ public class CrossOriginResourceSharingFilter implements Filter
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException
     {
-        ((HttpServletResponse)response).addHeader("Access-Control-Allow-Origin", "*");
+        HttpServletResponse httpResponse = (HttpServletResponse)response;
+        httpResponse.addHeader("Access-Control-Allow-Origin", "*");
+        httpResponse.addHeader("Access-Control-Allow-Methods", "DELETE,GET,OPTIONS,POST,PUT");
+        httpResponse.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
         chain.doFilter(request, response);
     }
 
