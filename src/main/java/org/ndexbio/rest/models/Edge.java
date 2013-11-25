@@ -2,28 +2,24 @@ package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import org.ndexbio.rest.domain.IEdge;
 import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.ITerm;
 
 public class Edge extends NdexObject
 {
-    private List<Node> _object;
-    private List<Term> _predicate;
-    private List<Node> _subject;
-    
-    
-    
+    private Node _object;
+    private BaseTerm _predicate;
+    private Node _subject;
+    private String _jdexId;
+   
     /**************************************************************************
     * Default constructor.
     **************************************************************************/
     public Edge()
     {
         super();
-        
-        _object = new ArrayList<Node>();
-        _predicate = new ArrayList<Term>();
-        _subject = new ArrayList<Node>();
     }
     
     /**************************************************************************
@@ -35,47 +31,47 @@ public class Edge extends NdexObject
     {
         super(edge);
         
-        _object = new ArrayList<Node>();
-        _predicate = new ArrayList<Term>();
-        _subject = new ArrayList<Node>();
-        
-        for (INode object : edge.getObject())
-            _object.add(new Node(object));
-
-        for (ITerm predicate : edge.getPredicate())
-            _predicate.add(new Term(predicate));
-
-        for (INode subject: edge.getSubject())
-            _subject.add(new Node(subject));
+        _subject = new Node(edge.getSubject());
+        _predicate = new BaseTerm(edge.getPredicate());
+        _object = new Node(edge.getObject());
+    }
+ 
+    public String getJdexId()
+    {
+        return _jdexId;
     }
     
+    public void setJdexId(String jdexId)
+    {
+        _jdexId = jdexId;
+    }
     
-    public List<Node> getObjects()
+    public Node getObject()
     {
         return _object;
     }
     
-    public void setObjects(List<Node> object)
+    public void setObject(Node object)
     {
         _object = object;
     }
     
-    public List<Term> getPredicates()
+    public BaseTerm getPredicate()
     {
         return _predicate;
     }
     
-    public void setPredicates(List<Term> predicate)
+    public void setPredicate(BaseTerm predicate)
     {
         _predicate = predicate;
     }
     
-    public List<Node> getSubjects()
+    public Node getSubject()
     {
         return _subject;
     }
     
-    public void setSubjects(List<Node> subject)
+    public void setSubject(Node subject)
     {
         _subject = subject;
     }

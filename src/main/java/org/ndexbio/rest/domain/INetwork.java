@@ -9,7 +9,7 @@ import java.util.Map;
 public interface INetwork extends VertexFrame
 {
     @Adjacency(label = "citations", direction = Direction.OUT)
-    public void addCitations(ICitation citation);
+    public void addCitation(ICitation citation);
 
     @Adjacency(label = "citations", direction = Direction.OUT)
     public Iterable<ICitation> getCitations();
