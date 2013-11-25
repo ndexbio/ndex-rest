@@ -29,7 +29,7 @@ public class GroupService extends NdexService
     @Produces("application/json")
     public Group createGroup(final String ownerId, final Group newGroup) throws NdexException
     {
-        ORID userRid = RidConverter.convertToRid(ownerId);
+        final ORID userRid = RidConverter.convertToRid(ownerId);
         
         final IUser groupOwner = _orientDbGraph.getVertex(userRid, IUser.class);
         if (groupOwner == null)
@@ -126,7 +126,7 @@ public class GroupService extends NdexService
     @Produces("application/json")
     public void updateGroup(final Group updatedGroup) throws NdexException
     {
-        ORID groupRid = RidConverter.convertToRid(updatedGroup.getId());
+        final ORID groupRid = RidConverter.convertToRid(updatedGroup.getId());
 
         final IGroup groupToUpdate = _orientDbGraph.getVertex(groupRid, IGroup.class);
         if (groupToUpdate == null)

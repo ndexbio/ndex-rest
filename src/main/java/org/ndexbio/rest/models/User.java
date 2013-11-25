@@ -103,12 +103,12 @@ public class User extends NdexObject
         _description = description;
     }
 
-    public String getEmail()
+    public String getEmailAddress()
     {
         return _emailAddress;
     }
 
-    public void setEmail(String emailAddress)
+    public void setEmailAddress(String emailAddress)
     {
         _emailAddress = emailAddress;
     }

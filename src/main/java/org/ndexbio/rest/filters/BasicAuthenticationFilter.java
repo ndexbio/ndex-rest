@@ -18,6 +18,7 @@ import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.rest.domain.IUser;
+import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.models.User;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
@@ -117,7 +118,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                 return null;
 
             IUser authUser = orientDbGraph.getVertex(usersFound.toArray()[0], IUser.class);
-            if (!authInfo[1].equals(authUser.getPassword()))
+            String hashedPassword = Security.hashText(authInfo[1]);
+            if (!hashedPassword.equals(authUser.getPassword()))
                 return null;
 
             return new User(authUser, true);

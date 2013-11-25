@@ -14,6 +14,7 @@ import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.models.Group;
+import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.User;
 import org.ndexbio.rest.services.GroupService;
 import org.ndexbio.rest.services.NetworkService;
@@ -88,16 +89,20 @@ public class CreateTestDatabase
     @Test
     public void createTestUser()
     {
-        URL testUserUrl = getClass().getResource("dexterpratt.json");
+        final URL testUserUrl = getClass().getResource("dexterpratt.json");
         
         try
         {
-            JsonNode rootNode = _jsonMapper.readTree(new File(testUserUrl.toURI()));
+            final JsonNode rootNode = _jsonMapper.readTree(new File(testUserUrl.toURI()));
             
             System.out.println("Creating test user: " + rootNode.get("username").asText());
-            User testUser = _userService.createUser(rootNode.get("username").asText(),
-                rootNode.get("password").asText(),
-                rootNode.get("emailAddress").asText());
+            
+            final NewUser newTestUser = new NewUser();
+            newTestUser.setEmailAddress(rootNode.get("emailAddress").asText());
+            newTestUser.setPassword(rootNode.get("password").asText());
+            newTestUser.setUsername(rootNode.get("username").asText());
+            
+            final User testUser = _userService.createUser(newTestUser);
 
             System.out.println("Updating " + rootNode.get("username").asText() + "'s profile");
             createTestUserProfile(rootNode.get("profile"), testUser);
@@ -126,7 +131,7 @@ public class CreateTestDatabase
 
     private void createTestUserNetworks(JsonNode networkFilesNode, User testUser) throws Exception
     {
-        Iterator<JsonNode> networksIterator = networkFilesNode.getElements();  
+        final Iterator<JsonNode> networksIterator = networkFilesNode.getElements();  
         while (networksIterator.hasNext())
         {
             //TODO:
@@ -137,15 +142,15 @@ public class CreateTestDatabase
     
     private void createTestUserGroups(JsonNode groupsNode, User testUser) throws Exception
     {
-        Iterator<JsonNode> groupsIterator = groupsNode.getElements();  
+        final Iterator<JsonNode> groupsIterator = groupsNode.getElements();  
         while (groupsIterator.hasNext())
         {
-            JsonNode groupNode = groupsIterator.next();
+            final JsonNode groupNode = groupsIterator.next();
 
-            Group newGroup = new Group();
+            final Group newGroup = new Group();
             newGroup.setName(groupNode.get("name").asText());
             
-            JsonNode profileNode = groupNode.get("profile");
+            final JsonNode profileNode = groupNode.get("profile");
             newGroup.setDescription(profileNode.get("description").asText());
             newGroup.setOrganizationName(profileNode.get("organizationName").asText());
             newGroup.setWebsite(profileNode.get("website").asText());

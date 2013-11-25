@@ -20,9 +20,12 @@ import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
+import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.Network;
+import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.User;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -39,15 +42,15 @@ public class UserService extends NdexService
         final ORID userRid = RidConverter.convertToRid(userJid);
         final ORID networkRid = RidConverter.convertToRid(networkToAdd.getId());
 
-        IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
+        final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
         if (user == null)
             throw new ObjectNotFoundException("User", userJid);
 
-        INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+        final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
         if (network == null)
             throw new ObjectNotFoundException("Network", networkToAdd.getId());
         
-        Iterable<INetwork> workSurface = user.getWorkSurface();
+        final Iterable<INetwork> workSurface = user.getWorkSurface();
         if (workSurface != null)
         {
             for (INetwork checkNetwork : workSurface)
@@ -84,7 +87,7 @@ public class UserService extends NdexService
     {
         try
         {
-            User authUser = new BasicAuthenticationFilter().authenticateUser(new String[] { username, password });
+            final User authUser = new BasicAuthenticationFilter().authenticateUser(new String[] { username, password });
             if (authUser == null)
                 throw new ResteasyAuthenticationException("Invalid username or password.");
             
@@ -97,15 +100,16 @@ public class UserService extends NdexService
     }
     
     @PUT
+    @PermitAll
     @Produces("application/json")
-    public User createUser(final String username, final String password, final String emailAddress) throws NdexException
+    public User createUser(final NewUser userToCreate) throws Exception
     {
         try
         {
             final IUser newUser = _orientDbGraph.addVertex("class:user", IUser.class);
-            newUser.setUsername(username);
-            newUser.setPassword(password);
-            newUser.setEmailAddress(emailAddress);
+            newUser.setUsername(userToCreate.getUsername());
+            newUser.setPassword(Security.hashText(userToCreate.getPassword()));
+            newUser.setEmailAddress(userToCreate.getEmailAddress());
             _orientDbGraph.getBaseGraph().commit();
 
             return new User(newUser);
@@ -136,7 +140,7 @@ public class UserService extends NdexService
         if (user == null)
             throw new ObjectNotFoundException("User", userJid);
 
-        INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+        final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
         if (network == null)
             throw new ObjectNotFoundException("Network", networkToDelete.getId());
         
@@ -204,6 +208,28 @@ public class UserService extends NdexService
                 _ndexDatabase.close();
         }
     }
+
+    @GET
+    @PermitAll
+    @Path("/{username}/forgot-password")
+    @Produces("application/json")
+    public void emailNewPassword(@PathParam("username")final String username) throws Exception
+    {
+        Collection<ODocument> usersFound = _ndexDatabase
+            .command(new OCommandSQL("select from xUser where username = ?"))
+            .execute(username);
+        
+        if (usersFound.size() < 1)
+            throw new ObjectNotFoundException("User", username);
+
+        final IUser authUser = _orientDbGraph.getVertex(usersFound.toArray()[0], IUser.class);
+        
+        final String newPassword = Security.generatePassword();
+        authUser.setPassword(Security.hashText(newPassword));
+        
+        //TODO: This should be refactored to use a configuration file and a text file for the email content
+        Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is: " + newPassword);
+    }
     
     @GET
     @Path("/{userId}/owned-groups")
@@ -216,7 +242,7 @@ public class UserService extends NdexService
         if (user == null)
             throw new ObjectNotFoundException("User", userJid);
 
-        ArrayList<Group> ownedGroups = new ArrayList<Group>();
+        final ArrayList<Group> ownedGroups = new ArrayList<Group>();
         for (IGroup ownedGroup : user.getOwnedGroups())
             ownedGroups.add(new Group(ownedGroup));
         
@@ -234,7 +260,7 @@ public class UserService extends NdexService
         if (user == null)
             throw new ObjectNotFoundException("User", userJid);
 
-        ArrayList<Network> ownedNetworks = new ArrayList<Network>();
+        final ArrayList<Network> ownedNetworks = new ArrayList<Network>();
         for (INetwork ownedNetwork : user.getOwnedNetworks())
             ownedNetworks.add(new Network(ownedNetwork));
         
@@ -261,7 +287,7 @@ public class UserService extends NdexService
                 .command(new OCommandSQL("select from xUser where username = ?"))
                 .execute(userJid);
             
-            Iterator<ODocument> userIterator = matchingUsers.iterator(); 
+            final Iterator<ODocument> userIterator = matchingUsers.iterator(); 
             if (userIterator.hasNext())
                 return new User(_orientDbGraph.getVertex(userIterator.next(), IUser.class), true);
         }
@@ -274,7 +300,7 @@ public class UserService extends NdexService
     public void updateUser(final User updatedUser) throws NdexException
     {
         final ORID userRid = RidConverter.convertToRid(updatedUser.getId());
-        IUser existingUser = _orientDbGraph.getVertex(userRid, IUser.class);
+        final IUser existingUser = _orientDbGraph.getVertex(userRid, IUser.class);
         if (existingUser == null)
             throw new ObjectNotFoundException("User", updatedUser.getId());
 
