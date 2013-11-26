@@ -9,7 +9,12 @@ import org.ndexbio.rest.models.BaseTerm;
 
 public class FunctionTerm extends Term
 {
-    private BaseTerm _termFunction;
+	/*
+	 * mod 25Nov2013
+	 * change from BaseTerm object composition to BaseTerm id reference
+	 */
+    //private BaseTerm _termFunction;
+    private String _termFunction;
     private Map<Integer, String> _textParameters;
     private Map<Integer, String> _termParameters; // ids, not Term objects
     
@@ -28,27 +33,26 @@ public class FunctionTerm extends Term
     **************************************************************************/
     public FunctionTerm(IFunctionTerm iFunctionTerm)
     {
-        super(iFunctionTerm);
+     
+        this.setTermFunction(iFunctionTerm.getTermFunction().getJdexId());
         
-        _termFunction = new BaseTerm((IBaseTerm)iFunctionTerm.getTermFunction());
+        for (Map.Entry<Integer,String> entry : iFunctionTerm.getTextParameters().entrySet())
+            _textParameters.put(entry.getKey(), entry.getValue());
         
-        for (Map.Entry entry : iFunctionTerm.getTextParameters().entrySet())
-            _textParameters.put((Integer)entry.getKey(), (String)entry.getValue());
-        
-        for (Map.Entry entry : iFunctionTerm.getTermParameters().entrySet()){
-        	ITerm parameterTerm = (ITerm)entry.getValue();
-            _termParameters.put((Integer)entry.getKey(), parameterTerm.getJdexId());
+        for (Map.Entry<Integer, ITerm> entry : iFunctionTerm.getTermParameters().entrySet()){
+        	ITerm parameterTerm = entry.getValue();
+            _termParameters.put(entry.getKey(), parameterTerm.getJdexId());
         }
     }
     
-    public BaseTerm getTermFunction()
+    public String getTermFunction()
     {
         return _termFunction;
     }
     
-    public void setTermFunction(BaseTerm function)
+    public void setTermFunction(String functionId)
     {
-        _termFunction = function;
+        _termFunction = functionId;
     }
 
 	public Map<Integer, String> getTextParameters() {

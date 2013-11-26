@@ -1,12 +1,16 @@
 package org.ndexbio.rest.models;
 
 import org.ndexbio.rest.domain.IBaseTerm;
-import org.ndexbio.rest.domain.ITerm;
 
 public class BaseTerm extends Term
 {
+	/*
+	 * mod 25Nov2013
+	 * change from Namespace object composition to Namespace id reference
+	 */
     private String _name;
-    private Namespace _namespace;
+    //private Namespace _namespace;
+    private String _namespace;
     
     /**************************************************************************
     * Default constructor.
@@ -23,12 +27,12 @@ public class BaseTerm extends Term
     **************************************************************************/
     public BaseTerm(IBaseTerm iBaseTerm)
     {
-        super(iBaseTerm);
+       
         
         _name = iBaseTerm.getName();
         
         if (iBaseTerm.getNamespace() != null)
-            _namespace = new Namespace(iBaseTerm.getNamespace());
+            this.setNamespace(iBaseTerm.getNamespace().getJdexId());
     }
     
     public String getName()
@@ -41,13 +45,13 @@ public class BaseTerm extends Term
         _name = name;
     }
     
-    public Namespace getNamespace()
+    public String getNamespace()
     {
         return _namespace;
     }
     
-    public void setNamespace(Namespace namespace)
+    public void setNamespace(String  jdexId)
     {
-        _namespace = namespace;
+        _namespace = jdexId;
     }
 }

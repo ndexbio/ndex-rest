@@ -10,7 +10,7 @@ public class Citation extends NdexObject
 {
     private List<String> _contributors;
     private String _identifier;
-    private String _jdexId;
+    //private String _jdexId;
     private String _title;
     private String _type;
     private List<String> _edges;  // edge ids   
@@ -37,7 +37,7 @@ public class Citation extends NdexObject
         
         _contributors = new ArrayList<String>();
         _identifier = citation.getIdentifier();
-        _jdexId = citation.getJdexId();
+        //_jdexId = citation.getJdexId();
         _title = citation.getTitle();
         _type = citation.getType();     
         _contributors = citation.getContributors();
@@ -62,20 +62,12 @@ public class Citation extends NdexObject
         return _identifier;
     }
     
-    public void setIdentifier(String identifier)
-    {
-        _jdexId = identifier;
-    }
+   // public void setIdentifier(String identifier)
+   // {
+   //     _jdexId = identifier;
+   // }
     
-    public String getJdexId()
-    {
-        return _jdexId;
-    }
     
-    public void setJdexId(String jdexId)
-    {
-        _jdexId = jdexId;
-    }
     
     public String getTitle()
     {
