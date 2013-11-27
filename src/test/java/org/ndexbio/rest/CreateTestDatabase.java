@@ -17,6 +17,7 @@ import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.models.Group;
+import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.Node;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.User;
@@ -139,9 +140,11 @@ public class CreateTestDatabase {
 
 			System.out.println("Creating test user: "
 					+ rootNode.get("username").asText());
-			User testUser = _userService.createUser(rootNode.get("username")
-					.asText(), rootNode.get("password").asText(),
-					rootNode.get("emailAddress").asText());
+			NewUser newUser = new NewUser();
+			newUser.setEmailAddress(rootNode.get("emailAddress").asText());
+			newUser.setPassword( rootNode.get("password").asText());
+			newUser.setUsername(rootNode.get("username").asText());
+			User testUser = _userService.createUser(newUser);
 
 			System.out.println("Updating " + rootNode.get("username").asText()
 					+ "'s profile");
