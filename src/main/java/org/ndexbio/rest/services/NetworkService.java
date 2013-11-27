@@ -98,6 +98,8 @@ public class NetworkService extends NdexService {
 			createSupports(iNetwork, network, networkIndex);
 			// Finally add the properties
 			createProperties(iNetwork, network, networkIndex);
+			
+			_orientDbGraph.getBaseGraph().commit();
 		} catch (Exception e)
 
 		{
@@ -194,13 +196,15 @@ public class NetworkService extends NdexService {
 			Map<String, VertexFrame> networkIndex) {
 		Integer nodesCount = 0;
 		
-		for (Map.Entry<String, Node> nodeEntry : network.getNdexNodes().entrySet()) {
+		for (Map.Entry<String, Node> nodeEntry : network.getNodes().entrySet()) {
 			Node node = nodeEntry.getValue();
 			
 			INode iNode = _orientDbGraph.addVertex("class:node", INode.class);
 			iNode.setJdexId(nodeEntry.getKey());
 			nodesCount++;
-			String termId = node.getRepresentsId();
+			String termId = node.getRepresents();
+			
+			
 			ITerm representedITerm = (ITerm) networkIndex.get(termId);
 			iNode.setRepresents(representedITerm);
 			iNetwork.addNdexNode(iNode);
@@ -212,7 +216,7 @@ public class NetworkService extends NdexService {
 	private void createEdges(INetwork iNetwork, Network network,
 			Map<String, VertexFrame> networkIndex) {
 		Integer edgesCount = 0;
-		for (Map.Entry<String, Edge> edgeEntry:  network.getNdexEdges().entrySet()) {
+		for (Map.Entry<String, Edge> edgeEntry:  network.getEdges().entrySet()) {
 			Edge edge= edgeEntry.getValue();
 			IEdge iEdge = _orientDbGraph.addVertex("class:edge", IEdge.class);
 			iEdge.setJdexId(edgeEntry.getKey());
@@ -512,11 +516,11 @@ public class NetworkService extends NdexService {
 		networkByEdges.setProperties(propertiesMap);
 
 		for (IEdge edge : foundIEdges) {
-			networkByEdges.getNdexEdges().put(edge.getJdexId(), new Edge(edge));
+			networkByEdges.getEdges().put(edge.getJdexId(), new Edge(edge));
 		}
 
 		for (INode node : requiredINodes) {
-			networkByEdges.getNdexNodes().put(node.getJdexId(), new Node(node));
+			networkByEdges.getNodes().put(node.getJdexId(), new Node(node));
 		}
 
 		for (ITerm term : requiredITerms) {
@@ -559,7 +563,7 @@ public class NetworkService extends NdexService {
 		networkByNodes.setProperties(propertiesMap);
 
 		for (INode node : foundINodes) {
-			networkByNodes.getNdexNodes().put(node.getJdexId(), new Node(node));
+			networkByNodes.getNodes().put(node.getJdexId(), new Node(node));
 		}
 
 		for (ITerm term : requiredITerms) {

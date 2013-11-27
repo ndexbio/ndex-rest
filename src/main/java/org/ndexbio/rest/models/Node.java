@@ -6,8 +6,8 @@ import org.ndexbio.rest.domain.ITerm;
 public class Node extends NdexObject
 {
     //private String _jdexId;
-    private String _name;
-    private String _representsId;
+    private String name;
+    private String represents;
     
     
     
@@ -29,32 +29,32 @@ public class Node extends NdexObject
         super(node);
 
         
-        _name = node.getName();
+        name = node.getName();
         
         ITerm termRepresented = node.getRepresents();
         if (termRepresented != null){
-            _representsId = termRepresented.getJdexId();
+            represents = termRepresented.getJdexId();
         }
     }
     
     
     public String getName()
     {
-        return _name;
+        return name;
     }
     
     public void setName(String name)
     {
-        _name = name;
+        this.name = name;
     }
     
-    public String getRepresentsId()
+    public String getRepresents()
     {
-        return _representsId;
+        return represents;
     }
     
-    public void setRepresentsId(String representsId)
+    public void setRepresents(String representsId)
     {
-        _representsId = representsId;
+        represents = representsId;
     }
 }

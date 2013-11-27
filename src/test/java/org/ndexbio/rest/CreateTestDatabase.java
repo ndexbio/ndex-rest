@@ -25,6 +25,7 @@ import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.UserService;
 
 import com.orientechnologies.orient.client.remote.OServerAdmin;
+import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
@@ -40,19 +41,25 @@ public class CreateTestDatabase {
 	private static ODatabaseDocumentTx _ndexDatabase = null;
 	private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
 
-	private static final GroupService _groupService = new GroupService();
-	private static final NetworkService _networkService = new NetworkService();
+	private GroupService _groupService ;
+	private  NetworkService _networkService; 
 	private static final ObjectMapper _jsonMapper = new ObjectMapper();
-	private static final UserService _userService = new UserService();
+	private  UserService _userService ;
 
 	@Test
 	public void checkDatabase() {
 		try {
 			// TODO: Refactor this to connect using a configurable
 			// username/password, and database
-			_ndexDatabase = ODatabaseDocumentPool.global().acquire(
-					"remote:localhost/ndex", "admin", "admin");
-			_ndexDatabase.drop();
+			
+		//	_ndexDatabase = ODatabaseDocumentPool.global().acquire(
+		//			"remote:localhost/ndex", "ndex", "ndex");
+		//	_ndexDatabase.drop();
+
+			new OServerAdmin("remote:localhost/ndex")
+                .connect("ndex", "ndex")
+                .dropDatabase("ndex");
+
 			System.out.println("Existing ndex database found and dropped");
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
@@ -62,23 +69,63 @@ public class CreateTestDatabase {
 
 		try {
 			System.out.println("Creating new ndex database");
-			new OServerAdmin("remote:localhost").connect("admin", "admin")
-					.createDatabase("ndex", "document", "local");
+			//new OServerAdmin("plocal:databases/ndex").connect("ndex", "ndex")
+			//		.createDatabase("ndex", "document", "local");
+			
+			new OServerAdmin("remote:localhost/ndex").connect("ndex", "ndex")
+			.createDatabase("ndex", "document", "local");
 
 			System.out.println("Connecting to ndex database");
 			_ndexDatabase = ODatabaseDocumentPool.global().acquire(
-					"remote:localhost/ndex", "admin", "admin");
+				"remote:localhost/ndex", "ndex", "ndex");
+			
+			
+			if (null == _ndexDatabase){
+				System.out.println("database is null");
+			}
+
+			///System.out.println("Connecting to ndex database");
+			//_ndexDatabase = ODatabaseDocumentPool.global().acquire(
+			//		"plocal:databases/ndex", "ndex", "ndex"); 
+			
+			System.out.println("Connected to ndex database");
 
 			_graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
 					new TypedGraphModuleBuilder().withClass(IGroup.class)
 							.withClass(IUser.class).withClass(ITerm.class)
 							.withClass(IFunctionTerm.class).build());
+			
+			System.out.println("GraphFactory created");
 
-			_orientDbGraph = _graphFactory
-					.create((OrientBaseGraph) new OrientGraph(_ndexDatabase));
+			_orientDbGraph = _graphFactory.create((OrientBaseGraph) new OrientGraph(_ndexDatabase));
+			System.out.println("orientDbGraph  created");
+	            
+			OrientBaseGraph orientDbGraph = _orientDbGraph.getBaseGraph();
+			System.out.println("orientdb database obtained");
+			
 			NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
+			System.out.println("instance   created");
+			
+			if(null == this._networkService) {
+				this._networkService = new NetworkService();
+				System.out.println("network service created");
+			}
+			if (null == this._groupService) {
+				this._groupService = new GroupService();
+				System.out.println("group service created");
+			}
+			if (null == this._userService){
+				this._userService = new UserService();
+				System.out.println("user service created");
+			}
+			
+			
+			
 		} catch (Exception e) {
+			
+			System.out.println("Exception in setup:" +e.getMessage());
 			Assert.fail(e.getMessage());
+			
 		}
 	}
 
@@ -108,7 +155,9 @@ public class CreateTestDatabase {
 					+ "'s groups");
 			createTestUserGroups(rootNode.get("ownedGroups"), testUser);
 		} catch (Exception e) {
+			System.out.println("Exception in create user: " +e.getMessage());
 			Assert.fail(e.getMessage());
+			e.printStackTrace();
 		}
 	}
 

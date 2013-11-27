@@ -41,6 +41,21 @@ public class Edge extends NdexObject
     }
  
     
+    /*
+     * public getters and setters to accommodate jackson ORM
+     * and JSON value names
+     */
+    // subject
+    public void setS( String s){this._subjectId = s;}   
+    public String getS() { return this._subjectId;}
+    //predicate
+    public void setP( String p){this._predicateId = p;}   
+    public String getP() { return this._predicateId;}
+    //object
+    public void setO( String o){this._objectId = o;}   
+    public String getO() { return this._objectId;}
+    
+    
     
     public String getObjectId()
     {
