@@ -19,10 +19,10 @@ public interface ISupport extends VertexFrame
     @Property("text")
     public String getText();
 
-    @Property("citation")
+    @Adjacency(label = "citation", direction = Direction.IN)
     public void setCitation(ICitation citation);
 
-    @Property("citation")
+    @Adjacency(label = "citation", direction = Direction.IN)
     public ICitation getCitation();
     
     @Adjacency(label = "ndexEdges", direction = Direction.OUT)

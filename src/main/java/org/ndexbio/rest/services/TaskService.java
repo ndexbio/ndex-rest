@@ -25,6 +25,8 @@ import com.tinkerpop.blueprints.Vertex;
  * subclass of abstract class NdexService
  * FJC 19NOV2013
  */
+
+@Path("/tasks")
 public class TaskService extends NdexService
 {
     public TaskService()
@@ -35,7 +37,7 @@ public class TaskService extends NdexService
     
 
     @DELETE
-    @Path("/tasks/{taskId}")
+    @Path("/{taskId}")
     @Produces("application/json")
     public void deleteTask(@PathParam("taskId")final String taskJid) throws Exception
     {
@@ -49,7 +51,7 @@ public class TaskService extends NdexService
     }
 
     @GET
-    @Path("/tasks/{taskId}")
+    @Path("/{taskId}")
     @Produces("application/json")
     public Task getTask(@PathParam("taskId")final String taskJid) throws NdexException
     {
@@ -129,5 +131,4 @@ public class TaskService extends NdexService
         }
         return newTask;
     }
-
 }

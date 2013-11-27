@@ -16,7 +16,6 @@ import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
-import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -34,10 +33,17 @@ import com.orientechnologies.orient.core.sql.OCommandSQL;
 @Path("/users")
 public class UserService extends NdexService
 {
+    public UserService()
+    {
+        super();
+    }
+    
+    
+    
     @PUT
     @Path("/{userId}/work-surface")
     @Produces("application/json")
-    public void addNetworkToWorkSurface(@PathParam("userId")final String userJid, final Network networkToAdd) throws NdexException
+    public void addNetworkToWorkSurface(@PathParam("userId")final String userJid, final Network networkToAdd) throws Exception
     {
         final ORID userRid = RidConverter.convertToRid(userJid);
         final ORID networkRid = RidConverter.convertToRid(networkToAdd.getId());
@@ -67,15 +73,11 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
+            handleOrientDbException(e);
         }
         finally
         {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
+            closeOrientDbConnection();
         }
     }
 
@@ -83,20 +85,13 @@ public class UserService extends NdexService
     @PermitAll
     @Path("/authenticate/{username}/{password}")
     @Produces("application/json")
-    public User authenticateUser(@PathParam("username")final String username, @PathParam("password")final String password)
+    public User authenticateUser(@PathParam("username")final String username, @PathParam("password")final String password) throws Exception
     {
-        try
-        {
-            final User authUser = new BasicAuthenticationFilter().authenticateUser(new String[] { username, password });
-            if (authUser == null)
-                throw new ResteasyAuthenticationException("Invalid username or password.");
-            
-            return authUser;
-        }
-        catch (Exception e)
-        {
-            throw new org.jboss.resteasy.client.exception.ResteasyHttpException(e.getMessage());
-        }
+        final User authUser = new BasicAuthenticationFilter().authenticateUser(new String[] { username, password });
+        if (authUser == null)
+            throw new ResteasyAuthenticationException("Invalid username or password.");
+        
+        return authUser;
     }
     
     @PUT
@@ -116,22 +111,20 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
+            handleOrientDbException(e);
         }
         finally
         {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
+            closeOrientDbConnection();
         }
+        
+        return null;
     }
 
     @DELETE
     @Path("/{userId}/work-surface")
     @Produces("application/json")
-    public void deleteNetworkFromWorkSurface(@PathParam("userId")final String userJid, final Network networkToDelete) throws NdexException
+    public void deleteNetworkFromWorkSurface(@PathParam("userId")final String userJid, final Network networkToDelete) throws Exception
     {
         final ORID userRid = RidConverter.convertToRid(userJid);
         final ORID networkRid = RidConverter.convertToRid(networkToDelete.getId());
@@ -167,22 +160,18 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
+            handleOrientDbException(e);
         }
         finally
         {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
+            closeOrientDbConnection();
         }
     }
     
     @DELETE
     @Path("/{userId}")
     @Produces("application/json")
-    public void deleteUser(@PathParam("userId")final String userJid) throws NdexException
+    public void deleteUser(@PathParam("userId")final String userJid) throws Exception
     {
         final ORID userRid = RidConverter.convertToRid(userJid);
         final IUser userToDelete = _orientDbGraph.getVertex(userRid, IUser.class);
@@ -197,15 +186,11 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
+            handleOrientDbException(e);
         }
         finally
         {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
+            closeOrientDbConnection();
         }
     }
 
@@ -234,7 +219,7 @@ public class UserService extends NdexService
     @GET
     @Path("/{userId}/owned-groups")
     @Produces("application/json")
-    public Collection<Group> getOwnedGroups(@PathParam("userId")final String userJid) throws NdexException
+    public Collection<Group> getOwnedGroups(@PathParam("userId")final String userJid) throws Exception
     {
         final ORID userRid = RidConverter.convertToRid(userJid);
         final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
@@ -252,7 +237,7 @@ public class UserService extends NdexService
     @GET
     @Path("/{userId}/owned-networks")
     @Produces("application/json")
-    public Collection<Network> getOwnedNetworks(@PathParam("userId")final String userJid) throws NdexException
+    public Collection<Network> getOwnedNetworks(@PathParam("userId")final String userJid) throws Exception
     {
         final ORID userRid = RidConverter.convertToRid(userJid);
         final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
@@ -268,6 +253,7 @@ public class UserService extends NdexService
     }
     
     @GET
+    @PermitAll
     @Path("/{userId}")
     @Produces("application/json")
     public User getUser(@PathParam("userId")final String userJid)
@@ -297,7 +283,7 @@ public class UserService extends NdexService
 
     @POST
     @Produces("application/json")
-    public void updateUser(final User updatedUser) throws NdexException
+    public void updateUser(final User updatedUser) throws Exception
     {
         final ORID userRid = RidConverter.convertToRid(updatedUser.getId());
         final IUser existingUser = _orientDbGraph.getVertex(userRid, IUser.class);
@@ -328,15 +314,11 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
+            handleOrientDbException(e);
         }
         finally
         {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
+            closeOrientDbConnection();
         }
     }
 }

@@ -1,5 +1,6 @@
 package org.ndexbio.rest.domain;
 
+import java.util.Map;
 import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
@@ -36,10 +37,10 @@ public interface IUser extends IAccount
     public void removeOwnedGroup(IGroup group);
 
     @Adjacency(label = "ownedNetworks", direction = Direction.OUT)
-    public Iterable<INetwork> getOwnedNetworks();
+    public void addOwnedNetwork(INetwork network);
 
     @Adjacency(label = "ownedNetworks", direction = Direction.OUT)
-    public void addOwnedNetwork(INetwork network);
+    public Iterable<INetwork> getOwnedNetworks();
 
     @Adjacency(label = "ownedNetworks", direction = Direction.OUT)
     public void removeOwnedNetwork(INetwork network);
@@ -49,6 +50,12 @@ public interface IUser extends IAccount
 
     @Property("password")
     public void setPassword(String password);
+    
+    @Adjacency(label = "requests", direction = Direction.OUT)
+    public Iterable<IRequest> getRequests(Map<String, String> properties);
+    
+    @Adjacency(label = "requests", direction = Direction.OUT)
+    public void setRequests(Iterable<IRequest> requests);
 
     @Property("username")
     public String getUsername();
@@ -63,10 +70,10 @@ public interface IUser extends IAccount
     public String getWebsite();
 
     @Adjacency(label = "workSurface", direction = Direction.OUT)
-    public Iterable<INetwork> getWorkSurface();
+    public void addNetworkToWorkSurface(INetwork network);
 
     @Adjacency(label = "workSurface", direction = Direction.OUT)
-    public void addNetworkToWorkSurface(INetwork network);
+    public Iterable<INetwork> getWorkSurface();
 
     @Adjacency(label = "workSurface", direction = Direction.OUT)
     public void removeNetworkFromWorkSurface(INetwork network);

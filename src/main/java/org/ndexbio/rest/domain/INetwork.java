@@ -63,13 +63,19 @@ public interface INetwork extends VertexFrame
     public void removeNdexNode(INode node);
 
     @Adjacency(label = "owners", direction = Direction.IN)
-    public Iterable<IUser> getOwners();
+    public Iterable<IAccount> getOwners();
 
     @Property("properties")
     public Map<String, String> getProperties();
 
     @Property("properties")
     public void setProperties(Map<String, String> properties);
+    
+    @Adjacency(label = "requests", direction = Direction.IN)
+    public Iterable<IRequest> getRequests(Map<String, String> properties);
+    
+    @Adjacency(label = "requests", direction = Direction.IN)
+    public void setRequests(Iterable<IRequest> requests);
 
     @Adjacency(label = "supports", direction = Direction.OUT)
     public void addSupport(ISupport support);

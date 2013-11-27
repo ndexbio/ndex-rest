@@ -1,12 +1,11 @@
 package org.ndexbio.rest.domain;
 
-import com.orientechnologies.orient.core.id.ORID;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.modules.typedgraph.TypeValue;
 import java.util.Map;
 
-@TypeValue("functionTerm")
+@TypeValue("Function")
 public interface IFunctionTerm extends ITerm
 {
     @Property("termParameters")

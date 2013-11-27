@@ -47,4 +47,13 @@ public interface ICitation extends VertexFrame
     
     @Adjacency(label = "ndexEdges", direction = Direction.OUT)
     public void removeNdexEdge(IEdge edge);
+    
+    @Adjacency(label = "supports", direction = Direction.OUT)
+    public void addSupport(ISupport support);
+
+    @Adjacency(label = "supports", direction = Direction.OUT)
+    public Iterable<ISupport> getSupports();
+    
+    @Adjacency(label = "supports", direction = Direction.OUT)
+    public void removeSupport(ISupport support);
 }

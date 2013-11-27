@@ -1,9 +1,12 @@
 package org.ndexbio.rest.services;
 
 import org.ndexbio.rest.NdexSchemaManager;
+import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.IGroup;
-import org.ndexbio.rest.domain.ITerm;
+import org.ndexbio.rest.domain.IGroupInvitationRequest;
+import org.ndexbio.rest.domain.IJoinGroupRequest;
+import org.ndexbio.rest.domain.INetworkAccessRequest;
 import org.ndexbio.rest.domain.IUser;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
@@ -22,7 +25,7 @@ public abstract class NdexService
     protected FramedGraphFactory _graphFactory = null;
     protected ODatabaseDocumentTx _ndexDatabase = null;
     protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
-    
+
     /**************************************************************************
     * Opens a connection to OrientDB and initializes the OrientDB Graph ORM.
     **************************************************************************/
@@ -34,13 +37,16 @@ public abstract class NdexService
                 new TypedGraphModuleBuilder()
                     .withClass(IGroup.class)
                     .withClass(IUser.class)
-                    .withClass(ITerm.class)
-                    .withClass(IFunctionTerm.class)
-                    .build());
-            
-            //TODO: Refactor this to connect using a configurable username/password, and database
+                    .withClass(IGroupInvitationRequest.class)
+                    .withClass(IJoinGroupRequest.class)
+                    .withClass(INetworkAccessRequest.class)
+                    .withClass(IBaseTerm.class)
+                    .withClass(IFunctionTerm.class).build());
+
+            // TODO: Refactor this to connect using a configurable
+            // username/password, and database
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
-            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
+            _orientDbGraph = _graphFactory.create((OrientBaseGraph) new OrientGraph(_ndexDatabase));
             NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
         }
         catch (Exception e)
@@ -48,12 +54,10 @@ public abstract class NdexService
             OLogManager.instance().error(this, "Cannot access database: " + "ndex" + ".", ODatabaseException.class, e);
         }
     }
-    /*
-     * put these operations in superclass for consistency across subclasses
-     */
-    
-    protected void deleteVertex(final Vertex vertexToDelete) throws Exception {
-		try
+
+    protected void deleteVertex(final Vertex vertexToDelete) throws Exception
+    {
+        try
         {
             _orientDbGraph.removeVertex(vertexToDelete);
             _orientDbGraph.getBaseGraph().commit();
@@ -66,17 +70,19 @@ public abstract class NdexService
         {
             closeOrientDbConnection();
         }
-	}
-    
-    protected void closeOrientDbConnection() {
-    	if (_ndexDatabase != null)
-            _ndexDatabase.close();
-	}
+    }
 
-	protected void handleOrientDbException(Exception e) throws Exception {
-		if (_orientDbGraph != null)
-		    _orientDbGraph.getBaseGraph().rollback();
-		
-		throw e;
-	}
+    protected void closeOrientDbConnection()
+    {
+        if (_ndexDatabase != null)
+            _ndexDatabase.close();
+    }
+
+    protected void handleOrientDbException(Exception e) throws Exception
+    {
+        if (_orientDbGraph != null)
+            _orientDbGraph.getBaseGraph().rollback();
+
+        throw e;
+    }
 }

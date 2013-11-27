@@ -146,7 +146,7 @@ public class NetworkService extends NdexService {
 				if (ns != null) {
 					INamespace ins = (INamespace) networkIndex.get(ns
 							.getJdexId());
-					iBaseTerm.setNamespace(ins);
+					iBaseTerm.addNamespace(ins);
 					// TODO check for case where no ins found in networkIndex
 				}
 				iNetwork.addTerm(iBaseTerm);

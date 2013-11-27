@@ -1,5 +1,6 @@
 package org.ndexbio.rest.domain;
 
+import java.util.Map;
 import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
@@ -14,13 +15,13 @@ public interface IGroup extends IAccount
     @Property("name")
     String getName();
     
-    @Adjacency(label = "members")
+    @Adjacency(label = "members", direction = Direction.OUT)
     public void addMember(IUser user);
     
-    @Adjacency(label = "members")
+    @Adjacency(label = "members", direction = Direction.OUT)
     public Iterable<IUser> getMembers();
     
-    @Adjacency(label = "members")
+    @Adjacency(label = "members", direction = Direction.OUT)
     public void removeMember(IUser user);
 
     @Property("organizationName")
@@ -40,6 +41,12 @@ public interface IGroup extends IAccount
 
     @Adjacency(label = "owners", direction = Direction.IN)
     public Iterable<IUser> getOwners();
+    
+    @Adjacency(label = "requests", direction = Direction.IN)
+    public Iterable<IRequest> getRequests(Map<String, String> properties);
+    
+    @Adjacency(label = "requests", direction = Direction.IN)
+    public void setRequests(Iterable<IRequest> requests);
 
     @Property("website")
     void setWebsite(String website);

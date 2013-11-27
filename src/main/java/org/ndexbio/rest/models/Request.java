@@ -1,14 +1,16 @@
 package org.ndexbio.rest.models;
 
+import org.ndexbio.rest.domain.IGroupInvitationRequest;
+import org.ndexbio.rest.domain.IJoinGroupRequest;
+import org.ndexbio.rest.domain.INetworkAccessRequest;
 import org.ndexbio.rest.domain.IRequest;
 
 public class Request extends NdexObject
 {
-    private String fromId;
-    private String toId;
-    private String aboutId;
-    private String message;
-    private String requestType;
+    private String _fromName;
+    private String _toName;
+    private String _message;
+    private String _requestType;
 
     
 
@@ -29,63 +31,71 @@ public class Request extends NdexObject
     {
         super(request);
         
-        this.setFromId(resolveVertexId(request.getFromAccount()));
-        this.setToId(resolveVertexId(request.getToAccount()));
-        this.setAboutId(resolveVertexId(request.getAbout()));
-        this.setMessage(request.getMessage());
-        this.setRequestType(request.getRequestType());
+        _message = request.getMessage();
         this.setCreatedDate(request.getRequestTime());
+
+        if (request instanceof IGroupInvitationRequest)
+        {
+            IGroupInvitationRequest groupRequest = ((IGroupInvitationRequest)request); 
+            _requestType = "Group Invitation";
+            _fromName = groupRequest.getFromGroup().getName();
+            _toName = groupRequest.getToUser().getFirstName() + " " + groupRequest.getToUser().getLastName();
+        }
+        else if (request instanceof IJoinGroupRequest)
+        {
+            IJoinGroupRequest groupRequest = ((IJoinGroupRequest)request); 
+            _requestType = "Network Access";
+            _fromName = groupRequest.getFromUser().getFirstName() + " " + groupRequest.getFromUser().getLastName();
+            _toName = groupRequest.getToGroup().getName();
+        }
+        else if (request instanceof INetworkAccessRequest)
+        {
+            INetworkAccessRequest networkRequest = ((INetworkAccessRequest)request); 
+            _requestType = "Network Access";
+            _fromName = networkRequest.getFromUser().getFirstName() + " " + networkRequest.getFromUser().getLastName();
+            _toName = networkRequest.getToNetwork().getProperties().get("title");
+        }
     }
 
     
     
-    public String getFromId()
+    public String getFrom()
     {
-        return fromId;
+        return _fromName;
     }
 
-    public void setFromId(String fromId)
+    public void setFromId(String fromName)
     {
-        this.fromId = fromId;
-    }
-
-    public String getToId()
-    {
-        return toId;
-    }
-
-    public void setToId(String toId)
-    {
-        this.toId = toId;
-    }
-
-    public String getAboutId()
-    {
-        return aboutId;
-    }
-
-    public void setAboutId(String aboutId)
-    {
-        this.aboutId = aboutId;
+        _fromName = fromName;
     }
 
     public String getMessage()
     {
-        return message;
+        return _message;
     }
 
     public void setMessage(String message)
     {
-        this.message = message;
+        _message = message;
     }
 
     public String getRequestType()
     {
-        return requestType;
+        return _requestType;
     }
 
     public void setRequestType(String requestType)
     {
-        this.requestType = requestType;
+        _requestType = requestType;
+    }
+
+    public String getTo()
+    {
+        return _toName;
+    }
+
+    public void setToId(String toName)
+    {
+        _toName = toName;
     }
 }
