@@ -8,10 +8,15 @@ import org.ndexbio.rest.domain.ISupport;
 
 public class Support extends NdexObject
 {
+	
+	/*
+	 * mod 215Nov2013
+	 * refactor Citation object to a JdexId (i.e. String) for that citation
+	 */
     private String _jdexId;
     private String _text;
     private List<String> _edges;  // edge ids
-    private Citation _citation;
+    private String _citationId;
     
     
     
@@ -34,7 +39,7 @@ public class Support extends NdexObject
         
         _jdexId = support.getJdexId();
         _text = support.getText();
-        _citation = new Citation(support.getCitation());
+        _citationId = support.getCitation().getJdexId();
         _edges = new ArrayList<String>();
         for (IEdge iEdge : support.getNdexEdges()){
         	_edges.add(iEdge.getJdexId());
@@ -69,12 +74,12 @@ public class Support extends NdexObject
 		_edges = edges;
 	}
 
-	public Citation getCitation() {
-		return _citation;
+	public String getCitationId() {
+		return _citationId;
 	}
 
-	public void setCitation(Citation citation) {
-		_citation = citation;
+	public void setCitationId(String citationId) {
+		_citationId = citationId;
 	}
     
     

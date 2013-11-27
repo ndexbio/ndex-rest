@@ -113,7 +113,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         try
         {
             // TODO: Refactor this to connect using a configurable username/password, and database
-            ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
+            ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "ndex", "ndex");
             final FramedGraph<OrientBaseGraph> orientDbGraph = graphFactory.create((OrientBaseGraph)new OrientGraph(ndexDatabase));
 
             Collection<ODocument> usersFound = ndexDatabase

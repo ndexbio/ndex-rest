@@ -8,13 +8,18 @@ import org.ndexbio.rest.domain.INetwork;
 
 public class Group extends NdexObject
 {
+	/*
+	 * mod 25Nov2013
+	 * refactor from a collection of Network objects to a collection of
+	 * network JDexIds (i.e. Strings)
+	 */
     private String _backgroundImage;
     private Date _creationDate;
     private String _description;
     private String _foregroundImage;
     private String _name;
     private String _organizationName;
-    private List<Network> _networksOwned;
+    private List<String> _networkOwnedIdList;
     private String _website;
 
     
@@ -26,7 +31,7 @@ public class Group extends NdexObject
     {
         super();
         
-        _networksOwned = new ArrayList<Network>();
+        _networkOwnedIdList = new ArrayList<String>();
     }
     
     /**************************************************************************
@@ -51,7 +56,7 @@ public class Group extends NdexObject
     {
         super(group);
         
-        _networksOwned = new ArrayList<Network>();
+        _networkOwnedIdList = new ArrayList<String>();
 
         _backgroundImage = group.getBackgroundImage();
         _creationDate = group.getCreatedDate();
@@ -63,8 +68,12 @@ public class Group extends NdexObject
         
         if (loadEverything)
         {
+        	/*
+        	 * Network domain object does not have a JdexId
+        	 * use Vertex id field 
+        	 */
             for (INetwork ownedNetwork : group.getOwnedNetworks())
-                _networksOwned.add(new Network(ownedNetwork));
+                _networkOwnedIdList.add(ownedNetwork.asVertex().getId().toString());
         }
     }
     
@@ -115,14 +124,14 @@ public class Group extends NdexObject
         _name = name;
     }
     
-    public List<Network> getNetworksOwned()
+    public List<String> getNetworksOwnedIdList()
     {
-        return _networksOwned;
+        return _networkOwnedIdList;
     }
     
-    public void setNetworksOwned(List<Network> networksOwned)
+    public void setNetworksOwnedIdList(List<String> networksOwned)
     {
-        _networksOwned = networksOwned;
+        _networkOwnedIdList = networksOwned;
     }
     
     public String getOrganizationName()

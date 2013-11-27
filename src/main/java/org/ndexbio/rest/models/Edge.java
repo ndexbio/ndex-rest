@@ -9,10 +9,14 @@ import org.ndexbio.rest.domain.ITerm;
 
 public class Edge extends NdexObject
 {
-    private Node _object;
-    private BaseTerm _predicate;
-    private Node _subject;
-    private String _jdexId;
+	/*
+	 * mod 25Nov2013 
+	 * change from Node and BaseTerm aggregation to Node and BaseTerm references
+	 */
+    private String _objectId;
+    private String _predicateId;
+    private String _subjectId;
+    //private String _jdexId;
    
     /**************************************************************************
     * Default constructor.
@@ -31,48 +35,55 @@ public class Edge extends NdexObject
     {
         super(edge);
         
-        _subject = new Node(edge.getSubject());
-        _predicate = new BaseTerm(edge.getPredicate());
-        _object = new Node(edge.getObject());
+        _subjectId = edge.getSubject().getJdexId();
+        _predicateId = edge.getPredicate().getJdexId();
+        _objectId = edge.getObject().getJdexId();
     }
  
-    public String getJdexId()
+    
+    /*
+     * public getters and setters to accommodate jackson ORM
+     * and JSON value names
+     */
+    // subject
+    public void setS( String s){this._subjectId = s;}   
+    public String getS() { return this._subjectId;}
+    //predicate
+    public void setP( String p){this._predicateId = p;}   
+    public String getP() { return this._predicateId;}
+    //object
+    public void setO( String o){this._objectId = o;}   
+    public String getO() { return this._objectId;}
+    
+    
+    
+    public String getObjectId()
     {
-        return _jdexId;
+        return _objectId;
     }
     
-    public void setJdexId(String jdexId)
+    public void setObjectId(String  objectId)
     {
-        _jdexId = jdexId;
+        _objectId = objectId;
     }
     
-    public Node getObject()
+    public String getPredicateId()
     {
-        return _object;
+        return _predicateId;
     }
     
-    public void setObject(Node object)
+    public void setPredicateId(String predicateId)
     {
-        _object = object;
+        _predicateId = predicateId;
     }
     
-    public BaseTerm getPredicate()
+    public String getSubjectId()
     {
-        return _predicate;
+        return _subjectId;
     }
     
-    public void setPredicate(BaseTerm predicate)
+    public void setSubjectId(String subjectId)
     {
-        _predicate = predicate;
-    }
-    
-    public Node getSubject()
-    {
-        return _subject;
-    }
-    
-    public void setSubject(Node subject)
-    {
-        _subject = subject;
+        _subjectId = subjectId;
     }
 }

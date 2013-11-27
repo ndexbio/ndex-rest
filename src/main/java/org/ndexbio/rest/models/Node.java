@@ -1,15 +1,13 @@
 package org.ndexbio.rest.models;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.ITerm;
 
 public class Node extends NdexObject
 {
-    private String _jdexId;
-    private String _name;
-    private Term _represents;
+    //private String _jdexId;
+    private String name;
+    private String represents;
     
     
     
@@ -30,43 +28,33 @@ public class Node extends NdexObject
     {
         super(node);
 
-        _jdexId = node.getJdexId();
-        _name = node.getName();
+        
+        name = node.getName();
         
         ITerm termRepresented = node.getRepresents();
         if (termRepresented != null){
-            _represents = new Term(termRepresented);
+            represents = termRepresented.getJdexId();
         }
     }
     
     
-    public String getJdexId()
-    {
-        return _jdexId;
-    }
-    
-    public void setJdexId(String jdexId)
-    {
-        _jdexId = jdexId;
-    }
-    
     public String getName()
     {
-        return _name;
+        return name;
     }
     
     public void setName(String name)
     {
-        _name = name;
+        this.name = name;
     }
     
-    public Term getRepresents()
+    public String getRepresents()
     {
-        return _represents;
+        return represents;
     }
     
-    public void setRepresents(Term represents)
+    public void setRepresents(String representsId)
     {
-        _represents = represents;
+        represents = representsId;
     }
 }
