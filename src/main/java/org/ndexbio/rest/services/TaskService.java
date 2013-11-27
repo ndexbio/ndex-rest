@@ -60,7 +60,7 @@ public class TaskService extends NdexService
 
         if (task == null)
         {
-            final Collection<ODocument> matchingtasks = _orientDbGraph.getBaseGraph().command(new OCommandSQL("select from xtask where taskname = ?")).execute(taskJid);
+            final Collection<ODocument> matchingtasks = _orientDbGraph.getBaseGraph().command(new OCommandSQL("select from Task where taskname = ?")).execute(taskJid);
 
             if (matchingtasks.size() < 1)
                 return null;

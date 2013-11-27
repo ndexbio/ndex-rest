@@ -201,7 +201,7 @@ public class UserService extends NdexService
     public void emailNewPassword(@PathParam("username")final String username) throws Exception
     {
         Collection<ODocument> usersFound = _ndexDatabase
-            .command(new OCommandSQL("select from xUser where username = ?"))
+            .command(new OCommandSQL("select from User where username = ?"))
             .execute(username);
         
         if (usersFound.size() < 1)
@@ -270,7 +270,7 @@ public class UserService extends NdexService
             //The user ID is actually a username
             final Iterable<ODocument> matchingUsers = _orientDbGraph
                 .getBaseGraph()
-                .command(new OCommandSQL("select from xUser where username = ?"))
+                .command(new OCommandSQL("select from User where username = ?"))
                 .execute(userJid);
             
             final Iterator<ODocument> userIterator = matchingUsers.iterator(); 

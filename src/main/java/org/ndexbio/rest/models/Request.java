@@ -53,7 +53,7 @@ public class Request extends NdexObject
             INetworkAccessRequest networkRequest = ((INetworkAccessRequest)request); 
             _requestType = "Network Access";
             _fromName = networkRequest.getFromUser().getFirstName() + " " + networkRequest.getFromUser().getLastName();
-            _toName = networkRequest.getToNetwork().getProperties().get("title");
+            _toName = networkRequest.getToNetwork().getTitle();
         }
     }
 

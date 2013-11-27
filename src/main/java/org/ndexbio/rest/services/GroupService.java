@@ -113,7 +113,7 @@ public class GroupService extends NdexService
             //The group ID is actually a group name
             final Collection<ODocument> matchingGroups = _orientDbGraph
                 .getBaseGraph()
-                .command(new OCommandSQL("select from xGroup where groupname = ?"))
+                .command(new OCommandSQL("select from Group where groupname = ?"))
                 .execute(groupJid);
 
             if (matchingGroups.size() > 0)

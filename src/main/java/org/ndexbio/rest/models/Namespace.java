@@ -7,6 +7,7 @@ public class Namespace extends NdexObject
     private String _jdexId;
     private String _prefix;
     private String _uri;
+    private BaseTerm _baseTerm;
     
     
     
@@ -30,9 +31,20 @@ public class Namespace extends NdexObject
         _jdexId = namespace.getJdexId();
         _prefix = namespace.getPrefix();
         _uri = namespace.getUri();
+        _baseTerm = new BaseTerm(namespace.getTerm());
     }
     
     
+    
+    public BaseTerm getTerm()
+    {
+        return _baseTerm;
+    }
+    
+    public void setTerm(BaseTerm term)
+    {
+        _baseTerm = term;
+    }
     
     public String getJdexId()
     {
@@ -49,7 +61,7 @@ public class Namespace extends NdexObject
         return _prefix;
     }
     
-    public void setName(String prefix)
+    public void setPrefix(String prefix)
     {
         _prefix = prefix;
     }

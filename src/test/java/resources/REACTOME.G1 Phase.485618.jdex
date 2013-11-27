@@ -1894,10 +1894,8 @@
         }
     },
     "nodeTypes": {},
-    "properties": {
-        "source": "REACTOME",
-        "title": "REACTOME:G1 Phase"
-    },
+    "source": "REACTOME",
+    "title": "REACTOME:G1 Phase",
     "citations": {},
     "supports": {}
 }

@@ -1,8 +1,9 @@
 package org.ndexbio.rest.models;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.IEdge;
@@ -10,27 +11,30 @@ import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INode;
+import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
 
 public class Network extends NdexObject
 {
-	/*
-	 * mod 25Nov2013
-	 * modify collection fields to be Map<String,model_type> using the JdexId as the map key
-	 * this will support Jackson object mapping
-	 */
-    private Map<String, Citation> citations;
-    private Map<String, Edge> edges;
-    private String format;
-    private Map<String,Namespace> namespaces;
-    private Map<String,Node> nodes;
-    private Map<String, String> properties;
-    private Map<String, Support> supports;
-    private Map<String, Term> terms;
-    private Map<String,NodeType> nodeTypes;
-    private Integer edgeCount;
-    private Integer nodeCount;
+    private Map<String, Citation> _citations;
+    private String _copyright;
+    private String _description;
+    private int _edgeCount;
+    private Map<String, Edge> _edges;
+    private String _format;
+    private Map<String, Namespace> _namespaces;
+    private int _nodeCount;
+    private Map<String, Node> _nodes;
+    private Map<String, NodeType> _nodeTypes;
+    private List<Request> _requests;
+    private String _source;
+    private Map<String, Support> _supports;
+    private Map<String, Term> _terms;
+    private String _title;
+    private String _version;
+
+
 
     /**************************************************************************
     * Default constructor.
@@ -38,22 +42,12 @@ public class Network extends NdexObject
     public Network()
     {
         super();
-        this.initMaps();
         
-        edgeCount = 0;
-        nodeCount = 0;
+        _edgeCount = 0;
+        _nodeCount = 0;
+        initMaps();
     }
-    
-    private void initMaps() {
-    	citations = new HashMap<String, Citation>();
-        edges = new HashMap<String,Edge>();
-        namespaces = new HashMap<String,Namespace>();
-        nodes = new HashMap<String,Node>();
-        properties = new HashMap<String, String>();
-        supports = new HashMap<String, Support>();
-        terms = new HashMap<String,Term>();
-    }
-    
+
     /**************************************************************************
     * Populates the class (from the database) and removes circular references.
     * Doesn't load Edges, Nodes, or Terms.
@@ -64,7 +58,7 @@ public class Network extends NdexObject
     {
         this(network, false);
     }
-    
+
     /**************************************************************************
     * Populates the class (from the database) and removes circular references.
     * 
@@ -74,143 +68,213 @@ public class Network extends NdexObject
     **************************************************************************/
     public Network(INetwork network, boolean loadEverything)
     {
-    	
         super(network);
-       
+
+        _copyright = network.getCopyright();
+        _description = network.getDescription();
+        _edgeCount = network.getNdexEdgeCount();
+        _format = network.getFormat();
+        _nodeCount = network.getNdexNodeCount();
+        _source = network.getSource();
+        _title = network.getTitle();
+        _version = network.getVersion();
         this.initMaps();
-        format = network.getFormat();
-        edgeCount = network.getNdexEdgeCount();
-        nodeCount = network.getNdexNodeCount();
-        properties.putAll(network.getProperties());
         
+        for (IRequest request : network.getRequests())
+            _requests.add(new Request(request));
+
         if (loadEverything)
         {
             for (IEdge edge : network.getNdexEdges())
-                edges.put(edge.getJdexId(), new Edge(edge));
-            
+                _edges.put(edge.getJdexId(), new Edge(edge));
+
             for (INode node : network.getNdexNodes())
-                nodes.put(node.getJdexId(), new Node(node));
-            
+                _nodes.put(node.getJdexId(), new Node(node));
+
             for (ITerm term : network.getTerms())
-            	if( term instanceof IBaseTerm) {
-            		terms.put(term.getJdexId(), new BaseTerm((IBaseTerm)term));
-            	} else if ( term instanceof IFunctionTerm) {
-            		terms.put(term.getJdexId(), new FunctionTerm((IFunctionTerm) term));
-            	}
-            
+            {
+                if (term instanceof IBaseTerm)
+                    _terms.put(term.getJdexId(), new BaseTerm((IBaseTerm)term));
+                else if (term instanceof IFunctionTerm)
+                    _terms.put(term.getJdexId(), new FunctionTerm((IFunctionTerm)term));
+            }
+
             for (ICitation citation : network.getCitations())
-                citations.put(citation.getJdexId(), new Citation(citation));
-            
+                _citations.put(citation.getJdexId(), new Citation(citation));
+
             for (INamespace namespace : network.getNamespaces())
-                namespaces.put(namespace.getJdexId(), new Namespace(namespace));
-            
+                _namespaces.put(namespace.getJdexId(), new Namespace(namespace));
+
             for (ISupport support : network.getSupports())
-                supports.put(support.getJdexId(), new Support(support));
+                _supports.put(support.getJdexId(), new Support(support));
         }
     }
-      
-    public Map<String, NodeType> getNodeTypes() {
-		return nodeTypes;
-	}
 
-	public void setNodeTypes(Map<String, NodeType> nodeTypes) {
-		this.nodeTypes = nodeTypes;
-	}
+    
 
-	public Map<String,Citation> getCitations()
+    public Map<String, Citation> getCitations()
     {
-        return citations;
+        return _citations;
     }
 
-    public void setCitations(Map<String,Citation> citations)
+    public void setCitations(Map<String, Citation> citations)
     {
-        this.citations = citations;
+        this._citations = citations;
+    }
+
+    public String getCopyright()
+    {
+        return _copyright;
     }
     
+    public void setCopyright(String copyright)
+    {
+        _copyright = copyright;
+    }
+
+    public String getDescription()
+    {
+        return _description;
+    }
+    
+    public void setDescription(String description)
+    {
+        _description = description;
+    }
+    
+    public int getEdgeCount()
+    {
+        return _edgeCount;
+    }
+
+    public void setEdgeCount(int edgeCount)
+    {
+        _edgeCount = edgeCount;
+    }
+
+    public Map<String, Edge> getEdges()
+    {
+        return _edges;
+    }
+
+    public void setEdges(Map<String, Edge> edges)
+    {
+        this._edges = edges;
+    }
+
     public String getFormat()
     {
-        return format;
+        return _format;
     }
-    
+
     public void setFormat(String format)
     {
-        this.format = format;
+        this._format = format;
+    }
+
+    public Map<String, Namespace> getNamespaces()
+    {
+        return _namespaces;
+    }
+
+    public void setNamespaces(Map<String, Namespace> namespaces)
+    {
+        this._namespaces = namespaces;
+    }
+
+    public int getNodeCount()
+    {
+        return _nodeCount;
+    }
+
+    public void setNodeCount(int nodeCount)
+    {
+        _nodeCount = nodeCount;
+    }
+
+    public Map<String, Node> getNodes()
+    {
+        return _nodes;
+    }
+
+    public void setNodes(Map<String, Node> nodes)
+    {
+        this._nodes = nodes;
     }
     
-    public Map<String,Namespace> getNamespaces()
+    public Map<String, NodeType> getNodeTypes()
     {
-        return namespaces;
+        return _nodeTypes;
+    }
+
+    public void setNodeTypes(Map<String, NodeType> nodeTypes)
+    {
+        this._nodeTypes = nodeTypes;
+    }
+
+    public String getSource()
+    {
+        return _source;
     }
     
-    public void setNamespaces(Map<String,Namespace> namespaces)
+    public void setSource(String source)
     {
-        this.namespaces = namespaces;
+        _source = source;
+    }
+
+    public Map<String, Support> getSupports()
+    {
+        return _supports;
+    }
+
+    public void setSupports(Map<String, Support> supports)
+    {
+        this._supports = supports;
+    }
+
+    public Map<String, Term> getTerms()
+    {
+        return _terms;
+    }
+
+    public void setTerms(Map<String, Term> terms)
+    {
+        this._terms = terms;
     }
     
-    public Map<String,Edge> getEdges()
+    public String getTitle()
     {
-        return edges;
+        return _title;
     }
     
-    public void setEdges(Map<String,Edge> edges)
+    public void setTitle(String title)
     {
-        this.edges = edges;
+        _title = title;
     }
 
-    public Map<String,Node> getNodes()
+    public String getVersion()
     {
-        return nodes;
-    }
-    
-    public void setNodes(Map<String,Node> nodes)
-    {
-        this.nodes = nodes;
+        return _version;
     }
     
-    public Map<String, String> getProperties()
+    public void setVersion(String version)
     {
-        return properties;
+        _version = version;
     }
 
-    public void setProperties(Map<String, String> properties)
-    {
-        this.properties = properties;
-    }
-
-    public Map<String,Support> getSupports()
-    {
-        return supports;
-    }
-
-    public void setSupports(Map<String,Support> supports)
-    {
-        this.supports = supports;
-    }
-
-    public Map<String,Term> getTerms()
-    {
-        return terms;
-    }
-
-    public void setTerms(Map<String,Term> terms)
-    {
-        this.terms = terms;
-    }
-
-	public Integer getEdgeCount() {
-		return edgeCount;
-	}
-
-	public void setEdgeCount(Integer _edgeCount) {
-		this.edgeCount = _edgeCount;
-	}
-
-	public Integer getNodeCount() {
-		return nodeCount;
-	}
-
-	public void setNodeCount(Integer _nodeCount) {
-		this.nodeCount = _nodeCount;
-	}
     
+
+    /**************************************************************************
+    * Initializes the maps. 
+    **************************************************************************/
+    private void initMaps()
+    {
+        _citations = new HashMap<String, Citation>();
+        _edges = new HashMap<String, Edge>();
+        _namespaces = new HashMap<String, Namespace>();
+        _nodes = new HashMap<String, Node>();
+        _requests = new ArrayList<Request>();
+        _supports = new HashMap<String, Support>();
+        _terms = new HashMap<String, Term>();
+    }
 }

@@ -1,6 +1,5 @@
 package org.ndexbio.rest.domain;
 
-import java.util.Map;
 import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
@@ -52,7 +51,7 @@ public interface IUser extends IAccount
     public void setPassword(String password);
     
     @Adjacency(label = "requests", direction = Direction.OUT)
-    public Iterable<IRequest> getRequests(Map<String, String> properties);
+    public Iterable<IRequest> getRequests();
     
     @Adjacency(label = "requests", direction = Direction.OUT)
     public void setRequests(Iterable<IRequest> requests);

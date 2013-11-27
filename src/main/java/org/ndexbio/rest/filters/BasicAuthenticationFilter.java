@@ -117,7 +117,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             final FramedGraph<OrientBaseGraph> orientDbGraph = graphFactory.create((OrientBaseGraph)new OrientGraph(ndexDatabase));
 
             Collection<ODocument> usersFound = ndexDatabase
-                .command(new OCommandSQL("select from xUser where username = ?"))
+                .command(new OCommandSQL("select from User where username = ?"))
                 .execute(authInfo[0]);
             
             if (usersFound.size() < 1)
@@ -132,7 +132,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         }
         catch (Exception e)
         {
-            OLogManager.instance().error(this, "Cannot access database: " + "ndex" + ".", ODatabaseException.class, e);
+            OLogManager.instance().error(this, "Cannot access database.", ODatabaseException.class, e);
         }
         finally
         {

@@ -4,7 +4,6 @@ import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
-import java.util.Map;
 
 public interface INetwork extends VertexFrame
 {
@@ -16,6 +15,18 @@ public interface INetwork extends VertexFrame
     
     @Adjacency(label = "citations", direction = Direction.OUT)
     public void removeCitation(ICitation citation);
+
+    @Property("copyright")
+    public String getCopyright();
+
+    @Property("copyright")
+    public void setCopyright(String copyright);
+
+    @Property("description")
+    public String getDescription();
+
+    @Property("description")
+    public void setDescription(String description);
 
     @Property("format")
     public String getFormat();
@@ -64,18 +75,18 @@ public interface INetwork extends VertexFrame
 
     @Adjacency(label = "owners", direction = Direction.IN)
     public Iterable<IAccount> getOwners();
-
-    @Property("properties")
-    public Map<String, String> getProperties();
-
-    @Property("properties")
-    public void setProperties(Map<String, String> properties);
     
     @Adjacency(label = "requests", direction = Direction.IN)
-    public Iterable<IRequest> getRequests(Map<String, String> properties);
+    public Iterable<IRequest> getRequests();
     
     @Adjacency(label = "requests", direction = Direction.IN)
     public void setRequests(Iterable<IRequest> requests);
+
+    @Property("source")
+    public String getSource();
+
+    @Property("source")
+    public void setSource(String source);
 
     @Adjacency(label = "supports", direction = Direction.OUT)
     public void addSupport(ISupport support);
@@ -94,4 +105,16 @@ public interface INetwork extends VertexFrame
 
     @Adjacency(label = "terms", direction = Direction.OUT)
     public void removeTerm(ITerm term);
+
+    @Property("title")
+    public String getTitle();
+
+    @Property("title")
+    public void setTitle(String title);
+
+    @Property("version")
+    public String getVersion();
+
+    @Property("version")
+    public void setVersion(String version);
 }

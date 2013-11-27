@@ -18,7 +18,7 @@ public interface IBaseTerm extends ITerm
     public void addNamespace(INamespace namespace);
 
     @Adjacency(label = "namespaces", direction = Direction.OUT)
-    public INamespace getNamespace();
+    public Iterable<INamespace> getNamespaces();
 
     @Adjacency(label = "namespaces", direction = Direction.OUT)
     public void removeNamespace(INamespace namespace);

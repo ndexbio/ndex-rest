@@ -11,7 +11,10 @@
 	},
 	"networkFilenames":
 	[
-		"NCI_NATURE.FoxO family signaling.517135.jdex"
+		"NCI_NATURE.FoxO family signaling.517135.jdex",
+		"REACTOME.Cyclin D associated events in G1.485628.jdex",
+		"REACTOME.G0 and Early G1.485619.jdex",
+		"REACTOME.G1 Phase.485618.jdex"
 	],
 	"ownedGroups":
 	[

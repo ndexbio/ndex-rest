@@ -1843,10 +1843,8 @@
         }
     },
     "nodeTypes": {},
-    "properties": {
-        "source": "REACTOME",
-        "title": "REACTOME:G0 and Early G1"
-    },
+    "source": "REACTOME",
+    "title": "REACTOME:G0 and Early G1",
     "citations": {},
     "supports": {}
 }
