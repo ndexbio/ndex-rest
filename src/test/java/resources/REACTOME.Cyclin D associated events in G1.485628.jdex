@@ -1894,10 +1894,8 @@
         }
     },
     "nodeTypes": {},
-    "properties": {
-        "source": "REACTOME",
-        "title": "REACTOME:Cyclin D associated events in G1"
-    },
+    "source": "REACTOME",
+    "title": "REACTOME:Cyclin D associated events in G1",
     "citations": {},
     "supports": {}
 }

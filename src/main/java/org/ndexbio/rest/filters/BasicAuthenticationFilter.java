@@ -14,9 +14,12 @@ import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.util.Base64;
+import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.IGroup;
-import org.ndexbio.rest.domain.ITerm;
+import org.ndexbio.rest.domain.IGroupInvitationRequest;
+import org.ndexbio.rest.domain.IJoinGroupRequest;
+import org.ndexbio.rest.domain.INetworkAccessRequest;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.models.User;
@@ -99,7 +102,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             new TypedGraphModuleBuilder()
                 .withClass(IGroup.class)
                 .withClass(IUser.class)
-                .withClass(ITerm.class)
+                .withClass(IGroupInvitationRequest.class)
+                .withClass(IJoinGroupRequest.class)
+                .withClass(INetworkAccessRequest.class)
+                .withClass(IBaseTerm.class)
                 .withClass(IFunctionTerm.class)
                 .build());
 
@@ -111,7 +117,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             final FramedGraph<OrientBaseGraph> orientDbGraph = graphFactory.create((OrientBaseGraph)new OrientGraph(ndexDatabase));
 
             Collection<ODocument> usersFound = ndexDatabase
-                .command(new OCommandSQL("select from xUser where username = ?"))
+                .command(new OCommandSQL("select from User where username = ?"))
                 .execute(authInfo[0]);
             
             if (usersFound.size() < 1)
@@ -126,7 +132,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         }
         catch (Exception e)
         {
-            OLogManager.instance().error(this, "Cannot access database: " + "ndex" + ".", ODatabaseException.class, e);
+            OLogManager.instance().error(this, "Cannot access database.", ODatabaseException.class, e);
         }
         finally
         {

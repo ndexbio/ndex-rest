@@ -3,16 +3,17 @@ package org.ndexbio.rest.models;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INetwork;
+import org.ndexbio.rest.domain.IRequest;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_NULL)
 public class Group extends NdexObject
 {
-	/*
-	 * mod 25Nov2013
-	 * refactor from a collection of Network objects to a collection of
-	 * network JDexIds (i.e. Strings)
-	 */
     private String _backgroundImage;
     private Date _creationDate;
     private String _description;
@@ -20,6 +21,7 @@ public class Group extends NdexObject
     private String _name;
     private String _organizationName;
     private List<String> _networkOwnedIdList;
+    private List<Request> _requests;
     private String _website;
 
     
@@ -32,6 +34,7 @@ public class Group extends NdexObject
         super();
         
         _networkOwnedIdList = new ArrayList<String>();
+        _requests = new ArrayList<Request>();
     }
     
     /**************************************************************************
@@ -57,21 +60,20 @@ public class Group extends NdexObject
         super(group);
         
         _networkOwnedIdList = new ArrayList<String>();
-
         _backgroundImage = group.getBackgroundImage();
         _creationDate = group.getCreatedDate();
         _description = group.getDescription();
         _foregroundImage = group.getForegroundImage();
         _name = group.getName();
         _organizationName = group.getOrganizationName();
+        _requests = new ArrayList<Request>();
         _website = group.getWebsite();
         
+        for (IRequest request : group.getRequests())
+            _requests.add(new Request(request));
+
         if (loadEverything)
         {
-        	/*
-        	 * Network domain object does not have a JdexId
-        	 * use Vertex id field 
-        	 */
             for (INetwork ownedNetwork : group.getOwnedNetworks())
                 _networkOwnedIdList.add(ownedNetwork.asVertex().getId().toString());
         }
@@ -144,6 +146,16 @@ public class Group extends NdexObject
         _organizationName = organizationName;
     }
     
+    public List<Request> getRequests()
+    {
+        return _requests;
+    }
+    
+    public void setRequests(List<Request> requests)
+    {
+        _requests = requests;
+    }
+
     public String getWebsite()
     {
         return _website;

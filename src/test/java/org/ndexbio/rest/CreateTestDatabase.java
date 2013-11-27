@@ -2,33 +2,24 @@ package org.ndexbio.rest;
 
 import java.io.File;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
-
+import java.util.Map.Entry;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
-import org.ndexbio.rest.domain.IFunctionTerm;
-import org.ndexbio.rest.domain.IGroup;
-import org.ndexbio.rest.domain.ITerm;
-import org.ndexbio.rest.domain.IUser;
-import org.ndexbio.rest.models.Group;
-import org.ndexbio.rest.models.NewUser;
-import org.ndexbio.rest.models.Node;
-import org.ndexbio.rest.models.Network;
-import org.ndexbio.rest.models.User;
-import org.ndexbio.rest.services.GroupService;
-import org.ndexbio.rest.services.NetworkService;
-import org.ndexbio.rest.services.UserService;
-
+import org.ndexbio.rest.domain.*;
+import org.ndexbio.rest.models.*;
+import org.ndexbio.rest.services.*;
 import com.orientechnologies.orient.client.remote.OServerAdmin;
-import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.frames.FramedGraph;
@@ -37,177 +28,215 @@ import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
 import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class CreateTestDatabase {
-	private static FramedGraphFactory _graphFactory = null;
-	private static ODatabaseDocumentTx _ndexDatabase = null;
-	private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
+public class CreateTestDatabase
+{
+    private static FramedGraphFactory _graphFactory = null;
+    private static ODatabaseDocumentTx _ndexDatabase = null;
+    private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
+    private static final ObjectMapper _jsonMapper = new ObjectMapper();
 
-	private GroupService _groupService ;
-	private  NetworkService _networkService; 
-	private static final ObjectMapper _jsonMapper = new ObjectMapper();
-	private  UserService _userService ;
+    @Test
+    public void checkDatabase()
+    {
+        try
+        {
+            //TODO: Refactor this to connect using a configurable username/password, and database
+            OServerAdmin orientDbAdmin = new OServerAdmin("remote:localhost/ndex").connect("ndex", "ndex");
+            if (orientDbAdmin.existsDatabase("local"))
+            {
+                System.out.println("Dropping existing database.");
+                orientDbAdmin.dropDatabase("ndex");
+            }
 
-	@Test
-	public void checkDatabase() {
-		try {
-			// TODO: Refactor this to connect using a configurable
-			// username/password, and database
-			
-		//	_ndexDatabase = ODatabaseDocumentPool.global().acquire(
-		//			"remote:localhost/ndex", "ndex", "ndex");
-		//	_ndexDatabase.drop();
+            System.out.println("Creating new database.");
+            orientDbAdmin.createDatabase("ndex", "document", "local");
 
-			new OServerAdmin("remote:localhost/ndex")
-                .connect("ndex", "ndex")
-                .dropDatabase("ndex");
+            System.out.println("Connecting to database.");
+            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "ndex", "ndex");
 
-			System.out.println("Existing ndex database found and dropped");
-		} catch (Exception e) {
-			System.out.println(e.getMessage());
-		} finally {
-			//_ndexDatabase.close();
-		}
+            System.out.println("Creating Tinkerpop Framed Graph Factory.");
+            _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
+                new TypedGraphModuleBuilder()
+                    .withClass(IGroup.class)
+                    .withClass(IUser.class)
+                    .withClass(IGroupInvitationRequest.class)
+                    .withClass(IJoinGroupRequest.class)
+                    .withClass(INetworkAccessRequest.class)
+                    .withClass(IBaseTerm.class)
+                    .withClass(IFunctionTerm.class)
+                    .build());
 
-		try {
-			System.out.println("Creating new ndex database");
-			//new OServerAdmin("plocal:databases/ndex").connect("ndex", "ndex")
-			//		.createDatabase("ndex", "document", "local");
-			
-			new OServerAdmin("remote:localhost/ndex").connect("ndex", "ndex")
-			.createDatabase("ndex", "document", "local");
+            System.out.println("Acquiring base graph.");
+            _orientDbGraph = _graphFactory.create((OrientBaseGraph) new OrientGraph(_ndexDatabase));
 
-			System.out.println("Connecting to ndex database");
-			_ndexDatabase = ODatabaseDocumentPool.global().acquire(
-				"remote:localhost/ndex", "ndex", "ndex");
-			
-			
-			if (null == _ndexDatabase){
-				System.out.println("database is null");
-			}
+            System.out.println("Acquiring instance of schema manager.");
+            NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
-			///System.out.println("Connecting to ndex database");
-			//_ndexDatabase = ODatabaseDocumentPool.global().acquire(
-			//		"plocal:databases/ndex", "ndex", "ndex"); 
-			
-			System.out.println("Connected to ndex database");
+    @Test
+    public void createTestUser()
+    {
+        final UserService userService = new UserService();
+        URL testUserUrl = getClass().getResource("/resources/users-and-groups.json");
 
-			_graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
-					new TypedGraphModuleBuilder().withClass(IGroup.class)
-							.withClass(IUser.class).withClass(ITerm.class)
-							.withClass(IFunctionTerm.class).build());
-			
-			System.out.println("GraphFactory created");
+        try
+        {
+            HashMap<User, JsonNode> usersCreated = new HashMap<User, JsonNode>();
+            JsonNode rootNode = _jsonMapper.readTree(new File(testUserUrl.toURI()));
+            
+            Iterator<JsonNode> usersIterator = rootNode.getElements();
+            while (usersIterator.hasNext())
+            {
+                final JsonNode userNode = usersIterator.next();
+                System.out.println("Creating test user: " + userNode.get("username").asText() + ".");
 
-			_orientDbGraph = _graphFactory.create((OrientBaseGraph) new OrientGraph(_ndexDatabase));
-			System.out.println("orientDbGraph  created");
-	            
-			OrientBaseGraph orientDbGraph = _orientDbGraph.getBaseGraph();
-			System.out.println("orientdb database obtained");
-			
-			NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
-			System.out.println("instance   created");
-			
-			if(null == this._networkService) {
-				this._networkService = new NetworkService();
-				System.out.println("network service created");
-			}
-			if (null == this._groupService) {
-				this._groupService = new GroupService();
-				System.out.println("group service created");
-			}
-			if (null == this._userService){
-				this._userService = new UserService();
-				System.out.println("user service created");
-			}
-			
-			
-			
-		} catch (Exception e) {
-			
-			System.out.println("Exception in setup:" +e.getMessage());
-			Assert.fail(e.getMessage());
-			
-		}
-	}
+                final NewUser newUser = _jsonMapper.readValue(userNode, NewUser.class);
+                
+                User testUser = userService.createUser(newUser);
+                String userId = testUser.getId();
+                testUser = _jsonMapper.readValue(userNode, User.class);
+                testUser.setId(userId);
+                userService.updateUser(testUser);
+                usersCreated.put(testUser, userNode);
 
-	@Test
-	public void createTestUser() {
-		URL testUserUrl = getClass().getResource("dexterpratt.json");
+                System.out.println("Creating " + testUser.getUsername() + "'s networks.");
+                createTestUserNetworks(userNode.get("networkFilenames"), testUser);
 
-		try {
-			JsonNode rootNode = _jsonMapper.readTree(new File(testUserUrl
-					.toURI()));
+                System.out.println("Creating " + testUser.getUsername() + "'s groups.");
+                createTestUserGroups(userNode.get("ownedGroups"), testUser);
+            }
 
-			System.out.println("Creating test user: "
-					+ rootNode.get("username").asText());
-			NewUser newUser = new NewUser();
-			newUser.setEmailAddress(rootNode.get("emailAddress").asText());
-			newUser.setPassword( rootNode.get("password").asText());
-			newUser.setUsername(rootNode.get("username").asText());
-			User testUser = _userService.createUser(newUser);
+            //Have to do a second loop to create requests because we need all
+            //users, groups, and networks to exist
+            for (Entry<User, JsonNode> newUser : usersCreated.entrySet())
+            {
+                System.out.println("Creating " + newUser.getKey().getUsername() + "'s requests.");
+                createTestUserRequests(newUser.getValue().get("requests"), newUser.getKey());
 
-			System.out.println("Updating " + rootNode.get("username").asText()
-					+ "'s profile");
-			createTestUserProfile(rootNode.get("profile"), testUser);
+                if (newUser.getKey().getOwnedGroups().isEmpty())
+                    continue;
+                
+                Group ownedGroup = newUser.getKey().getOwnedGroups().get(0);
+                Iterator<JsonNode> groupIterator = newUser.getValue().get("ownedGroups").getElements();
+                while(groupIterator.hasNext())
+                    createTestGroupRequests(groupIterator.next().get("requests"), newUser.getKey(), ownedGroup);
+            }
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
-			System.out.println("Creating " + rootNode.get("username").asText()
-					+ "'s networks");
-			createTestUserNetworks(rootNode.get("networkFilenames"), testUser);
 
-			System.out.println("Creating " + rootNode.get("username").asText()
-					+ "'s groups");
-			createTestUserGroups(rootNode.get("ownedGroups"), testUser);
-		} catch (Exception e) {
-			System.out.println("Exception in create user: " +e.getMessage());
-			Assert.fail(e.getMessage());
-			e.printStackTrace();
-		}
-	}
+    
+    private void createTestGroupRequests(JsonNode requestsNode, User testUser, Group testGroup) throws Exception
+    {
+        final RequestService requestService = new RequestService();
 
-	private void createTestUserProfile(JsonNode profileNode, User testUser)
-			throws Exception {
-		testUser.setDescription(profileNode.get("description").asText());
-		testUser.setFirstName(profileNode.get("firstName").asText());
-		testUser.setLastName(profileNode.get("lastName").asText());
-		testUser.setWebsite(profileNode.get("website").asText());
+        final Iterator<JsonNode> requestsIterator = requestsNode.getElements();
+        while (requestsIterator.hasNext())
+        {
+            Request newRequest = _jsonMapper.readValue(requestsIterator.next(), Request.class);
+            newRequest.setFromId(testGroup.getId());
+            
+            final Iterable<ODocument> usersFound = _orientDbGraph
+                .getBaseGraph()
+                .command(new OCommandSQL("select from User where firstName.append(\" \").append(lastName) = ?"))
+                .execute(newRequest.getTo());
+            
+            final Iterator<ODocument> usersIterator = usersFound.iterator(); 
+            if (usersIterator.hasNext())
+            {
+                final User invitedUser = new User(_orientDbGraph.getVertex(usersIterator.next(), IUser.class));
+                newRequest.setToId(invitedUser.getId());
+                requestService.createRequest(newRequest);
+            }
+        }        
+    }
 
-		_userService.updateUser(testUser);
-	}
+    private void createTestUserGroups(JsonNode groupsNode, User testUser) throws Exception
+    {
+        final GroupService groupService = new GroupService();
+        final ArrayList<Group> ownedGroups = new ArrayList<Group>();
+        
+        final Iterator<JsonNode> groupsIterator = groupsNode.getElements();
+        while (groupsIterator.hasNext())
+        {
+            final JsonNode groupNode = groupsIterator.next();
+            final Group newGroup = _jsonMapper.readValue(groupNode, Group.class);
+            groupService.createGroup(testUser.getId(), newGroup);
+            ownedGroups.add(newGroup);
+        }
+        
+        testUser.setOwnedGroups(ownedGroups);
+    }
+    
+    private void createTestUserNetworks(JsonNode networkFilesNode, User testUser) throws Exception
+    {
+        final NetworkService networkService = new NetworkService();
 
-	
-	
-	private void createTestUserNetworks(JsonNode networkFilesNode, User testUser)
-			throws Exception {
-		Iterator<JsonNode> networksIterator = networkFilesNode.getElements();
-		while (networksIterator.hasNext()) {
-			// TODO:
-			// JsonNode networkNode = _jsonMapper.readTree(new
-			// File(networksIterator.next().asText()));
-			File dataFile = new File(networksIterator.next().asText());
-			System.out.println("Creating network from file: " +dataFile.getName());
-			Network newNetwork = _jsonMapper.readValue(dataFile, Network.class);
-			Network n = _networkService.createNetwork(testUser.getId(), newNetwork);
-			Assert.assertNotNull(n);
-		}
+        final Iterator<JsonNode> networksIterator = networkFilesNode.getElements();
+        while (networksIterator.hasNext())
+        {
+            URL testNetworkUrl = getClass().getResource("/resources/" + networksIterator.next().asText());
+            File networkFile = new File(testNetworkUrl.toURI());
 
-	}
+            System.out.println("Creating network from file: " + networkFile.getName() + ".");
+            Network networkToCreate = _jsonMapper.readValue(networkFile, Network.class);
+            Network newNetwork = networkService.createNetwork(testUser.getId(), networkToCreate);
+            
+            Assert.assertNotNull(newNetwork);
+        }
+    }
 
-	private void createTestUserGroups(JsonNode groupsNode, User testUser)
-			throws Exception {
-		Iterator<JsonNode> groupsIterator = groupsNode.getElements();
-		while (groupsIterator.hasNext()) {
-			JsonNode groupNode = groupsIterator.next();
+    private void createTestUserRequests(JsonNode requestsNode, User testUser) throws Exception
+    {
+        final RequestService requestService = new RequestService();
 
-			Group newGroup = new Group();
-			newGroup.setName(groupNode.get("name").asText());
-
-			JsonNode profileNode = groupNode.get("profile");
-			newGroup.setDescription(profileNode.get("description").asText());
-			newGroup.setOrganizationName(profileNode.get("organizationName")
-					.asText());
-			newGroup.setWebsite(profileNode.get("website").asText());
-
-			_groupService.createGroup(testUser.getId(), newGroup);
-		}
-	}
+        final Iterator<JsonNode> requestsIterator = requestsNode.getElements();
+        while (requestsIterator.hasNext())
+        {
+            Request newRequest = _jsonMapper.readValue(requestsIterator.next(), Request.class);
+            newRequest.setFromId(testUser.getId());
+            
+            if (newRequest.getRequestType().equals("Join Group"))
+            {
+                final Iterable<ODocument> groupsFound = _orientDbGraph
+                    .getBaseGraph()
+                    .command(new OCommandSQL("select from Group where name = ?"))
+                    .execute(newRequest.getTo());
+                
+                final Iterator<ODocument> groupIterator = groupsFound.iterator(); 
+                if (groupIterator.hasNext())
+                {
+                    final Group requestedGroup = new Group(_orientDbGraph.getVertex(groupIterator.next(), IGroup.class));
+                    newRequest.setToId(requestedGroup.getId());
+                    requestService.createRequest(newRequest);
+                }
+            }
+            else if (newRequest.getRequestType().equals("Network Access"))
+            {
+                final Iterable<ODocument> networksFound = _orientDbGraph
+                    .getBaseGraph()
+                    .command(new OCommandSQL("select from Network where title = ?"))
+                    .execute(newRequest.getTo());
+                
+                final Iterator<ODocument> networkIterator = networksFound.iterator(); 
+                if (networkIterator.hasNext())
+                {
+                    final Network requestedNetwork = new Network(_orientDbGraph.getVertex(networkIterator.next(), INetwork.class));
+                    newRequest.setToId(requestedNetwork.getId());
+                    requestService.createRequest(newRequest);
+                }
+            }
+        }
+    }
 }

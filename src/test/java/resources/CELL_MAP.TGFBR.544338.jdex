@@ -7671,10 +7671,8 @@
         }
     },
     "nodeTypes": {},
-    "properties": {
-        "source": "CELL_MAP",
-        "title": "CELL_MAP:TGFBR"
-    },
+    "source": "CELL_MAP",
+    "title": "CELL_MAP:TGFBR",
     "citations": {},
     "supports": {}
 }

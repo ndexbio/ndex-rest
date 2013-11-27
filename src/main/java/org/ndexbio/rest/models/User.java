@@ -2,10 +2,16 @@ package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INetwork;
+import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.IUser;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_NULL)
 public class User extends NdexObject
 {
     private String _backgroundImage;
@@ -16,6 +22,7 @@ public class User extends NdexObject
     private String _lastName;
     private List<Group> _ownedGroups;
     private List<Network> _ownedNetworks;
+    private List<Request> _requests;
     private String _username;
     private String _website;
     private List<Network> _workSurface;
@@ -31,6 +38,7 @@ public class User extends NdexObject
         
         _ownedGroups = new ArrayList<Group>();
         _ownedNetworks = new ArrayList<Network>();
+        _requests = new ArrayList<Request>();
         _workSurface = new ArrayList<Network>();
     }
     
@@ -58,6 +66,7 @@ public class User extends NdexObject
         
         _ownedGroups = new ArrayList<Group>();
         _ownedNetworks = new ArrayList<Network>();
+        _requests = new ArrayList<Request>();
         _workSurface = new ArrayList<Network>();
         
         _backgroundImage = user.getBackgroundImage();
@@ -70,6 +79,9 @@ public class User extends NdexObject
         
         for (INetwork onWorkSurface : user.getWorkSurface())
             _workSurface.add(new Network(onWorkSurface));
+        
+        for (IRequest request : user.getRequests())
+            _requests.add(new Request(request));
 
         if (loadEverything)
         {
@@ -161,6 +173,16 @@ public class User extends NdexObject
     public void setOwnedNetworks(List<Network> ownedNetworks)
     {
         _ownedNetworks = ownedNetworks;
+    }
+    
+    public List<Request> getRequests()
+    {
+        return _requests;
+    }
+    
+    public void setRequests(List<Request> requests)
+    {
+        _requests = requests;
     }
 
     public String getUsername()

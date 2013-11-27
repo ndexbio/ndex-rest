@@ -37,22 +37,22 @@ public interface IEdge extends VertexFrame
     @Adjacency(label = "subject", direction = Direction.OUT)
     public INode getSubject();
     
-    @Adjacency(label = "supports", direction = Direction.IN)
+    @Adjacency(label = "supports", direction = Direction.OUT)
     public void addSupport(ISupport support);
 
-    @Adjacency(label = "supports", direction = Direction.IN)
+    @Adjacency(label = "supports", direction = Direction.OUT)
     public Iterable<ISupport> getSupports();
     
-    @Adjacency(label = "supports", direction = Direction.IN)
+    @Adjacency(label = "supports", direction = Direction.OUT)
     public void removeSupport(ISupport support);
     
-    @Adjacency(label = "citations", direction = Direction.IN)
+    @Adjacency(label = "citations", direction = Direction.OUT)
     public void addCitation(ICitation citation);
 
-    @Adjacency(label = "citations", direction = Direction.IN)
+    @Adjacency(label = "citations", direction = Direction.OUT)
     public Iterable<ICitation> getCitations();
     
-    @Adjacency(label = "citations", direction = Direction.IN)
+    @Adjacency(label = "citations", direction = Direction.OUT)
     public void removeCitation(ICitation citation);
     
 }

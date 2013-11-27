@@ -2,7 +2,6 @@ package org.ndexbio.rest.services;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +72,7 @@ public class NetworkService extends NdexService {
 			throw new ObjectNotFoundException("User", ownerId);
 		}
 		
-		 final Map<String, VertexFrame> networkIndex = Maps.newHashMap();
+		final Map<String, VertexFrame> networkIndex = Maps.newHashMap();
 
 		// Create the network object in the database managed by an iNetwork
 		final INetwork iNetwork = _orientDbGraph.addVertex("class:network",
@@ -82,6 +81,10 @@ public class NetworkService extends NdexService {
 		networkOwner.addOwnedNetwork(iNetwork);
 
 		try {
+		    iNetwork.setFormat(network.getFormat());
+		    iNetwork.setSource(network.getSource());
+		    iNetwork.setTitle(network.getTitle());
+		    
 			// First create all namespaces used by the network
 			createNamespaces(iNetwork, network, networkIndex);
 			// Then create terms which may reference the namespaces
@@ -96,8 +99,6 @@ public class NetworkService extends NdexService {
 			createCitations(iNetwork, network,networkIndex);
 			// Then create supports that reference edges and citations
 			createSupports(iNetwork, network, networkIndex);
-			// Finally add the properties
-			createProperties(iNetwork, network, networkIndex);
 			
 			_orientDbGraph.getBaseGraph().commit();
 		} catch (Exception e)
@@ -154,7 +155,7 @@ public class NetworkService extends NdexService {
 				String nsJdexId = ((BaseTerm) term).getNamespace();
 				if (!Strings.isNullOrEmpty(nsJdexId)) {
 					INamespace ins = (INamespace) networkIndex.get(nsJdexId);
-					iBaseTerm.setNamespace(ins);
+					iBaseTerm.addNamespace(ins);
 					// TODO check for case where no ins found in networkIndex
 				}
 				iNetwork.addTerm(iBaseTerm);
@@ -283,21 +284,6 @@ public class NetworkService extends NdexService {
 
 	}
 
-	private void createProperties(INetwork iNetwork, Network network,
-			Map<String, VertexFrame> networkIndex) {
-
-		Map<String, String> propertiesMap = new HashMap<String, String>();
-
-		for (Map.Entry<String,String> entry : network.getProperties().entrySet()) {
-			String key = (String) entry.getKey();
-			String value = (String) entry.getValue();
-			propertiesMap.put(key, value);
-		}
-
-		iNetwork.setProperties(propertiesMap);
-
-	}
-
 	@DELETE
 	@Path("/{networkId}")
 	@Produces("application/json")
@@ -372,7 +358,7 @@ public class NetworkService extends NdexService {
 					+ "%' OR properties.description.toUpperCase() like '%"
 					+ searchString + "%'";
 
-		final String query = "select from xNetwork " + where_clause
+		final String query = "select from Network " + where_clause
 				+ " order by creation_date desc skip " + start + " limit "
 				+ limit;
 		List<ODocument> networkDocumentList = _orientDbGraph.getBaseGraph()
@@ -419,7 +405,9 @@ public class NetworkService extends NdexService {
 			throw new ObjectNotFoundException("Network", updatedNetwork.getId());
 
 		try {
-			network.setProperties(updatedNetwork.getProperties());
+		    network.setSource(updatedNetwork.getSource());
+		    network.setTitle(updatedNetwork.getTitle());
+		    
 			_orientDbGraph.getBaseGraph().commit();
 		} catch (Exception e) {
 			if (_orientDbGraph != null)
@@ -506,14 +494,9 @@ public class NetworkService extends NdexService {
 
 		// Now create the output network
 		Network networkByEdges = new Network();
-		Map<String, String> propertiesMap = new HashMap<String, String>();
-
-		for (Map.Entry<String, String> entry : network.getProperties().entrySet()) {
-			String key = (String) entry.getKey();
-			String value = (String) entry.getValue();
-			propertiesMap.put(key, value);
-		}
-		networkByEdges.setProperties(propertiesMap);
+        networkByEdges.setFormat(network.getFormat());
+        networkByEdges.setSource(network.getSource());
+        networkByEdges.setTitle(network.getTitle());
 
 		for (IEdge edge : foundIEdges) {
 			networkByEdges.getEdges().put(edge.getJdexId(), new Edge(edge));
@@ -553,14 +536,10 @@ public class NetworkService extends NdexService {
 
 		// Now create the output network
 		Network networkByNodes = new Network();
-		Map<String, String> propertiesMap = new HashMap<String, String>();
 
-		for (Map.Entry<String,String> entry : network.getProperties().entrySet()) {
-			String key = (String) entry.getKey();
-			String value = (String) entry.getValue();
-			propertiesMap.put(key, value);
-		}
-		networkByNodes.setProperties(propertiesMap);
+		networkByNodes.setFormat(network.getFormat());
+		networkByNodes.setSource(network.getSource());
+		networkByNodes.setTitle(network.getTitle());
 
 		for (INode node : foundINodes) {
 			networkByNodes.getNodes().put(node.getJdexId(), new Node(node));
@@ -668,9 +647,9 @@ public class NetworkService extends NdexService {
 	private static Set<INamespace> getTermNamespaces(Set<ITerm> requiredITerms) {
 		Set<INamespace> namespaces = new HashSet<INamespace>();
 		for (ITerm term : requiredITerms) {
-			if (term instanceof IBaseTerm
-					&& ((IBaseTerm) term).getNamespace() != null) {
-				namespaces.add(((IBaseTerm) term).getNamespace());
+			if (term instanceof IBaseTerm && ((IBaseTerm) term).getNamespaces() != null) {
+			    for (INamespace namespace : ((IBaseTerm)term).getNamespaces())
+			        namespaces.add(namespace);
 			}
 		}
 		return namespaces;

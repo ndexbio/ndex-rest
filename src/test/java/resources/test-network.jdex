@@ -1140,10 +1140,8 @@
         }
     },
     "nodeTypes": {},
-    "properties": {
-        "source": "NCI_NATURE",
-        "title": "NCI_NATURE:FoxO family signaling"
-    },
+    "source": "NCI_NATURE",
+    "title": "NCI_NATURE:FoxO family signaling",
     "citations": {},
     "supports": {}
 }

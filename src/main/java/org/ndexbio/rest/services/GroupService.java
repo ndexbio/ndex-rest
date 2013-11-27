@@ -25,9 +25,16 @@ import com.tinkerpop.blueprints.Vertex;
 @Path("/groups")
 public class GroupService extends NdexService
 {
+    public GroupService()
+    {
+        super();
+    }
+    
+    
+    
     @PUT
     @Produces("application/json")
-    public Group createGroup(final String ownerId, final Group newGroup) throws NdexException
+    public Group createGroup(final String ownerId, final Group newGroup) throws Exception
     {
         final ORID userRid = RidConverter.convertToRid(ownerId);
         
@@ -42,7 +49,10 @@ public class GroupService extends NdexService
         try
         {
             final IGroup group = _orientDbGraph.addVertex("class:group", IGroup.class);
+            group.setDescription(newGroup.getDescription());
             group.setName(newGroup.getName());
+            group.setOrganizationName(newGroup.getOrganizationName());
+            group.setWebsite(newGroup.getWebsite());
             group.setCreatedDate(new Date());
             groupOwner.addOwnedGroup(group);
             _orientDbGraph.getBaseGraph().commit();
@@ -52,22 +62,20 @@ public class GroupService extends NdexService
         }
         catch (Exception e)
         {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
+            handleOrientDbException(e);
         }
         finally
         {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
+            closeOrientDbConnection();
         }
+        
+        return null;
     }
 
     @DELETE
     @Path("/{groupId}")
     @Produces("application/json")
-    public void deleteGroup(@PathParam("groupId")final String groupJid) throws NdexException
+    public void deleteGroup(@PathParam("groupId")final String groupJid) throws Exception
     {
         final ORID groupId = RidConverter.convertToRid(groupJid);
 
@@ -82,15 +90,11 @@ public class GroupService extends NdexService
         }
         catch (Exception e)
         {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
+            handleOrientDbException(e);
         }
         finally
         {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
+            closeOrientDbConnection();
         }
     }
     
@@ -112,7 +116,7 @@ public class GroupService extends NdexService
             //The group ID is actually a group name
             final Collection<ODocument> matchingGroups = _orientDbGraph
                 .getBaseGraph()
-                .command(new OCommandSQL("select from xGroup where groupname = ?"))
+                .command(new OCommandSQL("select from Group where groupname = ?"))
                 .execute(groupJid);
 
             if (matchingGroups.size() > 0)
@@ -124,7 +128,7 @@ public class GroupService extends NdexService
  
     @POST
     @Produces("application/json")
-    public void updateGroup(final Group updatedGroup) throws NdexException
+    public void updateGroup(final Group updatedGroup) throws Exception
     {
         final ORID groupRid = RidConverter.convertToRid(updatedGroup.getId());
 
@@ -142,15 +146,11 @@ public class GroupService extends NdexService
         }
         catch (Exception e)
         {
-            if (_orientDbGraph != null)
-                _orientDbGraph.getBaseGraph().rollback();
-            
-            throw e;
+            handleOrientDbException(e);
         }
         finally
         {
-            if (_ndexDatabase != null)
-                _ndexDatabase.close();
+            closeOrientDbConnection();
         }
     }
 }

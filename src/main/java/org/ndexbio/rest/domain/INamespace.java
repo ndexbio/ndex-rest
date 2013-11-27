@@ -1,5 +1,7 @@
 package org.ndexbio.rest.domain;
 
+import com.tinkerpop.blueprints.Direction;
+import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
 
@@ -22,4 +24,10 @@ public interface INamespace extends VertexFrame
 
     @Property("uri")
     public String getUri();
+    
+    @Adjacency(label = "term", direction = Direction.IN)
+    public IBaseTerm getTerm();
+    
+    @Adjacency(label = "term", direction = Direction.IN)
+    public void setTerm(IBaseTerm term);
 }

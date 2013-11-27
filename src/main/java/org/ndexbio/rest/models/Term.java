@@ -1,8 +1,10 @@
 package org.ndexbio.rest.models;
 
 import java.util.Map;
-
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.exceptions.NdexException;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 /*
  * mod 25Nov2013 
@@ -11,6 +13,8 @@ import org.ndexbio.rest.exceptions.NdexException;
  * collection type
  */
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_NULL)
 public class Term extends NdexObject
 {
 	private String name;

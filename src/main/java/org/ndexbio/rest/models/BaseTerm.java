@@ -1,16 +1,18 @@
 package org.ndexbio.rest.models;
 
+import java.util.List;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IBaseTerm;
+import org.ndexbio.rest.domain.INamespace;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_NULL)
 public class BaseTerm extends Term
 {
-	/*
-	 * mod 25Nov2013
-	 * change from Namespace object composition to Namespace id reference
-	 */
     private String _name;
-    //private Namespace _namespace;
-    private String _namespace;
+    private List<String> _namespaces;
     
     /**************************************************************************
     * Default constructor.
@@ -23,16 +25,17 @@ public class BaseTerm extends Term
     /**************************************************************************
     * Populates the class (from the database) and removes circular references.
     * 
-    * @param iBaseTerm The Term with source data.
+    * @param baseTerm The Term with source data.
     **************************************************************************/
-    public BaseTerm(IBaseTerm iBaseTerm)
+    public BaseTerm(IBaseTerm baseTerm)
     {
-       
+        _name = baseTerm.getName();
         
-        _name = iBaseTerm.getName();
-        
-        if (iBaseTerm.getNamespace() != null)
-            this.setNamespace(iBaseTerm.getNamespace().getJdexId());
+        if (baseTerm.getNamespaces() != null)
+        {
+            for (INamespace namespace : baseTerm.getNamespaces())
+                _namespaces.add(namespace.getJdexId());
+        }
     }
     
     public String getName()
@@ -45,13 +48,13 @@ public class BaseTerm extends Term
         _name = name;
     }
     
-    public String getNamespace()
+    public List<String> getNamespaces()
     {
-        return _namespace;
+        return _namespaces;
     }
     
-    public void setNamespace(String  jdexId)
+    public void setNamespaces(List<String> namespaces)
     {
-        _namespace = jdexId;
+        _namespaces = namespaces;
     }
 }
