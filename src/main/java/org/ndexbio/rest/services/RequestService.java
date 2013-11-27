@@ -39,6 +39,36 @@ public class RequestService extends NdexService
 
 
 
+    @PUT
+    @Produces("application/json")
+    public Request createRequest(final Request requestToCreate) throws Exception
+    {
+        final ORID fromRid = RidConverter.convertToRid(requestToCreate.getFromId());
+        final ORID toRid = RidConverter.convertToRid(requestToCreate.getToId());
+        
+        try
+        {
+            if (requestToCreate.getRequestType().equals("Group Invitiation"))
+                createGroupInvitationRequest(fromRid, toRid, requestToCreate);
+            else if (requestToCreate.getRequestType().equals("Join Group"))
+                createJoinGroupRequest(fromRid, toRid, requestToCreate);
+            else if (requestToCreate.getRequestType().equals("Network Access"))
+                createNetworkAccessRequest(fromRid, toRid, requestToCreate);
+            
+            return requestToCreate;
+        }
+        catch (Exception e)
+        {
+            handleOrientDbException(e);
+        }
+        finally
+        {
+            closeOrientDbConnection();
+        }
+        
+        return null;
+    }
+
     @DELETE
     @Path("/{requestId}")
     @Produces("application/json")
@@ -91,36 +121,6 @@ public class RequestService extends NdexService
         {
             closeOrientDbConnection();
         }
-    }
-
-    @PUT
-    @Produces("application/json")
-    public Request createRequest(final Request requestToCreate) throws Exception
-    {
-        final ORID fromRid = RidConverter.convertToRid(requestToCreate.getFrom());
-        final ORID toRid = RidConverter.convertToRid(requestToCreate.getTo());
-        
-        try
-        {
-            if (requestToCreate.getRequestType() == "Group Invitiation")
-                createGroupInvitationRequest(fromRid, toRid, requestToCreate);
-            else if (requestToCreate.getRequestType() == "Join Group")
-                createJoinGroupRequest(fromRid, toRid, requestToCreate);
-            else if (requestToCreate.getRequestType() == "Network Access")
-                createNetworkAccessRequest(fromRid, toRid, requestToCreate);
-            
-            return requestToCreate;
-        }
-        catch (Exception e)
-        {
-            handleOrientDbException(e);
-        }
-        finally
-        {
-            closeOrientDbConnection();
-        }
-        
-        return null;
     }
     
     

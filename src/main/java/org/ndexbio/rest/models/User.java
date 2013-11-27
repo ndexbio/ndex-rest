@@ -2,11 +2,16 @@ package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.IUser;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_NULL)
 public class User extends NdexObject
 {
     private String _backgroundImage;
@@ -168,6 +173,16 @@ public class User extends NdexObject
     public void setOwnedNetworks(List<Network> ownedNetworks)
     {
         _ownedNetworks = ownedNetworks;
+    }
+    
+    public List<Request> getRequests()
+    {
+        return _requests;
+    }
+    
+    public void setRequests(List<Request> requests)
+    {
+        _requests = requests;
     }
 
     public String getUsername()

@@ -1,9 +1,14 @@
 package org.ndexbio.rest.models;
 
 import java.util.List;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.INamespace;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_NULL)
 public class BaseTerm extends Term
 {
     private String _name;

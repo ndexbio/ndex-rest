@@ -1,12 +1,14 @@
 package org.ndexbio.rest.models;
 
 import java.util.Map;
-
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.ITerm;
-import org.ndexbio.rest.domain.IBaseTerm;
-import org.ndexbio.rest.models.BaseTerm;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_NULL)
 public class FunctionTerm extends Term
 {
 	/*

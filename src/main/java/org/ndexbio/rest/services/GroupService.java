@@ -49,7 +49,10 @@ public class GroupService extends NdexService
         try
         {
             final IGroup group = _orientDbGraph.addVertex("class:group", IGroup.class);
+            group.setDescription(newGroup.getDescription());
             group.setName(newGroup.getName());
+            group.setOrganizationName(newGroup.getOrganizationName());
+            group.setWebsite(newGroup.getWebsite());
             group.setCreatedDate(new Date());
             groupOwner.addOwnedGroup(group);
             _orientDbGraph.getBaseGraph().commit();

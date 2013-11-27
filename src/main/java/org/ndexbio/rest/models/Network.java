@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.IEdge;
@@ -14,7 +15,11 @@ import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_NULL)
 public class Network extends NdexObject
 {
     private Map<String, Citation> _citations;
@@ -26,7 +31,6 @@ public class Network extends NdexObject
     private Map<String, Namespace> _namespaces;
     private int _nodeCount;
     private Map<String, Node> _nodes;
-    private Map<String, NodeType> _nodeTypes;
     private List<Request> _requests;
     private String _source;
     private Map<String, Support> _supports;
@@ -202,14 +206,14 @@ public class Network extends NdexObject
         this._nodes = nodes;
     }
     
-    public Map<String, NodeType> getNodeTypes()
+    public List<Request> getRequests()
     {
-        return _nodeTypes;
+        return _requests;
     }
-
-    public void setNodeTypes(Map<String, NodeType> nodeTypes)
+    
+    public void setRequests(List<Request> requests)
     {
-        this._nodeTypes = nodeTypes;
+        _requests = requests;
     }
 
     public String getSource()
