@@ -30,6 +30,7 @@ import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Namespace;
 import org.ndexbio.rest.models.Network;
+import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.Term;
 import org.ndexbio.rest.models.BaseTerm;
 import org.ndexbio.rest.models.FunctionTerm;
@@ -330,32 +331,29 @@ public class NetworkService extends NdexService {
 	/*
 	 * Find networks based on a search expression
 	 */
-	@GET
-	@Path("/networks/{search}/{offset}/{limit}")
+	@POST
+	@Path("/search")
 	@Produces("application/json")
-	public Collection<Network> findNetworks(
-			@PathParam("search") String searchString,
-			@PathParam("offset") final String offsetParam,
-			@PathParam("limit") final String limitParam) throws NdexException {
+	public Collection<Network> findNetworks(SearchParameters searchParameters) throws NdexException {
 		Collection<Network> foundNetworks = Lists.newArrayList();
 
-		if (Strings.isNullOrEmpty(searchString)) {
+		if (Strings.isNullOrEmpty(searchParameters.getSearchString())) {
 			return foundNetworks;
 		}
-		Integer offset = Ints.tryParse(offsetParam);
-		Integer limit = Ints.tryParse(limitParam);
+		Integer skip = Ints.tryParse(searchParameters.getSkip());
+		Integer limit = Ints.tryParse(searchParameters.getLimit());
 		int start = 0;
-		if (null != offset && null != limit) {
-			start = offset.intValue() * limit.intValue();
+		if (null != skip && null != limit) {
+			start = skip.intValue() * limit.intValue();
 		}
 
-		searchString = searchString.toUpperCase().trim();
+		String searchString = searchParameters.getSearchString().toUpperCase().trim();
 
 		String where_clause = "";
 		if (searchString.length() > 0)
-			where_clause = " where properties.title.toUpperCase() like '%"
+			where_clause = " where title.toUpperCase() like '%"
 					+ searchString
-					+ "%' OR properties.description.toUpperCase() like '%"
+					+ "%' OR description.toUpperCase() like '%"
 					+ searchString + "%'";
 
 		final String query = "select from Network " + where_clause
