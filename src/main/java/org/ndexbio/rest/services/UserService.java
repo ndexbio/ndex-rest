@@ -2,6 +2,7 @@ package org.ndexbio.rest.services;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import javax.annotation.security.PermitAll;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -14,6 +15,7 @@ import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
+import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -22,10 +24,16 @@ import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NewUser;
+import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.User;
+import org.ndexbio.rest.models.UserSearchResult;
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
+import com.google.common.primitives.Ints;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
+import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
 @Path("/users")
 public class UserService extends NdexService
@@ -251,6 +259,67 @@ public class UserService extends NdexService
         
         //TODO: This should be refactored to use a configuration file and a text file for the email content
         Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is: " + newPassword);
+    }
+    
+    /**************************************************************************
+    * Finds users based on the search parameters.
+    * 
+    * @param searchParameters The search parameters.
+    **************************************************************************/
+    @POST
+    @Path("/search")
+    @Produces("application/json")
+    public UserSearchResult findUsers(SearchParameters searchParameters) throws NdexException
+    {
+        Collection<User> foundUsers = Lists.newArrayList();
+        UserSearchResult result = new UserSearchResult();
+        result.setUsers(foundUsers);
+        Integer skip = 0;
+        Integer limit = 10;
+        
+        if (!Strings.isNullOrEmpty(searchParameters.getSkip()))
+            skip = Ints.tryParse(searchParameters.getSkip());
+
+        if (!Strings.isNullOrEmpty(searchParameters.getLimit()))
+            limit = Ints.tryParse(searchParameters.getLimit());
+
+        result.setPageSize(limit);
+        result.setSkip(skip);
+        
+        if (Strings.isNullOrEmpty(searchParameters.getSearchString()))
+            return result;
+
+        int start = 0;
+        if (null != skip && null != limit)
+            start = skip.intValue() * limit.intValue();
+
+        String searchString = searchParameters.getSearchString().toUpperCase().trim();
+
+        String where_clause = "";
+        if (searchString.length() > 0)
+        {
+            where_clause = " where username.toUpperCase() like '%"
+                    + searchString
+                    + "%' OR lastName.toUpperCase() like '%"
+                    + searchString
+                    + "%' OR firstName.toUpperCase() like '%"
+                    + searchString + "%'";
+        }
+
+        final String query = "select from User " + where_clause
+                + " order by creation_date desc skip " + start + " limit "
+                + limit;
+        
+        List<ODocument> userDocumentList = _orientDbGraph
+            .getBaseGraph()
+            .getRawGraph()
+            .query(new OSQLSynchQuery<ODocument>(query));
+        
+        for (ODocument document : userDocumentList)
+            foundUsers.add(new User(_orientDbGraph.getVertex(document, IUser.class)));
+
+        result.setUsers(foundUsers);
+        return result;
     }
     
     /**************************************************************************
