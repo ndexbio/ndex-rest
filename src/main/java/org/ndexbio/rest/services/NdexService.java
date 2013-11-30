@@ -57,7 +57,8 @@ public abstract class NdexService
     }
     
     /**************************************************************************
-    * Cleans up the OrientDB resources.
+    * Cleans up the OrientDB resources. These steps are all necessary or
+    * OrientDB connections won't be released from the pool.
     **************************************************************************/
     protected void teardownDatabase()
     {
