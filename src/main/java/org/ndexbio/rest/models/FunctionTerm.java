@@ -11,15 +11,12 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 @JsonInclude(Include.NON_NULL)
 public class FunctionTerm extends Term
 {
-	/*
-	 * mod 25Nov2013
-	 * change from BaseTerm object composition to BaseTerm id reference
-	 */
-    //private BaseTerm _termFunction;
     private String _termFunction;
     private Map<Integer, String> _textParameters;
-    private Map<Integer, String> _termParameters; // ids, not Term objects
-    
+    private Map<Integer, String> _termParameters;
+
+
+
     /**************************************************************************
     * Default constructor.
     **************************************************************************/
@@ -27,7 +24,7 @@ public class FunctionTerm extends Term
     {
         super();
     }
-    
+
     /**************************************************************************
     * Populates the class (from the database) and removes circular references.
     * 
@@ -35,42 +32,45 @@ public class FunctionTerm extends Term
     **************************************************************************/
     public FunctionTerm(IFunctionTerm iFunctionTerm)
     {
-     
+
         this.setTermFunction(iFunctionTerm.getTermFunction().getJdexId());
-        
-        for (Map.Entry<Integer,String> entry : iFunctionTerm.getTextParameters().entrySet())
+
+        for (final Map.Entry<Integer, String> entry : iFunctionTerm.getTextParameters().entrySet())
             _textParameters.put(entry.getKey(), entry.getValue());
-        
-        for (Map.Entry<Integer, ITerm> entry : iFunctionTerm.getTermParameters().entrySet()){
-        	ITerm parameterTerm = entry.getValue();
-            _termParameters.put(entry.getKey(), parameterTerm.getJdexId());
-        }
+
+        for (final Map.Entry<Integer, ITerm> entry : iFunctionTerm.getTermParameters().entrySet())
+            _termParameters.put(entry.getKey(), entry.getValue().getJdexId());
     }
-    
+
+
+
     public String getTermFunction()
     {
         return _termFunction;
     }
-    
+
     public void setTermFunction(String functionId)
     {
         _termFunction = functionId;
     }
 
-	public Map<Integer, String> getTextParameters() {
-		return _textParameters;
-	}
+    public Map<Integer, String> getTextParameters()
+    {
+        return _textParameters;
+    }
 
-	public void setTextParameters(Map<Integer, String> _textParameters) {
-		this._textParameters = _textParameters;
-	}
+    public void setTextParameters(Map<Integer, String> _textParameters)
+    {
+        this._textParameters = _textParameters;
+    }
 
-	public Map<Integer, String> getTermParameters() {
-		return _termParameters;
-	}
+    public Map<Integer, String> getTermParameters()
+    {
+        return _termParameters;
+    }
 
-	public void setTermParameters(Map<Integer, String> _termParameters) {
-		this._termParameters = _termParameters;
-	}
-    
+    public void setTermParameters(Map<Integer, String> _termParameters)
+    {
+        this._termParameters = _termParameters;
+    }
 }

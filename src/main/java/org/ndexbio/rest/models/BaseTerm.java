@@ -33,10 +33,12 @@ public class BaseTerm extends Term
         
         if (baseTerm.getNamespaces() != null)
         {
-            for (INamespace namespace : baseTerm.getNamespaces())
+            for (final INamespace namespace : baseTerm.getNamespaces())
                 _namespaces.add(namespace.getJdexId());
         }
     }
+    
+    
     
     public String getName()
     {

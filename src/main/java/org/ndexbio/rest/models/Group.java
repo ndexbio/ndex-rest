@@ -1,28 +1,25 @@
 package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IGroup;
-import org.ndexbio.rest.domain.INetwork;
+import org.ndexbio.rest.domain.IGroupMembership;
+import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IRequest;
+import org.ndexbio.rest.domain.IUser;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
-public class Group extends NdexObject
+public class Group extends Account
 {
-    private String _backgroundImage;
-    private Date _creationDate;
-    private String _description;
-    private String _foregroundImage;
     private String _name;
+    private List<Membership> _members;
     private String _organizationName;
-    private List<String> _networkOwnedIdList;
+    private List<Membership> _networkMemberships;
     private List<Request> _requests;
-    private String _website;
 
     
     
@@ -32,9 +29,8 @@ public class Group extends NdexObject
     public Group()
     {
         super();
-        
-        _networkOwnedIdList = new ArrayList<String>();
-        _requests = new ArrayList<Request>();
+
+        initCollections();
     }
     
     /**************************************************************************
@@ -59,63 +55,36 @@ public class Group extends NdexObject
     {
         super(group);
         
-        _networkOwnedIdList = new ArrayList<String>();
-        _backgroundImage = group.getBackgroundImage();
-        _creationDate = group.getCreatedDate();
-        _description = group.getDescription();
-        _foregroundImage = group.getForegroundImage();
+        initCollections();
+        
         _name = group.getName();
         _organizationName = group.getOrganizationName();
-        _requests = new ArrayList<Request>();
-        _website = group.getWebsite();
-        
-        for (IRequest request : group.getRequests())
-            _requests.add(new Request(request));
 
         if (loadEverything)
         {
-            for (INetwork ownedNetwork : group.getOwnedNetworks())
-                _networkOwnedIdList.add(ownedNetwork.asVertex().getId().toString());
+            for (final IRequest request : group.getRequests())
+                _requests.add(new Request(request));
+            
+            for (final IGroupMembership member : group.getMembers())
+                _members.add(new Membership((IUser)member.getMember(), member.getPermissions()));
+            
+            for (final INetworkMembership network : group.getNetworks())
+                _networkMemberships.add(new Membership(network.getNetwork(), network.getPermissions()));
         }
     }
     
     
     
-    public String getBackgroundImage()
+    public List<Membership> getMembers()
     {
-        return _backgroundImage;
+        return _members;
     }
     
-    public void setBackgroundImage(String backgroundImage)
+    public void setMembers(List<Membership> members)
     {
-        _backgroundImage = backgroundImage;
+        _members = members;
     }
-    
-    public Date getCreationDate()
-    {
-        return _creationDate;
-    }
-    
-    public String getDescription()
-    {
-        return _description;
-    }
-    
-    public void setDescription(String description)
-    {
-        _description = description;
-    }
-    
-    public String getForegroundImage()
-    {
-        return _foregroundImage;
-    }
-    
-    public void setForegroundImage(String foregroundImage)
-    {
-        _foregroundImage = foregroundImage;
-    }
-    
+
     public String getName()
     {
         return _name;
@@ -125,15 +94,15 @@ public class Group extends NdexObject
     {
         _name = name;
     }
-    
-    public List<String> getNetworksOwnedIdList()
+
+    public List<Membership> getNetworks()
     {
-        return _networkOwnedIdList;
+        return _networkMemberships;
     }
-    
-    public void setNetworksOwnedIdList(List<String> networksOwned)
+
+    public void setNetworks(List<Membership> networkMemberships)
     {
-        _networkOwnedIdList = networksOwned;
+        _networkMemberships = networkMemberships;
     }
     
     public String getOrganizationName()
@@ -156,13 +125,15 @@ public class Group extends NdexObject
         _requests = requests;
     }
 
-    public String getWebsite()
-    {
-        return _website;
-    }
     
-    public void setWebsite(String website)
+
+    /**************************************************************************
+    * Initializes the collections. 
+    **************************************************************************/
+    private void initCollections()
     {
-        _website = website;
+        _members = new ArrayList<Membership>();
+        _networkMemberships = new ArrayList<Membership>();
+        _requests = new ArrayList<Request>();
     }
 }

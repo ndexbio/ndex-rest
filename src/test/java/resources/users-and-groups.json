@@ -29,7 +29,7 @@
 					{
 						"from": "triptychjs",
 						"message": "John, we'd like to invite you to join triptychjs.",
-						"requestType": "Group Invite",
+						"requestType": "Group Invitation",
 						"to": "John Stegall"
 					}
 				]

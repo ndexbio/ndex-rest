@@ -59,6 +59,8 @@ public class CreateTestDatabase
                 new TypedGraphModuleBuilder()
                     .withClass(IGroup.class)
                     .withClass(IUser.class)
+                    .withClass(IGroupMembership.class)
+                    .withClass(INetworkMembership.class)
                     .withClass(IGroupInvitationRequest.class)
                     .withClass(IJoinGroupRequest.class)
                     .withClass(INetworkAccessRequest.class)
@@ -119,13 +121,15 @@ public class CreateTestDatabase
                 System.out.println("Creating " + newUser.getKey().getUsername() + "'s requests.");
                 createTestUserRequests(newUser.getValue().get("requests"), newUser.getKey());
 
-                if (newUser.getKey().getOwnedGroups().isEmpty())
+                if (newUser.getKey().getGroups().isEmpty())
                     continue;
                 
-                Group ownedGroup = newUser.getKey().getOwnedGroups().get(0);
-                Iterator<JsonNode> groupIterator = newUser.getValue().get("ownedGroups").getElements();
-                while(groupIterator.hasNext())
-                    createTestGroupRequests(groupIterator.next().get("requests"), newUser.getKey(), ownedGroup);
+                for (Membership ownedGroup : newUser.getKey().getGroups())
+                {
+                    Iterator<JsonNode> groupIterator = newUser.getValue().get("ownedGroups").getElements();
+                    while(groupIterator.hasNext())
+                        createTestGroupRequests(groupIterator.next().get("requests"), newUser.getKey(), ownedGroup.getResourceId());
+                }
             }
         }
         catch (Exception e)
@@ -137,7 +141,7 @@ public class CreateTestDatabase
 
 
     
-    private void createTestGroupRequests(JsonNode requestsNode, User testUser, Group testGroup) throws Exception
+    private void createTestGroupRequests(JsonNode requestsNode, User testUser, String groupId) throws Exception
     {
         final RequestService requestService = new RequestService();
 
@@ -145,7 +149,7 @@ public class CreateTestDatabase
         while (requestsIterator.hasNext())
         {
             Request newRequest = _jsonMapper.readValue(requestsIterator.next(), Request.class);
-            newRequest.setFromId(testGroup.getId());
+            newRequest.setFromId(groupId);
             
             final Iterable<ODocument> usersFound = _orientDbGraph
                 .getBaseGraph()
@@ -165,18 +169,25 @@ public class CreateTestDatabase
     private void createTestUserGroups(JsonNode groupsNode, User testUser) throws Exception
     {
         final GroupService groupService = new GroupService();
-        final ArrayList<Group> ownedGroups = new ArrayList<Group>();
+        final ArrayList<Membership> ownedGroups = new ArrayList<Membership>();
         
         final Iterator<JsonNode> groupsIterator = groupsNode.getElements();
         while (groupsIterator.hasNext())
         {
             final JsonNode groupNode = groupsIterator.next();
-            final Group newGroup = _jsonMapper.readValue(groupNode, Group.class);
-            groupService.createGroup(testUser.getId(), newGroup);
-            ownedGroups.add(newGroup);
+            final Group groupToCreate = _jsonMapper.readValue(groupNode, Group.class);
+            final Group newGroup = groupService.createGroup(testUser.getId(), groupToCreate);
+            
+            Assert.assertNotNull(newGroup);
+            
+            Membership groupMembership = new Membership();
+            groupMembership.setPermissions(Permissions.ADMIN);
+            groupMembership.setResourceId(newGroup.getId());
+            groupMembership.setResourceName(newGroup.getName());
+            ownedGroups.add(groupMembership);
         }
         
-        testUser.setOwnedGroups(ownedGroups);
+        testUser.setGroups(ownedGroups);
     }
     
     private void createTestUserNetworks(JsonNode networkFilesNode, User testUser) throws Exception
@@ -186,12 +197,12 @@ public class CreateTestDatabase
         final Iterator<JsonNode> networksIterator = networkFilesNode.getElements();
         while (networksIterator.hasNext())
         {
-            URL testNetworkUrl = getClass().getResource("/resources/" + networksIterator.next().asText());
-            File networkFile = new File(testNetworkUrl.toURI());
+            final URL testNetworkUrl = getClass().getResource("/resources/" + networksIterator.next().asText());
+            final File networkFile = new File(testNetworkUrl.toURI());
 
             System.out.println("Creating network from file: " + networkFile.getName() + ".");
-            Network networkToCreate = _jsonMapper.readValue(networkFile, Network.class);
-            Network newNetwork = networkService.createNetwork(testUser.getId(), networkToCreate);
+            final Network networkToCreate = _jsonMapper.readValue(networkFile, Network.class);
+            final Network newNetwork = networkService.createNetwork(testUser.getId(), networkToCreate);
             
             Assert.assertNotNull(newNetwork);
         }

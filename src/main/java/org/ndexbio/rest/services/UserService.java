@@ -1,6 +1,5 @@
 package org.ndexbio.rest.services;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import javax.annotation.security.PermitAll;
@@ -12,7 +11,6 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
-import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
@@ -22,7 +20,6 @@ import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.helpers.Security;
-import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.User;
@@ -33,6 +30,9 @@ import com.orientechnologies.orient.core.sql.OCommandSQL;
 @Path("/users")
 public class UserService extends NdexService
 {
+    /**************************************************************************
+    * Execute parent default constructor to initialize OrientDB.
+    **************************************************************************/
     public UserService()
     {
         super();
@@ -40,11 +40,22 @@ public class UserService extends NdexService
     
     
     
+    /**************************************************************************
+    * Adds a network to the user's Work Surface. 
+    * 
+    * @param userId       The user's ID.
+    * @param networkToAdd The network to add.
+    **************************************************************************/
     @PUT
     @Path("/{userId}/work-surface")
     @Produces("application/json")
     public void addNetworkToWorkSurface(@PathParam("userId")final String userJid, final Network networkToAdd) throws Exception
     {
+        if (userJid == null || userJid.isEmpty())
+            throw new ValidationException("The user ID wasn't specified.");
+        else if (networkToAdd == null)
+            throw new ValidationException("The network to add is empty.");
+
         final ORID userRid = RidConverter.convertToRid(userJid);
         final ORID networkRid = RidConverter.convertToRid(networkToAdd.getId());
 
@@ -81,12 +92,21 @@ public class UserService extends NdexService
         }
     }
 
+    /**************************************************************************
+    * Authenticates a user trying to login. 
+    * 
+    * @param username The username.
+    * @param password The password.
+    **************************************************************************/
     @GET
     @PermitAll
     @Path("/authenticate/{username}/{password}")
     @Produces("application/json")
     public User authenticateUser(@PathParam("username")final String username, @PathParam("password")final String password) throws Exception
     {
+        if (username == null || username.isEmpty() || password == null || password.isEmpty())
+            throw new ResteasyAuthenticationException("Invalid username or password.");
+            
         final User authUser = new BasicAuthenticationFilter().authenticateUser(new String[] { username, password });
         if (authUser == null)
             throw new ResteasyAuthenticationException("Invalid username or password.");
@@ -94,20 +114,25 @@ public class UserService extends NdexService
         return authUser;
     }
     
+    /**************************************************************************
+    * Creates a user. 
+    * 
+    * @param newUser  The user to create.
+    **************************************************************************/
     @PUT
     @PermitAll
     @Produces("application/json")
-    public User createUser(final NewUser userToCreate) throws Exception
+    public User createUser(final NewUser newUser) throws Exception
     {
         try
         {
-            final IUser newUser = _orientDbGraph.addVertex("class:user", IUser.class);
-            newUser.setUsername(userToCreate.getUsername());
-            newUser.setPassword(Security.hashText(userToCreate.getPassword()));
-            newUser.setEmailAddress(userToCreate.getEmailAddress());
+            final IUser user = _orientDbGraph.addVertex("class:user", IUser.class);
+            user.setUsername(newUser.getUsername());
+            user.setPassword(Security.hashText(newUser.getPassword()));
+            user.setEmailAddress(newUser.getEmailAddress());
             _orientDbGraph.getBaseGraph().commit();
 
-            return new User(newUser);
+            return new User(user);
         }
         catch (Exception e)
         {
@@ -121,11 +146,22 @@ public class UserService extends NdexService
         return null;
     }
 
+    /**************************************************************************
+    * Deletes a network from a user's Work Surface.
+    * 
+    * @param userId          The ID of the user.
+    * @param networkToDelete The network being removed.
+    **************************************************************************/
     @DELETE
     @Path("/{userId}/work-surface")
     @Produces("application/json")
     public void deleteNetworkFromWorkSurface(@PathParam("userId")final String userJid, final Network networkToDelete) throws Exception
     {
+        if (userJid == null || userJid.isEmpty())
+            throw new ValidationException("No user ID was specified.");
+        else if (networkToDelete == null)
+            throw new ValidationException("The network to delete is empty.");
+        
         final ORID userRid = RidConverter.convertToRid(userJid);
         final ORID networkRid = RidConverter.convertToRid(networkToDelete.getId());
 
@@ -137,26 +173,10 @@ public class UserService extends NdexService
         if (network == null)
             throw new ObjectNotFoundException("Network", networkToDelete.getId());
         
-
-//        Iterable<INetwork> workSurface = user.getWorkSurface();
-//        if (workSurface == null)
-//            return;
-
         try
         {
             user.removeNetworkFromWorkSurface(network);
             _orientDbGraph.getBaseGraph().commit();
-
-//            Iterator<INetwork> networkIterator = workSurface.iterator();
-//            while (networkIterator.hasNext())
-//            {
-//                INetwork network = networkIterator.next();
-//                if (network.asVertex().getId().equals(networkRid))
-//                {
-//                    networkIterator.remove();
-//                    break;
-//                }
-//            }
         }
         catch (Exception e)
         {
@@ -168,11 +188,19 @@ public class UserService extends NdexService
         }
     }
     
+    /**************************************************************************
+    * Deletes a user.
+    * 
+    * @param userId The ID of the user to delete.
+    **************************************************************************/
     @DELETE
     @Path("/{userId}")
     @Produces("application/json")
     public void deleteUser(@PathParam("userId")final String userJid) throws Exception
     {
+        if (userJid == null || userJid.isEmpty())
+            throw new ValidationException("No user ID was specified.");
+        
         final ORID userRid = RidConverter.convertToRid(userJid);
         final IUser userToDelete = _orientDbGraph.getVertex(userRid, IUser.class);
         
@@ -181,6 +209,7 @@ public class UserService extends NdexService
         
         try
         {
+            //TODO: Need to remove orphaned vertices
             _orientDbGraph.removeVertex(userToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
@@ -194,12 +223,20 @@ public class UserService extends NdexService
         }
     }
 
+    /**************************************************************************
+    * Emails the user a new randomly generated password..
+    * 
+    * @param username The username of the user.
+    **************************************************************************/
     @GET
     @PermitAll
     @Path("/{username}/forgot-password")
     @Produces("application/json")
     public void emailNewPassword(@PathParam("username")final String username) throws Exception
     {
+        if (username == null || username.isEmpty())
+            throw new ValidationException("No username was specified.");
+        
         Collection<ODocument> usersFound = _ndexDatabase
             .command(new OCommandSQL("select from User where username = ?"))
             .execute(username);
@@ -216,54 +253,27 @@ public class UserService extends NdexService
         Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is: " + newPassword);
     }
     
-    @GET
-    @Path("/{userId}/owned-groups")
-    @Produces("application/json")
-    public Collection<Group> getOwnedGroups(@PathParam("userId")final String userJid) throws Exception
-    {
-        final ORID userRid = RidConverter.convertToRid(userJid);
-        final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
-        
-        if (user == null)
-            throw new ObjectNotFoundException("User", userJid);
-
-        final ArrayList<Group> ownedGroups = new ArrayList<Group>();
-        for (IGroup ownedGroup : user.getOwnedGroups())
-            ownedGroups.add(new Group(ownedGroup));
-        
-        return ownedGroups; 
-    }
-    
-    @GET
-    @Path("/{userId}/owned-networks")
-    @Produces("application/json")
-    public Collection<Network> getOwnedNetworks(@PathParam("userId")final String userJid) throws Exception
-    {
-        final ORID userRid = RidConverter.convertToRid(userJid);
-        final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
-        
-        if (user == null)
-            throw new ObjectNotFoundException("User", userJid);
-
-        final ArrayList<Network> ownedNetworks = new ArrayList<Network>();
-        for (INetwork ownedNetwork : user.getOwnedNetworks())
-            ownedNetworks.add(new Network(ownedNetwork));
-        
-        return ownedNetworks; 
-    }
-    
+    /**************************************************************************
+    * Gets a user by ID or username.
+    * 
+    * @param userId The ID or username of the user.
+    **************************************************************************/
     @GET
     @PermitAll
     @Path("/{userId}")
     @Produces("application/json")
-    public User getUser(@PathParam("userId")final String userJid)
+    public User getUser(@PathParam("userId")final String userJid) throws Exception
     {
+        if (userJid == null || userJid.isEmpty())
+            throw new ValidationException("No user ID was specified.");
+        
         try
         {
             final ORID userId = RidConverter.convertToRid(userJid);
+            
             final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
             if (user != null)
-                return new User(user);
+                return new User(user, true);
         }
         catch (ValidationException ve)
         {
@@ -281,10 +291,18 @@ public class UserService extends NdexService
         return null;
     }
 
+    /**************************************************************************
+    * Updates a user.
+    * 
+    * @param updatedUser The updated user information.
+    **************************************************************************/
     @POST
     @Produces("application/json")
     public void updateUser(final User updatedUser) throws Exception
     {
+        if (updatedUser == null)
+            throw new ValidationException("The updated user is empty.");
+        
         final ORID userRid = RidConverter.convertToRid(updatedUser.getId());
         final IUser existingUser = _orientDbGraph.getVertex(userRid, IUser.class);
         if (existingUser == null)

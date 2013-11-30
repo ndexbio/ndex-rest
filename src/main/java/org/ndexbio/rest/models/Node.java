@@ -2,7 +2,6 @@ package org.ndexbio.rest.models;
 
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.INode;
-import org.ndexbio.rest.domain.ITerm;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
@@ -10,7 +9,6 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 @JsonInclude(Include.NON_NULL)
 public class Node extends NdexObject
 {
-    //private String _jdexId;
     private String name;
     private String represents;
     
@@ -36,11 +34,10 @@ public class Node extends NdexObject
         
         name = node.getName();
         
-        ITerm termRepresented = node.getRepresents();
-        if (termRepresented != null){
-            represents = termRepresented.getJdexId();
-        }
+        if (node.getRepresents() != null)
+            represents = node.getRepresents().getJdexId();
     }
+    
     
     
     public String getName()

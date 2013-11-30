@@ -19,16 +19,12 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.tinkerpop.blueprints.Vertex;
 
-/*
- * class represents a service that supports  RESTful operations to perform
- * CRUD actions for task entities in the OrientDB  database
- * subclass of abstract class NdexService
- * FJC 19NOV2013
- */
-
 @Path("/tasks")
 public class TaskService extends NdexService
 {
+    /**************************************************************************
+    * Execute parent default constructor to initialize OrientDB.
+    **************************************************************************/
     public TaskService()
     {
         super();

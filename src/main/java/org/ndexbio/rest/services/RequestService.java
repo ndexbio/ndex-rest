@@ -17,45 +17,51 @@ import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
+import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Request;
 import com.orientechnologies.orient.core.id.ORID;
 import com.tinkerpop.blueprints.Vertex;
 
-/*
- * class represents a service that supports  RESTful operations to perform
- * CRUD actions for request entities in the OrientDB  database
- * subclass of abstract class NdexService
- * FJC 19NOV2013
- */
-
 @Path("/requests")
 public class RequestService extends NdexService
 {
+    /**************************************************************************
+    * Execute parent default constructor to initialize OrientDB.
+    **************************************************************************/
     public RequestService()
     {
         super();
     }
 
 
-
+    /**************************************************************************
+    * Creates a request. 
+    * 
+    * @param newRequest The request to create.
+    **************************************************************************/
     @PUT
     @Produces("application/json")
-    public Request createRequest(final Request requestToCreate) throws Exception
+    public Request createRequest(final Request newRequest) throws Exception
     {
-        final ORID fromRid = RidConverter.convertToRid(requestToCreate.getFromId());
-        final ORID toRid = RidConverter.convertToRid(requestToCreate.getToId());
+        if (newRequest == null)
+            throw new ValidationException("The request to create is empty.");
+        
+        final ORID fromRid = RidConverter.convertToRid(newRequest.getFromId());
+        final ORID toRid = RidConverter.convertToRid(newRequest.getToId());
         
         try
         {
-            if (requestToCreate.getRequestType().equals("Group Invitiation"))
-                createGroupInvitationRequest(fromRid, toRid, requestToCreate);
-            else if (requestToCreate.getRequestType().equals("Join Group"))
-                createJoinGroupRequest(fromRid, toRid, requestToCreate);
-            else if (requestToCreate.getRequestType().equals("Network Access"))
-                createNetworkAccessRequest(fromRid, toRid, requestToCreate);
+            if (newRequest.getRequestType().equals("Group Invitation"))
+                createGroupInvitationRequest(fromRid, toRid, newRequest);
+            else if (newRequest.getRequestType().equals("Join Group"))
+                createJoinGroupRequest(fromRid, toRid, newRequest);
+            else if (newRequest.getRequestType().equals("Network Access"))
+                createNetworkAccessRequest(fromRid, toRid, newRequest);
+            else
+                throw new IllegalArgumentException("That request type isn't supported: " + newRequest.getRequestType() + ".");
             
-            return requestToCreate;
+            return newRequest;
         }
         catch (Exception e)
         {
@@ -69,25 +75,42 @@ public class RequestService extends NdexService
         return null;
     }
 
+    /**************************************************************************
+    * Deletes a request.
+    * 
+    * @param requestId The ID of the request to delete.
+    **************************************************************************/
     @DELETE
     @Path("/{requestId}")
     @Produces("application/json")
     public void deleteRequest(@PathParam("requestId")final String requestJid) throws Exception
     {
+        if (requestJid == null || requestJid.isEmpty())
+            throw new ValidationException("No request ID was specified.");
+        
         final ORID requestId = RidConverter.convertToRid(requestJid);
 
         final Vertex requestToDelete = _orientDbGraph.getVertex(requestId);
         if (requestToDelete == null)
             throw new ObjectNotFoundException("Request", requestJid);
 
+        //TODO: Need to remove orphaned vertices
         deleteVertex(requestToDelete);
     }
 
+    /**************************************************************************
+    * Gets a request by ID.
+    * 
+    * @param requestId The ID of the request.
+    **************************************************************************/
     @GET
     @Path("/{requestId}")
     @Produces("application/json")
     public Request getRequest(@PathParam("requestId")final String requestJid) throws NdexException
     {
+        if (requestJid == null || requestJid.isEmpty())
+            throw new ValidationException("No request ID was specified.");
+        
         final ORID requestId = RidConverter.convertToRid(requestJid);
 
         final IRequest request = _orientDbGraph.getVertex(requestId, IRequest.class);
@@ -97,10 +120,18 @@ public class RequestService extends NdexService
         return new Request(request);
     }
 
+    /**************************************************************************
+    * Updates a request.
+    * 
+    * @param updatedRequest The updated request information.
+    **************************************************************************/
     @POST
     @Produces("application/json")
     public void updateRequest(final Request updatedRequest) throws Exception
     {
+        if (updatedRequest == null)
+            throw new ValidationException("The updated request is empty.");
+        
         final ORID requestRid = RidConverter.convertToRid(updatedRequest.getId());
 
         final IRequest requestToUpdate = _orientDbGraph.getVertex(requestRid, IRequest.class);
@@ -109,8 +140,9 @@ public class RequestService extends NdexService
 
         try
         {
-            requestToUpdate.setMessage(updatedRequest.getMessage());
-            requestToUpdate.setRequestTime(updatedRequest.getCreatedDate());
+            requestToUpdate.setResponder(updatedRequest.getResponder());
+            requestToUpdate.setResponse(updatedRequest.getResponse());
+            
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
@@ -147,6 +179,8 @@ public class RequestService extends NdexService
         newRequest.setRequestTime(new Date());
         newRequest.setFromGroup(requestingGroup);
         newRequest.setToUser(requestedUser);
+        requestingGroup.addRequest(newRequest);
+        requestedUser.addRequest(newRequest);
         _orientDbGraph.getBaseGraph().commit();
 
         requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));
@@ -174,6 +208,8 @@ public class RequestService extends NdexService
         newRequest.setRequestTime(new Date());
         newRequest.setFromUser(requestOwner);
         newRequest.setToGroup(requestedGroup);
+        requestOwner.addRequest(newRequest);
+        requestedGroup.addRequest(newRequest);
         _orientDbGraph.getBaseGraph().commit();
 
         requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));
@@ -201,6 +237,8 @@ public class RequestService extends NdexService
         newRequest.setRequestTime(new Date());
         newRequest.setFromUser(requestOwner);
         newRequest.setToNetwork(requestedNetwork);
+        requestOwner.addRequest(newRequest);
+        requestedNetwork.addRequest(newRequest);
         _orientDbGraph.getBaseGraph().commit();
 
         requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));

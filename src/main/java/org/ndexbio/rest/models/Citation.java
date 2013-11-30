@@ -50,10 +50,10 @@ public class Citation extends NdexObject
         _edges = new ArrayList<String>();
         _supports = new ArrayList<Support>();
         
-        for (ISupport support : citation.getSupports())
+        for (final ISupport support : citation.getSupports())
             _supports.add(new Support(support));
 
-        for (IEdge edge : citation.getNdexEdges())
+        for (final IEdge edge : citation.getNdexEdges())
             _edges.add(edge.getJdexId());
     }
 

@@ -41,7 +41,7 @@ public class Support extends NdexObject
         _citationId = support.getCitation().getJdexId();
         _edges = new ArrayList<String>();
         
-        for (IEdge iEdge : support.getNdexEdges())
+        for (final IEdge iEdge : support.getNdexEdges())
             _edges.add(iEdge.getJdexId());
     }
 

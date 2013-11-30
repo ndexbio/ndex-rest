@@ -2,80 +2,78 @@ package org.ndexbio.rest.models;
 
 import java.util.Map;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
-import org.ndexbio.rest.exceptions.NdexException;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-
-/*
- * mod 25Nov2013 
- * eliminate JDexId field
- * the Term class allows us to group specific term objects in the same 
- * collection type
- */
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
 public class Term extends NdexObject
 {
-	private String name;
-    private String namespace;
-    private String termFunction;
-    private Map<Integer, String> parameters;
+    private String _name;
+    private String _namespace;
+    private String _termFunction;
+    private Map<Integer, String> _parameters;
+    private String _termType;
+
     
-    private String termType;
-    
-    
-    public Term(){
-    	this.termType = "BASE";
+
+    public Term()
+    {
+        this._termType = "BASE";
     }
 
-	public String getName() {
-		return this.name;
-	}
+    
+    
+    public String getName()
+    {
+        return _name;
+    }
 
-	public void setName(String termName) {
-		this.name = termName;
-	}
+    public void setName(String termName)
+    {
+        _name = termName;
+    }
 
-	public String getNamespace() {
-		return namespace;
-	}
+    public String getNamespace()
+    {
+        return _namespace;
+    }
 
-	public void setNamespace(String namespace) {
-		this.namespace = namespace;
-	}
+    public void setNamespace(String namespace)
+    {
+        _namespace = namespace;
+    }
 
-	public String getTermFunction() {
-		
-		return termFunction;
-	}
+    public String getTermFunction()
+    {
 
-	public void setTermFunction(String termFunction) {
-		this.setTermType("FUNCTION");
-		this.termFunction = termFunction;
-	}
+        return _termFunction;
+    }
 
-	public Map<Integer, String> getParameters() {
-		return parameters;
-	}
-	
-	public void putParameter(Integer index, String parameter) throws NdexException{
-		if(this.getParameters().get(index) != null){
-			throw new NdexException("Term parameter JDexId collision");
-		}
-		this.getParameters().put(index, parameter);
-	}
+    public void setTermFunction(String termFunction)
+    {
+        setTermType("FUNCTION");
+        _termFunction = termFunction;
+    }
 
-	public void setParameters(Map<Integer, String> parameters) {
-		this.setTermType("FUNCTION");
-		this.parameters = parameters;
-	}
+    public Map<Integer, String> getParameters()
+    {
+        return _parameters;
+    }
 
-	public String getTermType() {
-		return termType;
-	}
+    public void setParameters(Map<Integer, String> parameters)
+    {
+        setTermType("FUNCTION");
+        _parameters = parameters;
+    }
 
-	private void setTermType(String termType) {
-		this.termType = termType;
-	}
+    public String getTermType()
+    {
+        return _termType;
+    }
+
+    private void setTermType(String termType)
+    {
+        _termType = termType;
+    }
 }

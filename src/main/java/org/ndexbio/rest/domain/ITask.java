@@ -1,6 +1,5 @@
 package org.ndexbio.rest.domain;
 
-import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
@@ -8,10 +7,10 @@ import java.util.Date;
 
 public interface ITask extends VertexFrame
 {
-    @Adjacency(label = "owner", direction = Direction.IN)
+    @Adjacency(label = "owner")
     public IUser getOwner();
 
-    @Adjacency(label = "owner", direction = Direction.IN)
+    @Adjacency(label = "owner")
     public void setOwner(IUser owner);
 
     @Property("startTime")

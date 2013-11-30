@@ -28,6 +28,12 @@ public class NdexSchemaManager
             accountClass.createProperty("foregroundImage", OType.STRING);
         }
 
+        if (orientDbGraph.getVertexType("membership") == null)
+        {
+            OClass membershipClass = orientDbGraph.createVertexType("membership");
+            membershipClass.createProperty("permissions", OType.STRING);
+        }
+
         if (orientDbGraph.getVertexType("request") == null)
         {
             OClass requestClass = orientDbGraph.createVertexType("request");
@@ -91,9 +97,11 @@ public class NdexSchemaManager
         if (orientDbGraph.getVertexType("groupInvite") == null)
             orientDbGraph.createVertexType("groupInvite", "request");
 
+        if (orientDbGraph.getVertexType("groupMembership") == null)
+            orientDbGraph.createVertexType("groupMembership", "membership");
+
         if (orientDbGraph.getVertexType("joinGroup") == null)
             orientDbGraph.createVertexType("joinGroup", "request");
-
 
         if (orientDbGraph.getVertexType("namespace") == null)
         {
@@ -120,6 +128,9 @@ public class NdexSchemaManager
 
         if (orientDbGraph.getVertexType("networkAccess") == null)
             orientDbGraph.createVertexType("networkAccess", "request");
+
+        if (orientDbGraph.getVertexType("networkMembership") == null)
+            orientDbGraph.createVertexType("networkMembership", "membership");
 
         if (orientDbGraph.getVertexType("node") == null)
         {

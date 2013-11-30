@@ -4,27 +4,26 @@ import java.util.ArrayList;
 import java.util.List;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IGroup;
+import org.ndexbio.rest.domain.IGroupMembership;
 import org.ndexbio.rest.domain.INetwork;
+import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.IUser;
+import org.ndexbio.rest.domain.Permissions;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
-public class User extends NdexObject
+public class User extends Account
 {
-    private String _backgroundImage;
-    private String _description;
     private String _emailAddress;
     private String _firstName;
-    private String _foregroundImage;
     private String _lastName;
-    private List<Group> _ownedGroups;
-    private List<Network> _ownedNetworks;
+    private List<Membership> _groupMemberships;
+    private List<Membership> _networkMemberships;
     private List<Request> _requests;
     private String _username;
-    private String _website;
     private List<Network> _workSurface;
 
     
@@ -35,11 +34,8 @@ public class User extends NdexObject
     public User()
     {
         super();
-        
-        _ownedGroups = new ArrayList<Group>();
-        _ownedNetworks = new ArrayList<Network>();
-        _requests = new ArrayList<Request>();
-        _workSurface = new ArrayList<Network>();
+
+        initCollections();
     }
     
     /**************************************************************************
@@ -63,58 +59,47 @@ public class User extends NdexObject
     public User(IUser user, boolean loadEverything)
     {
         super(user);
+
+        initCollections();
         
-        _ownedGroups = new ArrayList<Group>();
-        _ownedNetworks = new ArrayList<Network>();
-        _requests = new ArrayList<Request>();
-        _workSurface = new ArrayList<Network>();
-        
-        _backgroundImage = user.getBackgroundImage();
-        _description = user.getDescription();
         _firstName = user.getFirstName();
-        _foregroundImage = user.getForegroundImage();
         _lastName = user.getLastName();
         _username = user.getUsername();
-        _website = user.getWebsite();
         
-        for (INetwork onWorkSurface : user.getWorkSurface())
+        for (final INetwork onWorkSurface : user.getWorkSurface())
             _workSurface.add(new Network(onWorkSurface));
         
-        for (IRequest request : user.getRequests())
+        for (final IRequest request : user.getRequests())
             _requests.add(new Request(request));
 
         if (loadEverything)
         {
-            for (IGroup ownedGroup : user.getOwnedGroups())
-                _ownedGroups.add(new Group(ownedGroup));
-            
-            for (INetwork ownedNetwork : user.getOwnedNetworks())
-                _ownedNetworks.add(new Network(ownedNetwork));
+            for (final IGroupMembership membership : user.getGroups())
+            {
+                _groupMemberships.add(new Membership((IGroup)membership.getGroup(), membership.getPermissions()));
+                
+                if (membership.getPermissions() == Permissions.ADMIN)
+                {
+                    for (final IRequest request : membership.getGroup().getRequests())
+                        _requests.add(new Request(request));
+                }
+            }
+        
+            for (final INetworkMembership membership : user.getNetworks())
+            {
+                _networkMemberships.add(new Membership((INetwork)membership.getNetwork(), membership.getPermissions()));
+                
+                if (membership.getPermissions() == Permissions.ADMIN)
+                {
+                    for (final IRequest request : membership.getNetwork().getRequests())
+                        _requests.add(new Request(request));
+                }
+            }
         }
     }
     
     
     
-    public String getBackgroundImage()
-    {
-        return _backgroundImage;
-    }
-
-    public void setBackgroundImage(String backgroundImage)
-    {
-        _backgroundImage = backgroundImage;
-    }
-
-    public String getDescription()
-    {
-        return _description;
-    }
-
-    public void setDescription(String description)
-    {
-        _description = description;
-    }
-
     public String getEmailAddress()
     {
         return _emailAddress;
@@ -135,16 +120,6 @@ public class User extends NdexObject
         _firstName = firstName;
     }
 
-    public String getForegroundImage()
-    {
-        return _foregroundImage;
-    }
-
-    public void setForegroundImg(String foregroundImage)
-    {
-        _foregroundImage = foregroundImage;
-    }
-
     public String getLastName()
     {
         return _lastName;
@@ -155,24 +130,24 @@ public class User extends NdexObject
         _lastName = lastName;
     }
 
-    public List<Group> getOwnedGroups()
+    public List<Membership> getGroups()
     {
-        return _ownedGroups;
+        return _groupMemberships;
     }
 
-    public void setOwnedGroups(List<Group> ownedGroups)
+    public void setGroups(List<Membership> groupMemberships)
     {
-        _ownedGroups = ownedGroups;
+        _groupMemberships = groupMemberships;
     }
 
-    public List<Network> getOwnedNetworks()
+    public List<Membership> getNetworks()
     {
-        return _ownedNetworks;
+        return _networkMemberships;
     }
 
-    public void setOwnedNetworks(List<Network> ownedNetworks)
+    public void setNetworks(List<Membership> networkMemberships)
     {
-        _ownedNetworks = ownedNetworks;
+        _networkMemberships = networkMemberships;
     }
     
     public List<Request> getRequests()
@@ -195,16 +170,6 @@ public class User extends NdexObject
         _username = username;
     }
 
-    public String getWebsite()
-    {
-        return _website;
-    }
-
-    public void setWebsite(String website)
-    {
-        _website = website;
-    }
-
     public List<Network> getWorkSurface()
     {
         return _workSurface;
@@ -213,5 +178,18 @@ public class User extends NdexObject
     public void setWorkSurface(List<Network> workSurface)
     {
         _workSurface = workSurface;
+    }
+
+    
+
+    /**************************************************************************
+    * Initializes the collections. 
+    **************************************************************************/
+    private void initCollections()
+    {
+        _groupMemberships = new ArrayList<Membership>();
+        _networkMemberships = new ArrayList<Membership>();
+        _requests = new ArrayList<Request>();
+        _workSurface = new ArrayList<Network>();
     }
 }

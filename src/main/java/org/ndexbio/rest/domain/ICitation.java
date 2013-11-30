@@ -1,6 +1,5 @@
 package org.ndexbio.rest.domain;
 
-import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
@@ -39,21 +38,21 @@ public interface ICitation extends VertexFrame
     @Property("type")
     public void setType(String type);
     
-    @Adjacency(label = "ndexEdges", direction = Direction.OUT)
+    @Adjacency(label = "ndexEdges")
     public void addNdexEdge(IEdge edge);
 
-    @Adjacency(label = "ndexEdges", direction = Direction.OUT)
+    @Adjacency(label = "ndexEdges")
     public Iterable<IEdge> getNdexEdges();
     
-    @Adjacency(label = "ndexEdges", direction = Direction.OUT)
+    @Adjacency(label = "ndexEdges")
     public void removeNdexEdge(IEdge edge);
     
-    @Adjacency(label = "supports", direction = Direction.OUT)
+    @Adjacency(label = "supports")
     public void addSupport(ISupport support);
 
-    @Adjacency(label = "supports", direction = Direction.OUT)
+    @Adjacency(label = "supports")
     public Iterable<ISupport> getSupports();
     
-    @Adjacency(label = "supports", direction = Direction.OUT)
+    @Adjacency(label = "supports")
     public void removeSupport(ISupport support);
 }

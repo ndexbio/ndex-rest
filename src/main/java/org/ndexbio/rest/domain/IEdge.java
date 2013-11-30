@@ -1,6 +1,5 @@
 package org.ndexbio.rest.domain;
 
-import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
@@ -13,46 +12,46 @@ public interface IEdge extends VertexFrame
     @Property("jdexId")
     public String getJdexId();
     
-    @Adjacency(label = "network", direction = Direction.OUT)
+    @Adjacency(label = "network")
     public void setNetwork(INetwork network);
 
-    @Adjacency(label = "network", direction = Direction.OUT)
+    @Adjacency(label = "network")
     public INetwork getNetwork();
 
-    @Adjacency(label = "object", direction = Direction.OUT)
+    @Adjacency(label = "object")
     public void setObject(INode object);
 
-    @Adjacency(label = "object", direction = Direction.OUT)
+    @Adjacency(label = "object")
     public INode getObject();
 
-    @Adjacency(label = "predicate", direction = Direction.OUT)
+    @Adjacency(label = "predicate")
     public void setPredicate(IBaseTerm term);
 
-    @Adjacency(label = "predicate", direction = Direction.OUT)
+    @Adjacency(label = "predicate")
     public IBaseTerm getPredicate();
 
-    @Adjacency(label = "subject", direction = Direction.OUT)
+    @Adjacency(label = "subject")
     public INode setSubject(INode subject);
 
-    @Adjacency(label = "subject", direction = Direction.OUT)
+    @Adjacency(label = "subject")
     public INode getSubject();
     
-    @Adjacency(label = "supports", direction = Direction.OUT)
+    @Adjacency(label = "supports")
     public void addSupport(ISupport support);
 
-    @Adjacency(label = "supports", direction = Direction.OUT)
+    @Adjacency(label = "supports")
     public Iterable<ISupport> getSupports();
     
-    @Adjacency(label = "supports", direction = Direction.OUT)
+    @Adjacency(label = "supports")
     public void removeSupport(ISupport support);
     
-    @Adjacency(label = "citations", direction = Direction.OUT)
+    @Adjacency(label = "citations")
     public void addCitation(ICitation citation);
 
-    @Adjacency(label = "citations", direction = Direction.OUT)
+    @Adjacency(label = "citations")
     public Iterable<ICitation> getCitations();
     
-    @Adjacency(label = "citations", direction = Direction.OUT)
+    @Adjacency(label = "citations")
     public void removeCitation(ICitation citation);
     
 }

@@ -20,6 +20,8 @@ public class Request extends NdexObject
     private String _toName;
     private String _message;
     private String _requestType;
+    private String _response;
+    private String _responder;
 
     
 
@@ -41,6 +43,8 @@ public class Request extends NdexObject
         super(request);
         
         _message = request.getMessage();
+        _responder = request.getResponder();
+        _response = request.getResponse();
         this.setCreatedDate(request.getRequestTime());
 
         if (request instanceof IGroupInvitationRequest)
@@ -55,7 +59,7 @@ public class Request extends NdexObject
         else if (request instanceof IJoinGroupRequest)
         {
             IJoinGroupRequest groupRequest = ((IJoinGroupRequest)request); 
-            _requestType = "Network Access";
+            _requestType = "Join Group";
             _fromId = RidConverter.convertToJid((ORID)groupRequest.getFromUser().asVertex().getId());
             _fromName = groupRequest.getFromUser().getFirstName() + " " + groupRequest.getFromUser().getLastName();
             _toId = RidConverter.convertToJid((ORID)groupRequest.getToGroup().asVertex().getId());
@@ -113,6 +117,26 @@ public class Request extends NdexObject
     public void setRequestType(String requestType)
     {
         _requestType = requestType;
+    }
+    
+    public String getResponder()
+    {
+        return _responder;
+    }
+    
+    public void setResponder(String responder)
+    {
+        _responder = responder;
+    }
+    
+    public String getResponse()
+    {
+        return _response;
+    }
+    
+    public void setResponse(String response)
+    {
+        _response = response;
     }
 
     public String getTo()

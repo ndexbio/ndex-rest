@@ -1,6 +1,5 @@
 package org.ndexbio.rest.domain;
 
-import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
@@ -19,18 +18,18 @@ public interface ISupport extends VertexFrame
     @Property("text")
     public String getText();
 
-    @Adjacency(label = "citation", direction = Direction.IN)
+    @Adjacency(label = "citation")
     public void setCitation(ICitation citation);
 
-    @Adjacency(label = "citation", direction = Direction.IN)
+    @Adjacency(label = "citation")
     public ICitation getCitation();
     
-    @Adjacency(label = "ndexEdges", direction = Direction.OUT)
+    @Adjacency(label = "ndexEdges")
     public void addNdexEdge(IEdge edge);
 
-    @Adjacency(label = "ndexEdges", direction = Direction.OUT)
+    @Adjacency(label = "ndexEdges")
     public Iterable<IEdge> getNdexEdges();
     
-    @Adjacency(label = "ndexEdges", direction = Direction.OUT)
+    @Adjacency(label = "ndexEdges")
     public void removeNdexEdge(IEdge edge);
 }

@@ -1,6 +1,5 @@
 package org.ndexbio.rest.domain;
 
-import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.modules.typedgraph.TypeValue;
@@ -20,29 +19,29 @@ public interface IUser extends IAccount
     @Property("firstName")
     public void setFirstName(String firstName);
 
+    @Adjacency(label = "groups")
+    public void addGroup(IGroupMembership newGroup);
+
+    @Adjacency(label = "groups")
+    public Iterable<IGroupMembership> getGroups();
+    
+    @Adjacency(label = "groups")
+    public void removeGroup(IGroupMembership group);
+
     @Property("lastName")
     public String getLastName();
 
     @Property("lastName")
     public void setLastName(String lastName);
 
-    @Adjacency(label = "ownedGroups", direction = Direction.OUT)
-    public void addOwnedGroup(IGroup group);
-
-    @Adjacency(label = "ownedGroups", direction = Direction.OUT)
-    public Iterable<IGroup> getOwnedGroups();
+    @Adjacency(label = "networks")
+    public void addNetwork(INetworkMembership newNetwork);
     
-    @Adjacency(label = "ownedGroups", direction = Direction.OUT)
-    public void removeOwnedGroup(IGroup group);
-
-    @Adjacency(label = "ownedNetworks", direction = Direction.OUT)
-    public void addOwnedNetwork(INetwork network);
-
-    @Adjacency(label = "ownedNetworks", direction = Direction.OUT)
-    public Iterable<INetwork> getOwnedNetworks();
-
-    @Adjacency(label = "ownedNetworks", direction = Direction.OUT)
-    public void removeOwnedNetwork(INetwork network);
+    @Adjacency(label = "networks")
+    public Iterable<INetworkMembership> getNetworks();
+    
+    @Adjacency(label = "networks")
+    public void removeNetwork(INetworkMembership network);
 
     @Property("password")
     public String getPassword();
@@ -50,11 +49,14 @@ public interface IUser extends IAccount
     @Property("password")
     public void setPassword(String password);
     
-    @Adjacency(label = "requests", direction = Direction.OUT)
+    @Adjacency(label = "requests")
+    public void addRequest(IRequest request);
+    
+    @Adjacency(label = "requests")
     public Iterable<IRequest> getRequests();
     
-    @Adjacency(label = "requests", direction = Direction.OUT)
-    public void setRequests(Iterable<IRequest> requests);
+    @Adjacency(label = "requests")
+    public void removeRequest(IRequest request);
 
     @Property("username")
     public String getUsername();
@@ -62,18 +64,12 @@ public interface IUser extends IAccount
     @Property("username")
     public void setUsername(String username);
 
-    @Property("website")
-    public void setWebsite(String website);
-
-    @Property("website")
-    public String getWebsite();
-
-    @Adjacency(label = "workSurface", direction = Direction.OUT)
+    @Adjacency(label = "workSurface")
     public void addNetworkToWorkSurface(INetwork network);
 
-    @Adjacency(label = "workSurface", direction = Direction.OUT)
+    @Adjacency(label = "workSurface")
     public Iterable<INetwork> getWorkSurface();
 
-    @Adjacency(label = "workSurface", direction = Direction.OUT)
+    @Adjacency(label = "workSurface")
     public void removeNetworkFromWorkSurface(INetwork network);
 }

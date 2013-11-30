@@ -31,4 +31,10 @@ public interface IAccount extends VertexFrame
 
     @Property("foregroundImage")
     public String getForegroundImage();
+
+    @Property("website")
+    void setWebsite(String website);
+
+    @Property("website")
+    String getWebsite();
 }

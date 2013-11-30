@@ -9,12 +9,15 @@ import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.IEdge;
 import org.ndexbio.rest.domain.IFunctionTerm;
+import org.ndexbio.rest.domain.IGroup;
+import org.ndexbio.rest.domain.IMembership;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
+import org.ndexbio.rest.domain.IUser;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
@@ -28,6 +31,8 @@ public class Network extends NdexObject
     private int _edgeCount;
     private Map<String, Edge> _edges;
     private String _format;
+    private boolean _isPublic;
+    private List<Membership> _members;
     private Map<String, Namespace> _namespaces;
     private int _nodeCount;
     private Map<String, Node> _nodes;
@@ -49,7 +54,8 @@ public class Network extends NdexObject
         
         _edgeCount = 0;
         _nodeCount = 0;
-        initMaps();
+        
+        initCollections();
     }
 
     /**************************************************************************
@@ -74,28 +80,38 @@ public class Network extends NdexObject
     {
         super(network);
 
+        this.initCollections();
+        
         _copyright = network.getCopyright();
         _description = network.getDescription();
         _edgeCount = network.getNdexEdgeCount();
         _format = network.getFormat();
+        _isPublic = network.getIsPublic();
         _nodeCount = network.getNdexNodeCount();
         _source = network.getSource();
         _title = network.getTitle();
         _version = network.getVersion();
-        this.initMaps();
         
-        for (IRequest request : network.getRequests())
+        for (final IMembership member : network.getMembers())
+        {
+            if (member.getMember() instanceof IUser)
+                _members.add(new Membership((IUser)member.getMember(), member.getPermissions()));
+            else if (member.getMember() instanceof IGroup)
+                _members.add(new Membership((IGroup)member.getMember(), member.getPermissions()));
+        }
+        
+        for (final IRequest request : network.getRequests())
             _requests.add(new Request(request));
 
         if (loadEverything)
         {
-            for (IEdge edge : network.getNdexEdges())
+            for (final IEdge edge : network.getNdexEdges())
                 _edges.put(edge.getJdexId(), new Edge(edge));
 
-            for (INode node : network.getNdexNodes())
+            for (final INode node : network.getNdexNodes())
                 _nodes.put(node.getJdexId(), new Node(node));
 
-            for (ITerm term : network.getTerms())
+            for (final ITerm term : network.getTerms())
             {
                 if (term instanceof IBaseTerm)
                     _terms.put(term.getJdexId(), new BaseTerm((IBaseTerm)term));
@@ -103,13 +119,13 @@ public class Network extends NdexObject
                     _terms.put(term.getJdexId(), new FunctionTerm((IFunctionTerm)term));
             }
 
-            for (ICitation citation : network.getCitations())
+            for (final ICitation citation : network.getCitations())
                 _citations.put(citation.getJdexId(), new Citation(citation));
 
-            for (INamespace namespace : network.getNamespaces())
+            for (final INamespace namespace : network.getNamespaces())
                 _namespaces.put(namespace.getJdexId(), new Namespace(namespace));
 
-            for (ISupport support : network.getSupports())
+            for (final ISupport support : network.getSupports())
                 _supports.put(support.getJdexId(), new Support(support));
         }
     }
@@ -174,6 +190,26 @@ public class Network extends NdexObject
     public void setFormat(String format)
     {
         this._format = format;
+    }
+    
+    public boolean getIsPublic()
+    {
+        return _isPublic;
+    }
+    
+    public void setIsPublic(boolean isPublic)
+    {
+        _isPublic = isPublic;
+    }
+    
+    public List<Membership> getMembers()
+    {
+        return _members;
+    }
+    
+    public void setMembers(List<Membership> members)
+    {
+        _members = members;
     }
 
     public Map<String, Namespace> getNamespaces()
@@ -269,12 +305,13 @@ public class Network extends NdexObject
     
 
     /**************************************************************************
-    * Initializes the maps. 
+    * Initializes the collections. 
     **************************************************************************/
-    private void initMaps()
+    private void initCollections()
     {
         _citations = new HashMap<String, Citation>();
         _edges = new HashMap<String, Edge>();
+        _members = new ArrayList<Membership>();
         _namespaces = new HashMap<String, Namespace>();
         _nodes = new HashMap<String, Node>();
         _requests = new ArrayList<Request>();

@@ -1,6 +1,5 @@
 package org.ndexbio.rest.domain;
 
-import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
@@ -19,10 +18,10 @@ public interface INode extends VertexFrame
     @Property("name")
     public void setName(String name);
 
-    @Adjacency(label = "represents", direction = Direction.OUT)
+    @Adjacency(label = "represents")
     public void setRepresents(ITerm term);
 
-    @Adjacency(label = "represents", direction = Direction.OUT)
+    @Adjacency(label = "represents")
     public ITerm getRepresents();
 
 }

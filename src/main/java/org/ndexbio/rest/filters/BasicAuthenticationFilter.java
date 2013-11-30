@@ -18,8 +18,10 @@ import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.IGroupInvitationRequest;
+import org.ndexbio.rest.domain.IGroupMembership;
 import org.ndexbio.rest.domain.IJoinGroupRequest;
 import org.ndexbio.rest.domain.INetworkAccessRequest;
+import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.models.User;
@@ -102,6 +104,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             new TypedGraphModuleBuilder()
                 .withClass(IGroup.class)
                 .withClass(IUser.class)
+                .withClass(IGroupMembership.class)
+                .withClass(INetworkMembership.class)
                 .withClass(IGroupInvitationRequest.class)
                 .withClass(IJoinGroupRequest.class)
                 .withClass(INetworkAccessRequest.class)
