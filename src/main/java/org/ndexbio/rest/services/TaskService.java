@@ -12,6 +12,7 @@ import org.ndexbio.rest.domain.ITask;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
+import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Task;
 import com.orientechnologies.orient.core.id.ORID;
@@ -32,6 +33,51 @@ public class TaskService extends NdexService
 
     
 
+    /**************************************************************************
+    * Creates a task. 
+    * 
+    * @param ownerId  The owner's ID.
+    * @param newGroup The task to create.
+    **************************************************************************/
+    @PUT
+    @Produces("application/json")
+    public Task createTask(final String ownerId, final Task newTask) throws Exception
+    {
+        final ORID userRid = RidConverter.convertToRid(ownerId);
+
+        final IUser taskOwner = _orientDbGraph.getVertex(userRid, IUser.class);
+        if (taskOwner == null)
+            throw new ObjectNotFoundException("User", ownerId);
+
+        try
+        {
+            setupDatabase();
+            
+            final ITask task = _orientDbGraph.addVertex("class:task", ITask.class);
+            task.setStatus(newTask.getStatus());
+            task.setStartTime(newTask.getCreatedDate());
+
+            _orientDbGraph.getBaseGraph().commit();
+
+            newTask.setId(RidConverter.convertToJid((ORID) task.asVertex().getId()));
+            return newTask;
+        }
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+
+    /**************************************************************************
+    * Deletes a task. 
+    * 
+    * @param taskId The ID of the task to delete.
+    **************************************************************************/
     @DELETE
     @Path("/{taskId}")
     @Produces("application/json")
@@ -39,34 +85,89 @@ public class TaskService extends NdexService
     {
         final ORID taskId = RidConverter.convertToRid(taskJid);
 
-        final Vertex taskToDelete = _orientDbGraph.getVertex(taskId);
-        if (taskToDelete == null)
-            throw new ObjectNotFoundException("Task", taskJid);
-
-        deleteVertex(taskToDelete);
+        try
+        {
+            setupDatabase();
+            
+            final Vertex taskToDelete = _orientDbGraph.getVertex(taskId);
+            if (taskToDelete == null)
+                throw new ObjectNotFoundException("Task", taskJid);
+    
+            //TODO: Need to remove orphaned vertices
+            _orientDbGraph.removeVertex(taskToDelete);
+            _orientDbGraph.getBaseGraph().commit();
+        }
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
     }
 
+    /**************************************************************************
+    * Gets a request by ID.
+    * 
+    * @param requestId The ID of the request.
+    **************************************************************************/
     @GET
     @Path("/{taskId}")
     @Produces("application/json")
     public Task getTask(@PathParam("taskId")final String taskJid) throws NdexException
     {
-        final ORID taskId = RidConverter.convertToRid(taskJid);
-        final ITask task = _orientDbGraph.getVertex(taskId, ITask.class);
+        if (taskJid == null || taskJid.isEmpty())
+            throw new ValidationException("No task ID was specified.");
 
-        if (task == null)
+        try
         {
-            final Collection<ODocument> matchingtasks = _orientDbGraph.getBaseGraph().command(new OCommandSQL("select from Task where taskname = ?")).execute(taskJid);
-
-            if (matchingtasks.size() < 1)
-                return null;
-            else
-                return new Task(_orientDbGraph.getVertex(matchingtasks.toArray()[0], ITask.class));
+            final ORID taskId = RidConverter.convertToRid(taskJid);
+            
+            setupDatabase();
+            
+            final ITask task = _orientDbGraph.getVertex(taskId, ITask.class);
+            if (task != null)
+                return new Task(task);
         }
-        else
-            return new Task(task);
+        catch (ValidationException ve)
+        {
+            try
+            {
+                //The task ID is actually a task name
+                final Collection<ODocument> matchingtasks = _orientDbGraph
+                    .getBaseGraph()
+                   .command(new OCommandSQL("select from Task where taskname = ?"))
+                   .execute(taskJid);
+    
+               if (matchingtasks.size() > 0)
+                   return new Task(_orientDbGraph.getVertex(matchingtasks.toArray()[0], ITask.class));
+            }
+            catch (Exception e)
+            {
+                _orientDbGraph.getBaseGraph().rollback(); 
+                throw e;
+            }
+        }
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+        
+        return null;
     }
 
+    /**************************************************************************
+    * Updates a request.
+    * 
+    * @param updatedRequest The updated request information.
+    **************************************************************************/
     @POST
     @Produces("application/json")
     public void updateTask(final Task updatedTask) throws Exception
@@ -82,49 +183,17 @@ public class TaskService extends NdexService
             taskToUpdate.setStartTime(updatedTask.getCreatedDate());
             taskToUpdate.setStatus(updatedTask.getStatus());
 
-            // TODO map remaining Task fields to ITask
+            //TODO: Map remaining Task fields to ITask
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
-    }
-
-    @PUT
-    @Produces("application/json")
-    public Task createTask(final String ownerId, final Task newTask) throws Exception
-    {
-        ORID userRid = RidConverter.convertToRid(ownerId);
-
-        final IUser taskOwner = _orientDbGraph.getVertex(userRid, IUser.class);
-        if (taskOwner == null)
-            throw new ObjectNotFoundException("User", ownerId);
-
-
-        try
-        {
-            final ITask task = _orientDbGraph.addVertex("class:task", ITask.class);
-            task.setStatus(newTask.getStatus());
-            task.setStartTime(newTask.getCreatedDate());
-
-            _orientDbGraph.getBaseGraph().commit();
-
-            newTask.setId(RidConverter.convertToJid((ORID) task.asVertex().getId()));
-            return newTask;
-        }
-        catch (Exception e)
-        {
-            handleOrientDbException(e);
-        }
-        finally
-        {
-            closeOrientDbConnection();
-        }
-        return newTask;
     }
 }

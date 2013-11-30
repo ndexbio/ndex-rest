@@ -2,9 +2,7 @@ package org.ndexbio.rest;
 
 import java.util.HashSet;
 import java.util.Set;
-
 import javax.ws.rs.core.Application;
-
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.GroupService;
 import org.ndexbio.rest.services.NetworkService;

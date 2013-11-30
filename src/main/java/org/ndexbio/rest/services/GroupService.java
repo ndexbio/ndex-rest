@@ -1,5 +1,6 @@
 package org.ndexbio.rest.services;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
@@ -21,11 +22,8 @@ import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Group;
-import org.ndexbio.rest.models.GroupSearchResult;
 import org.ndexbio.rest.models.SearchParameters;
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
-import com.google.common.primitives.Ints;
+import org.ndexbio.rest.models.SearchResult;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
@@ -45,6 +43,8 @@ public class GroupService extends NdexService
         super();
     }
 
+    
+    
     /**************************************************************************
     * Creates a group. 
     * 
@@ -64,14 +64,16 @@ public class GroupService extends NdexService
         if (!groupNamePattern.matcher(newGroup.getName()).matches())
             throw new ValidationException("Invalid group name: " + newGroup.getName() + ".");
 
-        final ORID userRid = RidConverter.convertToRid(ownerId);
-
-        final IUser groupOwner = _orientDbGraph.getVertex(userRid, IUser.class);
-        if (groupOwner == null)
-            throw new ObjectNotFoundException("User", ownerId);
-
         try
         {
+            setupDatabase();
+            
+            final ORID userRid = RidConverter.convertToRid(ownerId);
+
+            final IUser groupOwner = _orientDbGraph.getVertex(userRid, IUser.class);
+            if (groupOwner == null)
+                throw new ObjectNotFoundException("User", ownerId);
+
             final IGroup group = _orientDbGraph.addVertex("class:group", IGroup.class);
             group.setDescription(newGroup.getDescription());
             group.setName(newGroup.getName());
@@ -94,14 +96,13 @@ public class GroupService extends NdexService
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
-
-        return null;
     }
 
     /**************************************************************************
@@ -119,23 +120,26 @@ public class GroupService extends NdexService
 
         final ORID groupId = RidConverter.convertToRid(groupJid);
 
-        final Vertex groupToDelete = _orientDbGraph.getVertex(groupId);
-        if (groupToDelete == null)
-            throw new ObjectNotFoundException("Group", groupJid);
-
         try
         {
-            // TODO: Need to remove orphaned vertices
+            setupDatabase();
+            
+            final Vertex groupToDelete = _orientDbGraph.getVertex(groupId);
+            if (groupToDelete == null)
+                throw new ObjectNotFoundException("Group", groupJid);
+
+            //TODO: Need to remove orphaned vertices
             _orientDbGraph.removeVertex(groupToDelete);
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
     }
 
@@ -147,44 +151,49 @@ public class GroupService extends NdexService
     @POST
     @Path("/search")
     @Produces("application/json")
-    public GroupSearchResult findGroups(SearchParameters searchParameters) throws NdexException
+    public SearchResult<Group> findGroups(SearchParameters searchParameters) throws NdexException
     {
-        Collection<Group> foundGroups = Lists.newArrayList();
-        GroupSearchResult result = new GroupSearchResult();
-        result.setGroups(foundGroups);
-        Integer skip = 0;
-        Integer limit = 10;
+        if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
+            throw new ValidationException("No search string was specified.");
+        else
+            searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
+        
+        final List<Group> foundGroups = new ArrayList<Group>();
+        final SearchResult<Group> result = new SearchResult<Group>();
+        result.setResults(foundGroups);
+        
+        //TODO: Remove these, they're unnecessary
+        result.setPageSize(searchParameters.getTop());
+        result.setSkip(searchParameters.getSkip());
 
-        if (!Strings.isNullOrEmpty(searchParameters.getSkip()))
-            skip = Ints.tryParse(searchParameters.getSkip());
+        int startIndex = searchParameters.getSkip() * searchParameters.getTop();
 
-        if (!Strings.isNullOrEmpty(searchParameters.getLimit()))
-            limit = Ints.tryParse(searchParameters.getLimit());
+        final String whereClause = " where name.toUpperCase() like '%" + searchParameters.getSearchString()
+            + "%' OR description.toUpperCase() like '%" + searchParameters.getSearchString()
+            + "%' OR organizationName.toUpperCase() like '%" + searchParameters.getSearchString() + "%'";
 
-        result.setPageSize(limit);
-        result.setSkip(skip);
+        final String query = "select from Group " + whereClause + " order by creation_date desc skip " + startIndex + " limit " + searchParameters.getTop();
 
-        if (Strings.isNullOrEmpty(searchParameters.getSearchString()))
+        try
+        {
+            setupDatabase();
+            
+            final List<ODocument> groupDocumentList = _orientDbGraph.getBaseGraph().getRawGraph().query(new OSQLSynchQuery<ODocument>(query));
+            for (final ODocument document : groupDocumentList)
+                foundGroups.add(new Group(_orientDbGraph.getVertex(document, IGroup.class)));
+    
+            result.setResults(foundGroups);
             return result;
-
-        int start = 0;
-        if (null != skip && null != limit)
-            start = skip.intValue() * limit.intValue();
-
-        String searchString = searchParameters.getSearchString().toUpperCase().trim();
-
-        String where_clause = "";
-        if (searchString.length() > 0)
-            where_clause = " where name.toUpperCase() like '%" + searchString + "%' OR description.toUpperCase() like '%" + searchString + "%' OR organizationName.toUpperCase() like '%" + searchString + "%'";
-
-        final String query = "select from Group " + where_clause + " order by creation_date desc skip " + start + " limit " + limit;
-
-        final List<ODocument> groupDocumentList = _orientDbGraph.getBaseGraph().getRawGraph().query(new OSQLSynchQuery<ODocument>(query));
-        for (final ODocument document : groupDocumentList)
-            foundGroups.add(new Group(_orientDbGraph.getVertex(document, IGroup.class)));
-
-        result.setGroups(foundGroups);
-        return result;
+        }
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
     }
 
     /**************************************************************************
@@ -203,6 +212,8 @@ public class GroupService extends NdexService
 
         try
         {
+            setupDatabase();
+            
             final ORID groupId = RidConverter.convertToRid(groupJid);
             final IGroup group = _orientDbGraph.getVertex(groupId, IGroup.class);
 
@@ -211,13 +222,30 @@ public class GroupService extends NdexService
         }
         catch (ValidationException ve)
         {
-            // The group ID is actually a group name
-            final Collection<ODocument> matchingGroups = _orientDbGraph.getBaseGraph().command(new OCommandSQL("select from Group where groupname = ?")).execute(groupJid);
-
-            if (matchingGroups.size() > 0)
-                return new Group(_orientDbGraph.getVertex(matchingGroups.toArray()[0], IGroup.class), true);
+            try
+            {
+                //The group ID is actually a group name
+                final Collection<ODocument> matchingGroups = _orientDbGraph.getBaseGraph().command(new OCommandSQL("select from Group where groupname = ?")).execute(groupJid);
+    
+                if (matchingGroups.size() > 0)
+                    return new Group(_orientDbGraph.getVertex(matchingGroups.toArray()[0], IGroup.class), true);
+            }
+            catch (Exception e)
+            {
+                _orientDbGraph.getBaseGraph().rollback(); 
+                throw e;
+            }
         }
-
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+        
         return null;
     }
 
@@ -235,25 +263,29 @@ public class GroupService extends NdexService
 
         final ORID groupRid = RidConverter.convertToRid(updatedGroup.getId());
 
-        final IGroup groupToUpdate = _orientDbGraph.getVertex(groupRid, IGroup.class);
-        if (groupToUpdate == null)
-            throw new ObjectNotFoundException("Group", updatedGroup.getId());
-
         try
         {
+            setupDatabase();
+            
+            final IGroup groupToUpdate = _orientDbGraph.getVertex(groupRid, IGroup.class);
+            if (groupToUpdate == null)
+                throw new ObjectNotFoundException("Group", updatedGroup.getId());
+    
             groupToUpdate.setDescription(updatedGroup.getDescription());
             groupToUpdate.setName(updatedGroup.getName());
             groupToUpdate.setOrganizationName(updatedGroup.getOrganizationName());
             groupToUpdate.setWebsite(updatedGroup.getWebsite());
+            
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
     }
 }

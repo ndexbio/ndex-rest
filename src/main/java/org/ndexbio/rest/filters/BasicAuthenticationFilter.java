@@ -25,10 +25,8 @@ import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.models.User;
-import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
@@ -59,8 +57,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException
     {
-        ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker) requestContext.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
-        Method method = methodInvoker.getMethod();
+        final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker) requestContext.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
+        final Method method = methodInvoker.getMethod();
         
         if (!method.isAnnotationPresent(PermitAll.class))
         {
@@ -72,14 +70,14 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             
             try
             {
-                String[] authInfo = resolveUserCredentials(requestContext);
+                final String[] authInfo = resolveUserCredentials(requestContext);
                 if (authInfo == null)
                 {
                     requestContext.abortWith(FORBIDDEN);
                     return;
                 }
                 
-                User authUser = authenticateUser(authInfo); 
+                final User authUser = authenticateUser(authInfo); 
                 if (authUser == null)
                     requestContext.abortWith(ACCESS_DENIED);
             }
@@ -116,7 +114,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         ODatabaseDocumentTx ndexDatabase = null;
         try
         {
-            // TODO: Refactor this to connect using a configurable username/password, and database
+            //TODO: Refactor this to connect using a configurable username/password, and database
             ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "ndex", "ndex");
             final FramedGraph<OrientBaseGraph> orientDbGraph = graphFactory.create((OrientBaseGraph)new OrientGraph(ndexDatabase));
 
@@ -134,17 +132,11 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 
             return new User(authUser, true);
         }
-        catch (Exception e)
-        {
-            OLogManager.instance().error(this, "Cannot access database.", ODatabaseException.class, e);
-        }
         finally
         {
             if (ndexDatabase != null)
                 ndexDatabase.close();
         }
-
-        return null;
     }
     
 
@@ -163,7 +155,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 
         final String encodedAuthInfo = authHeader.get(0).replaceFirst(AUTHENTICATION_SCHEME + " ", "");
         
-        String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+        final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
         
         return decodedAuthInfo.split(":");
     }

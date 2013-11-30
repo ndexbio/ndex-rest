@@ -122,8 +122,6 @@ public class NdexSchemaManager
             networkClass.createProperty("source", OType.STRING);
             networkClass.createProperty("title", OType.STRING);
             networkClass.createProperty("version", OType.STRING);
-
-            networkClass.createIndex("index-network-title", OClass.INDEX_TYPE.UNIQUE, "title");
         }
 
         if (orientDbGraph.getVertexType("networkAccess") == null)

@@ -35,6 +35,7 @@ public class RequestService extends NdexService
     }
 
 
+    
     /**************************************************************************
     * Creates a request. 
     * 
@@ -52,6 +53,8 @@ public class RequestService extends NdexService
         
         try
         {
+            setupDatabase();
+            
             if (newRequest.getRequestType().equals("Group Invitation"))
                 createGroupInvitationRequest(fromRid, toRid, newRequest);
             else if (newRequest.getRequestType().equals("Join Group"))
@@ -65,14 +68,13 @@ public class RequestService extends NdexService
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
-        
-        return null;
     }
 
     /**************************************************************************
@@ -90,12 +92,25 @@ public class RequestService extends NdexService
         
         final ORID requestId = RidConverter.convertToRid(requestJid);
 
-        final Vertex requestToDelete = _orientDbGraph.getVertex(requestId);
-        if (requestToDelete == null)
-            throw new ObjectNotFoundException("Request", requestJid);
-
-        //TODO: Need to remove orphaned vertices
-        deleteVertex(requestToDelete);
+        try
+        {
+            final Vertex requestToDelete = _orientDbGraph.getVertex(requestId);
+            if (requestToDelete == null)
+                throw new ObjectNotFoundException("Request", requestJid);
+            
+            //TODO: Need to remove orphaned vertices
+            _orientDbGraph.removeVertex(requestToDelete);
+            _orientDbGraph.getBaseGraph().commit();
+        }
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
     }
 
     /**************************************************************************
@@ -113,11 +128,25 @@ public class RequestService extends NdexService
         
         final ORID requestId = RidConverter.convertToRid(requestJid);
 
-        final IRequest request = _orientDbGraph.getVertex(requestId, IRequest.class);
-        if (request == null)
-            throw new ObjectNotFoundException("Request", requestJid);
+        try
+        {
+            setupDatabase();
 
-        return new Request(request);
+            final IRequest request = _orientDbGraph.getVertex(requestId, IRequest.class);
+            if (request == null)
+                throw new ObjectNotFoundException("Request", requestJid);
+    
+            return new Request(request);
+        }
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
     }
 
     /**************************************************************************
@@ -134,12 +163,14 @@ public class RequestService extends NdexService
         
         final ORID requestRid = RidConverter.convertToRid(updatedRequest.getId());
 
-        final IRequest requestToUpdate = _orientDbGraph.getVertex(requestRid, IRequest.class);
-        if (requestToUpdate == null)
-            throw new ObjectNotFoundException("Request", updatedRequest.getId());
-
         try
         {
+            setupDatabase();
+            
+            final IRequest requestToUpdate = _orientDbGraph.getVertex(requestRid, IRequest.class);
+            if (requestToUpdate == null)
+                throw new ObjectNotFoundException("Request", updatedRequest.getId());
+
             requestToUpdate.setResponder(updatedRequest.getResponder());
             requestToUpdate.setResponse(updatedRequest.getResponse());
             
@@ -147,13 +178,15 @@ public class RequestService extends NdexService
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
     }
+    
     
     
     
@@ -181,6 +214,7 @@ public class RequestService extends NdexService
         newRequest.setToUser(requestedUser);
         requestingGroup.addRequest(newRequest);
         requestedUser.addRequest(newRequest);
+        
         _orientDbGraph.getBaseGraph().commit();
 
         requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));
@@ -208,8 +242,10 @@ public class RequestService extends NdexService
         newRequest.setRequestTime(new Date());
         newRequest.setFromUser(requestOwner);
         newRequest.setToGroup(requestedGroup);
+        
         requestOwner.addRequest(newRequest);
         requestedGroup.addRequest(newRequest);
+        
         _orientDbGraph.getBaseGraph().commit();
 
         requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));
@@ -237,8 +273,10 @@ public class RequestService extends NdexService
         newRequest.setRequestTime(new Date());
         newRequest.setFromUser(requestOwner);
         newRequest.setToNetwork(requestedNetwork);
+        
         requestOwner.addRequest(newRequest);
         requestedNetwork.addRequest(newRequest);
+        
         _orientDbGraph.getBaseGraph().commit();
 
         requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));

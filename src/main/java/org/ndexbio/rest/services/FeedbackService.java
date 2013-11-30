@@ -8,7 +8,7 @@ import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.Email;
 
 @Path("/feedback")
-public class FeedbackService
+public class FeedbackService extends NdexService
 {
     /**************************************************************************
     * Emails feedback to Cytoscape Consortium. 

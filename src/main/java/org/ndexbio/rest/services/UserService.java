@@ -1,5 +1,6 @@
 package org.ndexbio.rest.services;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -25,11 +26,8 @@ import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.SearchParameters;
+import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.rest.models.User;
-import org.ndexbio.rest.models.UserSearchResult;
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
-import com.google.common.primitives.Ints;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
@@ -67,36 +65,39 @@ public class UserService extends NdexService
         final ORID userRid = RidConverter.convertToRid(userJid);
         final ORID networkRid = RidConverter.convertToRid(networkToAdd.getId());
 
-        final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
-        if (user == null)
-            throw new ObjectNotFoundException("User", userJid);
-
-        final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
-        if (network == null)
-            throw new ObjectNotFoundException("Network", networkToAdd.getId());
-        
-        final Iterable<INetwork> workSurface = user.getWorkSurface();
-        if (workSurface != null)
-        {
-            for (INetwork checkNetwork : workSurface)
-            {
-                if (checkNetwork.asVertex().getId().equals(networkRid))
-                    throw new DuplicateObjectException("Network with RID: " + networkRid + " is already on the Work Surface.");
-            }
-        }
-
         try
         {
+            setupDatabase();
+            
+            final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
+            if (user == null)
+                throw new ObjectNotFoundException("User", userJid);
+
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            if (network == null)
+                throw new ObjectNotFoundException("Network", networkToAdd.getId());
+            
+            final Iterable<INetwork> workSurface = user.getWorkSurface();
+            if (workSurface != null)
+            {
+                for (INetwork checkNetwork : workSurface)
+                {
+                    if (checkNetwork.asVertex().getId().equals(networkRid))
+                        throw new DuplicateObjectException("Network with RID: " + networkRid + " is already on the Work Surface.");
+                }
+            }
+
             user.addNetworkToWorkSurface(network);
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
     }
 
@@ -134,24 +135,26 @@ public class UserService extends NdexService
     {
         try
         {
+            setupDatabase();
+            
             final IUser user = _orientDbGraph.addVertex("class:user", IUser.class);
             user.setUsername(newUser.getUsername());
             user.setPassword(Security.hashText(newUser.getPassword()));
             user.setEmailAddress(newUser.getEmailAddress());
+            
             _orientDbGraph.getBaseGraph().commit();
 
             return new User(user);
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
-        
-        return null;
     }
 
     /**************************************************************************
@@ -173,26 +176,30 @@ public class UserService extends NdexService
         final ORID userRid = RidConverter.convertToRid(userJid);
         final ORID networkRid = RidConverter.convertToRid(networkToDelete.getId());
 
-        final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
-        if (user == null)
-            throw new ObjectNotFoundException("User", userJid);
-
-        final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
-        if (network == null)
-            throw new ObjectNotFoundException("Network", networkToDelete.getId());
-        
         try
         {
+            setupDatabase();
+            
+            final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
+            if (user == null)
+                throw new ObjectNotFoundException("User", userJid);
+
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            if (network == null)
+                throw new ObjectNotFoundException("Network", networkToDelete.getId());
+            
             user.removeNetworkFromWorkSurface(network);
+            
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
     }
     
@@ -210,24 +217,28 @@ public class UserService extends NdexService
             throw new ValidationException("No user ID was specified.");
         
         final ORID userRid = RidConverter.convertToRid(userJid);
-        final IUser userToDelete = _orientDbGraph.getVertex(userRid, IUser.class);
-        
-        if (userToDelete == null)
-            throw new ObjectNotFoundException("User", userJid);
         
         try
         {
+            setupDatabase();
+            
+            final IUser userToDelete = _orientDbGraph.getVertex(userRid, IUser.class);
+            
+            if (userToDelete == null)
+                throw new ObjectNotFoundException("User", userJid);
+            
             //TODO: Need to remove orphaned vertices
             _orientDbGraph.removeVertex(userToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
     }
 
@@ -245,20 +256,34 @@ public class UserService extends NdexService
         if (username == null || username.isEmpty())
             throw new ValidationException("No username was specified.");
         
-        Collection<ODocument> usersFound = _ndexDatabase
-            .command(new OCommandSQL("select from User where username = ?"))
-            .execute(username);
-        
-        if (usersFound.size() < 1)
-            throw new ObjectNotFoundException("User", username);
+        try
+        {
+            setupDatabase();
+            
+            final Collection<ODocument> usersFound = _ndexDatabase
+                .command(new OCommandSQL("select from User where username = ?"))
+                .execute(username);
+            
+            if (usersFound.size() < 1)
+                throw new ObjectNotFoundException("User", username);
 
-        final IUser authUser = _orientDbGraph.getVertex(usersFound.toArray()[0], IUser.class);
-        
-        final String newPassword = Security.generatePassword();
-        authUser.setPassword(Security.hashText(newPassword));
-        
-        //TODO: This should be refactored to use a configuration file and a text file for the email content
-        Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is: " + newPassword);
+            final IUser authUser = _orientDbGraph.getVertex(usersFound.toArray()[0], IUser.class);
+            
+            final String newPassword = Security.generatePassword();
+            authUser.setPassword(Security.hashText(newPassword));
+            
+            //TODO: This should be refactored to use a configuration file and a text file for the email content
+            Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is: " + newPassword);
+        }
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
     }
     
     /**************************************************************************
@@ -269,57 +294,55 @@ public class UserService extends NdexService
     @POST
     @Path("/search")
     @Produces("application/json")
-    public UserSearchResult findUsers(SearchParameters searchParameters) throws NdexException
+    public SearchResult<User> findUsers(SearchParameters searchParameters) throws NdexException
     {
-        Collection<User> foundUsers = Lists.newArrayList();
-        UserSearchResult result = new UserSearchResult();
-        result.setUsers(foundUsers);
-        Integer skip = 0;
-        Integer limit = 10;
+        if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
+            throw new ValidationException("No search string was specified.");
+        else
+            searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
         
-        if (!Strings.isNullOrEmpty(searchParameters.getSkip()))
-            skip = Ints.tryParse(searchParameters.getSkip());
-
-        if (!Strings.isNullOrEmpty(searchParameters.getLimit()))
-            limit = Ints.tryParse(searchParameters.getLimit());
-
-        result.setPageSize(limit);
-        result.setSkip(skip);
+        final List<User> foundUsers = new ArrayList<User>();
+        final SearchResult<User> result = new SearchResult<User>();
+        result.setResults(foundUsers);
         
-        if (Strings.isNullOrEmpty(searchParameters.getSearchString()))
-            return result;
+        //TODO: Remove these, they're unnecessary
+        result.setPageSize(searchParameters.getTop());
+        result.setSkip(searchParameters.getSkip());
+        
+        final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
 
-        int start = 0;
-        if (null != skip && null != limit)
-            start = skip.intValue() * limit.intValue();
+        String whereClause = " where username.toUpperCase() like '%" + searchParameters.getSearchString()
+                    + "%' OR lastName.toUpperCase() like '%" + searchParameters.getSearchString()
+                    + "%' OR firstName.toUpperCase() like '%" + searchParameters.getSearchString() + "%'";
 
-        String searchString = searchParameters.getSearchString().toUpperCase().trim();
-
-        String where_clause = "";
-        if (searchString.length() > 0)
+        final String query = "select from User " + whereClause
+                + " order by creation_date desc skip " + startIndex + " limit " + searchParameters.getTop();
+        
+        try
         {
-            where_clause = " where username.toUpperCase() like '%"
-                    + searchString
-                    + "%' OR lastName.toUpperCase() like '%"
-                    + searchString
-                    + "%' OR firstName.toUpperCase() like '%"
-                    + searchString + "%'";
+            setupDatabase();
+            
+            List<ODocument> userDocumentList = _orientDbGraph
+                .getBaseGraph()
+                .getRawGraph()
+                .query(new OSQLSynchQuery<ODocument>(query));
+            
+            for (final ODocument document : userDocumentList)
+                foundUsers.add(new User(_orientDbGraph.getVertex(document, IUser.class)));
+    
+            result.setResults(foundUsers);
+            
+            return result;
         }
-
-        final String query = "select from User " + where_clause
-                + " order by creation_date desc skip " + start + " limit "
-                + limit;
-        
-        List<ODocument> userDocumentList = _orientDbGraph
-            .getBaseGraph()
-            .getRawGraph()
-            .query(new OSQLSynchQuery<ODocument>(query));
-        
-        for (ODocument document : userDocumentList)
-            foundUsers.add(new User(_orientDbGraph.getVertex(document, IUser.class)));
-
-        result.setUsers(foundUsers);
-        return result;
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
     }
     
     /**************************************************************************
@@ -338,6 +361,8 @@ public class UserService extends NdexService
         
         try
         {
+            setupDatabase();
+            
             final ORID userId = RidConverter.convertToRid(userJid);
             
             final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
@@ -346,15 +371,32 @@ public class UserService extends NdexService
         }
         catch (ValidationException ve)
         {
-            //The user ID is actually a username
-            final Iterable<ODocument> matchingUsers = _orientDbGraph
-                .getBaseGraph()
-                .command(new OCommandSQL("select from User where username = ?"))
-                .execute(userJid);
-            
-            final Iterator<ODocument> userIterator = matchingUsers.iterator(); 
-            if (userIterator.hasNext())
-                return new User(_orientDbGraph.getVertex(userIterator.next(), IUser.class), true);
+            try
+            {
+                //The user ID is actually a username
+                final Iterable<ODocument> matchingUsers = _orientDbGraph
+                    .getBaseGraph()
+                    .command(new OCommandSQL("select from User where username = ?"))
+                    .execute(userJid);
+                
+                final Iterator<ODocument> userIterator = matchingUsers.iterator(); 
+                if (userIterator.hasNext())
+                    return new User(_orientDbGraph.getVertex(userIterator.next(), IUser.class), true);
+            }
+            catch (Exception e)
+            {
+                _orientDbGraph.getBaseGraph().rollback(); 
+                throw e;
+            }
+        }
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
         }
         
         return null;
@@ -373,12 +415,15 @@ public class UserService extends NdexService
             throw new ValidationException("The updated user is empty.");
         
         final ORID userRid = RidConverter.convertToRid(updatedUser.getId());
-        final IUser existingUser = _orientDbGraph.getVertex(userRid, IUser.class);
-        if (existingUser == null)
-            throw new ObjectNotFoundException("User", updatedUser.getId());
-
+        
         try
         {
+            setupDatabase();
+            
+            final IUser existingUser = _orientDbGraph.getVertex(userRid, IUser.class);
+            if (existingUser == null)
+                throw new ObjectNotFoundException("User", updatedUser.getId());
+
             if (updatedUser.getBackgroundImage() != null)
                 existingUser.setBackgroundImage(updatedUser.getBackgroundImage());
     
@@ -401,11 +446,12 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
-            handleOrientDbException(e);
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
         }
         finally
         {
-            closeOrientDbConnection();
+            teardownDatabase();
         }
     }
 }

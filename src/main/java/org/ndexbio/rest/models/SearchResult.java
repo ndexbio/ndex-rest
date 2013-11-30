@@ -1,38 +1,40 @@
 package org.ndexbio.rest.models;
 
+import java.util.Collection;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+//TODO: Remove this class, it's unnecessary
+//TODO: Refactor KnockoutJS bindings to not use this class
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
-public class SearchParameters extends NdexObject
+public class SearchResult<T> extends NdexObject
 {
-    private String _searchString;
-    private int _skip;
-    private int _top;
+    private Integer _skip;
+    private Integer _pageSize;
+    private Collection<T> _results;
 
 
 
     /**************************************************************************
     * Default constructor.
     **************************************************************************/
-    public SearchParameters()
+    public SearchResult()
     {
         super();
     }
 
 
 
-
-    public String getSearchString()
+    public int getPageSize()
     {
-        return _searchString;
+        return _pageSize;
     }
 
-    public void setSearchString(String searchString)
+    public void setPageSize(int pageSize)
     {
-        _searchString = searchString;
+        _pageSize = pageSize;
     }
 
     public int getSkip()
@@ -45,13 +47,13 @@ public class SearchParameters extends NdexObject
         _skip = skip;
     }
 
-    public int getTop()
+    public Collection<T> getResults()
     {
-        return _top;
+        return _results;
     }
 
-    public void setTop(int top)
+    public void setResults(Collection<T> results)
     {
-        _top = top;
+        _results = results;
     }
 }
