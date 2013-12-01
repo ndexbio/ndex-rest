@@ -36,18 +36,23 @@ public class NetworkQueryTest {
 		// objectMapper.readTree(NetworkServiceTest.class.getResourceAsStream(jdexFile));
 
 		try {
-			/*System.out.println("About to load network from: " + jdexFile);
-			InputStream networkStream = NetworkQueryTest.class.getResourceAsStream(jdexFile);
-			System.out.println("Got input stream");
-			Network networkToCreate = objectMapper.readValue(networkStream, Network.class);
-			System.out.println("Got Network JDEx");*/
-			
-			URL testNetworkUrl = NetworkQueryTest.class.getResource(jdexFile);
-            File networkFile = new File(testNetworkUrl.toURI());
+			/*
+			 * System.out.println("About to load network from: " + jdexFile);
+			 * InputStream networkStream =
+			 * NetworkQueryTest.class.getResourceAsStream(jdexFile);
+			 * System.out.println("Got input stream"); Network networkToCreate =
+			 * objectMapper.readValue(networkStream, Network.class);
+			 * System.out.println("Got Network JDEx");
+			 */
 
-            System.out.println("Creating network from file: " + networkFile.getName() + ".");
-            Network networkToCreate = objectMapper.readValue(networkFile, Network.class);
-			
+			URL testNetworkUrl = NetworkQueryTest.class.getResource(jdexFile);
+			File networkFile = new File(testNetworkUrl.toURI());
+
+			System.out.println("Creating network from file: "
+					+ networkFile.getName() + ".");
+			Network networkToCreate = objectMapper.readValue(networkFile,
+					Network.class);
+
 			if (networkToCreate != null) {
 				System.out.println("Network JDEx is not null");
 				NewUser newUser = new NewUser();
@@ -57,11 +62,13 @@ public class NetworkQueryTest {
 
 				System.out.println("Creating test user.");
 				queryTester = userService.createUser(newUser);
-				System.out.println("Creating test network owned by user " + queryTester.getId());
+				System.out.println("Creating test network owned by user "
+						+ queryTester.getId());
 				queryNetwork = networkService.createNetwork(
 						queryTester.getId(), networkToCreate);
-				System.out.println("Network created with id " + queryNetwork.getId());
-			} else{
+				System.out.println("Network created with id "
+						+ queryNetwork.getId());
+			} else {
 				System.out.println("Failed to load network");
 			}
 		} catch (Exception e) {
@@ -77,7 +84,8 @@ public class NetworkQueryTest {
 	public static void afterMethod() {
 		try {
 			if (queryNetwork != null) {
-				System.out.println("Deleting test network " + queryNetwork.getId());
+				System.out.println("Deleting test network "
+						+ queryNetwork.getId());
 				networkService.deleteNetwork(queryNetwork.getId());
 			}
 			if (queryTester != null) {
@@ -121,24 +129,30 @@ public class NetworkQueryTest {
 		// ORID termId = terms.get(0).getIdentity();
 		try {
 			String termString = "RBL1_HUMAN";
-			System.out.println("Finding term " + termString + " in test network.");
+			System.out.println("Finding term " + termString
+					+ " in test network " + queryNetwork.getId());
 			Collection<Term> terms = networkService.getBaseTermsByName(
 					queryNetwork.getId(), termString);
+			if (terms.size() == 0) {
+				Assert.fail("no term found with name " + termString);
+			} else {
+				Term term = terms.iterator().next();
 
-			NetworkQueryParameters networkQueryParameters = new NetworkQueryParameters();
-			networkQueryParameters.addStartingTermId(terms.iterator().next()
-					.getId());
-			networkQueryParameters
-					.setRepresentationCriterion(RepresentationCriteria.PERMISSIVE
-							.toString());
-			networkQueryParameters.setSearchType(SearchType.BOTH.toString());
-			networkQueryParameters.setSearchDepth(1);
+				NetworkQueryParameters networkQueryParameters = new NetworkQueryParameters();
+				networkQueryParameters.addStartingTermId(term.getId());
+				networkQueryParameters
+						.setRepresentationCriterion(RepresentationCriteria.PERMISSIVE
+								.toString());
+				networkQueryParameters
+						.setSearchType(SearchType.BOTH.toString());
+				networkQueryParameters.setSearchDepth(1);
 
-			System.out.println("Starting neighborhood query.");
-			Network neighborhoodNetwork = networkService.queryNetwork(
-					queryNetwork.getId(), networkQueryParameters);
+				System.out.println("Starting neighborhood query.");
+				Network neighborhoodNetwork = networkService.queryNetwork(
+						queryNetwork.getId(), networkQueryParameters);
 
-			Assert.assertTrue(!neighborhoodNetwork.getEdges().isEmpty());
+				Assert.assertTrue(!neighborhoodNetwork.getEdges().isEmpty());
+			}
 		} catch (NdexException e) {
 			// TODO Auto-generated catch block
 			Assert.fail(e.getMessage());

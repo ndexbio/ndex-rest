@@ -436,7 +436,7 @@ public class NetworkService extends NdexService {
 			NetworkQueryParameters queryParameters) throws ValidationException {
 		try {
 			setupDatabase();
-			
+
 			ORID networkRid = RidConverter.convertToRid(networkJid);
 			final INetwork network = _orientDbGraph.getVertex(networkRid,
 					INetwork.class);
@@ -466,23 +466,22 @@ public class NetworkService extends NdexService {
 	public Collection<Term> getBaseTermsByName(
 			@PathParam("networkId") final String networkJid, String baseTermName)
 			throws NdexException {
-		ORID networkRid = RidConverter.convertToRid(networkJid);
-		final INetwork network = _orientDbGraph.getVertex(networkRid,
-				INetwork.class);
 		try {
 			setupDatabase();
-			
+
+			ORID networkRid = RidConverter.convertToRid(networkJid);
+			final INetwork network = _orientDbGraph.getVertex(networkRid,
+					INetwork.class);
+
 			if (network == null) {
 				return null;
 			} else {
 				Collection<Term> foundTerms = new ArrayList<Term>();
 				for (ITerm networkTerm : network.getTerms()) {
 					if (networkTerm instanceof IBaseTerm) {
-						if (baseTermName
-								.equals(((IBaseTerm) networkTerm).getName())) {
-							Term term = new Term();
-							term.setId(networkTerm.getJdexId());
-							term.setName(((IBaseTerm) networkTerm).getName());
+						if (baseTermName.equals(((IBaseTerm) networkTerm)
+								.getName())) {
+							Term term = new BaseTerm((IBaseTerm)networkTerm);
 							foundTerms.add(term);
 						}
 					}
@@ -549,43 +548,45 @@ public class NetworkService extends NdexService {
 				.entrySet()) {
 			final Term term = termEntry.getValue();
 
-			if (term instanceof BaseTerm) {
+			if (term.getTermType().equals("BASE")) {
 				final IBaseTerm iBaseTerm = _orientDbGraph.addVertex(
 						"class:baseTerm", IBaseTerm.class);
-				iBaseTerm.setName(((BaseTerm) term).getName());
+				iBaseTerm.setName(term.getName());
 				iBaseTerm.setJdexId(termEntry.getKey());
 
-				String jdexId = ((BaseTerm) term).getNamespace();
+				String jdexId = term.getNamespace();
 				if (jdexId != null && !jdexId.isEmpty()) {
 					final VertexFrame namespace = networkIndex.get(jdexId);
 					if (namespace != null)
-						iBaseTerm.addNamespace((INamespace) namespace);
+						iBaseTerm.setNamespace((INamespace) namespace);
 				}
 
 				newNetwork.addTerm(iBaseTerm);
 				networkIndex.put(iBaseTerm.getJdexId(), iBaseTerm);
-			} else if (term instanceof FunctionTerm) {
-				final FunctionTerm fterm = (FunctionTerm) term;
+			} else if (term.getTermType().equals("FUNCTION")) {
 
 				final IFunctionTerm functionTerm = _orientDbGraph.addVertex(
 						"class:functionTerm", IFunctionTerm.class);
 				functionTerm.setJdexId(termEntry.getKey());
 
-				final VertexFrame function = networkIndex.get(fterm
+				final VertexFrame function = networkIndex.get(term
 						.getTermFunction());
 				if (function != null)
 					functionTerm.setTermFunction((IBaseTerm) function);
 
-				for (Map.Entry<Integer, String> entry : fterm
-						.getTextParameters().entrySet())
-					functionTerm.getTextParameters().put(entry.getKey(),
-							entry.getValue());
+				for (Map.Entry<Integer, String> entry : term.getParameters()
+						.entrySet()) {
+					Integer key = entry.getKey();
+					String value = entry.getValue();
+					functionTerm.getTextParameters().put(key, value);
+				}
 
-				for (Map.Entry<Integer, String> entry : fterm
-						.getTermParameters().entrySet())
-					functionTerm.getTermParameters().put(entry.getKey(),
-							(ITerm) networkIndex.get(entry.getValue()));
-
+				/*
+				 * for (Map.Entry<Integer, String> entry : term
+				 * .getTermParameters().entrySet())
+				 * functionTerm.getTermParameters().put(entry.getKey(), (ITerm)
+				 * networkIndex.get(entry.getValue()));
+				 */
 				newNetwork.addTerm(functionTerm);
 				networkIndex.put(functionTerm.getJdexId(), functionTerm);
 			}
@@ -858,9 +859,8 @@ public class NetworkService extends NdexService {
 		Set<INamespace> namespaces = new HashSet<INamespace>();
 		for (ITerm term : requiredITerms) {
 			if (term instanceof IBaseTerm
-					&& ((IBaseTerm) term).getNamespaces() != null) {
-				for (INamespace namespace : ((IBaseTerm) term).getNamespaces())
-					namespaces.add(namespace);
+					&& ((IBaseTerm) term).getNamespace() != null) {
+					namespaces.add(((IBaseTerm) term).getNamespace());
 			}
 		}
 		return namespaces;

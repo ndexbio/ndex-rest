@@ -1,11 +1,17 @@
 package org.ndexbio.rest.models;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
-/**
- * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
- * @since 11/14/13
- */
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import org.ndexbio.rest.domain.INetwork;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_NULL)
 public class NetworkQueryParameters {
     private List<String> startingTermIds;
     private List<String> startingTermStrings;
@@ -14,6 +20,14 @@ public class NetworkQueryParameters {
     private List<String> includedPredicateIds;
     private List<String> excludedPredicateIds;
     private int searchDepth;
+    
+    public NetworkQueryParameters()
+    {
+        super();
+
+        this.initCollections();
+    }
+    
 	public List<String> getStartingTermIds() {
 		return startingTermIds;
 	}
@@ -61,5 +75,17 @@ public class NetworkQueryParameters {
 		this.searchDepth = searchDepth;
 	}
     
+	   /**************************************************************************
+	    * Initializes the collections. 
+	    **************************************************************************/
+	    private void initCollections()
+	    {
+	        
+	        this.startingTermIds = new ArrayList<String>();
+	        this.startingTermStrings = new ArrayList<String>();
+	        this.includedPredicateIds = new ArrayList<String>();
+	        this.excludedPredicateIds = new ArrayList<String>();
+
+	    }
  
 }

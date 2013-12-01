@@ -11,11 +11,6 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 @JsonInclude(Include.NON_NULL)
 public class FunctionTerm extends Term
 {
-    private String _termFunction;
-    private Map<Integer, String> _textParameters;
-    private Map<Integer, String> _termParameters;
-
-
 
     /**************************************************************************
     * Default constructor.
@@ -36,41 +31,11 @@ public class FunctionTerm extends Term
         this.setTermFunction(iFunctionTerm.getTermFunction().getJdexId());
 
         for (final Map.Entry<Integer, String> entry : iFunctionTerm.getTextParameters().entrySet())
-            _textParameters.put(entry.getKey(), entry.getValue());
+            this.getParameters().put(entry.getKey(), entry.getValue());
 
         for (final Map.Entry<Integer, ITerm> entry : iFunctionTerm.getTermParameters().entrySet())
-            _termParameters.put(entry.getKey(), entry.getValue().getJdexId());
+        	this.getParameters().put(entry.getKey(), entry.getValue().getJdexId());
     }
 
 
-
-    public String getTermFunction()
-    {
-        return _termFunction;
-    }
-
-    public void setTermFunction(String functionId)
-    {
-        _termFunction = functionId;
-    }
-
-    public Map<Integer, String> getTextParameters()
-    {
-        return _textParameters;
-    }
-
-    public void setTextParameters(Map<Integer, String> _textParameters)
-    {
-        this._textParameters = _textParameters;
-    }
-
-    public Map<Integer, String> getTermParameters()
-    {
-        return _termParameters;
-    }
-
-    public void setTermParameters(Map<Integer, String> _termParameters)
-    {
-        this._termParameters = _termParameters;
-    }
 }

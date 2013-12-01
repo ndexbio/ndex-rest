@@ -26,18 +26,22 @@ public class SearchSpec {
     {
         super();
         
-        startingTermStrings = (String[]) parameters.getStartingTermStrings().toArray();
+        startingTermStrings = new String[parameters.getStartingTermStrings().size()];
+        for (int index = 0; index < parameters.getStartingTermStrings().size(); index++){
+        	startingTermStrings[index] = parameters.getStartingTermStrings().get(index);
+        }
         
         representationCriterion = RepresentationCriteria.valueOf(parameters.getRepresentationCriterion());
         
         searchType = SearchType.valueOf(parameters.getSearchType());
         
-        List<OIdentifiable> startRIDs = new ArrayList<OIdentifiable>();
-        for (String jid : parameters.getStartingTermIds()){
+        startingTerms = new OIdentifiable[parameters.getStartingTermIds().size()];
+        for (int index = 0; index < parameters.getStartingTermIds().size(); index++){
+        	String jid = parameters.getStartingTermIds().get(index);
         	ORID rid = RidConverter.convertToRid(jid);
-        	startRIDs.add(rid);
+        	startingTerms[index] = rid;
         }
-        startingTerms = (OIdentifiable[]) startRIDs.toArray();
+
 
     }
 

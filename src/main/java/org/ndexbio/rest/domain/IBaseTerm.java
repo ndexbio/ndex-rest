@@ -13,12 +13,11 @@ public interface IBaseTerm extends ITerm
     @Property("name")
     public void setName(String name);
 
-    @Adjacency(label = "namespaces")
-    public void addNamespace(INamespace namespace);
+    @Adjacency(label = "namespace")
+    public void setNamespace(INamespace namespace);
 
-    @Adjacency(label = "namespaces")
-    public Iterable<INamespace> getNamespaces();
+    @Adjacency(label = "namespace")
+    public INamespace getNamespace();
 
-    @Adjacency(label = "namespaces")
-    public void removeNamespace(INamespace namespace);
+
 }
