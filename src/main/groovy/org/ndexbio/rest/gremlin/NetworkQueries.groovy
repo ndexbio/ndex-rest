@@ -8,13 +8,14 @@ import com.tinkerpop.blueprints.Vertex
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph
 import com.tinkerpop.blueprints.impls.orient.OrientVertex
 import com.tinkerpop.gremlin.groovy.Gremlin
+import org.ndexbio.rest.models.NetworkQueryParameters
 
 class NetworkQueries {
     static {
         Gremlin.load();
     }
 
-    static NetworkQueries INSTANCE = new NetworkQueries();
+    public static NetworkQueries INSTANCE = new NetworkQueries();
 
     def Set<OrientVertex> searchNeighborhoodByTerm(OrientBaseGraph g, OrientVertex network, SearchSpec searchSpec) {
         def nodes = getRepresentedVertices(g, network, searchSpec.representationCriterion, searchSpec.startingTerms, searchSpec.startingTermStrings);
@@ -99,10 +100,10 @@ class NetworkQueries {
                 def termFunctions = [];
 
                 for (termString in startingTermStrings)
-                    allTerms += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from xTerm where name = ?"), termString);
+                    allTerms += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from baseTerm where name = ?"), termString);
 
                 for (term in startingTerms)
-                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from xFunctionTerm where linkParameters containsvalue " + term.identity));
+                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where linkParameters containsvalue " + term.identity));
 
 
                 def functions = new HashSet<OIdentifiable>();
@@ -120,10 +121,10 @@ class NetworkQueries {
                 def termFunctions = [];
 
                 for (termString in startingTermStrings)
-                    allTerms += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from xTerm where name = ?"), termString);
+                    allTerms += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from baseTerm where name = ?"), termString);
 
                 for (term in startingTerms)
-                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from xFunctionTerm where linkParameters containsvalue " + term.identity));
+                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where linkParameters containsvalue " + term.identity));
 
                 def functions = new HashSet<OIdentifiable>();
                 functions.addAll(allTerms);
@@ -134,7 +135,7 @@ class NetworkQueries {
 
                 while (true) {
                     for (function in newFunctions)
-                        addedFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from xFunctionTerm where linkParameters containsvalue " + function.identity));
+                        addedFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where linkParameters containsvalue " + function.identity));
 
                     def int functionsPrevSize = functions.size();
                     functions.addAll(addedFunctions);

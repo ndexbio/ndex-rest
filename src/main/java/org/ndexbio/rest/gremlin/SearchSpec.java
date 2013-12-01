@@ -1,6 +1,14 @@
 package org.ndexbio.rest.gremlin;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.ndexbio.rest.exceptions.ValidationException;
+import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.models.NetworkQueryParameters;
+
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
+import com.orientechnologies.orient.core.id.ORID;
 
 /**
  * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
@@ -13,6 +21,26 @@ public class SearchSpec {
     private SearchType searchType;
     private OIdentifiable[] includedPredicates;
     private OIdentifiable[] excludedPredicates;
+    
+    public SearchSpec(NetworkQueryParameters parameters) throws ValidationException
+    {
+        super();
+        
+        startingTermStrings = (String[]) parameters.getStartingTermStrings().toArray();
+        
+        representationCriterion = RepresentationCriteria.valueOf(parameters.getRepresentationCriterion());
+        
+        searchType = SearchType.valueOf(parameters.getSearchType());
+        
+        List<OIdentifiable> startRIDs = new ArrayList<OIdentifiable>();
+        for (String jid : parameters.getStartingTermIds()){
+        	ORID rid = RidConverter.convertToRid(jid);
+        	startRIDs.add(rid);
+        }
+        startingTerms = (OIdentifiable[]) startRIDs.toArray();
+
+    }
+
 
     public int getSearchDepth() {
         return searchDepth;
