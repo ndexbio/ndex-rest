@@ -435,6 +435,8 @@ public class NetworkService extends NdexService {
 			@PathParam("networkId") final String networkJid,
 			NetworkQueryParameters queryParameters) throws ValidationException {
 		try {
+			setupDatabase();
+			
 			ORID networkRid = RidConverter.convertToRid(networkJid);
 			final INetwork network = _orientDbGraph.getVertex(networkRid,
 					INetwork.class);
@@ -468,6 +470,8 @@ public class NetworkService extends NdexService {
 		final INetwork network = _orientDbGraph.getVertex(networkRid,
 				INetwork.class);
 		try {
+			setupDatabase();
+			
 			if (network == null) {
 				return null;
 			} else {
