@@ -2,16 +2,20 @@ package org.ndexbio.rest;
 
 import java.io.File;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.gremlin.RepresentationCriteria;
 import org.ndexbio.rest.gremlin.SearchType;
+import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NetworkQueryParameters;
 import org.ndexbio.rest.models.NewUser;
@@ -64,8 +68,15 @@ public class NetworkQueryTest {
 				queryTester = userService.createUser(newUser);
 				System.out.println("Creating test network owned by user "
 						+ queryTester.getId());
-				queryNetwork = networkService.createNetwork(
-						queryTester.getId(), networkToCreate);
+				
+				List membershipList = new ArrayList();
+	            Membership membership = new Membership();
+	            membership.setResourceId(queryTester.getId());
+	            membership.setResourceName(queryTester.getUsername());
+	            membership.setPermissions(Permissions.ADMIN);
+	            membershipList.add(membership);
+	            networkToCreate.setMembers(membershipList);
+				queryNetwork = networkService.createNetwork(networkToCreate);
 				System.out.println("Network created with id "
 						+ queryNetwork.getId());
 			} else {

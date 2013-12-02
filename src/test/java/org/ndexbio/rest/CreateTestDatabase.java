@@ -5,7 +5,9 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map.Entry;
+
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Assert;
@@ -15,6 +17,7 @@ import org.junit.runners.MethodSorters;
 import org.ndexbio.rest.domain.*;
 import org.ndexbio.rest.models.*;
 import org.ndexbio.rest.services.*;
+
 import com.orientechnologies.orient.client.remote.OServerAdmin;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -202,7 +205,14 @@ public class CreateTestDatabase
 
             System.out.println("Creating network from file: " + networkFile.getName() + ".");
             final Network networkToCreate = _jsonMapper.readValue(networkFile, Network.class);
-            final Network newNetwork = networkService.createNetwork(testUser.getId(), networkToCreate);
+            List membershipList = new ArrayList();
+            Membership membership = new Membership();
+            membership.setResourceId(testUser.getId());
+            membership.setResourceName(testUser.getUsername());
+            membership.setPermissions(Permissions.ADMIN);
+            membershipList.add(membership);
+            networkToCreate.setMembers(membershipList);
+            final Network newNetwork = networkService.createNetwork(networkToCreate);
             
             Assert.assertNotNull(newNetwork);
         }
