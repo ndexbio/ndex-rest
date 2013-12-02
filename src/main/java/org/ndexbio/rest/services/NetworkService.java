@@ -302,8 +302,8 @@ public class NetworkService extends NdexService {
 	 * @param networkId
 	 *            The network ID.
 	 **************************************************************************/
-	@GET
-	@Path("/{networkId}/edge")
+	@POST
+	@Path("/{networkId}/edges")
 	@Produces("application/json")
 	public Network getEdges(@PathParam("networkId") final String networkJid,
 			SearchParameters searchParameters) throws NdexException {
@@ -356,7 +356,7 @@ public class NetworkService extends NdexService {
 	@Path("/{networkId}/nodes")
 	@Produces("application/json")
 	public Network getNodes(@PathParam("networkId") final String networkJid,
-			Integer limit, Integer offset) throws NdexException {
+			SearchParameters searchParameters) throws NdexException {
 		if (networkJid == null || networkJid.isEmpty())
 			throw new ValidationException("No network ID was specified.");
 
@@ -366,19 +366,22 @@ public class NetworkService extends NdexService {
 		if (network == null)
 			throw new ObjectNotFoundException("Network", networkJid);
 
-		int counter = 0;
-		final List<INode> foundINodes = new ArrayList<INode>();
-		int startIndex = limit * offset;
-
 		try {
 			setupDatabase();
+			
+			final int skip = searchParameters.getSkip();
+			final int top = searchParameters.getTop();
+			
+			int counter = 0;
+			final List<INode> foundINodes = new ArrayList<INode>();
+			int startIndex = top * skip;
 
 			for (final INode networkNode : network.getNdexNodes()) {
 				if (counter >= startIndex)
 					foundINodes.add(networkNode);
 
 				counter++;
-				if (counter >= startIndex + limit)
+				if (counter >= startIndex + top)
 					break;
 			}
 
