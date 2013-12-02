@@ -44,6 +44,8 @@ public class CreateTestDatabase
         try
         {
             //TODO: Refactor this to connect using a configurable username/password, and database
+            //Can't use 'admin' as the username or password here, OrientDB
+            //seems to have a hard-coded failure if either is 'admin'
             OServerAdmin orientDbAdmin = new OServerAdmin("remote:localhost/ndex").connect("ndex", "ndex");
             if (orientDbAdmin.existsDatabase("local"))
             {
@@ -53,9 +55,6 @@ public class CreateTestDatabase
 
             System.out.println("Creating new database.");
             orientDbAdmin.createDatabase("ndex", "document", "local");
-
-            System.out.println("Connecting to database.");
-            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
 
             System.out.println("Creating Tinkerpop Framed Graph Factory.");
             _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
@@ -71,8 +70,11 @@ public class CreateTestDatabase
                     .withClass(IFunctionTerm.class)
                     .build());
 
+            System.out.println("Connecting to database.");
+            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
+
             System.out.println("Acquiring base graph.");
-            _orientDbGraph = _graphFactory.create((OrientBaseGraph) new OrientGraph(_ndexDatabase));
+            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
 
             System.out.println("Acquiring instance of schema manager.");
             NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
@@ -205,7 +207,7 @@ public class CreateTestDatabase
 
             System.out.println("Creating network from file: " + networkFile.getName() + ".");
             final Network networkToCreate = _jsonMapper.readValue(networkFile, Network.class);
-            List membershipList = new ArrayList();
+            List<Membership> membershipList = new ArrayList<Membership>();
             Membership membership = new Membership();
             membership.setResourceId(testUser.getId());
             membership.setResourceName(testUser.getUsername());
