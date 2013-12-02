@@ -103,7 +103,7 @@ class NetworkQueries {
                     allTerms += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from baseTerm where name = ?"), termString);
 
                 for (term in startingTerms)
-                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where linkParameters containsvalue " + term.identity));
+                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where termParameters containsvalue " + term.identity));
 
 
                 def functions = new HashSet<OIdentifiable>();
@@ -124,7 +124,7 @@ class NetworkQueries {
                     allTerms += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from baseTerm where name = ?"), termString);
 
                 for (term in startingTerms)
-                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where linkParameters containsvalue " + term.identity));
+                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where termParameters containsvalue " + term.identity));
 
                 def functions = new HashSet<OIdentifiable>();
                 functions.addAll(allTerms);
@@ -135,7 +135,7 @@ class NetworkQueries {
 
                 while (true) {
                     for (function in newFunctions)
-                        addedFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where linkParameters containsvalue " + function.identity));
+                        addedFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where termParameters containsvalue " + function.identity));
 
                     def int functionsPrevSize = functions.size();
                     functions.addAll(addedFunctions);
