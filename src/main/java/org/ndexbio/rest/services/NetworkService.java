@@ -303,10 +303,10 @@ public class NetworkService extends NdexService {
 	 *            The network ID.
 	 **************************************************************************/
 	@GET
-	@Path("/{networkId}/edges/{skip}/{top}")
+	@Path("/{networkId}/edge")
 	@Produces("application/json")
 	public Network getEdges(@PathParam("networkId") final String networkJid,
-			int skip, int top) throws NdexException {
+			SearchParameters searchParameters) throws NdexException {
 		if (networkJid == null || networkJid.isEmpty())
 			throw new ValidationException("No network ID was specified.");
 
@@ -314,6 +314,9 @@ public class NetworkService extends NdexService {
 
 		try {
 			setupDatabase();
+			
+			final int skip = searchParameters.getSkip();
+			final int top = searchParameters.getTop();
 
 			final INetwork network = _orientDbGraph.getVertex(networkRid,
 					INetwork.class);
@@ -464,12 +467,12 @@ public class NetworkService extends NdexService {
 	@Path("/{networkId}/baseTerms")
 	@Produces("application/json")
 	public Collection<Term> getBaseTermsByName(
-			@PathParam("networkId") final String networkJid, String baseTermName)
+			@PathParam("networkId") final String networkId, String baseTermName)
 			throws NdexException {
 		try {
 			setupDatabase();
 
-			ORID networkRid = RidConverter.convertToRid(networkJid);
+			ORID networkRid = RidConverter.convertToRid(networkId);
 			final INetwork network = _orientDbGraph.getVertex(networkRid,
 					INetwork.class);
 

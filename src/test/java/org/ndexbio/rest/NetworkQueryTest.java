@@ -141,7 +141,7 @@ public class NetworkQueryTest {
 				NetworkQueryParameters networkQueryParameters = new NetworkQueryParameters();
 				networkQueryParameters.addStartingTermId(term.getId());
 				networkQueryParameters
-						.setRepresentationCriterion(RepresentationCriteria.PERMISSIVE
+						.setRepresentationCriterion(RepresentationCriteria.STRICT
 								.toString());
 				networkQueryParameters
 						.setSearchType(SearchType.BOTH.toString());
