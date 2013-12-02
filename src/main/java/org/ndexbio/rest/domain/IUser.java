@@ -10,7 +10,7 @@ public interface IUser extends IAccount
     @Property("emailAddress")
     public String getEmailAddress();
 
-    @Property("firstName")
+    @Property("emailAddress")
     public void setEmailAddress(String emailAddress);
 
     @Property("firstName")

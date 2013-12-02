@@ -52,7 +52,7 @@ public class CreateTestDatabase
             orientDbAdmin.createDatabase("ndex", "document", "local");
 
             System.out.println("Connecting to database.");
-            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "ndex", "ndex");
+            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
 
             System.out.println("Creating Tinkerpop Framed Graph Factory.");
             _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
