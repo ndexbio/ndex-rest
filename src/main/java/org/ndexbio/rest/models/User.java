@@ -62,6 +62,7 @@ public class User extends Account
 
         initCollections();
         
+        _emailAddress = user.getEmailAddress();
         _firstName = user.getFirstName();
         _lastName = user.getLastName();
         _username = user.getUsername();
