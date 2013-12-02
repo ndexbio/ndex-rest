@@ -3,13 +3,10 @@ package org.ndexbio.rest.models;
 import java.util.Date;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.helpers.RidConverter;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.orientechnologies.orient.core.id.ORID;
 import com.tinkerpop.frames.VertexFrame;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(Include.NON_NULL)
 public abstract class NdexObject
 {
     private String _id;
@@ -30,9 +27,7 @@ public abstract class NdexObject
     **************************************************************************/
     public NdexObject(VertexFrame vf)
     {
-        this();
-        
-        this.setId(resolveVertexId(vf));
+        _id = resolveVertexId(vf);
     }
 
     
@@ -44,7 +39,7 @@ public abstract class NdexObject
 
     public void setCreatedDate(Date createdDate)
     {
-        this._createdDate = createdDate;
+        _createdDate = createdDate;
     }
 
     public String getId()
@@ -54,7 +49,7 @@ public abstract class NdexObject
 
     public void setId(String id)
     {
-        this._id = id;
+        _id = id;
     }
 
     

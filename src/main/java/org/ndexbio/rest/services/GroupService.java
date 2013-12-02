@@ -271,10 +271,17 @@ public class GroupService extends NdexService
             if (groupToUpdate == null)
                 throw new ObjectNotFoundException("Group", updatedGroup.getId());
     
-            groupToUpdate.setDescription(updatedGroup.getDescription());
-            groupToUpdate.setName(updatedGroup.getName());
-            groupToUpdate.setOrganizationName(updatedGroup.getOrganizationName());
-            groupToUpdate.setWebsite(updatedGroup.getWebsite());
+            if (updatedGroup.getDescription() != null && !updatedGroup.getDescription().isEmpty())
+                groupToUpdate.setDescription(updatedGroup.getDescription());
+            
+            if (updatedGroup.getName() != null && !updatedGroup.getName().isEmpty())
+                groupToUpdate.setName(updatedGroup.getName());
+            
+            if (updatedGroup.getOrganizationName() != null && !updatedGroup.getOrganizationName().isEmpty())
+                groupToUpdate.setOrganizationName(updatedGroup.getOrganizationName());
+            
+            if (updatedGroup.getWebsite() != null && !updatedGroup.getWebsite().isEmpty())
+                groupToUpdate.setWebsite(updatedGroup.getWebsite());
             
             _orientDbGraph.getBaseGraph().commit();
         }

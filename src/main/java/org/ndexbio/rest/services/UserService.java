@@ -424,22 +424,25 @@ public class UserService extends NdexService
             if (existingUser == null)
                 throw new ObjectNotFoundException("User", updatedUser.getId());
 
-            if (updatedUser.getBackgroundImage() != null)
+            if (updatedUser.getBackgroundImage() != null && !updatedUser.getBackgroundImage().isEmpty())
                 existingUser.setBackgroundImage(updatedUser.getBackgroundImage());
     
-            if (updatedUser.getDescription() != null)
+            if (updatedUser.getDescription() != null && !updatedUser.getDescription().isEmpty())
                 existingUser.setDescription(updatedUser.getDescription());
-    
-            if (updatedUser.getFirstName() != null)
+            
+            if (updatedUser.getEmailAddress() != null && !updatedUser.getEmailAddress().isEmpty())
+                existingUser.setEmailAddress(updatedUser.getEmailAddress());
+            
+            if (updatedUser.getFirstName() != null && !updatedUser.getFirstName().isEmpty())
                 existingUser.setFirstName(updatedUser.getFirstName());
     
-            if (updatedUser.getForegroundImage() != null)
+            if (updatedUser.getForegroundImage() != null && !updatedUser.getForegroundImage().isEmpty())
                 existingUser.setForegroundImage(updatedUser.getForegroundImage());
     
-            if (updatedUser.getLastName() != null)
+            if (updatedUser.getLastName() != null && !updatedUser.getLastName().isEmpty())
                 existingUser.setLastName(updatedUser.getLastName());
     
-            if (updatedUser.getWebsite() != null)
+            if (updatedUser.getWebsite() != null && !updatedUser.getWebsite().isEmpty())
                 existingUser.setWebsite(updatedUser.getWebsite());
 
             _orientDbGraph.getBaseGraph().commit();

@@ -1,15 +1,10 @@
 package org.ndexbio.rest.models;
 
 import java.util.Map;
-
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.ITerm;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(Include.NON_NULL)
 public class Term extends NdexObject
 {
     private String _name;
@@ -17,15 +12,20 @@ public class Term extends NdexObject
     private String _termFunction;
     private Map<Integer, String> _parameters;
     private String _termType;
+
     
-    public Term(ITerm term){
-    	super(term);
+    
+    public Term(ITerm term)
+    {
+        super(term);
     }
 
     public Term()
     {
-        this._termType = "BASE";
+        _termType = "BASE";
     }
+
+    
     
     public String getName()
     {

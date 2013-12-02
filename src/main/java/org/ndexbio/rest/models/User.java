@@ -10,11 +10,8 @@ import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(Include.NON_NULL)
 public class User extends Account
 {
     private String _emailAddress;
@@ -62,6 +59,8 @@ public class User extends Account
 
         initCollections();
         
+        this.setCreatedDate(user.getCreatedDate());
+
         _emailAddress = user.getEmailAddress();
         _firstName = user.getFirstName();
         _lastName = user.getLastName();

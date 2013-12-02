@@ -10,11 +10,14 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.IGroupInvitationRequest;
+import org.ndexbio.rest.domain.IGroupMembership;
 import org.ndexbio.rest.domain.IJoinGroupRequest;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkAccessRequest;
+import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.IUser;
+import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
@@ -174,6 +177,16 @@ public class RequestService extends NdexService
             requestToUpdate.setResponder(updatedRequest.getResponder());
             requestToUpdate.setResponse(updatedRequest.getResponse());
             
+            if (updatedRequest.getResponse() == "ACCEPTED")
+            {
+                if (updatedRequest.getRequestType() == "Group Invitation")
+                    processGroupInvitation(updatedRequest);
+                else if (updatedRequest.getRequestType() == "Join Group")
+                    processJoinGroup(updatedRequest);
+                else if (updatedRequest.getRequestType() == "Network Access")
+                    processNetworkAccess(updatedRequest);
+            }
+            
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
@@ -280,5 +293,68 @@ public class RequestService extends NdexService
         _orientDbGraph.getBaseGraph().commit();
 
         requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));
+    }
+
+    /**************************************************************************
+    * Adds a user to the group that invited them with read-only permissions.
+    * 
+    * @param requestToProcess The request.
+    **************************************************************************/
+    private void processGroupInvitation(final Request requestToProcess) throws Exception
+    {
+        final ORID groupId = RidConverter.convertToRid(requestToProcess.getFromId());
+        final ORID userId = RidConverter.convertToRid(requestToProcess.getToId());
+        
+        IGroup group = _orientDbGraph.getVertex(groupId, IGroup.class);
+        IUser user = _orientDbGraph.getVertex(userId, IUser.class);
+        
+        IGroupMembership newMember = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
+        newMember.setGroup(group);
+        newMember.setMember(user);
+        newMember.setPermissions(Permissions.READ);
+        
+        group.addMember(newMember);
+    }
+
+    /**************************************************************************
+    * Adds a user to their requested group with read-only permissions.
+    * 
+    * @param requestToProcess The request.
+    **************************************************************************/
+    private void processJoinGroup(final Request requestToProcess) throws Exception
+    {
+        final ORID groupId = RidConverter.convertToRid(requestToProcess.getToId());
+        final ORID userId = RidConverter.convertToRid(requestToProcess.getFromId());
+        
+        IGroup group = _orientDbGraph.getVertex(groupId, IGroup.class);
+        IUser user = _orientDbGraph.getVertex(userId, IUser.class);
+        
+        IGroupMembership newMember = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
+        newMember.setGroup(group);
+        newMember.setMember(user);
+        newMember.setPermissions(Permissions.READ);
+        
+        group.addMember(newMember);
+    }
+
+    /**************************************************************************
+    * Adds a user to a network's membership with read-only permissions.
+    * 
+    * @param requestToProcess The request.
+    **************************************************************************/
+    private void processNetworkAccess(final Request requestToProcess) throws Exception
+    {
+        final ORID networkId = RidConverter.convertToRid(requestToProcess.getToId());
+        final ORID userId = RidConverter.convertToRid(requestToProcess.getFromId());
+        
+        INetwork network = _orientDbGraph.getVertex(networkId, INetwork.class);
+        IUser user = _orientDbGraph.getVertex(userId, IUser.class);
+        
+        INetworkMembership newMember = _orientDbGraph.addVertex("class:networkMembership", INetworkMembership.class);
+        newMember.setNetwork(network);
+        newMember.setMember(user);
+        newMember.setPermissions(Permissions.READ);
+        
+        network.addMember(newMember);
     }
 }

@@ -8,11 +8,8 @@ import org.ndexbio.rest.domain.IGroupMembership;
 import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.IUser;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(Include.NON_NULL)
 public class Group extends Account
 {
     private String _name;
@@ -56,6 +53,8 @@ public class Group extends Account
         super(group);
         
         initCollections();
+
+        this.setCreatedDate(group.getCreatedDate());
         
         _name = group.getName();
         _organizationName = group.getOrganizationName();

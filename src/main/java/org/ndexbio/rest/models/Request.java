@@ -6,12 +6,9 @@ import org.ndexbio.rest.domain.IJoinGroupRequest;
 import org.ndexbio.rest.domain.INetworkAccessRequest;
 import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.helpers.RidConverter;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.orientechnologies.orient.core.id.ORID;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(Include.NON_NULL)
 public class Request extends NdexObject
 {
     private String _fromId;

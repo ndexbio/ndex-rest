@@ -18,11 +18,8 @@ import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.rest.domain.IUser;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(Include.NON_NULL)
 public class Network extends NdexObject
 {
     private Map<String, Citation> _citations;
@@ -81,7 +78,7 @@ public class Network extends NdexObject
         super(network);
 
         this.initCollections();
-        
+
         _copyright = network.getCopyright();
         _description = network.getDescription();
         _edgeCount = network.getNdexEdgeCount();

@@ -2,13 +2,10 @@ package org.ndexbio.rest.models;
 
 import java.util.Collection;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 //TODO: Remove this class, it's unnecessary
 //TODO: Refactor KnockoutJS bindings to not use this class
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(Include.NON_NULL)
 public class SearchResult<T> extends NdexObject
 {
     private Integer _skip;

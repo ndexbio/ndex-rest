@@ -1,12 +1,12 @@
 package org.ndexbio.rest.models;
 
-import java.util.Date;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IAccount;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class Account extends NdexObject
 {
     private String _backgroundImage;
-    private Date _createdDate;
     private String _description;
     private String _foregroundImage;
     private String _website;
@@ -29,9 +29,10 @@ public abstract class Account extends NdexObject
     public Account(IAccount account)
     {
         super(account);
+
+        this.setCreatedDate(account.getCreatedDate());
         
         _backgroundImage = account.getBackgroundImage();
-        _createdDate = account.getCreatedDate();
         _description = account.getDescription();
         _foregroundImage = account.getForegroundImage();
         _website = account.getWebsite();
@@ -47,11 +48,6 @@ public abstract class Account extends NdexObject
     public void setBackgroundImage(String backgroundImage)
     {
         _backgroundImage = backgroundImage;
-    }
-    
-    public Date getCreationDate()
-    {
-        return _createdDate;
     }
     
     public String getDescription()

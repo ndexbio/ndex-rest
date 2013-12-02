@@ -6,12 +6,9 @@ import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.helpers.RidConverter;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.orientechnologies.orient.core.id.ORID;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(Include.NON_NULL)
 public class Membership
 {
     private Permissions _memberPermissions;
