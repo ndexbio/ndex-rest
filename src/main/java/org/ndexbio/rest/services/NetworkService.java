@@ -36,6 +36,7 @@ import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.gremlin.NetworkQueries;
 import org.ndexbio.rest.gremlin.SearchSpec;
 import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Namespace;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NetworkQueryParameters;
@@ -72,27 +73,33 @@ public class NetworkService extends NdexService {
 	 * 
 	 * @param ownerId
 	 *            The ID of the user creating the group.
-	 * @param netNetwork
+	 * @param newNetwork
 	 *            The network to create.
 	 **************************************************************************/
 	@PUT
 	@Produces("application/json")
-	public Network createNetwork(final String ownerId, final Network netNetwork)
+	public Network createNetwork(final Network newNetwork)
 			throws Exception {
-		if (ownerId == null || ownerId.isEmpty())
-			throw new ValidationException("The network owner wasn't specified.");
-		else if (netNetwork == null)
-			throw new ValidationException("The network to create is empty.");
-
-		ORID userRid = RidConverter.convertToRid(ownerId);
+		
+		if (newNetwork == null)
+			throw new ValidationException("The network to create is null.");
+		
+		if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0){
+			throw new ValidationException("The network to create has no members specified");
+			//TODO check that member has ADMIN and handle groups as well as users
+		}
 
 		try {
 			setupDatabase();
+			
+			Membership newNetworkMembership = newNetwork.getMembers().get(0);
+			
+			ORID userRid = RidConverter.convertToRid(newNetworkMembership.getResourceId());
 
 			final IUser networkOwner = _orientDbGraph.getVertex(userRid,
 					IUser.class);
 			if (networkOwner == null)
-				throw new ObjectNotFoundException("User", ownerId);
+				throw new ObjectNotFoundException("User", newNetworkMembership.getResourceId());
 
 			final Map<String, VertexFrame> networkIndex = new HashMap<String, VertexFrame>();
 
@@ -109,29 +116,29 @@ public class NetworkService extends NdexService {
 			network.addMember(membership);
 
 			network.setIsPublic(false);
-			network.setFormat(netNetwork.getFormat());
-			network.setSource(netNetwork.getSource());
-			network.setTitle(netNetwork.getTitle());
+			network.setFormat(newNetwork.getFormat());
+			network.setSource(newNetwork.getSource());
+			network.setTitle(newNetwork.getTitle());
 
 			// First create all namespaces used by the network
-			createNamespaces(network, netNetwork, networkIndex);
+			createNamespaces(network, newNetwork, networkIndex);
 
 			// Then create terms which may reference the namespaces
 			// The terms are created in order of reference - later terms may
 			// refer to earlier terms
-			createTerms(network, netNetwork, networkIndex);
+			createTerms(network, newNetwork, networkIndex);
 
 			// Then create nodes that may reference terms
-			createNodes(network, netNetwork, networkIndex);
+			createNodes(network, newNetwork, networkIndex);
 
 			// Then create edges that reference terms nodes
-			createEdges(network, netNetwork, networkIndex);
+			createEdges(network, newNetwork, networkIndex);
 
 			// Then create citations that reference edges
-			createCitations(network, netNetwork, networkIndex);
+			createCitations(network, newNetwork, networkIndex);
 
 			// Then create supports that reference edges and citations
-			createSupports(network, netNetwork, networkIndex);
+			createSupports(network, newNetwork, networkIndex);
 
 			_orientDbGraph.getBaseGraph().commit();
 
