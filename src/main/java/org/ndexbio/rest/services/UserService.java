@@ -274,6 +274,8 @@ public class UserService extends NdexService
             
             //TODO: This should be refactored to use a configuration file and a text file for the email content
             Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is: " + newPassword);
+            
+            _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
