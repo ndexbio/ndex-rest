@@ -37,13 +37,14 @@ public class Email
     public static void sendEmail(final String senderAddress, final String recipientAddresses[], final String subject, final String emailText) throws MessagingException
     {
         //TODO: All of this should be pulled from a configuration file
+        //TODO: Dreamhost information can be found at: http://wiki.dreamhost.com/E-mail_Client_Configuration
+        //TODO: Java headers can be found at: https://javamail.java.net/nonav/docs/api/com/sun/mail/smtp/package-summary.html
         final Properties smtpProperties = new Properties();
         smtpProperties.put("mail.smtp.auth", "true");
-        smtpProperties.put("mail.smtp.starttls.enable", "true");
-        smtpProperties.put("mail.smtp.host", "smtp.gmail.com");
+        smtpProperties.put("mail.smtp.host", "mail.ndexbio.org");
         smtpProperties.put("mail.smtp.port", "587");
 
-        sendEmail(senderAddress, recipientAddresses, subject, emailText, smtpProperties, "dexterpratt.bio@gmail.com", "insecure");
+        sendEmail(senderAddress, recipientAddresses, subject, emailText, smtpProperties, "support@ndexbio.org", "ZrdF!nP8");
     }
     
     /**************************************************************************
@@ -66,11 +67,10 @@ public class Email
                 }
             });
  
- 
         final Message emailToSend = new MimeMessage(smtpSession);
         emailToSend.setFrom(new InternetAddress(senderAddress));
         emailToSend.setSubject(subject);
-        emailToSend.setText(emailText);
+        emailToSend.setContent(emailText, "text/plain");
             
         for (String recipientAddress : recipientAddresses)
             emailToSend.addRecipient(Message.RecipientType.TO, InternetAddress.parse(recipientAddress)[0]);

@@ -124,6 +124,53 @@ public class UserService extends NdexService
     }
     
     /**************************************************************************
+    * Changes a user's password
+    * 
+    * @param userId   The user ID.
+    * @param password The new password.
+    **************************************************************************/
+    @POST
+    @Path("/{userId}/password")
+    @Produces("application/json")
+    public void changePassword(@PathParam("userId")final String userJid, String password) throws Exception
+    {
+        if (userJid == null || userJid.isEmpty())
+            throw new ValidationException("No user ID was specified.");
+        else if (password == null || password.isEmpty())
+            throw new ValidationException("No password was specified.");
+        
+        final ORID userRid = RidConverter.convertToRid(userJid);
+        
+        try
+        {
+            //Remove quotes around the password
+            if (password.startsWith("\""))
+                password = password.substring(1);
+            if (password.endsWith("\""))
+                password = password.substring(0, password.length() - 1);
+            
+            setupDatabase();
+            
+            final IUser existingUser = _orientDbGraph.getVertex(userRid, IUser.class);
+            if (existingUser == null)
+                throw new ObjectNotFoundException("User", userJid);
+
+            existingUser.setPassword(Security.hashText(password.trim()));
+            
+            _orientDbGraph.getBaseGraph().commit();
+        }
+        catch (Exception e)
+        {
+            _orientDbGraph.getBaseGraph().rollback(); 
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+    
+    /**************************************************************************
     * Creates a user. 
     * 
     * @param newUser  The user to create.
@@ -273,7 +320,7 @@ public class UserService extends NdexService
             authUser.setPassword(Security.hashText(newPassword));
             
             //TODO: This should be refactored to use a configuration file and a text file for the email content
-            Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is: " + newPassword);
+            Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is:\t" + newPassword);
             
             _orientDbGraph.getBaseGraph().commit();
         }
@@ -353,7 +400,6 @@ public class UserService extends NdexService
     * @param userId The ID or username of the user.
     **************************************************************************/
     @GET
-    @PermitAll
     @Path("/{userId}")
     @Produces("application/json")
     public User getUser(@PathParam("userId")final String userJid) throws Exception
