@@ -1,10 +1,17 @@
 package org.ndexbio.rest.services;
 
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import java.awt.image.RenderedImage;
+import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.security.PermitAll;
+import javax.imageio.ImageIO;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -13,6 +20,8 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
+import org.jboss.resteasy.plugins.providers.multipart.InputPart;
+import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
@@ -124,7 +133,7 @@ public class UserService extends NdexService
     }
     
     /**************************************************************************
-    * Changes a user's password
+    * Changes a user's password.
     * 
     * @param userId   The user ID.
     * @param password The new password.
@@ -168,6 +177,70 @@ public class UserService extends NdexService
         {
             teardownDatabase();
         }
+    }
+
+    /**************************************************************************
+    * Changes a user's profile background image.
+    * 
+    * @param userId   The user ID.
+    * @param password The new password.
+    **************************************************************************/
+    @POST
+    @Path("/{userId}/profile-background")
+    @Produces("application/json")
+    public void changeProfileBackground(@PathParam("userId")final String userJid, MultipartFormDataInput formData) throws Exception
+    {
+        final Map<String, List<InputPart>> mappedFormData = formData.getFormDataMap();
+        final List<InputPart> uploadedImages = mappedFormData.get("fileNewImage");
+        
+        if (uploadedImages == null || uploadedImages.isEmpty())
+            throw new ValidationException("No uploaded image.");
+        
+        final ORID userId = RidConverter.convertToRid(userJid);
+        
+        final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
+        if (user == null)
+            throw new ObjectNotFoundException("User", userJid);
+
+        final InputPart newImage = uploadedImages.get(0);
+        final InputStream newFile = newImage.getBody(InputStream.class, null);
+        final BufferedImage resizeImage = ImageIO.read(newFile);
+        
+        //TODO: Refactor this to pull settings from a configuration file
+        final Image resizedImage = resizeImage.getScaledInstance(670, 200, Image.SCALE_SMOOTH);
+        ImageIO.write((RenderedImage)resizedImage, "jpg", new File("~/Projects/NDEx-Site/img/background/" + user.getUsername() + ".jpg"));
+    }
+    
+    /**************************************************************************
+    * Changes a user's profile image.
+    * 
+    * @param userId   The user ID.
+    * @param password The new password.
+    **************************************************************************/
+    @POST
+    @Path("/{userId}/profile-image")
+    @Produces("application/json")
+    public void changeProfileImage(@PathParam("userId")final String userJid, MultipartFormDataInput formData) throws Exception
+    {
+        final Map<String, List<InputPart>> mappedFormData = formData.getFormDataMap();
+        final List<InputPart> uploadedImages = mappedFormData.get("fileNewImage");
+        
+        if (uploadedImages == null || uploadedImages.isEmpty())
+            throw new ValidationException("No uploaded image.");
+        
+        final ORID userId = RidConverter.convertToRid(userJid);
+        
+        final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
+        if (user == null)
+            throw new ObjectNotFoundException("User", userJid);
+
+        final InputPart newImage = uploadedImages.get(0);
+        final InputStream newFile = newImage.getBody(InputStream.class, null);
+        final BufferedImage resizeImage = ImageIO.read(newFile);
+        
+        //TODO: Refactor this to pull settings from a configuration file
+        final Image resizedImage = resizeImage.getScaledInstance(100, 125, Image.SCALE_SMOOTH);
+        ImageIO.write((RenderedImage)resizedImage, "jpg", new File("~/Projects/NDEx-Site/img/foreground/" + user.getUsername() + ".jpg"));
     }
     
     /**************************************************************************
