@@ -62,7 +62,7 @@ public class NetworkQueryTest {
 				NewUser newUser = new NewUser();
 				newUser.setUsername("querytester");
 				newUser.setPassword("querytester");
-				newUser.setEmailAddress("dexterpratt.bio@gmail.com");
+				newUser.setEmailAddress("dexterpratt.bio+networkQT@gmail.com");
 
 				System.out.println("Creating test user.");
 				queryTester = userService.createUser(newUser);

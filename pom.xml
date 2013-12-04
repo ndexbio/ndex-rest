@@ -119,13 +119,20 @@
 			<artifactId>groovy-eclipse-batch</artifactId>
 			<version>2.1.8-01</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.codehaus.groovy</groupId>
 			<artifactId>groovy-eclipse-compiler</artifactId>
 			<version>2.8.0-01</version>
 		</dependency>
+
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi</artifactId>
+			<version>3.9</version>
+		</dependency>
 	</dependencies>
+
 
 
 	<build>
@@ -142,7 +149,7 @@
 
 
 			<plugin>
-			<groupId>org.codehaus.groovy</groupId>
+				<groupId>org.codehaus.groovy</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<!-- 2.8.0-01 and later require maven-compiler-plugin 3.1 or higher -->
 				<version>3.1</version>
