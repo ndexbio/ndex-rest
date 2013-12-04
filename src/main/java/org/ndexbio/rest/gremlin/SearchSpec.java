@@ -41,8 +41,7 @@ public class SearchSpec {
         	ORID rid = RidConverter.convertToRid(jid);
         	startingTerms[index] = rid;
         }
-
-
+			  searchDepth = parameters.getSearchDepth();
     }
 
 
