@@ -27,7 +27,7 @@ public interface IEdge extends VertexFrame
     @Adjacency(label = "p")
     public void setPredicate(IBaseTerm term);
 
-    @Adjacency(label = "predicate")
+    @Adjacency(label = "p")
     public IBaseTerm getPredicate();
 
     @Adjacency(label = "s")
