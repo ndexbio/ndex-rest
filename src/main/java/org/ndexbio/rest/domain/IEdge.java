@@ -18,22 +18,22 @@ public interface IEdge extends VertexFrame
     @Adjacency(label = "network")
     public INetwork getNetwork();
 
-    @Adjacency(label = "o")
+    @Adjacency(label = "object")
     public void setObject(INode object);
 
-    @Adjacency(label = "o")
+    @Adjacency(label = "object")
     public INode getObject();
 
-    @Adjacency(label = "p")
+    @Adjacency(label = "predicate")
     public void setPredicate(IBaseTerm term);
 
-    @Adjacency(label = "p")
+    @Adjacency(label = "predicate")
     public IBaseTerm getPredicate();
 
-    @Adjacency(label = "s")
+    @Adjacency(label = "subject")
     public INode setSubject(INode subject);
 
-    @Adjacency(label = "s")
+    @Adjacency(label = "subject")
     public INode getSubject();
     
     @Adjacency(label = "supports")
