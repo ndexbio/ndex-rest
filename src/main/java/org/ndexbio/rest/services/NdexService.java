@@ -1,7 +1,16 @@
 package org.ndexbio.rest.services;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collection;
+
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+
 import org.ndexbio.rest.NdexSchemaManager;
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.IFunctionTerm;
@@ -12,7 +21,10 @@ import org.ndexbio.rest.domain.IJoinGroupRequest;
 import org.ndexbio.rest.domain.INetworkAccessRequest;
 import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IUser;
+import org.ndexbio.rest.exceptions.NdexException;
+import org.ndexbio.rest.models.Status;
 import org.ndexbio.rest.models.User;
+
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
@@ -96,4 +108,42 @@ public abstract class NdexService
             _orientDbGraph = null;
         }
     }
+    
+    /**************************************************************************
+     * Gets status for the service
+     * 
+     **************************************************************************/
+     @GET
+     @Path("/status")
+     @Produces("application/json")
+     public Status getStatus() throws NdexException
+     {
+    	 Status status = new Status();
+    	 status.setState("RUNNING");
+
+         return status;
+     }
+     
+     /**************************************************************************
+      * Gets API information for the service
+      * 
+      **************************************************************************/
+      @GET
+      @Path("/api")
+      @Produces("application/json")
+      public Collection<Collection<String>> getApi() throws NdexException
+      {
+    	 Collection<Collection<String>> methodAnnotationList = new ArrayList<Collection<String>>();
+     	 for (Method method : this.getClass().getMethods()){
+     		 Collection<String> methodAnnotationStrings = new ArrayList<String>();
+     		 for (Annotation annotation : method.getDeclaredAnnotations()){
+     			 methodAnnotationStrings.add(annotation.toString());
+     		 }
+     		 if (methodAnnotationStrings.size() > 0){
+     			 methodAnnotationList.add(methodAnnotationStrings);
+     		 }
+     	 }
+
+          return methodAnnotationList;
+      }
 }
