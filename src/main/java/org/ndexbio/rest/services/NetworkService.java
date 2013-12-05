@@ -54,27 +54,76 @@ import com.tinkerpop.blueprints.Vertex;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 import com.tinkerpop.frames.VertexFrame;
 
-//TODO: Need to add methods to add/remove members
-//TODO: Need to add a method to change a member's permissions
 @Path("/networks")
 public class NetworkService extends NdexService
 {
     /**************************************************************************
-     * Execute parent default constructor to initialize OrientDB.
-     **************************************************************************/
+    * Execute parent default constructor to initialize OrientDB.
+    **************************************************************************/
     public NetworkService()
     {
         super();
     }
 
+
+
     /**************************************************************************
-     * Creates a network.
-     * 
-     * @param ownerId
-     *            The ID of the user creating the group.
-     * @param newNetwork
-     *            The network to create.
-     **************************************************************************/
+    * Suggests terms that start with the partial term.
+    * 
+    * @param networkId
+    *            The network ID.
+    * @param partialTerm
+    *            The partially entered term.
+    * @return A collection of terms that start with the partial term.
+    **************************************************************************/
+    @GET
+    @Path("/{networkId}/autosuggest/{partialTerm}")
+    @Produces("application/json")
+    public Collection<String> autoSuggestTerms(@PathParam("networkId")final String networkId, @PathParam("partialTerm")final String partialTerm) throws Exception
+    {
+        final ORID networkRid = RidConverter.convertToRid(networkId);
+
+        try
+        {
+            setupDatabase();
+
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            if (network == null)
+                return null;
+            else
+            {
+                final Collection<String> foundTerms = new ArrayList<String>();
+                for (final ITerm networkTerm : network.getTerms())
+                {
+                    if (networkTerm instanceof IBaseTerm)
+                    {
+                        if (((IBaseTerm)networkTerm).getName().toLowerCase().startsWith(partialTerm.toLowerCase()))
+                        {
+                            foundTerms.add(((IBaseTerm)networkTerm).getName());
+                            
+                            if (foundTerms.size() == 20)
+                                return foundTerms;
+                        }
+                    }
+                }
+
+                return foundTerms;
+            }
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+    
+    /**************************************************************************
+    * Creates a network.
+    * 
+    * @param ownerId
+    *            The ID of the user creating the group.
+    * @param newNetwork
+    *            The network to create.
+    **************************************************************************/
     @PUT
     @Produces("application/json")
     public Network createNetwork(final Network newNetwork) throws Exception
@@ -83,12 +132,9 @@ public class NetworkService extends NdexService
         if (newNetwork == null)
             throw new ValidationException("The network to create is null.");
 
+        //TODO: check that member has ADMIN and handle groups as well as users
         if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0)
-        {
             throw new ValidationException("The network to create has no members specified");
-            // TODO check that member has ADMIN and handle groups as well as
-            // users
-        }
 
         try
         {
@@ -156,15 +202,15 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-     * Deletes a network.
-     * 
-     * @param networkId
-     *            The ID of the network to delete.
-     **************************************************************************/
+    * Deletes a network.
+    * 
+    * @param networkId
+    *            The ID of the network to delete.
+    **************************************************************************/
     @DELETE
     @Path("/{networkId}")
     @Produces("application/json")
-    public void deleteNetwork(@PathParam("networkId") final String networkJid) throws NdexException
+    public void deleteNetwork(@PathParam("networkId")final String networkJid) throws NdexException
     {
         if (networkJid == null || networkJid.isEmpty())
             throw new ValidationException("No network ID was specified.");
@@ -212,16 +258,17 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-     * Searches for a network.
-     * 
-     * @param search
-     *            The search terms.
-     * @param offset
-     *            The offset.
-     * @param limit
-     *            The number of items to retrieve.
-     **************************************************************************/
+    * Searches for a network.
+    * 
+    * @param search
+    *            The search terms.
+    * @param offset
+    *            The offset.
+    * @param limit
+    *            The number of items to retrieve.
+    **************************************************************************/
     @POST
+    @PermitAll
     @Path("/search")
     @Produces("application/json")
     public SearchResult<Network> findNetworks(SearchParameters searchParameters) throws NdexException
@@ -259,11 +306,6 @@ public class NetworkService extends NdexService
 
             return result;
         }
-        catch (Exception e)
-        {
-            _orientDbGraph.getBaseGraph().rollback();
-            throw e;
-        }
         finally
         {
             teardownDatabase();
@@ -271,16 +313,15 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-     * Gets a network by ID.
-     * 
-     * @param networkId
-     *            The ID of the network.
-     **************************************************************************/
+    * Gets a network by ID.
+    * 
+    * @param networkId
+    *            The ID of the network.
+    **************************************************************************/
     @GET
-    @PermitAll
     @Path("/{networkId}")
     @Produces("application/json")
-    public Network getNetwork(@PathParam("networkId") final String networkJid) throws NdexException
+    public Network getNetwork(@PathParam("networkId")final String networkJid) throws NdexException
     {
         if (networkJid == null || networkJid.isEmpty())
             throw new ValidationException("No network ID was specified.");
@@ -297,11 +338,6 @@ public class NetworkService extends NdexService
             else
                 return new Network(network);
         }
-        catch (Exception e)
-        {
-            _orientDbGraph.getBaseGraph().rollback();
-            throw e;
-        }
         finally
         {
             teardownDatabase();
@@ -309,28 +345,27 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-     * Gets a page of Edges for the specified network, along with the supporting
-     * nodes, terms, namespaces, supports, and citations.
-     * 
-     * @param networkId
-     *            The network ID.
-     **************************************************************************/
-    @POST
-    @Path("/{networkId}/edges")
+    * Gets a page of Edges for the specified network, along with the supporting
+    * nodes, terms, namespaces, supports, and citations.
+    * 
+    * @param networkId
+    *            The network ID.
+    **************************************************************************/
+    @GET
+    @Path("/{networkId}/edges/{skip}/{top}")
     @Produces("application/json")
-    public Network getEdges(@PathParam("networkId") final String networkJid, SearchParameters searchParameters) throws NdexException
+    public Network getEdges(@PathParam("networkId")final String networkJid, @PathParam("skip")final int skip, @PathParam("top")final int top) throws NdexException
     {
         if (networkJid == null || networkJid.isEmpty())
             throw new ValidationException("No network ID was specified.");
+        else if (top < 1)
+            throw new IllegalArgumentException("Number of results to return is less than 1.");
 
         final ORID networkRid = RidConverter.convertToRid(networkJid);
 
         try
         {
             setupDatabase();
-
-            final int skip = searchParameters.getSkip();
-            final int top = searchParameters.getTop();
 
             final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (network == null)
@@ -352,11 +387,6 @@ public class NetworkService extends NdexService
 
             return getNetworkBasedOnFoundEdges(foundIEdges, network);
         }
-        catch (Exception e)
-        {
-            _orientDbGraph.getBaseGraph().rollback();
-            throw e;
-        }
         finally
         {
             teardownDatabase();
@@ -364,52 +394,37 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-     * Gets a page of Nodes for the specified network, along with the supporting
-     * edges, terms, namespaces, supports, and citations.
-     * 
-     * @param networkId
-     *            The network ID.
-     **************************************************************************/
-    @GET
-    @Path("/{networkId}/nodes")
+    * Get a subnetwork network based on network query parameters
+    * 
+    * @param queryParameters
+    **************************************************************************/
+    @POST
+    @Path("/{networkId}/query")
     @Produces("application/json")
-    public Network getNodes(@PathParam("networkId") final String networkJid, SearchParameters searchParameters) throws NdexException
+    public Network queryNetwork(@PathParam("networkId")final String networkJid, final NetworkQueryParameters queryParameters) throws Exception
     {
-        if (networkJid == null || networkJid.isEmpty())
-            throw new ValidationException("No network ID was specified.");
-
         final ORID networkRid = RidConverter.convertToRid(networkJid);
-        final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
-        if (network == null)
-            throw new ObjectNotFoundException("Network", networkJid);
 
         try
         {
             setupDatabase();
 
-            final int skip = searchParameters.getSkip();
-            final int top = searchParameters.getTop();
-
-            int counter = 0;
-            final List<INode> foundINodes = new ArrayList<INode>();
-            int startIndex = top * skip;
-
-            for (final INode networkNode : network.getNdexNodes())
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            if (network == null)
+                return null;
+            else
             {
-                if (counter >= startIndex)
-                    foundINodes.add(networkNode);
-
-                counter++;
-                if (counter >= startIndex + top)
-                    break;
+                List<Term> baseTerms = getBaseTermsByName(network, queryParameters.getStartingTermStrings().get(0));
+                if (!baseTerms.isEmpty())
+                {
+                    queryParameters.addStartingTermId(baseTerms.get(0).getId());
+                    
+                    List<IEdge> foundIEdges = neighborhoodQuery(network, queryParameters);
+                    return getNetworkBasedOnFoundEdges(foundIEdges, network);
+                }
+                else
+                    return null;
             }
-
-            return getNetworkBasedOnFoundNodes(foundINodes, network);
-        }
-        catch (Exception e)
-        {
-            _orientDbGraph.getBaseGraph().rollback();
-            throw e;
         }
         finally
         {
@@ -418,11 +433,11 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-     * Updates a network.
-     * 
-     * @param updatedNetwork
-     *            The updated network information.
-     **************************************************************************/
+    * Updates a network.
+    * 
+    * @param updatedNetwork
+    *            The updated network information.
+    **************************************************************************/
     @POST
     @Produces("application/json")
     public void updateNetwork(final Network updatedNetwork) throws NdexException
@@ -443,13 +458,13 @@ public class NetworkService extends NdexService
 
             if (updatedNetwork.getIsPublic() != network.getIsPublic())
                 network.setIsPublic(updatedNetwork.getIsPublic());
-            
+
             if (updatedNetwork.getSource() != null && !updatedNetwork.getSource().isEmpty())
                 network.setSource(updatedNetwork.getSource());
-            
+
             if (updatedNetwork.getTitle() != null && !updatedNetwork.getTitle().isEmpty())
                 network.setTitle(updatedNetwork.getTitle());
-            
+
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
@@ -463,112 +478,27 @@ public class NetworkService extends NdexService
         }
     }
 
-    /**************************************************************************
-     * Get a subnetwork network based on network query parameters
-     * 
-     * @param queryParameters
-     **************************************************************************/
-    @POST
-    @Path("/search")
-    @Produces("application/json")
-    public Network queryNetwork(@PathParam("networkId") final String networkJid, NetworkQueryParameters queryParameters) throws ValidationException
-    {
-        try
-        {
-            setupDatabase();
+    
 
-            ORID networkRid = RidConverter.convertToRid(networkJid);
-            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
-            if (network == null)
-            {
-                return null;
-            }
-            else
-            {
-                List<IEdge> foundIEdges = neighborhoodQuery(network, queryParameters);
-                return getNetworkBasedOnFoundEdges(foundIEdges, network);
-            }
-        }
-        catch (Exception e)
+    private static void addTermAndFunctionalDependencies(final ITerm term, final Set<ITerm> terms)
+    {
+        if (terms.add(term))
         {
-            _orientDbGraph.getBaseGraph().rollback();
-            throw e;
-        }
-        finally
-        {
-            teardownDatabase();
+            if (term instanceof IFunctionTerm)
+            {
+                terms.add(((IFunctionTerm) term).getTermFunction());
+                
+                for (ITerm parameterTerm : ((IFunctionTerm) term).getTermParameters().values())
+                    addTermAndFunctionalDependencies(parameterTerm, terms);
+            }
         }
     }
 
     /**************************************************************************
-     * Get BaseTerm from a network matching name
-     * 
-     * @param baseTermName
-     **************************************************************************/
-    @GET
-    @Path("/{networkId}/baseTerms")
-    @Produces("application/json")
-    public Collection<Term> getBaseTermsByName(@PathParam("networkId") final String networkId, String baseTermName) throws NdexException
-    {
-        try
-        {
-            setupDatabase();
-
-            ORID networkRid = RidConverter.convertToRid(networkId);
-            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
-
-            if (network == null)
-            {
-                return null;
-            }
-            else
-            {
-                Collection<Term> foundTerms = new ArrayList<Term>();
-                for (ITerm networkTerm : network.getTerms())
-                {
-                    if (networkTerm instanceof IBaseTerm)
-                    {
-                        if (baseTermName.equals(((IBaseTerm) networkTerm).getName()))
-                        {
-                            Term term = new BaseTerm((IBaseTerm) networkTerm);
-                            foundTerms.add(term);
-                        }
-                    }
-                }
-
-                return foundTerms;
-            }
-        }
-        catch (Exception e)
-        {
-            _orientDbGraph.getBaseGraph().rollback();
-            throw e;
-        }
-        finally
-        {
-            teardownDatabase();
-        }
-    }
-
-    private List<IEdge> neighborhoodQuery(INetwork network, NetworkQueryParameters queryParameters) throws ValidationException
-    {
-        List<IEdge> foundEdges = new ArrayList<IEdge>();
-        // Make a SearchSpec based on the NetworkQueryParameters, verifying &
-        // converting term ids in the process
-        SearchSpec searchSpec = new SearchSpec(queryParameters);
-        Set<OrientVertex> orientEdges = NetworkQueries.INSTANCE.searchNeighborhoodByTerm(_orientDbGraph.getBaseGraph(), (OrientVertex) network.asVertex(), searchSpec);
-        for (OrientVertex edge : orientEdges)
-        {
-            foundEdges.add(_orientDbGraph.getVertex(edge, IEdge.class));
-        }
-        return foundEdges;
-    }
-
-    /*
-     * map namespaces from network model object to namespaces in the network
-     * domain object
-     */
-    private void createNamespaces(INetwork newNetwork, Network networkToCreate, Map<String, VertexFrame> networkIndex)
+    * Maps namespaces from network model object to namespaces in the network
+    * domain object.
+    **************************************************************************/
+    private void createNamespaces(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
     {
         for (final Namespace namespace : networkToCreate.getNamespaces().values())
         {
@@ -585,27 +515,25 @@ public class NetworkService extends NdexService
         }
     }
 
-    /*
-     * map terms in network model object to terms in the network domain object
-     * 
-     * Note that this requires that the list of terms is ordered such that terms
-     * may only refer to other terms if those terms come earlier in the list.
-     * 
-     * mod 25Nov2013 use JdexIds for reference in lieu of object aggregation
-     */
-    private void createTerms(INetwork newNetwork, Network networkToCreate, Map<String, VertexFrame> networkIndex)
+    /**************************************************************************
+    * Maps terms in network model object to terms in the network domain object
+    * 
+    * Note that this requires that the list of terms is ordered such that terms
+    * may only refer to other terms if those terms come earlier in the list.
+    **************************************************************************/
+    private void createTerms(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
     {
         for (final Entry<String, Term> termEntry : networkToCreate.getTerms().entrySet())
         {
             final Term term = termEntry.getValue();
 
-            if (term.getTermType().equals("BASE"))
+            if (term.getTermType().equals("Base"))
             {
                 final IBaseTerm iBaseTerm = _orientDbGraph.addVertex("class:baseTerm", IBaseTerm.class);
-                iBaseTerm.setName(term.getName());
+                iBaseTerm.setName(((BaseTerm)term).getName());
                 iBaseTerm.setJdexId(termEntry.getKey());
 
-                String jdexId = term.getNamespace();
+                String jdexId = ((BaseTerm)term).getNamespace();
                 if (jdexId != null && !jdexId.isEmpty())
                 {
                     final VertexFrame namespace = networkIndex.get(jdexId);
@@ -616,17 +544,16 @@ public class NetworkService extends NdexService
                 newNetwork.addTerm(iBaseTerm);
                 networkIndex.put(iBaseTerm.getJdexId(), iBaseTerm);
             }
-            else if (term.getTermType().equals("FUNCTION"))
+            else if (term.getTermType().equals("Function"))
             {
-
                 final IFunctionTerm functionTerm = _orientDbGraph.addVertex("class:functionTerm", IFunctionTerm.class);
                 functionTerm.setJdexId(termEntry.getKey());
 
-                final VertexFrame function = networkIndex.get(term.getTermFunction());
+                final VertexFrame function = networkIndex.get(((FunctionTerm)term).getTermFunction());
                 if (function != null)
                     functionTerm.setTermFunction((IBaseTerm) function);
 
-                for (Map.Entry<Integer, String> entry : term.getParameters().entrySet())
+                for (Map.Entry<Integer, String> entry : ((FunctionTerm)term).getParameters().entrySet())
                 {
                     Integer key = entry.getKey();
                     String value = entry.getValue();
@@ -645,7 +572,7 @@ public class NetworkService extends NdexService
         }
     }
 
-    private void createNodes(INetwork newNetwork, Network networkToCreate, Map<String, VertexFrame> networkIndex)
+    private void createNodes(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
     {
         int nodeCount = 0;
 
@@ -666,32 +593,36 @@ public class NetworkService extends NdexService
         newNetwork.setNdexNodeCount(nodeCount);
     }
 
-    private void createEdges(INetwork newNetwork, Network networkToCreate, Map<String, VertexFrame> networkIndex)
+    private void createEdges(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
     {
         int edgeCount = 0;
 
         for (final Entry<String, Edge> edgeEntry : networkToCreate.getEdges().entrySet())
         {
-            Edge edge = edgeEntry.getValue();
-            IEdge iEdge = _orientDbGraph.addVertex("class:edge", IEdge.class);
-            iEdge.setJdexId(edgeEntry.getKey());
+            final Edge edgeToCreate = edgeEntry.getValue();
+            
+            final IEdge newEdge = _orientDbGraph.addVertex("class:edge", IEdge.class);
+            newEdge.setJdexId(edgeEntry.getKey());
+            
             edgeCount++;
 
-            INode subjectINode = (INode) networkIndex.get(edge.getSubjectId());
-            iEdge.setSubject(subjectINode);
-            IBaseTerm predicateITerm = (IBaseTerm) networkIndex.get(edge.getPredicateId());
-            iEdge.setPredicate(predicateITerm);
-            INode objectINode = (INode) networkIndex.get(edge.getObjectId());
-            iEdge.setObject(objectINode);
+            final INode subjectNode = (INode) networkIndex.get(edgeToCreate.getSubjectId());
+            newEdge.setSubject(subjectNode);
+            
+            final IBaseTerm predicateTerm = (IBaseTerm) networkIndex.get(edgeToCreate.getPredicateId());
+            newEdge.setPredicate(predicateTerm);
+            
+            final INode objectNode = (INode) networkIndex.get(edgeToCreate.getObjectId());
+            newEdge.setObject(objectNode);
 
-            newNetwork.addNdexEdge(iEdge);
-            networkIndex.put(iEdge.getJdexId(), iEdge);
+            newNetwork.addNdexEdge(newEdge);
+            networkIndex.put(newEdge.getJdexId(), newEdge);
         }
+        
         newNetwork.setNdexEdgeCount(edgeCount);
-
     }
 
-    private void createCitations(INetwork newNetwork, Network networkToCreate, Map<String, VertexFrame> networkIndex)
+    private void createCitations(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
     {
         for (final Entry<String, Citation> citationEntry : networkToCreate.getCitations().entrySet())
         {
@@ -712,7 +643,7 @@ public class NetworkService extends NdexService
         }
     }
 
-    private void createSupports(INetwork newNetwork, Network networkToCreate, Map<String, VertexFrame> networkIndex)
+    private void createSupports(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
     {
         for (final Entry<String, Support> supportEntry : networkToCreate.getSupports().entrySet())
         {
@@ -732,102 +663,99 @@ public class NetworkService extends NdexService
             networkIndex.put(newSupport.getJdexId(), newSupport);
         }
     }
-
-    private static Network getNetworkBasedOnFoundEdges(List<IEdge> foundEdges, INetwork network)
+    
+    private List<Term> getBaseTermsByName(INetwork network, String baseTermName) throws NdexException
     {
-        Set<INode> requiredINodes = getEdgeNodes(foundEdges);
-        Set<ITerm> requiredITerms = getEdgeTerms(foundEdges, requiredINodes);
-        Set<ISupport> requiredISupports = getEdgeSupports(foundEdges);
-        Set<ICitation> requiredICitations = getEdgeCitations(foundEdges, requiredISupports);
-        Set<INamespace> requiredINamespaces = getTermNamespaces(requiredITerms);
+        final List<Term> foundTerms = new ArrayList<Term>();
+        for (final ITerm networkTerm : network.getTerms())
+        {
+            if (networkTerm instanceof IBaseTerm)
+            {
+                if (baseTermName.equals(((IBaseTerm)networkTerm).getName()))
+                {
+                    final Term term = new BaseTerm((IBaseTerm) networkTerm);
+                    foundTerms.add(term);
+                }
+            }
+        }
 
-        // Now create the output network
-        Network networkByEdges = new Network();
+        return foundTerms;
+    }
+
+    private static Network getNetworkBasedOnFoundEdges(final List<IEdge> foundEdges, final INetwork network)
+    {
+        final Set<INode> requiredINodes = getEdgeNodes(foundEdges);
+        final Set<ITerm> requiredITerms = getEdgeTerms(foundEdges, requiredINodes);
+        final Set<ISupport> requiredISupports = getEdgeSupports(foundEdges);
+        final Set<ICitation> requiredICitations = getEdgeCitations(foundEdges, requiredISupports);
+        final Set<INamespace> requiredINamespaces = getTermNamespaces(requiredITerms);
+
+        //Now create the output network
+        final Network networkByEdges = new Network();
         networkByEdges.setFormat(network.getFormat());
         networkByEdges.setSource(network.getSource());
         networkByEdges.setTitle(network.getTitle());
 
-        for (IEdge edge : foundEdges)
-        {
+        for (final IEdge edge : foundEdges)
             networkByEdges.getEdges().put(edge.getJdexId(), new Edge(edge));
-        }
 
-        for (INode node : requiredINodes)
-        {
+        for (final INode node : requiredINodes)
             networkByEdges.getNodes().put(node.getJdexId(), new Node(node));
-        }
 
-        for (ITerm term : requiredITerms)
+        for (final ITerm term : requiredITerms)
         {
             if (term instanceof IBaseTerm)
-            {
                 networkByEdges.getTerms().put(term.getJdexId(), new BaseTerm((IBaseTerm) term));
-            }
             else if (term instanceof IFunctionTerm)
-            {
                 networkByEdges.getTerms().put(term.getJdexId(), new FunctionTerm((IFunctionTerm) term));
-            }
         }
 
-        for (INamespace ns : requiredINamespaces)
-        {
-            networkByEdges.getNamespaces().put(ns.getJdexId(), new Namespace(ns));
-        }
+        for (final INamespace namespace : requiredINamespaces)
+            networkByEdges.getNamespaces().put(namespace.getJdexId(), new Namespace(namespace));
 
-        for (ISupport support : requiredISupports)
-        {
+        for (final ISupport support : requiredISupports)
             networkByEdges.getSupports().put(support.getJdexId(), new Support(support));
-        }
 
-        for (ICitation citation : requiredICitations)
-        {
+        for (final ICitation citation : requiredICitations)
             networkByEdges.getCitations().put(citation.getJdexId(), new Citation(citation));
-        }
+
         return networkByEdges;
     }
 
-    private static Network getNetworkBasedOnFoundNodes(List<INode> foundINodes, INetwork network)
+    private static Network getNetworkBasedOnFoundNodes(final List<INode> foundINodes, final INetwork network)
     {
-        Set<ITerm> requiredITerms = getNodeTerms(foundINodes);
-        Set<INamespace> requiredINamespaces = getTermNamespaces(requiredITerms);
+        final Set<ITerm> requiredITerms = getNodeTerms(foundINodes);
+        final Set<INamespace> requiredINamespaces = getTermNamespaces(requiredITerms);
 
-        // Now create the output network
-        Network networkByNodes = new Network();
+        //Now create the output network
+        final Network networkByNodes = new Network();
 
         networkByNodes.setFormat(network.getFormat());
         networkByNodes.setSource(network.getSource());
         networkByNodes.setTitle(network.getTitle());
 
-        for (INode node : foundINodes)
-        {
+        for (final INode node : foundINodes)
             networkByNodes.getNodes().put(node.getJdexId(), new Node(node));
-        }
 
-        for (ITerm term : requiredITerms)
+        for (final ITerm term : requiredITerms)
         {
             if (term instanceof IBaseTerm)
-            {
                 networkByNodes.getTerms().put(term.getJdexId(), new BaseTerm((IBaseTerm) term));
-            }
             else if (term instanceof IFunctionTerm)
-            {
                 networkByNodes.getTerms().put(term.getJdexId(), new FunctionTerm((IFunctionTerm) term));
-            }
-
         }
 
-        for (INamespace ns : requiredINamespaces)
-        {
-            networkByNodes.getNamespaces().put(ns.getJdexId(), new Namespace(ns));
-        }
+        for (final INamespace requiredNamespace : requiredINamespaces)
+            networkByNodes.getNamespaces().put(requiredNamespace.getJdexId(), new Namespace(requiredNamespace));
 
         return networkByNodes;
     }
 
-    private static Set<INode> getEdgeNodes(List<IEdge> edges)
+    private static Set<INode> getEdgeNodes(final List<IEdge> edges)
     {
-        Set<INode> edgeNodes = new HashSet<INode>();
-        for (IEdge edge : edges)
+        final Set<INode> edgeNodes = new HashSet<INode>();
+        
+        for (final IEdge edge : edges)
         {
             edgeNodes.add(edge.getSubject());
             edgeNodes.add(edge.getObject());
@@ -836,26 +764,23 @@ public class NetworkService extends NdexService
         return edgeNodes;
     }
 
-    private static Set<ITerm> getEdgeTerms(List<IEdge> edges, Collection<INode> nodes)
+    private static Set<ITerm> getEdgeTerms(final List<IEdge> edges, final Collection<INode> nodes)
     {
-        Set<ITerm> edgeTerms = new HashSet<ITerm>();
-        for (IEdge edge : edges)
-        {
+        final Set<ITerm> edgeTerms = new HashSet<ITerm>();
+        
+        for (final IEdge edge : edges)
             edgeTerms.add(edge.getPredicate());
-        }
 
-        for (INode node : nodes)
+        for (final INode node : nodes)
         {
             if (node.getRepresents() != null)
-            {
                 addTermAndFunctionalDependencies(node.getRepresents(), edgeTerms);
-            }
         }
 
         return edgeTerms;
     }
 
-    private static Set<ITerm> getNodeTerms(Collection<INode> nodes)
+    private static Set<ITerm> getNodeTerms(final Collection<INode> nodes)
     {
         final Set<ITerm> nodeTerms = new HashSet<ITerm>();
 
@@ -868,68 +793,62 @@ public class NetworkService extends NdexService
         return nodeTerms;
     }
 
-    private static void addTermAndFunctionalDependencies(ITerm term, Set<ITerm> terms)
+    private static Set<ISupport> getEdgeSupports(final List<IEdge> edges)
     {
-        if (terms.add(term))
+        final Set<ISupport> edgeSupports = new HashSet<ISupport>();
+        
+        for (final IEdge edge : edges)
         {
-            if (term instanceof IFunctionTerm)
-            {
-                terms.add(((IFunctionTerm) term).getTermFunction());
-                for (ITerm parameterTerm : ((IFunctionTerm) term).getTermParameters().values())
-                {
-                    addTermAndFunctionalDependencies(parameterTerm, terms);
-                }
-            }
-        }
-    }
-
-    private static Set<ISupport> getEdgeSupports(List<IEdge> edges)
-    {
-        Set<ISupport> edgeSupports = new HashSet<ISupport>();
-        for (IEdge edge : edges)
-        {
-            for (ISupport support : edge.getSupports())
-            {
+            for (final ISupport support : edge.getSupports())
                 edgeSupports.add(support);
-            }
         }
 
         return edgeSupports;
     }
 
-    private static Set<ICitation> getEdgeCitations(List<IEdge> edges, Collection<ISupport> supports)
+    private static Set<ICitation> getEdgeCitations(final List<IEdge> edges, final Collection<ISupport> supports)
     {
-        Set<ICitation> edgeCitations = new HashSet<ICitation>();
-        for (IEdge edge : edges)
+        final Set<ICitation> edgeCitations = new HashSet<ICitation>();
+        for (final IEdge edge : edges)
         {
-            for (ICitation citation : edge.getCitations())
-            {
+            for (final ICitation citation : edge.getCitations())
                 edgeCitations.add(citation);
-            }
         }
 
-        for (ISupport support : supports)
+        for (final ISupport support : supports)
         {
             if (support.getCitation() != null)
-            {
                 edgeCitations.add(support.getCitation());
-            }
-
         }
 
         return edgeCitations;
     }
 
-    private static Set<INamespace> getTermNamespaces(Set<ITerm> requiredITerms)
+    private static Set<INamespace> getTermNamespaces(final Set<ITerm> requiredITerms)
     {
-        Set<INamespace> namespaces = new HashSet<INamespace>();
-        for (ITerm term : requiredITerms)
+        final Set<INamespace> namespaces = new HashSet<INamespace>();
+        
+        for (final ITerm term : requiredITerms)
         {
             if (term instanceof IBaseTerm && ((IBaseTerm) term).getNamespace() != null)
-            {
                 namespaces.add(((IBaseTerm) term).getNamespace());
-            }
         }
+        
         return namespaces;
+    }
+
+    private List<IEdge> neighborhoodQuery(final INetwork network, final NetworkQueryParameters queryParameters) throws ValidationException
+    {
+        final List<IEdge> foundEdges = new ArrayList<IEdge>();
+
+        //Make a SearchSpec based on the NetworkQueryParameters, verifying &
+        //converting term ids in the process
+        final SearchSpec searchSpec = new SearchSpec(queryParameters);
+        
+        final Set<OrientVertex> orientEdges = NetworkQueries.INSTANCE.searchNeighborhoodByTerm(_orientDbGraph.getBaseGraph(), (OrientVertex) network.asVertex(), searchSpec);
+        for (final OrientVertex edge : orientEdges)
+            foundEdges.add(_orientDbGraph.getVertex(edge, IEdge.class));
+
+        return foundEdges;
     }
 }

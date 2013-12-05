@@ -8,6 +8,8 @@ import org.ndexbio.rest.domain.ITerm;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class FunctionTerm extends Term
 {
+    private String _termFunction;
+    private Map<Integer, String> _parameters;
 
     /**************************************************************************
     * Default constructor.
@@ -15,6 +17,8 @@ public class FunctionTerm extends Term
     public FunctionTerm()
     {
         super();
+        
+        this.setTermType("Function");
     }
 
     /**************************************************************************
@@ -24,7 +28,6 @@ public class FunctionTerm extends Term
     **************************************************************************/
     public FunctionTerm(IFunctionTerm iFunctionTerm)
     {
-
         this.setTermFunction(iFunctionTerm.getTermFunction().getJdexId());
 
         for (final Map.Entry<Integer, String> entry : iFunctionTerm.getTextParameters().entrySet())
@@ -35,4 +38,27 @@ public class FunctionTerm extends Term
     }
 
 
+
+    public String getTermFunction()
+    {
+
+        return _termFunction;
+    }
+
+    public void setTermFunction(String termFunction)
+    {
+        setTermType("FUNCTION");
+        _termFunction = termFunction;
+    }
+
+    public Map<Integer, String> getParameters()
+    {
+        return _parameters;
+    }
+
+    public void setParameters(Map<Integer, String> parameters)
+    {
+        setTermType("FUNCTION");
+        _parameters = parameters;
+    }
 }

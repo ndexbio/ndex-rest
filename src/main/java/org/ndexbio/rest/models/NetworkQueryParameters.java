@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 
+//TODO: This class is inaccurate; it should look like the client-side model
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class NetworkQueryParameters
 {
@@ -15,6 +16,8 @@ public class NetworkQueryParameters
     private List<String> _excludedPredicateIds;
     private int _searchDepth;
 
+    
+    
     public NetworkQueryParameters()
     {
         super();
@@ -24,49 +27,14 @@ public class NetworkQueryParameters
 
     
     
-    public List<String> getStartingTermIds()
+    public List<String> getExcludedPredicateIds()
     {
-        return _startingTermIds;
+        return _excludedPredicateIds;
     }
 
-    public void setStartingTermIds(List<String> startingTermIds)
+    public void setExcludedPredicateIds(List<String> excludedPredicateIds)
     {
-        _startingTermIds = startingTermIds;
-    }
-
-    public void addStartingTermId(String startingTermId)
-    {
-        _startingTermIds.add(startingTermId);
-    }
-
-    public List<String> getStartingTermStrings()
-    {
-        return _startingTermStrings;
-    }
-
-    public void setStartingTermStrings(List<String> startingTermStrings)
-    {
-        _startingTermStrings = startingTermStrings;
-    }
-
-    public String getRepresentationCriterion()
-    {
-        return _representationCriterion;
-    }
-
-    public void setRepresentationCriterion(String representationCriterion)
-    {
-        _representationCriterion = representationCriterion;
-    }
-
-    public String getSearchType()
-    {
-        return _searchType;
-    }
-
-    public void setSearchType(String searchType)
-    {
-        _searchType = searchType;
+        _excludedPredicateIds = excludedPredicateIds;
     }
 
     public List<String> getIncludedPredicateIds()
@@ -79,14 +47,14 @@ public class NetworkQueryParameters
         _includedPredicateIds = includedPredicateIds;
     }
 
-    public List<String> getExcludedPredicateIds()
+    public String getRepresentationCriterion()
     {
-        return _excludedPredicateIds;
+        return _representationCriterion;
     }
 
-    public void setExcludedPredicateIds(List<String> excludedPredicateIds)
+    public void setRepresentationCriterion(String representationCriterion)
     {
-        _excludedPredicateIds = excludedPredicateIds;
+        _representationCriterion = representationCriterion;
     }
 
     public int getSearchDepth()
@@ -97,6 +65,41 @@ public class NetworkQueryParameters
     public void setSearchDepth(int searchDepth)
     {
         _searchDepth = searchDepth;
+    }
+
+    public String getSearchType()
+    {
+        return _searchType;
+    }
+
+    public void setSearchType(String searchType)
+    {
+        _searchType = searchType;
+    }
+
+    public void addStartingTermId(String startingTermId)
+    {
+        _startingTermIds.add(startingTermId);
+    }
+
+    public List<String> getStartingTermIds()
+    {
+        return _startingTermIds;
+    }
+
+    public void setStartingTermIds(List<String> startingTermIds)
+    {
+        _startingTermIds = startingTermIds;
+    }
+
+    public List<String> getStartingTermStrings()
+    {
+        return _startingTermStrings;
+    }
+
+    public void setStartingTermStrings(List<String> startingTermStrings)
+    {
+        _startingTermStrings = startingTermStrings;
     }
 
     

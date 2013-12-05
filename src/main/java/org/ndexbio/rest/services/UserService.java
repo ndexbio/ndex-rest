@@ -2,7 +2,6 @@ package org.ndexbio.rest.services;
 
 import java.awt.Image;
 import java.awt.image.BufferedImage;
-import java.awt.image.RenderedImage;
 import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -28,7 +27,6 @@ import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
-import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.helpers.Security;
@@ -125,7 +123,7 @@ public class UserService extends NdexService
         if (username == null || username.isEmpty() || password == null || password.isEmpty())
             throw new ResteasyAuthenticationException("Invalid username or password.");
             
-        final User authUser = new BasicAuthenticationFilter().authenticateUser(new String[] { username, password });
+        final User authUser = Security.authenticateUser(new String[] { username, password });
         if (authUser == null)
             throw new ResteasyAuthenticationException("Invalid username or password.");
         
@@ -198,17 +196,32 @@ public class UserService extends NdexService
         
         final ORID userId = RidConverter.convertToRid(userJid);
         
-        final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
-        if (user == null)
-            throw new ObjectNotFoundException("User", userJid);
+        try
+        {
+            setupDatabase();
 
-        final InputPart newImage = uploadedImages.get(0);
-        final InputStream newFile = newImage.getBody(InputStream.class, null);
-        final BufferedImage resizeImage = ImageIO.read(newFile);
-        
-        //TODO: Refactor this to pull settings from a configuration file
-        final Image resizedImage = resizeImage.getScaledInstance(670, 200, Image.SCALE_SMOOTH);
-        ImageIO.write((RenderedImage)resizedImage, "jpg", new File("~/Projects/NDEx-Site/img/background/" + user.getUsername() + ".jpg"));
+            final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
+            if (user == null)
+                throw new ObjectNotFoundException("User", userJid);
+    
+            final InputPart newImage = uploadedImages.get(0);
+            final InputStream newFile = newImage.getBody(InputStream.class, null);
+            final BufferedImage uploadedImage = ImageIO.read(newFile);
+            
+            //TODO: Refactor this to pull settings from a configuration file
+            final BufferedImage resizedImage = resizeImage(uploadedImage, 670, 200);
+            
+            //TODO: Refactor this to pull settings from a configuration file
+            String filePath = new File("").getAbsolutePath(); 
+            if (filePath.startsWith("/home"))
+                ImageIO.write(resizedImage, "jpg", new File(filePath + "/Projects/NDEx-Site/img/background/" + user.getUsername() + ".jpg"));
+            else
+                ImageIO.write(resizedImage, "jpg", new File("/var/node/ndex-site/img/background/" + user.getUsername() + ".jpg"));
+        }
+        finally
+        {
+            teardownDatabase();
+        }
     }
     
     /**************************************************************************
@@ -230,17 +243,36 @@ public class UserService extends NdexService
         
         final ORID userId = RidConverter.convertToRid(userJid);
         
-        final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
-        if (user == null)
-            throw new ObjectNotFoundException("User", userJid);
+        try
+        {
+            setupDatabase();
 
-        final InputPart newImage = uploadedImages.get(0);
-        final InputStream newFile = newImage.getBody(InputStream.class, null);
-        final BufferedImage resizeImage = ImageIO.read(newFile);
-        
-        //TODO: Refactor this to pull settings from a configuration file
-        final Image resizedImage = resizeImage.getScaledInstance(100, 125, Image.SCALE_SMOOTH);
-        ImageIO.write((RenderedImage)resizedImage, "jpg", new File("~/Projects/NDEx-Site/img/foreground/" + user.getUsername() + ".jpg"));
+            final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
+            if (user == null)
+                throw new ObjectNotFoundException("User", userJid);
+    
+            final InputPart newImage = uploadedImages.get(0);
+            final InputStream newFile = newImage.getBody(InputStream.class, null);
+            final BufferedImage uploadedImage = ImageIO.read(newFile);
+            
+            //TODO: Refactor this to pull settings from a configuration file
+            final BufferedImage resizedImage = resizeImage(uploadedImage, 100, 125);
+            
+            //TODO: Refactor this to pull settings from a configuration file
+            String filePath = new File("").getAbsolutePath(); 
+            if (filePath.startsWith("/home"))
+                ImageIO.write(resizedImage, "jpg", new File(filePath + "/Projects/NDEx-Site/img/foreground/" + user.getUsername() + ".jpg"));
+            else
+                ImageIO.write(resizedImage, "jpg", new File("/var/node/ndex-site/img/foreground/" + user.getUsername() + ".jpg"));
+        }
+        catch (Exception e)
+        {
+            throw e;
+        }
+        finally
+        {
+            teardownDatabase();
+        }
     }
     
     /**************************************************************************
@@ -414,6 +446,7 @@ public class UserService extends NdexService
     * @param searchParameters The search parameters.
     **************************************************************************/
     @POST
+    @PermitAll
     @Path("/search")
     @Produces("application/json")
     public SearchResult<User> findUsers(SearchParameters searchParameters) throws NdexException
@@ -492,28 +525,15 @@ public class UserService extends NdexService
         }
         catch (ValidationException ve)
         {
-            try
-            {
-                //The user ID is actually a username
-                final Iterable<ODocument> matchingUsers = _orientDbGraph
-                    .getBaseGraph()
-                    .command(new OCommandSQL("select from User where username = ?"))
-                    .execute(userJid);
-                
-                final Iterator<ODocument> userIterator = matchingUsers.iterator(); 
-                if (userIterator.hasNext())
-                    return new User(_orientDbGraph.getVertex(userIterator.next(), IUser.class), true);
-            }
-            catch (Exception e)
-            {
-                _orientDbGraph.getBaseGraph().rollback(); 
-                throw e;
-            }
-        }
-        catch (Exception e)
-        {
-            _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            //The user ID is actually a username
+            final Iterable<ODocument> matchingUsers = _orientDbGraph
+                .getBaseGraph()
+                .command(new OCommandSQL("select from User where username = ?"))
+                .execute(userJid);
+            
+            final Iterator<ODocument> userIterator = matchingUsers.iterator(); 
+            if (userIterator.hasNext())
+                return new User(_orientDbGraph.getVertex(userIterator.next(), IUser.class), true);
         }
         finally
         {
@@ -577,5 +597,25 @@ public class UserService extends NdexService
         {
             teardownDatabase();
         }
+    }
+
+
+
+    
+    /**************************************************************************
+    * Resizes the source image to the specified dimensions.
+    * 
+    * @param sourceImage The image to resize.
+    * @param width       The new image width.
+    * @param height      The new image height.
+    **************************************************************************/
+    private BufferedImage resizeImage(final BufferedImage sourceImage, final int width, final int height)
+    {
+        final Image resizeImage = sourceImage.getScaledInstance(width, height, Image.SCALE_SMOOTH);
+        
+        final BufferedImage resizedImage = new BufferedImage(width, height, Image.SCALE_SMOOTH);
+        resizedImage.getGraphics().drawImage(resizeImage, 0, 0, null);
+        
+        return resizedImage;
     }
 }

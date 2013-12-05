@@ -141,11 +141,6 @@ public class RequestService extends NdexService
     
             return new Request(request);
         }
-        catch (Exception e)
-        {
-            _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
-        }
         finally
         {
             teardownDatabase();
@@ -311,6 +306,8 @@ public class RequestService extends NdexService
         IGroupMembership newMember = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
         newMember.setGroup(group);
         newMember.setMember(user);
+
+        //TODO: Need to add a method to change a member's permissions
         newMember.setPermissions(Permissions.READ);
         
         group.addMember(newMember);
@@ -332,6 +329,8 @@ public class RequestService extends NdexService
         IGroupMembership newMember = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
         newMember.setGroup(group);
         newMember.setMember(user);
+
+        //TODO: Need to add a method to change a member's permissions
         newMember.setPermissions(Permissions.READ);
         
         group.addMember(newMember);
@@ -353,6 +352,8 @@ public class RequestService extends NdexService
         INetworkMembership newMember = _orientDbGraph.addVertex("class:networkMembership", INetworkMembership.class);
         newMember.setNetwork(network);
         newMember.setMember(user);
+
+        //TODO: Need to add a method to change a member's permissions
         newMember.setPermissions(Permissions.READ);
         
         network.addMember(newMember);

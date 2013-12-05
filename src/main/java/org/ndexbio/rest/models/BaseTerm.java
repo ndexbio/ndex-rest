@@ -6,28 +6,56 @@ import org.ndexbio.rest.domain.IBaseTerm;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BaseTerm extends Term
 {
-
+    private String _name;
+    private String _namespace;
+    
+    
+    
     /**************************************************************************
-     * Default constructor.
-     **************************************************************************/
+    * Default constructor.
+    **************************************************************************/
     public BaseTerm()
     {
         super();
+        
+        this.setTermType("Base");
     }
 
     /**************************************************************************
-     * Populates the class (from the database) and removes circular references.
-     * 
-     * @param baseTerm
-     *            The Term with source data.
-     **************************************************************************/
+    * Populates the class (from the database) and removes circular references.
+    * 
+    * @param baseTerm
+    *            The Term with source data.
+    **************************************************************************/
     public BaseTerm(IBaseTerm baseTerm)
     {
         super(baseTerm);
         
-        this.setName(baseTerm.getName());
+        _name = baseTerm.getName();
         
         if (baseTerm.getNamespace() != null)
-            this.setNamespace(baseTerm.getNamespace().getJdexId());
+            _namespace = baseTerm.getNamespace().getJdexId();
+    }
+    
+    
+    
+    public String getName()
+    {
+        return _name;
+    }
+
+    public void setName(String termName)
+    {
+        _name = termName;
+    }
+
+    public String getNamespace()
+    {
+        return _namespace;
+    }
+
+    public void setNamespace(String namespace)
+    {
+        _namespace = namespace;
     }
 }

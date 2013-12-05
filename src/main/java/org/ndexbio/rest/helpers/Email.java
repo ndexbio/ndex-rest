@@ -14,11 +14,16 @@ public class Email
     /**************************************************************************
     * Sends an email using configured settings for the SMTP server.
     *  
-    * @param senderAddress       The sender's email address.
-    * @param recipientAddress    The recipient's email address.
-    * @param subject             The email subject.
-    * @param emailText           The email content.
-    * @throws MessagingException Failed to send the email.
+    * @param senderAddress
+    *            The sender's email address.
+    * @param recipientAddress
+    *            The recipient's email address.
+    * @param subject
+    *            The email subject.
+    * @param emailText
+    *            The email content.
+    * @throws MessagingException
+    *            Failed to send the email.
     **************************************************************************/
     public static void sendEmail(final String senderAddress, final String recipientAddress, final String subject, final String emailText) throws MessagingException
     {
@@ -28,11 +33,16 @@ public class Email
     /**************************************************************************
     * Sends an email using configured settings for the SMTP server.
     *  
-    * @param senderAddress       The sender's email address.
-    * @param recipientAddresses  The recipient email addresses.
-    * @param subject             The email subject.
-    * @param emailText           The email content.
-    * @throws MessagingException Failed to send the email.
+    * @param senderAddress
+    *            The sender's email address.
+    * @param recipientAddresses
+    *            The recipient email addresses.
+    * @param subject
+    *            The email subject.
+    * @param emailText
+    *            The email content.
+    * @throws MessagingException
+    *            Failed to send the email.
     **************************************************************************/
     public static void sendEmail(final String senderAddress, final String recipientAddresses[], final String subject, final String emailText) throws MessagingException
     {
@@ -50,11 +60,16 @@ public class Email
     /**************************************************************************
     * Sends an email using the specified settings for the SMTP server.
     *  
-    * @param senderAddress       The sender's email address.
-    * @param recipientAddresses  The recipient email addresses.
-    * @param subject             The email subject.
-    * @param emailText           The email content.
-    * @throws MessagingException Failed to send the email.
+    * @param senderAddress
+    *            The sender's email address.
+    * @param recipientAddresses
+    *            The recipient email addresses.
+    * @param subject
+    *            The email subject.
+    * @param emailText
+    *            The email content.
+    * @throws MessagingException
+    *            Failed to send the email.
     **************************************************************************/
     public static void sendEmail(final String senderAddress, final String recipientAddresses[], final String subject, final String emailText, final Properties smtpProperties, final String smtpUsername, final String smtpPassword) throws MessagingException
     {

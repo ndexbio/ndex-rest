@@ -17,7 +17,8 @@ public class RidConverter
     /**************************************************************************
     * Converts a JID to a RID.
     * 
-    * @param Jid The JID.
+    * @param Jid
+    *            The JID.
     * @return The JID converted to a RID.
     **************************************************************************/
     public static ORID convertToRid(String Jid) throws ValidationException
@@ -33,7 +34,8 @@ public class RidConverter
     /**************************************************************************
     * Converts a RID to a JID.
     * 
-    * @param Rid The RID.
+    * @param Rid
+    *            The RID.
     * @return The RID converted to a JID.
     **************************************************************************/
     public static String convertToJid(ORID Rid)

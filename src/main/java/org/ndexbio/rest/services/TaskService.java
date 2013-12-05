@@ -133,27 +133,14 @@ public class TaskService extends NdexService
         }
         catch (ValidationException ve)
         {
-            try
-            {
-                //The task ID is actually a task name
-                final Collection<ODocument> matchingtasks = _orientDbGraph
-                    .getBaseGraph()
-                   .command(new OCommandSQL("select from Task where taskname = ?"))
-                   .execute(taskJid);
-    
-               if (matchingtasks.size() > 0)
-                   return new Task(_orientDbGraph.getVertex(matchingtasks.toArray()[0], ITask.class));
-            }
-            catch (Exception e)
-            {
-                _orientDbGraph.getBaseGraph().rollback(); 
-                throw e;
-            }
-        }
-        catch (Exception e)
-        {
-            _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            //The task ID is actually a task name
+            final Collection<ODocument> matchingtasks = _orientDbGraph
+                .getBaseGraph()
+               .command(new OCommandSQL("select from Task where taskname = ?"))
+               .execute(taskJid);
+
+           if (matchingtasks.size() > 0)
+               return new Task(_orientDbGraph.getVertex(matchingtasks.toArray()[0], ITask.class));
         }
         finally
         {

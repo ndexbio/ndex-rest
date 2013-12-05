@@ -149,6 +149,7 @@ public class GroupService extends NdexService
     * @params searchParameters The search parameters
     **************************************************************************/
     @POST
+    @PermitAll
     @Path("/search")
     @Produces("application/json")
     public SearchResult<Group> findGroups(SearchParameters searchParameters) throws NdexException
@@ -202,7 +203,6 @@ public class GroupService extends NdexService
     * @param groupId The ID or name of the group.
     **************************************************************************/
     @GET
-    @PermitAll
     @Path("/{groupId}")
     @Produces("application/json")
     public Group getGroup(@PathParam("groupId") final String groupJid) throws NdexException
@@ -222,24 +222,11 @@ public class GroupService extends NdexService
         }
         catch (ValidationException ve)
         {
-            try
-            {
-                //The group ID is actually a group name
-                final Collection<ODocument> matchingGroups = _orientDbGraph.getBaseGraph().command(new OCommandSQL("select from Group where groupname = ?")).execute(groupJid);
-    
-                if (matchingGroups.size() > 0)
-                    return new Group(_orientDbGraph.getVertex(matchingGroups.toArray()[0], IGroup.class), true);
-            }
-            catch (Exception e)
-            {
-                _orientDbGraph.getBaseGraph().rollback(); 
-                throw e;
-            }
-        }
-        catch (Exception e)
-        {
-            _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            //The group ID is actually a group name
+            final Collection<ODocument> matchingGroups = _orientDbGraph.getBaseGraph().command(new OCommandSQL("select from Group where groupname = ?")).execute(groupJid);
+
+            if (matchingGroups.size() > 0)
+                return new Group(_orientDbGraph.getVertex(matchingGroups.toArray()[0], IGroup.class), true);
         }
         finally
         {

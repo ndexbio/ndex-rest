@@ -18,6 +18,4 @@ public interface IBaseTerm extends ITerm
 
     @Adjacency(label = "namespace")
     public INamespace getNamespace();
-
-
 }
