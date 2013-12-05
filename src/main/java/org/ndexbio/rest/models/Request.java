@@ -17,8 +17,9 @@ public class Request extends NdexObject
     private String _toName;
     private String _message;
     private String _requestType;
-    private String _response;
     private String _responder;
+    private String _response;
+    private String _responseMessage;
 
     
 
@@ -42,6 +43,7 @@ public class Request extends NdexObject
         _message = request.getMessage();
         _responder = request.getResponder();
         _response = request.getResponse();
+        _responseMessage = request.getResponseMessage();
         this.setCreatedDate(request.getRequestTime());
 
         if (request instanceof IGroupInvitationRequest)
@@ -134,6 +136,16 @@ public class Request extends NdexObject
     public void setResponse(String response)
     {
         _response = response;
+    }
+    
+    public String getResponseMessage()
+    {
+        return _responseMessage;
+    }
+    
+    public void setResponseMessage(String responseMessage)
+    {
+        _responseMessage = responseMessage;
     }
 
     public String getTo()

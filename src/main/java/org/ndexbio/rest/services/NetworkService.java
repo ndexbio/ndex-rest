@@ -54,6 +54,7 @@ import com.tinkerpop.blueprints.Vertex;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 import com.tinkerpop.frames.VertexFrame;
 
+//TODO: Need to add a method to change a member's permissions
 @Path("/networks")
 public class NetworkService extends NdexService
 {
@@ -128,21 +129,19 @@ public class NetworkService extends NdexService
     @Produces("application/json")
     public Network createNetwork(final Network newNetwork) throws Exception
     {
-
+        //TODO: check that member has ADMIN and handle groups as well as users
         if (newNetwork == null)
             throw new ValidationException("The network to create is null.");
-
-        //TODO: check that member has ADMIN and handle groups as well as users
-        if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0)
-            throw new ValidationException("The network to create has no members specified");
+        else if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0)
+            throw new ValidationException("The network to create has no members specified.");
 
         try
         {
             setupDatabase();
 
-            Membership newNetworkMembership = newNetwork.getMembers().get(0);
+            final Membership newNetworkMembership = newNetwork.getMembers().get(0);
 
-            ORID userRid = RidConverter.convertToRid(newNetworkMembership.getResourceId());
+            final ORID userRid = RidConverter.convertToRid(newNetworkMembership.getResourceId());
 
             final IUser networkOwner = _orientDbGraph.getVertex(userRid, IUser.class);
             if (networkOwner == null)

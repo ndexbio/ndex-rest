@@ -22,6 +22,7 @@ import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Group;
+import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.SearchResult;
 import com.orientechnologies.orient.core.id.ORID;
@@ -30,8 +31,7 @@ import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.Vertex;
 
-//TODO: Need to add methods to add/remove members
-//TODO: Need to add a method to change a user's permissions
+//TODO: Need to add a method to change a member's permissions
 @Path("/groups")
 public class GroupService extends NdexService
 {
@@ -53,12 +53,12 @@ public class GroupService extends NdexService
     **************************************************************************/
     @PUT
     @Produces("application/json")
-    public Group createGroup(final String ownerId, final Group newGroup) throws Exception
+    public Group createGroup(final Group newGroup) throws Exception
     {
-        if (ownerId == null || ownerId.isEmpty())
-            throw new ValidationException("The group owner wasn't specified.");
-        else if (newGroup == null)
+        if (newGroup == null)
             throw new ValidationException("The group to create is empty.");
+        else if (newGroup.getMembers() == null || newGroup.getMembers().size() == 0)
+            throw new ValidationException("The group to create has no members specified.");
 
         final Pattern groupNamePattern = Pattern.compile("^[A-Za-z0-9]{6,}$");
         if (!groupNamePattern.matcher(newGroup.getName()).matches())
@@ -68,11 +68,13 @@ public class GroupService extends NdexService
         {
             setupDatabase();
             
-            final ORID userRid = RidConverter.convertToRid(ownerId);
+            final Membership newGroupMembership = newGroup.getMembers().get(0);
+
+            final ORID userRid = RidConverter.convertToRid(newGroupMembership.getResourceId());
 
             final IUser groupOwner = _orientDbGraph.getVertex(userRid, IUser.class);
             if (groupOwner == null)
-                throw new ObjectNotFoundException("User", ownerId);
+                throw new ObjectNotFoundException("User", newGroupMembership.getResourceId());
 
             final IGroup group = _orientDbGraph.addVertex("class:group", IGroup.class);
             group.setDescription(newGroup.getDescription());

@@ -70,7 +70,13 @@ public class User extends Account
             _workSurface.add(new Network(onWorkSurface));
         
         for (final IRequest request : user.getRequests())
-            _requests.add(new Request(request));
+        {
+            Request userRequest = new Request(request);
+            
+            //Don't display requests to the user that the user responded to
+            if (userRequest.getResponder() != this.getId())
+                _requests.add(userRequest);
+        }
 
         if (loadEverything)
         {

@@ -31,4 +31,10 @@ public interface IRequest extends VertexFrame
     
     @Property("response")
     public void setResponse(String response);
+    
+    @Property("responseMessage")
+    public String getResponseMessage();
+    
+    @Property("responseMessage")
+    public void setResponseMessage(String responseMessage);
 }

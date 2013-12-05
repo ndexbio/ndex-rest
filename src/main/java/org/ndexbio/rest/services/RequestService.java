@@ -172,7 +172,7 @@ public class RequestService extends NdexService
             requestToUpdate.setResponder(updatedRequest.getResponder());
             requestToUpdate.setResponse(updatedRequest.getResponse());
             
-            if (updatedRequest.getResponse() == "ACCEPTED")
+            if (updatedRequest.getResponse() != "DECLINED")
             {
                 if (updatedRequest.getRequestType() == "Group Invitation")
                     processGroupInvitation(updatedRequest);
@@ -306,9 +306,7 @@ public class RequestService extends NdexService
         IGroupMembership newMember = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
         newMember.setGroup(group);
         newMember.setMember(user);
-
-        //TODO: Need to add a method to change a member's permissions
-        newMember.setPermissions(Permissions.READ);
+        newMember.setPermissions(Permissions.valueOf(requestToProcess.getResponse()));
         
         group.addMember(newMember);
     }
@@ -329,9 +327,7 @@ public class RequestService extends NdexService
         IGroupMembership newMember = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
         newMember.setGroup(group);
         newMember.setMember(user);
-
-        //TODO: Need to add a method to change a member's permissions
-        newMember.setPermissions(Permissions.READ);
+        newMember.setPermissions(Permissions.valueOf(requestToProcess.getResponse()));
         
         group.addMember(newMember);
     }
@@ -352,9 +348,7 @@ public class RequestService extends NdexService
         INetworkMembership newMember = _orientDbGraph.addVertex("class:networkMembership", INetworkMembership.class);
         newMember.setNetwork(network);
         newMember.setMember(user);
-
-        //TODO: Need to add a method to change a member's permissions
-        newMember.setPermissions(Permissions.READ);
+        newMember.setPermissions(Permissions.valueOf(requestToProcess.getResponse()));
         
         network.addMember(newMember);
     }
