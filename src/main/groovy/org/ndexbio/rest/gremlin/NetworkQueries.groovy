@@ -26,15 +26,15 @@ class NetworkQueries {
 
         switch (searchSpec.searchType) {
             case SearchType.DOWNSTREAM:
-                nodes.as("e").out("s").except(foundInEdges).store(foundInEdges).out("o").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
+                nodes.as("e").out("subject").except(foundInEdges).store(foundInEdges).out("object").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
                 break;
             case SearchType.UPSTREAM:
-                nodes.as("e").in("o").except(foundOutEdges).store(foundOutEdges).in("s").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
+                nodes.as("e").in("object").except(foundOutEdges).store(foundOutEdges).in("subject").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
                 break;
             case SearchType.BOTH:
                 nodes.copySplit(
-                        _().as("e1").out("s").except(foundInEdges).store(foundInEdges).out("o").loop("e1", { it.loops < searchSpec.searchDepth }),
-                        _().as("e2").in("o").except(foundOutEdges).store(foundOutEdges).in("s").loop("e2", { it.loops < searchSpec.searchDepth })).exhaustMerge().iterate();
+                        _().as("e1").out("subject").except(foundInEdges).store(foundInEdges).out("object").loop("e1", { it.loops < searchSpec.searchDepth }),
+                        _().as("e2").in("object").except(foundOutEdges).store(foundOutEdges).in("subject").loop("e2", { it.loops < searchSpec.searchDepth })).exhaustMerge().iterate();
                 break;
         }
 
@@ -49,7 +49,7 @@ class NetworkQueries {
     }
 
     def filterByPredicates(OrientBaseGraph g, SearchSpec searchSpec) {
-        def edges = g.v(searchSpec.includedPredicates).in("p");
+        def edges = g.v(searchSpec.includedPredicates).in("predicate");
         def foundInEdges = new HashSet<OrientVertex>();
         def foundOutEdges = new HashSet<OrientVertex>();
 
@@ -61,15 +61,15 @@ class NetworkQueries {
 
         switch (searchSpec.searchType) {
             case SearchType.DOWNSTREAM:
-                edges.as("e").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundInEdges).store(foundInEdges).out("o").out("s").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
+                edges.as("e").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundInEdges).store(foundInEdges).out("object").out("subject").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
                 break;
             case SearchType.UPSTREAM:
-                edges.as("e").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundOutEdges).store(foundOutEdges).in("s").in("o").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
+                edges.as("e").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundOutEdges).store(foundOutEdges).in("subject").in("object").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
                 break;
             case SearchType.BOTH:
                 edges.copySplit(
-                        _().as("e1").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundInEdges).store(foundInEdges).out("o").out("s").loop("e1", { it.loops < searchSpec.searchDepth }),
-                        _().as("e2").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundOutEdges).store(foundOutEdges).in("s").in("o").loop("e2", { it.loops < searchSpec.searchDepth })
+                        _().as("e1").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundInEdges).store(foundInEdges).out("object").out("subject").loop("e1", { it.loops < searchSpec.searchDepth }),
+                        _().as("e2").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundOutEdges).store(foundOutEdges).in("subject").in("object").loop("e2", { it.loops < searchSpec.searchDepth })
                 ).exhaustMerge().iterate();
                 break;
 
@@ -167,7 +167,7 @@ class NetworkQueries {
     }
 
     private static boolean edgePredicateFilter(Vertex edge, Set<OIdentifiable> excludedPredicates) {
-        def Iterable predicate = edge.getVertices(Direction.OUT, "p");
+        def Iterable predicate = edge.getVertices(Direction.OUT, "predicate");
         def Iterator predicateIterator = predicate.iterator();
         !excludedPredicates.contains(predicateIterator.next())
     }
