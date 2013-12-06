@@ -181,7 +181,7 @@ public class CreateTestDatabase
         {
             final JsonNode groupNode = groupsIterator.next();
             final Group groupToCreate = _jsonMapper.readValue(groupNode, Group.class);
-            final Group newGroup = groupService.createGroup(testUser.getId(), groupToCreate);
+            final Group newGroup = groupService.createGroup(groupToCreate);
             
             Assert.assertNotNull(newGroup);
             
