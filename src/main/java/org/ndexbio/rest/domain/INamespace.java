@@ -23,10 +23,13 @@ public interface INamespace extends VertexFrame
 
     @Property("uri")
     public String getUri();
+ 
+    @Adjacency(label = "baseTerms")
+    public void addBaseTerm(IBaseTerm term);
+
+    @Adjacency(label = "baseTerms")
+    public Iterable<IBaseTerm> getBaseTerms();
     
-    @Adjacency(label = "term")
-    public IBaseTerm getTerm();
-    
-    @Adjacency(label = "term")
-    public void setTerm(IBaseTerm term);
+    @Adjacency(label = "baseTerms")
+    public void removeBaseTerm(IBaseTerm term);
 }

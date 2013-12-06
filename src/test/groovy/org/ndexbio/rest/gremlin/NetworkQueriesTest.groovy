@@ -1,4 +1,4 @@
-package org.ndexbio.rest.gremlin
+/*package org.ndexbio.rest.gremlin
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx
 import com.orientechnologies.orient.core.db.record.OIdentifiable
@@ -27,10 +27,7 @@ import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.User;
 import org.ndexbio.rest.models.NewUser;
 
-/**
- * @author Andrey Lomakin <a href="mailto:lomakin.andrey@gmail.com">Andrey Lomakin</a>
- * @since 11/14/13
- */
+
 class NetworkQueriesTest {
     private static final String jdexFile = "/resources/small_corpus.jdex";
     private static NetworkService networkService = new NetworkService();
@@ -99,3 +96,6 @@ class NetworkQueriesTest {
             Assert.assertEquals("edge", edge.record.className)
     }
 }
+
+
+*/

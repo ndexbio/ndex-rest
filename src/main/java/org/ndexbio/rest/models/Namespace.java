@@ -1,6 +1,9 @@
 package org.ndexbio.rest.models;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import org.ndexbio.rest.domain.INamespace;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -9,7 +12,7 @@ public class Namespace extends NdexObject
     private String _jdexId;
     private String _prefix;
     private String _uri;
-    private BaseTerm _baseTerm;
+    private List<BaseTerm> _baseTerms;
     
     
     
@@ -33,19 +36,22 @@ public class Namespace extends NdexObject
         _jdexId = namespace.getJdexId();
         _prefix = namespace.getPrefix();
         _uri = namespace.getUri();
-        _baseTerm = new BaseTerm(namespace.getTerm());
+        
+        // *Don't* add all the BaseTerm jdex ids to the Namespace in the serialization.  
+        // The Terms will have the jdex ids of their namespace.  
+        // If the recipient of the serialization wants to re-construct bidirectional connections, that is their decision
     }
     
     
     
-    public BaseTerm getTerm()
+    public List<BaseTerm> getTerms()
     {
-        return _baseTerm;
+        return _baseTerms;
     }
     
-    public void setTerm(BaseTerm term)
+    public void setTerms(List<BaseTerm> terms)
     {
-        _baseTerm = term;
+        _baseTerms = terms;
     }
     
     public String getJdexId()
