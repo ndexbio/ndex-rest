@@ -38,32 +38,32 @@ public class Edge extends NdexObject
 
     public void setS(String s)
     {
-        this._subjectId = s;
+        _subjectId = s;
     }
 
     public String getS()
     {
-        return this._subjectId;
+        return _subjectId;
     }
 
     public void setP(String p)
     {
-        this._predicateId = p;
+        _predicateId = p;
     }
 
     public String getP()
     {
-        return this._predicateId;
+        return _predicateId;
     }
 
     public void setO(String o)
     {
-        this._objectId = o;
+        _objectId = o;
     }
 
     public String getO()
     {
-        return this._objectId;
+        return _objectId;
     }
 
     public String getObjectId()
