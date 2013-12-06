@@ -1,7 +1,7 @@
 package org.ndexbio.rest.models;
 
 import java.util.Date;
-import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.ndexbio.rest.helpers.RidConverter;
 import com.orientechnologies.orient.core.id.ORID;
 import com.tinkerpop.frames.VertexFrame;

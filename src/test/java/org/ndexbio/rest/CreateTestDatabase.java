@@ -7,9 +7,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
-
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -17,7 +14,8 @@ import org.junit.runners.MethodSorters;
 import org.ndexbio.rest.domain.*;
 import org.ndexbio.rest.models.*;
 import org.ndexbio.rest.services.*;
-
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orientechnologies.orient.client.remote.OServerAdmin;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -37,7 +35,7 @@ public class CreateTestDatabase
     private static ODatabaseDocumentTx _ndexDatabase = null;
     private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
     private static final ObjectMapper _jsonMapper = new ObjectMapper();
-
+    
     @Test
     public void checkDatabase()
     {
@@ -97,17 +95,17 @@ public class CreateTestDatabase
             HashMap<User, JsonNode> usersCreated = new HashMap<User, JsonNode>();
             JsonNode rootNode = _jsonMapper.readTree(new File(testUserUrl.toURI()));
             
-            Iterator<JsonNode> usersIterator = rootNode.getElements();
+            Iterator<JsonNode> usersIterator = rootNode.elements();
             while (usersIterator.hasNext())
             {
                 final JsonNode userNode = usersIterator.next();
-                System.out.println("Creating test user: " + userNode.get("username").asText() + ".");
+                System.out.println("Creating test user: " + userNode.get("username").toString() + ".");
 
-                final NewUser newUser = _jsonMapper.readValue(userNode, NewUser.class);
+                final NewUser newUser = _jsonMapper.readValue(userNode.toString(), NewUser.class);
                 
                 User testUser = userService.createUser(newUser);
                 String userId = testUser.getId();
-                testUser = _jsonMapper.readValue(userNode, User.class);
+                testUser = _jsonMapper.readValue(userNode.toString(), User.class);
                 testUser.setId(userId);
                 userService.updateUser(testUser);
                 usersCreated.put(testUser, userNode);
@@ -131,7 +129,7 @@ public class CreateTestDatabase
                 
                 for (Membership ownedGroup : newUser.getKey().getGroups())
                 {
-                    Iterator<JsonNode> groupIterator = newUser.getValue().get("ownedGroups").getElements();
+                    Iterator<JsonNode> groupIterator = newUser.getValue().get("ownedGroups").elements();
                     while(groupIterator.hasNext())
                         createTestGroupRequests(groupIterator.next().get("requests"), newUser.getKey(), ownedGroup.getResourceId());
                 }
@@ -150,10 +148,10 @@ public class CreateTestDatabase
     {
         final RequestService requestService = new RequestService();
 
-        final Iterator<JsonNode> requestsIterator = requestsNode.getElements();
+        final Iterator<JsonNode> requestsIterator = requestsNode.elements();
         while (requestsIterator.hasNext())
         {
-            Request newRequest = _jsonMapper.readValue(requestsIterator.next(), Request.class);
+            Request newRequest = _jsonMapper.readValue(requestsIterator.next().toString(), Request.class);
             newRequest.setFromId(groupId);
             
             final Iterable<ODocument> usersFound = _orientDbGraph
@@ -176,7 +174,7 @@ public class CreateTestDatabase
         final GroupService groupService = new GroupService();
         final ArrayList<Membership> ownedGroups = new ArrayList<Membership>();
         
-        final Iterator<JsonNode> groupsIterator = groupsNode.getElements();
+        final Iterator<JsonNode> groupsIterator = groupsNode.elements();
         
         Membership userMembership = new Membership();
         userMembership.setPermissions(Permissions.ADMIN);
@@ -188,7 +186,7 @@ public class CreateTestDatabase
         while (groupsIterator.hasNext())
         {
             final JsonNode groupNode = groupsIterator.next();
-            final Group groupToCreate = _jsonMapper.readValue(groupNode, Group.class);
+            final Group groupToCreate = _jsonMapper.readValue(groupNode.toString(), Group.class);
             
             groupToCreate.setMembers(memberList);
             final Group newGroup = groupService.createGroup(groupToCreate);
@@ -209,7 +207,7 @@ public class CreateTestDatabase
     {
         final NetworkService networkService = new NetworkService();
 
-        final Iterator<JsonNode> networksIterator = networkFilesNode.getElements();
+        final Iterator<JsonNode> networksIterator = networkFilesNode.elements();
         while (networksIterator.hasNext())
         {
             final URL testNetworkUrl = getClass().getResource("/resources/" + networksIterator.next().asText());
@@ -234,10 +232,10 @@ public class CreateTestDatabase
     {
         final RequestService requestService = new RequestService();
 
-        final Iterator<JsonNode> requestsIterator = requestsNode.getElements();
+        final Iterator<JsonNode> requestsIterator = requestsNode.elements();
         while (requestsIterator.hasNext())
         {
-            Request newRequest = _jsonMapper.readValue(requestsIterator.next(), Request.class);
+            Request newRequest = _jsonMapper.readValue(requestsIterator.next().toString(), Request.class);
             newRequest.setFromId(testUser.getId());
             
             if (newRequest.getRequestType().equals("Join Group"))

@@ -9,10 +9,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.codehaus.jackson.JsonNode;
 import org.junit.Assert;
 import org.junit.Test;
-import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.models.BaseTerm;
@@ -106,9 +104,8 @@ public class NetworkFromExcelTest {
 
 		// TODO add support for other columns
 
-		Map termMap = new HashMap<String, BaseTerm>();
-		Map nodeMap = new HashMap<String, Node>();
-		Integer idCounter = 0;
+		Map<String, BaseTerm> termMap = new HashMap<String, BaseTerm>();
+		Map<String, Node> nodeMap = new HashMap<String, Node>();
 
 		// Iterate over the remaining rows to load each edge
 		while (rowIterator.hasNext()) {

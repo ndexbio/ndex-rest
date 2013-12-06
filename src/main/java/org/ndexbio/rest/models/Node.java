@@ -1,6 +1,6 @@
 package org.ndexbio.rest.models;
 
-import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.INode;
 
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -1,7 +1,7 @@
 package org.ndexbio.rest.models;
 
 import java.util.Collection;
-import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 //TODO: Remove this class, it's unnecessary
 //TODO: Refactor KnockoutJS bindings to not use this class
