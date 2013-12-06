@@ -177,10 +177,20 @@ public class CreateTestDatabase
         final ArrayList<Membership> ownedGroups = new ArrayList<Membership>();
         
         final Iterator<JsonNode> groupsIterator = groupsNode.getElements();
+        
+        Membership userMembership = new Membership();
+        userMembership.setPermissions(Permissions.ADMIN);
+        userMembership.setResourceId(testUser.getId());
+        userMembership.setResourceName(testUser.getUsername());
+        List<Membership> memberList = new ArrayList<Membership>();
+        memberList.add(userMembership);
+        
         while (groupsIterator.hasNext())
         {
             final JsonNode groupNode = groupsIterator.next();
             final Group groupToCreate = _jsonMapper.readValue(groupNode, Group.class);
+            
+            groupToCreate.setMembers(memberList);
             final Group newGroup = groupService.createGroup(groupToCreate);
             
             Assert.assertNotNull(newGroup);

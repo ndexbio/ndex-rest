@@ -48,7 +48,6 @@ public class GroupService extends NdexService
     /**************************************************************************
     * Creates a group. 
     * 
-    * @param ownerId  The owner's ID.
     * @param newGroup The group to create.
     **************************************************************************/
     @PUT

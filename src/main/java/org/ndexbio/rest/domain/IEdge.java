@@ -1,5 +1,6 @@
 package org.ndexbio.rest.domain;
 
+import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.frames.Adjacency;
 import com.tinkerpop.frames.Property;
 import com.tinkerpop.frames.VertexFrame;
@@ -30,10 +31,10 @@ public interface IEdge extends VertexFrame
     @Adjacency(label = "predicate")
     public IBaseTerm getPredicate();
 
-    @Adjacency(label = "subject")
+    @Adjacency(label = "subject", direction = Direction.IN)
     public INode setSubject(INode subject);
 
-    @Adjacency(label = "subject")
+    @Adjacency(label = "subject", direction = Direction.IN)
     public INode getSubject();
     
     @Adjacency(label = "supports")
