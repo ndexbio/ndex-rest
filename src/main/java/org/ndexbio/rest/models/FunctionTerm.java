@@ -1,7 +1,7 @@
 package org.ndexbio.rest.models;
 
 import java.util.Map;
-import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.ITerm;
 
@@ -11,6 +11,8 @@ public class FunctionTerm extends Term
     private String _termFunction;
     private Map<Integer, String> _parameters;
 
+    
+    
     /**************************************************************************
     * Default constructor.
     **************************************************************************/
@@ -39,18 +41,6 @@ public class FunctionTerm extends Term
 
 
 
-    public String getTermFunction()
-    {
-
-        return _termFunction;
-    }
-
-    public void setTermFunction(String termFunction)
-    {
-        setTermType("FUNCTION");
-        _termFunction = termFunction;
-    }
-
     public Map<Integer, String> getParameters()
     {
         return _parameters;
@@ -58,7 +48,16 @@ public class FunctionTerm extends Term
 
     public void setParameters(Map<Integer, String> parameters)
     {
-        setTermType("FUNCTION");
         _parameters = parameters;
+    }
+
+    public String getTermFunction()
+    {
+        return _termFunction;
+    }
+
+    public void setTermFunction(String termFunction)
+    {
+        _termFunction = termFunction;
     }
 }

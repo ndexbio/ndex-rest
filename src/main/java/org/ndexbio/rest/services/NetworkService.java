@@ -48,9 +48,11 @@ import org.ndexbio.rest.models.Edge;
 import org.ndexbio.rest.models.Citation;
 import org.ndexbio.rest.models.Support;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.Vertex;
+import com.tinkerpop.blueprints.impls.orient.OrientElement;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 import com.tinkerpop.frames.VertexFrame;
 
@@ -224,26 +226,21 @@ public class NetworkService extends NdexService
             if (networkToDelete == null)
                 return;
 
-            // TODO: Need to remove orphaned vertices
             _orientDbGraph.removeVertex(networkToDelete);
-            _orientDbGraph.getBaseGraph().commit();
 
-            // TODO: Deleting a network should delete all children
-            // ODatabaseDocumentTx databaseDocumentTx =
-            // orientDbGraph.getBaseGraph().getRawGraph();
-            // List<ODocument> networkChildren = databaseDocumentTx.query(new
-            // OSQLSynchQuery<Object>("select @rid from (TRAVERSE * FROM " +
-            // networkRid + " while @class <> 'xUser')"));
-            //
-            // for (ODocument networkChild : networkChildren)
-            // {
-            // ORID childId = networkChild.field("rid", OType.LINK);
-            // OrientElement element =
-            // orientDbGraph.getBaseGraph().getElement(childId);
-            //
-            // if (element != null)
-            // element.remove();
-            // }
+            //Delete all children vertices of the network
+            List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + networkRid + " while @class <> 'Account')"));
+
+            for (ODocument networkChild : networkChildren)
+            {
+                ORID childId = networkChild.field("rid", OType.LINK);
+                OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
+            
+                if (element != null)
+                    element.remove();
+            }
+
+            _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
@@ -526,37 +523,37 @@ public class NetworkService extends NdexService
         {
             final Term term = termEntry.getValue();
 
-            if (term.getTermType().equals("Base"))
+            if (term.getTermType() == null || term.getTermType().isEmpty() || term.getTermType().equals("Base"))
             {
-                final IBaseTerm iBaseTerm = _orientDbGraph.addVertex("class:baseTerm", IBaseTerm.class);
-                iBaseTerm.setName(((BaseTerm)term).getName());
-                iBaseTerm.setJdexId(termEntry.getKey());
+                final IBaseTerm newBaseTerm = _orientDbGraph.addVertex("class:baseTerm", IBaseTerm.class);
+                newBaseTerm.setName(((BaseTerm)term).getName());
+                newBaseTerm.setJdexId(termEntry.getKey());
 
                 String jdexId = ((BaseTerm)term).getNamespace();
                 if (jdexId != null && !jdexId.isEmpty())
                 {
                     final VertexFrame namespace = networkIndex.get(jdexId);
                     if (namespace != null)
-                        iBaseTerm.setNamespace((INamespace) namespace);
+                        newBaseTerm.setNamespace((INamespace) namespace);
                 }
 
-                newNetwork.addTerm(iBaseTerm);
-                networkIndex.put(iBaseTerm.getJdexId(), iBaseTerm);
+                newNetwork.addTerm(newBaseTerm);
+                networkIndex.put(newBaseTerm.getJdexId(), newBaseTerm);
             }
             else if (term.getTermType().equals("Function"))
             {
-                final IFunctionTerm functionTerm = _orientDbGraph.addVertex("class:functionTerm", IFunctionTerm.class);
-                functionTerm.setJdexId(termEntry.getKey());
+                final IFunctionTerm newFunctionTerm = _orientDbGraph.addVertex("class:functionTerm", IFunctionTerm.class);
+                newFunctionTerm.setJdexId(termEntry.getKey());
 
                 final VertexFrame function = networkIndex.get(((FunctionTerm)term).getTermFunction());
                 if (function != null)
-                    functionTerm.setTermFunction((IBaseTerm) function);
+                    newFunctionTerm.setTermFunction((IBaseTerm) function);
 
                 for (Map.Entry<Integer, String> entry : ((FunctionTerm)term).getParameters().entrySet())
                 {
                     Integer key = entry.getKey();
                     String value = entry.getValue();
-                    functionTerm.getTextParameters().put(key, value);
+                    newFunctionTerm.getTextParameters().put(key, value);
                 }
 
                 /*
@@ -565,8 +562,8 @@ public class NetworkService extends NdexService
                  * functionTerm.getTermParameters().put(entry.getKey(), (ITerm)
                  * networkIndex.get(entry.getValue()));
                  */
-                newNetwork.addTerm(functionTerm);
-                networkIndex.put(functionTerm.getJdexId(), functionTerm);
+                newNetwork.addTerm(newFunctionTerm);
+                networkIndex.put(newFunctionTerm.getJdexId(), newFunctionTerm);
             }
         }
     }

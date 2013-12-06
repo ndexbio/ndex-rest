@@ -3,10 +3,7 @@ package org.ndexbio.rest;
 import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-
-import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -19,10 +16,10 @@ import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NetworkQueryParameters;
 import org.ndexbio.rest.models.NewUser;
-import org.ndexbio.rest.models.Term;
 import org.ndexbio.rest.models.User;
 import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.UserService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class NetworkQueryTest {
 
@@ -69,7 +66,7 @@ public class NetworkQueryTest {
 				System.out.println("Creating test network owned by user "
 						+ queryTester.getId());
 				
-				List membershipList = new ArrayList();
+				List<Membership> membershipList = new ArrayList<Membership>();
 	            Membership membership = new Membership();
 	            membership.setResourceId(queryTester.getId());
 	            membership.setResourceName(queryTester.getUsername());
@@ -142,15 +139,12 @@ public class NetworkQueryTest {
 			String termString = "RBL1_HUMAN";
 			System.out.println("Finding term " + termString
 					+ " in test network " + queryNetwork.getId());
-			Collection<Term> terms = networkService.getBaseTermsByName(
-					queryNetwork.getId(), termString);
-			if (terms.size() == 0) {
-				Assert.fail("no term found with name " + termString);
-			} else {
-				Term term = terms.iterator().next();
+			List<String> termStrings = new ArrayList<String>();
+			termStrings.add(termString);
+
 
 				NetworkQueryParameters networkQueryParameters = new NetworkQueryParameters();
-				networkQueryParameters.addStartingTermId(term.getId());
+				networkQueryParameters.setStartingTermStrings(termStrings);
 				networkQueryParameters
 						.setRepresentationCriterion(RepresentationCriteria.STRICT
 								.toString());
@@ -162,11 +156,14 @@ public class NetworkQueryTest {
 				Network neighborhoodNetwork = networkService.queryNetwork(
 						queryNetwork.getId(), networkQueryParameters);
 
-				Assert.assertTrue(!neighborhoodNetwork.getEdges().isEmpty());
-			}
+				Assert.assertNotNull(neighborhoodNetwork);
+
 		} catch (NdexException e) {
 			// TODO Auto-generated catch block
 			Assert.fail(e.getMessage());
+			e.printStackTrace();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 

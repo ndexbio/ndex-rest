@@ -9,12 +9,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.codehaus.jackson.JsonNode;
 import org.junit.Assert;
 import org.junit.Test;
-import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
+import org.ndexbio.rest.models.BaseTerm;
 import org.ndexbio.rest.models.Edge;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
@@ -105,9 +104,8 @@ public class NetworkFromExcelTest {
 
 		// TODO add support for other columns
 
-		Map termMap = new HashMap<String, Term>();
-		Map nodeMap = new HashMap<String, Node>();
-		Integer idCounter = 0;
+		Map<String, BaseTerm> termMap = new HashMap<String, BaseTerm>();
+		Map<String, Node> nodeMap = new HashMap<String, Node>();
 
 		// Iterate over the remaining rows to load each edge
 		while (rowIterator.hasNext()) {
@@ -119,13 +117,13 @@ public class NetworkFromExcelTest {
 			if (!subjectIdentifier.isEmpty() && !predicateIdentifier.isEmpty()
 					&& !objectIdentifier.isEmpty()) {
 
-				Term predicate = findOrCreateTerm(predicateIdentifier, termMap,
+				BaseTerm predicate = findOrCreateBaseTerm(predicateIdentifier, termMap,
 						network);
-				Term subjectTerm = findOrCreateTerm(subjectIdentifier, termMap,
+				BaseTerm subjectTerm = findOrCreateBaseTerm(subjectIdentifier, termMap,
 						network);
 				Node subjectNode = findOrCreateNode(subjectTerm, nodeMap,
 						network);
-				Term objectTerm = findOrCreateTerm(objectIdentifier, termMap,
+				BaseTerm objectTerm = findOrCreateBaseTerm(objectIdentifier, termMap,
 						network);
 				Node objectNode = findOrCreateNode(objectTerm, nodeMap,
 						network);
@@ -161,7 +159,7 @@ public class NetworkFromExcelTest {
 		network.getEdges().put(edge.getId(), edge);
 	}
 
-	private Node findOrCreateNode(Term term, Map<String, Node> nodeMap,
+	private Node findOrCreateNode(BaseTerm term, Map<String, Node> nodeMap,
 			 Network network) {
 		Node node = nodeMap.get(term.getName());
 		if (node != null)
@@ -176,18 +174,18 @@ public class NetworkFromExcelTest {
 		return node;
 	}
 
-	private Term findOrCreateTerm(String identifier, Map<String, Term> termMap,
+	private BaseTerm findOrCreateBaseTerm(String identifier, Map<String, BaseTerm> termMap,
 			Network network) {
-		Term term = termMap.get(identifier);
+		BaseTerm term = termMap.get(identifier);
 		if (term != null)
 			return term;
 		idCounter++;
-		term = new Term();
-		term.setId(idCounter.toString());
-		term.setName(identifier);
-		network.getTerms().put(term.getId(), term);
-		termMap.put(identifier, term);
-		return term;
+		BaseTerm newTerm = new BaseTerm();
+		newTerm.setId(idCounter.toString());
+		newTerm.setName(identifier);
+		network.getTerms().put(newTerm.getId(), newTerm);
+		termMap.put(identifier, newTerm);
+		return newTerm;
 	}
 
 }

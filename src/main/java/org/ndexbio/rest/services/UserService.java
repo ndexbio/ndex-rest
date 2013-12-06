@@ -36,9 +36,11 @@ import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.rest.models.User;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+import com.tinkerpop.blueprints.impls.orient.OrientElement;
 
 @Path("/users")
 public class UserService extends NdexService
@@ -381,6 +383,19 @@ public class UserService extends NdexService
             
             //TODO: Need to remove orphaned vertices
             _orientDbGraph.removeVertex(userToDelete.asVertex());
+
+            //Delete all children vertices of the network
+            List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + userRid + " while @class <> 'Account')"));
+
+            for (ODocument networkChild : networkChildren)
+            {
+                ORID childId = networkChild.field("rid", OType.LINK);
+                OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
+            
+                if (element != null)
+                    element.remove();
+            }
+
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)

@@ -2,7 +2,7 @@ package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.IEdge;
 import org.ndexbio.rest.domain.ISupport;

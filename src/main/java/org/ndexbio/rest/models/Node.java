@@ -1,13 +1,13 @@
 package org.ndexbio.rest.models;
 
-import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.INode;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Node extends NdexObject
 {
-    private String name;
-    private String represents;
+    private String _name;
+    private String _represents;
     
     
     
@@ -29,31 +29,31 @@ public class Node extends NdexObject
         super(node);
 
         
-        name = node.getName();
+        _name = node.getName();
         
         if (node.getRepresents() != null)
-            represents = node.getRepresents().getJdexId();
+            _represents = node.getRepresents().getJdexId();
     }
     
     
     
     public String getName()
     {
-        return name;
+        return _name;
     }
     
     public void setName(String name)
     {
-        this.name = name;
+        _name = name;
     }
     
     public String getRepresents()
     {
-        return represents;
+        return _represents;
     }
     
     public void setRepresents(String representsId)
     {
-        represents = representsId;
+        _represents = representsId;
     }
 }

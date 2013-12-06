@@ -2,7 +2,7 @@ package org.ndexbio.rest.models;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 //TODO: This class is inaccurate; it should look like the client-side model
 @JsonIgnoreProperties(ignoreUnknown = true)

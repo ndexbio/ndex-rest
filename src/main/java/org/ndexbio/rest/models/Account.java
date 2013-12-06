@@ -1,9 +1,14 @@
 package org.ndexbio.rest.models;
 
-import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.ndexbio.rest.domain.IAccount;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "accountType")
+@JsonSubTypes(value = { @Type(value = Group.class, name = "Group"), @Type(value = User.class, name = "User") })
 public abstract class Account extends NdexObject
 {
     private String _backgroundImage;
@@ -69,7 +74,7 @@ public abstract class Account extends NdexObject
     {
         _foregroundImage = foregroundImage;
     }
-
+    
     public String getWebsite()
     {
         return _website;

@@ -1,5 +1,6 @@
 [
 	{
+		"accountType": "User",
 		"username": "dexterpratt",
 		"password": "insecure",
 		"firstName": "Dexter",
@@ -15,6 +16,7 @@
 		"ownedGroups":
 		[
 			{
+				"accountType": "Group",
 				"name": "triptychjs",
 				"organizationName": "Triptych.js",
 				"website": "www.triptychjs.org",
@@ -52,6 +54,7 @@
 		]
 	},
 	{
+		"accountType": "User",
 		"username": "jstegall",
 		"password": "susceptible",
 		"firstName": "John",
@@ -87,6 +90,7 @@
 		]
 	},
 	{
+		"accountType": "User",
 		"username": "fjcriscuolo",
 		"password": "pregnable",
 		"firstName": "Fred",
