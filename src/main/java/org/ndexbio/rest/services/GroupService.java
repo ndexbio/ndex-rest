@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
-import java.util.regex.Pattern;
 import javax.annotation.security.PermitAll;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -13,6 +12,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.IGroupMembership;
 import org.ndexbio.rest.domain.IUser;
@@ -21,6 +21,7 @@ import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.Validation;
 import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.SearchParameters;
@@ -29,9 +30,7 @@ import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.Vertex;
 
-//TODO: Need to add a method to change a member's permissions
 @Path("/groups")
 public class GroupService extends NdexService
 {
@@ -58,9 +57,7 @@ public class GroupService extends NdexService
             throw new ValidationException("The group to create is empty.");
         else if (newGroup.getMembers() == null || newGroup.getMembers().size() == 0)
             throw new ValidationException("The group to create has no members specified.");
-
-        final Pattern groupNamePattern = Pattern.compile("^[A-Za-z0-9]{6,}$");
-        if (!groupNamePattern.matcher(newGroup.getName()).matches())
+        else if (!Validation.isValid(newGroup.getName(), Validation.REGEX_GROUP_NAME))
             throw new ValidationException("Invalid group name: " + newGroup.getName() + ".");
 
         try
@@ -125,12 +122,16 @@ public class GroupService extends NdexService
         {
             setupDatabase();
             
-            final Vertex groupToDelete = _orientDbGraph.getVertex(groupId);
+            final IGroup groupToDelete = _orientDbGraph.getVertex(groupId, IGroup.class);
             if (groupToDelete == null)
                 throw new ObjectNotFoundException("Group", groupJid);
+            else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
+                throw new ResteasyAuthenticationException("Insufficient privileges to delete the group.");
 
-            //TODO: Need to remove orphaned vertices
-            _orientDbGraph.removeVertex(groupToDelete);
+            for (IGroupMembership groupMembership : groupToDelete.getMembers())
+                _orientDbGraph.removeVertex(groupMembership.asVertex());
+            
+            _orientDbGraph.removeVertex(groupToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
@@ -258,6 +259,8 @@ public class GroupService extends NdexService
             final IGroup groupToUpdate = _orientDbGraph.getVertex(groupRid, IGroup.class);
             if (groupToUpdate == null)
                 throw new ObjectNotFoundException("Group", updatedGroup.getId());
+            else if (!hasPermission(updatedGroup, Permissions.WRITE))
+                throw new ResteasyAuthenticationException("Insufficient privileges to update the group.");
     
             if (updatedGroup.getDescription() != null && !updatedGroup.getDescription().isEmpty())
                 groupToUpdate.setDescription(updatedGroup.getDescription());
@@ -282,5 +285,25 @@ public class GroupService extends NdexService
         {
             teardownDatabase();
         }
+    }
+    
+    
+    
+    /**************************************************************************
+    * Determines if the logged in user has sufficient permissions to a group. 
+    * 
+    * @param targetGroup
+    *            The group to test for permissions.
+    * @return True if the member has permission, false otherwise.
+    **************************************************************************/
+    private boolean hasPermission(Group targetGroup, Permissions requiredPermissions)
+    {
+        for (Membership groupMembership : this.getLoggedInUser().getGroups())
+        {
+            if (groupMembership.getResourceId() == targetGroup.getId() && groupMembership.getPermissions().compareTo(requiredPermissions) > -1)
+                return true;
+        }
+        
+        return false;
     }
 }
