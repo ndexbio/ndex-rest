@@ -23,6 +23,14 @@ public class NamespaceGroupSplitter extends XBelSplitter {
 		super(context, xmlElement);
 	}
 	@Override
+	/*
+	 * method to process unmarshaled  XBEL namespace elements from XBEL document
+	 * responsible for registering novel namespace prefixes in the identifier cache,
+	 * for determining the new or existing jdex id for the namespace and for persisting
+	 * new namespaces into the orientdb databases
+	 * 
+	 * @see org.ndexbio.xbel.splitter.XBelSplitter#process()
+	 */
 	protected void process() throws JAXBException {
 		NamespaceGroup ng = (NamespaceGroup) unmarshallerHandler
 				.getResult();
@@ -37,12 +45,11 @@ public class NamespaceGroupSplitter extends XBelSplitter {
 						Long jdexId = XbelCacheService.INSTANCE.accessIdentifierCache()
 							.get(ns.getPrefix());
 						// create a INamespace instance using data from the Namespace model object	
-						// n.b. this method creates a VertexFrame in the orientdb database
-						INamespace ins = XBelNetworkService.getInstance().createNamespace(ns, jdexId);
-						//  cache the INamespace and persist  if new
-						persistenceService.findOrCreateNdexEntity(ins);
+						// n.b. this method may create a VertexFrame in the orientdb database
+						INamespace ins = XBelNetworkService.getInstance().createINamespace(ns, jdexId);
+						
 					} catch (ExecutionException e) {
-						// TODO Auto-generated catch block
+						
 						//TODO utilize a central application logger
 						e.printStackTrace();
 					}

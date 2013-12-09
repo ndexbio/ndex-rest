@@ -1,13 +1,19 @@
 package org.ndexbio.xbel.splitter;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 
+import org.ndexbio.orientdb.service.NDExPersistenceService;
+import org.ndexbio.orientdb.service.NDExPersistenceServiceFactory;
+import org.ndexbio.orientdb.service.XBelNetworkService;
+import org.ndexbio.rest.domain.IBaseTerm;
+import org.ndexbio.rest.domain.IFunctionTerm;
+import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.xbel.cache.XbelCacheService;
-
 import org.ndexbio.xbel.model.Parameter;
 import org.ndexbio.xbel.model.Statement;
 import org.ndexbio.xbel.model.StatementGroup;
@@ -16,14 +22,22 @@ import org.ndexbio.xbel.model.Term;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 public class StatementGroupSplitter extends XBelSplitter {
 	private static final String xmlElement = "statementGroup";
 	private static Joiner idJoiner = Joiner.on(":").skipNulls();
+	private NDExPersistenceService persistenceService;
+	
 
 	public StatementGroupSplitter(JAXBContext context) {
 		super(context, xmlElement);
-		// TODO Auto-generated constructor stub
+		/*
+		 * this class persists XBEL data into orientdb
+		 * establish a reference to the persistence service
+		 */
+		this.persistenceService = NDExPersistenceServiceFactory.
+				 INSTANCE.getNDExPersistenceService();
 	}
 
 	@Override
@@ -89,8 +103,9 @@ public class StatementGroupSplitter extends XBelSplitter {
 		
 		List<Long> jdexIdList = Lists.newArrayList(); // list of child term ids
 		this.processInnerTerms(term, jdexIdList);
-		this.createBaseTermForFunctionTerm(term, jdexIdList);
-		//TODO persist to database
+		Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
+				idJoiner.join(jdexIdList));
+		persistFunctionTerm( term, jdexId,  jdexIdList);
 	}
 
 	/*
@@ -119,42 +134,73 @@ public class StatementGroupSplitter extends XBelSplitter {
 				/*
 				 * find or create a BaseTerm for this FunctionTerm's function
 				 */
-				this.createBaseTermForFunctionTerm(term, innerList);
+				
 				// obtain a new or existing JDEX ID from the cache based on the
 				// identifier
-				Long termId = XbelCacheService.INSTANCE.accessTermCache().get(
+				Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
 						idJoiner.join(innerList));
 				//TODO persist to database
-
+				persistFunctionTerm( term, jdexId,  childList);
 				if (null != childList) {
-					childList.add(termId);
+					childList.add(jdexId);
 				}
 
 			} else {
 				Parameter p = (Parameter) o;
-				Long termId = XbelCacheService.INSTANCE.accessTermCache().get(
+				Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
 						idJoiner.join(p.getNs(), p.getValue()));
-				//TODO persist to database
-				childList.add(termId);
+				IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p, jdexId);
+					
+				childList.add(jdexId);
 			}
 		}
 	}
 
+	  private void persistFunctionTerm(Term term, Long jdexId, List<Long> childList) {
+		  try {
+			IFunctionTerm ft = persistenceService.findOrCreateIFunctionTerm(jdexId);
+			
+			ft.setTermFunction(this.createBaseTermForFunctionTerm(term, childList));
+			Map<Integer,String> btMap = Maps.newHashMap();
+			Map<Integer,ITerm> ftMap  = Maps.newHashMap();
+			ft.setTextParameters(btMap);
+			ft.setTermParameters(ftMap); 
+			int btCount = 0;
+			int ftCount = 0;
+			for(Long childId : childList){
+				ITerm child = persistenceService.findChildITerm(childId);
+				if (child instanceof IBaseTerm){
+					btCount++;
+					ft.getTextParameters().put(btCount, ((IBaseTerm) child).getName());
+				} else if ( child instanceof IFunctionTerm){
+					ftCount++;
+					ft.getTermParameters().put(ftCount, child);
+				} else {
+					System.out.println("Error unknown term type: " + child.getClass().getName());
+				}
+			}
+			
+		} catch (ExecutionException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		  
+	  }
 	/*
 	 * The function portion of a FunctionTerm is also a BaseTerm and needs to be
 	 * included as a child term in the function term
 	 */
-	private void createBaseTermForFunctionTerm(Term term, List<Long> idList)
+	private IBaseTerm createBaseTermForFunctionTerm(Term term, List<Long> idList)
 			throws ExecutionException {
 		Parameter p = new Parameter();
 		p.setNs("BEL");
 		p.setValue(term.getFunction().value());
 		
-		Long termId = XbelCacheService.INSTANCE.accessTermCache().get(
+		Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
 				idJoiner.join(p.getNs(), p.getValue()));
-		//TODO: persist to database
-		idList.add(termId);
-
+		IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p, jdexId);
+		idList.add(jdexId);
+		return bt;
 	}
 
 

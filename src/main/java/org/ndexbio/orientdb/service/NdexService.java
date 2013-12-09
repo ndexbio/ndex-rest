@@ -19,14 +19,22 @@ import com.tinkerpop.frames.FramedGraphFactory;
 import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
 import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
-public abstract class NdexService
+/*
+ * abstract class supporting common interactions with the orientdb database
+ * specifically acquiruing a database connection  initiating a graph module and
+ * closing the database conection
+ */
+
+public class NdexService
 {
     
     protected FramedGraphFactory _graphFactory = null;
     protected ODatabaseDocumentTx _ndexDatabase = null;
     protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
     
-    
+    public NdexService() {
+    	this.setupDatabase();
+    }
     
    
     /**************************************************************************

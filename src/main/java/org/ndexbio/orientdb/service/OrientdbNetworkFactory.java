@@ -24,7 +24,7 @@ public enum OrientdbNetworkFactory {
 	private String testUserName = "jstegall";
 	
 	public INetwork createTestNetwork(String title) {
-		 final INetwork testNetwork = XBelNetworkService.getInstance().createNewNetwork();
+		 final INetwork testNetwork = XBelNetworkService.getInstance().createNewNetwork(network);
 		 List<Membership> membershipList = new ArrayList<Membership>();
 			Membership membership = new Membership();
 			User testUser = XBelNetworkService.getInstance().resolveUserUserByUsername(testUserName);

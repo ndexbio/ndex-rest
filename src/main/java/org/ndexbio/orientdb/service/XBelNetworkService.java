@@ -1,5 +1,8 @@
 package org.ndexbio.orientdb.service;
 
+import java.util.concurrent.ExecutionException;
+
+import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
@@ -11,20 +14,25 @@ import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.xbel.model.Namespace;
+import org.ndexbio.xbel.model.Parameter
+;
 
+import com.google.common.base.Preconditions;
 import com.orientechnologies.orient.core.id.ORID;
 
+
 /*
- * represents a collection of orientdb database operations specific to
- * loading networks from XBEL data
+ * represents a class responsible for mapping XBel model objects to new Ndex domain objects
+ * 
  * The primary justification for this class is to separate the use of XBel
  * model objects from identically named NDEx model objects
  */
-public class XBelNetworkService extends NetworkService {
+public class XBelNetworkService  {
 	
 	private static XBelNetworkService instance;
 	
 	private static boolean databaseConnected = false;
+	private NDExPersistenceService persistenceService;
 	
 	public static XBelNetworkService getInstance(){
 		if( null == instance){
@@ -37,78 +45,40 @@ public class XBelNetworkService extends NetworkService {
  
 	private XBelNetworkService() {
 		super();
-		 setupDatabase();
-		 System.out.println("Connected to OrientDb databse established. ");
-		 databaseConnected = true;
+		 this.persistenceService = NDExPersistenceServiceFactory.INSTANCE.getNDExPersistenceService();
 	}
 	
-	public boolean isDatabaseConnected() {
-		return databaseConnected;
+	
+	
+	public INetwork createNewNetwork(Network network) throws Exception {
+		return this.persistenceService.createNetwork(network);
 	}
 	
-	public INetwork createNewNetwork() {
-		 return _orientDbGraph.addVertex("class:network", INetwork.class);
-	}
-	
-	 /**************************************************************************
-	    * Creates a network.
-	    * 
-	    * @param ownerId
-	    *            The ID of the user creating the group.
-	    * @param newNetwork
-	    *            The network to create.
-	    **************************************************************************/
-	    
-	    public Network createNetwork(final Network newNetwork) throws Exception
-	    {
-	        
-	        if (newNetwork == null)
-	            throw new ValidationException("The network to create is null.");
-	        else if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0)
-	            throw new ValidationException("The network to create has no members specified.");
-
-	        try
-	        {
-	           
-	            final Membership newNetworkMembership = newNetwork.getMembers().get(0);
-	            final ORID userRid = RidConverter.convertToRid(newNetworkMembership.getResourceId());
-
-	            final IUser networkOwner = _orientDbGraph.getVertex(userRid, IUser.class);
-	            if (networkOwner == null)
-	                throw new ObjectNotFoundException("User", newNetworkMembership.getResourceId());
-
-	            final INetwork network = _orientDbGraph.addVertex("class:network", INetwork.class);
-
-	            final INetworkMembership membership = _orientDbGraph.addVertex("class:networkMembership", INetworkMembership.class);
-	            membership.setPermissions(Permissions.ADMIN);
-	            membership.setMember(networkOwner);
-	            membership.setNetwork(network);
-	            networkOwner.addNetwork(membership);
-	            network.addMember(membership);
-	            network.setIsPublic(false);
-	            network.setFormat(newNetwork.getFormat());
-	            network.setSource(newNetwork.getSource());
-	            network.setTitle(newNetwork.getTitle());
-
-	            
-	            return new Network(network);
-	        }catch (Exception e)
-	        {
-	            _orientDbGraph.getBaseGraph().rollback();
-	            throw e;
-	        }
+	  
+	    /*
+	     * public method to map a XBEL model Parameter object to a orientdb IBaseTerm object
+	     * n.b. this method creates a vertex in the orientdb database
+	     */
+	    public IBaseTerm createIBaseTerm(Parameter p, Long jdexId) throws ExecutionException{
+	    	Preconditions.checkArgument(null != p, "A Parameter object is required");
+	    	Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0  , "A valid jdex id is required");
+	    	final IBaseTerm bt = persistenceService.findOrCreateIBaseTerm(jdexId);
+	    	
+	    	bt.setName(p.getValue());
+	    	// resolve INamespace reference for this parameter from cache	    	
+        	bt.setNamespace(persistenceService.findNamespaceByPrefix(p.getNs()));	    	
+	    	bt.setJdexId(jdexId.toString());
+	    	return bt;    	
 	    }
 	    
-	    public void closeDatabase() {
-	    	if(databaseConnected){
-	    		teardownDatabase();
-	    		System.out.println("Connection to OrientDb database closed");
-	    		databaseConnected = false;
-	    	}
-	    }
-	    
-	    public INamespace createNamespace(Namespace ns, Long jdexId) {
-	    	final INamespace newNamespace = _orientDbGraph.addVertex("class:namespace", INamespace.class);
+	    /*
+	     * public method to map a XBEL model namespace object to a orientdb INamespace object
+	     * n.b. this method may result in a new vertex in the orientdb database being created
+	     */
+	    public INamespace createINamespace(Namespace ns, Long jdexId) throws ExecutionException {
+	    	Preconditions.checkArgument(null != ns, "A Namespace object is required");
+	    	Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0  , "A valid jdex id is required");
+	    	INamespace newNamespace = persistenceService.findOrCreateINamespace(jdexId);
 	    	newNamespace.setJdexId(jdexId.toString());
 	    	newNamespace.setPrefix(ns.getPrefix());
 	    	newNamespace.setUri(ns.getResourceLocation());
