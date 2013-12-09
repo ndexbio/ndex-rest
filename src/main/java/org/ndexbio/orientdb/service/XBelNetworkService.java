@@ -3,9 +3,11 @@ package org.ndexbio.orientdb.service;
 import java.util.concurrent.ExecutionException;
 
 import org.ndexbio.rest.domain.IBaseTerm;
+import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
+import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
@@ -13,10 +15,13 @@ import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
+import org.ndexbio.xbel.cache.XbelCacheService;
+import org.ndexbio.xbel.model.Citation;
 import org.ndexbio.xbel.model.Namespace;
 import org.ndexbio.xbel.model.Parameter
 ;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.orientechnologies.orient.core.id.ORID;
 
@@ -33,6 +38,7 @@ public class XBelNetworkService  {
 	
 	private static boolean databaseConnected = false;
 	private NDExPersistenceService persistenceService;
+	private static Joiner idJoiner = Joiner.on(":").skipNulls();
 	
 	public static XBelNetworkService getInstance(){
 		if( null == instance){
@@ -85,5 +91,43 @@ public class XBelNetworkService  {
 	    	return newNamespace;
 	    	
 	    }
+	    
+	    /*
+	     * public method to map a XBEL model Citation object to a orientdb ICitation object
+	     * n.b. this method may result in a new vertex in the orientdb database being created
+	     */
+	    public ICitation findOrCreateICitation(Citation citation) throws ExecutionException {
+	    	Preconditions.checkArgument(null != citation, "A Citation object is required");
+	    	String citationIdentifier = idJoiner.join(citation.getName(), citation.getReference());
+	    	Long jdexId = XbelCacheService.INSTANCE.accessIdentifierCache().get(citationIdentifier);
+	    	boolean persisted = persistenceService.isEntityPersisted(jdexId);
+	    	ICitation iCitation = persistenceService.findOrCreateICitation(jdexId);
+	    	if (persisted) return iCitation;
+	    	iCitation.setTitle(citation.getName());
+            iCitation.setType(citation.getType().value());
+            iCitation.setContributors(citation.getAuthorGroup().getAuthor());
+	    	return iCitation;
+	    	
+	    }
+	    
+	    /*
+	     * public method to map a XBEL model evidence string in the context of a Citation to a orientdb ISupport object
+	     * n.b. this method may result in a new vertex in the orientdb database being created
+	     */
+	    public ISupport findOrCreateISupport(String evidenceString, ICitation iCitation) throws ExecutionException {
+	    	Preconditions.checkArgument(null != evidenceString, "An evidence string is required");
+	    	String supportIdentifier = idJoiner.join(iCitation.getJdexId(), (String) evidenceString);
+	    	Long jdexId = XbelCacheService.INSTANCE.accessIdentifierCache().get(supportIdentifier);
+	    	boolean persisted = persistenceService.isEntityPersisted(jdexId);
+	    	ISupport iSupport = persistenceService.findOrCreateISupport(jdexId);
+	    	if (persisted) return iSupport;
+	    	iSupport.setText(evidenceString);
+	    	if (null != iCitation){
+	    		iSupport.setCitation(iCitation);
+	    	}
+	    	return iSupport;
+	    }
+	    
+
 
 }

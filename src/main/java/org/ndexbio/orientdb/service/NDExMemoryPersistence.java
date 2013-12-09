@@ -152,8 +152,8 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	
 	
 	@Override
-	// find the jdexid from the identifier cache
-	// find the INamespace from the vertex frame cache
+	// To find a namespace by its prefix, first try to find a jdexid by looking up the prefix in the identifier cache.
+	// If a jdexid is found, then lookup the INamespace by jdexid in the namespaceCache and return it.
 	public INamespace findNamespaceByPrefix(String prefix) {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(prefix), "A namespace prefix is required");
 		Preconditions.checkArgument(!XbelCacheService.INSTANCE.isNovelIdentifier(prefix),
@@ -168,6 +168,8 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		}
 		return null;
 	}
+	
+	// find 
 
 
 	@Override
@@ -210,7 +212,6 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		return citationCache.get(jdexId);
 	}
 
-
 	@Override
 	public IEdge findOrCreateIEdge(Long jdexId) throws ExecutionException {
 		Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0,
@@ -236,6 +237,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		this.jdexIdSet.add(jdexId);
 		return supportCache.get(jdexId);
 	}
+
 
 
 	@Override
@@ -290,7 +292,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 					(ITerm) this.functionTermCache.getIfPresent(jdexId));
 	
 		}
-	
+
 
 	
 

@@ -40,6 +40,7 @@ public interface NDExPersistenceService {
 	public INamespace findNamespaceByPrefix(String prefix);
 	public INetwork createNetwork(Network newNetwork) throws Exception;
 	public INetwork getCurrentNetwork();
+
 	
 	
 	

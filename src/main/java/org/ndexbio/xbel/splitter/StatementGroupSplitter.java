@@ -11,9 +11,13 @@ import org.ndexbio.orientdb.service.NDExPersistenceService;
 import org.ndexbio.orientdb.service.NDExPersistenceServiceFactory;
 import org.ndexbio.orientdb.service.XBelNetworkService;
 import org.ndexbio.rest.domain.IBaseTerm;
+import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.IFunctionTerm;
+import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.xbel.cache.XbelCacheService;
+import org.ndexbio.xbel.model.AnnotationGroup;
+import org.ndexbio.xbel.model.Citation;
 import org.ndexbio.xbel.model.Parameter;
 import org.ndexbio.xbel.model.Statement;
 import org.ndexbio.xbel.model.StatementGroup;
@@ -41,26 +45,78 @@ public class StatementGroupSplitter extends XBelSplitter {
 	}
 
 	@Override
-	protected void process() throws JAXBException {
+	protected void process() throws JAXBException, ExecutionException {
 		// instantiate outer level StatementGroup
 		StatementGroup sg = (StatementGroup) unmarshallerHandler.getResult();
 		this.processStatementGroup(sg);
 
 	}
 
-	private void processStatementGroup(StatementGroup sg) {
-		// process the Statemenst belonging to this Statement Group
-		this.processStatements(sg);
+	private void processStatementGroup(StatementGroup sg) throws ExecutionException{
+		processStatementGroup(sg, null, null);
+	}
+			
+	// In an XBEL document, only one Citation and one Support are in scope for any Statement
+	// Therefore, as we recursively process StatementGroups, if the AnnotationGroup for the inner StatementGroup 
+	// contains a Citation, it overrides any Citation set in the outer StatementGroup. And the same 
+	// is true for Supports.
+	private void processStatementGroup(StatementGroup sg, ISupport outerSupport, ICitation outerCitation) throws ExecutionException {
+		// process the Annotation group for this Statement Group
+		AnnotationGroup annotationGroup = sg.getAnnotationGroup();
+
+			ICitation citation = citationFromAnnotationGroup(annotationGroup);
+			if (citation != null){
+				// The AnnotationGroup had a Citation. This overrides the outerCitation.
+				// Furthermore, this means that the outerSupport does NOT apply to the inner StatementGroup
+				// The Support will either be null or will be specified in the AnnotationGroup
+				outerSupport = null;
+			} else {
+				// There was no Citation in the AnnotationGroup, so use the outerCitation
+				citation = outerCitation;
+			}
+			
+			// The ICitation is passed to the supportFromAnnotationGroup method because
+			// any ISupport created will be in the context of the ICitation and should be linked to it.
+			ISupport support = supportFromAnnotationGroup(annotationGroup, citation);
+			if (support == null){
+				// The AnnotationGroup had no Support, therefore use the outerSupport
+				support = outerSupport;
+			}
+		
+
+		// process the Statements belonging to this Statement Group
+		this.processStatements(sg, support, citation);
 		// process any embedded StatementGroup(s)
 		for (StatementGroup isg : sg.getStatementGroup()) {
-			this.processStatementGroup(isg);
+			this.processStatementGroup(isg, support, citation);
 		}
 	}
 
+	private ISupport supportFromAnnotationGroup(
+			AnnotationGroup annotationGroup, ICitation citation) throws ExecutionException {
+		for (Object object : annotationGroup.getAnnotationOrEvidenceOrCitation()){
+			if (object instanceof String){
+				// No explicit type for Evidence, therefore if it is a string, its an Evidence and we find/create an ISupport
+				return XBelNetworkService.getInstance().findOrCreateISupport((String) object, citation);			
+			}
+		}
+		return null;
+	}
+
+	private ICitation citationFromAnnotationGroup(
+			AnnotationGroup annotationGroup) throws ExecutionException {
+		for (Object object : annotationGroup.getAnnotationOrEvidenceOrCitation()){
+			if (object instanceof Citation){
+				return XBelNetworkService.getInstance().findOrCreateICitation((Citation) object);
+			}
+		}
+		return null;
+	}
+	
 	/*
 	 * process statement group
 	 */
-	private void processStatements(StatementGroup sg) {
+	private void processStatements(StatementGroup sg, ISupport support, ICitation citation) {
 		List<Statement> statementList = sg.getStatement();
 		for (Statement statement : statementList) {
 			//System.out.println("Processing Statement: "
