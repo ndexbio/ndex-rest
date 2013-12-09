@@ -8,10 +8,15 @@ import org.ndexbio.rest.domain.IEdge;
 import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
+import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
+import org.ndexbio.rest.domain.IUser;
+import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.models.Network;
+import org.ndexbio.rest.models.SearchParameters;
+import org.ndexbio.rest.models.SearchResult;
 
 /*
  * public interface representing all interactions with the underlying persistence implementation
@@ -31,6 +36,7 @@ public interface NDExPersistenceService {
 	public INode findOrCreateINode( Long jdexId) throws ExecutionException;
 	public ISupport findOrCreateISupport( Long jdexId) throws ExecutionException;
 	
+	public void persistNetwork();
 	
 	
 	public boolean isEntityPersisted(Long jdexId);
@@ -40,7 +46,11 @@ public interface NDExPersistenceService {
 	public INamespace findNamespaceByPrefix(String prefix);
 	public INetwork createNetwork(Network newNetwork) throws Exception;
 	public INetwork getCurrentNetwork();
-
+	public IUser getCurrentUser();
+	public INetworkMembership  createNetworkMembership();
+	
+	public SearchResult<IUser> findUsers(SearchParameters searchParameters) throws NdexException;
+	public void closeDatabase();
 	
 	
 	

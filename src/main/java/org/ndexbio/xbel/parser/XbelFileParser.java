@@ -11,7 +11,7 @@ import javax.xml.parsers.SAXParserFactory;
 
 import org.ndexbio.orientdb.service.OrientdbNetworkFactory;
 import org.ndexbio.orientdb.service.XBelNetworkService;
-import org.ndexbio.rest.models.Network;
+import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.xbel.parser.XbelFileValidator.ValidationState;
 import org.ndexbio.xbel.splitter.HeaderSplitter;
 import org.ndexbio.xbel.splitter.NamespaceGroupSplitter;
@@ -43,7 +43,7 @@ public class XbelFileParser {
 	private StatementGroupSplitter sgSplitter;
 	private HeaderSplitter headerSplitter;
 	
-	private Network network;
+	private INetwork network;
 
 	public XbelFileParser(String fn) throws JAXBException {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(fn),
@@ -60,12 +60,20 @@ public class XbelFileParser {
 	}
 
 	public void parseXbelFile() {
-		this.processHeaderAndCreateNetwork();
-		this.processNamespaces();
-		this.processStatementGroups();
+		try {
+			this.processHeaderAndCreateNetwork();
+			this.processNamespaces();
+			this.processStatementGroups();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} finally {
+			XBelNetworkService.getInstance().closeDatabaseConnection();
+		}
+		
 	}
 	
-	private void processHeaderAndCreateNetwork() {
+	private void processHeaderAndCreateNetwork() throws Exception {
 		reader.setContentHandler(headerSplitter);
 		try {
 			reader.parse(this.getXmlFile());
@@ -73,17 +81,9 @@ public class XbelFileParser {
 			this.getMsgBuffer().add(e.getMessage());
 		}
 		String networkTitle = this.headerSplitter.getHeader().getName();
-		this.network = (Network) OrientdbNetworkFactory.INSTANCE.createTestNetwork(networkTitle);
-		// create new network in database
-		if (null != network){
-			try {
-				XBelNetworkService.getInstance().createNetwork(network);
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-		this.getMsgBuffer().add("New network created for XBEL: " +networkTitle);
+		this.network = OrientdbNetworkFactory.INSTANCE.createTestNetwork(networkTitle);
+		
+		this.getMsgBuffer().add("New testnetwork created for XBEL: " +network.getTitle());
 	}
 
 	private void processNamespaces() {

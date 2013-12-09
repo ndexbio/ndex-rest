@@ -212,84 +212,62 @@ public class StatementGroupSplitter extends XBelSplitter {
 	 * String of the JDex IDs of its children. For BaseTerms, it is a String
 	 * conatining the namespace and term value.
 	 */
-	private void processInnerTerms(Term term, List<Long> childList)
+	private void processInnerTerms(Term term, List<ITerm> childList)
 			throws ExecutionException {
 
 		for (Object o : term.getParameterOrTerm()) {
-			if (o instanceof Term) {
-
-				List<Long> innerList = Lists.newArrayList();
-
-				processInnerTerms((Term) o, innerList);
-				/*
-				 * find or create a BaseTerm for this FunctionTerm's function
-				 */
-
+			if (o instanceof Term) {				
+				List<ITerm> innerChildList = Lists.newArrayList();				
+				processInnerTerms((Term) o, innerChildList); 			
 				// obtain a new or existing JDEX ID from the cache based on the
 				// identifier
 				Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
-						idJoiner.join(innerList));
-				// TODO persist to database
-				persistFunctionTerm(term, jdexId, childList);
+						idJoiner.join(innerChildList));
+				
+				IFunctionTerm ft = persistFunctionTerm( term, jdexId,  childList);
 				if (null != childList) {
-					childList.add(jdexId);
+					childList.add(ft);
 				}
 
 			} else {
 				Parameter p = (Parameter) o;
 				Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
 						idJoiner.join(p.getNs(), p.getValue()));
-				IBaseTerm bt = XBelNetworkService.getInstance()
-						.createIBaseTerm(p, jdexId);
-
-				childList.add(jdexId);
+				IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p, jdexId);
+					
+				childList.add(bt);
 			}
 		}
 	}
+	
 
-	private IFunctionTerm persistFunctionTerm(Term term, Long jdexId,
-			List<Long> childList) {
-		try {
-			IFunctionTerm ft = persistenceService
-					.findOrCreateIFunctionTerm(jdexId);
-
-			ft.setTermFunction(this.createBaseTermForFunctionTerm(term,
-					childList));
-			Map<Integer, String> btMap = Maps.newHashMap();
-			Map<Integer, ITerm> ftMap = Maps.newHashMap();
-			ft.setTextParameters(btMap);
-			ft.setTermParameters(ftMap);
-			int btCount = 0;
+	  private IFunctionTerm persistFunctionTerm(Term term, Long jdexId, List<ITerm> childList) {
+		  try {
+			IFunctionTerm ft = persistenceService.findOrCreateIFunctionTerm(jdexId);		
+			ft.setTermFunction(this.createBaseTermForFunctionTerm(term, childList));			
+			Map<Integer,ITerm> ftMap  = Maps.newHashMap();			
+			ft.setTermParameters(ftMap);			
 			int ftCount = 0;
-			for (Long childId : childList) {
-				ITerm child = persistenceService.findChildITerm(childId);
-				if (child instanceof IBaseTerm) {
-					btCount++;
-					ft.getTextParameters().put(btCount,
-							((IBaseTerm) child).getName());
-				} else if (child instanceof IFunctionTerm) {
-					ftCount++;
-					ft.getTermParameters().put(ftCount, child);
-				} else {
-					System.out.println("Error unknown term type: "
-							+ child.getClass().getName());
-				}
+			for(ITerm childITerm: childList){
+				ftCount++;
+				ft.getTermParameters().put(ftCount, childITerm);
 			}
 			return ft;
-
+			
 		} catch (ExecutionException e) {
-			// TODO Auto-generated catch block
+			
 			e.printStackTrace();
+			return null;
 		}
-		return null;
-
-	}
-
+		  
+	  }
+	  
+	  
 	/*
 	 * The function portion of a FunctionTerm is also a BaseTerm and needs to be
 	 * included as a child term in the function term
 	 */
-	private IBaseTerm createBaseTermForFunctionTerm(Term term, List<Long> idList)
+	private IBaseTerm createBaseTermForFunctionTerm(Term term, List<ITerm> idList)
 			throws ExecutionException {
 		Parameter p = new Parameter();
 		p.setNs("BEL");
@@ -297,9 +275,8 @@ public class StatementGroupSplitter extends XBelSplitter {
 
 		Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
 				idJoiner.join(p.getNs(), p.getValue()));
-		IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p,
-				jdexId);
-		idList.add(jdexId);
+		IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p, jdexId);
+		idList.add(bt);
 		return bt;
 	}
 
