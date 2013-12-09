@@ -9,21 +9,16 @@ import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.IUser;
-import org.ndexbio.rest.domain.Permissions;
-import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.exceptions.ValidationException;
-import org.ndexbio.rest.helpers.RidConverter;
-import org.ndexbio.rest.models.Membership;
+import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.xbel.cache.XbelCacheService;
 import org.ndexbio.xbel.model.Citation;
 import org.ndexbio.xbel.model.Namespace;
-import org.ndexbio.xbel.model.Parameter
-;
+import org.ndexbio.xbel.model.Parameter;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import com.orientechnologies.orient.core.id.ORID;
+import com.google.common.base.Strings;
 
 
 /*
@@ -36,7 +31,6 @@ public class XBelNetworkService  {
 	
 	private static XBelNetworkService instance;
 	
-	private static boolean databaseConnected = false;
 	private NDExPersistenceService persistenceService;
 	private static Joiner idJoiner = Joiner.on(":").skipNulls();
 	
@@ -48,16 +42,33 @@ public class XBelNetworkService  {
 	}
 	
 	
- 
 	private XBelNetworkService() {
 		super();
 		 this.persistenceService = NDExPersistenceServiceFactory.INSTANCE.getNDExPersistenceService();
 	}
 	
+	public INetwork createNewNetwork() throws Exception {
+		return this.persistenceService.getCurrentNetwork();
+	}
 	
+	public IUser createNewUser(String username) {
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(username));
+		IUser user = this.persistenceService.getCurrentUser();
+		user.setUsername(username);
+		return user;
+	}
 	
-	public INetwork createNewNetwork(Network network) throws Exception {
-		return this.persistenceService.createNetwork(network);
+	public INetworkMembership createNewMember() {
+		return this.persistenceService.createNetworkMembership();
+	}
+	
+	public SearchResult<IUser> findUsers(SearchParameters searchParameters) throws NdexException
+	{
+		return this.persistenceService.findUsers(searchParameters);
+	}
+	
+	public void closeDatabaseConnection(){
+		this.persistenceService.closeDatabase();
 	}
 	
 	  
@@ -88,8 +99,7 @@ public class XBelNetworkService  {
 	    	newNamespace.setJdexId(jdexId.toString());
 	    	newNamespace.setPrefix(ns.getPrefix());
 	    	newNamespace.setUri(ns.getResourceLocation());
-	    	return newNamespace;
-	    	
+	    	return newNamespace;    	
 	    }
 	    
 	    /*

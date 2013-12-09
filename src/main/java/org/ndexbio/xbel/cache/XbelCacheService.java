@@ -2,7 +2,6 @@ package org.ndexbio.xbel.cache;
 
 import java.util.concurrent.TimeUnit;
 
-import org.ndexbio.xbel.model.Namespace;
 import org.ndexbio.xbel.service.JdexIdService;
 
 import com.google.common.base.Strings;
@@ -36,7 +35,7 @@ public enum XbelCacheService {
 		 return false;
 	 }
 	 /*
-	  * public method to determine if a namespace has already been 
+	  * public method to determine if a non-term identifier has already been 
 	  * registered in the cache
 	  */
 	 public boolean isNovelIdentifier(String identifier){

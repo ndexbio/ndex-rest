@@ -1,5 +1,8 @@
 package org.ndexbio.orientdb.service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -16,10 +19,14 @@ import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
+import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
+import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
+import org.ndexbio.rest.models.SearchParameters;
+import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.xbel.cache.XbelCacheService;
 
 import com.google.common.base.Objects;
@@ -28,8 +35,11 @@ import com.google.common.base.Strings;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
 /*
  * An implementation of the NDExPersistenceService interface that uses a 
@@ -47,6 +57,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	 private NdexService ndexService = new NdexService();
 	 private Set<Long> jdexIdSet = Sets.newHashSet();
 	 private INetwork network;
+	 private IUser user;
 	 
 	 //IBaseTerm cache
 	 private LoadingCache<Long, IBaseTerm> baseTermCache = CacheBuilder.newBuilder()
@@ -179,7 +190,6 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 				"A valid JDExId is required");
 		this.jdexIdSet.add(jdexId);
 		return baseTermCache.get(jdexId);
-		
 	}
 
 
@@ -239,7 +249,6 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	}
 
 
-
 	@Override
 	 public INetwork createNetwork(Network newNetwork) throws Exception
 	    {
@@ -279,7 +288,12 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	        }
 	    }
 	    @Override
-		public INetwork getCurrentNetwork() {return this.network;}
+		public INetwork getCurrentNetwork() {
+	    	if (null == this.network){
+	    		this.network = ndexService._orientDbGraph.addVertex("class:network", INetwork.class);
+	    	}
+	    	
+	    	return this.network;}
 
 	    /*
 	     * find the ITerm (either Base or Function) by jdex id
@@ -294,7 +308,108 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		}
 
 
+		@Override
+		public IUser getCurrentUser() {
+			if (null == this.user) {
+				this.user = ndexService._orientDbGraph.addVertex("class:user", IUser.class);
+			}
+			return this.user;
+		}
+
+
+		@Override
+		public INetworkMembership createNetworkMembership() {
+			
+			return ndexService._orientDbGraph.addVertex("class:networkMembership", INetworkMembership.class);
+		}
 	
+		/*
+		 * Returns a collection of IUsers based on search criteria
+		 */
+		@Override
+		 public SearchResult<IUser> findUsers(SearchParameters searchParameters) throws NdexException
+		    {
+		        if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
+		            throw new ValidationException("No search string was specified.");
+		        else
+		            searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
+		        
+		        final List<IUser> foundUsers = Lists.newArrayList();
+		        final SearchResult<IUser> result = new SearchResult<IUser>();
+		        result.setResults(foundUsers);
+		        
+		        //TODO: Remove these, they're unnecessary
+		        result.setPageSize(searchParameters.getTop());
+		        result.setSkip(searchParameters.getSkip());
+		        
+		        final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
+
+		        String whereClause = " where username.toUpperCase() like '%" + searchParameters.getSearchString()
+		                    + "%' OR lastName.toUpperCase() like '%" + searchParameters.getSearchString()
+		                    + "%' OR firstName.toUpperCase() like '%" + searchParameters.getSearchString() + "%'";
+
+		        final String query = "select from User " + whereClause
+		                + " order by creation_date desc skip " + startIndex + " limit " + searchParameters.getTop();
+		        
+		        try
+		        {
+		           
+		            
+		            List<ODocument> userDocumentList = ndexService._orientDbGraph
+		                .getBaseGraph()
+		                .getRawGraph()
+		                .query(new OSQLSynchQuery<ODocument>(query));
+		            
+		            for (final ODocument document : userDocumentList)
+		                foundUsers.add(ndexService._orientDbGraph.getVertex(document, IUser.class));
+		    
+		            result.setResults(foundUsers);
+		            
+		            return result;
+		        }
+		        catch (Exception e)
+		        {
+		        	ndexService._orientDbGraph.getBaseGraph().rollback(); 
+		            throw e;
+		        }
+		        
+		    }
+
+
+		@Override
+		public void closeDatabase() {
+			ndexService.teardownDatabase();
+			System.out.println("Connection to orientdb database has been closed");
+			
+		}
+
+		/*
+		 * public method to persist INetwork to the orientdb database
+		 * using cache contents.
+		 */
+
+		@Override
+		public void persistNetwork() {
+			this.addINamespaces();
+			this.addITerms();
+			
+			
+		}
+		
+		private void addINamespaces() {
+			for(INamespace ns : this.namespaceCache.asMap().values()){
+				this.network.addNamespace(ns);
+			}
+		}
+		
+		private void addITerms() {		
+			for (IBaseTerm bt : this.baseTermCache.asMap().values() ){
+				this.network.addTerm(bt);
+			}
+			for(IFunctionTerm ft : this.functionTermCache.asMap().values()){
+				this.network.addTerm(ft);
+			}					
+		}
 
 
 
