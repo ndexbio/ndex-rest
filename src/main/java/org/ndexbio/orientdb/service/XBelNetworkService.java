@@ -4,9 +4,12 @@ import java.util.concurrent.ExecutionException;
 
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.ICitation;
+import org.ndexbio.rest.domain.IEdge;
+import org.ndexbio.rest.domain.IFunctionTerm;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
+import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
@@ -20,6 +23,8 @@ import org.ndexbio.xbel.model.Citation;
 import org.ndexbio.xbel.model.Namespace;
 import org.ndexbio.xbel.model.Parameter
 ;
+import org.ndexbio.xbel.model.Relationship;
+import org.ndexbio.xbel.service.JdexIdService;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -127,6 +132,42 @@ public class XBelNetworkService  {
 	    	}
 	    	return iSupport;
 	    }
+
+		public void createIEdge(INode subjectNode, INode objectNode,
+				IBaseTerm predicate, ISupport support, ICitation citation) throws ExecutionException {
+			Long jdexId = JdexIdService.INSTANCE.getNextJdexId();
+			IEdge edge = persistenceService.findOrCreateIEdge(jdexId);
+			edge.setSubject(subjectNode);
+			edge.setPredicate(predicate);
+			edge.setObject(objectNode);
+			if (null != support){
+				edge.addSupport(support);
+			}
+			if (null != citation){
+				edge.addCitation(citation);
+			}
+			
+		}
+
+		public IBaseTerm findOrCreatePredicate(Relationship relationship) throws ExecutionException {
+			Parameter parameter = new Parameter();
+			parameter.setNs("BEL");
+			parameter.setValue(relationship.name());
+			String identifier = idJoiner.join(parameter.getNs(), parameter.getValue());
+			Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(identifier);
+			return this.createIBaseTerm(parameter, jdexId);
+		}
+
+		public INode findOrCreateINodeForIFunctionTerm(
+				IFunctionTerm representedTerm) throws ExecutionException {
+			String nodeIdentifier = idJoiner.join("NODE", representedTerm.getJdexId());
+			Long jdexId = XbelCacheService.INSTANCE.accessIdentifierCache().get(nodeIdentifier);
+			boolean persisted = persistenceService.isEntityPersisted(jdexId);
+	    	INode iNode = persistenceService.findOrCreateINode(jdexId);
+	    	if (persisted) return iNode;
+	    	iNode.setRepresents(representedTerm);
+	    	return iNode;
+		}
 	    
 
 

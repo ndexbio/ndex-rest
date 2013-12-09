@@ -1,6 +1,7 @@
 package org.ndexbio.xbel.splitter;
 
 import java.util.Enumeration;
+import java.util.concurrent.ExecutionException;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -139,7 +140,7 @@ public abstract class XBelSplitter extends XMLFilterImpl {
 				try {
 
 					 process();
-				} catch (JAXBException je) {
+				} catch (JAXBException | ExecutionException je) {
 					// error was found during the unmarshalling.
 					// you can either abort the processing by throwing a
 					// SAXException,
@@ -181,5 +182,5 @@ public abstract class XBelSplitter extends XMLFilterImpl {
 
 	}
 	
-	protected abstract void process() throws JAXBException;
+	protected abstract void process() throws JAXBException, ExecutionException;
 }

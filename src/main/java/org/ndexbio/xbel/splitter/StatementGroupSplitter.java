@@ -13,6 +13,7 @@ import org.ndexbio.orientdb.service.XBelNetworkService;
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.IFunctionTerm;
+import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.xbel.cache.XbelCacheService;
@@ -32,16 +33,15 @@ public class StatementGroupSplitter extends XBelSplitter {
 	private static final String xmlElement = "statementGroup";
 	private static Joiner idJoiner = Joiner.on(":").skipNulls();
 	private NDExPersistenceService persistenceService;
-	
 
 	public StatementGroupSplitter(JAXBContext context) {
 		super(context, xmlElement);
 		/*
-		 * this class persists XBEL data into orientdb
-		 * establish a reference to the persistence service
+		 * this class persists XBEL data into orientdb establish a reference to
+		 * the persistence service
 		 */
-		this.persistenceService = NDExPersistenceServiceFactory.
-				 INSTANCE.getNDExPersistenceService();
+		this.persistenceService = NDExPersistenceServiceFactory.INSTANCE
+				.getNDExPersistenceService();
 	}
 
 	@Override
@@ -52,37 +52,49 @@ public class StatementGroupSplitter extends XBelSplitter {
 
 	}
 
-	private void processStatementGroup(StatementGroup sg) throws ExecutionException{
+	private void processStatementGroup(StatementGroup sg)
+			throws ExecutionException {
 		processStatementGroup(sg, null, null);
 	}
-			
-	// In an XBEL document, only one Citation and one Support are in scope for any Statement
-	// Therefore, as we recursively process StatementGroups, if the AnnotationGroup for the inner StatementGroup 
-	// contains a Citation, it overrides any Citation set in the outer StatementGroup. And the same 
+
+	// In an XBEL document, only one Citation and one Support are in scope for
+	// any Statement
+	// Therefore, as we recursively process StatementGroups, if the
+	// AnnotationGroup for the inner StatementGroup
+	// contains a Citation, it overrides any Citation set in the outer
+	// StatementGroup. And the same
 	// is true for Supports.
-	private void processStatementGroup(StatementGroup sg, ISupport outerSupport, ICitation outerCitation) throws ExecutionException {
+	private void processStatementGroup(StatementGroup sg,
+			ISupport outerSupport, ICitation outerCitation)
+			throws ExecutionException {
 		// process the Annotation group for this Statement Group
 		AnnotationGroup annotationGroup = sg.getAnnotationGroup();
 
-			ICitation citation = citationFromAnnotationGroup(annotationGroup);
-			if (citation != null){
-				// The AnnotationGroup had a Citation. This overrides the outerCitation.
-				// Furthermore, this means that the outerSupport does NOT apply to the inner StatementGroup
-				// The Support will either be null or will be specified in the AnnotationGroup
-				outerSupport = null;
-			} else {
-				// There was no Citation in the AnnotationGroup, so use the outerCitation
-				citation = outerCitation;
-			}
-			
-			// The ICitation is passed to the supportFromAnnotationGroup method because
-			// any ISupport created will be in the context of the ICitation and should be linked to it.
-			ISupport support = supportFromAnnotationGroup(annotationGroup, citation);
-			if (support == null){
-				// The AnnotationGroup had no Support, therefore use the outerSupport
-				support = outerSupport;
-			}
-		
+		ICitation citation = citationFromAnnotationGroup(annotationGroup);
+		if (citation != null) {
+			// The AnnotationGroup had a Citation. This overrides the
+			// outerCitation.
+			// Furthermore, this means that the outerSupport does NOT apply to
+			// the inner StatementGroup
+			// The Support will either be null or will be specified in the
+			// AnnotationGroup
+			outerSupport = null;
+		} else {
+			// There was no Citation in the AnnotationGroup, so use the
+			// outerCitation
+			citation = outerCitation;
+		}
+
+		// The ICitation is passed to the supportFromAnnotationGroup method
+		// because
+		// any ISupport created will be in the context of the ICitation and
+		// should be linked to it.
+		ISupport support = supportFromAnnotationGroup(annotationGroup, citation);
+		if (support == null) {
+			// The AnnotationGroup had no Support, therefore use the
+			// outerSupport
+			support = outerSupport;
+		}
 
 		// process the Statements belonging to this Statement Group
 		this.processStatements(sg, support, citation);
@@ -93,11 +105,15 @@ public class StatementGroupSplitter extends XBelSplitter {
 	}
 
 	private ISupport supportFromAnnotationGroup(
-			AnnotationGroup annotationGroup, ICitation citation) throws ExecutionException {
-		for (Object object : annotationGroup.getAnnotationOrEvidenceOrCitation()){
-			if (object instanceof String){
-				// No explicit type for Evidence, therefore if it is a string, its an Evidence and we find/create an ISupport
-				return XBelNetworkService.getInstance().findOrCreateISupport((String) object, citation);			
+			AnnotationGroup annotationGroup, ICitation citation)
+			throws ExecutionException {
+		for (Object object : annotationGroup
+				.getAnnotationOrEvidenceOrCitation()) {
+			if (object instanceof String) {
+				// No explicit type for Evidence, therefore if it is a string,
+				// its an Evidence and we find/create an ISupport
+				return XBelNetworkService.getInstance().findOrCreateISupport(
+						(String) object, citation);
 			}
 		}
 		return null;
@@ -105,63 +121,81 @@ public class StatementGroupSplitter extends XBelSplitter {
 
 	private ICitation citationFromAnnotationGroup(
 			AnnotationGroup annotationGroup) throws ExecutionException {
-		for (Object object : annotationGroup.getAnnotationOrEvidenceOrCitation()){
-			if (object instanceof Citation){
-				return XBelNetworkService.getInstance().findOrCreateICitation((Citation) object);
+		for (Object object : annotationGroup
+				.getAnnotationOrEvidenceOrCitation()) {
+			if (object instanceof Citation) {
+				return XBelNetworkService.getInstance().findOrCreateICitation(
+						(Citation) object);
 			}
 		}
 		return null;
 	}
-	
+
 	/*
 	 * process statement group
 	 */
-	private void processStatements(StatementGroup sg, ISupport support, ICitation citation) {
+	private void processStatements(StatementGroup sg, ISupport support,
+			ICitation citation) throws ExecutionException {
 		List<Statement> statementList = sg.getStatement();
 		for (Statement statement : statementList) {
-			//System.out.println("Processing Statement: "
-			//		+ statement.getRelationship().toString());
-			this.processStatementSubject(statement.getSubject());
-			this.processObject(statement.getObject());
+			// System.out.println("Processing Statement: "
+			// + statement.getRelationship().toString());
+			IBaseTerm predicate = XBelNetworkService.getInstance()
+					.findOrCreatePredicate(statement.getRelationship());
+			INode subjectNode = this.processStatementSubject(statement
+					.getSubject());
+			INode objectNode = this.processStatementObject(statement
+					.getObject());
+			XBelNetworkService.getInstance().createIEdge(subjectNode, objectNode, predicate, support, citation);
 		}
 	}
 
-	private void processStatementSubject(Subject sub) {
+	private INode processStatementSubject(Subject sub) {
 		if (null == sub) {
-			return;
+			return null;
 		}
 		try {
-			this.processOuterTerm(sub.getTerm());
+			IFunctionTerm representedTerm = this
+					.processOuterTerm(sub.getTerm());
+			INode subjectNode = XBelNetworkService.getInstance()
+					.findOrCreateINodeForIFunctionTerm(representedTerm);
+			return subjectNode;
 		} catch (ExecutionException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		return null;
 	}
 
-	private void processObject(org.ndexbio.xbel.model.Object obj) {
+	private INode processStatementObject(org.ndexbio.xbel.model.Object obj) {
 		if (null == obj) {
-			return;
+			return null;
 		}
 		try {
-			if( null != obj.getStatement()){
-				System.out.println("Object has internal statement " 
-						+obj.getStatement().getRelationship().toString());
+			if (null != obj.getStatement()) {
+				System.out.println("Object has internal statement "
+						+ obj.getStatement().getRelationship().toString());
 			} else {
-				this.processOuterTerm(obj.getTerm());
+				IFunctionTerm representedTerm = this.processOuterTerm(obj
+						.getTerm());
+				INode objectNode = XBelNetworkService.getInstance()
+						.findOrCreateINodeForIFunctionTerm(representedTerm);
+				return objectNode;
 			}
 		} catch (ExecutionException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		return null;
 	}
 
-	private void processOuterTerm(Term term) throws ExecutionException {
-		
+	private IFunctionTerm processOuterTerm(Term term) throws ExecutionException {
+
 		List<Long> jdexIdList = Lists.newArrayList(); // list of child term ids
 		this.processInnerTerms(term, jdexIdList);
 		Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
 				idJoiner.join(jdexIdList));
-		persistFunctionTerm( term, jdexId,  jdexIdList);
+		return persistFunctionTerm(term, jdexId, jdexIdList);
 	}
 
 	/*
@@ -183,20 +217,20 @@ public class StatementGroupSplitter extends XBelSplitter {
 
 		for (Object o : term.getParameterOrTerm()) {
 			if (o instanceof Term) {
-				
+
 				List<Long> innerList = Lists.newArrayList();
-				
-				processInnerTerms((Term) o, innerList); 
+
+				processInnerTerms((Term) o, innerList);
 				/*
 				 * find or create a BaseTerm for this FunctionTerm's function
 				 */
-				
+
 				// obtain a new or existing JDEX ID from the cache based on the
 				// identifier
 				Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
 						idJoiner.join(innerList));
-				//TODO persist to database
-				persistFunctionTerm( term, jdexId,  childList);
+				// TODO persist to database
+				persistFunctionTerm(term, jdexId, childList);
 				if (null != childList) {
 					childList.add(jdexId);
 				}
@@ -205,43 +239,52 @@ public class StatementGroupSplitter extends XBelSplitter {
 				Parameter p = (Parameter) o;
 				Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
 						idJoiner.join(p.getNs(), p.getValue()));
-				IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p, jdexId);
-					
+				IBaseTerm bt = XBelNetworkService.getInstance()
+						.createIBaseTerm(p, jdexId);
+
 				childList.add(jdexId);
 			}
 		}
 	}
 
-	  private void persistFunctionTerm(Term term, Long jdexId, List<Long> childList) {
-		  try {
-			IFunctionTerm ft = persistenceService.findOrCreateIFunctionTerm(jdexId);
-			
-			ft.setTermFunction(this.createBaseTermForFunctionTerm(term, childList));
-			Map<Integer,String> btMap = Maps.newHashMap();
-			Map<Integer,ITerm> ftMap  = Maps.newHashMap();
+	private IFunctionTerm persistFunctionTerm(Term term, Long jdexId,
+			List<Long> childList) {
+		try {
+			IFunctionTerm ft = persistenceService
+					.findOrCreateIFunctionTerm(jdexId);
+
+			ft.setTermFunction(this.createBaseTermForFunctionTerm(term,
+					childList));
+			Map<Integer, String> btMap = Maps.newHashMap();
+			Map<Integer, ITerm> ftMap = Maps.newHashMap();
 			ft.setTextParameters(btMap);
-			ft.setTermParameters(ftMap); 
+			ft.setTermParameters(ftMap);
 			int btCount = 0;
 			int ftCount = 0;
-			for(Long childId : childList){
+			for (Long childId : childList) {
 				ITerm child = persistenceService.findChildITerm(childId);
-				if (child instanceof IBaseTerm){
+				if (child instanceof IBaseTerm) {
 					btCount++;
-					ft.getTextParameters().put(btCount, ((IBaseTerm) child).getName());
-				} else if ( child instanceof IFunctionTerm){
+					ft.getTextParameters().put(btCount,
+							((IBaseTerm) child).getName());
+				} else if (child instanceof IFunctionTerm) {
 					ftCount++;
 					ft.getTermParameters().put(ftCount, child);
 				} else {
-					System.out.println("Error unknown term type: " + child.getClass().getName());
+					System.out.println("Error unknown term type: "
+							+ child.getClass().getName());
 				}
 			}
-			
+			return ft;
+
 		} catch (ExecutionException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		  
-	  }
+		return null;
+
+	}
+
 	/*
 	 * The function portion of a FunctionTerm is also a BaseTerm and needs to be
 	 * included as a child term in the function term
@@ -251,13 +294,13 @@ public class StatementGroupSplitter extends XBelSplitter {
 		Parameter p = new Parameter();
 		p.setNs("BEL");
 		p.setValue(term.getFunction().value());
-		
+
 		Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
 				idJoiner.join(p.getNs(), p.getValue()));
-		IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p, jdexId);
+		IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p,
+				jdexId);
 		idList.add(jdexId);
 		return bt;
 	}
-
 
 }
