@@ -13,8 +13,6 @@ import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.rest.models.Network;
 
-import com.tinkerpop.frames.VertexFrame;
-
 /*
  * public interface representing all interactions with the underlying persistence implementation
  * this may be either direct interaction with a graph database or an in-memory domain

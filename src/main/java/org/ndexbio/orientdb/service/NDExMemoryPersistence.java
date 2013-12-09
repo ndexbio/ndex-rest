@@ -49,7 +49,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	 private INetwork network;
 	 
 	 //IBaseTerm cache
-	 private LoadingCache<Long, IBaseTerm> baseTermCcahe = CacheBuilder.newBuilder()
+	 private LoadingCache<Long, IBaseTerm> baseTermCache = CacheBuilder.newBuilder()
 			 .maximumSize(1000L)
 			 .expireAfterAccess(240L, TimeUnit.MINUTES)
 			
@@ -62,7 +62,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 			 });
 	 
 	 //IFunctionTerm cache
-	 private LoadingCache<Long, IFunctionTerm> functionTermCcahe = CacheBuilder.newBuilder()
+	 private LoadingCache<Long, IFunctionTerm> functionTermCache = CacheBuilder.newBuilder()
 			 .maximumSize(1000L)
 			 .expireAfterAccess(240L, TimeUnit.MINUTES)
 			
@@ -75,7 +75,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 			 });
 	 
 	 //INamespace cache
-	 private LoadingCache<Long, INamespace> namespaceCcahe = CacheBuilder.newBuilder()
+	 private LoadingCache<Long, INamespace> namespaceCache = CacheBuilder.newBuilder()
 			 .maximumSize(1000L)
 			 .expireAfterAccess(240L, TimeUnit.MINUTES)
 			
@@ -89,7 +89,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	 
 	 
 	 //ICitation cache
-	 private LoadingCache<Long, ICitation> citationCcahe = CacheBuilder.newBuilder()
+	 private LoadingCache<Long, ICitation> citationCache = CacheBuilder.newBuilder()
 			 .maximumSize(1000L)
 			 .expireAfterAccess(240L, TimeUnit.MINUTES)
 			
@@ -102,7 +102,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 			 });
 	 
 	//IEdge cache
-		 private LoadingCache<Long, IEdge> edgeCcahe = CacheBuilder.newBuilder()
+		 private LoadingCache<Long, IEdge> edgeCache = CacheBuilder.newBuilder()
 				 .maximumSize(1000L)
 				 .expireAfterAccess(240L, TimeUnit.MINUTES)
 				
@@ -115,7 +115,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 				 });
 		 
 		//INode cache
-		 private LoadingCache<Long, INode> nodeCcahe = CacheBuilder.newBuilder()
+		 private LoadingCache<Long, INode> nodeCache = CacheBuilder.newBuilder()
 				 .maximumSize(1000L)
 				 .expireAfterAccess(240L, TimeUnit.MINUTES)
 				
@@ -128,7 +128,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 				 });
 		 
 		//ISupport cache
-		 private LoadingCache<Long, ISupport> supportCcahe = CacheBuilder.newBuilder()
+		 private LoadingCache<Long, ISupport> supportCache = CacheBuilder.newBuilder()
 				 .maximumSize(1000L)
 				 .expireAfterAccess(240L, TimeUnit.MINUTES)
 				
@@ -160,7 +160,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 				"The prefix " +prefix +" is not registered");
 		try {
 			Long jdexId = XbelCacheService.INSTANCE.accessIdentifierCache().get(prefix);
-			INamespace ns = this.namespaceCcahe.getIfPresent(jdexId);
+			INamespace ns = this.namespaceCache.getIfPresent(jdexId);
 			return ns;
 		} catch (ExecutionException e) {
 			
@@ -176,7 +176,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0,
 				"A valid JDExId is required");
 		this.jdexIdSet.add(jdexId);
-		return baseTermCcahe.get(jdexId);
+		return baseTermCache.get(jdexId);
 		
 	}
 
@@ -187,7 +187,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0,
 				"A valid JDExId is required");
 		this.jdexIdSet.add(jdexId);
-		return functionTermCcahe.get(jdexId);
+		return functionTermCache.get(jdexId);
 	}
 
 
@@ -197,7 +197,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0,
 				"A valid JDExId is required");
 		this.jdexIdSet.add(jdexId);
-		return namespaceCcahe.get(jdexId);
+		return namespaceCache.get(jdexId);
 	}
 
 
@@ -207,7 +207,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0,
 				"A valid JDExId is required");
 		this.jdexIdSet.add(jdexId);
-		return citationCcahe.get(jdexId);
+		return citationCache.get(jdexId);
 	}
 
 
@@ -216,7 +216,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0,
 				"A valid JDExId is required");
 		this.jdexIdSet.add(jdexId);
-		return edgeCcahe.get(jdexId);
+		return edgeCache.get(jdexId);
 	}
 
 
@@ -225,7 +225,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0,
 				"A valid JDExId is required");
 		this.jdexIdSet.add(jdexId);
-		return nodeCcahe.get(jdexId);
+		return nodeCache.get(jdexId);
 	}
 
 
@@ -234,7 +234,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0,
 				"A valid JDExId is required");
 		this.jdexIdSet.add(jdexId);
-		return supportCcahe.get(jdexId);
+		return supportCache.get(jdexId);
 	}
 
 
@@ -286,8 +286,8 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		public ITerm findChildITerm(Long jdexId) throws ExecutionException {
 			Preconditions.checkArgument(null != jdexId && jdexId.longValue() >0,
 					"A valid JDExId is required");
-			return Objects.firstNonNull((ITerm) this.baseTermCcahe.getIfPresent(jdexId),
-					(ITerm) this.functionTermCcahe.getIfPresent(jdexId));
+			return Objects.firstNonNull((ITerm) this.baseTermCache.getIfPresent(jdexId),
+					(ITerm) this.functionTermCache.getIfPresent(jdexId));
 	
 		}
 	
