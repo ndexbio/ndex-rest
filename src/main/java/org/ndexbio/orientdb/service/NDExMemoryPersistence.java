@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import org.eclipse.jdt.core.dom.ThisExpression;
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.IEdge;
@@ -374,15 +375,25 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		        }
 		        
 		    }
-
+		/*
+		 * public method to allow xbel parsing components to rollback the transaction and 
+		 * close the database connection if they encounter an error situation
+		 */
 
 		@Override
-		public void closeDatabase() {
-			ndexService.teardownDatabase();
-			System.out.println("Connection to orientdb database has been closed");
-			
+		public void abortTransaction() {
+			System.out.println(this.getClass().getName() +".abortTransaction has been invoked.");
+			try {
+				ndexService._orientDbGraph.getBaseGraph().rollback();
+				System.out.println("The current orientdb transaction has been rolled back");
+			} finally {
+				ndexService.teardownDatabase();
+				System.out.println("Connection to orientdb database has been closed");
+			}
 		}
 
+
+	
 		/*
 		 * public method to persist INetwork to the orientdb database
 		 * using cache contents.
@@ -390,10 +401,57 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 
 		@Override
 		public void persistNetwork() {
-			this.addINamespaces();
-			this.addITerms();
-			
-			
+			try {
+				//1. namespaces
+				this.addINamespaces();
+				//2. terms
+				this.addITerms();
+				//3. nodes
+				this.addINodes();
+				//4. edges
+				this.addIEdges();
+				//5. citations
+				this.addICitations();
+				//6. supports
+				this.addISupports();
+				// commit
+				ndexService._orientDbGraph.getBaseGraph().commit();
+				System.out.println("The new network " +network.getTitle() 
+						+" has been committed");
+			} catch (Exception e) {
+				ndexService._orientDbGraph.getBaseGraph().rollback();
+				System.out.println("The current orientdb transaction has been rolled back");
+				e.printStackTrace();
+			} finally {
+				ndexService.teardownDatabase();
+				System.out.println("Connection to orientdb database has been closed");
+			}
+		}
+		
+		private void addISupports() {
+			for(ISupport support : this.supportCache.asMap().values()){
+				this.network.addSupport(support);
+			}
+		}
+		
+		private void addICitations() {
+			for(ICitation citation : this.citationCache.asMap().values()){
+				this.network.addCitation(citation);
+			}
+		}
+		
+		private void addIEdges() {
+			for (IEdge edge : this.edgeCache.asMap().values()) {
+				this.network.addNdexEdge(edge);
+			}
+		}
+		
+		
+		
+		private void addINodes() {
+			for (INode in : this.nodeCache.asMap().values()){
+				this.network.addNdexNode(in);
+			}
 		}
 		
 		private void addINamespaces() {
@@ -411,6 +469,9 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 			}					
 		}
 
+
+
+	
 
 
 

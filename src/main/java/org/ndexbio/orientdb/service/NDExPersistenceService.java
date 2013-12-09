@@ -50,7 +50,7 @@ public interface NDExPersistenceService {
 	public INetworkMembership  createNetworkMembership();
 	
 	public SearchResult<IUser> findUsers(SearchParameters searchParameters) throws NdexException;
-	public void closeDatabase();
+	public void abortTransaction();
 	
 	
 	

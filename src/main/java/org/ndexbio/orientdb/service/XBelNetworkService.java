@@ -14,6 +14,8 @@ import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.models.Network;
+import org.ndexbio.rest.models.SearchParameters;
+import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.xbel.cache.XbelCacheService;
 import org.ndexbio.xbel.model.Citation;
 import org.ndexbio.xbel.model.Namespace;
@@ -73,8 +75,12 @@ public class XBelNetworkService  {
 		return this.persistenceService.findUsers(searchParameters);
 	}
 	
-	public void closeDatabaseConnection(){
-		this.persistenceService.closeDatabase();
+	public void persistNewNetwork(){
+		this.persistenceService.persistNetwork();
+	}
+	
+	public void rollbackCurrentTransaction() {
+		this.persistenceService.abortTransaction();
 	}
 	
 	  

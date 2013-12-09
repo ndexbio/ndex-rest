@@ -64,12 +64,13 @@ public class XbelFileParser {
 			this.processHeaderAndCreateNetwork();
 			this.processNamespaces();
 			this.processStatementGroups();
+			// persist the network domain model, commit the transaction, close database connection
+			XBelNetworkService.getInstance().persistNewNetwork();
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
+			// rollback current transaction and close the database connection
+			XBelNetworkService.getInstance().rollbackCurrentTransaction();
 			e.printStackTrace();
-		} finally {
-			XBelNetworkService.getInstance().closeDatabaseConnection();
-		}
+		} 
 		
 	}
 	
