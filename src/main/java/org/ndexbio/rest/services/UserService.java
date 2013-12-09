@@ -217,6 +217,9 @@ public class UserService extends NdexService
             String filePath = new File("").getAbsolutePath(); 
             if (filePath.startsWith("/home"))
                 ImageIO.write(resizedImage, "jpg", new File(filePath + "/Projects/NDEx-Site/img/background/" + user.getUsername() + ".jpg"));
+            else if (filePath.startsWith("/opt/ndex"))
+                ImageIO.write(resizedImage, "jpg", new File("/opt/ndex/accountImg/background/" + user.getUsername() + ".jpg"));
+
             else
                 ImageIO.write(resizedImage, "jpg", new File("/var/node/ndex-site/img/background/" + user.getUsername() + ".jpg"));
         }
@@ -264,6 +267,9 @@ public class UserService extends NdexService
             String filePath = new File("").getAbsolutePath(); 
             if (filePath.startsWith("/home"))
                 ImageIO.write(resizedImage, "jpg", new File(filePath + "/Projects/NDEx-Site/img/foreground/" + user.getUsername() + ".jpg"));
+            else if (filePath.startsWith("/opt/ndex"))
+                ImageIO.write(resizedImage, "jpg", new File("/opt/ndex/accountImg/foreground/" + user.getUsername() + ".jpg"));
+
             else
                 ImageIO.write(resizedImage, "jpg", new File("/var/node/ndex-site/img/foreground/" + user.getUsername() + ".jpg"));
         }

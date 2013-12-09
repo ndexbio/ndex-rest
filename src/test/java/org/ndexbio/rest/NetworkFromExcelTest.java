@@ -73,6 +73,7 @@ public class NetworkFromExcelTest {
 
 		// Put into the Network model format
 		Network networkToCreate = networkFromWorkSheet(sheet);
+		
 		System.out.println("Creating network from excel file: "
 				+ file.getName() + ".");
 		List<Membership> membershipList = new ArrayList<Membership>();
@@ -82,7 +83,8 @@ public class NetworkFromExcelTest {
 		membership.setPermissions(Permissions.ADMIN);
 		membershipList.add(membership);
 		networkToCreate.setMembers(membershipList);
-		networkToCreate.setTitle(file.getName());
+		networkToCreate.setTitle("Example Protein Interactions");
+		networkToCreate.setSource("Ideker Lab");
 
 		final NetworkService networkService = new NetworkService();
 		final Network newNetwork = networkService
