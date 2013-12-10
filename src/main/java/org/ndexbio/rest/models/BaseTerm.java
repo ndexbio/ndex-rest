@@ -33,8 +33,8 @@ public class BaseTerm extends Term
         
         _name = baseTerm.getName();
         
-        if (baseTerm.getNamespace() != null)
-            _namespace = baseTerm.getNamespace().getJdexId();
+        if (baseTerm.getTermNamespace() != null)
+            _namespace = baseTerm.getTermNamespace().getJdexId();
     }
     
     

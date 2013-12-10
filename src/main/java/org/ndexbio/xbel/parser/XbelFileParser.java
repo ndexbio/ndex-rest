@@ -88,7 +88,7 @@ public class XbelFileParser {
 	}
 
 	private void processNamespaces() {
-		this.getMsgBuffer().add("Parsing namesaces from " + this.getXmlFile());
+		this.getMsgBuffer().add("Parsing namespaces from " + this.getXmlFile());
 		reader.setContentHandler(nsSplitter);
 		try {
 			reader.parse(this.getXmlFile());

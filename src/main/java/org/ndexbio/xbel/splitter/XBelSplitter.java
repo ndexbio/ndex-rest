@@ -150,10 +150,7 @@ public abstract class XBelSplitter extends XMLFilterImpl {
 							.println("unable to process a NamespaceGroup at line "
 									+ locator.getLineNumber());
 					return;
-				} catch (ExecutionException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				}
+				} 
 
 				unmarshallerHandler = null;
 			}

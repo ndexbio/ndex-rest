@@ -62,33 +62,32 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	 
 	 //IBaseTerm cache
 	 private LoadingCache<Long, IBaseTerm> baseTermCache = CacheBuilder.newBuilder()
-			 .maximumSize(1000L)
+			 .maximumSize(10000L)
 			 .expireAfterAccess(240L, TimeUnit.MINUTES)
 			
 			 .build(new CacheLoader<Long,IBaseTerm>() {
 				@Override
 				public IBaseTerm load(Long key) throws Exception {
-					return ndexService. _orientDbGraph.addVertex("class:baseTerm", IBaseTerm.class);
+					return ndexService._orientDbGraph.addVertex("class:baseTerm", IBaseTerm.class);
 				}
-				 
 			 });
 	 
 	 //IFunctionTerm cache
 	 private LoadingCache<Long, IFunctionTerm> functionTermCache = CacheBuilder.newBuilder()
-			 .maximumSize(1000L)
+			 .maximumSize(10000L)
 			 .expireAfterAccess(240L, TimeUnit.MINUTES)
 			
 			 .build(new CacheLoader<Long,IFunctionTerm>() {
 				@Override
 				public IFunctionTerm load(Long key) throws Exception {
-					return ndexService. _orientDbGraph.addVertex("class:functionTerm", IFunctionTerm.class);
+					return ndexService._orientDbGraph.addVertex("class:functionTerm", IFunctionTerm.class);
 				}
 				 
 			 });
 	 
 	 //INamespace cache
 	 private LoadingCache<Long, INamespace> namespaceCache = CacheBuilder.newBuilder()
-			 .maximumSize(1000L)
+			 .maximumSize(10000L)
 			 .expireAfterAccess(240L, TimeUnit.MINUTES)
 			
 			 .build(new CacheLoader<Long,INamespace>() {
@@ -102,7 +101,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	 
 	 //ICitation cache
 	 private LoadingCache<Long, ICitation> citationCache = CacheBuilder.newBuilder()
-			 .maximumSize(1000L)
+			 .maximumSize(10000L)
 			 .expireAfterAccess(240L, TimeUnit.MINUTES)
 			
 			 .build(new CacheLoader<Long,ICitation>() {
@@ -115,7 +114,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	 
 	//IEdge cache
 		 private LoadingCache<Long, IEdge> edgeCache = CacheBuilder.newBuilder()
-				 .maximumSize(1000L)
+				 .maximumSize(10000L)
 				 .expireAfterAccess(240L, TimeUnit.MINUTES)
 				
 				 .build(new CacheLoader<Long,IEdge>() {
@@ -128,7 +127,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		 
 		//INode cache
 		 private LoadingCache<Long, INode> nodeCache = CacheBuilder.newBuilder()
-				 .maximumSize(1000L)
+				 .maximumSize(10000L)
 				 .expireAfterAccess(240L, TimeUnit.MINUTES)
 				
 				 .build(new CacheLoader<Long,INode>() {
@@ -141,7 +140,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		 
 		//ISupport cache
 		 private LoadingCache<Long, ISupport> supportCache = CacheBuilder.newBuilder()
-				 .maximumSize(1000L)
+				 .maximumSize(10000L)
 				 .expireAfterAccess(240L, TimeUnit.MINUTES)
 				
 				 .build(new CacheLoader<Long,ISupport>() {
@@ -169,7 +168,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	public INamespace findNamespaceByPrefix(String prefix) {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(prefix), "A namespace prefix is required");
 		Preconditions.checkArgument(!XbelCacheService.INSTANCE.isNovelIdentifier(prefix),
-				"The prefix " +prefix +" is not registered");
+				"The namespace prefix " + prefix +" is not registered");
 		try {
 			Long jdexId = XbelCacheService.INSTANCE.accessIdentifierCache().get(prefix);
 			INamespace ns = this.namespaceCache.getIfPresent(jdexId);
@@ -402,6 +401,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		@Override
 		public void persistNetwork() {
 			try {
+
 				//1. namespaces
 				this.addINamespaces();
 				//2. terms
@@ -415,6 +415,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 				//6. supports
 				this.addISupports();
 				// commit
+
 				ndexService._orientDbGraph.getBaseGraph().commit();
 				System.out.println("The new network " +network.getTitle() 
 						+" has been committed");
@@ -444,6 +445,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 			for (IEdge edge : this.edgeCache.asMap().values()) {
 				this.network.addNdexEdge(edge);
 			}
+			this.network.setNdexEdgeCount(this.edgeCache.asMap().size());
 		}
 		
 		
@@ -452,6 +454,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 			for (INode in : this.nodeCache.asMap().values()){
 				this.network.addNdexNode(in);
 			}
+			this.network.setNdexNodeCount(this.nodeCache.asMap().size());
 		}
 		
 		private void addINamespaces() {

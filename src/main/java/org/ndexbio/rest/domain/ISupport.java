@@ -18,11 +18,11 @@ public interface ISupport extends VertexFrame
     @Property("text")
     public String getText();
 
-    @Adjacency(label = "citation")
-    public void setCitation(ICitation citation);
+    @Adjacency(label = "supportCitation")
+    public void setSupportCitation(ICitation citation);
 
-    @Adjacency(label = "citation")
-    public ICitation getCitation();
+    @Adjacency(label = "supportCitation")
+    public ICitation getSupportCitation();
     
     @Adjacency(label = "ndexEdges")
     public void addNdexEdge(IEdge edge);

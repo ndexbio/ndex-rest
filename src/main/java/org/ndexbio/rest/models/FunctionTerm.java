@@ -30,7 +30,7 @@ public class FunctionTerm extends Term
     **************************************************************************/
     public FunctionTerm(IFunctionTerm iFunctionTerm)
     {
-        this.setTermFunction(iFunctionTerm.getTermFunction().getJdexId());
+        this.setTermFunction(iFunctionTerm.getTermFunc().getJdexId());
 
         for (final Map.Entry<Integer, String> entry : iFunctionTerm.getTextParameters().entrySet())
             this.getParameters().put(entry.getKey(), entry.getValue());
