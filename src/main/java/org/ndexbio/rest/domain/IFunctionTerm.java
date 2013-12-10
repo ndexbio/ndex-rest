@@ -7,10 +7,10 @@ import com.tinkerpop.frames.modules.typedgraph.TypeValue;
 @TypeValue("Function")
 public interface IFunctionTerm extends ITerm
 {
-    @Property("termParameters")
+    @Adjacency(label = "termParameters")
     public Iterable<ITerm> getTermParameters();
 
-    @Property("termParameters")
+    @Adjacency(label = "termParameters")
     public void setTermParameters(Iterable< ITerm> termParameters);
 
     @Adjacency(label = "termFunc")
