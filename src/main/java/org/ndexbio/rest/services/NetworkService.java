@@ -16,6 +16,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
@@ -51,7 +52,6 @@ import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.Vertex;
 import com.tinkerpop.blueprints.impls.orient.OrientElement;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 import com.tinkerpop.frames.VertexFrame;
@@ -222,24 +222,30 @@ public class NetworkService extends NdexService
         {
             setupDatabase();
 
-            final Vertex networkToDelete = _orientDbGraph.getVertex(networkRid);
+            final INetwork networkToDelete = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (networkToDelete == null)
-                return;
+                throw new ObjectNotFoundException("Network", networkJid);
 
-            _orientDbGraph.removeVertex(networkToDelete);
+            final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_members = ? and permissions = 'ADMIN'"));
+            if (adminCount == null || adminCount.isEmpty())
+                throw new NdexException("Unable to count ADMIN members.");
+            else if ((long)adminCount.get(0).field("count") > 1)
+                throw new NdexException("Cannot delete a network that contains other ADMIN members.");
 
-            //Delete all children vertices of the network
-            List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + networkRid + " while @class <> 'Account')"));
+            for (INetworkMembership networkMembership : networkToDelete.getMembers())
+                _orientDbGraph.removeVertex(networkMembership.asVertex());
 
+            final List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + networkRid + " while @class <> 'Account')"));
             for (ODocument networkChild : networkChildren)
             {
-                ORID childId = networkChild.field("rid", OType.LINK);
-                OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
-            
+                final ORID childId = networkChild.field("rid", OType.LINK);
+
+                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
                 if (element != null)
                     element.remove();
             }
-
+            
+            _orientDbGraph.removeVertex(networkToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
@@ -330,7 +336,17 @@ public class NetworkService extends NdexService
 
             final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (network == null)
-                return null;
+                throw new ObjectNotFoundException("Network", networkJid);
+            else if (!network.getIsPublic())
+            {
+                for (Membership userMembership : this.getLoggedInUser().getNetworks())
+                {
+                    if (userMembership.getResourceId().equals(networkJid))
+                        return new Network(network);
+                }
+                
+                throw new ResteasyAuthenticationException("You do not have access to that network.");
+            }
             else
                 return new Network(network);
         }
@@ -448,6 +464,8 @@ public class NetworkService extends NdexService
             final INetwork network = _orientDbGraph.getVertex(RidConverter.convertToRid(updatedNetwork.getId()), INetwork.class);
             if (network == null)
                 throw new ObjectNotFoundException("Network", updatedNetwork.getId());
+            
+            //TODO: Don't allow the only ADMIN member to change their own permissions
 
             if (updatedNetwork.getDescription() != null && !updatedNetwork.getDescription().isEmpty())
                 network.setDescription(updatedNetwork.getDescription());

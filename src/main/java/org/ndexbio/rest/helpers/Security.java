@@ -129,11 +129,11 @@ public class Security
             
             //Add the random character
             if (charType == 1)
-                randomPassword.append(alphaCharacters.charAt(randomNumber(0, 25)));
+                randomPassword.append(alphaCharacters.charAt(randomNumber(0, alphaCharacters.length() - 1)));
             else if (charType == 2)
-                randomPassword.append(numericCharacters.charAt(randomNumber(0, 9)));
+                randomPassword.append(numericCharacters.charAt(randomNumber(0, numericCharacters.length() - 1)));
             else
-                randomPassword.append(symbolCharacters.charAt(randomNumber(0, 31)));
+                randomPassword.append(symbolCharacters.charAt(randomNumber(0, symbolCharacters.length() - 1)));
         }
         
         return randomPassword.toString();

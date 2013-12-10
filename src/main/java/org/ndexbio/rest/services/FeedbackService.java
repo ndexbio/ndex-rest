@@ -23,7 +23,7 @@ public class FeedbackService extends NdexService
         else if (feedbackText == null || feedbackText.isEmpty())
             throw new ValidationException("No feedback was supplied.");
         
-        //TODO: Refactor this to get settings from a configuration file
-        Email.sendEmail("support@ndexbio.org", "support@ndexbio.org", feedbackType, feedbackText);
+        //TODO: Refactor this to get the TO address (support@ndexbio.org) from a config file
+        Email.sendEmail(this.getLoggedInUser().getEmailAddress(), "support@ndexbio.org", feedbackType, feedbackText);
     }
 }

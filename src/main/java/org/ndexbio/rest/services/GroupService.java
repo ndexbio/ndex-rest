@@ -1,10 +1,8 @@
 package org.ndexbio.rest.services;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Date;
 import java.util.List;
-import java.util.regex.Pattern;
 import javax.annotation.security.PermitAll;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -13,6 +11,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.IGroupMembership;
 import org.ndexbio.rest.domain.IUser;
@@ -21,17 +20,17 @@ import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.Validation;
 import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.SearchResult;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.Vertex;
+import com.tinkerpop.blueprints.impls.orient.OrientElement;
 
-//TODO: Need to add a method to change a member's permissions
 @Path("/groups")
 public class GroupService extends NdexService
 {
@@ -58,9 +57,7 @@ public class GroupService extends NdexService
             throw new ValidationException("The group to create is empty.");
         else if (newGroup.getMembers() == null || newGroup.getMembers().size() == 0)
             throw new ValidationException("The group to create has no members specified.");
-
-        final Pattern groupNamePattern = Pattern.compile("^[A-Za-z0-9]{6,}$");
-        if (!groupNamePattern.matcher(newGroup.getName()).matches())
+        else if (!Validation.isValid(newGroup.getName(), Validation.REGEX_GROUP_NAME))
             throw new ValidationException("Invalid group name: " + newGroup.getName() + ".");
 
         try
@@ -119,18 +116,44 @@ public class GroupService extends NdexService
         if (groupJid == null || groupJid.isEmpty())
             throw new ValidationException("No group ID was specified.");
 
-        final ORID groupId = RidConverter.convertToRid(groupJid);
+        final ORID networkRid = RidConverter.convertToRid(groupJid);
 
         try
         {
             setupDatabase();
             
-            final Vertex groupToDelete = _orientDbGraph.getVertex(groupId);
+            final IGroup groupToDelete = _orientDbGraph.getVertex(networkRid, IGroup.class);
             if (groupToDelete == null)
                 throw new ObjectNotFoundException("Group", groupJid);
+            else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
+                throw new ResteasyAuthenticationException("Insufficient privileges to delete the group.");
 
-            //TODO: Need to remove orphaned vertices
-            _orientDbGraph.removeVertex(groupToDelete);
+            final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_members = ? and permissions = 'ADMIN'"));
+            if (adminCount == null || adminCount.isEmpty())
+                throw new NdexException("Unable to count ADMIN members.");
+            else if ((long)adminCount.get(0).field("count") > 1)
+                throw new NdexException("Cannot delete a group that contains other ADMIN members.");
+
+            final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_networks = ? and permissions = 'ADMIN'"));
+            if (adminCount == null || adminCount.isEmpty())
+                throw new NdexException("Unable to query group/network membership.");
+            else if ((long)adminNetworks.get(0).field("count") > 1)
+                throw new NdexException("Cannot delete a group that is an ADMIN member of any network.");
+
+            for (IGroupMembership groupMembership : groupToDelete.getMembers())
+                _orientDbGraph.removeVertex(groupMembership.asVertex());
+
+            final List<ODocument> groupChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + networkRid + " while @class <> 'Account')"));
+            for (ODocument groupChild : groupChildren)
+            {
+                final ORID childId = groupChild.field("rid", OType.LINK);
+
+                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
+                if (element != null)
+                    element.remove();
+            }
+
+            _orientDbGraph.removeVertex(groupToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
@@ -180,7 +203,11 @@ public class GroupService extends NdexService
         {
             setupDatabase();
             
-            final List<ODocument> groupDocumentList = _orientDbGraph.getBaseGraph().getRawGraph().query(new OSQLSynchQuery<ODocument>(query));
+            final List<ODocument> groupDocumentList = _orientDbGraph
+                .getBaseGraph()
+                .getRawGraph()
+                .query(new OSQLSynchQuery<ODocument>(query));
+            
             for (final ODocument document : groupDocumentList)
                 foundGroups.add(new Group(_orientDbGraph.getVertex(document, IGroup.class)));
     
@@ -204,6 +231,7 @@ public class GroupService extends NdexService
     * @param groupId The ID or name of the group.
     **************************************************************************/
     @GET
+    @PermitAll
     @Path("/{groupId}")
     @Produces("application/json")
     public Group getGroup(@PathParam("groupId") final String groupJid) throws NdexException
@@ -224,10 +252,9 @@ public class GroupService extends NdexService
         catch (ValidationException ve)
         {
             //The group ID is actually a group name
-            final Collection<ODocument> matchingGroups = _orientDbGraph.getBaseGraph().command(new OCommandSQL("select from Group where groupname = ?")).execute(groupJid);
-
-            if (matchingGroups.size() > 0)
-                return new Group(_orientDbGraph.getVertex(matchingGroups.toArray()[0], IGroup.class), true);
+            final List<ODocument> matchingGroups = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Group where name = '" + groupJid + "'"));
+            if (!matchingGroups.isEmpty())
+                return new Group(_orientDbGraph.getVertex(matchingGroups.get(0), IGroup.class), true);
         }
         finally
         {
@@ -258,7 +285,11 @@ public class GroupService extends NdexService
             final IGroup groupToUpdate = _orientDbGraph.getVertex(groupRid, IGroup.class);
             if (groupToUpdate == null)
                 throw new ObjectNotFoundException("Group", updatedGroup.getId());
-    
+            else if (!hasPermission(updatedGroup, Permissions.WRITE))
+                throw new ResteasyAuthenticationException("Access denied.");
+            
+            //TODO: Don't allow the only ADMIN member to change their own permissions
+
             if (updatedGroup.getDescription() != null && !updatedGroup.getDescription().isEmpty())
                 groupToUpdate.setDescription(updatedGroup.getDescription());
             
@@ -282,5 +313,25 @@ public class GroupService extends NdexService
         {
             teardownDatabase();
         }
+    }
+    
+    
+    
+    /**************************************************************************
+    * Determines if the logged in user has sufficient permissions to a group. 
+    * 
+    * @param targetGroup
+    *            The group to test for permissions.
+    * @return True if the member has permission, false otherwise.
+    **************************************************************************/
+    private boolean hasPermission(Group targetGroup, Permissions requiredPermissions)
+    {
+        for (Membership groupMembership : this.getLoggedInUser().getGroups())
+        {
+            if (groupMembership.getResourceId() == targetGroup.getId() && groupMembership.getPermissions().compareTo(requiredPermissions) > -1)
+                return true;
+        }
+        
+        return false;
     }
 }
