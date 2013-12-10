@@ -116,7 +116,7 @@ public class CreateTestDatabase
                 System.out.println("Creating " + testUser.getUsername() + "'s groups.");
                 createTestUserGroups(userNode.get("ownedGroups"), testUser);
             }
-
+            /*
             //Have to do a second loop to create requests because we need all
             //users, groups, and networks to exist
             for (Entry<User, JsonNode> newUser : usersCreated.entrySet())
@@ -134,6 +134,7 @@ public class CreateTestDatabase
                         createTestGroupRequests(groupIterator.next().get("requests"), newUser.getKey(), ownedGroup.getResourceId());
                 }
             }
+            */
         }
         catch (Exception e)
         {

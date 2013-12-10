@@ -2,28 +2,20 @@ package org.ndexbio.xbel.parser;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import javax.xml.bind.JAXBContext;
-import javax.xml.bind.JAXBException;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParserFactory;
-
 import org.ndexbio.orientdb.service.OrientdbNetworkFactory;
 import org.ndexbio.orientdb.service.SIFNetworkService;
-import org.ndexbio.orientdb.service.XBelNetworkService;
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INode;
-import org.ndexbio.xbel.parser.XbelFileValidator.ValidationState;
 import org.ndexbio.xbel.splitter.HeaderSplitter;
 import org.ndexbio.xbel.splitter.NamespaceGroupSplitter;
 import org.ndexbio.xbel.splitter.StatementGroupSplitter;
-import org.xml.sax.SAXException;
 import org.xml.sax.XMLReader;
 
 import com.google.common.base.Preconditions;
@@ -42,10 +34,6 @@ public class SIFFileParser {
 	private final String sifURI;
 	//private final ValidationState validationState;
 	private final List<String> msgBuffer;
-	private XMLReader reader;
-	private NamespaceGroupSplitter nsSplitter;
-	private StatementGroupSplitter sgSplitter;
-	private HeaderSplitter headerSplitter;
 	
 	private INetwork network;
 
@@ -71,10 +59,19 @@ public class SIFFileParser {
 	 */
 	public void parseSIFFile() {
 		try {
+			this.getMsgBuffer().add("Parsing lines from " + this.getSIFURI());
+			BufferedReader bufferedReader;
+			try {
+				bufferedReader = new BufferedReader(new FileReader(this.getSifFile()));
+			} catch (FileNotFoundException e1) {
+				this.getMsgBuffer().add("Could not read " + this.getSIFURI());
+				//e1.printStackTrace();
+				return;
+			}
 			// scan for tabs
 			boolean tabDelimited = scanForTabs(this.getSIFURI());
 			this.createNetwork();
-			this.processRows(tabDelimited);
+			this.processRows(tabDelimited, bufferedReader);
 			// persist the network domain model, commit the transaction, close database connection
 			SIFNetworkService.getInstance().persistNewNetwork();
 		} catch (Exception e) {
@@ -95,10 +92,10 @@ public class SIFFileParser {
 		this.getMsgBuffer().add("New SIF: " +network.getTitle());
 	}
 
-	private void processRows(boolean tabDelimited) {
-		this.getMsgBuffer().add("Parsing lines from " + this.getSIFURI());
+	private void processRows(boolean tabDelimited, BufferedReader br) {
+		
 		try {
-			BufferedReader br = new BufferedReader(new FileReader(this.getSIFURI()));
+			
 			String line;
 			while ((line = br.readLine()) != null) {
 				String[] tokens = null;
@@ -151,6 +148,10 @@ public class SIFFileParser {
 
 	public String getSIFURI() {
 		return sifURI;
+	}
+
+	public File getSifFile() {
+		return sifFile;
 	}
 	
 	

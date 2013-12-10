@@ -84,6 +84,7 @@ public class SIFNetworkService {
 		if (persisted) return bt;
 		bt.setName(name);
 		bt.setJdexId(jdexId.toString());
+		this.persistenceService.getCurrentNetwork().addTerm(bt);
 		return bt;
 	}
 
@@ -103,6 +104,7 @@ public class SIFNetworkService {
 		newNamespace.setJdexId(jdexId.toString());
 		newNamespace.setPrefix(ns.getPrefix());
 		newNamespace.setUri(ns.getResourceLocation());
+		this.persistenceService.getCurrentNetwork().addNamespace(newNamespace);
 		return newNamespace;
 	}
 
@@ -119,6 +121,7 @@ public class SIFNetworkService {
 		if (persisted) return iNode;
 		iNode.setJdexId(jdexId.toString());
 		iNode.setRepresents(baseTerm);
+		this.persistenceService.getCurrentNetwork().addNdexNode(iNode);
 		return iNode;
 
 	}
@@ -133,6 +136,7 @@ public class SIFNetworkService {
 			edge.setSubject(subjectNode);
 			edge.setPredicate(predicate);
 			edge.setObject(objectNode);
+			this.persistenceService.getCurrentNetwork().addNdexEdge(edge);
 			System.out.println("Created edge " + edge.getJdexId());
 		} 
 	}
