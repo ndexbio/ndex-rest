@@ -119,7 +119,7 @@ public class Security
     {
         final String alphaCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
         final String numericCharacters = "0123456789";
-        final String symbolCharacters = "-=[];~!@#$%^&*()_+{}|:<>?";
+        final String symbolCharacters = "`-=[]\\;',./~!@#$%^&*()_+{}|:\"<>?";
         
         StringBuilder randomPassword = new StringBuilder();
         for (int passwordIndex = 0; passwordIndex < passwordLength; passwordIndex++)

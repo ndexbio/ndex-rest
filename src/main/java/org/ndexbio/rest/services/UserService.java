@@ -6,7 +6,6 @@ import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.security.PermitAll;
@@ -18,6 +17,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Response;
 import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
@@ -147,6 +147,8 @@ public class UserService extends NdexService
             throw new ValidationException("No user ID was specified.");
         else if (password == null || password.isEmpty())
             throw new ValidationException("No password was specified.");
+        else if (!userJid.equals(this.getLoggedInUser().getId()))
+            throw new ResteasyAuthenticationException("Access denied.");
         
         final ORID userRid = RidConverter.convertToRid(userJid);
         
@@ -195,6 +197,8 @@ public class UserService extends NdexService
         
         if (uploadedImages == null || uploadedImages.isEmpty())
             throw new ValidationException("No uploaded image.");
+        else if (!userJid.equals(this.getLoggedInUser().getId()))
+            throw new ResteasyAuthenticationException("Access denied.");
         
         final ORID userId = RidConverter.convertToRid(userJid);
         
@@ -205,7 +209,7 @@ public class UserService extends NdexService
             final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
             if (user == null)
                 throw new ObjectNotFoundException("User", userJid);
-    
+
             final InputPart newImage = uploadedImages.get(0);
             final InputStream newFile = newImage.getBody(InputStream.class, null);
             final BufferedImage uploadedImage = ImageIO.read(newFile);
@@ -242,6 +246,8 @@ public class UserService extends NdexService
         
         if (uploadedImages == null || uploadedImages.isEmpty())
             throw new ValidationException("No uploaded image.");
+        else if (!userJid.equals(this.getLoggedInUser().getId()))
+            throw new ResteasyAuthenticationException("Access denied.");
         
         final ORID userId = RidConverter.convertToRid(userJid);
         
@@ -252,7 +258,7 @@ public class UserService extends NdexService
             final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
             if (user == null)
                 throw new ObjectNotFoundException("User", userJid);
-    
+
             final InputPart newImage = uploadedImages.get(0);
             final InputStream newFile = newImage.getBody(InputStream.class, null);
             final BufferedImage uploadedImage = ImageIO.read(newFile);
@@ -326,7 +332,9 @@ public class UserService extends NdexService
             throw new ValidationException("No user ID was specified.");
         else if (networkToDelete == null)
             throw new ValidationException("The network to delete is empty.");
-        
+        else if (!userJid.equals(this.getLoggedInUser().getId()))
+            throw new ResteasyAuthenticationException("Access denied.");
+
         final ORID userRid = RidConverter.convertToRid(userJid);
         final ORID networkRid = RidConverter.convertToRid(networkToDelete.getId());
 
@@ -369,7 +377,9 @@ public class UserService extends NdexService
     {
         if (userJid == null || userJid.isEmpty())
             throw new ValidationException("No user ID was specified.");
-        
+        else if (!userJid.equals(this.getLoggedInUser().getId()))
+            throw new ResteasyAuthenticationException("Access denied.");
+
         final ORID userRid = RidConverter.convertToRid(userJid);
         
         try
@@ -381,21 +391,29 @@ public class UserService extends NdexService
             if (userToDelete == null)
                 throw new ObjectNotFoundException("User", userJid);
             
-            //TODO: Need to remove orphaned vertices
-            _orientDbGraph.removeVertex(userToDelete.asVertex());
+            final List<ODocument> adminGroups = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_groups = ? and permissions = 'ADMIN'"));
+            if (adminGroups == null || adminGroups.isEmpty())
+                throw new Exception("Unable to query user/group membership.");
+            else if ((long)adminGroups.get(0).field("count") > 1)
+                throw new NdexException("Cannot delete a user that is an ADMIN member of any group.");
 
-            //Delete all children vertices of the network
-            List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + userRid + " while @class <> 'Account')"));
+            final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_networks = ? and permissions = 'ADMIN'"));
+            if (adminNetworks == null || adminNetworks.isEmpty())
+                throw new Exception("Unable to query user/network membership.");
+            else if ((long)adminNetworks.get(0).field("count") > 1)
+                throw new NdexException("Cannot delete a user that is an ADMIN member of any network.");
 
-            for (ODocument networkChild : networkChildren)
+            final List<ODocument> userChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + userRid + ")"));
+            for (ODocument userChild : userChildren)
             {
-                ORID childId = networkChild.field("rid", OType.LINK);
-                OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
-            
+                final ORID childId = userChild.field("rid", OType.LINK);
+
+                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
                 if (element != null)
                     element.remove();
             }
 
+            _orientDbGraph.removeVertex(userToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
@@ -418,11 +436,11 @@ public class UserService extends NdexService
     @PermitAll
     @Path("/{username}/forgot-password")
     @Produces("application/json")
-    public void emailNewPassword(@PathParam("username")final String username) throws Exception
+    public Response emailNewPassword(@PathParam("username")final String username) throws Exception
     {
         if (username == null || username.isEmpty())
             throw new ValidationException("No username was specified.");
-        
+
         try
         {
             setupDatabase();
@@ -443,6 +461,7 @@ public class UserService extends NdexService
             Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is:\t" + newPassword);
             
             _orientDbGraph.getBaseGraph().commit();
+            return Response.ok().build();
         }
         catch (Exception e)
         {
@@ -521,6 +540,7 @@ public class UserService extends NdexService
     * @param userId The ID or username of the user.
     **************************************************************************/
     @GET
+    @PermitAll
     @Path("/{userId}")
     @Produces("application/json")
     public User getUser(@PathParam("userId")final String userJid) throws Exception
@@ -541,14 +561,9 @@ public class UserService extends NdexService
         catch (ValidationException ve)
         {
             //The user ID is actually a username
-            final Iterable<ODocument> matchingUsers = _orientDbGraph
-                .getBaseGraph()
-                .command(new OCommandSQL("select from User where username = ?"))
-                .execute(userJid);
-            
-            final Iterator<ODocument> userIterator = matchingUsers.iterator(); 
-            if (userIterator.hasNext())
-                return new User(_orientDbGraph.getVertex(userIterator.next(), IUser.class), true);
+            final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + userJid + "'"));
+            if (!matchingUsers.isEmpty())
+                return new User(_orientDbGraph.getVertex(matchingUsers.get(0), IUser.class), true);
         }
         finally
         {
@@ -569,7 +584,9 @@ public class UserService extends NdexService
     {
         if (updatedUser == null)
             throw new ValidationException("The updated user is empty.");
-        
+        else if (!updatedUser.getId().equals(this.getLoggedInUser().getId()))
+            throw new ResteasyAuthenticationException("Access denied.");
+
         final ORID userRid = RidConverter.convertToRid(updatedUser.getId());
         
         try

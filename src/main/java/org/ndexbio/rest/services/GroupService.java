@@ -1,7 +1,6 @@
 package org.ndexbio.rest.services;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import javax.annotation.security.PermitAll;
@@ -27,9 +26,10 @@ import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.SearchResult;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+import com.tinkerpop.blueprints.impls.orient.OrientElement;
 
 @Path("/groups")
 public class GroupService extends NdexService
@@ -116,21 +116,43 @@ public class GroupService extends NdexService
         if (groupJid == null || groupJid.isEmpty())
             throw new ValidationException("No group ID was specified.");
 
-        final ORID groupId = RidConverter.convertToRid(groupJid);
+        final ORID networkRid = RidConverter.convertToRid(groupJid);
 
         try
         {
             setupDatabase();
             
-            final IGroup groupToDelete = _orientDbGraph.getVertex(groupId, IGroup.class);
+            final IGroup groupToDelete = _orientDbGraph.getVertex(networkRid, IGroup.class);
             if (groupToDelete == null)
                 throw new ObjectNotFoundException("Group", groupJid);
             else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
                 throw new ResteasyAuthenticationException("Insufficient privileges to delete the group.");
 
+            final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_members = ? and permissions = 'ADMIN'"));
+            if (adminCount == null || adminCount.isEmpty())
+                throw new NdexException("Unable to count ADMIN members.");
+            else if ((long)adminCount.get(0).field("count") > 1)
+                throw new NdexException("Cannot delete a group that contains other ADMIN members.");
+
+            final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_networks = ? and permissions = 'ADMIN'"));
+            if (adminCount == null || adminCount.isEmpty())
+                throw new NdexException("Unable to query group/network membership.");
+            else if ((long)adminNetworks.get(0).field("count") > 1)
+                throw new NdexException("Cannot delete a group that is an ADMIN member of any network.");
+
             for (IGroupMembership groupMembership : groupToDelete.getMembers())
                 _orientDbGraph.removeVertex(groupMembership.asVertex());
-            
+
+            final List<ODocument> groupChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + networkRid + " while @class <> 'Account')"));
+            for (ODocument groupChild : groupChildren)
+            {
+                final ORID childId = groupChild.field("rid", OType.LINK);
+
+                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
+                if (element != null)
+                    element.remove();
+            }
+
             _orientDbGraph.removeVertex(groupToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
@@ -181,7 +203,11 @@ public class GroupService extends NdexService
         {
             setupDatabase();
             
-            final List<ODocument> groupDocumentList = _orientDbGraph.getBaseGraph().getRawGraph().query(new OSQLSynchQuery<ODocument>(query));
+            final List<ODocument> groupDocumentList = _orientDbGraph
+                .getBaseGraph()
+                .getRawGraph()
+                .query(new OSQLSynchQuery<ODocument>(query));
+            
             for (final ODocument document : groupDocumentList)
                 foundGroups.add(new Group(_orientDbGraph.getVertex(document, IGroup.class)));
     
@@ -205,6 +231,7 @@ public class GroupService extends NdexService
     * @param groupId The ID or name of the group.
     **************************************************************************/
     @GET
+    @PermitAll
     @Path("/{groupId}")
     @Produces("application/json")
     public Group getGroup(@PathParam("groupId") final String groupJid) throws NdexException
@@ -225,10 +252,9 @@ public class GroupService extends NdexService
         catch (ValidationException ve)
         {
             //The group ID is actually a group name
-            final Collection<ODocument> matchingGroups = _orientDbGraph.getBaseGraph().command(new OCommandSQL("select from Group where groupname = ?")).execute(groupJid);
-
-            if (matchingGroups.size() > 0)
-                return new Group(_orientDbGraph.getVertex(matchingGroups.toArray()[0], IGroup.class), true);
+            final List<ODocument> matchingGroups = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Group where name = '" + groupJid + "'"));
+            if (!matchingGroups.isEmpty())
+                return new Group(_orientDbGraph.getVertex(matchingGroups.get(0), IGroup.class), true);
         }
         finally
         {
@@ -260,8 +286,10 @@ public class GroupService extends NdexService
             if (groupToUpdate == null)
                 throw new ObjectNotFoundException("Group", updatedGroup.getId());
             else if (!hasPermission(updatedGroup, Permissions.WRITE))
-                throw new ResteasyAuthenticationException("Insufficient privileges to update the group.");
-    
+                throw new ResteasyAuthenticationException("Access denied.");
+            
+            //TODO: Don't allow the only ADMIN member to change their own permissions
+
             if (updatedGroup.getDescription() != null && !updatedGroup.getDescription().isEmpty())
                 groupToUpdate.setDescription(updatedGroup.getDescription());
             

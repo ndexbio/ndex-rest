@@ -1,6 +1,7 @@
 package org.ndexbio.rest.services;
 
 import java.util.Date;
+import java.util.List;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -24,6 +25,8 @@ import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Request;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.Vertex;
 
 @Path("/requests")
@@ -54,9 +57,18 @@ public class RequestService extends NdexService
         final ORID fromRid = RidConverter.convertToRid(newRequest.getFromId());
         final ORID toRid = RidConverter.convertToRid(newRequest.getToId());
         
+        if (fromRid.equals(toRid))
+            throw new IllegalArgumentException("Nice try, but you cannot make a request to yourself. You may want to consider schizophrenia counseling.");
+        
         try
         {
             setupDatabase();
+            
+            final List<ODocument> existingRequests = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Request where out_fromUser = " + fromRid.toString() + " and (out_toNetwork = " + toRid.toString() + " or out_toGroup = " + toRid.toString() + ")"));
+            if (existingRequests == null || existingRequests.isEmpty())
+                throw new Exception("Unable to get request count.");
+            else if ((long)existingRequests.get(0).field("count") > 0)
+                throw new NdexException("You have already made that request and cannot make another.");
             
             if (newRequest.getRequestType().equals("Group Invitation"))
                 createGroupInvitationRequest(fromRid, toRid, newRequest);
