@@ -1,7 +1,10 @@
 package org.ndexbio.xbel.parser;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -53,19 +56,40 @@ public class ExcelFileParser {
 	 * in a property-value format.
 	 */
 	public void parseExcelFile() {
+		
+		this.getMsgBuffer().add("Parsing lines from " + this.getExcelURI());
+		//BufferedReader bufferedReader;
+		FileInputStream excelFileStream;
+		try {
+			//bufferedReader = new BufferedReader(new FileReader(this.getExcelFile()));
+			excelFileStream = new FileInputStream(this.getExcelFile());
+		} catch (FileNotFoundException e1) {
+			this.getMsgBuffer().add("Could not read " + this.getExcelURI());
+			//e1.printStackTrace();
+			return;
+		}
+		
 		try {
 			this.createNetwork();
-			FileInputStream excelFileStream = new FileInputStream(this.excelURI);
+			
 
 			// Get the workbook instance for XLS file
 			HSSFWorkbook workbook = new HSSFWorkbook(excelFileStream);
+			
+			int sheetCount = workbook.getNumberOfSheets();
+			
+			if (sheetCount == 0) throw new Exception("Empty Excel Workbook");
 
 			// Get first sheet from the workbook - this is the data
 			HSSFSheet sheet = workbook.getSheetAt(0);
 			
+			
 			// Get second sheet from the workbook
 			// If it exists, it is the metaData
-			HSSFSheet metaDataSheet = workbook.getSheetAt(1);
+			HSSFSheet metaDataSheet = null;;
+			if (sheetCount > 1){
+				metaDataSheet = workbook.getSheetAt(1);
+			}
 			
 			createNetwork();
 			
@@ -177,6 +201,10 @@ public class ExcelFileParser {
 			return cell.getStringCellValue();
 		}
 		return "";
+	}
+
+	public File getExcelFile() {
+		return excelFile;
 	}
 
 	
