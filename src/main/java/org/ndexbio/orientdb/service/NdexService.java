@@ -10,6 +10,7 @@ import org.ndexbio.rest.domain.IJoinGroupRequest;
 import org.ndexbio.rest.domain.INetworkAccessRequest;
 import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IUser;
+import org.ndexbio.rest.helpers.Configuration;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
@@ -59,9 +60,11 @@ public class NdexService
                 .withClass(IBaseTerm.class)
                 .withClass(IFunctionTerm.class).build());
 
-        // TODO: Refactor this to connect using a configurable
-        // username/password, and database
-        _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
+        _ndexDatabase = ODatabaseDocumentPool.global().acquire(
+            Configuration.getInstance().getProperty("OrientDB-URL"),
+            Configuration.getInstance().getProperty("OrientDB-Username"),
+            Configuration.getInstance().getProperty("OrientDB-Password"));
+
         _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
         NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
     }

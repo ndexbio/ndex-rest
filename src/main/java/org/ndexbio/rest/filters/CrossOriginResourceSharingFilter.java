@@ -8,7 +8,9 @@ import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.ext.Provider;
 
+@Provider
 public class CrossOriginResourceSharingFilter implements Filter
 {
     @Override

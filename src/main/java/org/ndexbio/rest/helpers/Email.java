@@ -46,15 +46,20 @@ public class Email
     **************************************************************************/
     public static void sendEmail(final String senderAddress, final String recipientAddresses[], final String subject, final String emailText) throws MessagingException
     {
-        //TODO: All of this should be pulled from a configuration file
-        //TODO: Dreamhost information can be found at: http://wiki.dreamhost.com/E-mail_Client_Configuration
-        //TODO: Java headers can be found at: https://javamail.java.net/nonav/docs/api/com/sun/mail/smtp/package-summary.html
+        //Dreamhost information can be found at: http://wiki.dreamhost.com/E-mail_Client_Configuration
+        //Java headers can be found at: https://javamail.java.net/nonav/docs/api/com/sun/mail/smtp/package-summary.html
         final Properties smtpProperties = new Properties();
-        smtpProperties.put("mail.smtp.auth", "true");
-        smtpProperties.put("mail.smtp.host", "mail.ndexbio.org");
-        smtpProperties.put("mail.smtp.port", "587");
+        smtpProperties.put("mail.smtp.auth", Configuration.getInstance().getProperty("SMTP-Auth"));
+        smtpProperties.put("mail.smtp.host", Configuration.getInstance().getProperty("SMTP-Host"));
+        smtpProperties.put("mail.smtp.port", Configuration.getInstance().getProperty("SMTP-Port"));
 
-        sendEmail(senderAddress, recipientAddresses, subject, emailText, smtpProperties, "support@ndexbio.org", "ZrdF!nP8");
+        sendEmail(senderAddress,
+            recipientAddresses,
+            subject,
+            emailText,
+            smtpProperties,
+            Configuration.getInstance().getProperty("SMTP-Username"),
+            Configuration.getInstance().getProperty("SMTP-Password"));
     }
     
     /**************************************************************************
@@ -90,6 +95,13 @@ public class Email
         for (String recipientAddress : recipientAddresses)
             emailToSend.addRecipient(Message.RecipientType.TO, InternetAddress.parse(recipientAddress)[0]);
  
-        Transport.send(emailToSend);
+        try
+        {
+            Transport.send(emailToSend);
+        }
+        catch (Exception e)
+        {
+            throw e;
+        }
     }
 }

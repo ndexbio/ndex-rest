@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import javax.annotation.security.PermitAll;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -16,6 +17,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
 import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
@@ -56,20 +58,22 @@ import com.tinkerpop.blueprints.impls.orient.OrientElement;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 import com.tinkerpop.frames.VertexFrame;
 
-//TODO: Need to add a method to change a member's permissions
 @Path("/networks")
 public class NetworkService extends NdexService
 {
     /**************************************************************************
-    * Execute parent default constructor to initialize OrientDB.
+    * Injects the HTTP request into the base class to be used by
+    * getLoggedInUser(). 
+    * 
+    * @param httpRequest The HTTP request injected by RESTEasy's context.
     **************************************************************************/
-    public NetworkService()
+    public NetworkService(@Context HttpServletRequest httpRequest)
     {
-        super();
+        super(httpRequest);
     }
-
-
-
+    
+    
+    
     /**************************************************************************
     * Suggests terms that start with the partial term.
     * 
@@ -131,7 +135,6 @@ public class NetworkService extends NdexService
     @Produces("application/json")
     public Network createNetwork(final Network newNetwork) throws Exception
     {
-        //TODO: check that member has ADMIN and handle groups as well as users
         if (newNetwork == null)
             throw new ValidationException("The network to create is null.");
         else if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0)

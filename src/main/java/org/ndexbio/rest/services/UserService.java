@@ -2,14 +2,18 @@ package org.ndexbio.rest.services;
 
 import java.awt.Image;
 import java.awt.image.BufferedImage;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.security.PermitAll;
 import javax.imageio.ImageIO;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -17,6 +21,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
@@ -27,6 +32,7 @@ import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
+import org.ndexbio.rest.helpers.Configuration;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.helpers.Security;
@@ -46,11 +52,14 @@ import com.tinkerpop.blueprints.impls.orient.OrientElement;
 public class UserService extends NdexService
 {
     /**************************************************************************
-    * Execute parent default constructor to initialize OrientDB.
+    * Injects the HTTP request into the base class to be used by
+    * getLoggedInUser(). 
+    * 
+    * @param httpRequest The HTTP request injected by RESTEasy's context.
     **************************************************************************/
-    public UserService()
+    public UserService(@Context HttpServletRequest httpRequest)
     {
-        super();
+        super(httpRequest);
     }
     
     
@@ -214,18 +223,11 @@ public class UserService extends NdexService
             final InputStream newFile = newImage.getBody(InputStream.class, null);
             final BufferedImage uploadedImage = ImageIO.read(newFile);
             
-            //TODO: Refactor this to pull settings from a configuration file
-            final BufferedImage resizedImage = resizeImage(uploadedImage, 670, 200);
+            final BufferedImage resizedImage = resizeImage(uploadedImage,
+                Integer.parseInt(Configuration.getInstance().getProperty("Profile-Background-Width")),
+                Integer.parseInt(Configuration.getInstance().getProperty("Profile-Background-Height")));
             
-            //TODO: Refactor this to pull settings from a configuration file
-            String filePath = new File("").getAbsolutePath(); 
-            if (filePath.startsWith("/home"))
-                ImageIO.write(resizedImage, "jpg", new File(filePath + "/Projects/NDEx-Site/img/background/" + user.getUsername() + ".jpg"));
-            else if (filePath.startsWith("/opt/ndex"))
-                ImageIO.write(resizedImage, "jpg", new File("/opt/ndex/accountImg/background/" + user.getUsername() + ".jpg"));
-
-            else
-                ImageIO.write(resizedImage, "jpg", new File("/var/node/ndex-site/img/background/" + user.getUsername() + ".jpg"));
+            ImageIO.write(resizedImage, "jpg", new File(Configuration.getInstance().getProperty("Profile-Background-Path") + user.getUsername() + ".jpg"));
         }
         finally
         {
@@ -265,19 +267,12 @@ public class UserService extends NdexService
             final InputPart newImage = uploadedImages.get(0);
             final InputStream newFile = newImage.getBody(InputStream.class, null);
             final BufferedImage uploadedImage = ImageIO.read(newFile);
-            
-            //TODO: Refactor this to pull settings from a configuration file
-            final BufferedImage resizedImage = resizeImage(uploadedImage, 100, 125);
-            
-            //TODO: Refactor this to pull settings from a configuration file
-            String filePath = new File("").getAbsolutePath(); 
-            if (filePath.startsWith("/home"))
-                ImageIO.write(resizedImage, "jpg", new File(filePath + "/Projects/NDEx-Site/img/foreground/" + user.getUsername() + ".jpg"));
-            else if (filePath.startsWith("/opt/ndex"))
-                ImageIO.write(resizedImage, "jpg", new File("/opt/ndex/accountImg/foreground/" + user.getUsername() + ".jpg"));
 
-            else
-                ImageIO.write(resizedImage, "jpg", new File("/var/node/ndex-site/img/foreground/" + user.getUsername() + ".jpg"));
+            final BufferedImage resizedImage = resizeImage(uploadedImage,
+                Integer.parseInt(Configuration.getInstance().getProperty("Profile-Image-Width")),
+                Integer.parseInt(Configuration.getInstance().getProperty("Profile-Image-Height")));
+            
+            ImageIO.write(resizedImage, "jpg", new File(Configuration.getInstance().getProperty("Profile-Image-Path") + user.getUsername() + ".jpg"));
         }
         catch (Exception e)
         {
@@ -463,8 +458,21 @@ public class UserService extends NdexService
             final String newPassword = Security.generatePassword();
             authUser.setPassword(Security.hashText(newPassword));
             
-            //TODO: This should be refactored to use a configuration file and a text file for the email content
-            Email.sendEmail("support@ndexbio.org", authUser.getEmailAddress(), "Password Recovery", "Your new password is:\t" + newPassword);
+            final File forgotPasswordFile = new File(Configuration.getInstance().getProperty("Forgot-Password-File"));
+            if (!forgotPasswordFile.exists())
+                throw new java.io.FileNotFoundException("File containing forgot password email content doesn't exist.");
+            
+            final BufferedReader fileReader = Files.newBufferedReader(forgotPasswordFile.toPath(), Charset.forName("US-ASCII"));
+            final StringBuilder forgotPasswordText = new StringBuilder();
+
+            String lineOfText = null;
+            while ((lineOfText = fileReader.readLine()) != null)
+                forgotPasswordText.append(lineOfText.replace("{password}", newPassword));
+            
+            Email.sendEmail(Configuration.getInstance().getProperty("Forgot-Password-Email"),
+                authUser.getEmailAddress(),
+                "Password Recovery",
+                forgotPasswordText.toString());
             
             _orientDbGraph.getBaseGraph().commit();
             return Response.ok().build();

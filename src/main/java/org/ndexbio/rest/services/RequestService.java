@@ -2,6 +2,7 @@ package org.ndexbio.rest.services;
 
 import java.util.Date;
 import java.util.List;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -9,6 +10,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.IGroupInvitationRequest;
 import org.ndexbio.rest.domain.IGroupMembership;
@@ -25,22 +27,26 @@ import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Request;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.Vertex;
+import com.tinkerpop.blueprints.impls.orient.OrientElement;
 
 @Path("/requests")
 public class RequestService extends NdexService
 {
     /**************************************************************************
-    * Execute parent default constructor to initialize OrientDB.
+    * Injects the HTTP request into the base class to be used by
+    * getLoggedInUser(). 
+    * 
+    * @param httpRequest The HTTP request injected by RESTEasy's context.
     **************************************************************************/
-    public RequestService()
+    public RequestService(@Context HttpServletRequest httpRequest)
     {
-        super();
+        super(httpRequest);
     }
-
-
+    
+    
     
     /**************************************************************************
     * Creates a request. 
@@ -49,7 +55,7 @@ public class RequestService extends NdexService
     **************************************************************************/
     @PUT
     @Produces("application/json")
-    public Request createRequest(final Request newRequest) throws Exception
+    public Request createRequest(final Request newRequest) throws NdexException
     {
         if (newRequest == null)
             throw new ValidationException("The request to create is empty.");
@@ -66,7 +72,7 @@ public class RequestService extends NdexService
             
             final List<ODocument> existingRequests = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Request where out_fromUser = " + fromRid.toString() + " and (out_toNetwork = " + toRid.toString() + " or out_toGroup = " + toRid.toString() + ")"));
             if (existingRequests == null || existingRequests.isEmpty())
-                throw new Exception("Unable to get request count.");
+                throw new NdexException("Unable to get request count.");
             else if ((long)existingRequests.get(0).field("count") > 0)
                 throw new NdexException("You have already made that request and cannot make another.");
             
@@ -84,7 +90,7 @@ public class RequestService extends NdexService
         catch (Exception e)
         {
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException(e.getMessage());
         }
         finally
         {
@@ -105,16 +111,25 @@ public class RequestService extends NdexService
         if (requestJid == null || requestJid.isEmpty())
             throw new ValidationException("No request ID was specified.");
         
-        final ORID requestId = RidConverter.convertToRid(requestJid);
+        final ORID requestRid = RidConverter.convertToRid(requestJid);
 
         try
         {
-            final Vertex requestToDelete = _orientDbGraph.getVertex(requestId);
+            final IRequest requestToDelete = _orientDbGraph.getVertex(requestRid, IRequest.class);
             if (requestToDelete == null)
                 throw new ObjectNotFoundException("Request", requestJid);
             
-            //TODO: Need to remove orphaned vertices
-            _orientDbGraph.removeVertex(requestToDelete);
+            final List<ODocument> requestChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + requestRid + " while @class <> 'Account')"));
+            for (ODocument networkChild : requestChildren)
+            {
+                final ORID childId = networkChild.field("rid", OType.LINK);
+
+                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
+                if (element != null)
+                    element.remove();
+            }
+
+            _orientDbGraph.removeVertex(requestToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import javax.annotation.security.PermitAll;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -11,6 +12,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
 import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.IGroupMembership;
@@ -35,13 +37,16 @@ import com.tinkerpop.blueprints.impls.orient.OrientElement;
 public class GroupService extends NdexService
 {
     /**************************************************************************
-    * Execute parent default constructor to initialize OrientDB.
+    * Injects the HTTP request into the base class to be used by
+    * getLoggedInUser(). 
+    * 
+    * @param httpRequest The HTTP request injected by RESTEasy's context.
     **************************************************************************/
-    public GroupService()
+    public GroupService(@Context HttpServletRequest httpRequest)
     {
-        super();
+        super(httpRequest);
     }
-
+    
     
     
     /**************************************************************************

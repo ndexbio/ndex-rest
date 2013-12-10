@@ -12,6 +12,7 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.rest.domain.*;
+import org.ndexbio.rest.helpers.Configuration;
 import org.ndexbio.rest.models.*;
 import org.ndexbio.rest.services.*;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -41,10 +42,11 @@ public class CreateTestDatabase
     {
         try
         {
-            //TODO: Refactor this to connect using a configurable username/password, and database
             //Can't use 'admin' as the username or password here, OrientDB
             //seems to have a hard-coded failure if either is 'admin'
-            OServerAdmin orientDbAdmin = new OServerAdmin("remote:localhost/ndex").connect("ndex", "ndex");
+            OServerAdmin orientDbAdmin = new OServerAdmin(Configuration.getInstance().getProperty("OrientDB-URL"))
+                .connect(Configuration.getInstance().getProperty("OrientDB-Admin-Username"), Configuration.getInstance().getProperty("OrientDB-Admin-Password"));
+            
             if (orientDbAdmin.existsDatabase("local"))
             {
                 System.out.println("Dropping existing database.");

@@ -57,8 +57,11 @@ public class Security
         ODatabaseDocumentTx ndexDatabase = null;
         try
         {
-            //TODO: Refactor this to connect using a configurable username/password, and database
-            ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
+            ndexDatabase = ODatabaseDocumentPool.global().acquire(
+                Configuration.getInstance().getProperty("OrientDB-URL"),
+                Configuration.getInstance().getProperty("OrientDB-Username"),
+                Configuration.getInstance().getProperty("OrientDB-Password"));
+
             final FramedGraph<OrientBaseGraph> orientDbGraph = graphFactory.create((OrientBaseGraph)new OrientGraph(ndexDatabase));
 
             Collection<ODocument> usersFound = ndexDatabase
@@ -119,7 +122,7 @@ public class Security
     {
         final String alphaCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
         final String numericCharacters = "0123456789";
-        final String symbolCharacters = "`-=[]\\;',./~!@#$%^&*()_+{}|:\"<>?";
+        final String symbolCharacters = "`-=;~!@#$%^&*_+|:?";
         
         StringBuilder randomPassword = new StringBuilder();
         for (int passwordIndex = 0; passwordIndex < passwordLength; passwordIndex++)
