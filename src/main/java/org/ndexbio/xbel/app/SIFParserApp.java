@@ -1,7 +1,6 @@
 package org.ndexbio.xbel.app;
 
 import org.ndexbio.xbel.parser.SIFFileParser;
-import org.ndexbio.xbel.parser.XbelFileParser;
 
 /*
  * Java application to evaluate parsing a specified file in XBEL format

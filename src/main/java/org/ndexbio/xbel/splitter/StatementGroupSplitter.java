@@ -1,5 +1,6 @@
 package org.ndexbio.xbel.splitter;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -285,13 +286,13 @@ public class StatementGroupSplitter extends XBelSplitter {
 				return ft;
 			ft.setJdexId(jdexId.toString());
 			ft.setTermFunc(function);
-			Map<Integer, ITerm> ftMap = Maps.newHashMap();
-			ft.setTermParameters(ftMap);
+			List<ITerm> ftParameters = new ArrayList<ITerm>();
+			
 			int ftCount = 0;
 			for (ITerm childITerm : childList) {
-				ftCount++;
-				ft.getTermParameters().put(ftCount, childITerm);
+				ftParameters.add(childITerm);
 			}
+			ft.setTermParameters(ftParameters);
 			return ft;
 
 		} catch (ExecutionException e) {

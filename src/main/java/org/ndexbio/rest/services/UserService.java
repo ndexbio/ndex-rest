@@ -598,9 +598,11 @@ public class UserService extends NdexService
     {
         if (updatedUser == null)
             throw new ValidationException("The updated user is empty.");
-        else if (!updatedUser.getId().equals(this.getLoggedInUser().getId()))
-            throw new ResteasyAuthenticationException("Access denied.");
-
+        else 
+        	if (null != this.servletRequest) // don't check if we are running locally.
+        		if (!updatedUser.getId().equals(this.getLoggedInUser().getId()))
+        				throw new ResteasyAuthenticationException("Access denied.");
+        	
         final ORID userRid = RidConverter.convertToRid(updatedUser.getId());
         
         try

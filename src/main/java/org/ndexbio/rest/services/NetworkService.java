@@ -505,8 +505,12 @@ public class NetworkService extends NdexService
             {
                 terms.add(((IFunctionTerm) term).getTermFunc());
                 
-                for (ITerm parameterTerm : ((IFunctionTerm) term).getTermParameters().values())
-                    addTermAndFunctionalDependencies(parameterTerm, terms);
+                for (ITerm iterm : ( (IFunctionTerm) term).getTermParameters()){
+                	if( iterm instanceof IFunctionTerm){
+                		 addTermAndFunctionalDependencies((IFunctionTerm) iterm, terms);
+                	}
+                }
+                   
             }
         }
     }
@@ -570,12 +574,18 @@ public class NetworkService extends NdexService
                 if (function != null)
                     newFunctionTerm.setTermFunc((IBaseTerm) function);
 
+                List<ITerm> iParameters = new ArrayList<ITerm>();
                 for (Map.Entry<Integer, String> entry : ((FunctionTerm)term).getParameters().entrySet())
                 {
-                    Integer key = entry.getKey();
-                    String value = entry.getValue();
-                    newFunctionTerm.getTextParameters().put(key, value);
+                	// All Terms mentioned as parameters are expected to have been found and created
+                	// prior to the current term - it is a requirement of a JDEx format file.
+                    ITerm parameter = ((ITerm) networkIndex.get(entry.getValue()));
+                    if (null != parameter){
+                    	iParameters.add(parameter);
+                    }
+                    
                 }
+                newFunctionTerm.setTermParameters(iParameters);
 
                 /*
                  * for (Map.Entry<Integer, String> entry : term

@@ -1,7 +1,6 @@
 package org.ndexbio.xbel.app;
 
-import org.ndexbio.xbel.parser.SIFFileParser;
-import org.ndexbio.xbel.parser.XbelFileParser;
+import org.ndexbio.xbel.parser.ExcelFileParser;
 
 /*
  * Java application to evaluate parsing a specified file in XBEL format
@@ -13,10 +12,10 @@ public class ExcelParserApp {
 		if (args.length > 0) {
 			filename = args[0];
 		} else {
-			filename = "galFiltered.sif";
+			filename = "exceltestnetwork.xls";
 		}
-		SIFFileParser parser = new SIFFileParser(filename);
-		parser.parseSIFFile();
+		ExcelFileParser parser = new ExcelFileParser(filename);
+		parser.parseExcelFile();
 		for (String msg : parser.getMsgBuffer()) {
 			System.out.println(msg);
 			/*
