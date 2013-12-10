@@ -1,0 +1,755 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<bel:document xmlns:bel="http://belframework.org/schema/1.0/xbel" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://belframework.org/schema/1.0/xbel http://resource.belframework.org/belframework/1.0/schema/xbel.xsd">
+    <bel:header>
+        <bel:name>BEL Framework Small Corpus Document</bel:name>
+        <bel:description>Approximately 2000 hand curated statements drawn from 57 PubMeds</bel:description>
+        <bel:version>1.2</bel:version>
+        <bel:copyright>Copyright (c) 2011, Selventa. All Rights Reserved.</bel:copyright>
+        <bel:contactInfo>support@belframework.org</bel:contactInfo>
+        <bel:authorGroup>
+            <bel:author>Selventa</bel:author>
+        </bel:authorGroup>
+        <bel:licenseGroup>
+            <bel:license>Creative Commons Attribution-Non-Commercial-ShareAlike 3.0 Unported License</bel:license>
+        </bel:licenseGroup>
+    </bel:header>
+    <bel:namespaceGroup>
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/selventa-named-rat-protein-families.belns" bel:prefix="PFR" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/selventa-named-rat-complexes.belns" bel:prefix="NCR" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/selventa-named-mouse-protein-families.belns" bel:prefix="PFM" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/selventa-named-mouse-complexes.belns" bel:prefix="NCM" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/selventa-named-human-protein-families.belns" bel:prefix="PFH" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/selventa-named-human-complexes.belns" bel:prefix="NCH" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/rgd-approved-symbols.belns" bel:prefix="RGD" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/mgi-approved-symbols.belns" bel:prefix="MGI" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/mesh-diseases.belns" bel:prefix="MESHD" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/mesh-cellular-locations.belns" bel:prefix="MESHCL" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/mesh-biological-processes.belns" bel:prefix="MESHPP" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/hgnc-approved-symbols.belns" bel:prefix="HGNC" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/go-biological-processes-names.belns" bel:prefix="GO" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/entrez-gene-ids-hmr.belns" bel:prefix="EGID" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/chebi-names.belns" bel:prefix="CHEBI" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/chebi-ids.belns" bel:prefix="CHEBIID" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/selventa-legacy-chemical-names.belns" bel:prefix="SCHEM" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/swissprot-accession-numbers.belns" bel:prefix="SPAC" />
+        <bel:namespace bel:resourceLocation="http://resource.belframework.org/belframework/1.0/namespace/selventa-legacy-diseases.belns" bel:prefix="SDIS" />
+    </bel:namespaceGroup>
+    <bel:annotationDefinitionGroup>
+        <bel:internalAnnotationDefinition bel:id="TextLocation">
+            <bel:description>indicates which section of text a statement is derived from</bel:description>
+            <bel:usage>indicates which section of text a statement is derived from</bel:usage>
+            <bel:listAnnotation>
+                <bel:listValue>Abstract</bel:listValue>
+                <bel:listValue>Results</bel:listValue>
+                <bel:listValue>Legend</bel:listValue>
+                <bel:listValue>Review</bel:listValue>
+            </bel:listAnnotation>
+        </bel:internalAnnotationDefinition>
+        <bel:externalAnnotationDefinition bel:id="CellLine" bel:url="http://resource.belframework.org/belframework/1.0/annotation/atcc-cell-line.belanno" />
+        <bel:externalAnnotationDefinition bel:id="BodyRegion" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-body-region.belanno" />
+        <bel:externalAnnotationDefinition bel:id="CardiovascularSystem" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-cardiovascular-system.belanno" />
+        <bel:externalAnnotationDefinition bel:id="CellStructure" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-cell-structure.belanno" />
+        <bel:externalAnnotationDefinition bel:id="Cell" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-cell.belanno" />
+        <bel:externalAnnotationDefinition bel:id="DigestiveSystem" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-digestive-system.belanno" />
+        <bel:externalAnnotationDefinition bel:id="Disease" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-disease.belanno" />
+        <bel:externalAnnotationDefinition bel:id="EndocrineSystem" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-endocrine-system.belanno" />
+        <bel:externalAnnotationDefinition bel:id="FluidAndSecretion" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-fluid-and-secretion.belanno" />
+        <bel:externalAnnotationDefinition bel:id="HemicAndImmuneSystem" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-hemic-and-immune-system.belanno" />
+        <bel:externalAnnotationDefinition bel:id="MuskuloskeletalSystem" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-musculoskeletal-system.belanno" />
+        <bel:externalAnnotationDefinition bel:id="NervousSystem" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-nervous-system.belanno" />
+        <bel:externalAnnotationDefinition bel:id="RespiratorySystem" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-respiratory-system.belanno" />
+        <bel:externalAnnotationDefinition bel:id="Tissue" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-tissue.belanno" />
+        <bel:externalAnnotationDefinition bel:id="UrogenitalSystem" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-urogenital-system.belanno" />
+        <bel:externalAnnotationDefinition bel:id="Species" bel:url="http://resource.belframework.org/belframework/1.0/annotation/species-taxonomy-id.belanno" />
+        <bel:externalAnnotationDefinition bel:id="SenseOrgan" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-sense-organ.belanno" />
+        <bel:externalAnnotationDefinition bel:id="IntegumentarySystem" bel:url="http://resource.belframework.org/belframework/1.0/annotation/mesh-integumentary-system.belanno" />
+    </bel:annotationDefinitionGroup>
+    <bel:statementGroup>
+        <bel:name>Pubmed 12928037</bel:name>
+        <bel:annotationGroup>
+            <bel:annotation bel:refID="TextLocation">Review</bel:annotation>
+            <bel:citation bel:type="PubMed">
+                <bel:reference>12928037</bel:reference>
+                <bel:name>Trends in molecular medicine</bel:name>
+                <bel:authorGroup>
+                    <bel:author>de Nigris F</bel:author>
+                    <bel:author>Lerman A</bel:author>
+                    <bel:author>Ignarro LJ</bel:author>
+                    <bel:author>Williams-Ignarro S</bel:author>
+                    <bel:author>Sica V</bel:author>
+                    <bel:author>Baker AH</bel:author>
+                    <bel:author>Lerman LO</bel:author>
+                    <bel:author>Geng YJ</bel:author>
+                    <bel:author>Napoli C</bel:author>
+                </bel:authorGroup>
+            </bel:citation>
+        </bel:annotationGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:annotation bel:refID="Disease">Atherosclerosis</bel:annotation>
+                <bel:annotation bel:refID="CardiovascularSystem">Arteries</bel:annotation>
+                <bel:evidence>Oxidation and nitration of macromolecules, such as
+proteins, DNA and lipids, are prominent in atherosclerotic
+arteries.</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="positiveCorrelation">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="pathology">
+                        <bel:parameter bel:ns="MESHD">Atherosclerosis</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">lipid oxidation</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="positiveCorrelation">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="pathology">
+                        <bel:parameter bel:ns="MESHD">Atherosclerosis</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">protein oxidation</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:annotation bel:refID="CardiovascularSystem">Arteries</bel:annotation>
+                <bel:evidence>Arterial cells are
+highly susceptible to oxidative stress, which can induce
+both necrosis and apoptosis (programmed cell death) [1,2].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">response to oxidative stress</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">response to oxidative stress</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">necrosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:evidence>One such risk factor is oxLDL,
+which exert pro-apoptotic effects on a variety of cell
+lineages, including endothelial cells and VSMCs, both in
+cultured cells and in arteries. [19���26]. Increased formation
+of oxygen radicals (and other radical species)
+facilitates LDL oxidation and influences oxidation-sensitive
+mechanisms [15]. It</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup>
+                    <bel:annotation bel:refID="Cell">Endothelial Cells</bel:annotation>
+                </bel:annotationGroup>
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="SCHEM">Oxidized Low Density Lipoprotein</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup>
+                    <bel:annotation bel:refID="MuskuloskeletalSystem">Muscle, Smooth, Vascular</bel:annotation>
+                </bel:annotationGroup>
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="SCHEM">Oxidized Low Density Lipoprotein</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">oxygen radical</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="SCHEM">Oxidized Low Density Lipoprotein</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:evidence>Not surprisingly, high concentrations of exogenous
+reactive oxygen species (ROS), generated by enzymatic
+reactions or by radiation, also stimulate the apoptosis of
+endothelial cells in vitro [29���31].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup>
+                    <bel:annotation bel:refID="Cell">Endothelial Cells</bel:annotation>
+                </bel:annotationGroup>
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">reactive oxygen species</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:evidence>The peptide hormone angiotensin II and
+pro-inflammatory cytokines also trigger the apoptotic
+program in endothelial cells [33,34].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup>
+                    <bel:annotation bel:refID="Cell">Endothelial Cells</bel:annotation>
+                </bel:annotationGroup>
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">angiotensin II</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:evidence>Aging, one of the
+major predictors for atherosclerotic lesion formation,
+increases the sensitivity of endothelial cells to apoptosis
+induced by in vitro and in vivo stimuli [35���37].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="positiveCorrelation">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">aging</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="pathology">
+                        <bel:parameter bel:ns="MESHD">Plaque, Atherosclerotic</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup>
+                    <bel:annotation bel:refID="Cell">Endothelial Cells</bel:annotation>
+                </bel:annotationGroup>
+                <bel:subject>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">aging</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:annotation bel:refID="Cell">Endothelial Cells</bel:annotation>
+                <bel:evidence>Shear stress
+enhances expression of the gene encoding the endothelial
+nitric oxide synthase (eNOS) and further stimulates its
+enzymatic activity, leading to physiologic low concentrations
+of nitric oxide (NO) within endothelial cells
+[44���46]. This continuous generation of NO prevents the
+apoptosis of endothelial cells, thereby protecting the
+endothelial monolayer from injury [47,48].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">response to fluid shear stress</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="rnaAbundance">
+                        <bel:parameter bel:ns="HGNC">NOS3</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">response to fluid shear stress</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="catalyticActivity">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">NOS3</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="directlyIncreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="catalyticActivity">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">NOS3</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">nitric oxide</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="decreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">nitric oxide</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:annotation bel:refID="Disease">Atherosclerosis</bel:annotation>
+                <bel:evidence>More importantly,
+intervention with L-arginine has induced beneficial
+effects on atherosclerosis in experimental and human
+studies [46,49].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="decreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">L-arginine</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="pathology">
+                        <bel:parameter bel:ns="MESHD">Atherosclerosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:annotation bel:refID="Tissue">Endothelium, Vascular</bel:annotation>
+                <bel:evidence>OxLDL induces the generation of ROS in different
+vascular cell types [15,58], and might also promote a rise
+in ROS levels through a decrease in ROS degradation,
+because oxLDL induces a reduction in the antioxidant
+enzymes Cu/Zn superoxide dismutase [59] and glutathione
+peroxidase [60].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="SCHEM">Oxidized Low Density Lipoprotein</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">reactive oxygen species</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="decreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="SCHEM">Oxidized Low Density Lipoprotein</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="proteinAbundance">
+                        <bel:parameter bel:ns="HGNC">SOD1</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="decreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="SCHEM">Oxidized Low Density Lipoprotein</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="proteinAbundance">
+                        <bel:parameter bel:ns="PFH">GPX Family</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:annotation bel:refID="CellLine">U-937</bel:annotation>
+                <bel:evidence>For instance,
+during 7-ketocholesterol-induced apoptosis of U937 cells,
+the cellular antioxidant content falls rapidly [64], but
+administration of two potent antioxidants, the aminothiols
+glutathione andN-acetylcysteine, can protect themonocytic
+cells from 7-ketocholesterol-induced apoptotic cell death
+[64].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="SCHEM">7-Ketocholesterol</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="negativeCorrelation">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="SCHEM">7-Ketocholesterol</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">antioxidant</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="decreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">antioxidant</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:statement bel:relationship="increases">
+                        <bel:subject>
+                            <bel:term bel:function="abundance">
+                                <bel:parameter bel:ns="SCHEM">7-Ketocholesterol</bel:parameter>
+                            </bel:term>
+                        </bel:subject>
+                        <bel:object>
+                            <bel:term bel:function="biologicalProcess">
+                                <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                            </bel:term>
+                        </bel:object>
+                    </bel:statement>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:annotation bel:refID="Tissue">Muscle, Smooth, Vascular</bel:annotation>
+                <bel:evidence>In addition, another oxygen-radical scavenger enzyme,
+catalase, can prevent VSMC apoptosis triggered by hydrogen
+peroxide [27,65].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">hydrogen peroxide</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="decreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="proteinAbundance">
+                        <bel:parameter bel:ns="HGNC">CAT</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:statement bel:relationship="increases">
+                        <bel:subject>
+                            <bel:term bel:function="abundance">
+                                <bel:parameter bel:ns="CHEBI">hydrogen peroxide</bel:parameter>
+                            </bel:term>
+                        </bel:subject>
+                        <bel:object>
+                            <bel:term bel:function="biologicalProcess">
+                                <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                            </bel:term>
+                        </bel:object>
+                    </bel:statement>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:evidence>The proto-oncogene c-myc can
+promote cell death (probably mediated through p53) or
+cell proliferation, depending on its expression level. It
+functions as a nuclear phosphoprotein with particular
+properties of a transcription factor [68,69]. In serumdeprived
+cultures, cells overexpressing c-myc readily
+undergo apoptosis. In addition, deregulation of c-myc
+causes apoptosis of VSMCs deprived of growth factors or
+treated with cytokines such as interferon-g [70].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup>
+                    <bel:annotation bel:refID="Tissue">Muscle, Smooth, Vascular</bel:annotation>
+                </bel:annotationGroup>
+                <bel:subject>
+                    <bel:term bel:function="proteinAbundance">
+                        <bel:parameter bel:ns="HGNC">MYC</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="proteinAbundance">
+                        <bel:parameter bel:ns="HGNC">MYC</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">cell proliferation</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:evidence>Tissue factor (TF) is a 47 kDa transmembrane glycoprotein
+that initiates blood coagulation by binding
+coagulation factor VII and its activated form (factor
+VIIa), to produce a high-affinity complex [72] that
+proteolytically activates factors IX and X, leading to
+thrombin generation.</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="directlyIncreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="peptidaseActivity">
+                        <bel:term bel:function="complexAbundance">
+                            <bel:term bel:function="proteinAbundance">
+                                <bel:parameter bel:ns="HGNC">F3</bel:parameter>
+                            </bel:term>
+                            <bel:term bel:function="proteinAbundance">
+                                <bel:parameter bel:ns="HGNC">F7</bel:parameter>
+                            </bel:term>
+                        </bel:term>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="peptidaseActivity">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">F9</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="directlyIncreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="peptidaseActivity">
+                        <bel:term bel:function="complexAbundance">
+                            <bel:term bel:function="proteinAbundance">
+                                <bel:parameter bel:ns="HGNC">F3</bel:parameter>
+                            </bel:term>
+                            <bel:term bel:function="proteinAbundance">
+                                <bel:parameter bel:ns="HGNC">F7</bel:parameter>
+                            </bel:term>
+                        </bel:term>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="peptidaseActivity">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">F10</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="peptidaseActivity">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">F9</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="peptidaseActivity">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">F2</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="peptidaseActivity">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">F10</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="peptidaseActivity">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">F2</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:annotation bel:refID="CellStructure">Cell Membrane</bel:annotation>
+                <bel:evidence>TF works at the surface of cell
+membranes, and its activity is highly dependent on the
+presence of phosphatidylserine (PS), an anionic phospholipid
+that is redistributed on the cell surface during
+apoptotic death and confers a potent pro-coagulant activity
+to the apoptotic cell [74].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">phosphatidyl-L-serine</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="peptidaseActivity">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">F3</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">apoptosis</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">phosphatidyl-L-serine</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="increases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="abundance">
+                        <bel:parameter bel:ns="CHEBI">phosphatidyl-L-serine</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">coagulation</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+        <bel:statementGroup>
+            <bel:annotationGroup>
+                <bel:evidence>TIMP-3 can be anti-angiogenic by direct binding to vascular
+endothelial growth factor (VEGF) receptor 2 in a matrix-metalloproteinase-
+independent manner [94].</bel:evidence>
+            </bel:annotationGroup>
+            <bel:statement bel:relationship="decreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="proteinAbundance">
+                        <bel:parameter bel:ns="HGNC">TIMP3</bel:parameter>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">angiogenesis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+            <bel:statement bel:relationship="decreases">
+                <bel:annotationGroup />
+                <bel:subject>
+                    <bel:term bel:function="complexAbundance">
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">TIMP3</bel:parameter>
+                        </bel:term>
+                        <bel:term bel:function="proteinAbundance">
+                            <bel:parameter bel:ns="HGNC">KDR</bel:parameter>
+                        </bel:term>
+                    </bel:term>
+                </bel:subject>
+                <bel:object>
+                    <bel:term bel:function="biologicalProcess">
+                        <bel:parameter bel:ns="GO">angiogenesis</bel:parameter>
+                    </bel:term>
+                </bel:object>
+            </bel:statement>
+        </bel:statementGroup>
+    </bel:statementGroup>
+    </bel:document>

@@ -14,11 +14,11 @@ public interface IFunctionTerm extends ITerm
     @Property("termParameters")
     public void setTermParameters(Map<Integer, ITerm> termParameters);
 
-    @Adjacency(label = "termFunction")
-    public IBaseTerm getTermFunction();
+    @Adjacency(label = "termFunc")
+    public IBaseTerm getTermFunc();
 
-    @Adjacency(label = "termFunction")
-    public void setTermFunction(IBaseTerm term);
+    @Adjacency(label = "termFunc")
+    public void setTermFunc(IBaseTerm term);
 
     @Property("textParameters")
     public Map<Integer, String> getTextParameters();

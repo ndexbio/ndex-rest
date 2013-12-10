@@ -21,8 +21,8 @@ import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 /*
  * abstract class supporting common interactions with the orientdb database
- * specifically acquiruing a database connection  initiating a graph module and
- * closing the database conection
+ * specifically acquiring a database connection  initiating a graph module and
+ * closing the database connection
  */
 
 public class NdexService

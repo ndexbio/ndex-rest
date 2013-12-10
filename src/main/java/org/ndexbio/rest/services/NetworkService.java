@@ -482,7 +482,7 @@ public class NetworkService extends NdexService
         {
             if (term instanceof IFunctionTerm)
             {
-                terms.add(((IFunctionTerm) term).getTermFunction());
+                terms.add(((IFunctionTerm) term).getTermFunc());
                 
                 for (ITerm parameterTerm : ((IFunctionTerm) term).getTermParameters().values())
                     addTermAndFunctionalDependencies(parameterTerm, terms);
@@ -547,7 +547,7 @@ public class NetworkService extends NdexService
 
                 final VertexFrame function = networkIndex.get(((FunctionTerm)term).getTermFunction());
                 if (function != null)
-                    newFunctionTerm.setTermFunction((IBaseTerm) function);
+                    newFunctionTerm.setTermFunc((IBaseTerm) function);
 
                 for (Map.Entry<Integer, String> entry : ((FunctionTerm)term).getParameters().entrySet())
                 {

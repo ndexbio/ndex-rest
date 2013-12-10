@@ -19,6 +19,7 @@ import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.xbel.cache.XbelCacheService;
 import org.ndexbio.xbel.model.AnnotationGroup;
 import org.ndexbio.xbel.model.Citation;
+import org.ndexbio.xbel.model.Function;
 import org.ndexbio.xbel.model.Parameter;
 import org.ndexbio.xbel.model.Statement;
 import org.ndexbio.xbel.model.StatementGroup;
@@ -26,6 +27,7 @@ import org.ndexbio.xbel.model.Subject;
 import org.ndexbio.xbel.model.Term;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -107,6 +109,8 @@ public class StatementGroupSplitter extends XBelSplitter {
 	private ISupport supportFromAnnotationGroup(
 			AnnotationGroup annotationGroup, ICitation citation)
 			throws ExecutionException {
+		if (null == annotationGroup)
+			return null;
 		for (Object object : annotationGroup
 				.getAnnotationOrEvidenceOrCitation()) {
 			if (object instanceof String) {
@@ -121,6 +125,8 @@ public class StatementGroupSplitter extends XBelSplitter {
 
 	private ICitation citationFromAnnotationGroup(
 			AnnotationGroup annotationGroup) throws ExecutionException {
+		if (null == annotationGroup)
+			return null;
 		for (Object object : annotationGroup
 				.getAnnotationOrEvidenceOrCitation()) {
 			if (object instanceof Citation) {
@@ -140,23 +146,41 @@ public class StatementGroupSplitter extends XBelSplitter {
 		for (Statement statement : statementList) {
 			// System.out.println("Processing Statement: "
 			// + statement.getRelationship().toString());
-			IBaseTerm predicate = XBelNetworkService.getInstance()
-					.findOrCreatePredicate(statement.getRelationship());
-			INode subjectNode = this.processStatementSubject(statement
-					.getSubject());
-			INode objectNode = this.processStatementObject(statement
-					.getObject());
-			XBelNetworkService.getInstance().createIEdge(subjectNode, objectNode, predicate, support, citation);
+
+			// if (false){
+			if (null != statement.getSubject()) {
+
+				// All statements are expected to have a subject.
+				// It is valid to have a statement with just a subject
+				// It creates a node - the biological meaning is "this exists"
+				INode subjectNode = this.processStatementSubject(statement
+						.getSubject());
+				// A typical statement, however, has a relationship, and object
+				// as well as a subject
+				// In that case, we can create an edge
+
+				if (null != statement.getRelationship()) {
+					IBaseTerm predicate = XBelNetworkService.getInstance()
+							.findOrCreatePredicate(statement.getRelationship());
+
+					INode objectNode = this.processStatementObject(statement
+							.getObject());
+
+					XBelNetworkService.getInstance().createIEdge(subjectNode,
+							objectNode, predicate, support, citation);
+				}
+			}
 		}
 	}
 
-	private INode processStatementSubject(Subject sub) throws ExecutionException {
+	private INode processStatementSubject(Subject sub)
+			throws ExecutionException {
 		if (null == sub) {
 			return null;
 		}
 		try {
-			IFunctionTerm representedTerm = this
-					.processOuterTerm(sub.getTerm());
+			IFunctionTerm representedTerm = this.processFunctionTerm(sub
+					.getTerm());
 			INode subjectNode = XBelNetworkService.getInstance()
 					.findOrCreateINodeForIFunctionTerm(representedTerm);
 			return subjectNode;
@@ -165,10 +189,11 @@ public class StatementGroupSplitter extends XBelSplitter {
 			e.printStackTrace();
 			throw (e);
 		}
-		
+
 	}
 
-	private INode processStatementObject(org.ndexbio.xbel.model.Object obj) throws ExecutionException {
+	private INode processStatementObject(org.ndexbio.xbel.model.Object obj)
+			throws ExecutionException {
 		if (null == obj) {
 			return null;
 		}
@@ -177,26 +202,29 @@ public class StatementGroupSplitter extends XBelSplitter {
 				System.out.println("Object has internal statement "
 						+ obj.getStatement().getRelationship().toString());
 			} else {
-				IFunctionTerm representedTerm = this.processOuterTerm(obj
+				IFunctionTerm representedTerm = this.processFunctionTerm(obj
 						.getTerm());
 				INode objectNode = XBelNetworkService.getInstance()
 						.findOrCreateINodeForIFunctionTerm(representedTerm);
 				return objectNode;
 			}
 		} catch (ExecutionException e) {
-			
+
 			e.printStackTrace();
-			throw(e);
+			throw (e);
 		}
 		return null;
 	}
 
-	private IFunctionTerm processOuterTerm(Term term) throws ExecutionException {
+	private IFunctionTerm processFunctionTerm(Term term)
+			throws ExecutionException {
+		// XBEL "Term" corresponds to NDEx FunctionTerm
+		IBaseTerm function = XBelNetworkService.getInstance()
+				.findOrCreateFunction(term.getFunction());
 
-		List<ITerm> childITermList = Lists.newArrayList(); // list of child term ids
-		this.processInnerTerms(term, childITermList);
-		Long jdexId = generateChildJdexId(childITermList);
-		return persistFunctionTerm(term, jdexId, childITermList);
+		List<ITerm> childITermList = this.processInnerTerms(term);
+
+		return persistFunctionTerm(term, function, childITermList);
 	}
 
 	/*
@@ -211,83 +239,77 @@ public class StatementGroupSplitter extends XBelSplitter {
 	 * FunctionTerms and BaseTerms. It maintains an identifier for each
 	 * FunctionTerm and BaseTerm. For FunctionTerms this is a concatenated
 	 * String of the JDex IDs of its children. For BaseTerms, it is a String
-	 * conatining the namespace and term value.
+	 * containing the namespace and term value.
 	 */
-	private void processInnerTerms(Term term, List<ITerm> childList)
+	private List<ITerm>  processInnerTerms(Term term)
 			throws ExecutionException {
+		
+		List<ITerm> childList = Lists.newArrayList();
 
-		for (Object o : term.getParameterOrTerm()) {
-			if (o instanceof Term) {				
-				List<ITerm> innerChildList = Lists.newArrayList();				
-				processInnerTerms((Term) o, innerChildList); 			
-				// obtain a new or existing JDEX ID from the cache based on the
-				// identifier
-				
-				Long jdexId = generateChildJdexId(innerChildList);
-				
-				IFunctionTerm ft = persistFunctionTerm( term, jdexId,  childList);
-				if (null != childList) {
-					childList.add(ft);
-				}
+		for (Object item : term.getParameterOrTerm()) {
+			if (item instanceof Term) {
 
+				IFunctionTerm functionTerm = processFunctionTerm((Term) item);
+				childList.add(functionTerm);
+
+			} else if (item instanceof Parameter) {
+				IBaseTerm baseTerm = XBelNetworkService.getInstance()
+						.findOrCreateParameter((Parameter) item);
+				childList.add(baseTerm);
 			} else {
-				Parameter p = (Parameter) o;
-				Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
-						idJoiner.join(p.getNs(), p.getValue()));
-				IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p, jdexId);
-					
-				childList.add(bt);
+				Preconditions.checkArgument(true,
+						"unknown argument to function term " + item);
 			}
 		}
+		return childList;
 	}
-	
-	  private Long generateChildJdexId(List<ITerm> itermList) throws ExecutionException{
-		  List<Long>childJdexList = Lists.newArrayList();
-			for(ITerm it : itermList){
-				childJdexList.add(new Long(it.getJdexId()));
-			}
-			return XbelCacheService.INSTANCE.accessTermCache().get(
-					idJoiner.join("TERM",childJdexList));
-	  }
 
-	  private IFunctionTerm persistFunctionTerm(Term term, Long jdexId, List<ITerm> childList) {
-		  try {
-			IFunctionTerm ft = persistenceService.findOrCreateIFunctionTerm(jdexId);
+	private Long generateFunctionTermJdexId(IBaseTerm function,
+			List<ITerm> itermList) throws ExecutionException {
+		List<String> childJdexList = Lists.newArrayList();
+		for (ITerm it : itermList) {
+			childJdexList.add(it.getJdexId());
+		}
+		return XbelCacheService.INSTANCE.accessTermCache().get(
+				idJoiner.join("TERM", function.getJdexId(), childJdexList));
+	}
+
+	private IFunctionTerm persistFunctionTerm(Term term, IBaseTerm function,
+			List<ITerm> childList) {
+		try {
+			Long jdexId = generateFunctionTermJdexId(function, childList);
+			boolean persisted = persistenceService.isEntityPersisted(jdexId);
+			IFunctionTerm ft = persistenceService
+					.findOrCreateIFunctionTerm(jdexId);
+			if (persisted)
+				return ft;
 			ft.setJdexId(jdexId.toString());
-			ft.setTermFunction(this.createBaseTermForFunctionTerm(term, childList));			
-			Map<Integer,ITerm> ftMap  = Maps.newHashMap();			
-			ft.setTermParameters(ftMap);			
+			ft.setTermFunc(function);
+			Map<Integer, ITerm> ftMap = Maps.newHashMap();
+			ft.setTermParameters(ftMap);
 			int ftCount = 0;
-			for(ITerm childITerm: childList){
+			for (ITerm childITerm : childList) {
 				ftCount++;
 				ft.getTermParameters().put(ftCount, childITerm);
 			}
 			return ft;
-			
+
 		} catch (ExecutionException e) {
-			
+
 			e.printStackTrace();
 			return null;
 		}
-		  
-	  }
-	  
-	  
-	/*
-	 * The function portion of a FunctionTerm is also a BaseTerm and needs to be
-	 * included as a child term in the function term
-	 */
-	private IBaseTerm createBaseTermForFunctionTerm(Term term, List<ITerm> idList)
-			throws ExecutionException {
-		Parameter p = new Parameter();
-		p.setNs("BEL");
-		p.setValue(term.getFunction().value());
 
-		Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
-				idJoiner.join(p.getNs(), p.getValue()));
-		IBaseTerm bt = XBelNetworkService.getInstance().createIBaseTerm(p, jdexId);
-		idList.add(bt);
-		return bt;
 	}
 
+	/*
+	 * private IBaseTerm createBaseTermForFunctionTerm(Term term, List<ITerm>
+	 * idList) throws ExecutionException { Parameter p = new Parameter();
+	 * p.setNs("BEL"); p.setValue(term.getFunction().value());
+	 * 
+	 * Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
+	 * idJoiner.join(p.getNs(), p.getValue())); IBaseTerm bt =
+	 * XBelNetworkService.getInstance().createIBaseTerm(p, jdexId);
+	 * idList.add(bt); return bt; }
+	 */
 }

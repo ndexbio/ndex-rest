@@ -68,6 +68,7 @@ public class NamespaceGroupSplitter extends XBelSplitter {
 						e.printStackTrace();
 					}
 		        	
+		        	System.out.println("done with namespaces");
 		        }
 		        
 	}	

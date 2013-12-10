@@ -62,7 +62,7 @@ public enum XbelCacheService {
 	 
 	 private void initializeIdentifierCache() {
 		 this.identifierCache = CacheBuilder.newBuilder()
-				 .maximumSize(1000L)
+				 .maximumSize(10000L)
 				 .expireAfterAccess(120L, TimeUnit.MINUTES)
 				 .removalListener(new IdentifierRemovalListener())
 				 .build(new CacheLoader<String,Long>() {
