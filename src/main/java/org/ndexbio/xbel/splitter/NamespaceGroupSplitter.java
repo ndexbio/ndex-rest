@@ -38,6 +38,20 @@ public class NamespaceGroupSplitter extends XBelSplitter {
 		            +" namespaces");
 		 NDExPersistenceService persistenceService = NDExPersistenceServiceFactory.
 				 INSTANCE.getNDExPersistenceService();
+		 	// create BEL namespace
+		    Namespace bel = new Namespace();
+		    bel.setPrefix("BEL");
+		    bel.setResourceLocation("XYZ");
+		    Long jdex;
+			try {
+				jdex = XbelCacheService.INSTANCE.accessIdentifierCache()
+						.get(bel.getPrefix());
+				INamespace ibel = XBelNetworkService.getInstance().createINamespace(bel, jdex);
+			} catch (ExecutionException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}	
+		   
 		        for( Namespace ns : ng.getNamespace()){
 		        	
 		        	try {

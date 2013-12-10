@@ -150,7 +150,7 @@ public class StatementGroupSplitter extends XBelSplitter {
 		}
 	}
 
-	private INode processStatementSubject(Subject sub) {
+	private INode processStatementSubject(Subject sub) throws ExecutionException {
 		if (null == sub) {
 			return null;
 		}
@@ -163,11 +163,12 @@ public class StatementGroupSplitter extends XBelSplitter {
 		} catch (ExecutionException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+			throw (e);
 		}
-		return null;
+		
 	}
 
-	private INode processStatementObject(org.ndexbio.xbel.model.Object obj) {
+	private INode processStatementObject(org.ndexbio.xbel.model.Object obj) throws ExecutionException {
 		if (null == obj) {
 			return null;
 		}
@@ -183,19 +184,20 @@ public class StatementGroupSplitter extends XBelSplitter {
 				return objectNode;
 			}
 		} catch (ExecutionException e) {
-			// TODO Auto-generated catch block
+			
 			e.printStackTrace();
+			throw(e);
 		}
 		return null;
 	}
 
 	private IFunctionTerm processOuterTerm(Term term) throws ExecutionException {
 
-		List<Long> jdexIdList = Lists.newArrayList(); // list of child term ids
-		this.processInnerTerms(term, jdexIdList);
+		List<ITerm> childITermList = Lists.newArrayList(); // list of child term ids
+		this.processInnerTerms(term, childITermList);
 		Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
-				idJoiner.join(jdexIdList));
-		return persistFunctionTerm(term, jdexId, jdexIdList);
+				idJoiner.join(childITermList));
+		return persistFunctionTerm(term, jdexId, childITermList);
 	}
 
 	/*

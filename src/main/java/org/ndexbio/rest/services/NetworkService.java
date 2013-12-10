@@ -534,7 +534,7 @@ public class NetworkService extends NdexService
                 {
                     final VertexFrame namespace = networkIndex.get(jdexId);
                     if (namespace != null)
-                        newBaseTerm.setNamespace((INamespace) namespace);
+                        newBaseTerm.setTermNamespace((INamespace) namespace);
                 }
 
                 newNetwork.addTerm(newBaseTerm);
@@ -653,7 +653,7 @@ public class NetworkService extends NdexService
                 newSupport.addNdexEdge((IEdge) networkIndex.get(edgeId));
 
             if (support.getCitationId() != null && !support.getCitationId().isEmpty())
-                newSupport.setCitation((ICitation) networkIndex.get(support.getCitationId()));
+                newSupport.setSupportCitation((ICitation) networkIndex.get(support.getCitationId()));
 
             newNetwork.addSupport(newSupport);
             networkIndex.put(newSupport.getJdexId(), newSupport);
@@ -813,8 +813,8 @@ public class NetworkService extends NdexService
 
         for (final ISupport support : supports)
         {
-            if (support.getCitation() != null)
-                edgeCitations.add(support.getCitation());
+            if (support.getSupportCitation() != null)
+                edgeCitations.add(support.getSupportCitation());
         }
 
         return edgeCitations;
@@ -826,8 +826,8 @@ public class NetworkService extends NdexService
         
         for (final ITerm term : requiredITerms)
         {
-            if (term instanceof IBaseTerm && ((IBaseTerm) term).getNamespace() != null)
-                namespaces.add(((IBaseTerm) term).getNamespace());
+            if (term instanceof IBaseTerm && ((IBaseTerm) term).getTermNamespace() != null)
+                namespaces.add(((IBaseTerm) term).getTermNamespace());
         }
         
         return namespaces;

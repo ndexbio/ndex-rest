@@ -444,6 +444,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 			for (IEdge edge : this.edgeCache.asMap().values()) {
 				this.network.addNdexEdge(edge);
 			}
+			this.network.setNdexEdgeCount(this.edgeCache.asMap().size());
 		}
 		
 		
@@ -452,6 +453,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 			for (INode in : this.nodeCache.asMap().values()){
 				this.network.addNdexNode(in);
 			}
+			this.network.setNdexNodeCount(this.nodeCache.asMap().size());
 		}
 		
 		private void addINamespaces() {

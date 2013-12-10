@@ -94,8 +94,10 @@ public class XBelNetworkService  {
 	    	final IBaseTerm bt = persistenceService.findOrCreateIBaseTerm(jdexId);
 	    	
 	    	bt.setName(p.getValue());
-	    	// resolve INamespace reference for this parameter from cache	    	
-        	bt.setNamespace(persistenceService.findNamespaceByPrefix(p.getNs()));	    	
+	    	// resolve INamespace reference for this parameter from cache	 
+	    	System.out.println("Persisted namespace = " 
+	    			+ persistenceService.findNamespaceByPrefix(p.getNs()).getPrefix());
+        	bt.setTermNamespace(persistenceService.findNamespaceByPrefix(p.getNs()));	    	
 	    	bt.setJdexId(jdexId.toString());
 	    	return bt;    	
 	    }
@@ -145,7 +147,7 @@ public class XBelNetworkService  {
 	    	if (persisted) return iSupport;
 	    	iSupport.setText(evidenceString);
 	    	if (null != iCitation){
-	    		iSupport.setCitation(iCitation);
+	    		iSupport.setSupportCitation(iCitation);
 	    	}
 	    	return iSupport;
 	    }
