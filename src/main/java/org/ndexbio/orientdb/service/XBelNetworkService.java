@@ -95,8 +95,7 @@ public class XBelNetworkService  {
 	    	
 	    	bt.setName(p.getValue());
 	    	// resolve INamespace reference for this parameter from cache	 
-	    	System.out.println("Persisted namespace = " 
-	    			+ persistenceService.findNamespaceByPrefix(p.getNs()).getPrefix());
+	    	
         	bt.setTermNamespace(persistenceService.findNamespaceByPrefix(p.getNs()));	    	
 	    	bt.setJdexId(jdexId.toString());
 	    	return bt;    	
@@ -127,6 +126,7 @@ public class XBelNetworkService  {
 	    	boolean persisted = persistenceService.isEntityPersisted(jdexId);
 	    	ICitation iCitation = persistenceService.findOrCreateICitation(jdexId);
 	    	if (persisted) return iCitation;
+	    	iCitation.setJdexId(jdexId.toString());
 	    	iCitation.setTitle(citation.getName());
             iCitation.setType(citation.getType().value());
             iCitation.setContributors(citation.getAuthorGroup().getAuthor());
@@ -145,6 +145,7 @@ public class XBelNetworkService  {
 	    	boolean persisted = persistenceService.isEntityPersisted(jdexId);
 	    	ISupport iSupport = persistenceService.findOrCreateISupport(jdexId);
 	    	if (persisted) return iSupport;
+	    	iSupport.setJdexId(jdexId.toString());
 	    	iSupport.setText(evidenceString);
 	    	if (null != iCitation){
 	    		iSupport.setSupportCitation(iCitation);
@@ -156,6 +157,7 @@ public class XBelNetworkService  {
 				IBaseTerm predicate, ISupport support, ICitation citation) throws ExecutionException {
 			Long jdexId = JdexIdService.INSTANCE.getNextJdexId();
 			IEdge edge = persistenceService.findOrCreateIEdge(jdexId);
+			edge.setJdexId(jdexId.toString());
 			edge.setSubject(subjectNode);
 			edge.setPredicate(predicate);
 			edge.setObject(objectNode);
@@ -184,6 +186,7 @@ public class XBelNetworkService  {
 			boolean persisted = persistenceService.isEntityPersisted(jdexId);
 	    	INode iNode = persistenceService.findOrCreateINode(jdexId);
 	    	if (persisted) return iNode;
+	    	iNode.setJdexId(jdexId.toString());
 	    	iNode.setRepresents(representedTerm);
 	    	return iNode;
 		}

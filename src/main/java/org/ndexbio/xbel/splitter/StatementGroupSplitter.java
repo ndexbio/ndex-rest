@@ -195,8 +195,7 @@ public class StatementGroupSplitter extends XBelSplitter {
 
 		List<ITerm> childITermList = Lists.newArrayList(); // list of child term ids
 		this.processInnerTerms(term, childITermList);
-		Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
-				idJoiner.join(childITermList));
+		Long jdexId = generateChildJdexId(childITermList);
 		return persistFunctionTerm(term, jdexId, childITermList);
 	}
 
@@ -223,8 +222,8 @@ public class StatementGroupSplitter extends XBelSplitter {
 				processInnerTerms((Term) o, innerChildList); 			
 				// obtain a new or existing JDEX ID from the cache based on the
 				// identifier
-				Long jdexId = XbelCacheService.INSTANCE.accessTermCache().get(
-						idJoiner.join(innerChildList));
+				
+				Long jdexId = generateChildJdexId(innerChildList);
 				
 				IFunctionTerm ft = persistFunctionTerm( term, jdexId,  childList);
 				if (null != childList) {
@@ -242,10 +241,19 @@ public class StatementGroupSplitter extends XBelSplitter {
 		}
 	}
 	
+	  private Long generateChildJdexId(List<ITerm> itermList) throws ExecutionException{
+		  List<Long>childJdexList = Lists.newArrayList();
+			for(ITerm it : itermList){
+				childJdexList.add(new Long(it.getJdexId()));
+			}
+			return XbelCacheService.INSTANCE.accessTermCache().get(
+					idJoiner.join("TERM",childJdexList));
+	  }
 
 	  private IFunctionTerm persistFunctionTerm(Term term, Long jdexId, List<ITerm> childList) {
 		  try {
-			IFunctionTerm ft = persistenceService.findOrCreateIFunctionTerm(jdexId);		
+			IFunctionTerm ft = persistenceService.findOrCreateIFunctionTerm(jdexId);
+			ft.setJdexId(jdexId.toString());
 			ft.setTermFunction(this.createBaseTermForFunctionTerm(term, childList));			
 			Map<Integer,ITerm> ftMap  = Maps.newHashMap();			
 			ft.setTermParameters(ftMap);			
