@@ -30,6 +30,9 @@ public class UploadedFile
     @FormParam("filename")
     public void setFilename(String filename)
     {
-        _filename = filename;
+        if (filename.indexOf("\\") < 0)
+            _filename = filename;
+        else
+            _filename = filename.substring(filename.lastIndexOf("\\") + 1);
     }
 }
