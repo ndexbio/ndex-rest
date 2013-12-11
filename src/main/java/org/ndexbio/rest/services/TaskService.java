@@ -1,6 +1,5 @@
 package org.ndexbio.rest.services;
 
-import java.util.Collection;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -14,22 +13,25 @@ import org.ndexbio.rest.domain.ITask;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Task;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.orientechnologies.orient.core.id.ORID;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
-import com.tinkerpop.blueprints.Vertex;
 
 @Path("/tasks")
 public class TaskService extends NdexService
 {
+    private static final Logger _logger = LoggerFactory.getLogger(TaskService.class);
+    
+    
+    
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
     * getLoggedInUser(). 
     * 
-    * @param httpRequest The HTTP request injected by RESTEasy's context.
+    * @param httpRequest
+    *            The HTTP request injected by RESTEasy's context.
     **************************************************************************/
     public TaskService(@Context HttpServletRequest httpRequest)
     {
@@ -41,24 +43,31 @@ public class TaskService extends NdexService
     /**************************************************************************
     * Creates a task. 
     * 
-    * @param ownerId  The owner's ID.
-    * @param newGroup The task to create.
+    * @param newGroup
+    *            The task to create.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to create the task in the database.
+    * @return The newly created task.
     **************************************************************************/
     @PUT
     @Produces("application/json")
-    public Task createTask(final String ownerId, final Task newTask) throws Exception
+    public Task createTask(final Task newTask) throws IllegalArgumentException, NdexException
     {
-        final ORID userRid = RidConverter.convertToRid(ownerId);
-
-        final IUser taskOwner = _orientDbGraph.getVertex(userRid, IUser.class);
-        if (taskOwner == null)
-            throw new ObjectNotFoundException("User", ownerId);
+        if (newTask == null)
+            throw new IllegalArgumentException("The task to create is empty.");
+        
+        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
 
         try
         {
             setupDatabase();
             
+            final IUser taskOwner = _orientDbGraph.getVertex(userRid, IUser.class);
+            
             final ITask task = _orientDbGraph.addVertex("class:task", ITask.class);
+            task.setOwner(taskOwner);
             task.setStatus(newTask.getStatus());
             task.setStartTime(newTask.getCreatedDate());
 
@@ -69,8 +78,9 @@ public class TaskService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to create a task for: " + this.getLoggedInUser().getUsername() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to create a task.");
         }
         finally
         {
@@ -81,31 +91,45 @@ public class TaskService extends NdexService
     /**************************************************************************
     * Deletes a task. 
     * 
-    * @param taskId The ID of the task to delete.
+    * @param taskId
+    *            The task ID.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The task doesn't exist.
+    * @throws SecurityException
+    *            The user doesn't own the task.
+    * @throws NdexException
+    *            Failed to delete the task from the database.
     **************************************************************************/
     @DELETE
     @Path("/{taskId}")
     @Produces("application/json")
-    public void deleteTask(@PathParam("taskId")final String taskJid) throws Exception
+    public void deleteTask(@PathParam("taskId")final String taskId) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
-        final ORID taskId = RidConverter.convertToRid(taskJid);
+        if (taskId == null || taskId.isEmpty())
+            throw new IllegalArgumentException("The task ID was not specified.");
+        
+        final ORID taskRid = RidConverter.convertToRid(taskId);
 
         try
         {
             setupDatabase();
             
-            final Vertex taskToDelete = _orientDbGraph.getVertex(taskId);
+            final ITask taskToDelete = _orientDbGraph.getVertex(taskRid, ITask.class);
             if (taskToDelete == null)
-                throw new ObjectNotFoundException("Task", taskJid);
+                throw new ObjectNotFoundException("Task", taskId);
+            else if (taskToDelete.getOwner().getUsername() != this.getLoggedInUser().getUsername())
+                throw new SecurityException("You cannot delete a task you don't own.");
     
-            //TODO: Need to remove orphaned vertices
-            _orientDbGraph.removeVertex(taskToDelete);
+            _orientDbGraph.removeVertex(taskToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
+            _logger.error("Failed to delete task: " + taskId + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to delete a task.");
         }
         finally
         {
@@ -114,38 +138,44 @@ public class TaskService extends NdexService
     }
 
     /**************************************************************************
-    * Gets a request by ID.
+    * Gets a task by ID.
     * 
-    * @param requestId The ID of the request.
+    * @param taskId
+    *            The task ID.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws SecurityException
+    *            The user doesn't own the task.
+    * @throws NdexException
+    *            Failed to query the database.
     **************************************************************************/
     @GET
     @Path("/{taskId}")
     @Produces("application/json")
-    public Task getTask(@PathParam("taskId")final String taskJid) throws NdexException
+    public Task getTask(@PathParam("taskId")final String taskId) throws IllegalArgumentException, SecurityException, NdexException
     {
-        if (taskJid == null || taskJid.isEmpty())
-            throw new ValidationException("No task ID was specified.");
+        if (taskId == null || taskId.isEmpty())
+            throw new IllegalArgumentException("No task ID was specified.");
 
         try
         {
-            final ORID taskId = RidConverter.convertToRid(taskJid);
+            final ORID taskRid = RidConverter.convertToRid(taskId);
             
             setupDatabase();
             
-            final ITask task = _orientDbGraph.getVertex(taskId, ITask.class);
+            final ITask task = _orientDbGraph.getVertex(taskRid, ITask.class);
             if (task != null)
-                return new Task(task);
+            {
+                if (task.getOwner().getUsername() != this.getLoggedInUser().getUsername())
+                    throw new SecurityException("Access denied.");
+                else
+                    return new Task(task);
+            }
         }
-        catch (ValidationException ve)
+        catch (Exception e)
         {
-            //The task ID is actually a task name
-            final Collection<ODocument> matchingtasks = _orientDbGraph
-                .getBaseGraph()
-               .command(new OCommandSQL("select from Task where taskname = ?"))
-               .execute(taskJid);
-
-           if (matchingtasks.size() > 0)
-               return new Task(_orientDbGraph.getVertex(matchingtasks.toArray()[0], ITask.class));
+            _logger.error("Failed to get task: " + taskId + ".", e);
+            throw new NdexException("Failed to retrieve the task.");
         }
         finally
         {
@@ -156,32 +186,46 @@ public class TaskService extends NdexService
     }
 
     /**************************************************************************
-    * Updates a request.
+    * Updates a task.
     * 
-    * @param updatedRequest The updated request information.
+    * @param updatedTask
+    *            The updated request.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The task doesn't exist.
+    * @throws SecurityException
+    *            The user doesn't own the task.
+    * @throws NdexException
+    *            Failed to update the task in the database.
     **************************************************************************/
     @POST
     @Produces("application/json")
-    public void updateTask(final Task updatedTask) throws Exception
+    public void updateTask(final Task updatedTask) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
+        if (updatedTask == null)
+            throw new IllegalArgumentException("The task to update is empty.");
+        
         ORID taskRid = RidConverter.convertToRid(updatedTask.getId());
-
-        final ITask taskToUpdate = _orientDbGraph.getVertex(taskRid, ITask.class);
-        if (taskToUpdate == null)
-            throw new ObjectNotFoundException("Task", updatedTask.getId());
 
         try
         {
+            final ITask taskToUpdate = _orientDbGraph.getVertex(taskRid, ITask.class);
+            if (taskToUpdate == null)
+                throw new ObjectNotFoundException("Task", updatedTask.getId());
+            else if (taskToUpdate.getOwner().getUsername() != this.getLoggedInUser().getUsername())
+                throw new SecurityException("Access denied.");
+
             taskToUpdate.setStartTime(updatedTask.getCreatedDate());
             taskToUpdate.setStatus(updatedTask.getStatus());
 
-            //TODO: Map remaining Task fields to ITask
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
+            _logger.error("Failed to update task: " + updatedTask.getId() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to update task: " + updatedTask.getId() + ".");
         }
         finally
         {

@@ -1,10 +1,13 @@
 package org.ndexbio.rest.helpers;
 
 import java.util.Properties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Configuration
 {
     private static final Configuration INSTANCE = new Configuration();
+    private static final Logger _logger = LoggerFactory.getLogger(Configuration.class);
     private final Properties _servletProperties = new Properties();
     
     
@@ -20,7 +23,7 @@ public class Configuration
         }
         catch (Exception e)
         {
-            System.out.println(e.getMessage());
+            _logger.error("Failed to load the configuration file.", e);
         }
     }
     
@@ -38,6 +41,9 @@ public class Configuration
     
     /**************************************************************************
     * Gets the singleton instance. 
+    * 
+    * @param propertyName
+    *            The property name.
     **************************************************************************/
     public String getProperty(String propertyName)
     {
@@ -46,6 +52,11 @@ public class Configuration
     
     /**************************************************************************
     * Gets the singleton instance. 
+    * 
+    * @param propertyName
+    *            The property name.
+    * @param propertyValue
+    *            The property value.
     **************************************************************************/
     public void setProperty(String propertyName, String propertyValue)
     {

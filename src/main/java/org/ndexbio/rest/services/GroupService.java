@@ -13,20 +13,20 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
-import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.IGroupMembership;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.helpers.Validation;
 import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.SearchResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -36,11 +36,16 @@ import com.tinkerpop.blueprints.impls.orient.OrientElement;
 @Path("/groups")
 public class GroupService extends NdexService
 {
+    private static final Logger _logger = LoggerFactory.getLogger(GroupService.class);
+    
+    
+    
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
     * getLoggedInUser(). 
     * 
-    * @param httpRequest The HTTP request injected by RESTEasy's context.
+    * @param httpRequest
+    *            The HTTP request injected by RESTEasy's context.
     **************************************************************************/
     public GroupService(@Context HttpServletRequest httpRequest)
     {
@@ -52,18 +57,22 @@ public class GroupService extends NdexService
     /**************************************************************************
     * Creates a group. 
     * 
-    * @param newGroup The group to create.
+    * @param newGroup
+    *            The group to create.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to create the user in the database.
+    * @return The newly created group.
     **************************************************************************/
     @PUT
     @Produces("application/json")
-    public Group createGroup(final Group newGroup) throws Exception
+    public Group createGroup(final Group newGroup) throws IllegalArgumentException, NdexException
     {
         if (newGroup == null)
             throw new IllegalArgumentException("The group to create is empty.");
-        else if (this.getLoggedInUser() == null)
-            throw new SecurityException("Anonymous users cannot upload networks.");
         else if (!Validation.isValid(newGroup.getName(), Validation.REGEX_GROUP_NAME))
-            throw new ValidationException("Invalid group name: " + newGroup.getName() + ".");
+            throw new IllegalArgumentException("Invalid group name: " + newGroup.getName() + ".");
 
         try
         {
@@ -97,8 +106,9 @@ public class GroupService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to create group: " + newGroup.getName() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to create your group.");
         }
         finally
         {
@@ -109,17 +119,26 @@ public class GroupService extends NdexService
     /**************************************************************************
     * Deletes a group.
     * 
-    * @param groupId The ID of the group to delete.
+    * @param groupId
+    *            The ID of the group to delete.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The group doesn't exist.
+    * @throws SecurityException
+    *            The user doesn't have permissions to delete the group.
+    * @throws NdexException
+    *            Failed to delete the user from the database.
     **************************************************************************/
     @DELETE
     @Path("/{groupId}")
     @Produces("application/json")
-    public void deleteGroup(@PathParam("groupId") final String groupJid) throws Exception
+    public void deleteGroup(@PathParam("groupId") final String groupId) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
-        if (groupJid == null || groupJid.isEmpty())
-            throw new ValidationException("No group ID was specified.");
+        if (groupId == null || groupId.isEmpty())
+            throw new IllegalArgumentException("No group ID was specified.");
 
-        final ORID networkRid = RidConverter.convertToRid(groupJid);
+        final ORID networkRid = RidConverter.convertToRid(groupId);
 
         try
         {
@@ -127,9 +146,9 @@ public class GroupService extends NdexService
             
             final IGroup groupToDelete = _orientDbGraph.getVertex(networkRid, IGroup.class);
             if (groupToDelete == null)
-                throw new ObjectNotFoundException("Group", groupJid);
+                throw new ObjectNotFoundException("Group", groupId);
             else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
-                throw new ResteasyAuthenticationException("Insufficient privileges to delete the group.");
+                throw new SecurityException("Insufficient privileges to delete the group.");
 
             final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_members = ? and permissions = 'ADMIN'"));
             if (adminCount == null || adminCount.isEmpty())
@@ -161,8 +180,9 @@ public class GroupService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to delete group: " + groupId + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to delete the group.");
         }
         finally
         {
@@ -173,16 +193,22 @@ public class GroupService extends NdexService
     /**************************************************************************
     * Find Groups based on search parameters - string matching for now
     * 
-    * @params searchParameters The search parameters
+    * @params searchParameters
+    *            The search parameters.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return Groups that match the search criteria.
     **************************************************************************/
     @POST
     @PermitAll
     @Path("/search")
     @Produces("application/json")
-    public SearchResult<Group> findGroups(SearchParameters searchParameters) throws NdexException
+    public SearchResult<Group> findGroups(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
     {
         if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
-            throw new ValidationException("No search string was specified.");
+            throw new IllegalArgumentException("No search string was specified.");
         else
             searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
         
@@ -219,8 +245,9 @@ public class GroupService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to search groups: " + searchParameters.getSearchString(), e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to search groups.");
         }
         finally
         {
@@ -231,33 +258,43 @@ public class GroupService extends NdexService
     /**************************************************************************
     * Gets a group by ID or name.
     * 
-    * @param groupId The ID or name of the group.
+    * @param groupId
+    *            The ID or name of the group.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return The group.
     **************************************************************************/
     @GET
-    @PermitAll
     @Path("/{groupId}")
     @Produces("application/json")
-    public Group getGroup(@PathParam("groupId") final String groupJid) throws NdexException
+    public Group getGroup(@PathParam("groupId") final String groupId) throws IllegalArgumentException, NdexException
     {
-        if (groupJid == null || groupJid.isEmpty())
-            throw new ValidationException("No group ID was specified.");
+        if (groupId == null || groupId.isEmpty())
+            throw new IllegalArgumentException("No group ID was specified.");
 
         try
         {
             setupDatabase();
             
-            final ORID groupId = RidConverter.convertToRid(groupJid);
-            final IGroup group = _orientDbGraph.getVertex(groupId, IGroup.class);
+            final ORID groupRid = RidConverter.convertToRid(groupId);
+            final IGroup group = _orientDbGraph.getVertex(groupRid, IGroup.class);
 
             if (group != null)
                 return new Group(group, true);
         }
-        catch (ValidationException ve)
+        catch (IllegalArgumentException iae)
         {
             //The group ID is actually a group name
-            final List<ODocument> matchingGroups = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Group where name = '" + groupJid + "'"));
+            final List<ODocument> matchingGroups = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Group where name = '" + groupId + "'"));
             if (!matchingGroups.isEmpty())
                 return new Group(_orientDbGraph.getVertex(matchingGroups.get(0), IGroup.class), true);
+        }
+        catch (Exception e)
+        {
+            _logger.error("Failed to retrieve group: " + groupId + ".", e);
+            throw new NdexException("Failed to retrieve the group.");
         }
         finally
         {
@@ -270,14 +307,21 @@ public class GroupService extends NdexService
     /**************************************************************************
     * Updates a group.
     * 
-    * @param updatedGroup The updated group information.
+    * @param updatedGroup
+    *            The updated group information.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws SecurityException
+    *            The user doesn't have access to update the group.
+    * @throws NdexException
+    *            Failed to update the user in the database.
     **************************************************************************/
     @POST
     @Produces("application/json")
-    public void updateGroup(final Group updatedGroup) throws Exception
+    public void updateGroup(final Group updatedGroup) throws IllegalArgumentException, SecurityException, NdexException
     {
         if (updatedGroup == null)
-            throw new ValidationException("The updated group is empty.");
+            throw new IllegalArgumentException("The updated group is empty.");
 
         final ORID groupRid = RidConverter.convertToRid(updatedGroup.getId());
 
@@ -289,10 +333,9 @@ public class GroupService extends NdexService
             if (groupToUpdate == null)
                 throw new ObjectNotFoundException("Group", updatedGroup.getId());
             else if (!hasPermission(updatedGroup, Permissions.WRITE))
-                throw new ResteasyAuthenticationException("Access denied.");
+                throw new SecurityException("Access denied.");
             
             //TODO: Don't allow the only ADMIN member to change their own permissions
-
             if (updatedGroup.getDescription() != null && !updatedGroup.getDescription().isEmpty())
                 groupToUpdate.setDescription(updatedGroup.getDescription());
             
@@ -309,8 +352,9 @@ public class GroupService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to update group: " + updatedGroup.getName() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to update the group.");
         }
         finally
         {

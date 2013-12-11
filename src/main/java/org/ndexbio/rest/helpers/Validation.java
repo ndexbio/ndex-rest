@@ -10,7 +10,13 @@ public class Validation
 
     
     /**************************************************************************
-    * Validates input using the specified regular expression pattern. 
+    * Validates input using the specified regular expression pattern.
+    * 
+    * @param dirtyInput
+    *            The input to validate.
+    * @param validationPattern
+    *            A regular expression pattern to use for validating the input.
+    * @return True if the input is valid, false otherwise.
     **************************************************************************/
     public static final boolean isValid(String dirtyInput, Pattern validationPattern)
     {

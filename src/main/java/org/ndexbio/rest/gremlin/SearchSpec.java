@@ -1,9 +1,5 @@
 package org.ndexbio.rest.gremlin;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.NetworkQueryParameters;
 
@@ -24,8 +20,7 @@ public class SearchSpec {
 	private OIdentifiable[] excludedPredicates;
 	private int searchDepth;
 
-	public SearchSpec(NetworkQueryParameters parameters)
-			throws ValidationException {
+	public SearchSpec(NetworkQueryParameters parameters) throws IllegalArgumentException {
 		super();
 
 		startingTermStrings = new String[parameters.getStartingTermStrings()

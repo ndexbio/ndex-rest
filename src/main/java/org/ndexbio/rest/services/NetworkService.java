@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -22,9 +21,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
-import javax.ws.rs.core.HttpHeaders;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
-import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
@@ -39,7 +36,6 @@ import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.gremlin.NetworkQueries;
 import org.ndexbio.rest.gremlin.SearchSpec;
 import org.ndexbio.rest.helpers.Configuration;
@@ -61,6 +57,8 @@ import org.ndexbio.rest.models.UploadedFile;
 import org.ndexbio.xbel.parser.ExcelFileParser;
 import org.ndexbio.xbel.parser.SIFFileParser;
 import org.ndexbio.xbel.parser.XbelFileParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -72,11 +70,16 @@ import com.tinkerpop.frames.VertexFrame;
 @Path("/networks")
 public class NetworkService extends NdexService
 {
+    private static final Logger _logger = LoggerFactory.getLogger(NetworkService.class);
+    
+    
+    
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
     * getLoggedInUser(). 
     * 
-    * @param httpRequest The HTTP request injected by RESTEasy's context.
+    * @param httpRequest
+    *            The HTTP request injected by RESTEasy's context.
     **************************************************************************/
     public NetworkService(@Context HttpServletRequest httpRequest)
     {
@@ -92,13 +95,22 @@ public class NetworkService extends NdexService
     *            The network ID.
     * @param partialTerm
     *            The partially entered term.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
     * @return A collection of terms that start with the partial term.
     **************************************************************************/
     @GET
     @Path("/{networkId}/autosuggest/{partialTerm}")
     @Produces("application/json")
-    public Collection<String> autoSuggestTerms(@PathParam("networkId")final String networkId, @PathParam("partialTerm")final String partialTerm) throws Exception
+    public Collection<String> autoSuggestTerms(@PathParam("networkId")final String networkId, @PathParam("partialTerm")final String partialTerm) throws IllegalArgumentException, NdexException
     {
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
+        else if (partialTerm == null || partialTerm.isEmpty() || partialTerm.length() < 3)
+            return null;
+        
         final ORID networkRid = RidConverter.convertToRid(networkId);
 
         try
@@ -128,6 +140,11 @@ public class NetworkService extends NdexService
                 return foundTerms;
             }
         }
+        catch (Exception e)
+        {
+            _logger.error("Failed to retrieve auto-suggest data for: " + partialTerm + ".", e);
+            throw new NdexException("Failed to retrieve auto-suggest data for: " + partialTerm + ".");
+        }
         finally
         {
             teardownDatabase();
@@ -141,15 +158,18 @@ public class NetworkService extends NdexService
     *            The ID of the user creating the group.
     * @param newNetwork
     *            The network to create.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to create the network in the database.
+    * @return The newly created network.
     **************************************************************************/
     @PUT
     @Produces("application/json")
-    public Network createNetwork(final Network newNetwork) throws Exception
+    public Network createNetwork(final Network newNetwork) throws IllegalArgumentException, NdexException
     {
         if (newNetwork == null)
-            throw new ValidationException("The network to create is null.");
-        else if (this.getLoggedInUser() == null)
-            throw new SecurityException("Anonymous users cannot create networks.");
+            throw new IllegalArgumentException("The network to create is null.");
 
         try
         {
@@ -203,14 +223,14 @@ public class NetworkService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to create network: " + newNetwork.getTitle() + ".", e);
             _orientDbGraph.getBaseGraph().rollback();
-            throw e;
+            throw new NdexException("Failed to create the network.");
         }
         finally
         {
             teardownDatabase();
         }
-
     }
 
     /**************************************************************************
@@ -218,16 +238,22 @@ public class NetworkService extends NdexService
     * 
     * @param networkId
     *            The ID of the network to delete.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The network doesn't exist.
+    * @throws NdexException
+    *            Failed to delete the network from the database.
     **************************************************************************/
     @DELETE
     @Path("/{networkId}")
     @Produces("application/json")
-    public void deleteNetwork(@PathParam("networkId")final String networkJid) throws NdexException
+    public void deleteNetwork(@PathParam("networkId")final String networkId) throws IllegalArgumentException, ObjectNotFoundException, NdexException
     {
-        if (networkJid == null || networkJid.isEmpty())
-            throw new ValidationException("No network ID was specified.");
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
 
-        ORID networkRid = RidConverter.convertToRid(networkJid);
+        ORID networkRid = RidConverter.convertToRid(networkId);
 
         try
         {
@@ -235,7 +261,9 @@ public class NetworkService extends NdexService
 
             final INetwork networkToDelete = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (networkToDelete == null)
-                throw new ObjectNotFoundException("Network", networkJid);
+                throw new ObjectNotFoundException("Network", networkId);
+            else if (!hasPermission(new Network(networkToDelete), Permissions.ADMIN))
+                throw new SecurityException("Insufficient privileges to delete the group.");
 
             final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_members = ? and permissions = 'ADMIN'"));
             if (adminCount == null || adminCount.isEmpty())
@@ -273,21 +301,22 @@ public class NetworkService extends NdexService
     /**************************************************************************
     * Searches for a network.
     * 
-    * @param search
-    *            The search terms.
-    * @param offset
-    *            The offset.
-    * @param limit
-    *            The number of items to retrieve.
+    * @param searchParameters
+    *            The search parameters.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return Networks that match the search parameters.
     **************************************************************************/
     @POST
     @PermitAll
     @Path("/search")
     @Produces("application/json")
-    public SearchResult<Network> findNetworks(SearchParameters searchParameters) throws NdexException
+    public SearchResult<Network> findNetworks(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
     {
         if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
-            throw new ValidationException("No search string was specified.");
+            throw new IllegalArgumentException("No search string was specified.");
         else
             searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
 
@@ -296,14 +325,12 @@ public class NetworkService extends NdexService
         final SearchResult<Network> result = new SearchResult<Network>();
         result.setResults(foundNetworks);
 
-        // TODO: Remove these, unnecessary
+        //TODO: Remove these, unnecessary
         result.setPageSize(searchParameters.getTop());
         result.setSkip(searchParameters.getSkip());
 
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
-
         final String whereClause = " where title.toUpperCase() like '%" + searchParameters.getSearchString() + "%' OR description.toUpperCase() like '%" + searchParameters.getSearchString() + "%'";
-
         final String query = "select from Network " + whereClause + " order by creation_date desc skip " + startIndex + " limit " + searchParameters.getTop();
 
         try
@@ -319,6 +346,11 @@ public class NetworkService extends NdexService
 
             return result;
         }
+        catch (Exception e)
+        {
+            _logger.error("Failed to search networks.", e);
+            throw new NdexException("Failed to search networks.");
+        }
         finally
         {
             teardownDatabase();
@@ -330,16 +362,23 @@ public class NetworkService extends NdexService
     * 
     * @param networkId
     *            The ID of the network.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws SecurityException
+    *            The user doesn't have access to the network.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return The network.
     **************************************************************************/
     @GET
     @Path("/{networkId}")
     @Produces("application/json")
-    public Network getNetwork(@PathParam("networkId")final String networkJid) throws NdexException
+    public Network getNetwork(@PathParam("networkId")final String networkId) throws IllegalArgumentException, SecurityException, NdexException
     {
-        if (networkJid == null || networkJid.isEmpty())
-            throw new ValidationException("No network ID was specified.");
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
 
-        final ORID networkRid = RidConverter.convertToRid(networkJid);
+        final ORID networkRid = RidConverter.convertToRid(networkId);
 
         try
         {
@@ -347,16 +386,16 @@ public class NetworkService extends NdexService
 
             final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (network == null)
-                throw new ObjectNotFoundException("Network", networkJid);
+                throw new ObjectNotFoundException("Network", networkId);
             else if (!network.getIsPublic())
             {
                 for (Membership userMembership : this.getLoggedInUser().getNetworks())
                 {
-                    if (userMembership.getResourceId().equals(networkJid))
+                    if (userMembership.getResourceId().equals(networkId))
                         return new Network(network);
                 }
                 
-                throw new ResteasyAuthenticationException("You do not have access to that network.");
+                throw new SecurityException("You do not have access to that network.");
             }
             else
                 return new Network(network);
@@ -368,23 +407,32 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-    * Gets a page of Edges for the specified network, along with the supporting
-    * nodes, terms, namespaces, supports, and citations.
+    * Gets a page of Edges for the specified network, along with the
+    * supporting nodes, terms, namespaces, supports, and citations.
     * 
     * @param networkId
     *            The network ID.
+    * @param skip
+    *            The number of edges to skip.
+    * @param top
+    *            The number of edges to retrieve.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return The edges of the network.
     **************************************************************************/
     @GET
     @Path("/{networkId}/edges/{skip}/{top}")
     @Produces("application/json")
-    public Network getEdges(@PathParam("networkId")final String networkJid, @PathParam("skip")final int skip, @PathParam("top")final int top) throws NdexException
+    public Network getEdges(@PathParam("networkId")final String networkId, @PathParam("skip")final int skip, @PathParam("top")final int top) throws IllegalArgumentException, NdexException
     {
-        if (networkJid == null || networkJid.isEmpty())
-            throw new ValidationException("No network ID was specified.");
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
         else if (top < 1)
             throw new IllegalArgumentException("Number of results to return is less than 1.");
 
-        final ORID networkRid = RidConverter.convertToRid(networkJid);
+        final ORID networkRid = RidConverter.convertToRid(networkId);
 
         try
         {
@@ -392,7 +440,7 @@ public class NetworkService extends NdexService
 
             final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (network == null)
-                throw new ObjectNotFoundException("Network", networkJid);
+                throw new ObjectNotFoundException("Network", networkId);
 
             int counter = 0;
             final List<IEdge> foundIEdges = new ArrayList<IEdge>();
@@ -410,6 +458,11 @@ public class NetworkService extends NdexService
 
             return getNetworkBasedOnFoundEdges(foundIEdges, network);
         }
+        catch (Exception e)
+        {
+            _logger.error("Failed to query network: " + networkId + ".", e);
+            throw new NdexException(e.getMessage());
+        }
         finally
         {
             teardownDatabase();
@@ -417,16 +470,27 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-    * Get a subnetwork network based on network query parameters
+    * Get a subnetwork network based on network query parameters.
     * 
+    * @param networkId
+    *            The network ID.
     * @param queryParameters
+    *            The query parameters.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return A subnetwork of the network.
     **************************************************************************/
     @POST
     @Path("/{networkId}/query")
     @Produces("application/json")
-    public Network queryNetwork(@PathParam("networkId")final String networkJid, final NetworkQueryParameters queryParameters) throws Exception
+    public Network queryNetwork(@PathParam("networkId")final String networkId, final NetworkQueryParameters queryParameters) throws IllegalArgumentException, NdexException
     {
-        final ORID networkRid = RidConverter.convertToRid(networkJid);
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
+        
+        final ORID networkRid = RidConverter.convertToRid(networkId);
 
         try
         {
@@ -449,6 +513,11 @@ public class NetworkService extends NdexService
                     return null;
             }
         }
+        catch (Exception e)
+        {
+            _logger.error("Failed to query network: " + networkId + ".", e);
+            throw new NdexException("Failed to query the network.");
+        }
         finally
         {
             teardownDatabase();
@@ -460,13 +529,19 @@ public class NetworkService extends NdexService
     * 
     * @param updatedNetwork
     *            The updated network information.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws SecurityException
+    *            The user doesn't have permissions to update the network.
+    * @throws NdexException
+    *            Failed to update the network in the database.
     **************************************************************************/
     @POST
     @Produces("application/json")
-    public void updateNetwork(final Network updatedNetwork) throws NdexException
+    public void updateNetwork(final Network updatedNetwork) throws IllegalArgumentException, SecurityException, NdexException
     {
         if (updatedNetwork == null)
-            throw new ValidationException("The updated network is empty.");
+            throw new IllegalArgumentException("The updated network is empty.");
 
         try
         {
@@ -475,9 +550,10 @@ public class NetworkService extends NdexService
             final INetwork network = _orientDbGraph.getVertex(RidConverter.convertToRid(updatedNetwork.getId()), INetwork.class);
             if (network == null)
                 throw new ObjectNotFoundException("Network", updatedNetwork.getId());
-            
-            //TODO: Don't allow the only ADMIN member to change their own permissions
+            else if (!hasPermission(updatedNetwork, Permissions.WRITE))
+                throw new SecurityException("Access denied.");
 
+            //TODO: Don't allow the only ADMIN member to change their own permissions
             if (updatedNetwork.getDescription() != null && !updatedNetwork.getDescription().isEmpty())
                 network.setDescription(updatedNetwork.getDescription());
 
@@ -494,8 +570,9 @@ public class NetworkService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to update network: " + updatedNetwork.getTitle() + ".", e);
             _orientDbGraph.getBaseGraph().rollback();
-            throw e;
+            throw new NdexException("Failed to update the network.");
         }
         finally
         {
@@ -511,17 +588,20 @@ public class NetworkService extends NdexService
     *            The ID of the user creating the group.
     * @param newNetwork
     *            The network to create.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to parse the file, or create the network in the
+    *            database.
     **************************************************************************/
     @POST
     @Path("/upload")
     @Consumes("multipart/form-data")
     @Produces("application/json")
-    public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork, @Context HttpServletRequest httpRequest) throws NdexException
+    public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork, @Context HttpServletRequest httpRequest) throws IllegalArgumentException, SecurityException, NdexException
     {
         if (uploadedNetwork == null || uploadedNetwork.getFileData().length < 1)
             throw new IllegalArgumentException("No uploaded network.");
-        else if (this.getLoggedInUser() == null)
-            throw new SecurityException("Anonymous users cannot upload networks.");
 
         final File uploadedNetworkPath = new File(Configuration.getInstance().getProperty("Uploaded-Networks-Path"));
         if (!uploadedNetworkPath.exists())
@@ -550,11 +630,11 @@ public class NetworkService extends NdexService
             {
                 final XbelFileParser xbelParser = new XbelFileParser(uploadedNetworkFile.getAbsolutePath());
                 if (!xbelParser.getValidationState().isValid())
-                    throw new ValidationException("XBEL file is has invalid elements.");
+                    throw new NdexException("XBEL file is has invalid elements.");
                 
                 xbelParser.parseXbelFile();
             }
-            else if (uploadedNetwork.getFilename().endsWith(".xlsx"))
+            else if (uploadedNetwork.getFilename().endsWith(".xls") || uploadedNetwork.getFilename().endsWith(".xlsx"))
             {
                 final ExcelFileParser excelParser = new ExcelFileParser(uploadedNetworkFile.getAbsolutePath());
                 excelParser.parseExcelFile();
@@ -567,6 +647,7 @@ public class NetworkService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to process uploaded network: " + uploadedNetwork.getFilename() + ".", e);
             throw new NdexException(e.getMessage());
         }
     }
@@ -579,14 +660,13 @@ public class NetworkService extends NdexService
         {
             if (term instanceof IFunctionTerm)
             {
-                terms.add(((IFunctionTerm) term).getTermFunc());
+                terms.add(((IFunctionTerm)term).getTermFunc());
                 
-                for (ITerm iterm : ( (IFunctionTerm) term).getTermParameters()){
-                	if( iterm instanceof IFunctionTerm){
+                for (ITerm iterm : ((IFunctionTerm) term).getTermParameters())
+                {
+                	if (iterm instanceof IFunctionTerm)
                 		 addTermAndFunctionalDependencies((IFunctionTerm) iterm, terms);
-                	}
                 }
-                   
             }
         }
     }
@@ -939,8 +1019,26 @@ public class NetworkService extends NdexService
         
         return namespaces;
     }
+    
+    /**************************************************************************
+    * Determines if the logged in user has sufficient permissions to a network. 
+    * 
+    * @param targetNetwork
+    *            The network to test for permissions.
+    * @return True if the member has permission, false otherwise.
+    **************************************************************************/
+    private boolean hasPermission(Network targetNetwork, Permissions requiredPermissions)
+    {
+        for (Membership networkMembership : this.getLoggedInUser().getNetworks())
+        {
+            if (networkMembership.getResourceId() == targetNetwork.getId() && networkMembership.getPermissions().compareTo(requiredPermissions) > -1)
+                return true;
+        }
+        
+        return false;
+    }
 
-    private List<IEdge> neighborhoodQuery(final INetwork network, final NetworkQueryParameters queryParameters) throws ValidationException
+    private List<IEdge> neighborhoodQuery(final INetwork network, final NetworkQueryParameters queryParameters) throws IllegalArgumentException
     {
         final List<IEdge> foundEdges = new ArrayList<IEdge>();
 

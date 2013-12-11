@@ -23,9 +23,10 @@ import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Request;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -35,11 +36,16 @@ import com.tinkerpop.blueprints.impls.orient.OrientElement;
 @Path("/requests")
 public class RequestService extends NdexService
 {
+    private static final Logger _logger = LoggerFactory.getLogger(RequestService.class);
+    
+    
+    
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
     * getLoggedInUser(). 
     * 
-    * @param httpRequest The HTTP request injected by RESTEasy's context.
+    * @param httpRequest
+    *            The HTTP request injected by RESTEasy's context.
     **************************************************************************/
     public RequestService(@Context HttpServletRequest httpRequest)
     {
@@ -51,14 +57,21 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Creates a request. 
     * 
-    * @param newRequest The request to create.
+    * @param newRequest
+    *            The request to create.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Duplicate requests or failed to create the request in the
+    *            database.
+    * @return The newly created request.
     **************************************************************************/
     @PUT
     @Produces("application/json")
-    public Request createRequest(final Request newRequest) throws NdexException
+    public Request createRequest(final Request newRequest) throws IllegalArgumentException, NdexException
     {
         if (newRequest == null)
-            throw new ValidationException("The request to create is empty.");
+            throw new IllegalArgumentException("The request to create is empty.");
         
         final ORID fromRid = RidConverter.convertToRid(newRequest.getFromId());
         final ORID toRid = RidConverter.convertToRid(newRequest.getToId());
@@ -89,8 +102,9 @@ public class RequestService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to create a request.", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw new NdexException(e.getMessage());
+            throw new NdexException("Failed to create your request.");
         }
         finally
         {
@@ -101,23 +115,30 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Deletes a request.
     * 
-    * @param requestId The ID of the request to delete.
+    * @param requestId
+    *            The request ID.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The request doesn't exist.
+    * @throws NdexException
+    *            Failed to delete the request from the database.
     **************************************************************************/
     @DELETE
     @Path("/{requestId}")
     @Produces("application/json")
-    public void deleteRequest(@PathParam("requestId")final String requestJid) throws Exception
+    public void deleteRequest(@PathParam("requestId")final String requestId) throws IllegalArgumentException, ObjectNotFoundException, NdexException
     {
-        if (requestJid == null || requestJid.isEmpty())
-            throw new ValidationException("No request ID was specified.");
+        if (requestId == null || requestId.isEmpty())
+            throw new IllegalArgumentException("No request ID was specified.");
         
-        final ORID requestRid = RidConverter.convertToRid(requestJid);
+        final ORID requestRid = RidConverter.convertToRid(requestId);
 
         try
         {
             final IRequest requestToDelete = _orientDbGraph.getVertex(requestRid, IRequest.class);
             if (requestToDelete == null)
-                throw new ObjectNotFoundException("Request", requestJid);
+                throw new ObjectNotFoundException("Request", requestId);
             
             final List<ODocument> requestChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + requestRid + " while @class <> 'Account')"));
             for (ODocument networkChild : requestChildren)
@@ -134,8 +155,9 @@ public class RequestService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to delete request: " + requestId + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to delete the request.");
         }
         finally
         {
@@ -146,27 +168,38 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Gets a request by ID.
     * 
-    * @param requestId The ID of the request.
+    * @param requestId
+    *           The request ID.
+    * @throws IllegalArgumentException
+    *           Bad input.
+    * @throws NdexException
+    *           Failed to query the database.
+    * @return The request.
     **************************************************************************/
     @GET
     @Path("/{requestId}")
     @Produces("application/json")
-    public Request getRequest(@PathParam("requestId")final String requestJid) throws NdexException
+    public Request getRequest(@PathParam("requestId")final String requestId) throws IllegalArgumentException, NdexException
     {
-        if (requestJid == null || requestJid.isEmpty())
-            throw new ValidationException("No request ID was specified.");
+        if (requestId == null || requestId.isEmpty())
+            throw new IllegalArgumentException("No request ID was specified.");
         
-        final ORID requestId = RidConverter.convertToRid(requestJid);
+        final ORID requestRid = RidConverter.convertToRid(requestId);
 
         try
         {
             setupDatabase();
 
-            final IRequest request = _orientDbGraph.getVertex(requestId, IRequest.class);
+            final IRequest request = _orientDbGraph.getVertex(requestRid, IRequest.class);
             if (request == null)
-                throw new ObjectNotFoundException("Request", requestJid);
+                throw new ObjectNotFoundException("Request", requestId);
     
             return new Request(request);
+        }
+        catch (Exception e)
+        {
+            _logger.error("Failed to get request: " + requestId + ".", e);
+            throw new NdexException("Failed to get the request.");
         }
         finally
         {
@@ -177,14 +210,19 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Updates a request.
     * 
-    * @param updatedRequest The updated request information.
+    * @param updatedRequest
+    *            The updated request information.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to update the request in the database.
     **************************************************************************/
     @POST
     @Produces("application/json")
-    public void updateRequest(final Request updatedRequest) throws Exception
+    public void updateRequest(final Request updatedRequest) throws IllegalArgumentException, NdexException
     {
         if (updatedRequest == null)
-            throw new ValidationException("The updated request is empty.");
+            throw new IllegalArgumentException("The updated request is empty.");
         
         final ORID requestRid = RidConverter.convertToRid(updatedRequest.getId());
 
@@ -213,8 +251,9 @@ public class RequestService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to update request: " + updatedRequest.getId() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to update the request.");
         }
         finally
         {
@@ -228,11 +267,18 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Creates a group invitation request. 
     * 
-    * @param fromRid         The JID of the requesting group.
-    * @param toRid           The JID of the invited user.
-    * @param requestToCreate The request data. 
+    * @param fromRid
+    *            The JID of the requesting group.
+    * @param toRid
+    *            The JID of the invited user.
+    * @param requestToCreate
+    *            The request data.
+    * @throws ObjectNotFoundException
+    *            The group or user wasn't found.
+    * @throws NdexException
+    *            Failed to create the request in the database.
     **************************************************************************/
-    private void createGroupInvitationRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws NdexException
+    private void createGroupInvitationRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws ObjectNotFoundException, NdexException
     {
         final IGroup requestingGroup = _orientDbGraph.getVertex(fromRid, IGroup.class);
         if (requestingGroup == null)
@@ -258,11 +304,18 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Creates a join group request. 
     * 
-    * @param fromRid         The JID of the requesting user.
-    * @param toRid           The JID of the requested group.
-    * @param requestToCreate The request data. 
+    * @param fromRid
+    *            The JID of the requesting group.
+    * @param toRid
+    *            The JID of the invited user.
+    * @param requestToCreate
+    *            The request data.
+    * @throws ObjectNotFoundException
+    *            The group or user wasn't found.
+    * @throws NdexException
+    *            Failed to create the request in the database.
     **************************************************************************/
-    private void createJoinGroupRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws NdexException
+    private void createJoinGroupRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws ObjectNotFoundException, NdexException
     {
         final IUser requestOwner = _orientDbGraph.getVertex(fromRid, IUser.class);
         if (requestOwner == null)
@@ -289,11 +342,18 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Creates a network access request. 
     * 
-    * @param fromRid         The JID of the requesting user.
-    * @param toRid           The JID of the requested network.
-    * @param requestToCreate The request data. 
+    * @param fromRid
+    *            The JID of the requesting group.
+    * @param toRid
+    *            The JID of the invited user.
+    * @param requestToCreate
+    *            The request data.
+    * @throws ObjectNotFoundException
+    *            The group or user wasn't found.
+    * @throws NdexException
+    *            Failed to create the request in the database.
     **************************************************************************/
-    private void createNetworkAccessRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws NdexException
+    private void createNetworkAccessRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws ObjectNotFoundException, NdexException
     {
         final IUser requestOwner = _orientDbGraph.getVertex(fromRid, IUser.class);
         if (requestOwner == null)
@@ -320,7 +380,8 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Adds a user to the group that invited them with read-only permissions.
     * 
-    * @param requestToProcess The request.
+    * @param requestToProcess
+    *            The request.
     **************************************************************************/
     private void processGroupInvitation(final Request requestToProcess) throws Exception
     {
@@ -341,7 +402,8 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Adds a user to their requested group with read-only permissions.
     * 
-    * @param requestToProcess The request.
+    * @param requestToProcess
+    *            The request.
     **************************************************************************/
     private void processJoinGroup(final Request requestToProcess) throws Exception
     {
@@ -362,7 +424,8 @@ public class RequestService extends NdexService
     /**************************************************************************
     * Adds a user to a network's membership with read-only permissions.
     * 
-    * @param requestToProcess The request.
+    * @param requestToProcess
+    *            The request.
     **************************************************************************/
     private void processNetworkAccess(final Request requestToProcess) throws Exception
     {

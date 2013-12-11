@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+	<appender name="ROLLING" level="debug" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>ndex.log</file>
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<!-- Roll-over daily -->
+			<fileNamePattern>ndex-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+			<!-- Or whenever the file size reaches 100MB -->
+			<timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+				<maxFileSize>100MB</maxFileSize>
+			</timeBasedFileNamingAndTriggeringPolicy>
+		</rollingPolicy>
+		<encoder>
+			<pattern>%date %level %logger - %msg%n</pattern>
+		</encoder>
+	</appender>
+	
+	<appender name="SMTP" level="warn" class="ch.qos.logback.classic.net.SMTPAppender">
+		<smtpHost>mail.ndexbio.org</smtpHost>
+		<smtpPort>587</smtpPort>
+		<to>dexterpratt.bio@gmail.com</to>
+		<to>fjcriscuolo@ucsd.edu</to>
+		<from>exceptions@ndexbio.org</from>
+		<subject>Exception: %m</subject>
+		<username>support@ndexbio.org</username>
+		<password>ZrdF!nP8</password>
+		<encoder>
+			<pattern>%date %level %logger - %msg%n</pattern>
+		</encoder>
+	</appender>
+  	
+	<appender name="STDOUT" level="debug" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>%date %level %logger - %msg%n</pattern>
+		</encoder>
+	</appender>
+	
+	<encoder>
+		<pattern>%date %level %logger - %msg%n</pattern>
+	</encoder>
+	
+	<root level="debug">
+	  <appender-ref ref="ROLLING" />
+	</root>
+</configuration>

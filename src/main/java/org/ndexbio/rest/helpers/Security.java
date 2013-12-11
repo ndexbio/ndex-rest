@@ -36,7 +36,7 @@ public class Security
     * @param authInfo
     *            A string array containing the username/password.
     * @throws Exception
-    *            Various exceptions if accessing the database fails.
+    *            Accessing the database failed.
     * @returns True if the user is authenticated, false otherwise.
     **************************************************************************/
     public static User authenticateUser(final String[] authInfo) throws Exception
@@ -130,7 +130,6 @@ public class Security
             //Determine if the character will be alpha, numeric, or a symbol
             final int charType = randomNumber(1, 3);
             
-            //Add the random character
             if (charType == 1)
                 randomPassword.append(alphaCharacters.charAt(randomNumber(0, alphaCharacters.length() - 1)));
             else if (charType == 2)
@@ -160,6 +159,12 @@ public class Security
     /**************************************************************************
     * Base64-decodes and parses the Authorization header to get the username
     * and password.
+    * 
+    * @param requestContext
+    *            The servlet HTTP request context.
+    * @throws IOException
+    *            Decoding the Authorization header failed.
+    * @return a String array containing the username and password.
     **************************************************************************/
     public static String[] parseCredentials(ContainerRequestContext requestContext) throws IOException
     {

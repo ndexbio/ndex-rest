@@ -24,13 +24,11 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
-import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.Configuration;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.RidConverter;
@@ -41,6 +39,8 @@ import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.rest.models.UploadedFile;
 import org.ndexbio.rest.models.User;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -51,11 +51,16 @@ import com.tinkerpop.blueprints.impls.orient.OrientElement;
 @Path("/users")
 public class UserService extends NdexService
 {
+    private static final Logger _logger = LoggerFactory.getLogger(UserService.class);
+    
+    
+    
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
     * getLoggedInUser(). 
     * 
-    * @param httpRequest The HTTP request injected by RESTEasy's context.
+    * @param httpRequest
+    *            The HTTP request injected by RESTEasy's context.
     **************************************************************************/
     public UserService(@Context HttpServletRequest httpRequest)
     {
@@ -67,20 +72,26 @@ public class UserService extends NdexService
     /**************************************************************************
     * Adds a network to the user's Work Surface. 
     * 
-    * @param userId       The user's ID.
-    * @param networkToAdd The network to add.
+    * @param userId
+    *            The user's ID.
+    * @param networkToAdd
+    *            The network to add.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The network wasn't found.
+    * @throws NdexException
+    *            Failed to add the network in the database.
     **************************************************************************/
     @PUT
-    @Path("/{userId}/work-surface")
+    @Path("/work-surface")
     @Produces("application/json")
-    public void addNetworkToWorkSurface(@PathParam("userId")final String userJid, final Network networkToAdd) throws Exception
+    public void addNetworkToWorkSurface(final Network networkToAdd) throws IllegalArgumentException, ObjectNotFoundException, NdexException
     {
-        if (userJid == null || userJid.isEmpty())
-            throw new ValidationException("The user ID wasn't specified.");
-        else if (networkToAdd == null)
-            throw new ValidationException("The network to add is empty.");
+        if (networkToAdd == null)
+            throw new IllegalArgumentException("The network to add is empty.");
 
-        final ORID userRid = RidConverter.convertToRid(userJid);
+        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
         final ORID networkRid = RidConverter.convertToRid(networkToAdd.getId());
 
         try
@@ -88,8 +99,6 @@ public class UserService extends NdexService
             setupDatabase();
             
             final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
-            if (user == null)
-                throw new ObjectNotFoundException("User", userJid);
 
             final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (network == null)
@@ -110,8 +119,9 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to add a network to " + this.getLoggedInUser().getUsername() + "'s Work Surface.", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to add the network to your Work Surface.");
         }
         finally
         {
@@ -122,44 +132,61 @@ public class UserService extends NdexService
     /**************************************************************************
     * Authenticates a user trying to login. 
     * 
-    * @param username The username.
-    * @param password The password.
+    * @param username
+    *            The username.
+    * @param password
+    *            The password.
+    * @throws SecurityException
+    *            Invalid username or password.
+    * @throws NdexException
+    *            Can't authenticate users against the database.
+    * @return The authenticated user's information.
     **************************************************************************/
     @GET
     @PermitAll
     @Path("/authenticate/{username}/{password}")
     @Produces("application/json")
-    public User authenticateUser(@PathParam("username")final String username, @PathParam("password")final String password) throws Exception
+    public User authenticateUser(@PathParam("username")final String username, @PathParam("password")final String password) throws SecurityException, NdexException
     {
         if (username == null || username.isEmpty() || password == null || password.isEmpty())
-            throw new ResteasyAuthenticationException("Invalid username or password.");
+            throw new SecurityException("Invalid username or password.");
             
-        final User authUser = Security.authenticateUser(new String[] { username, password });
-        if (authUser == null)
-            throw new ResteasyAuthenticationException("Invalid username or password.");
-        
-        return authUser;
+        try
+        {
+            final User authUser = Security.authenticateUser(new String[] { username, password });
+            if (authUser == null)
+                throw new SecurityException("Invalid username or password.");
+            
+            return authUser;
+        }
+        catch (Exception e)
+        {
+            _logger.error("Can't authenticate users.", e);
+            throw new NdexException("There's a problem with the authentication server. Please try again later.");
+        }
     }
     
     /**************************************************************************
     * Changes a user's password.
     * 
-    * @param userId   The user ID.
-    * @param password The new password.
+    * @param userId
+    *            The user ID.
+    * @param password
+    *            The new password.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to change the password in the database.
     **************************************************************************/
     @POST
-    @Path("/{userId}/password")
+    @Path("/password")
     @Produces("application/json")
-    public void changePassword(@PathParam("userId")final String userJid, String password) throws Exception
+    public void changePassword(String password) throws IllegalArgumentException, NdexException
     {
-        if (userJid == null || userJid.isEmpty())
-            throw new ValidationException("No user ID was specified.");
-        else if (password == null || password.isEmpty())
-            throw new ValidationException("No password was specified.");
-        else if (!userJid.equals(this.getLoggedInUser().getId()))
-            throw new ResteasyAuthenticationException("Access denied.");
+        if (password == null || password.isEmpty())
+            throw new IllegalArgumentException("No password was specified.");
         
-        final ORID userRid = RidConverter.convertToRid(userJid);
+        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
         
         try
         {
@@ -172,17 +199,15 @@ public class UserService extends NdexService
             setupDatabase();
             
             final IUser existingUser = _orientDbGraph.getVertex(userRid, IUser.class);
-            if (existingUser == null)
-                throw new ObjectNotFoundException("User", userJid);
-
             existingUser.setPassword(Security.hashText(password.trim()));
             
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
+            _logger.error("Failed to change " + this.getLoggedInUser().getUsername() + "'s password.", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to change your password.");
         }
         finally
         {
@@ -197,19 +222,21 @@ public class UserService extends NdexService
     *            The image type.
     * @param uploadedImage
     *            The uploaded image.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to save the image.
     **************************************************************************/
     @POST
     @Path("/image/{imageType}")
     @Consumes("multipart/form-data")
     @Produces("application/json")
-    public void changeProfileImage(@PathParam("imageType")final String imageType, @MultipartForm UploadedFile uploadedImage) throws Exception
+    public void changeProfileImage(@PathParam("imageType")final String imageType, @MultipartForm UploadedFile uploadedImage) throws IllegalArgumentException, NdexException
     {
         if (imageType == null || imageType.isEmpty())
             throw new IllegalArgumentException("No image type specified.");
         else if (uploadedImage == null || uploadedImage.getFileData().length < 1)
             throw new IllegalArgumentException("No uploaded image.");
-        else if (this.getLoggedInUser() == null)
-            throw new SecurityException("Access denied.");
         
         final ORID userId = RidConverter.convertToRid(this.getLoggedInUser().getId());
         
@@ -240,6 +267,11 @@ public class UserService extends NdexService
                 ImageIO.write(resizedImage, "jpg", new File(Configuration.getInstance().getProperty("Profile-Background-Path") + user.getUsername() + ".jpg"));
             }
         }
+        catch (Exception e)
+        {
+            _logger.error("Failed to save a profile image.", e);
+            throw new NdexException(e.getMessage());
+        }
         finally
         {
             teardownDatabase();
@@ -249,13 +281,28 @@ public class UserService extends NdexService
     /**************************************************************************
     * Creates a user. 
     * 
-    * @param newUser  The user to create.
+    * @param newUser
+    *            The user to create.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to create the user in the database.
+    * @return The new user's profile.
     **************************************************************************/
     @PUT
     @PermitAll
     @Produces("application/json")
-    public User createUser(final NewUser newUser) throws Exception
+    public User createUser(final NewUser newUser) throws IllegalArgumentException, NdexException
     {
+        if (newUser == null)
+            throw new IllegalArgumentException("The new user is empty.");
+        else if (newUser.getUsername() == null || newUser.getUsername().isEmpty())
+            throw new IllegalArgumentException("Username is empty.");
+        else if (newUser.getPassword() == null || newUser.getPassword().isEmpty())
+            throw new IllegalArgumentException("Password is empty.");
+        else if (newUser.getEmailAddress() == null || newUser.getEmailAddress().isEmpty())
+            throw new IllegalArgumentException("Email address is empty.");
+        
         try
         {
             setupDatabase();
@@ -266,13 +313,13 @@ public class UserService extends NdexService
             user.setEmailAddress(newUser.getEmailAddress());
             
             _orientDbGraph.getBaseGraph().commit();
-
             return new User(user);
         }
         catch (Exception e)
         {
+            _logger.error("Failed to create a new user: " + newUser.getUsername() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException(e.getMessage());
         }
         finally
         {
@@ -283,22 +330,24 @@ public class UserService extends NdexService
     /**************************************************************************
     * Deletes a network from a user's Work Surface.
     * 
-    * @param userId          The ID of the user.
-    * @param networkToDelete The network being removed.
+    * @param networkToDelete
+    *            The network being removed.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The network doesn't exist.
+    * @throws NdexException
+    *            Failed to remove the network in the database.
     **************************************************************************/
     @DELETE
-    @Path("/{userId}/work-surface")
+    @Path("/work-surface")
     @Produces("application/json")
-    public void deleteNetworkFromWorkSurface(@PathParam("userId")final String userJid, final Network networkToDelete) throws Exception
+    public void deleteNetworkFromWorkSurface(final Network networkToDelete) throws IllegalArgumentException, ObjectNotFoundException, NdexException
     {
-        if (userJid == null || userJid.isEmpty())
-            throw new ValidationException("No user ID was specified.");
-        else if (networkToDelete == null)
-            throw new ValidationException("The network to delete is empty.");
-        else if (!userJid.equals(this.getLoggedInUser().getId()))
-            throw new ResteasyAuthenticationException("Access denied.");
+        if (networkToDelete == null)
+            throw new IllegalArgumentException("The network to delete is empty.");
 
-        final ORID userRid = RidConverter.convertToRid(userJid);
+        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
         final ORID networkRid = RidConverter.convertToRid(networkToDelete.getId());
 
         try
@@ -306,21 +355,19 @@ public class UserService extends NdexService
             setupDatabase();
             
             final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
-            if (user == null)
-                throw new ObjectNotFoundException("User", userJid);
 
             final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (network == null)
                 throw new ObjectNotFoundException("Network", networkToDelete.getId());
             
             user.removeNetworkFromWorkSurface(network);
-            
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (Exception e)
         {
+            _logger.error("Failed to remove a network from " + this.getLoggedInUser().getUsername() + "'s Work Surface.", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to remove the network from your Work Surface.");
         }
         finally
         {
@@ -331,28 +378,20 @@ public class UserService extends NdexService
     /**************************************************************************
     * Deletes a user.
     * 
-    * @param userId The ID of the user to delete.
+    * @throws NdexException
+    *            Failed to delete the user from the database.
     **************************************************************************/
     @DELETE
-    @Path("/{userId}")
     @Produces("application/json")
-    public void deleteUser(@PathParam("userId")final String userJid) throws Exception
+    public void deleteUser() throws NdexException
     {
-        if (userJid == null || userJid.isEmpty())
-            throw new ValidationException("No user ID was specified.");
-        else if (!userJid.equals(this.getLoggedInUser().getId()))
-            throw new ResteasyAuthenticationException("Access denied.");
-
-        final ORID userRid = RidConverter.convertToRid(userJid);
+        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
         
         try
         {
             setupDatabase();
             
             final IUser userToDelete = _orientDbGraph.getVertex(userRid, IUser.class);
-            
-            if (userToDelete == null)
-                throw new ObjectNotFoundException("User", userJid);
             
             final List<ODocument> adminGroups = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_groups = ? and permissions = 'ADMIN'"));
             if (adminGroups == null || adminGroups.isEmpty())
@@ -381,8 +420,9 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to delete user: " + this.getLoggedInUser().getUsername() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException(e.getMessage());
         }
         finally
         {
@@ -391,18 +431,27 @@ public class UserService extends NdexService
     }
 
     /**************************************************************************
-    * Emails the user a new randomly generated password..
+    * Emails the user a new randomly generated password.
     * 
-    * @param username The username of the user.
+    * @param username
+    *            The username of the user.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to change the password in the database, or failed
+    *            to send the email.
     **************************************************************************/
     @GET
     @PermitAll
     @Path("/{username}/forgot-password")
     @Produces("application/json")
-    public Response emailNewPassword(@PathParam("username")final String username) throws Exception
+    public Response emailNewPassword(@PathParam("username")final String username) throws IllegalArgumentException, NdexException
     {
+        //TODO: In the future security questions should be implemented - right
+        //now anyone can change anyone else's password to a randomly generated
+        //password
         if (username == null || username.isEmpty())
-            throw new ValidationException("No username was specified.");
+            throw new IllegalArgumentException("No username was specified.");
 
         try
         {
@@ -441,8 +490,9 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to change " + username + "'s password.", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to recover your password.");
         }
         finally
         {
@@ -453,16 +503,21 @@ public class UserService extends NdexService
     /**************************************************************************
     * Finds users based on the search parameters.
     * 
-    * @param searchParameters The search parameters.
+    * @param searchParameters
+    *            The search parameters.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
     **************************************************************************/
     @POST
     @PermitAll
     @Path("/search")
     @Produces("application/json")
-    public SearchResult<User> findUsers(SearchParameters searchParameters) throws NdexException
+    public SearchResult<User> findUsers(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
     {
         if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
-            throw new ValidationException("No search string was specified.");
+            throw new IllegalArgumentException("No search string was specified.");
         else
             searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
         
@@ -501,8 +556,9 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to search for users: " + searchParameters.getSearchString() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to search for users.");
         }
         finally
         {
@@ -513,33 +569,42 @@ public class UserService extends NdexService
     /**************************************************************************
     * Gets a user by ID or username.
     * 
-    * @param userId The ID or username of the user.
+    * @param userId
+    *            The ID or username of the user.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to change the password in the database.
     **************************************************************************/
     @GET
-    @PermitAll
     @Path("/{userId}")
     @Produces("application/json")
-    public User getUser(@PathParam("userId")final String userJid) throws Exception
+    public User getUser(@PathParam("userId")final String userId) throws IllegalArgumentException, NdexException
     {
-        if (userJid == null || userJid.isEmpty())
-            throw new ValidationException("No user ID was specified.");
+        if (userId == null || userId.isEmpty())
+            throw new IllegalArgumentException("No user ID was specified.");
         
         try
         {
             setupDatabase();
             
-            final ORID userId = RidConverter.convertToRid(userJid);
+            final ORID userRid = RidConverter.convertToRid(userId);
             
-            final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
+            final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
             if (user != null)
                 return new User(user, true);
         }
-        catch (ValidationException ve)
+        catch (IllegalArgumentException ae)
         {
             //The user ID is actually a username
-            final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + userJid + "'"));
+            final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + userId + "'"));
             if (!matchingUsers.isEmpty())
                 return new User(_orientDbGraph.getVertex(matchingUsers.get(0), IUser.class), true);
+        }
+        catch (Exception e)
+        {
+            _logger.error("Failed to get user: " + userId + ".", e);
+            throw new NdexException("Failed to retrieve that user.");
         }
         finally
         {
@@ -552,26 +617,31 @@ public class UserService extends NdexService
     /**************************************************************************
     * Updates a user.
     * 
-    * @param updatedUser The updated user information.
+    * @param updatedUser
+    *            The updated user information.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws SecurityException
+    *            Users trying to update someone else.
+    * @throws NdexException
+    *            Failed to update the user in the database.
     **************************************************************************/
     @POST
     @Produces("application/json")
-    public void updateUser(final User updatedUser) throws Exception
+    public void updateUser(final User updatedUser) throws IllegalArgumentException, SecurityException, NdexException
     {
         if (updatedUser == null)
-            throw new ValidationException("The updated user is empty.");
-        else if (!updatedUser.getId().equals(this.getLoggedInUser().getId()))
-            throw new ResteasyAuthenticationException("Access denied.");
+            throw new IllegalArgumentException("The updated user is empty.");
+        else if (updatedUser.getId() != this.getLoggedInUser().getId())
+            throw new SecurityException("You cannot update other users.");
         	
-        final ORID userRid = RidConverter.convertToRid(updatedUser.getId());
+        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
         
         try
         {
             setupDatabase();
             
             final IUser existingUser = _orientDbGraph.getVertex(userRid, IUser.class);
-            if (existingUser == null)
-                throw new ObjectNotFoundException("User", updatedUser.getId());
 
             if (updatedUser.getBackgroundImage() != null && !updatedUser.getBackgroundImage().isEmpty())
                 existingUser.setBackgroundImage(updatedUser.getBackgroundImage());
@@ -598,8 +668,9 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
+            _logger.error("Failed to update user: " + this.getLoggedInUser().getUsername() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
-            throw e;
+            throw new NdexException("Failed to update your profile.");
         }
         finally
         {
@@ -613,9 +684,12 @@ public class UserService extends NdexService
     /**************************************************************************
     * Resizes the source image to the specified dimensions.
     * 
-    * @param sourceImage The image to resize.
-    * @param width       The new image width.
-    * @param height      The new image height.
+    * @param sourceImage
+    *            The image to resize.
+    * @param width
+    *            The new image width.
+    * @param height
+    *            The new image height.
     **************************************************************************/
     private BufferedImage resizeImage(final BufferedImage sourceImage, final int width, final int height)
     {

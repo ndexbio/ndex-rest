@@ -95,13 +95,6 @@ public class Email
         for (String recipientAddress : recipientAddresses)
             emailToSend.addRecipient(Message.RecipientType.TO, InternetAddress.parse(recipientAddress)[0]);
  
-        try
-        {
-            Transport.send(emailToSend);
-        }
-        catch (Exception e)
-        {
-            throw e;
-        }
+        Transport.send(emailToSend);
     }
 }
