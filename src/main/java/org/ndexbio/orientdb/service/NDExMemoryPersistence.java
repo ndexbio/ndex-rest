@@ -1,13 +1,10 @@
 package org.ndexbio.orientdb.service;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import org.eclipse.jdt.core.dom.ThisExpression;
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.IEdge;
@@ -22,7 +19,6 @@ import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
@@ -330,7 +326,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		 public SearchResult<IUser> findUsers(SearchParameters searchParameters) throws NdexException
 		    {
 		        if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
-		            throw new ValidationException("No search string was specified.");
+		            throw new IllegalArgumentException("No search string was specified.");
 		        else
 		            searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
 		        
