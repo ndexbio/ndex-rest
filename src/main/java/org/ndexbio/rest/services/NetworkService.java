@@ -1,7 +1,10 @@
 package org.ndexbio.rest.services;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -10,6 +13,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -18,6 +22,8 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
+import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
@@ -36,6 +42,7 @@ import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.gremlin.NetworkQueries;
 import org.ndexbio.rest.gremlin.SearchSpec;
+import org.ndexbio.rest.helpers.Configuration;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Namespace;
@@ -50,6 +57,10 @@ import org.ndexbio.rest.models.Node;
 import org.ndexbio.rest.models.Edge;
 import org.ndexbio.rest.models.Citation;
 import org.ndexbio.rest.models.Support;
+import org.ndexbio.rest.models.UploadedFile;
+import org.ndexbio.xbel.parser.ExcelFileParser;
+import org.ndexbio.xbel.parser.SIFFileParser;
+import org.ndexbio.xbel.parser.XbelFileParser;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -137,37 +148,34 @@ public class NetworkService extends NdexService
     {
         if (newNetwork == null)
             throw new ValidationException("The network to create is null.");
-        else if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0)
-            throw new ValidationException("The network to create has no members specified.");
+        else if (this.getLoggedInUser() == null)
+            throw new SecurityException("Anonymous users cannot create networks.");
 
         try
         {
             setupDatabase();
 
-            final Membership newNetworkMembership = newNetwork.getMembers().get(0);
-
-            final ORID userRid = RidConverter.convertToRid(newNetworkMembership.getResourceId());
-
+            final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
             final IUser networkOwner = _orientDbGraph.getVertex(userRid, IUser.class);
-            if (networkOwner == null)
-                throw new ObjectNotFoundException("User", newNetworkMembership.getResourceId());
 
             final Map<String, VertexFrame> networkIndex = new HashMap<String, VertexFrame>();
 
             final INetwork network = _orientDbGraph.addVertex("class:network", INetwork.class);
-
-            final INetworkMembership membership = _orientDbGraph.addVertex("class:networkMembership", INetworkMembership.class);
-            membership.setPermissions(Permissions.ADMIN);
-            membership.setMember(networkOwner);
-            membership.setNetwork(network);
-
-            networkOwner.addNetwork(membership);
-            network.addMember(membership);
-
             network.setIsPublic(false);
             network.setFormat(newNetwork.getFormat());
             network.setSource(newNetwork.getSource());
             network.setTitle(newNetwork.getTitle());
+            
+            if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0)
+            {
+                final INetworkMembership membership = _orientDbGraph.addVertex("class:networkMembership", INetworkMembership.class);
+                membership.setPermissions(Permissions.ADMIN);
+                membership.setMember(networkOwner);
+                membership.setNetwork(network);
+                
+                networkOwner.addNetwork(membership);
+                network.addMember(membership);
+            }
 
             // First create all namespaces used by the network
             createNamespaces(network, newNetwork, networkIndex);
@@ -495,6 +503,74 @@ public class NetworkService extends NdexService
         }
     }
 
+    /**************************************************************************
+    * Saves an uploaded network file. Determines the type of file uploaded,
+    * saves the file, and creates a task.
+    * 
+    * @param ownerId
+    *            The ID of the user creating the group.
+    * @param newNetwork
+    *            The network to create.
+    **************************************************************************/
+    @POST
+    @Path("/upload")
+    @Consumes("multipart/form-data")
+    @Produces("application/json")
+    public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork, @Context HttpServletRequest httpRequest) throws NdexException
+    {
+        if (uploadedNetwork == null || uploadedNetwork.getFileData().length < 1)
+            throw new IllegalArgumentException("No uploaded network.");
+        else if (this.getLoggedInUser() == null)
+            throw new SecurityException("Anonymous users cannot upload networks.");
+
+        final File uploadedNetworkPath = new File(Configuration.getInstance().getProperty("Uploaded-Networks-Path"));
+        if (!uploadedNetworkPath.exists())
+            uploadedNetworkPath.mkdir();
+
+        final File uploadedNetworkFile = new File(uploadedNetworkPath.getAbsolutePath() + "/" + uploadedNetwork.getFilename());
+        
+        try
+        {
+            if (!uploadedNetworkFile.exists())
+                uploadedNetworkFile.createNewFile();
+
+            final FileOutputStream saveNetworkFile = new FileOutputStream(uploadedNetworkFile);
+            saveNetworkFile.write(uploadedNetwork.getFileData());
+            saveNetworkFile.flush();
+            saveNetworkFile.close();
+
+            //TODO: Instead of parsing the file immediately, create a task and
+            //let the other Java application do this work
+            if (uploadedNetwork.getFilename().endsWith(".sif"))
+            {
+                final SIFFileParser sifParser = new SIFFileParser(uploadedNetworkFile.getAbsolutePath());
+                sifParser.parseSIFFile();
+            }
+            else if (uploadedNetwork.getFilename().endsWith(".xbel"))
+            {
+                final XbelFileParser xbelParser = new XbelFileParser(uploadedNetworkFile.getAbsolutePath());
+                if (!xbelParser.getValidationState().isValid())
+                    throw new ValidationException("XBEL file is has invalid elements.");
+                
+                xbelParser.parseXbelFile();
+            }
+            else if (uploadedNetwork.getFilename().endsWith(".xlsx"))
+            {
+                final ExcelFileParser excelParser = new ExcelFileParser(uploadedNetworkFile.getAbsolutePath());
+                excelParser.parseExcelFile();
+            }
+            else
+            {
+                uploadedNetworkFile.delete();
+                throw new IllegalArgumentException("The uploaded file type is not supported; must be SIF, XBEL, or XLSX.");
+            }
+        }
+        catch (Exception e)
+        {
+            throw new NdexException(e.getMessage());
+        }
+    }
+    
     
 
     private static void addTermAndFunctionalDependencies(final ITerm term, final Set<ITerm> terms)

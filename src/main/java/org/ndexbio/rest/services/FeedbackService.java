@@ -1,12 +1,12 @@
 package org.ndexbio.rest.services;
 
+import javax.mail.MessagingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
-import org.ndexbio.rest.exceptions.ValidationException;
 import org.ndexbio.rest.helpers.Configuration;
 import org.ndexbio.rest.helpers.Email;
 
@@ -32,16 +32,25 @@ public class FeedbackService extends NdexService
     @POST
     @Path("/{type}")
     @Produces("application/json")
-    public void emailFeedback(@PathParam("type")final String feedbackType, final String feedbackText) throws Exception
+    public void emailFeedback(@PathParam("type")final String feedbackType, final String feedbackText) throws IllegalArgumentException
     {
         if (feedbackType == null || feedbackType.isEmpty())
-            throw new ValidationException("Feedback type wasn't specified.");
+            throw new IllegalArgumentException("Feedback type wasn't specified.");
         else if (feedbackText == null || feedbackText.isEmpty())
-            throw new ValidationException("No feedback was supplied.");
+            throw new IllegalArgumentException("No feedback was supplied.");
         
-        Email.sendEmail(this.getLoggedInUser().getEmailAddress(),
-            Configuration.getInstance().getProperty("Feedback-Email"),
-            feedbackType,
-            feedbackText);
+        try
+        {
+            Email.sendEmail(this.getLoggedInUser().getEmailAddress(),
+                Configuration.getInstance().getProperty("Feedback-Email"),
+                feedbackType,
+                feedbackText);
+        }
+        catch (MessagingException e)
+        {
+            //TODO: Log the exception
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
     }
 }

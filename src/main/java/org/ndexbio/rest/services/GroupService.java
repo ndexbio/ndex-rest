@@ -59,9 +59,9 @@ public class GroupService extends NdexService
     public Group createGroup(final Group newGroup) throws Exception
     {
         if (newGroup == null)
-            throw new ValidationException("The group to create is empty.");
-        else if (newGroup.getMembers() == null || newGroup.getMembers().size() == 0)
-            throw new ValidationException("The group to create has no members specified.");
+            throw new IllegalArgumentException("The group to create is empty.");
+        else if (this.getLoggedInUser() == null)
+            throw new SecurityException("Anonymous users cannot upload networks.");
         else if (!Validation.isValid(newGroup.getName(), Validation.REGEX_GROUP_NAME))
             throw new ValidationException("Invalid group name: " + newGroup.getName() + ".");
 
@@ -69,13 +69,8 @@ public class GroupService extends NdexService
         {
             setupDatabase();
             
-            final Membership newGroupMembership = newGroup.getMembers().get(0);
-
-            final ORID userRid = RidConverter.convertToRid(newGroupMembership.getResourceId());
-
+            final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
             final IUser groupOwner = _orientDbGraph.getVertex(userRid, IUser.class);
-            if (groupOwner == null)
-                throw new ObjectNotFoundException("User", newGroupMembership.getResourceId());
 
             final IGroup group = _orientDbGraph.addVertex("class:group", IGroup.class);
             group.setDescription(newGroup.getDescription());
@@ -84,13 +79,16 @@ public class GroupService extends NdexService
             group.setWebsite(newGroup.getWebsite());
             group.setCreatedDate(new Date());
 
-            final IGroupMembership membership = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
-            membership.setPermissions(Permissions.ADMIN);
-            membership.setMember(groupOwner);
-            membership.setGroup(group);
-
-            groupOwner.addGroup(membership);
-            group.addMember(membership);
+            if (newGroup.getMembers() == null || newGroup.getMembers().size() == 0)
+            {
+                final IGroupMembership membership = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
+                membership.setPermissions(Permissions.ADMIN);
+                membership.setMember(groupOwner);
+                membership.setGroup(group);
+    
+                groupOwner.addGroup(membership);
+                group.addMember(membership);
+            }
 
             _orientDbGraph.getBaseGraph().commit();
 

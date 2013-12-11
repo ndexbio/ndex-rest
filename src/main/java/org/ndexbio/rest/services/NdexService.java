@@ -61,12 +61,12 @@ public abstract class NdexService
     @PermitAll
     @Path("/api")
     @Produces("application/json")
-    public Collection<Collection<String>> getApi() throws NdexException
+    public Collection<Collection<String>> getApi()
     {
-        Collection<Collection<String>> methodAnnotationList = new ArrayList<Collection<String>>();
+        final Collection<Collection<String>> methodAnnotationList = new ArrayList<Collection<String>>();
         for (Method method : this.getClass().getMethods())
         {
-            Collection<String> methodAnnotationStrings = new ArrayList<String>();
+            final Collection<String> methodAnnotationStrings = new ArrayList<String>();
             for (Annotation annotation : method.getDeclaredAnnotations())
                 methodAnnotationStrings.add(annotation.toString());
             

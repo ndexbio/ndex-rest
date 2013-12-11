@@ -3,17 +3,17 @@ package org.ndexbio.rest.services;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import javax.annotation.security.PermitAll;
 import javax.imageio.ImageIO;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -23,9 +23,8 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
+import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.jboss.resteasy.client.exception.ResteasyAuthenticationException;
-import org.jboss.resteasy.plugins.providers.multipart.InputPart;
-import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
@@ -40,6 +39,7 @@ import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.SearchResult;
+import org.ndexbio.rest.models.UploadedFile;
 import org.ndexbio.rest.models.User;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
@@ -189,72 +189,29 @@ public class UserService extends NdexService
             teardownDatabase();
         }
     }
-
-    /**************************************************************************
-    * Changes a user's profile background image.
-    * 
-    * @param userId   The user ID.
-    * @param password The new password.
-    **************************************************************************/
-    @POST
-    @Path("/{userId}/profile-background")
-    @Produces("application/json")
-    public void changeProfileBackground(@PathParam("userId")final String userJid, MultipartFormDataInput formData) throws Exception
-    {
-        final Map<String, List<InputPart>> mappedFormData = formData.getFormDataMap();
-        final List<InputPart> uploadedImages = mappedFormData.get("fileNewImage");
-        
-        if (uploadedImages == null || uploadedImages.isEmpty())
-            throw new ValidationException("No uploaded image.");
-        else if (!userJid.equals(this.getLoggedInUser().getId()))
-            throw new ResteasyAuthenticationException("Access denied.");
-        
-        final ORID userId = RidConverter.convertToRid(userJid);
-        
-        try
-        {
-            setupDatabase();
-
-            final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
-            if (user == null)
-                throw new ObjectNotFoundException("User", userJid);
-
-            final InputPart newImage = uploadedImages.get(0);
-            final InputStream newFile = newImage.getBody(InputStream.class, null);
-            final BufferedImage uploadedImage = ImageIO.read(newFile);
-            
-            final BufferedImage resizedImage = resizeImage(uploadedImage,
-                Integer.parseInt(Configuration.getInstance().getProperty("Profile-Background-Width")),
-                Integer.parseInt(Configuration.getInstance().getProperty("Profile-Background-Height")));
-            
-            ImageIO.write(resizedImage, "jpg", new File(Configuration.getInstance().getProperty("Profile-Background-Path") + user.getUsername() + ".jpg"));
-        }
-        finally
-        {
-            teardownDatabase();
-        }
-    }
     
     /**************************************************************************
-    * Changes a user's profile image.
+    * Changes a user's profile/background image.
     * 
-    * @param userId   The user ID.
-    * @param password The new password.
+    * @param imageType
+    *            The image type.
+    * @param uploadedImage
+    *            The uploaded image.
     **************************************************************************/
     @POST
-    @Path("/{userId}/profile-image")
+    @Path("/image/{imageType}")
+    @Consumes("multipart/form-data")
     @Produces("application/json")
-    public void changeProfileImage(@PathParam("userId")final String userJid, MultipartFormDataInput formData) throws Exception
+    public void changeProfileImage(@PathParam("imageType")final String imageType, @MultipartForm UploadedFile uploadedImage) throws Exception
     {
-        final Map<String, List<InputPart>> mappedFormData = formData.getFormDataMap();
-        final List<InputPart> uploadedImages = mappedFormData.get("fileNewImage");
+        if (imageType == null || imageType.isEmpty())
+            throw new IllegalArgumentException("No image type specified.");
+        else if (uploadedImage == null || uploadedImage.getFileData().length < 1)
+            throw new IllegalArgumentException("No uploaded image.");
+        else if (this.getLoggedInUser() == null)
+            throw new SecurityException("Access denied.");
         
-        if (uploadedImages == null || uploadedImages.isEmpty())
-            throw new ValidationException("No uploaded image.");
-        else if (!userJid.equals(this.getLoggedInUser().getId()))
-            throw new ResteasyAuthenticationException("Access denied.");
-        
-        final ORID userId = RidConverter.convertToRid(userJid);
+        final ORID userId = RidConverter.convertToRid(this.getLoggedInUser().getId());
         
         try
         {
@@ -262,21 +219,26 @@ public class UserService extends NdexService
 
             final IUser user = _orientDbGraph.getVertex(userId, IUser.class);
             if (user == null)
-                throw new ObjectNotFoundException("User", userJid);
+                throw new ObjectNotFoundException("User", this.getLoggedInUser().getId());
 
-            final InputPart newImage = uploadedImages.get(0);
-            final InputStream newFile = newImage.getBody(InputStream.class, null);
-            final BufferedImage uploadedImage = ImageIO.read(newFile);
-
-            final BufferedImage resizedImage = resizeImage(uploadedImage,
-                Integer.parseInt(Configuration.getInstance().getProperty("Profile-Image-Width")),
-                Integer.parseInt(Configuration.getInstance().getProperty("Profile-Image-Height")));
+            final BufferedImage newImage = ImageIO.read(new ByteArrayInputStream(uploadedImage.getFileData()));
             
-            ImageIO.write(resizedImage, "jpg", new File(Configuration.getInstance().getProperty("Profile-Image-Path") + user.getUsername() + ".jpg"));
-        }
-        catch (Exception e)
-        {
-            throw e;
+            if (imageType.toLowerCase() == "profile")
+            {
+                final BufferedImage resizedImage = resizeImage(newImage,
+                    Integer.parseInt(Configuration.getInstance().getProperty("Profile-Image-Width")),
+                    Integer.parseInt(Configuration.getInstance().getProperty("Profile-Image-Height")));
+                
+                ImageIO.write(resizedImage, "jpg", new File(Configuration.getInstance().getProperty("Profile-Image-Path") + user.getUsername() + ".jpg"));
+            }
+            else
+            {
+                final BufferedImage resizedImage = resizeImage(newImage,
+                    Integer.parseInt(Configuration.getInstance().getProperty("Profile-Background-Width")),
+                    Integer.parseInt(Configuration.getInstance().getProperty("Profile-Background-Height")));
+                
+                ImageIO.write(resizedImage, "jpg", new File(Configuration.getInstance().getProperty("Profile-Background-Path") + user.getUsername() + ".jpg"));
+            }
         }
         finally
         {

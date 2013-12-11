@@ -10,6 +10,9 @@ public class DuplicateObjectExceptionMapper implements ExceptionMapper<Duplicate
     @Override
     public Response toResponse(DuplicateObjectException exception)
     {
-        return Response.status(Status.BAD_REQUEST).entity(exception.getMessage()).build();
+        return Response
+            .status(Status.CONFLICT)
+            .entity(exception.getMessage())
+            .build();
     }
 }
