@@ -24,6 +24,7 @@ public interface INamespace extends VertexFrame
     @Property("uri")
     public String getUri();
  
+    /*
     @Adjacency(label = "namespaceBaseTerms")
     public void addBaseTerm(IBaseTerm term);
 
@@ -32,4 +33,5 @@ public interface INamespace extends VertexFrame
     
     @Adjacency(label = "namespaceBaseTerms")
     public void removeBaseTerm(IBaseTerm term);
+    */
 }

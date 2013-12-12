@@ -12,12 +12,6 @@ public interface IEdge extends VertexFrame
 
     @Property("jdexId")
     public String getJdexId();
-    
-    @Adjacency(label = "edgeNetwork")
-    public void setNetwork(INetwork network);
-
-    @Adjacency(label = "edgeNetwork")
-    public INetwork getNetwork();
 
     @Adjacency(label = "edgeObject")
     public void setObject(INode object);
