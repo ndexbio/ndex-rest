@@ -36,7 +36,6 @@ import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.rest.models.UploadedFile;
 import org.ndexbio.rest.models.User;
 import org.slf4j.Logger;
@@ -514,7 +513,7 @@ public class UserService extends NdexService
     @PermitAll
     @Path("/search")
     @Produces("application/json")
-    public SearchResult<User> findUsers(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
+    public List<User> findUsers(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
     {
         if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
             throw new IllegalArgumentException("No search string was specified.");
@@ -522,16 +521,10 @@ public class UserService extends NdexService
             searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
         
         final List<User> foundUsers = new ArrayList<User>();
-        final SearchResult<User> result = new SearchResult<User>();
-        result.setResults(foundUsers);
-        
-        //TODO: Remove these, they're unnecessary
-        result.setPageSize(searchParameters.getTop());
-        result.setSkip(searchParameters.getSkip());
         
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
 
-        String whereClause = " where username.toUpperCase() like '%" + searchParameters.getSearchString()
+        final String whereClause = " where username.toUpperCase() like '%" + searchParameters.getSearchString()
                     + "%' OR lastName.toUpperCase() like '%" + searchParameters.getSearchString()
                     + "%' OR firstName.toUpperCase() like '%" + searchParameters.getSearchString() + "%'";
 
@@ -542,7 +535,7 @@ public class UserService extends NdexService
         {
             setupDatabase();
             
-            List<ODocument> userDocumentList = _orientDbGraph
+            final List<ODocument> userDocumentList = _orientDbGraph
                 .getBaseGraph()
                 .getRawGraph()
                 .query(new OSQLSynchQuery<ODocument>(query));
@@ -550,9 +543,7 @@ public class UserService extends NdexService
             for (final ODocument document : userDocumentList)
                 foundUsers.add(new User(_orientDbGraph.getVertex(document, IUser.class)));
     
-            result.setResults(foundUsers);
-            
-            return result;
+            return foundUsers;
         }
         catch (Exception e)
         {

@@ -49,7 +49,6 @@ import org.ndexbio.rest.models.Namespace;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NetworkQueryParameters;
 import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.rest.models.Term;
 import org.ndexbio.rest.models.BaseTerm;
 import org.ndexbio.rest.models.FunctionTerm;
@@ -317,7 +316,7 @@ public class NetworkService extends NdexService
     @PermitAll
     @Path("/search")
     @Produces("application/json")
-    public SearchResult<Network> findNetworks(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
+    public List<Network> findNetworks(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
     {
         if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
             throw new IllegalArgumentException("No search string was specified.");
@@ -326,16 +325,16 @@ public class NetworkService extends NdexService
 
         final List<Network> foundNetworks = new ArrayList<Network>();
 
-        final SearchResult<Network> result = new SearchResult<Network>();
-        result.setResults(foundNetworks);
-
-        //TODO: Remove these, unnecessary
-        result.setPageSize(searchParameters.getTop());
-        result.setSkip(searchParameters.getSkip());
-
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
-        final String whereClause = " where title.toUpperCase() like '%" + searchParameters.getSearchString() + "%' OR description.toUpperCase() like '%" + searchParameters.getSearchString() + "%'";
-        final String query = "select from Network " + whereClause + " order by creation_date desc skip " + startIndex + " limit " + searchParameters.getTop();
+        String query = "select from Network "
+            + " where isPublic = true";
+        
+        if (this.getLoggedInUser() != null)
+            query += " or out_members.out_member.username = '" + this.getLoggedInUser().getUsername() + "'";
+        
+        query += " and (title.toUpperCase() like '%" + searchParameters.getSearchString() + "%'"
+            + " or description.toUpperCase() like '%" + searchParameters.getSearchString() + "%')"
+            + " order by creation_date desc skip " + startIndex + " limit " + searchParameters.getTop();
 
         try
         {
@@ -346,9 +345,7 @@ public class NetworkService extends NdexService
             for (final ODocument document : networkDocumentList)
                 foundNetworks.add(new Network(_orientDbGraph.getVertex(document, INetwork.class)));
 
-            result.setResults(foundNetworks);
-
-            return result;
+            return foundNetworks;
         }
         catch (Exception e)
         {

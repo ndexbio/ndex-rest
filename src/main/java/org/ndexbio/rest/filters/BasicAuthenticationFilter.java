@@ -27,7 +27,6 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
     private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<Object>());
     private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<Object>());
-    private static final ServerResponse SERVER_ERROR = new ServerResponse("Internal server error.", 500, new Headers<Object>());
 
     
     
@@ -36,6 +35,23 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     {
         final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)requestContext.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
         final Method method = methodInvoker.getMethod();
+
+        String[] authInfo = null;
+        User authUser = null;
+        try
+        {
+            authInfo = Security.parseCredentials(requestContext);
+            authUser = Security.authenticateUser(authInfo);
+            if (authUser != null)
+                requestContext.setProperty("User", authUser);
+        }
+        catch (Exception e)
+        {
+            if (authInfo != null && authInfo.length >= 2)
+                _logger.error("Failed to authenticate a user: " + authInfo[0] + "/" + authInfo[1] + ".", e);
+            else
+                _logger.error("Failed to authenticate a user; credential information unknown.");
+        }
         
         if (!method.isAnnotationPresent(PermitAll.class))
         {
@@ -45,35 +61,17 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                 return;
             }
             
-            String[] authInfo = null;
-            try
+            if (authInfo == null)
             {
-                authInfo = Security.parseCredentials(requestContext);
-                if (authInfo == null)
-                {
-                    _logger.warn("No credentials to authenticate.");
-                    requestContext.abortWith(FORBIDDEN);
-                    return;
-                }
-                
-                final User authUser = Security.authenticateUser(authInfo); 
-                if (authUser == null)
-                {
-                    _logger.warn(authInfo[0] + " attempted to access a resource for which they were denied.");
-                    requestContext.abortWith(ACCESS_DENIED);
-                }
-                else
-                    requestContext.setProperty("User", authUser);
-            }
-            catch (Exception e)
-            {
-                if (authInfo != null && authInfo.length >= 2)
-                    _logger.error("Failed to authenticate a user: " + authInfo[0] + "/" + authInfo[1] + ".", e);
-                else
-                    _logger.error("Failed to authenticate a user; credential information unknown.");
-                
-                requestContext.abortWith(SERVER_ERROR);
+                _logger.warn("No credentials to authenticate.");
+                requestContext.abortWith(FORBIDDEN);
                 return;
+            }
+            
+            if (authUser == null)
+            {
+                _logger.warn(authInfo[0] + " attempted to access a resource for which they were denied.");
+                requestContext.abortWith(ACCESS_DENIED);
             }
         }
     }

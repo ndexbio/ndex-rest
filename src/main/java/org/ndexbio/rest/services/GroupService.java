@@ -24,7 +24,6 @@ import org.ndexbio.rest.helpers.Validation;
 import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.SearchResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.orientechnologies.orient.core.id.ORID;
@@ -205,7 +204,7 @@ public class GroupService extends NdexService
     @PermitAll
     @Path("/search")
     @Produces("application/json")
-    public SearchResult<Group> findGroups(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
+    public List<Group> findGroups(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
     {
         if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
             throw new IllegalArgumentException("No search string was specified.");
@@ -213,14 +212,8 @@ public class GroupService extends NdexService
             searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
         
         final List<Group> foundGroups = new ArrayList<Group>();
-        final SearchResult<Group> result = new SearchResult<Group>();
-        result.setResults(foundGroups);
         
-        //TODO: Remove these, they're unnecessary
-        result.setPageSize(searchParameters.getTop());
-        result.setSkip(searchParameters.getSkip());
-
-        int startIndex = searchParameters.getSkip() * searchParameters.getTop();
+        final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
 
         final String whereClause = " where name.toUpperCase() like '%" + searchParameters.getSearchString()
             + "%' OR description.toUpperCase() like '%" + searchParameters.getSearchString()
@@ -240,8 +233,7 @@ public class GroupService extends NdexService
             for (final ODocument document : groupDocumentList)
                 foundGroups.add(new Group(_orientDbGraph.getVertex(document, IGroup.class)));
     
-            result.setResults(foundGroups);
-            return result;
+            return foundGroups;
         }
         catch (Exception e)
         {
