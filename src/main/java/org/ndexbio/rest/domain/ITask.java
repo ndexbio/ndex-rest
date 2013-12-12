@@ -7,11 +7,35 @@ import java.util.Date;
 
 public interface ITask extends VertexFrame
 {
+    @Property("description")
+    public String getDescription();
+    
+    @Property("description")
+    public void setDescription(String description);
+    
     @Adjacency(label = "owner")
     public IUser getOwner();
 
     @Adjacency(label = "owner")
     public void setOwner(IUser owner);
+    
+    @Property("priority")
+    public Priority getPriority();
+    
+    @Property("priority")
+    public void setPriority(Priority priority);
+    
+    @Property("progress")
+    public int getProgress();
+    
+    @Property("progress")
+    public void setProgress(int progress);
+    
+    @Property("resource")
+    public String getResource();
+    
+    @Property("resource")
+    public void setResource(String resource);
 
     @Property("startTime")
     public Date getStartTime();
@@ -20,8 +44,8 @@ public interface ITask extends VertexFrame
     public void setStartTime(Date startTime);
 
     @Property("status")
-    public void setStatus(String status);
+    public void setStatus(Status status);
 
     @Property("status")
-    public String getStatus();
+    public Status getStatus();
 }

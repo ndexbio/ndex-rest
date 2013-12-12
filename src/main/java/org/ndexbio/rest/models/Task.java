@@ -2,12 +2,18 @@ package org.ndexbio.rest.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.ITask;
+import org.ndexbio.rest.domain.Priority;
+import org.ndexbio.rest.domain.Status;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Task extends NdexObject
 {
-    private String ownerId;
-    private String status;
+    private String _description;
+    private User _owner;
+    private Priority _priority;
+    private int _progress;
+    private String _resource;
+    private Status _status;
 
     
     
@@ -28,30 +34,75 @@ public class Task extends NdexObject
     {
         super(task);
         
-        this.setOwnerId(resolveVertexId(task.getOwner()));
-        this.setStatus(task.getStatus());
         this.setCreatedDate(task.getStartTime());
+        
+        _description = task.getDescription();
+        _owner = new User(task.getOwner());
+        _priority = task.getPriority();
+        _progress = task.getProgress();
+        _resource = task.getResource();
+        _status = task.getStatus();
     }
+
 
     
+    public String getDescription()
+    {
+        return _description;
+    }
     
-    public String getOwnerId()
+    public void setDescription(String description)
     {
-        return ownerId;
+        _description = description;
+    }
+    
+    public User getOwner()
+    {
+        return _owner;
     }
 
-    public void setOwnerId(String ownerId)
+    public void setOwner(User owner)
     {
-        this.ownerId = ownerId;
+        _owner = owner;
+    }
+    
+    public Priority getPriority()
+    {
+        return _priority;
+    }
+    
+    public void setPriority(Priority priority)
+    {
+        _priority = priority;
+    }
+    
+    public int getProgress()
+    {
+        return _progress;
+    }
+    
+    public void setProgress(int progress)
+    {
+        _progress = progress;
+    }
+    
+    public String getResource()
+    {
+        return _resource;
+    }
+    
+    public void setResource(String resource)
+    {
+        _resource = resource;
     }
 
-    public String getStatus()
+    public Status getStatus()
     {
-        return status;
+        return _status;
     }
 
-    public void setStatus(String status)
+    public void setStatus(Status status)
     {
-        this.status = status;
+        _status = status;
     }
 }

@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +26,7 @@ import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
+import org.ndexbio.rest.domain.ITask;
 import org.ndexbio.rest.domain.ITerm;
 import org.ndexbio.rest.domain.IBaseTerm;
 import org.ndexbio.rest.domain.IFunctionTerm;
@@ -34,6 +36,8 @@ import org.ndexbio.rest.domain.IEdge;
 import org.ndexbio.rest.domain.ICitation;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.Permissions;
+import org.ndexbio.rest.domain.Priority;
+import org.ndexbio.rest.domain.Status;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.gremlin.NetworkQueries;
@@ -619,35 +623,35 @@ public class NetworkService extends NdexService
             saveNetworkFile.flush();
             saveNetworkFile.close();
 
-            //TODO: Instead of parsing the file immediately, create a task and
-            //let the other Java application do this work
-            if (uploadedNetwork.getFilename().endsWith(".sif"))
+            setupDatabase();
+            
+            final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
+            final IUser taskOwner = _orientDbGraph.getVertex(userRid, IUser.class);
+            
+            if (uploadedNetwork.getFilename().endsWith(".sif") || uploadedNetwork.getFilename().endsWith(".xbel") ||
+                uploadedNetwork.getFilename().endsWith(".xls") || uploadedNetwork.getFilename().endsWith(".xlsx"))
             {
-                final SIFFileParser sifParser = new SIFFileParser(uploadedNetworkFile.getAbsolutePath());
-                sifParser.parseSIFFile();
-            }
-            else if (uploadedNetwork.getFilename().endsWith(".xbel"))
-            {
-                final XbelFileParser xbelParser = new XbelFileParser(uploadedNetworkFile.getAbsolutePath());
-                if (!xbelParser.getValidationState().isValid())
-                    throw new NdexException("XBEL file is has invalid elements.");
+                ITask processNetworkTask = _orientDbGraph.addVertex("class:network", ITask.class);
+                processNetworkTask.setDescription("Process uploaded network");
+                processNetworkTask.setOwner(taskOwner);
+                processNetworkTask.setPriority(Priority.LOW);
+                processNetworkTask.setProgress(0);
+                processNetworkTask.setResource(uploadedNetworkFile.getAbsolutePath());
+                processNetworkTask.setStartTime(new Date());
+                processNetworkTask.setStatus(Status.QUEUED);
                 
-                xbelParser.parseXbelFile();
-            }
-            else if (uploadedNetwork.getFilename().endsWith(".xls") || uploadedNetwork.getFilename().endsWith(".xlsx"))
-            {
-                final ExcelFileParser excelParser = new ExcelFileParser(uploadedNetworkFile.getAbsolutePath());
-                excelParser.parseExcelFile();
+                _orientDbGraph.getBaseGraph().commit();
             }
             else
             {
                 uploadedNetworkFile.delete();
-                throw new IllegalArgumentException("The uploaded file type is not supported; must be SIF, XBEL, or XLSX.");
+                throw new IllegalArgumentException("The uploaded file type is not supported; must be Excel, SIF, OR XBEL.");
             }
         }
         catch (Exception e)
         {
             _logger.error("Failed to process uploaded network: " + uploadedNetwork.getFilename() + ".", e);
+            _orientDbGraph.getBaseGraph().rollback();
             throw new NdexException(e.getMessage());
         }
     }
