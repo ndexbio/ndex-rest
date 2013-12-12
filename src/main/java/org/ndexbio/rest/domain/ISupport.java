@@ -24,12 +24,12 @@ public interface ISupport extends VertexFrame
     @Adjacency(label = "supportCitation")
     public ICitation getSupportCitation();
     
-    @Adjacency(label = "ndexEdges")
+    @Adjacency(label = "supportEdges")
     public void addNdexEdge(IEdge edge);
 
-    @Adjacency(label = "ndexEdges")
+    @Adjacency(label = "supportEdges")
     public Iterable<IEdge> getNdexEdges();
     
-    @Adjacency(label = "ndexEdges")
+    @Adjacency(label = "supportEdges")
     public void removeNdexEdge(IEdge edge);
 }

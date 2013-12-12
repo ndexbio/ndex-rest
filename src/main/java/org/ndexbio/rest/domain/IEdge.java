@@ -13,46 +13,46 @@ public interface IEdge extends VertexFrame
     @Property("jdexId")
     public String getJdexId();
     
-    @Adjacency(label = "network")
+    @Adjacency(label = "edgeNetwork")
     public void setNetwork(INetwork network);
 
-    @Adjacency(label = "network")
+    @Adjacency(label = "edgeNetwork")
     public INetwork getNetwork();
 
-    @Adjacency(label = "object")
+    @Adjacency(label = "edgeObject")
     public void setObject(INode object);
 
-    @Adjacency(label = "object")
+    @Adjacency(label = "edgeObject")
     public INode getObject();
 
-    @Adjacency(label = "predicate")
+    @Adjacency(label = "edgePredicate")
     public void setPredicate(IBaseTerm term);
 
-    @Adjacency(label = "predicate")
+    @Adjacency(label = "edgePredicate")
     public IBaseTerm getPredicate();
 
-    @Adjacency(label = "subject", direction = Direction.IN)
+    @Adjacency(label = "edgeSubject", direction = Direction.IN)
     public INode setSubject(INode subject);
 
-    @Adjacency(label = "subject", direction = Direction.IN)
+    @Adjacency(label = "edgeSubject", direction = Direction.IN)
     public INode getSubject();
     
-    @Adjacency(label = "supports")
+    @Adjacency(label = "edgeSupports")
     public void addSupport(ISupport support);
 
-    @Adjacency(label = "supports")
+    @Adjacency(label = "edgeSupports")
     public Iterable<ISupport> getSupports();
     
-    @Adjacency(label = "supports")
+    @Adjacency(label = "edgeSupports")
     public void removeSupport(ISupport support);
     
-    @Adjacency(label = "citations")
+    @Adjacency(label = "edgeCitations")
     public void addCitation(ICitation citation);
 
-    @Adjacency(label = "citations")
+    @Adjacency(label = "edgeCitations")
     public Iterable<ICitation> getCitations();
     
-    @Adjacency(label = "citations")
+    @Adjacency(label = "edgeCitations")
     public void removeCitation(ICitation citation);
     
 }

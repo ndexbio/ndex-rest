@@ -8,15 +8,15 @@ import com.tinkerpop.frames.modules.typedgraph.TypeField;
 @TypeField("membershipType")
 public interface IMembership extends VertexFrame
 {
-    @Adjacency(label = "member")
+    @Adjacency(label = "membershipMember")
     public IAccount getMember();
 
-    @Adjacency(label = "member")
+    @Adjacency(label = "membershipMember")
     public void setMember(IAccount member);
     
-    @Property("permissions")
+    @Property("membershipPermissions")
     public Permissions getPermissions();
     
-    @Property("permissions")
+    @Property("membershipPermissions")
     public void setPermissions(Permissions permissions);
 }

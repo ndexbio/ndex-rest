@@ -6,15 +6,15 @@ import com.tinkerpop.frames.modules.typedgraph.TypeValue;
 @TypeValue("joinGroup")
 public interface IJoinGroupRequest extends IRequest
 {
-    @Adjacency(label = "fromUser")
+    @Adjacency(label = "joinGroupRequestFromUser")
     public IUser getFromUser();
     
-    @Adjacency(label = "fromUser")
+    @Adjacency(label = "joinGroupRequestFromUser")
     public void setFromUser(IUser user);
 
-    @Adjacency(label = "toGroup")
+    @Adjacency(label = "joinGroupRequestToGroup")
     public IGroup getToGroup();
     
-    @Adjacency(label = "toGroup")
+    @Adjacency(label = "joinGroupRequestToGroup")
     public void setToGroup(IGroup group);
 }

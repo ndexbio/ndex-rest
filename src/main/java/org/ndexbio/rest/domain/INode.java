@@ -18,10 +18,10 @@ public interface INode extends VertexFrame
     @Property("name")
     public void setName(String name);
 
-    @Adjacency(label = "represents")
+    @Adjacency(label = "nodeRepresents")
     public void setRepresents(ITerm term);
 
-    @Adjacency(label = "represents")
+    @Adjacency(label = "nodeRepresents")
     public ITerm getRepresents();
 
 }
