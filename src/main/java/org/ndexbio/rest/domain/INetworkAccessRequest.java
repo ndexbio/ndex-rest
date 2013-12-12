@@ -6,15 +6,15 @@ import com.tinkerpop.frames.modules.typedgraph.TypeValue;
 @TypeValue("networkAccess")
 public interface INetworkAccessRequest extends IRequest
 {
-    @Adjacency(label = "fromUser")
+    @Adjacency(label = "networkAccessRequestFromUser")
     public IUser getFromUser();
     
-    @Adjacency(label = "fromUser")
+    @Adjacency(label = "networkAccessRequestFromUser")
     public void setFromUser(IUser user);
 
-    @Adjacency(label = "toNetwork")
+    @Adjacency(label = "networkAccessRequestToNetwork")
     public INetwork getToNetwork();
     
-    @Adjacency(label = "toNetwork")
+    @Adjacency(label = "networkAccessRequestToNetwork")
     public void setToNetwork(INetwork network);
 }

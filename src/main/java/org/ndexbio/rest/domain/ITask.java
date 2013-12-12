@@ -13,10 +13,10 @@ public interface ITask extends VertexFrame
     @Property("description")
     public void setDescription(String description);
     
-    @Adjacency(label = "owner")
+    @Adjacency(label = "taskOwner")
     public IUser getOwner();
 
-    @Adjacency(label = "owner")
+    @Adjacency(label = "taskOwner")
     public void setOwner(IUser owner);
     
     @Property("priority")

@@ -38,21 +38,21 @@ public interface ICitation extends VertexFrame
     @Property("type")
     public void setType(String type);
     
-    @Adjacency(label = "ndexEdges")
+    @Adjacency(label = "citationEdges")
     public void addNdexEdge(IEdge edge);
 
-    @Adjacency(label = "ndexEdges")
+    @Adjacency(label = "citationEdges")
     public Iterable<IEdge> getNdexEdges();
     
-    @Adjacency(label = "ndexEdges")
+    @Adjacency(label = "citationEdges")
     public void removeNdexEdge(IEdge edge);
     
-    @Adjacency(label = "supports")
+    @Adjacency(label = "citationSupports")
     public void addSupport(ISupport support);
 
-    @Adjacency(label = "supports")
+    @Adjacency(label = "citationSupports")
     public Iterable<ISupport> getSupports();
     
-    @Adjacency(label = "supports")
+    @Adjacency(label = "citationSupports")
     public void removeSupport(ISupport support);
 }

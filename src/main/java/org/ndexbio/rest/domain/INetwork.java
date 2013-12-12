@@ -6,13 +6,13 @@ import com.tinkerpop.frames.VertexFrame;
 
 public interface INetwork extends VertexFrame
 {
-    @Adjacency(label = "citations")
+    @Adjacency(label = "networkCitations")
     public void addCitation(ICitation citation);
 
-    @Adjacency(label = "citations")
+    @Adjacency(label = "networkCitations")
     public Iterable<ICitation> getCitations();
     
-    @Adjacency(label = "citations")
+    @Adjacency(label = "networkCitations")
     public void removeCitation(ICitation citation);
 
     @Property("copyright")
@@ -39,22 +39,22 @@ public interface INetwork extends VertexFrame
     @Property("isPublic")
     public void setIsPublic(boolean isPublic);
     
-    @Adjacency(label = "members")
+    @Adjacency(label = "networkMemberships")
     public void addMember(INetworkMembership newMember);
     
-    @Adjacency(label = "members")
+    @Adjacency(label = "networkMemberships")
     public Iterable<INetworkMembership> getMembers();
     
-    @Adjacency(label = "members")
+    @Adjacency(label = "networkMemberships")
     public void removeMember(INetworkMembership member);
 
-    @Adjacency(label = "namespaces")
+    @Adjacency(label = "networkNamespaces")
     public void addNamespace(INamespace namespace);
 
-    @Adjacency(label = "namespaces")
+    @Adjacency(label = "networkNamespaces")
     public Iterable<INamespace> getNamespaces();
     
-    @Adjacency(label = "namespaces")
+    @Adjacency(label = "networkNamespaces")
     public void removeNamespace(INamespace namespace);
 
     @Property("ndexEdgeCount")
@@ -63,13 +63,13 @@ public interface INetwork extends VertexFrame
     @Property("ndexEdgeCount")
     public void setNdexEdgeCount(int edgesCount);
 
-    @Adjacency(label = "ndexEdges")
+    @Adjacency(label = "networkEdges")
     public void addNdexEdge(IEdge edge);
 
-    @Adjacency(label = "ndexEdges")
+    @Adjacency(label = "networkEdges")
     public Iterable<IEdge> getNdexEdges();
     
-    @Adjacency(label = "ndexEdges")
+    @Adjacency(label = "networkEdges")
     public void removeNdexEdge(IEdge edge);
 
     @Property("ndexNodeCount")
@@ -78,22 +78,22 @@ public interface INetwork extends VertexFrame
     @Property("ndexNodeCount")
     public void setNdexNodeCount(int nodesCount);
 
-    @Adjacency(label = "ndexNodes")
+    @Adjacency(label = "networkNodes")
     public void addNdexNode(INode node);
 
-    @Adjacency(label = "ndexNodes")
+    @Adjacency(label = "networkNodes")
     public Iterable<INode> getNdexNodes();
     
-    @Adjacency(label = "ndexNodes")
+    @Adjacency(label = "networkNodes")
     public void removeNdexNode(INode node);
     
-    @Adjacency(label = "requests")
+    @Adjacency(label = "networkRequests")
     public void addRequest(IRequest request);
     
-    @Adjacency(label = "requests")
+    @Adjacency(label = "networkRequests")
     public Iterable<IRequest> getRequests();
     
-    @Adjacency(label = "requests")
+    @Adjacency(label = "networkRequests")
     public void removeRequest(IRequest request);
 
     @Property("source")
@@ -102,22 +102,22 @@ public interface INetwork extends VertexFrame
     @Property("source")
     public void setSource(String source);
 
-    @Adjacency(label = "supports")
+    @Adjacency(label = "networkSupports")
     public void addSupport(ISupport support);
 
-    @Adjacency(label = "supports")
+    @Adjacency(label = "networkSupports")
     public Iterable<ISupport> getSupports();
     
-    @Adjacency(label = "supports")
+    @Adjacency(label = "networkSupports")
     public void removeSupport(ISupport support);
 
-    @Adjacency(label = "terms")
+    @Adjacency(label = "networkTerms")
     public void addTerm(ITerm term);
 
-    @Adjacency(label = "terms")
+    @Adjacency(label = "networkTerms")
     public Iterable<ITerm> getTerms();
 
-    @Adjacency(label = "terms")
+    @Adjacency(label = "networkTerms")
     public void removeTerm(ITerm term);
 
     @Property("title")

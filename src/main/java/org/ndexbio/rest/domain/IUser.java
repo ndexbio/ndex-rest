@@ -19,13 +19,13 @@ public interface IUser extends IAccount
     @Property("firstName")
     public void setFirstName(String firstName);
 
-    @Adjacency(label = "groups")
+    @Adjacency(label = "userGroups")
     public void addGroup(IGroupMembership newGroup);
 
-    @Adjacency(label = "groups")
+    @Adjacency(label = "userGroups")
     public Iterable<IGroupMembership> getGroups();
     
-    @Adjacency(label = "groups")
+    @Adjacency(label = "userGroups")
     public void removeGroup(IGroupMembership group);
 
     @Property("lastName")
@@ -34,13 +34,13 @@ public interface IUser extends IAccount
     @Property("lastName")
     public void setLastName(String lastName);
 
-    @Adjacency(label = "networks")
+    @Adjacency(label = "userNetworks")
     public void addNetwork(INetworkMembership newNetwork);
     
-    @Adjacency(label = "networks")
+    @Adjacency(label = "userNetworks")
     public Iterable<INetworkMembership> getNetworks();
     
-    @Adjacency(label = "networks")
+    @Adjacency(label = "userNetworks")
     public void removeNetwork(INetworkMembership network);
 
     @Property("password")
@@ -49,22 +49,22 @@ public interface IUser extends IAccount
     @Property("password")
     public void setPassword(String password);
     
-    @Adjacency(label = "requests")
+    @Adjacency(label = "userRequests")
     public void addRequest(IRequest request);
     
-    @Adjacency(label = "requests")
+    @Adjacency(label = "userRequests")
     public Iterable<IRequest> getRequests();
     
-    @Adjacency(label = "requests")
+    @Adjacency(label = "userRequests")
     public void removeRequest(IRequest request);
 
-    @Adjacency(label = "tasks")
+    @Adjacency(label = "userTasks")
     public void addTask(ITask network);
 
-    @Adjacency(label = "tasks")
+    @Adjacency(label = "userTasks")
     public Iterable<ITask> getTasks();
 
-    @Adjacency(label = "tasks")
+    @Adjacency(label = "userTasks")
     public void removeTask(ITask task);
 
     @Property("username")
@@ -73,12 +73,12 @@ public interface IUser extends IAccount
     @Property("username")
     public void setUsername(String username);
 
-    @Adjacency(label = "workSurface")
+    @Adjacency(label = "userWorkSurface")
     public void addNetworkToWorkSurface(INetwork network);
 
-    @Adjacency(label = "workSurface")
+    @Adjacency(label = "userWorkSurface")
     public Iterable<INetwork> getWorkSurface();
 
-    @Adjacency(label = "workSurface")
+    @Adjacency(label = "userWorkSurface")
     public void removeNetworkFromWorkSurface(INetwork network);
 }

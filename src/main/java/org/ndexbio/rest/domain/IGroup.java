@@ -13,13 +13,13 @@ public interface IGroup extends IAccount
     @Property("name")
     String getName();
     
-    @Adjacency(label = "members")
+    @Adjacency(label = "groupMembers")
     public void addMember(IGroupMembership newMember);
     
-    @Adjacency(label = "members")
+    @Adjacency(label = "groupMembers")
     public Iterable<IGroupMembership> getMembers();
     
-    @Adjacency(label = "members")
+    @Adjacency(label = "groupMembers")
     public void removeMember(IGroupMembership member);
 
     @Property("organizationName")
@@ -28,21 +28,21 @@ public interface IGroup extends IAccount
     @Property("organizationName")
     String getOrganizationName();
 
-    @Adjacency(label = "networks")
+    @Adjacency(label = "groupNetworks")
     public void addNetwork(INetworkMembership newNetwork);
     
-    @Adjacency(label = "networks")
+    @Adjacency(label = "groupNetworks")
     public Iterable<INetworkMembership> getNetworks();
     
-    @Adjacency(label = "networks")
+    @Adjacency(label = "groupNetworks")
     public void removeNetwork(INetworkMembership network);
     
-    @Adjacency(label = "requests")
+    @Adjacency(label = "groupRequests")
     public void addRequest(IRequest request);
     
-    @Adjacency(label = "requests")
+    @Adjacency(label = "groupRequests")
     public Iterable<IRequest> getRequests();
     
-    @Adjacency(label = "requests")
+    @Adjacency(label = "groupRequests")
     public void removeRequest(IRequest request);
 }

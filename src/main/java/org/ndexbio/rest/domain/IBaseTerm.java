@@ -13,9 +13,9 @@ public interface IBaseTerm extends ITerm
     @Property("name")
     public void setName(String name);
 
-    @Adjacency(label = "termNamespace")
+    @Adjacency(label = "baseTermNamespace")
     public void setTermNamespace(INamespace namespace);
 
-    @Adjacency(label = "termNamespace")
+    @Adjacency(label = "baseTermNamespace")
     public INamespace getTermNamespace();
 }

@@ -70,8 +70,6 @@ public class ExcelFileParser {
 		}
 		
 		try {
-			this.createNetwork();
-			
 
 			// Get the workbook instance for XLS file
 			HSSFWorkbook workbook = new HSSFWorkbook(excelFileStream);
