@@ -1,4 +1,4 @@
-package org.ndexbio.orientdb.service;
+package org.ndexbio.rest.services;
 
 import org.ndexbio.rest.NdexSchemaManager;
 import org.ndexbio.rest.domain.IBaseTerm;
@@ -26,15 +26,15 @@ import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
  * closing the database connection
  */
 
-public class NdexService
+public class NdexServiceTest
 {
     
     protected FramedGraphFactory _graphFactory = null;
     protected ODatabaseDocumentTx _ndexDatabase = null;
     protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
     
-    public NdexService() {
-    	this.setupDatabase();
+    public NdexServiceTest() {
+    	//this.setupDatabase();
     }
     
    

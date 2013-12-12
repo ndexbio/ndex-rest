@@ -12,7 +12,7 @@ public class XbelParserApp {
 		if(args.length > 0 ){
 			filename = args[0];
 		} else {
-			 filename = "small_corpus.xbel";
+			 filename = "tiny_corpus.xbel";
 		}
 		XbelFileParser parser = new XbelFileParser(filename);
 		if (parser.getValidationState().isValid()){

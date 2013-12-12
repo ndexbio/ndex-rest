@@ -7,6 +7,10 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.easymock.EasyMock;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -15,6 +19,7 @@ import org.ndexbio.rest.domain.*;
 import org.ndexbio.rest.helpers.Configuration;
 import org.ndexbio.rest.models.*;
 import org.ndexbio.rest.services.*;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orientechnologies.orient.client.remote.OServerAdmin;
@@ -36,7 +41,11 @@ public class CreateTestDatabase
     private static ODatabaseDocumentTx _ndexDatabase = null;
     private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
     private static final ObjectMapper _jsonMapper = new ObjectMapper();
+    private User requestingUser = new User();
+    private HttpServletRequest mockRequest = EasyMock.createMock(HttpServletRequest.class);
     
+
+	
     @Test
     public void checkDatabase()
     {
@@ -44,9 +53,13 @@ public class CreateTestDatabase
         {
             //Can't use 'admin' as the username or password here, OrientDB
             //seems to have a hard-coded failure if either is 'admin'
+        	/*
             OServerAdmin orientDbAdmin = new OServerAdmin(Configuration.getInstance().getProperty("OrientDB-URL"))
                 .connect(Configuration.getInstance().getProperty("OrientDB-Admin-Username"), Configuration.getInstance().getProperty("OrientDB-Admin-Password"));
-            
+            */
+        	
+        	OServerAdmin orientDbAdmin = new OServerAdmin("remote:localhost/ndex").connect("ndex","ndex");
+
             if (orientDbAdmin.existsDatabase("local"))
             {
                 System.out.println("Dropping existing database.");
@@ -89,7 +102,10 @@ public class CreateTestDatabase
     @Test
     public void createTestUser()
     {
-        final UserService userService = new UserService();
+    	// Setup requesting user to be the "logged in user"
+    	requestingUser.setUsername("dexterpratt");
+    	mockRequest.setAttribute("User", requestingUser);
+        final UserServiceTest userService = new UserServiceTest();
         URL testUserUrl = getClass().getResource("/resources/users-and-groups.json");
 
         try
@@ -111,12 +127,13 @@ public class CreateTestDatabase
                 testUser.setId(userId);
                 userService.updateUser(testUser);
                 usersCreated.put(testUser, userNode);
-
+/*
                 System.out.println("Creating " + testUser.getUsername() + "'s networks.");
                 createTestUserNetworks(userNode.get("networkFilenames"), testUser);
 
                 System.out.println("Creating " + testUser.getUsername() + "'s groups.");
                 createTestUserGroups(userNode.get("ownedGroups"), testUser);
+                */
             }
             /*
             //Have to do a second loop to create requests because we need all
@@ -150,7 +167,7 @@ public class CreateTestDatabase
     
     private void createTestGroupRequests(JsonNode requestsNode, User testUser, String groupId) throws Exception
     {
-        final RequestService requestService = new RequestService();
+        final RequestService requestService = new RequestService(mockRequest);
 
         final Iterator<JsonNode> requestsIterator = requestsNode.elements();
         while (requestsIterator.hasNext())
@@ -175,7 +192,7 @@ public class CreateTestDatabase
 
     private void createTestUserGroups(JsonNode groupsNode, User testUser) throws Exception
     {
-        final GroupService groupService = new GroupService();
+        final GroupService groupService = new GroupService(mockRequest);
         final ArrayList<Membership> ownedGroups = new ArrayList<Membership>();
         
         final Iterator<JsonNode> groupsIterator = groupsNode.elements();
@@ -209,7 +226,7 @@ public class CreateTestDatabase
     
     private void createTestUserNetworks(JsonNode networkFilesNode, User testUser) throws Exception
     {
-        final NetworkService networkService = new NetworkService();
+        final NetworkService networkService = new NetworkService(mockRequest);
 
         final Iterator<JsonNode> networksIterator = networkFilesNode.elements();
         while (networksIterator.hasNext())
@@ -234,7 +251,7 @@ public class CreateTestDatabase
 
     private void createTestUserRequests(JsonNode requestsNode, User testUser) throws Exception
     {
-        final RequestService requestService = new RequestService();
+        final RequestService requestService = new RequestService(mockRequest);
 
         final Iterator<JsonNode> requestsIterator = requestsNode.elements();
         while (requestsIterator.hasNext())

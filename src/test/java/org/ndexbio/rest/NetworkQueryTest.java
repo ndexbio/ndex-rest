@@ -4,6 +4,10 @@ import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.easymock.EasyMock;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -19,13 +23,16 @@ import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.User;
 import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.UserService;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class NetworkQueryTest {
 
+    private static User requestingUser = new User();
+    private static HttpServletRequest mockRequest = EasyMock.createMock(HttpServletRequest.class);
 	private static final String jdexFile = "/resources/reactome-test.jdex";
-	private static NetworkService networkService = new NetworkService();
-	private static UserService userService = new UserService();
+	private static NetworkService networkService = new NetworkService(mockRequest);
+	private static UserService userService = new UserService(mockRequest);
 	private static User queryTester;
 	private static Network queryNetwork;
 
@@ -98,7 +105,7 @@ public class NetworkQueryTest {
 			}
 			if (queryTester != null) {
 				System.out.println("Deleting test user." + queryTester.getId());
-				userService.deleteUser(queryTester.getId());
+				userService.deleteUser();
 			}
 		} catch (NdexException e) {
 			System.out.println("Failed in afterMethod");

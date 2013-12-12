@@ -9,6 +9,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import javax.servlet.http.HttpServletRequest;
+
 import org.junit.Assert;
 import org.junit.Test;
 import org.ndexbio.rest.domain.Permissions;
@@ -28,16 +30,22 @@ import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
+import org.easymock.EasyMock;
 
 public class NetworkFromExcelTest {
 
+    private User requestingUser = new User();
+    private HttpServletRequest mockRequest = EasyMock.createMock(HttpServletRequest.class);
 	private String excelFilePath = "/resources/exceltestnetwork.xls";
 	private String testUserName = "jstegall";
 	private Integer idCounter = 0;
 
 	@Test
 	public void createExcelNetwork() {
-		final UserService userService = new UserService();
+    	// Setup requesting user to be the "logged in user"
+    	requestingUser.setUsername("dexterpratt");
+    	mockRequest.setAttribute("User", requestingUser);
+		final UserService userService = new UserService(mockRequest);
 		SearchParameters searchParameters = new SearchParameters();
 		searchParameters.setSearchString(testUserName);
 		searchParameters.setSkip(0);
@@ -61,6 +69,7 @@ public class NetworkFromExcelTest {
 	private void loadExcelNetwork(User testUser, String excelPath)
 			throws Exception {
 
+		
 		final URL testNetworkUrl = getClass().getResource(excelPath);
 		File file = new File(testNetworkUrl.toURI());
 		FileInputStream networkFileStream = new FileInputStream(file);
@@ -86,7 +95,7 @@ public class NetworkFromExcelTest {
 		networkToCreate.setTitle("Example Protein Interactions");
 		networkToCreate.setSource("Ideker Lab");
 
-		final NetworkService networkService = new NetworkService();
+		final NetworkService networkService = new NetworkService(mockRequest);
 		final Network newNetwork = networkService
 				.createNetwork(networkToCreate);
 		Assert.assertNotNull(newNetwork);
