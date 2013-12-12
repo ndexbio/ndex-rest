@@ -640,6 +640,7 @@ public class NetworkService extends NdexService
                 processNetworkTask.setStartTime(new Date());
                 processNetworkTask.setStatus(Status.QUEUED);
                 
+                taskOwner.addTask(processNetworkTask);
                 _orientDbGraph.getBaseGraph().commit();
             }
             else

@@ -8,6 +8,7 @@ import org.ndexbio.rest.domain.IGroupMembership;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IRequest;
+import org.ndexbio.rest.domain.ITask;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
 
@@ -20,6 +21,7 @@ public class User extends Account
     private List<Membership> _groupMemberships;
     private List<Membership> _networkMemberships;
     private List<Request> _requests;
+    private List<Task> _tasks;
     private String _username;
     private List<Network> _workSurface;
 
@@ -68,6 +70,9 @@ public class User extends Account
         
         for (final INetwork onWorkSurface : user.getWorkSurface())
             _workSurface.add(new Network(onWorkSurface));
+        
+        for (final ITask ownedTask : user.getTasks())
+            _tasks.add(new Task(ownedTask));
         
         for (final IRequest request : user.getRequests())
         {
@@ -165,6 +170,16 @@ public class User extends Account
     {
         _requests = requests;
     }
+    
+    public List<Task> getTasks()
+    {
+        return _tasks;
+    }
+    
+    public void setTasks(List<Task> tasks)
+    {
+        _tasks = tasks;
+    }
 
     public String getUsername()
     {
@@ -196,6 +211,7 @@ public class User extends Account
         _groupMemberships = new ArrayList<Membership>();
         _networkMemberships = new ArrayList<Membership>();
         _requests = new ArrayList<Request>();
+        _tasks = new ArrayList<Task>();
         _workSurface = new ArrayList<Network>();
     }
 }

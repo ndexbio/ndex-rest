@@ -58,6 +58,15 @@ public interface IUser extends IAccount
     @Adjacency(label = "requests")
     public void removeRequest(IRequest request);
 
+    @Adjacency(label = "tasks")
+    public void addTask(ITask network);
+
+    @Adjacency(label = "tasks")
+    public Iterable<ITask> getTasks();
+
+    @Adjacency(label = "tasks")
+    public void removeTask(ITask task);
+
     @Property("username")
     public String getUsername();
 
