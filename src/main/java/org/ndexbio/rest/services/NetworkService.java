@@ -38,6 +38,7 @@ import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.domain.Priority;
 import org.ndexbio.rest.domain.Status;
+import org.ndexbio.rest.domain.TaskType;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.gremlin.NetworkQueries;
@@ -630,6 +631,7 @@ public class NetworkService extends NdexService
             {
                 ITask processNetworkTask = _orientDbGraph.addVertex("class:network", ITask.class);
                 processNetworkTask.setDescription("Process uploaded network");
+                processNetworkTask.setType(TaskType.PROCESS_UPLOADED_NETWORK);
                 processNetworkTask.setOwner(taskOwner);
                 processNetworkTask.setPriority(Priority.LOW);
                 processNetworkTask.setProgress(0);

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.ndexbio.rest.domain.ITask;
 import org.ndexbio.rest.domain.Priority;
 import org.ndexbio.rest.domain.Status;
+import org.ndexbio.rest.domain.TaskType;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Task extends NdexObject
@@ -14,6 +15,7 @@ public class Task extends NdexObject
     private int _progress;
     private String _resource;
     private Status _status;
+    private TaskType _type;
 
     
     
@@ -42,6 +44,7 @@ public class Task extends NdexObject
         _progress = task.getProgress();
         _resource = task.getResource();
         _status = task.getStatus();
+        _type = task.getType();
     }
 
 
@@ -104,5 +107,15 @@ public class Task extends NdexObject
     public void setStatus(Status status)
     {
         _status = status;
+    }
+    
+    public TaskType getType()
+    {
+        return _type;
+    }
+    
+    public void setType(TaskType type)
+    {
+        _type = type;
     }
 }

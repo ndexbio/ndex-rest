@@ -48,4 +48,10 @@ public interface ITask extends VertexFrame
 
     @Property("status")
     public Status getStatus();
+    
+    @Property("type")
+    public TaskType getType();
+    
+    @Property("type")
+    public void setType(TaskType type);
 }
