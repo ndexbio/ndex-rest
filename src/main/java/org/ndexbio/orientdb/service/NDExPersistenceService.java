@@ -1,5 +1,6 @@
 package org.ndexbio.orientdb.service;
 
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import org.ndexbio.rest.domain.IBaseTerm;
@@ -16,7 +17,6 @@ import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.SearchResult;
 
 /*
  * public interface representing all interactions with the underlying persistence implementation
@@ -49,7 +49,7 @@ public interface NDExPersistenceService {
 	public IUser getCurrentUser();
 	public INetworkMembership  createNetworkMembership();
 	
-	public SearchResult<IUser> findUsers(SearchParameters searchParameters) throws NdexException;
+	public List<IUser> findUsers(SearchParameters searchParameters) throws NdexException;
 	public void abortTransaction();
 	
 	

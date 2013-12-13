@@ -26,15 +26,15 @@ class NetworkQueries {
 
         switch (searchSpec.searchType) {
             case SearchType.DOWNSTREAM:
-                nodes.as("e").out("subject").except(foundInEdges).store(foundInEdges).out("object").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
+                nodes.as("e").out("edgeSubject").except(foundInEdges).store(foundInEdges).out("edgeObject").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
                 break;
             case SearchType.UPSTREAM:
-                nodes.as("e").in("object").except(foundOutEdges).store(foundOutEdges).in("subject").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
+                nodes.as("e").in("edgeObject").except(foundOutEdges).store(foundOutEdges).in("edgeSubject").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
                 break;
             case SearchType.BOTH:
                 nodes.copySplit(
-                        _().as("e1").out("subject").except(foundInEdges).store(foundInEdges).out("object").loop("e1", { it.loops < searchSpec.searchDepth }),
-                        _().as("e2").in("object").except(foundOutEdges).store(foundOutEdges).in("subject").loop("e2", { it.loops < searchSpec.searchDepth })).exhaustMerge().iterate();
+                        _().as("e1").out("edgeSubject").except(foundInEdges).store(foundInEdges).out("edgeObject").loop("e1", { it.loops < searchSpec.searchDepth }),
+                        _().as("e2").in("edgeObject").except(foundOutEdges).store(foundOutEdges).in("edgeSubject").loop("e2", { it.loops < searchSpec.searchDepth })).exhaustMerge().iterate();
                 break;
         }
 
@@ -49,7 +49,7 @@ class NetworkQueries {
     }
 
     def filterByPredicates(OrientBaseGraph g, SearchSpec searchSpec) {
-        def edges = g.v(searchSpec.includedPredicates).in("predicate");
+        def edges = g.v(searchSpec.includedPredicates).in("edgePredicate");
         def foundInEdges = new HashSet<OrientVertex>();
         def foundOutEdges = new HashSet<OrientVertex>();
 
@@ -61,15 +61,15 @@ class NetworkQueries {
 
         switch (searchSpec.searchType) {
             case SearchType.DOWNSTREAM:
-                edges.as("e").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundInEdges).store(foundInEdges).out("object").out("subject").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
+                edges.as("e").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundInEdges).store(foundInEdges).out("edgeObject").out("subject").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
                 break;
             case SearchType.UPSTREAM:
-                edges.as("e").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundOutEdges).store(foundOutEdges).in("subject").in("object").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
+                edges.as("e").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundOutEdges).store(foundOutEdges).in("edgeSubject").in("object").loop("e", { it.loops < searchSpec.searchDepth }).iterate();
                 break;
             case SearchType.BOTH:
                 edges.copySplit(
-                        _().as("e1").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundInEdges).store(foundInEdges).out("object").out("subject").loop("e1", { it.loops < searchSpec.searchDepth }),
-                        _().as("e2").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundOutEdges).store(foundOutEdges).in("subject").in("object").loop("e2", { it.loops < searchSpec.searchDepth })
+                        _().as("e1").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundInEdges).store(foundInEdges).out("edgeObject").out("edgeSubject").loop("e1", { it.loops < searchSpec.searchDepth }),
+                        _().as("e2").filter { edgePredicateFilter(it, excludedPredicates) }.except(foundOutEdges).store(foundOutEdges).in("edgeSubject").in("edgeObject").loop("e2", { it.loops < searchSpec.searchDepth })
                 ).exhaustMerge().iterate();
                 break;
 
@@ -92,7 +92,7 @@ class NetworkQueries {
                 def terms = g.v(startingTerms);
                 nodes = terms.filter {
                     termNetworkFilter(it, network)
-                }.in("represents");
+                }.in("nodeRepresents");
                 break;
 
             case RepresentationCriteria.FUNCTIONAL:
@@ -103,7 +103,7 @@ class NetworkQueries {
                     allTerms += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from baseTerm where name = ?"), termString);
 
                 for (term in startingTerms)
-                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where termParameters containsvalue " + term.identity));
+                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where functionTermParameters containsvalue " + term.identity));
 
 
                 def functions = new HashSet<OIdentifiable>();
@@ -112,7 +112,7 @@ class NetworkQueries {
 
                 nodes = g.v(functions.toArray()).filter {
                     termNetworkFilter(it, network)
-                }.in("represents");
+                }.in("nodeRepresents");
 
                 break;
 
@@ -124,7 +124,7 @@ class NetworkQueries {
                     allTerms += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from baseTerm where name = ?"), termString);
 
                 for (term in startingTerms)
-                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where termParameters containsvalue " + term.identity));
+                    termFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where functionTermParameters containsvalue " + term.identity));
 
                 def functions = new HashSet<OIdentifiable>();
                 functions.addAll(allTerms);
@@ -135,7 +135,7 @@ class NetworkQueries {
 
                 while (true) {
                     for (function in newFunctions)
-                        addedFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where termParameters containsvalue " + function.identity));
+                        addedFunctions += g.getRawGraph().query(new OSQLSynchQuery<ODocument>("select from functionTerm where functionTermParameters containsvalue " + function.identity));
 
                     def int functionsPrevSize = functions.size();
                     functions.addAll(addedFunctions);
@@ -151,7 +151,7 @@ class NetworkQueries {
                 {
                     termNetworkFilter(it, network)
 
-                }.in("represents");
+                }.in("nodeRepresents");
                 break;
             default:
                 throw new IllegalArgumentException("Unknown value of representation criterion.");
@@ -161,13 +161,13 @@ class NetworkQueries {
     }
 
     private static boolean termNetworkFilter(Vertex term, Vertex network) {
-        def Iterable termNetwork = term.getVertices(Direction.IN, "terms");
+        def Iterable termNetwork = term.getVertices(Direction.IN, "networkTerms");
         def Iterator termNetworkIterator = termNetwork.iterator();
         termNetworkIterator.next().equals(network)
     }
 
     private static boolean edgePredicateFilter(Vertex edge, Set<OIdentifiable> excludedPredicates) {
-        def Iterable predicate = edge.getVertices(Direction.OUT, "predicate");
+        def Iterable predicate = edge.getVertices(Direction.OUT, "edgePredicate");
         def Iterator predicateIterator = predicate.iterator();
         !excludedPredicates.contains(predicateIterator.next())
     }

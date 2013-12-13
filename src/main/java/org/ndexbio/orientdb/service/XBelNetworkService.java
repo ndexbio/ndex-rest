@@ -1,5 +1,6 @@
 package org.ndexbio.orientdb.service;
 
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import org.ndexbio.rest.domain.IBaseTerm;
@@ -13,9 +14,7 @@ import org.ndexbio.rest.domain.INode;
 import org.ndexbio.rest.domain.ISupport;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.NdexException;
-import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.xbel.cache.XbelCacheService;
 import org.ndexbio.xbel.model.Citation;
 import org.ndexbio.xbel.model.Function;
@@ -69,7 +68,7 @@ public class XBelNetworkService {
 		return this.persistenceService.createNetworkMembership();
 	}
 
-	public SearchResult<IUser> findUsers(SearchParameters searchParameters)
+	public List<IUser> findUsers(SearchParameters searchParameters)
 			throws NdexException {
 		return this.persistenceService.findUsers(searchParameters);
 	}

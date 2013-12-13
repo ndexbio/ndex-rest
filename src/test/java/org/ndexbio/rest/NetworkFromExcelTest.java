@@ -11,6 +11,11 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.easymock.EasyMock;
 import org.junit.Assert;
 import org.junit.Test;
 import org.ndexbio.rest.domain.Permissions;
@@ -21,16 +26,10 @@ import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.Node;
 import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.rest.models.Term;
 import org.ndexbio.rest.models.User;
 import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.UserService;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
-import org.easymock.EasyMock;
 
 public class NetworkFromExcelTest {
 
@@ -52,8 +51,8 @@ public class NetworkFromExcelTest {
 		searchParameters.setTop(1);
 
 		try {
-			SearchResult<User> result = userService.findUsers(searchParameters);
-			User testUser = (User) result.getResults().iterator().next();
+			List<User> result = userService.findUsers(searchParameters);
+			User testUser = (User) result.iterator().next();
 			loadExcelNetwork(testUser, excelFilePath);
 		} catch (NdexException e) {
 			// TODO Auto-generated catch block

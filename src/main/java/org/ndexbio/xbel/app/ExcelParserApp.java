@@ -12,7 +12,7 @@ public class ExcelParserApp {
 		if (args.length > 0) {
 			filename = args[0];
 		} else {
-			filename = "exceltestnetwork.xls";
+			filename = "excelnetworksmall.xls";
 		}
 		ExcelFileParser parser = new ExcelFileParser(filename);
 		parser.parseExcelFile();

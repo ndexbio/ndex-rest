@@ -23,7 +23,6 @@ import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.SearchResult;
 import org.ndexbio.xbel.cache.XbelCacheService;
 
 import com.google.common.base.Objects;
@@ -323,7 +322,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		 * Returns a collection of IUsers based on search criteria
 		 */
 		@Override
-		 public SearchResult<IUser> findUsers(SearchParameters searchParameters) throws NdexException
+		 public List<IUser> findUsers(SearchParameters searchParameters) throws NdexException
 		    {
 		        if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
 		            throw new IllegalArgumentException("No search string was specified.");
@@ -331,12 +330,6 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		            searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
 		        
 		        final List<IUser> foundUsers = Lists.newArrayList();
-		        final SearchResult<IUser> result = new SearchResult<IUser>();
-		        result.setResults(foundUsers);
-		        
-		        //TODO: Remove these, they're unnecessary
-		        result.setPageSize(searchParameters.getTop());
-		        result.setSkip(searchParameters.getSkip());
 		        
 		        final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
 
@@ -358,10 +351,8 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 		            
 		            for (final ODocument document : userDocumentList)
 		                foundUsers.add(ndexService._orientDbGraph.getVertex(document, IUser.class));
-		    
-		            result.setResults(foundUsers);
 		            
-		            return result;
+		            return foundUsers;
 		        }
 		        catch (Exception e)
 		        {

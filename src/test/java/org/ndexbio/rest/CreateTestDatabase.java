@@ -127,13 +127,13 @@ public class CreateTestDatabase
                 testUser.setId(userId);
                 userService.updateUser(testUser);
                 usersCreated.put(testUser, userNode);
-/*
+
                 System.out.println("Creating " + testUser.getUsername() + "'s networks.");
                 createTestUserNetworks(userNode.get("networkFilenames"), testUser);
-
+                
                 System.out.println("Creating " + testUser.getUsername() + "'s groups.");
                 createTestUserGroups(userNode.get("ownedGroups"), testUser);
-                */
+               
             }
             /*
             //Have to do a second loop to create requests because we need all
@@ -154,6 +154,7 @@ public class CreateTestDatabase
                 }
             }
             */
+            
         }
         catch (Exception e)
         {
@@ -167,7 +168,7 @@ public class CreateTestDatabase
     
     private void createTestGroupRequests(JsonNode requestsNode, User testUser, String groupId) throws Exception
     {
-        final RequestService requestService = new RequestService(mockRequest);
+        final RequestServiceTest requestService = new RequestServiceTest();
 
         final Iterator<JsonNode> requestsIterator = requestsNode.elements();
         while (requestsIterator.hasNext())
@@ -192,7 +193,7 @@ public class CreateTestDatabase
 
     private void createTestUserGroups(JsonNode groupsNode, User testUser) throws Exception
     {
-        final GroupService groupService = new GroupService(mockRequest);
+        final GroupServiceTest groupService = new GroupServiceTest();
         final ArrayList<Membership> ownedGroups = new ArrayList<Membership>();
         
         final Iterator<JsonNode> groupsIterator = groupsNode.elements();
@@ -226,7 +227,7 @@ public class CreateTestDatabase
     
     private void createTestUserNetworks(JsonNode networkFilesNode, User testUser) throws Exception
     {
-        final NetworkService networkService = new NetworkService(mockRequest);
+        final NetworkServiceTest networkService = new NetworkServiceTest();
 
         final Iterator<JsonNode> networksIterator = networkFilesNode.elements();
         while (networksIterator.hasNext())
@@ -251,7 +252,7 @@ public class CreateTestDatabase
 
     private void createTestUserRequests(JsonNode requestsNode, User testUser) throws Exception
     {
-        final RequestService requestService = new RequestService(mockRequest);
+        final RequestServiceTest requestService = new RequestServiceTest();
 
         final Iterator<JsonNode> requestsIterator = requestsNode.elements();
         while (requestsIterator.hasNext())

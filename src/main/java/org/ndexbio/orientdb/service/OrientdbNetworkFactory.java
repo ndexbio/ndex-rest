@@ -3,18 +3,13 @@ package org.ndexbio.orientdb.service;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.junit.Assert;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.models.Membership;
-import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.SearchResult;
-import org.ndexbio.rest.models.User;
-import org.ndexbio.rest.services.UserService;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -53,8 +48,8 @@ public enum OrientdbNetworkFactory {
 			searchParameters.setTop(1);
 
 			try {
-				SearchResult<IUser> result = XBelNetworkService.getInstance().findUsers(searchParameters);
-				return  (IUser) result.getResults().iterator().next();
+				List<IUser> result = XBelNetworkService.getInstance().findUsers(searchParameters);
+				return  (IUser) result.iterator().next();
 				
 			} catch (NdexException e) {
 				// TODO Auto-generated catch block
