@@ -36,7 +36,6 @@ public class NetworkQueryTest {
 	private static User queryTester;
 	private static Network queryNetwork;
 
-	@BeforeClass
 	public static void beforeMethod() {
 
 		final ObjectMapper objectMapper = new ObjectMapper();
@@ -95,7 +94,6 @@ public class NetworkQueryTest {
 
 	}
 
-	@AfterClass
 	public static void afterMethod() {
 		try {
 			if (queryNetwork != null) {
@@ -136,7 +134,6 @@ public class NetworkQueryTest {
 	 * node.record.className) }
 	 */
 
-	@Test
 	public void searchNeighborhoodByTerm() {
 		// List<ODocument> terms =
 		// orientGraph.getBaseGraph().getRawGraph().query(new

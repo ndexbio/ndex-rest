@@ -58,10 +58,20 @@ public class FeedbackService extends NdexService
         
         try
         {
-            Email.sendEmail(this.getLoggedInUser().getEmailAddress(),
-                Configuration.getInstance().getProperty("Feedback-Email"),
-                feedbackType,
-                feedbackText);
+            if (this.getLoggedInUser() != null)
+            {
+                Email.sendEmail(this.getLoggedInUser().getEmailAddress(),
+                    Configuration.getInstance().getProperty("Feedback-Email"),
+                    feedbackType,
+                    feedbackText);
+            }
+            else
+            {
+                Email.sendEmail(Configuration.getInstance().getProperty("Feedback-Email"),
+                    Configuration.getInstance().getProperty("Feedback-Email"),
+                    feedbackType,
+                    feedbackText);
+            }
         }
         catch (MessagingException e)
         {

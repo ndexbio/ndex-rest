@@ -36,25 +36,25 @@
 		"to": "REACTOME:Cyclin D associated events in G1"
 	},
 	{
-		"from": "fcriscuolo",
+		"from": "fjcriscuolo",
 		"message": "I'd like to join triptychjs.",
 		"requestType": "Join Group",
 		"to": "triptychjs"
 	},
 	{
-		"from": "fcriscuolo",
+		"from": "fjcriscuolo",
 		"message": "I'd like to access to REACTOME:G0 and Early G1.",
 		"requestType": "Network Access",
 		"to": "REACTOME:G0 and Early G1"
 	},
 	{
-		"from": "fcriscuolo",
+		"from": "fjcriscuolo",
 		"message": "I'd like access to REACTOME:G1 Phase.",
 		"requestType": "Network Access",
 		"to": "REACTOME:G1 Phase"
 	},
 	{
-		"from": "fcriscuolo",
+		"from": "fjcriscuolo",
 		"message": "I'd like access to NCI_NATURE.FoxO family signaling.",
 		"requestType": "Network Access",
 		"to": "NCI_NATURE:FoxO family signaling"
