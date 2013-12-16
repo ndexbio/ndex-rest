@@ -1,0 +1,62 @@
+[
+	{
+		"from": "triptychjs",
+		"message": "John, we'd like to invite you to join triptychjs.",
+		"requestType": "Group Invitation",
+		"to": "jstegall"
+	},
+	{
+		"from": "dexterpratt",
+		"message": "I'd like to access to NCI_NATURE.FoxO family signaling.",
+		"requestType": "Network Access",
+		"to": "NCI_NATURE:FoxO family signaling"
+	},
+	{
+		"from": "dexterpratt",
+		"message": "I'd like access to REACTOME:Cyclin D associated events in G1.",
+		"requestType": "Network Access",
+		"to": "REACTOME:Cyclin D associated events in G1"
+	},
+	{
+		"from": "jstegall",
+		"message": "I'd like to access to REACTOME:G0 and Early G1.",
+		"requestType": "Network Access",
+		"to": "REACTOME:G0 and Early G1"
+	},
+	{
+		"from": "jstegall",
+		"message": "I'd like access to REACTOME:G1 Phase.",
+		"requestType": "Network Access",
+		"to": "REACTOME:G1 Phase"
+	},
+	{
+		"from": "jstegall",
+		"message": "I'd like access to REACTOME:Cyclin D associated events in G1.",
+		"requestType": "Network Access",
+		"to": "REACTOME:Cyclin D associated events in G1"
+	},
+	{
+		"from": "fcriscuolo",
+		"message": "I'd like to join triptychjs.",
+		"requestType": "Join Group",
+		"to": "triptychjs"
+	},
+	{
+		"from": "fcriscuolo",
+		"message": "I'd like to access to REACTOME:G0 and Early G1.",
+		"requestType": "Network Access",
+		"to": "REACTOME:G0 and Early G1"
+	},
+	{
+		"from": "fcriscuolo",
+		"message": "I'd like access to REACTOME:G1 Phase.",
+		"requestType": "Network Access",
+		"to": "REACTOME:G1 Phase"
+	},
+	{
+		"from": "fcriscuolo",
+		"message": "I'd like access to NCI_NATURE.FoxO family signaling.",
+		"requestType": "Network Access",
+		"to": "NCI_NATURE:FoxO family signaling"
+	}
+]

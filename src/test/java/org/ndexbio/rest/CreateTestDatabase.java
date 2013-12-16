@@ -1,32 +1,31 @@
 package org.ndexbio.rest;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map.Entry;
-
+import java.util.Properties;
 import javax.servlet.http.HttpServletRequest;
-
 import org.easymock.EasyMock;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.rest.domain.*;
-import org.ndexbio.rest.helpers.Configuration;
+import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.*;
 import org.ndexbio.rest.services.*;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orientechnologies.orient.client.remote.OServerAdmin;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
+import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.frames.FramedGraph;
@@ -37,39 +36,49 @@ import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class CreateTestDatabase
 {
+    private static OServerAdmin _orientDbAdmin;
     private static FramedGraphFactory _graphFactory = null;
     private static ODatabaseDocumentTx _ndexDatabase = null;
     private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
-    private static final ObjectMapper _jsonMapper = new ObjectMapper();
-    private User requestingUser = new User();
-    private HttpServletRequest mockRequest = EasyMock.createMock(HttpServletRequest.class);
+    private static HttpServletRequest _mockRequest = EasyMock.createMock(HttpServletRequest.class);
     
+    private static final ObjectMapper _jsonMapper = new ObjectMapper();
+    private static final Properties _testProperties = new Properties();
 
-	
+    @BeforeClass
+    public static void initializeTests() throws Exception
+    {
+        InputStream propertiesStream = Thread.currentThread().getContextClassLoader().getResourceAsStream("ndex.properties");
+        _testProperties.load(propertiesStream);
+    }
+    
     @Test
-    public void checkDatabase()
+    public void deleteExistingDatabase()
     {
         try
         {
             //Can't use 'admin' as the username or password here, OrientDB
             //seems to have a hard-coded failure if either is 'admin'
-        	/*
-            OServerAdmin orientDbAdmin = new OServerAdmin(Configuration.getInstance().getProperty("OrientDB-URL"))
-                .connect(Configuration.getInstance().getProperty("OrientDB-Admin-Username"), Configuration.getInstance().getProperty("OrientDB-Admin-Password"));
-            */
-        	
-        	OServerAdmin orientDbAdmin = new OServerAdmin("remote:localhost/ndex").connect("ndex","ndex");
+        	_orientDbAdmin = new OServerAdmin(_testProperties.getProperty("OrientDB-URL"))
+        	    .connect(_testProperties.getProperty("OrientDB-Admin-Username"),
+        	        _testProperties.getProperty("OrientDB-Admin-Password"));
 
-            if (orientDbAdmin.existsDatabase("local"))
-            {
-                System.out.println("Dropping existing database.");
-                orientDbAdmin.dropDatabase("ndex");
-            }
-
-            System.out.println("Creating new database.");
-            orientDbAdmin.createDatabase("ndex", "document", "local");
-
-            System.out.println("Creating Tinkerpop Framed Graph Factory.");
+            if (_orientDbAdmin.existsDatabase("local"))
+                _orientDbAdmin.dropDatabase("ndex");
+        }
+        catch (IOException ie)
+        {
+            Assert.fail("Failed to delete existing database. Cause: " + ie.getMessage());
+            ie.printStackTrace();
+        }
+    }
+    
+    @Test
+    public void generateTestDatabase()
+    {
+        try
+        {
+            _orientDbAdmin.createDatabase("ndex", "document", "local");
             _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
                 new TypedGraphModuleBuilder()
                     .withClass(IGroup.class)
@@ -83,213 +92,217 @@ public class CreateTestDatabase
                     .withClass(IFunctionTerm.class)
                     .build());
 
-            System.out.println("Connecting to database.");
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
-
-            System.out.println("Acquiring base graph.");
             _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
-
-            System.out.println("Acquiring instance of schema manager.");
             NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
         }
-        catch (Exception e)
+        catch (IOException ie)
         {
-            Assert.fail(e.getMessage());
-            e.printStackTrace();
+            Assert.fail("Failed to initialize database. Cause: " + ie.getMessage());
+            ie.printStackTrace();
         }
     }
 
     @Test
-    public void createTestUser()
+    public void generateTestUsers()
     {
-    	// Setup requesting user to be the "logged in user"
-    	requestingUser.setUsername("dexterpratt");
-    	mockRequest.setAttribute("User", requestingUser);
-        final UserServiceTest userService = new UserServiceTest();
-        URL testUserUrl = getClass().getResource("/resources/users-and-groups.json");
+        final URL testUsersUrl = getClass().getResource("/resources/test-users.json");
+        final UserService userService = new UserService(_mockRequest);
 
         try
         {
-            HashMap<User, JsonNode> usersCreated = new HashMap<User, JsonNode>();
-            JsonNode rootNode = _jsonMapper.readTree(new File(testUserUrl.toURI()));
+            final JsonNode serializedUsers = _jsonMapper.readTree(new File(testUsersUrl.toURI()));
+            final Iterator<JsonNode> usersIterator = serializedUsers.elements();
             
-            Iterator<JsonNode> usersIterator = rootNode.elements();
             while (usersIterator.hasNext())
             {
-                final JsonNode userNode = usersIterator.next();
-                System.out.println("Creating test user: " + userNode.get("username").toString() + ".");
-
-                final NewUser newUser = _jsonMapper.readValue(userNode.toString(), NewUser.class);
+                final JsonNode serializedUser = usersIterator.next();
                 
-                User testUser = userService.createUser(newUser);
-                String userId = testUser.getId();
-                testUser = _jsonMapper.readValue(userNode.toString(), User.class);
-                testUser.setId(userId);
-                userService.updateUser(testUser);
-                usersCreated.put(testUser, userNode);
+                final NewUser newUser = _jsonMapper.readValue(serializedUser.toString(), NewUser.class);
 
-                System.out.println("Creating " + testUser.getUsername() + "'s networks.");
-                createTestUserNetworks(userNode.get("networkFilenames"), testUser);
+                final User loggedInUser = userService.createUser(newUser);
+                Assert.assertNotNull(loggedInUser);
+                setLoggedInUser(loggedInUser);
+
+                final User updatedUser = _jsonMapper.readValue(serializedUser.toString(), User.class);
+                updatedUser.setId(loggedInUser.getId());
                 
-                System.out.println("Creating " + testUser.getUsername() + "'s groups.");
-                createTestUserGroups(userNode.get("ownedGroups"), testUser);
-               
+                userService.updateUser(updatedUser);
+                
+                //Mocking the HTTP request inside a loop, so reset it
+                EasyMock.reset(_mockRequest);
             }
-            /*
-            //Have to do a second loop to create requests because we need all
-            //users, groups, and networks to exist
-            for (Entry<User, JsonNode> newUser : usersCreated.entrySet())
-            {
-                System.out.println("Creating " + newUser.getKey().getUsername() + "'s requests.");
-                createTestUserRequests(newUser.getValue().get("requests"), newUser.getKey());
-
-                if (newUser.getKey().getGroups().isEmpty())
-                    continue;
-                
-                for (Membership ownedGroup : newUser.getKey().getGroups())
-                {
-                    Iterator<JsonNode> groupIterator = newUser.getValue().get("ownedGroups").elements();
-                    while(groupIterator.hasNext())
-                        createTestGroupRequests(groupIterator.next().get("requests"), newUser.getKey(), ownedGroup.getResourceId());
-                }
-            }
-            */
-            
         }
         catch (Exception e)
         {
-        	 e.printStackTrace();
-            Assert.fail(e.getMessage());
-           
+            Assert.fail("Failed to deserialize/create test users. Cause: " + e.getMessage());
+            e.printStackTrace();
         }
     }
-
-
     
-    private void createTestGroupRequests(JsonNode requestsNode, User testUser, String groupId) throws Exception
+    @Test
+    public void insertTestGroups()
     {
-        final RequestServiceTest requestService = new RequestServiceTest();
+        final URL testGroupsUrl = getClass().getResource("/resources/test-groups.json");
+        final GroupService groupService = new GroupService(_mockRequest);
 
-        final Iterator<JsonNode> requestsIterator = requestsNode.elements();
-        while (requestsIterator.hasNext())
+        try
         {
-            Request newRequest = _jsonMapper.readValue(requestsIterator.next().toString(), Request.class);
-            newRequest.setFromId(groupId);
+            final JsonNode serializedGroups = _jsonMapper.readTree(new File(testGroupsUrl.toURI()));
+            final Iterator<JsonNode> groupsIterator = serializedGroups.elements();
             
-            final Iterable<ODocument> usersFound = _orientDbGraph
-                .getBaseGraph()
-                .command(new OCommandSQL("select from User where firstName.append(\" \").append(lastName) = ?"))
-                .execute(newRequest.getTo());
-            
-            final Iterator<ODocument> usersIterator = usersFound.iterator(); 
-            if (usersIterator.hasNext())
+            while (groupsIterator.hasNext())
             {
-                final User invitedUser = new User(_orientDbGraph.getVertex(usersIterator.next(), IUser.class));
-                newRequest.setToId(invitedUser.getId());
+                final JsonNode serializedGroup = groupsIterator.next();
+                final Group newGroup = _jsonMapper.readValue(serializedGroup.toString(), Group.class);
+
+                //Get the group owner name from the members, then clear the
+                //members since we don't have the member ID
+                final User loggedInUser = getUser(newGroup.getMembers().get(0).getResourceName());
+                setLoggedInUser(loggedInUser);
+                newGroup.getMembers().clear();
+                
+                groupService.createGroup(newGroup);
+                
+                //Mocking the HTTP request inside a loop, so reset it
+                EasyMock.reset(_mockRequest);
+            }
+            
+            _mockRequest.removeAttribute("User");
+        }
+        catch (Exception e)
+        {
+            Assert.fail("Failed to deserialize/create test groups. Cause: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    @Test
+    public void insertTestNetworks()
+    {
+        final NetworkService networkService = new NetworkService(_mockRequest);
+        final String networkFilenames[] =
+        {
+            "NCI_NATURE.FoxO family signaling.517135.jdex",
+            "reactome-test.jdex",
+            "REACTOME.Cyclin D associated events in G1.485628.jdex",
+            "REACTOME.G0 and Early G1.485619.jdex",
+            "REACTOME.G1 Phase.485618.jdex"
+        };
+
+        for (String networkFilename : networkFilenames)
+        {
+            try
+            {
+                final URL testNetworkUrl = getClass().getResource("/resources/" + networkFilename);
+                final Network newNetwork = _jsonMapper.readValue(new File(testNetworkUrl.toURI()), Network.class);
+     
+                //Get the network owner name from the members, then clear the
+                //members since we don't have the member ID
+                final User loggedInUser;
+                if (newNetwork.getMembers().get(0).getResourceName().equals("triptychjs"))
+                    loggedInUser = getUser("dexterpratt");
+                else
+                    loggedInUser = getUser(newNetwork.getMembers().get(0).getResourceName());
+                
+                setLoggedInUser(loggedInUser);
+
+                newNetwork.getMembers().clear();
+                
+                networkService.createNetwork(newNetwork);
+                
+                //Mocking the HTTP request inside a loop, so reset it
+                EasyMock.reset(_mockRequest);
+            }
+            catch (Exception e)
+            {
+                Assert.fail("Failed to deserialize/create test network: " + networkFilename + ". Cause: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        _mockRequest.removeAttribute("User");
+    }
+    
+    @Test
+    public void insertTestRequests()
+    {
+        final URL testRequestsUrl = getClass().getResource("/resources/test-requests.json");
+        final RequestService requestService = new RequestService(_mockRequest);
+
+        try
+        {
+            final JsonNode serializedRequests = _jsonMapper.readTree(new File(testRequestsUrl.toURI()));
+            final Iterator<JsonNode> requestsIterator = serializedRequests.elements();
+            
+            while (requestsIterator.hasNext())
+            {
+                final JsonNode serializedRequest = requestsIterator.next();
+                final Request newRequest = _jsonMapper.readValue(serializedRequest.toString(), Request.class);
+
+                final ORID fromRid = getRid(newRequest.getFrom());
+                newRequest.setFromId(RidConverter.convertToJid(fromRid));
+
+                final ORID toRid = getRid(newRequest.getTo());
+                newRequest.setToId(RidConverter.convertToJid(toRid));
+
+                //Get the group owner name from the members, then clear the
+                //members since we don't have the member ID
+                final User loggedInUser;
+                if (newRequest.getFrom().equals("triptychjs"))
+                    loggedInUser = getUser("dexterpratt");
+                else
+                    loggedInUser = getUser(newRequest.getFrom());
+                    
+                setLoggedInUser(loggedInUser);
                 requestService.createRequest(newRequest);
+                
+                //Mocking the HTTP request inside a loop, so reset it
+                EasyMock.reset(_mockRequest);
             }
-        }        
+        }
+        catch (Exception e)
+        {
+            Assert.fail("Failed to deserialize/create test requests. Cause: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
-    private void createTestUserGroups(JsonNode groupsNode, User testUser) throws Exception
+    
+    
+    private ORID getRid(String objectName) throws IllegalArgumentException
     {
-        final GroupServiceTest groupService = new GroupServiceTest();
-        final ArrayList<Membership> ownedGroups = new ArrayList<Membership>();
+        final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + objectName + "'"));
+        if (!matchingUsers.isEmpty())
+            return (ORID)_orientDbGraph.getVertex(matchingUsers.get(0)).getId();
         
-        final Iterator<JsonNode> groupsIterator = groupsNode.elements();
+        final List<ODocument> matchingGroups = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Group where name = '" + objectName + "'"));
+        if (!matchingGroups.isEmpty())
+            return (ORID)_orientDbGraph.getVertex(matchingGroups.get(0)).getId();
+
+        final List<ODocument> matchingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Network where title = '" + objectName + "'"));
+        if (!matchingNetworks.isEmpty())
+            return (ORID)_orientDbGraph.getVertex(matchingNetworks.get(0)).getId();
         
-        Membership userMembership = new Membership();
-        userMembership.setPermissions(Permissions.ADMIN);
-        userMembership.setResourceId(testUser.getId());
-        userMembership.setResourceName(testUser.getUsername());
-        List<Membership> memberList = new ArrayList<Membership>();
-        memberList.add(userMembership);
-        
-        while (groupsIterator.hasNext())
-        {
-            final JsonNode groupNode = groupsIterator.next();
-            final Group groupToCreate = _jsonMapper.readValue(groupNode.toString(), Group.class);
-            
-            groupToCreate.setMembers(memberList);
-            final Group newGroup = groupService.createGroup(groupToCreate);
-            
-            Assert.assertNotNull(newGroup);
-            
-            Membership groupMembership = new Membership();
-            groupMembership.setPermissions(Permissions.ADMIN);
-            groupMembership.setResourceId(newGroup.getId());
-            groupMembership.setResourceName(newGroup.getName());
-            ownedGroups.add(groupMembership);
-        }
-        
-        testUser.setGroups(ownedGroups);
+        throw new IllegalArgumentException(objectName + " is not a user, group, or network.");
+}
+    
+    private User getUser(String username)
+    {
+        final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + username + "'"));
+        if (!matchingUsers.isEmpty())
+            return new User(_orientDbGraph.getVertex(matchingUsers.get(0), IUser.class), true);
+        else
+            return null;
     }
     
-    private void createTestUserNetworks(JsonNode networkFilesNode, User testUser) throws Exception
+    private void setLoggedInUser(User loggedInUser)
     {
-        final NetworkServiceTest networkService = new NetworkServiceTest();
+        //TODO: Changing this to once?
+        EasyMock.expect(_mockRequest.getAttribute("User"))
+            .andReturn(loggedInUser)
+            .anyTimes();
 
-        final Iterator<JsonNode> networksIterator = networkFilesNode.elements();
-        while (networksIterator.hasNext())
-        {
-            final URL testNetworkUrl = getClass().getResource("/resources/" + networksIterator.next().asText());
-            final File networkFile = new File(testNetworkUrl.toURI());
-
-            System.out.println("Creating network from file: " + networkFile.getName() + ".");
-            final Network networkToCreate = _jsonMapper.readValue(networkFile, Network.class);
-            List<Membership> membershipList = new ArrayList<Membership>();
-            Membership membership = new Membership();
-            membership.setResourceId(testUser.getId());
-            membership.setResourceName(testUser.getUsername());
-            membership.setPermissions(Permissions.ADMIN);
-            membershipList.add(membership);
-            networkToCreate.setMembers(membershipList);
-            final Network newNetwork = networkService.createNetwork(networkToCreate);
-            
-            Assert.assertNotNull(newNetwork);
-        }
-    }
-
-    private void createTestUserRequests(JsonNode requestsNode, User testUser) throws Exception
-    {
-        final RequestServiceTest requestService = new RequestServiceTest();
-
-        final Iterator<JsonNode> requestsIterator = requestsNode.elements();
-        while (requestsIterator.hasNext())
-        {
-            Request newRequest = _jsonMapper.readValue(requestsIterator.next().toString(), Request.class);
-            newRequest.setFromId(testUser.getId());
-            
-            if (newRequest.getRequestType().equals("Join Group"))
-            {
-                final Iterable<ODocument> groupsFound = _orientDbGraph
-                    .getBaseGraph()
-                    .command(new OCommandSQL("select from Group where name = ?"))
-                    .execute(newRequest.getTo());
-                
-                final Iterator<ODocument> groupIterator = groupsFound.iterator(); 
-                if (groupIterator.hasNext())
-                {
-                    final Group requestedGroup = new Group(_orientDbGraph.getVertex(groupIterator.next(), IGroup.class));
-                    newRequest.setToId(requestedGroup.getId());
-                    requestService.createRequest(newRequest);
-                }
-            }
-            else if (newRequest.getRequestType().equals("Network Access"))
-            {
-                final Iterable<ODocument> networksFound = _orientDbGraph
-                    .getBaseGraph()
-                    .command(new OCommandSQL("select from Network where title = ?"))
-                    .execute(newRequest.getTo());
-                
-                final Iterator<ODocument> networkIterator = networksFound.iterator(); 
-                if (networkIterator.hasNext())
-                {
-                    final Network requestedNetwork = new Network(_orientDbGraph.getVertex(networkIterator.next(), INetwork.class));
-                    newRequest.setToId(requestedNetwork.getId());
-                    requestService.createRequest(newRequest);
-                }
-            }
-        }
+        EasyMock.replay(_mockRequest);
     }
 }

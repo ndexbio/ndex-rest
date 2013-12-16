@@ -19,7 +19,7 @@ public class Configuration
     {
         try
         {
-            _servletProperties.load(this.getClass().getClassLoader().getResourceAsStream("/ndex.properties"));
+            _servletProperties.load(this.getClass().getClassLoader().getResourceAsStream("ndex.properties"));
         }
         catch (Exception e)
         {

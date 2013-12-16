@@ -23,6 +23,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
+import org.ndexbio.rest.domain.IGroupMembership;
 import org.ndexbio.rest.domain.INamespace;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.INetworkMembership;
@@ -199,6 +200,22 @@ public class NetworkService extends NdexService
                 
                 networkOwner.addNetwork(membership);
                 network.addMember(membership);
+            }
+            else
+            {
+                for (Membership member : newNetwork.getMembers())
+                {
+                    final ORID memberRid = RidConverter.convertToRid(member.getResourceId());
+                    final IUser networkMember = _orientDbGraph.getVertex(memberRid, IUser.class);
+                    
+                    final INetworkMembership membership = _orientDbGraph.addVertex("class:networkMembership", INetworkMembership.class);
+                    membership.setPermissions(member.getPermissions());
+                    membership.setMember(networkMember);
+                    membership.setNetwork(network);
+        
+                    networkMember.addNetwork(membership);
+                    network.addMember(membership);
+                }
             }
 
             // First create all namespaces used by the network

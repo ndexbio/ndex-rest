@@ -1,0 +1,16 @@
+[
+	{
+		"accountType": "Group",
+		"name": "triptychjs",
+		"organizationName": "Triptych.js",
+		"website": "www.triptychjs.org",
+		"description": "Triptych.js is an open-source JavaScript Framework for displaying networks in 3D",
+		"members":
+		[
+			{
+				"resourceName": "dexterpratt",
+				"permissions": "ADMIN"
+			}
+		] 
+	}
+]

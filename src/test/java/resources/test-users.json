@@ -1,0 +1,32 @@
+[
+	{
+		"accountType": "User",
+		"username": "dexterpratt",
+		"password": "insecure",
+		"firstName": "Dexter",
+		"lastName": "Pratt",
+	    "emailAddress": "dexterpratt.bio@gmail.com",
+		"website": "www.triptychjs.com",
+		"description": "Apart from my work at the Cytoscape Consortium building NDEx, I collect networks around some of my favorite biomolecules, such as FOX03, RBL2, and MUC1"
+	},
+	{
+		"accountType": "User",
+		"username": "jstegall",
+		"password": "susceptible",
+		"firstName": "John",
+		"lastName": "Stegall",
+		"emailAddress": "jstegall@unexpecteddevelopment.org",
+		"website": "www.unexpecteddevelopment.org",
+		"description": "I'm a test user."
+	},
+	{
+		"accountType": "User",
+		"username": "fjcriscuolo",
+		"password": "pregnable",
+		"firstName": "Fred",
+		"lastName": "Criscuolo",
+		"emailAddress": "fjcriscuolo@ucsd.edu",
+		"website": "www.ucsd.edu",
+		"description": "I'm also a test user."
+	}
+]

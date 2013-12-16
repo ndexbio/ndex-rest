@@ -1,5 +1,12 @@
 {
-    "format": "PC SIF",
+    "format": "JDEX",
+	"members":
+	[
+		{
+			"resourceName": "dexterpratt",
+			"permissions": "ADMIN"
+		}
+	], 
     "nodes": {
         "2": {
             "name": "496952",

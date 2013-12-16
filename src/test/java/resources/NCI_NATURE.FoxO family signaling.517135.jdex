@@ -1,5 +1,12 @@
 {
     "format": "PC SIF",
+	"members":
+	[
+		{
+			"resourceName": "jstegall",
+			"permissions": "ADMIN"
+		}
+	], 
     "nodes": {
         "2": {
             "name": "534663",

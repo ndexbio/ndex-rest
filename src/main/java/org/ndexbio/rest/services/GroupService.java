@@ -97,6 +97,22 @@ public class GroupService extends NdexService
                 groupOwner.addGroup(membership);
                 group.addMember(membership);
             }
+            else
+            {
+                for (Membership member : newGroup.getMembers())
+                {
+                    final ORID memberRid = RidConverter.convertToRid(member.getResourceId());
+                    final IUser groupMember = _orientDbGraph.getVertex(memberRid, IUser.class);
+                    
+                    final IGroupMembership membership = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
+                    membership.setPermissions(member.getPermissions());
+                    membership.setMember(groupMember);
+                    membership.setGroup(group);
+        
+                    groupMember.addGroup(membership);
+                    group.addMember(membership);
+                }
+            }
 
             _orientDbGraph.getBaseGraph().commit();
 
