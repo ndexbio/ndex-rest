@@ -568,6 +568,7 @@ public class UserService extends NdexService
     *            Failed to change the password in the database.
     **************************************************************************/
     @GET
+    @PermitAll
     @Path("/{userId}")
     @Produces("application/json")
     public User getUser(@PathParam("userId")final String userId) throws IllegalArgumentException, NdexException

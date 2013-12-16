@@ -275,6 +275,7 @@ public class GroupService extends NdexService
     * @return The group.
     **************************************************************************/
     @GET
+    @PermitAll
     @Path("/{groupId}")
     @Produces("application/json")
     public Group getGroup(@PathParam("groupId") final String groupId) throws IllegalArgumentException, NdexException

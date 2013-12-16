@@ -3,7 +3,7 @@ package org.ndexbio.rest.models;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class SearchParameters extends NdexObject
+public class SearchParameters
 {
     private String _searchString;
     private int _skip;

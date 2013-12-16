@@ -20,6 +20,7 @@ import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.models.Group;
+import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.User;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -81,7 +82,7 @@ public class TestGroupService
     
     
     @Test
-    public void createGroup() throws IllegalArgumentException, NdexException
+    public void createGroup()
     {
         final Group newGroup = new Group();
         newGroup.setDescription("This is a test group.");
@@ -112,7 +113,7 @@ public class TestGroupService
     {
         try
         {
-            _groupService.createGroup(newGroup);
+            _groupService.deleteGroup(_newGroupId);
         }
         catch (Exception e)
         {
@@ -122,19 +123,40 @@ public class TestGroupService
         
     }
 
-    @Test
-    public void deleteGroupInvalid()
+    @Test(expected = IllegalArgumentException.class)
+    public void deleteGroupInvalid() throws IllegalArgumentException, NdexException
     {
+        _groupService.deleteGroup(_newGroupId);
     }
 
     @Test
     public void findGroups()
     {
+        SearchParameters searchParameters = new SearchParameters();
+        searchParameters.setSearchString("triptychjs");
+        searchParameters.setSkip(0);
+        searchParameters.setTop(25);
+        
+        try
+        {
+            _groupService.findGroups(searchParameters);
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
     }
 
-    @Test
-    public void findGroupsInvalid()
+    @Test(expected = IllegalArgumentException.class)
+    public void findGroupsInvalid() throws IllegalArgumentException, NdexException
     {
+        SearchParameters searchParameters = new SearchParameters();
+        searchParameters.setSearchString("");
+        searchParameters.setSkip(0);
+        searchParameters.setTop(25);
+        
+        _groupService.findGroups(null);
     }
 
     @Test
@@ -147,7 +169,7 @@ public class TestGroupService
     {
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void getGroupInvalid()
     {
     }
@@ -157,7 +179,7 @@ public class TestGroupService
     {
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void updateGroupInvalid()
     {
     }
