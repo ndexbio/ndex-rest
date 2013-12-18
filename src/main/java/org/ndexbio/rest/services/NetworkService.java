@@ -364,11 +364,10 @@ public class NetworkService extends NdexService
         final List<Network> foundNetworks = new ArrayList<Network>();
 
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
-        String query = "select from Network "
-            + " where isPublic = true";
+        String query = "select from Network where isPublic = true";
         
         if (this.getLoggedInUser() != null)
-            query += " or out_members.out_member.username = '" + this.getLoggedInUser().getUsername() + "'";
+            query += " or out_networkMemberships.out_membershipMember.username = '" + this.getLoggedInUser().getUsername() + "'";
         
         query += " and (title.toUpperCase() like '%" + searchParameters.getSearchString() + "%'"
             + " or description.toUpperCase() like '%" + searchParameters.getSearchString() + "%')"
@@ -378,7 +377,10 @@ public class NetworkService extends NdexService
         {
             setupDatabase();
 
-            final List<ODocument> networkDocumentList = _orientDbGraph.getBaseGraph().getRawGraph().query(new OSQLSynchQuery<ODocument>(query));
+            final List<ODocument> networkDocumentList = _orientDbGraph
+                .getBaseGraph()
+                .getRawGraph()
+                .query(new OSQLSynchQuery<ODocument>(query));
 
             for (final ODocument document : networkDocumentList)
                 foundNetworks.add(new Network(_orientDbGraph.getVertex(document, INetwork.class)));
