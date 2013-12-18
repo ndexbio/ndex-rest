@@ -25,7 +25,7 @@ public class TestParsingEngine
     public void parseExcelFile() throws Exception
     {
         final URL smallExcelNetworkUrl = getClass().getResource("/resources/small-excel-network.xls");
-        final ExcelFileParser excelParser = new ExcelFileParser(smallExcelNetworkUrl.toString());
+        final ExcelFileParser excelParser = new ExcelFileParser(smallExcelNetworkUrl.toURI().getPath());
         excelParser.parseExcelFile();
     }
     
@@ -33,7 +33,7 @@ public class TestParsingEngine
     public void parseLargeExcelFile() throws Exception
     {
         final URL smallExcelNetworkUrl = getClass().getResource("/resources/large-excel-network.xls");
-        final ExcelFileParser excelParser = new ExcelFileParser(smallExcelNetworkUrl.toString());
+        final ExcelFileParser excelParser = new ExcelFileParser(smallExcelNetworkUrl.toURI().getPath());
         excelParser.parseExcelFile();
     }
     
@@ -41,7 +41,7 @@ public class TestParsingEngine
     public void parseSifFile() throws Exception
     {
         final URL galNetworkUrl = getClass().getResource("/resources/gal-filtered.sif");
-        final SIFFileParser sifParser = new SIFFileParser(galNetworkUrl.toString());
+        final SIFFileParser sifParser = new SIFFileParser(galNetworkUrl.toURI().getPath());
         sifParser.parseSIFFile();
     }
     
@@ -49,7 +49,7 @@ public class TestParsingEngine
     public void parseXbelFile() throws Exception
     {
         final URL galNetworkUrl = getClass().getResource("/resources/tiny-corpus.xbel");
-        final XbelFileParser xbelParser = new XbelFileParser(galNetworkUrl.toString());
+        final XbelFileParser xbelParser = new XbelFileParser(galNetworkUrl.toURI().getPath());
         
         if (xbelParser.getValidationState().isValid())
             xbelParser.parseXbelFile();
@@ -59,7 +59,7 @@ public class TestParsingEngine
     public void parseLargeXbelFile() throws Exception
     {
         final URL galNetworkUrl = getClass().getResource("/resources/small-corpus.xbel");
-        final XbelFileParser xbelParser = new XbelFileParser(galNetworkUrl.toString());
+        final XbelFileParser xbelParser = new XbelFileParser(galNetworkUrl.toURI().getPath());
         
         if (xbelParser.getValidationState().isValid())
             xbelParser.parseXbelFile();
