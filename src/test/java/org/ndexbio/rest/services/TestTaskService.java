@@ -1,12 +1,18 @@
 package org.ndexbio.rest.services;
 
-import javax.servlet.http.HttpServletRequest;
-import org.easymock.EasyMock;
+import org.junit.Assert;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
+import org.ndexbio.rest.domain.TaskType;
+import org.ndexbio.rest.exceptions.NdexException;
+import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.models.Task;
+import com.orientechnologies.orient.core.id.ORID;
 
-public class TestTaskService
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+public class TestTaskService extends TestNdexService
 {
-    private static final HttpServletRequest _mockRequest = EasyMock.createMock(HttpServletRequest.class);
     private static final TaskService _taskService = new TaskService(_mockRequest);
 
     
@@ -14,40 +20,124 @@ public class TestTaskService
     @Test
     public void createTask()
     {
+        Assert.assertTrue(createNewTask());
     }
 
-    @Test
-    public void createTaskInvalid()
+    @Test(expected = IllegalArgumentException.class)
+    public void createTaskInvalid() throws IllegalArgumentException, NdexException
     {
+        _taskService.createTask(null);
     }
 
     @Test
     public void deleteTask()
     {
+        Assert.assertTrue(createNewTask());
+
+        final ORID testTaskRid = getRid("This is a test task.");
+        Assert.assertTrue(deleteTargetTask(RidConverter.convertToJid(testTaskRid)));
     }
 
-    @Test
-    public void deleteTaskInvalid()
+    @Test(expected = IllegalArgumentException.class)
+    public void deleteTaskInvalid() throws IllegalArgumentException, NdexException
     {
+        _taskService.deleteTask("");
     }
 
     @Test
     public void getTask()
     {
+        try
+        {
+            Assert.assertTrue(createNewTask());
+            
+            final ORID testTaskRid = getRid("This is a test task.");
+            final Task testTask = _taskService.getTask(RidConverter.convertToJid(testTaskRid));
+            Assert.assertNotNull(testTask);
+
+            Assert.assertTrue(deleteTargetTask(testTask.getId()));
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
     }
 
-    @Test
-    public void getTaskInvalid()
+    @Test(expected = IllegalArgumentException.class)
+    public void getTaskInvalid() throws IllegalArgumentException, NdexException
     {
+        _taskService.getTask("");
     }
 
     @Test
     public void updateTask()
     {
+        try
+        {
+            Assert.assertTrue(createNewTask());
+            
+            final ORID testTaskRid = getRid("This is a test task.");
+            final Task testTask = _taskService.getTask(RidConverter.convertToJid(testTaskRid));
+
+            testTask.setDescription("This is an updated test task.");
+            _taskService.updateTask(testTask);
+            Assert.assertEquals(_taskService.getTask(testTask.getId()).getDescription(), testTask.getDescription());
+            
+            Assert.assertTrue(deleteTargetTask(testTask.getId()));
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
     }
 
-    @Test
-    public void updateTaskInvalid()
+    @Test(expected = IllegalArgumentException.class)
+    public void updateTaskInvalid() throws IllegalArgumentException, NdexException
     {
+        _taskService.updateTask(null);
+    }
+    
+    
+    
+    private boolean createNewTask()
+    {
+        final Task newTask = new Task();
+        newTask.setDescription("This is a test task.");
+        newTask.setType(TaskType.PROCESS_UPLOADED_NETWORK);
+        
+        try
+        {
+            final Task createdTask = _taskService.createTask(newTask);
+            Assert.assertNotNull(createdTask);
+            
+            return true;
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return false;
+    }
+    
+    private boolean deleteTargetTask(String taskId)
+    {
+        try
+        {
+            _taskService.deleteTask(taskId);
+            Assert.assertNull(_taskService.getTask(taskId));
+            
+            return true;
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return false;
     }
 }

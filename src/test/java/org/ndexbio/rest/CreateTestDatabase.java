@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Properties;
 import javax.servlet.http.HttpServletRequest;
 import org.easymock.EasyMock;
@@ -22,6 +23,8 @@ import com.orientechnologies.orient.client.remote.OServerAdmin;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.frames.FramedGraph;
@@ -100,7 +103,7 @@ public class CreateTestDatabase
                     .withClass(IBaseTerm.class)
                     .withClass(IFunctionTerm.class)
                     .build());
-
+            
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
             Assert.assertNotNull(_ndexDatabase);
             
@@ -133,7 +136,7 @@ public class CreateTestDatabase
 
                 final User loggedInUser = userService.createUser(newUser);
                 Assert.assertNotNull(loggedInUser);
-                NdexServicesTestSuite.setLoggedInUser(loggedInUser, _mockRequest);
+                setLoggedInUser(loggedInUser);
 
                 final User updatedUser = _jsonMapper.readValue(serializedUser.toString(), User.class);
                 updatedUser.setId(loggedInUser.getId());
@@ -169,8 +172,8 @@ public class CreateTestDatabase
 
                 //Get the group owner name from the members, then clear the
                 //members since we don't have the member ID
-                final User loggedInUser = NdexServicesTestSuite.getUser(newGroup.getMembers().get(0).getResourceName(), _ndexDatabase, _orientDbGraph);
-                NdexServicesTestSuite.setLoggedInUser(loggedInUser, _mockRequest);
+                final User loggedInUser = getUser(newGroup.getMembers().get(0).getResourceName());
+                setLoggedInUser(loggedInUser);
                 newGroup.getMembers().clear();
                 
                 groupService.createGroup(newGroup);
@@ -210,11 +213,11 @@ public class CreateTestDatabase
                 //members since we don't have the member ID
                 final User loggedInUser;
                 if (newNetwork.getMembers().get(0).getResourceName().equals("triptychjs"))
-                    loggedInUser = NdexServicesTestSuite.getUser("dexterpratt", _ndexDatabase, _orientDbGraph);
+                    loggedInUser = getUser("dexterpratt");
                 else
-                    loggedInUser = NdexServicesTestSuite.getUser(newNetwork.getMembers().get(0).getResourceName(), _ndexDatabase, _orientDbGraph);
+                    loggedInUser = getUser(newNetwork.getMembers().get(0).getResourceName());
                 
-                NdexServicesTestSuite.setLoggedInUser(loggedInUser, _mockRequest);
+                setLoggedInUser(loggedInUser);
 
                 newNetwork.getMembers().clear();
                 
@@ -247,21 +250,21 @@ public class CreateTestDatabase
                 final JsonNode serializedRequest = requestsIterator.next();
                 final Request newRequest = _jsonMapper.readValue(serializedRequest.toString(), Request.class);
 
-                final ORID fromRid = NdexServicesTestSuite.getRid(newRequest.getFrom(), _ndexDatabase, _orientDbGraph);
+                final ORID fromRid = getRid(newRequest.getFrom());
                 newRequest.setFromId(RidConverter.convertToJid(fromRid));
 
-                final ORID toRid = NdexServicesTestSuite.getRid(newRequest.getTo(), _ndexDatabase, _orientDbGraph);
+                final ORID toRid = getRid(newRequest.getTo());
                 newRequest.setToId(RidConverter.convertToJid(toRid));
 
                 //Get the group owner name from the members, then clear the
                 //members since we don't have the member ID
                 final User loggedInUser;
                 if (newRequest.getFrom().equals("triptychjs"))
-                    loggedInUser = NdexServicesTestSuite.getUser("dexterpratt", _ndexDatabase, _orientDbGraph);
+                    loggedInUser = getUser("dexterpratt");
                 else
-                    loggedInUser = NdexServicesTestSuite.getUser(newRequest.getFrom(), _ndexDatabase, _orientDbGraph);
+                    loggedInUser = getUser(newRequest.getFrom());
                     
-                NdexServicesTestSuite.setLoggedInUser(loggedInUser, _mockRequest);
+                setLoggedInUser(loggedInUser);
                 requestService.createRequest(newRequest);
                 
                 //Mocking the HTTP request inside a loop, so reset it
@@ -273,5 +276,50 @@ public class CreateTestDatabase
             Assert.fail("Failed to deserialize/create test requests. Cause: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    private ORID getRid(String objectName) throws IllegalArgumentException
+    {
+        objectName = objectName.replace("'", "''");
+        
+        final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + objectName + "'"));
+        if (!matchingUsers.isEmpty())
+            return (ORID)_orientDbGraph.getVertex(matchingUsers.get(0)).getId();
+        
+        final List<ODocument> matchingGroups = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Group where name = '" + objectName + "'"));
+        if (!matchingGroups.isEmpty())
+            return (ORID)_orientDbGraph.getVertex(matchingGroups.get(0)).getId();
+
+        final List<ODocument> matchingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Network where title = '" + objectName + "'"));
+        if (!matchingNetworks.isEmpty())
+            return (ORID)_orientDbGraph.getVertex(matchingNetworks.get(0)).getId();
+
+        final List<ODocument> matchingRequests = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Request where message = '" + objectName + "'"));
+        if (!matchingRequests.isEmpty())
+            return (ORID)_orientDbGraph.getVertex(matchingRequests.get(0)).getId();
+
+        final List<ODocument> matchingTasks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Task where description = '" + objectName + "'"));
+        if (!matchingTasks.isEmpty())
+            return (ORID)_orientDbGraph.getVertex(matchingTasks.get(0)).getId();
+        
+        throw new IllegalArgumentException(objectName + " is not a user, group, network, request, or task.");
+    }
+
+    private User getUser(final String username)
+    {
+        final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + username + "'"));
+        if (!matchingUsers.isEmpty())
+            return new User(_orientDbGraph.getVertex(matchingUsers.get(0), IUser.class), true);
+        else
+            return null;
+    }
+    
+    private void setLoggedInUser(final User loggedInUser)
+    {
+        EasyMock.expect(_mockRequest.getAttribute("User"))
+        .andReturn(loggedInUser)
+        .anyTimes();
+
+        EasyMock.replay(_mockRequest);
     }
 }

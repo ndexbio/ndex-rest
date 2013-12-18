@@ -33,7 +33,6 @@ import org.ndexbio.rest.helpers.Configuration;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.helpers.Security;
-import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.UploadedFile;
@@ -85,13 +84,13 @@ public class UserService extends NdexService
     @PUT
     @Path("/work-surface")
     @Produces("application/json")
-    public void addNetworkToWorkSurface(final Network networkToAdd) throws IllegalArgumentException, ObjectNotFoundException, NdexException
+    public void addNetworkToWorkSurface(final String networkId) throws IllegalArgumentException, ObjectNotFoundException, NdexException
     {
-        if (networkToAdd == null)
+        if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("The network to add is empty.");
 
         final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
-        final ORID networkRid = RidConverter.convertToRid(networkToAdd.getId());
+        final ORID networkRid = RidConverter.convertToRid(networkId);
 
         try
         {
@@ -101,7 +100,7 @@ public class UserService extends NdexService
 
             final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (network == null)
-                throw new ObjectNotFoundException("Network", networkToAdd.getId());
+                throw new ObjectNotFoundException("Network", networkId);
             
             final Iterable<INetwork> workSurface = user.getWorkSurface();
             if (workSurface != null)
@@ -115,6 +114,10 @@ public class UserService extends NdexService
 
             user.addNetworkToWorkSurface(network);
             _orientDbGraph.getBaseGraph().commit();
+        }
+        catch (DuplicateObjectException | ObjectNotFoundException onfe)
+        {
+            throw onfe;
         }
         catch (Exception e)
         {
@@ -157,6 +160,10 @@ public class UserService extends NdexService
                 throw new SecurityException("Invalid username or password.");
             
             return authUser;
+        }
+        catch (SecurityException se)
+        {
+            throw se;
         }
         catch (Exception e)
         {
@@ -266,6 +273,10 @@ public class UserService extends NdexService
                 ImageIO.write(resizedImage, "jpg", new File(Configuration.getInstance().getProperty("Profile-Background-Path") + user.getUsername() + ".jpg"));
             }
         }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
         catch (Exception e)
         {
             _logger.error("Failed to save a profile image.", e);
@@ -284,6 +295,8 @@ public class UserService extends NdexService
     *            The user to create.
     * @throws IllegalArgumentException
     *            Bad input.
+    * @throws DuplicateObjectException
+    *            A user with the same username/email address already exists.
     * @throws NdexException
     *            Failed to create the user in the database.
     * @return The new user's profile.
@@ -291,7 +304,7 @@ public class UserService extends NdexService
     @PUT
     @PermitAll
     @Produces("application/json")
-    public User createUser(final NewUser newUser) throws IllegalArgumentException, NdexException
+    public User createUser(final NewUser newUser) throws IllegalArgumentException, DuplicateObjectException, NdexException
     {
         if (newUser == null)
             throw new IllegalArgumentException("The new user is empty.");
@@ -316,6 +329,9 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
+            if (e.getMessage().indexOf(" duplicated key ") > -1)
+                throw new DuplicateObjectException("A user with that name (" + newUser.getUsername() + ") or email address (" + newUser.getEmailAddress() + ") already exists.");
+            
             _logger.error("Failed to create a new user: " + newUser.getUsername() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
             throw new NdexException(e.getMessage());
@@ -339,15 +355,15 @@ public class UserService extends NdexService
     *            Failed to remove the network in the database.
     **************************************************************************/
     @DELETE
-    @Path("/work-surface")
+    @Path("/work-surface/{networkId}")
     @Produces("application/json")
-    public void deleteNetworkFromWorkSurface(final Network networkToDelete) throws IllegalArgumentException, ObjectNotFoundException, NdexException
+    public void deleteNetworkFromWorkSurface(@PathParam("networkId")final String networkId) throws IllegalArgumentException, ObjectNotFoundException, NdexException
     {
-        if (networkToDelete == null)
+        if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("The network to delete is empty.");
 
         final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
-        final ORID networkRid = RidConverter.convertToRid(networkToDelete.getId());
+        final ORID networkRid = RidConverter.convertToRid(networkId);
 
         try
         {
@@ -357,10 +373,14 @@ public class UserService extends NdexService
 
             final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (network == null)
-                throw new ObjectNotFoundException("Network", networkToDelete.getId());
+                throw new ObjectNotFoundException("Network", networkId);
             
             user.removeNetworkFromWorkSurface(network);
             _orientDbGraph.getBaseGraph().commit();
+        }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
         }
         catch (Exception e)
         {
@@ -394,17 +414,17 @@ public class UserService extends NdexService
             
             final List<ODocument> adminGroups = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_groups = ? and permissions = 'ADMIN'"));
             if (adminGroups == null || adminGroups.isEmpty())
-                throw new Exception("Unable to query user/group membership.");
+                throw new NdexException("Unable to query user/group membership.");
             else if ((long)adminGroups.get(0).field("count") > 1)
                 throw new NdexException("Cannot delete a user that is an ADMIN member of any group.");
 
             final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_networks = ? and permissions = 'ADMIN'"));
             if (adminNetworks == null || adminNetworks.isEmpty())
-                throw new Exception("Unable to query user/network membership.");
+                throw new NdexException("Unable to query user/network membership.");
             else if ((long)adminNetworks.get(0).field("count") > 1)
                 throw new NdexException("Cannot delete a user that is an ADMIN member of any network.");
 
-            final List<ODocument> userChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + userRid + ")"));
+            final List<ODocument> userChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + userRid + " while @class <> 'user')"));
             for (ODocument userChild : userChildren)
             {
                 final ORID childId = userChild.field("rid", OType.LINK);
@@ -416,6 +436,10 @@ public class UserService extends NdexService
 
             _orientDbGraph.removeVertex(userToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
+        }
+        catch (NdexException ne)
+        {
+            throw ne;
         }
         catch (Exception e)
         {
@@ -487,6 +511,10 @@ public class UserService extends NdexService
             _orientDbGraph.getBaseGraph().commit();
             return Response.ok().build();
         }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
         catch (Exception e)
         {
             _logger.error("Failed to change " + username + "'s password.", e);
@@ -515,7 +543,9 @@ public class UserService extends NdexService
     @Produces("application/json")
     public List<User> findUsers(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
     {
-        if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
+        if (searchParameters == null)
+            throw new IllegalArgumentException("Search Parameters are empty.");
+        else if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
             throw new IllegalArgumentException("No search string was specified.");
         else
             searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
@@ -660,6 +690,9 @@ public class UserService extends NdexService
         }
         catch (Exception e)
         {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("User", updatedUser.getId());
+            
             _logger.error("Failed to update user: " + this.getLoggedInUser().getUsername() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
             throw new NdexException("Failed to update your profile.");

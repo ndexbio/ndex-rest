@@ -39,6 +39,7 @@ import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.domain.Priority;
 import org.ndexbio.rest.domain.Status;
 import org.ndexbio.rest.domain.TaskType;
+import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.gremlin.NetworkQueries;
@@ -161,16 +162,20 @@ public class NetworkService extends NdexService
     *            The network to create.
     * @throws IllegalArgumentException
     *            Bad input.
+    * @throws DuplicateObjectException
+    *            The user already has a network with the same title.
     * @throws NdexException
     *            Failed to create the network in the database.
     * @return The newly created network.
     **************************************************************************/
     @PUT
     @Produces("application/json")
-    public Network createNetwork(final Network newNetwork) throws IllegalArgumentException, NdexException
+    public Network createNetwork(final Network newNetwork) throws IllegalArgumentException, DuplicateObjectException, NdexException
     {
         if (newNetwork == null)
             throw new IllegalArgumentException("The network to create is null.");
+        else if (newNetwork.getTitle() == null || newNetwork.getTitle().isEmpty())
+            throw new IllegalArgumentException("The network does not have a title.");
 
         try
         {
@@ -178,6 +183,12 @@ public class NetworkService extends NdexService
 
             final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
             final IUser networkOwner = _orientDbGraph.getVertex(userRid, IUser.class);
+            
+            final List<ODocument> existingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @RID from Network where out_networkMemberships.out_membershipMember.username = '"
+                + networkOwner.getUsername() + "' and title = '" + newNetwork.getTitle() + "'"));
+            if (!existingNetworks.isEmpty())
+                throw new DuplicateObjectException("You already have a network titled: " + newNetwork.getTitle());
+
 
             final Map<String, VertexFrame> networkIndex = new HashMap<String, VertexFrame>();
 
@@ -238,6 +249,10 @@ public class NetworkService extends NdexService
 
             return new Network(network);
         }
+        catch (DuplicateObjectException doe)
+        {
+            throw doe;
+        }
         catch (Exception e)
         {
             _logger.error("Failed to create network: " + newNetwork.getTitle() + ".", e);
@@ -291,7 +306,7 @@ public class NetworkService extends NdexService
             for (INetworkMembership networkMembership : networkToDelete.getMembers())
                 _orientDbGraph.removeVertex(networkMembership.asVertex());
 
-            final List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + networkRid + " while @class <> 'Account')"));
+            final List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + networkRid + " while @class <> 'network' and @class <> 'user' and @class <> 'group')"));
             for (ODocument networkChild : networkChildren)
             {
                 final ORID childId = networkChild.field("rid", OType.LINK);
@@ -304,8 +319,15 @@ public class NetworkService extends NdexService
             _orientDbGraph.removeVertex(networkToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
+        catch (SecurityException | NdexException ne)
+        {
+            throw ne;
+        }
         catch (Exception e)
         {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Network", networkId);
+            
             _orientDbGraph.getBaseGraph().rollback();
             throw e;
         }
@@ -332,7 +354,9 @@ public class NetworkService extends NdexService
     @Produces("application/json")
     public List<Network> findNetworks(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
     {
-        if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
+        if (searchParameters == null)
+            throw new IllegalArgumentException("Search Parameters are empty.");
+        else if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
             throw new IllegalArgumentException("No search string was specified.");
         else
             searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
@@ -401,7 +425,7 @@ public class NetworkService extends NdexService
 
             final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
             if (network == null)
-                throw new ObjectNotFoundException("Network", networkId);
+                return null;
             else if (!network.getIsPublic())
             {
                 for (Membership userMembership : this.getLoggedInUser().getNetworks())
@@ -472,6 +496,10 @@ public class NetworkService extends NdexService
             }
 
             return getNetworkBasedOnFoundEdges(foundIEdges, network);
+        }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
         }
         catch (Exception e)
         {
@@ -583,8 +611,15 @@ public class NetworkService extends NdexService
 
             _orientDbGraph.getBaseGraph().commit();
         }
+        catch (SecurityException | ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
         catch (Exception e)
         {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Network", updatedNetwork.getId());
+            
             _logger.error("Failed to update network: " + updatedNetwork.getTitle() + ".", e);
             _orientDbGraph.getBaseGraph().rollback();
             throw new NdexException("Failed to update the network.");
@@ -660,6 +695,10 @@ public class NetworkService extends NdexService
                 uploadedNetworkFile.delete();
                 throw new IllegalArgumentException("The uploaded file type is not supported; must be Excel, SIF, OR XBEL.");
             }
+        }
+        catch (IllegalArgumentException iae)
+        {
+            throw iae;
         }
         catch (Exception e)
         {
@@ -1048,7 +1087,7 @@ public class NetworkService extends NdexService
     {
         for (Membership networkMembership : this.getLoggedInUser().getNetworks())
         {
-            if (networkMembership.getResourceId() == targetNetwork.getId() && networkMembership.getPermissions().compareTo(requiredPermissions) > -1)
+            if (networkMembership.getResourceId().equals(targetNetwork.getId()) && networkMembership.getPermissions().compareTo(requiredPermissions) > -1)
                 return true;
         }
         

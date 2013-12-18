@@ -1,105 +1,28 @@
 package org.ndexbio.rest.services;
 
-import java.io.InputStream;
-import java.util.Properties;
-import javax.servlet.http.HttpServletRequest;
-import org.easymock.EasyMock;
 import org.junit.Assert;
-import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
-import org.ndexbio.rest.NdexSchemaManager;
-import org.ndexbio.rest.NdexServicesTestSuite;
-import org.ndexbio.rest.domain.IBaseTerm;
-import org.ndexbio.rest.domain.IFunctionTerm;
-import org.ndexbio.rest.domain.IGroup;
-import org.ndexbio.rest.domain.IGroupInvitationRequest;
-import org.ndexbio.rest.domain.IGroupMembership;
-import org.ndexbio.rest.domain.IJoinGroupRequest;
-import org.ndexbio.rest.domain.INetworkAccessRequest;
-import org.ndexbio.rest.domain.INetworkMembership;
-import org.ndexbio.rest.domain.IUser;
+import org.junit.runners.MethodSorters;
+import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
+import org.ndexbio.rest.exceptions.ObjectNotFoundException;
+import org.ndexbio.rest.helpers.RidConverter;
 import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.User;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.frames.FramedGraph;
-import com.tinkerpop.frames.FramedGraphFactory;
-import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
-import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
+import com.orientechnologies.orient.core.id.ORID;
 
-public class TestGroupService
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+public class TestGroupService extends TestNdexService
 {
-    private static FramedGraphFactory _graphFactory = null;
-    private static ODatabaseDocumentTx _ndexDatabase = null;
-    private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
-    private static String _newGroupId = null;
-    
-    private static final HttpServletRequest _mockRequest = EasyMock.createMock(HttpServletRequest.class);
     private static final GroupService _groupService = new GroupService(_mockRequest);
-    private static final Properties _testProperties = new Properties();
 
-    
-    
-    @BeforeClass
-    public static void initializeTests() throws Exception
-    {
-        final InputStream propertiesStream = Thread.currentThread().getContextClassLoader().getResourceAsStream("ndex.properties");
-        _testProperties.load(propertiesStream);
-
-        try
-        {
-            _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
-                new TypedGraphModuleBuilder()
-                    .withClass(IGroup.class)
-                    .withClass(IUser.class)
-                    .withClass(IGroupMembership.class)
-                    .withClass(INetworkMembership.class)
-                    .withClass(IGroupInvitationRequest.class)
-                    .withClass(IJoinGroupRequest.class)
-                    .withClass(INetworkAccessRequest.class)
-                    .withClass(IBaseTerm.class)
-                    .withClass(IFunctionTerm.class)
-                    .build());
-
-            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
-            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
-            NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
-
-            final User loggedInUser = NdexServicesTestSuite.getUser("dexterpratt", _ndexDatabase, _orientDbGraph);
-            NdexServicesTestSuite.setLoggedInUser(loggedInUser, _mockRequest);
-        }
-        catch (Exception e)
-        {
-            Assert.fail("Failed to initialize database. Cause: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    
     
     
     @Test
     public void createGroup()
     {
-        final Group newGroup = new Group();
-        newGroup.setDescription("This is a test group.");
-        newGroup.setName("Test Group");
-        newGroup.setOrganizationName("Unit Tested Group");
-        newGroup.setWebsite("http://www.ndexbio.org");
-
-        try
-        {
-            _newGroupId = _groupService.createGroup(newGroup).getId();
-            Assert.assertNotNull(_newGroupId);
-        }
-        catch (Exception e)
-        {
-            Assert.fail(e.getMessage());
-            e.printStackTrace();
-        }
+        Assert.assertTrue(createNewGroup());
     }
     
     @Test(expected = IllegalArgumentException.class)
@@ -108,31 +31,42 @@ public class TestGroupService
         _groupService.createGroup(null);
     }
     
+    @Test(expected = IllegalArgumentException.class)
+    public void createGroupInvalidName() throws IllegalArgumentException, NdexException
+    {
+        final Group newGroup = new Group();
+        newGroup.setDescription("This is a test group.");
+        newGroup.setOrganizationName("Unit Tested Group");
+        newGroup.setWebsite("http://www.ndexbio.org");
+        
+        _groupService.createGroup(null);
+    }
+    
     @Test
     public void deleteGroup()
     {
-        try
-        {
-            _groupService.deleteGroup(_newGroupId);
-        }
-        catch (Exception e)
-        {
-            Assert.fail(e.getMessage());
-            e.printStackTrace();
-        }
-        
+        Assert.assertTrue(createNewGroup());
+
+        final ORID testGroupRid = getRid("Test Group");
+        Assert.assertTrue(deleteTargetGroup(RidConverter.convertToJid(testGroupRid)));
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void deleteGroupInvalid() throws IllegalArgumentException, NdexException
+    public void deleteGroupInvalid() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
-        _groupService.deleteGroup(_newGroupId);
+        _groupService.deleteGroup("");
+    }
+
+    @Test(expected = ObjectNotFoundException.class)
+    public void deleteGroupNonexistant() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        _groupService.deleteGroup("C999R999");
     }
 
     @Test
     public void findGroups()
     {
-        SearchParameters searchParameters = new SearchParameters();
+        final SearchParameters searchParameters = new SearchParameters();
         searchParameters.setSearchString("triptychjs");
         searchParameters.setSkip(0);
         searchParameters.setTop(25);
@@ -151,7 +85,7 @@ public class TestGroupService
     @Test(expected = IllegalArgumentException.class)
     public void findGroupsInvalid() throws IllegalArgumentException, NdexException
     {
-        SearchParameters searchParameters = new SearchParameters();
+        final SearchParameters searchParameters = new SearchParameters();
         searchParameters.setSearchString("");
         searchParameters.setSkip(0);
         searchParameters.setTop(25);
@@ -162,25 +96,132 @@ public class TestGroupService
     @Test
     public void getGroupById()
     {
+        try
+        {
+            final ORID groupRid = getRid("triptychjs");
+            final Group testGroup = _groupService.getGroup(RidConverter.convertToJid(groupRid));
+            Assert.assertNotNull(testGroup);
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     @Test
     public void getGroupByName()
     {
+        try
+        {
+            final Group testGroup = _groupService.getGroup("triptychjs");
+            Assert.assertNotNull(testGroup);
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void getGroupInvalid()
+    public void getGroupInvalid() throws IllegalArgumentException, NdexException
     {
+        _groupService.getGroup("");
     }
 
     @Test
     public void updateGroup()
     {
+        try
+        {
+            Assert.assertTrue(createNewGroup());
+            
+            //Refresh the user or the system won't know they have access to
+            //update the group
+            this.resetLoggedInUser();
+            this.setLoggedInUser();
+            
+            final ORID testGroupRid = getRid("Test Group");
+            final Group testGroup = _groupService.getGroup(RidConverter.convertToJid(testGroupRid));
+
+            testGroup.setName("Updated Test Group");
+            _groupService.updateGroup(testGroup);
+            Assert.assertEquals(_groupService.getGroup(testGroup.getId()).getName(), testGroup.getName());
+
+            Assert.assertTrue(deleteTargetGroup(testGroup.getId()));
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void updateGroupInvalid()
+    public void updateGroupInvalid() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
+        _groupService.updateGroup(null);
+    }
+
+    @Test(expected = ObjectNotFoundException.class)
+    public void updateGroupNonexistant() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final Group updatedGroup = new Group();
+        updatedGroup.setId("C999R999");
+        updatedGroup.setDescription("This is a test group.");
+        updatedGroup.setName("Test Group");
+        updatedGroup.setOrganizationName("Unit Tested Group");
+        updatedGroup.setWebsite("http://www.ndexbio.org");
+
+        _groupService.updateGroup(updatedGroup);
+    }
+    
+    
+    
+    private boolean createNewGroup()
+    {
+        final Group newGroup = new Group();
+        newGroup.setDescription("This is a test group.");
+        newGroup.setName("Test Group");
+        newGroup.setOrganizationName("Unit Tested Group");
+        newGroup.setWebsite("http://www.ndexbio.org");
+
+        try
+        {
+            final Group createdGroup = _groupService.createGroup(newGroup);
+            Assert.assertNotNull(createdGroup);
+            
+            return true;
+        }
+        catch (DuplicateObjectException doe)
+        {
+            return true;
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return false;
+    }
+    
+    private boolean deleteTargetGroup(String groupId)
+    {
+        try
+        {
+            _groupService.deleteGroup(groupId);
+            Assert.assertNull(_groupService.getGroup(groupId));
+            
+            return true;
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return false;
     }
 }

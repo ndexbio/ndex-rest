@@ -21,6 +21,7 @@ import org.ndexbio.rest.domain.INetworkMembership;
 import org.ndexbio.rest.domain.IRequest;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
+import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.helpers.RidConverter;
@@ -28,10 +29,8 @@ import org.ndexbio.rest.models.Request;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.orientechnologies.orient.core.id.ORID;
-import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.impls.orient.OrientElement;
 
 @Path("/requests")
 public class RequestService extends NdexService
@@ -61,6 +60,8 @@ public class RequestService extends NdexService
     *            The request to create.
     * @throws IllegalArgumentException
     *            Bad input.
+    * @throws DuplicateObjectException
+    *            The request is a duplicate.
     * @throws NdexException
     *            Duplicate requests or failed to create the request in the
     *            database.
@@ -68,7 +69,7 @@ public class RequestService extends NdexService
     **************************************************************************/
     @PUT
     @Produces("application/json")
-    public Request createRequest(final Request newRequest) throws IllegalArgumentException, NdexException
+    public Request createRequest(final Request newRequest) throws IllegalArgumentException, DuplicateObjectException, NdexException
     {
         if (newRequest == null)
             throw new IllegalArgumentException("The request to create is empty.");
@@ -87,7 +88,7 @@ public class RequestService extends NdexService
             if (existingRequests == null || existingRequests.isEmpty())
                 throw new NdexException("Unable to get request count.");
             else if ((long)existingRequests.get(0).field("count") > 0)
-                throw new NdexException("You have already made that request and cannot make another.");
+                throw new DuplicateObjectException("You have already made that request and cannot make another.");
             
             if (newRequest.getRequestType().equals("Group Invitation"))
                 createGroupInvitationRequest(fromRid, toRid, newRequest);
@@ -99,6 +100,10 @@ public class RequestService extends NdexService
                 throw new IllegalArgumentException("That request type isn't supported: " + newRequest.getRequestType() + ".");
             
             return newRequest;
+        }
+        catch (IllegalArgumentException | NdexException ne)
+        {
+            throw ne;
         }
         catch (Exception e)
         {
@@ -136,25 +141,24 @@ public class RequestService extends NdexService
 
         try
         {
+            setupDatabase();
+            
             final IRequest requestToDelete = _orientDbGraph.getVertex(requestRid, IRequest.class);
             if (requestToDelete == null)
                 throw new ObjectNotFoundException("Request", requestId);
             
-            final List<ODocument> requestChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + requestRid + " while @class <> 'Account')"));
-            for (ODocument networkChild : requestChildren)
-            {
-                final ORID childId = networkChild.field("rid", OType.LINK);
-
-                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
-                if (element != null)
-                    element.remove();
-            }
-
             _orientDbGraph.removeVertex(requestToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
         catch (Exception e)
         {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Request", requestId);
+            
             _logger.error("Failed to delete request: " + requestId + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
             throw new NdexException("Failed to delete the request.");
@@ -191,10 +195,8 @@ public class RequestService extends NdexService
             setupDatabase();
 
             final IRequest request = _orientDbGraph.getVertex(requestRid, IRequest.class);
-            if (request == null)
-                throw new ObjectNotFoundException("Request", requestId);
-    
-            return new Request(request);
+            if (request != null)
+                return new Request(request);
         }
         catch (Exception e)
         {
@@ -205,6 +207,8 @@ public class RequestService extends NdexService
         {
             teardownDatabase();
         }
+        
+        return null;
     }
 
     /**************************************************************************
@@ -249,8 +253,15 @@ public class RequestService extends NdexService
             
             _orientDbGraph.getBaseGraph().commit();
         }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
         catch (Exception e)
         {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Request", updatedRequest.getId());
+            
             _logger.error("Failed to update request: " + updatedRequest.getId() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
             throw new NdexException("Failed to update the request.");

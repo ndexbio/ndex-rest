@@ -67,9 +67,14 @@ public class TaskService extends NdexService
             final IUser taskOwner = _orientDbGraph.getVertex(userRid, IUser.class);
             
             final ITask task = _orientDbGraph.addVertex("class:task", ITask.class);
+            task.setDescription(newTask.getDescription());
             task.setOwner(taskOwner);
+            task.setPriority(newTask.getPriority());
+            task.setProgress(newTask.getProgress());
+            task.setResource(newTask.getResource());
             task.setStatus(newTask.getStatus());
             task.setStartTime(newTask.getCreatedDate());
+            task.setType(newTask.getType());
 
             _orientDbGraph.getBaseGraph().commit();
 
@@ -119,14 +124,21 @@ public class TaskService extends NdexService
             final ITask taskToDelete = _orientDbGraph.getVertex(taskRid, ITask.class);
             if (taskToDelete == null)
                 throw new ObjectNotFoundException("Task", taskId);
-            else if (taskToDelete.getOwner().getUsername() != this.getLoggedInUser().getUsername())
+            else if (!taskToDelete.getOwner().getUsername().equals(this.getLoggedInUser().getUsername()))
                 throw new SecurityException("You cannot delete a task you don't own.");
     
             _orientDbGraph.removeVertex(taskToDelete.asVertex());
             _orientDbGraph.getBaseGraph().commit();
         }
+        catch (SecurityException | ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
         catch (Exception e)
         {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Task", taskId);
+            
             _logger.error("Failed to delete task: " + taskId + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
             throw new NdexException("Failed to delete a task.");
@@ -166,11 +178,15 @@ public class TaskService extends NdexService
             final ITask task = _orientDbGraph.getVertex(taskRid, ITask.class);
             if (task != null)
             {
-                if (task.getOwner().getUsername() != this.getLoggedInUser().getUsername())
+                if (!task.getOwner().getUsername().equals(this.getLoggedInUser().getUsername()))
                     throw new SecurityException("Access denied.");
                 else
                     return new Task(task);
             }
+        }
+        catch (SecurityException se)
+        {
+            throw se;
         }
         catch (Exception e)
         {
@@ -210,19 +226,31 @@ public class TaskService extends NdexService
 
         try
         {
+            setupDatabase();
+            
             final ITask taskToUpdate = _orientDbGraph.getVertex(taskRid, ITask.class);
             if (taskToUpdate == null)
                 throw new ObjectNotFoundException("Task", updatedTask.getId());
-            else if (taskToUpdate.getOwner().getUsername() != this.getLoggedInUser().getUsername())
+            else if (!taskToUpdate.getOwner().getUsername().equals(this.getLoggedInUser().getUsername()))
                 throw new SecurityException("Access denied.");
 
-            taskToUpdate.setStartTime(updatedTask.getCreatedDate());
+            taskToUpdate.setDescription(updatedTask.getDescription());
+            taskToUpdate.setPriority(updatedTask.getPriority());
+            taskToUpdate.setProgress(updatedTask.getProgress());
             taskToUpdate.setStatus(updatedTask.getStatus());
+            taskToUpdate.setType(updatedTask.getType());
 
             _orientDbGraph.getBaseGraph().commit();
         }
+        catch (SecurityException | ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
         catch (Exception e)
         {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Task", updatedTask.getId());
+            
             _logger.error("Failed to update task: " + updatedTask.getId() + ".", e);
             _orientDbGraph.getBaseGraph().rollback(); 
             throw new NdexException("Failed to update task: " + updatedTask.getId() + ".");

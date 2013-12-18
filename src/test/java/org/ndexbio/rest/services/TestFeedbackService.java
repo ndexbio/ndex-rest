@@ -1,15 +1,15 @@
 package org.ndexbio.rest.services;
 
-import javax.servlet.http.HttpServletRequest;
-import org.easymock.EasyMock;
 import org.junit.Assert;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 import org.ndexbio.rest.services.FeedbackService;
 import org.ndexbio.rest.exceptions.NdexException;
 
-public class TestFeedbackService
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+public class TestFeedbackService extends TestNdexService
 {
-    private static final HttpServletRequest _mockRequest = EasyMock.createMock(HttpServletRequest.class);
     private static final FeedbackService _feedbackService = new FeedbackService(_mockRequest);
 
     

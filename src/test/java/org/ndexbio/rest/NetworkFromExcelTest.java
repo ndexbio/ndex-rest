@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import javax.servlet.http.HttpServletRequest;
@@ -35,6 +36,8 @@ import org.ndexbio.rest.models.User;
 import org.ndexbio.rest.services.NetworkService;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.frames.FramedGraph;
@@ -75,13 +78,13 @@ public class NetworkFromExcelTest
                     .withClass(IBaseTerm.class)
                     .withClass(IFunctionTerm.class)
                     .build());
-
+            
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
             _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
             NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
 
-            final User loggedInUser = NdexServicesTestSuite.getUser("dexterpratt", _ndexDatabase, _orientDbGraph);
-            NdexServicesTestSuite.setLoggedInUser(loggedInUser, _mockRequest);
+            final User loggedInUser = getUser("dexterpratt");
+            setLoggedInUser(loggedInUser);
         }
         catch (Exception e)
         {
@@ -210,5 +213,23 @@ public class NetworkFromExcelTest
         network.getTerms().put(newTerm.getId(), newTerm);
         termMap.put(identifier, newTerm);
         return newTerm;
+    }
+
+    private static User getUser(final String username)
+    {
+        final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + username + "'"));
+        if (!matchingUsers.isEmpty())
+            return new User(_orientDbGraph.getVertex(matchingUsers.get(0), IUser.class), true);
+        else
+            return null;
+    }
+    
+    private static void setLoggedInUser(final User loggedInUser)
+    {
+        EasyMock.expect(_mockRequest.getAttribute("User"))
+        .andReturn(loggedInUser)
+        .anyTimes();
+
+        EasyMock.replay(_mockRequest);
     }
 }
