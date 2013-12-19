@@ -29,9 +29,9 @@ public class TermDeserializer extends JsonDeserializer<Term>
         
         if (termType != null)
         {
-            if (termType.asText() == "Base")
+            if (termType.asText().equals("Base"))
                 return populateBaseTerm(serializedTerm);
-            else if (termType.asText() == "Function")
+            else if (termType.asText().equals("Function"))
                 return populateFunctionTerm(serializedTerm);
         }
         else

@@ -193,7 +193,7 @@ public class NetworkService extends NdexService
             final Map<String, VertexFrame> networkIndex = new HashMap<String, VertexFrame>();
 
             final INetwork network = _orientDbGraph.addVertex("class:network", INetwork.class);
-            network.setIsPublic(false);
+            network.setIsPublic(newNetwork.getIsPublic());
             network.setFormat(newNetwork.getFormat());
             network.setSource(newNetwork.getSource());
             network.setTitle(newNetwork.getTitle());
@@ -946,9 +946,9 @@ public class NetworkService extends NdexService
         for (final ITerm term : requiredITerms)
         {
             if (term instanceof IBaseTerm)
-                networkByEdges.getTerms().put(term.getJdexId(), new BaseTerm((IBaseTerm) term));
+                networkByEdges.getTerms().put(term.getJdexId(), new BaseTerm((IBaseTerm)term));
             else if (term instanceof IFunctionTerm)
-                networkByEdges.getTerms().put(term.getJdexId(), new FunctionTerm((IFunctionTerm) term));
+                networkByEdges.getTerms().put(term.getJdexId(), new FunctionTerm((IFunctionTerm)term));
         }
 
         for (final INamespace namespace : requiredINamespaces)

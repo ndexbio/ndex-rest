@@ -31,6 +31,7 @@ public class BaseTerm extends Term
     {
         super(baseTerm);
         
+        this.setTermType("Base");
         _name = baseTerm.getName();
         
         if (baseTerm.getTermNamespace() != null)

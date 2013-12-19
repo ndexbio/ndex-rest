@@ -23,7 +23,7 @@ public class FunctionTerm extends Term
     {
         super();
         
-        this.setTermType("Function");
+        this.setTermType("Base");
     }
 
     /**************************************************************************
@@ -33,13 +33,9 @@ public class FunctionTerm extends Term
     **************************************************************************/
     public FunctionTerm(IFunctionTerm iFunctionTerm)
     {
+        this.setTermType("Base");
         this.setTermFunction(iFunctionTerm.getTermFunc().getJdexId());
-        /*
-         * mod 10Dec2013 fjc
-         * IFunctionTerm contains a set of ITerms which may include
-         * both IFunctionTerms and IBaseTerms
-         *
-         */
+
         Integer parameterIndex = new Integer(0);
         Integer functionIndex =  new Integer(0);
         for (final ITerm entry : iFunctionTerm.getTermParameters()){
