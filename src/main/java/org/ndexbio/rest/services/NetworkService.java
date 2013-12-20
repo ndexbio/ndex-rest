@@ -45,7 +45,7 @@ import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.gremlin.NetworkQueries;
 import org.ndexbio.rest.gremlin.SearchSpec;
 import org.ndexbio.rest.helpers.Configuration;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Namespace;
 import org.ndexbio.rest.models.Network;
@@ -113,13 +113,11 @@ public class NetworkService extends NdexService
         else if (partialTerm == null || partialTerm.isEmpty() || partialTerm.length() < 3)
             return null;
         
-        final ORID networkRid = RidConverter.convertToRid(networkId);
-
         try
         {
             setupDatabase();
 
-            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            final INetwork network = _orientDbGraph.getVertex(IdConverter.toRid(networkId), INetwork.class);
             if (network == null)
                 return null;
             else
@@ -181,8 +179,7 @@ public class NetworkService extends NdexService
         {
             setupDatabase();
 
-            final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
-            final IUser networkOwner = _orientDbGraph.getVertex(userRid, IUser.class);
+            final IUser networkOwner = _orientDbGraph.getVertex(IdConverter.toRid(this.getLoggedInUser().getId()), IUser.class);
             
             final List<ODocument> existingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @RID from Network where out_networkMemberships.out_membershipMember.username = '"
                 + networkOwner.getUsername() + "' and title = '" + newNetwork.getTitle() + "'"));
@@ -212,8 +209,7 @@ public class NetworkService extends NdexService
             {
                 for (Membership member : newNetwork.getMembers())
                 {
-                    final ORID memberRid = RidConverter.convertToRid(member.getResourceId());
-                    final IUser networkMember = _orientDbGraph.getVertex(memberRid, IUser.class);
+                    final IUser networkMember = _orientDbGraph.getVertex(IdConverter.toRid(member.getResourceId()), IUser.class);
                     
                     final INetworkMembership membership = _orientDbGraph.addVertex("class:networkMembership", INetworkMembership.class);
                     membership.setPermissions(member.getPermissions());
@@ -285,8 +281,8 @@ public class NetworkService extends NdexService
         if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("No network ID was specified.");
 
-        ORID networkRid = RidConverter.convertToRid(networkId);
-
+        final ORID networkRid = IdConverter.toRid(networkId);
+        
         try
         {
             setupDatabase();
@@ -309,9 +305,7 @@ public class NetworkService extends NdexService
             final List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + networkRid + " while @class <> 'network' and @class <> 'user' and @class <> 'group')"));
             for (ODocument networkChild : networkChildren)
             {
-                final ORID childId = networkChild.field("rid", OType.LINK);
-
-                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
+                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(networkChild.field("rid", OType.LINK));
                 if (element != null)
                     element.remove();
             }
@@ -419,13 +413,11 @@ public class NetworkService extends NdexService
         if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("No network ID was specified.");
 
-        final ORID networkRid = RidConverter.convertToRid(networkId);
-
         try
         {
             setupDatabase();
 
-            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            final INetwork network = _orientDbGraph.getVertex(IdConverter.toRid(networkId), INetwork.class);
             if (network == null)
                 return null;
             else if (!network.getIsPublic())
@@ -473,13 +465,11 @@ public class NetworkService extends NdexService
         else if (top < 1)
             throw new IllegalArgumentException("Number of results to return is less than 1.");
 
-        final ORID networkRid = RidConverter.convertToRid(networkId);
-
         try
         {
             setupDatabase();
 
-            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            final INetwork network = _orientDbGraph.getVertex(IdConverter.toRid(networkId), INetwork.class);
             if (network == null)
                 throw new ObjectNotFoundException("Network", networkId);
 
@@ -535,13 +525,11 @@ public class NetworkService extends NdexService
         if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("No network ID was specified.");
         
-        final ORID networkRid = RidConverter.convertToRid(networkId);
-
         try
         {
             setupDatabase();
 
-            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            final INetwork network = _orientDbGraph.getVertex(IdConverter.toRid(networkId), INetwork.class);
             if (network == null)
                 return null;
             else
@@ -570,6 +558,159 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
+    * Removes a member from a network.
+    * 
+    * @param networkId
+    *            The network ID.
+    * @param userId
+    *            The ID of the member to remove.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The network or member doesn't exist.
+    * @throws SecurityException
+    *            The user doesn't have access to change members.
+    * @throws NdexException
+    *            Failed to query the database.
+    **************************************************************************/
+    @DELETE
+    @Path("/{networkId}/member/{userId}")
+    @Produces("application/json")
+    public void removeMember(@PathParam("networkId")final String networkId, @PathParam("userId")final String userId) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
+        else if (userId == null || userId.isEmpty())
+            throw new IllegalArgumentException("No member was specified.");
+        
+        try
+        {
+            setupDatabase();
+            
+            final ORID networkRid = IdConverter.toRid(networkId);
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+
+            if (network == null)
+                throw new ObjectNotFoundException("Network", networkId);
+            else if (!hasPermission(new Network(network), Permissions.ADMIN))
+                throw new SecurityException("Access denied.");
+    
+            final IUser user = _orientDbGraph.getVertex(IdConverter.toRid(userId), IUser.class);
+            if (user == null)
+                throw new ObjectNotFoundException("User", userId);
+            
+            for (INetworkMembership networkMember : network.getMembers())
+            {
+                String memberId = IdConverter.toJid((ORID)networkMember.getMember().asVertex().getId());
+                if (memberId.equals(userId))
+                {
+                    if (countAdminMembers(networkRid) < 2)
+                        throw new SecurityException("Cannot remove the only ADMIN member.");
+                    
+                    network.removeMember(networkMember);
+                    user.removeNetwork(networkMember);
+                    _orientDbGraph.getBaseGraph().commit();
+                    return;
+                }
+            }
+        }
+        catch (ObjectNotFoundException | SecurityException ne)
+        {
+            throw ne;
+        }
+        catch (Exception e)
+        {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Network", networkId);
+            
+            _logger.error("Failed to remove member.", e);
+            _orientDbGraph.getBaseGraph().rollback();
+            throw new NdexException("Failed to remove member.");
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+    
+    /**************************************************************************
+    * Changes a member's permissions to a network.
+    * 
+    * @param networkId
+    *            The network ID.
+    * @param networkMember
+    *            The member being updated.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The network or member doesn't exist.
+    * @throws SecurityException
+    *            The user doesn't have access to change members.
+    * @throws NdexException
+    *            Failed to query the database.
+    **************************************************************************/
+    @POST
+    @Path("/{networkId}/member")
+    @Produces("application/json")
+    public void updateMember(@PathParam("networkId")final String networkId, final Membership networkMember) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
+        else if (networkMember == null)
+            throw new IllegalArgumentException("The member to update is empty.");
+        else if (networkMember.getResourceId() == null || networkMember.getResourceId().isEmpty())
+            throw new IllegalArgumentException("No member ID was specified.");
+
+        try
+        {
+            setupDatabase();
+            
+            final ORID networkRid = IdConverter.toRid(networkId);
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+
+            if (network == null)
+                throw new ObjectNotFoundException("Network", networkId);
+            else if (!hasPermission(new Network(network), Permissions.ADMIN))
+                throw new SecurityException("Access denied.");
+    
+            final IUser user = _orientDbGraph.getVertex(IdConverter.toRid(networkMember.getResourceId()), IUser.class);
+            if (user == null)
+                throw new ObjectNotFoundException("User", networkMember.getResourceId());
+            
+            for (INetworkMembership networkMembership : network.getMembers())
+            {
+                String memberId = IdConverter.toJid((ORID)networkMembership.getMember().asVertex().getId());
+                if (memberId.equals(networkMember.getResourceId()))
+                {
+                    if (countAdminMembers(networkRid) < 2)
+                        throw new SecurityException("Cannot change the permissions on the only ADMIN member.");
+                    
+                    networkMembership.setPermissions(networkMember.getPermissions());
+                    _orientDbGraph.getBaseGraph().commit();
+                    return;
+                }
+            }
+        }
+        catch (ObjectNotFoundException | SecurityException ne)
+        {
+            throw ne;
+        }
+        catch (Exception e)
+        {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Network", networkId);
+            
+            _logger.error("Failed to update member: " + networkMember.getResourceName() + ".", e);
+            _orientDbGraph.getBaseGraph().rollback();
+            throw new NdexException("Failed to update member: " + networkMember.getResourceName() + ".");
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+    
+    /**************************************************************************
     * Updates a network.
     * 
     * @param updatedNetwork
@@ -592,13 +733,12 @@ public class NetworkService extends NdexService
         {
             setupDatabase();
 
-            final INetwork network = _orientDbGraph.getVertex(RidConverter.convertToRid(updatedNetwork.getId()), INetwork.class);
+            final INetwork network = _orientDbGraph.getVertex(IdConverter.toRid(updatedNetwork.getId()), INetwork.class);
             if (network == null)
                 throw new ObjectNotFoundException("Network", updatedNetwork.getId());
             else if (!hasPermission(updatedNetwork, Permissions.WRITE))
                 throw new SecurityException("Access denied.");
 
-            //TODO: Don't allow the only ADMIN member to change their own permissions
             if (updatedNetwork.getDescription() != null && !updatedNetwork.getDescription().isEmpty())
                 network.setDescription(updatedNetwork.getDescription());
 
@@ -673,8 +813,7 @@ public class NetworkService extends NdexService
 
             setupDatabase();
             
-            final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
-            final IUser taskOwner = _orientDbGraph.getVertex(userRid, IUser.class);
+            final IUser taskOwner = _orientDbGraph.getVertex(IdConverter.toRid(this.getLoggedInUser().getId()), IUser.class);
             
             if (uploadedNetwork.getFilename().endsWith(".sif") || uploadedNetwork.getFilename().endsWith(".xbel") ||
                 uploadedNetwork.getFilename().endsWith(".xls") || uploadedNetwork.getFilename().endsWith(".xlsx"))
@@ -729,6 +868,18 @@ public class NetworkService extends NdexService
         }
     }
 
+    /**************************************************************************
+    * Counter the number of administrative members in the network.
+    **************************************************************************/
+    private long countAdminMembers(final ORID networkRid) throws NdexException
+    {
+        final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(@rid) from NetworkMembership where in_userNetworks = " + networkRid + " and permissions = 'ADMIN'"));
+        if (adminCount == null || adminCount.isEmpty())
+            throw new NdexException("Unable to count ADMIN members.");
+        
+        return (long)adminCount.get(0).field("count");
+    }
+    
     /**************************************************************************
     * Maps namespaces from network model object to namespaces in the network
     * domain object.

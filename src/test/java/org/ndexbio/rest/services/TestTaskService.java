@@ -6,7 +6,7 @@ import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.rest.domain.TaskType;
 import org.ndexbio.rest.exceptions.NdexException;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.Task;
 import com.orientechnologies.orient.core.id.ORID;
 
@@ -35,7 +35,7 @@ public class TestTaskService extends TestNdexService
         Assert.assertTrue(createNewTask());
 
         final ORID testTaskRid = getRid("This is a test task.");
-        Assert.assertTrue(deleteTargetTask(RidConverter.convertToJid(testTaskRid)));
+        Assert.assertTrue(deleteTargetTask(IdConverter.toJid(testTaskRid)));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -52,7 +52,7 @@ public class TestTaskService extends TestNdexService
             Assert.assertTrue(createNewTask());
             
             final ORID testTaskRid = getRid("This is a test task.");
-            final Task testTask = _taskService.getTask(RidConverter.convertToJid(testTaskRid));
+            final Task testTask = _taskService.getTask(IdConverter.toJid(testTaskRid));
             Assert.assertNotNull(testTask);
 
             Assert.assertTrue(deleteTargetTask(testTask.getId()));
@@ -78,7 +78,7 @@ public class TestTaskService extends TestNdexService
             Assert.assertTrue(createNewTask());
             
             final ORID testTaskRid = getRid("This is a test task.");
-            final Task testTask = _taskService.getTask(RidConverter.convertToJid(testTaskRid));
+            final Task testTask = _taskService.getTask(IdConverter.toJid(testTaskRid));
 
             testTask.setDescription("This is an updated test task.");
             _taskService.updateTask(testTask);

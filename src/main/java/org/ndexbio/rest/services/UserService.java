@@ -31,7 +31,7 @@ import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.helpers.Configuration;
 import org.ndexbio.rest.helpers.Email;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.SearchParameters;
@@ -89,8 +89,8 @@ public class UserService extends NdexService
         if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("The network to add is empty.");
 
-        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
-        final ORID networkRid = RidConverter.convertToRid(networkId);
+        final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
+        final ORID networkRid = IdConverter.toRid(networkId);
 
         try
         {
@@ -192,7 +192,7 @@ public class UserService extends NdexService
         if (password == null || password.isEmpty())
             throw new IllegalArgumentException("No password was specified.");
         
-        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
+        final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
         
         try
         {
@@ -244,7 +244,7 @@ public class UserService extends NdexService
         else if (uploadedImage == null || uploadedImage.getFileData().length < 1)
             throw new IllegalArgumentException("No uploaded image.");
         
-        final ORID userId = RidConverter.convertToRid(this.getLoggedInUser().getId());
+        final ORID userId = IdConverter.toRid(this.getLoggedInUser().getId());
         
         try
         {
@@ -362,8 +362,8 @@ public class UserService extends NdexService
         if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("The network to delete is empty.");
 
-        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
-        final ORID networkRid = RidConverter.convertToRid(networkId);
+        final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
+        final ORID networkRid = IdConverter.toRid(networkId);
 
         try
         {
@@ -404,7 +404,7 @@ public class UserService extends NdexService
     @Produces("application/json")
     public void deleteUser() throws NdexException
     {
-        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
+        final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
         
         try
         {
@@ -610,7 +610,7 @@ public class UserService extends NdexService
         {
             setupDatabase();
             
-            final ORID userRid = RidConverter.convertToRid(userId);
+            final ORID userRid = IdConverter.toRid(userId);
             
             final IUser user = _orientDbGraph.getVertex(userRid, IUser.class);
             if (user != null)
@@ -657,7 +657,7 @@ public class UserService extends NdexService
         else if (updatedUser.getId() != this.getLoggedInUser().getId())
             throw new SecurityException("You cannot update other users.");
         	
-        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
+        final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
         
         try
         {

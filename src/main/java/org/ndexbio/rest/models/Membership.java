@@ -5,7 +5,7 @@ import org.ndexbio.rest.domain.IGroup;
 import org.ndexbio.rest.domain.INetwork;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import com.orientechnologies.orient.core.id.ORID;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -33,7 +33,7 @@ public class Membership
     public Membership(IUser user, Permissions permissions)
     {
         _memberPermissions = permissions;
-        _resourceId = RidConverter.convertToJid((ORID)user.asVertex().getId());
+        _resourceId = IdConverter.toJid((ORID)user.asVertex().getId());
         _resourceName = user.getFirstName() + " " + user.getLastName();
     }
     
@@ -45,7 +45,7 @@ public class Membership
     public Membership(IGroup group, Permissions permissions)
     {
         _memberPermissions = permissions;
-        _resourceId = RidConverter.convertToJid((ORID)group.asVertex().getId());
+        _resourceId = IdConverter.toJid((ORID)group.asVertex().getId());
         _resourceName = group.getName();
     }
     
@@ -57,7 +57,7 @@ public class Membership
     public Membership(INetwork network, Permissions permissions)
     {
         _memberPermissions = permissions;
-        _resourceId = RidConverter.convertToJid((ORID)network.asVertex().getId());
+        _resourceId = IdConverter.toJid((ORID)network.asVertex().getId());
         _resourceName = network.getTitle();
     }
     

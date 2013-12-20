@@ -14,7 +14,7 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.rest.domain.*;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.*;
 import org.ndexbio.rest.services.*;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -251,10 +251,10 @@ public class CreateTestDatabase
                 final Request newRequest = _jsonMapper.readValue(serializedRequest.toString(), Request.class);
 
                 final ORID fromRid = getRid(newRequest.getFrom());
-                newRequest.setFromId(RidConverter.convertToJid(fromRid));
+                newRequest.setFromId(IdConverter.toJid(fromRid));
 
                 final ORID toRid = getRid(newRequest.getTo());
-                newRequest.setToId(RidConverter.convertToJid(toRid));
+                newRequest.setToId(IdConverter.toJid(toRid));
 
                 //Get the group owner name from the members, then clear the
                 //members since we don't have the member ID

@@ -20,7 +20,7 @@ import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.helpers.Validation;
 import org.ndexbio.rest.models.Group;
 import org.ndexbio.rest.models.Membership;
@@ -80,8 +80,7 @@ public class GroupService extends NdexService
         {
             setupDatabase();
             
-            final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
-            final IUser groupOwner = _orientDbGraph.getVertex(userRid, IUser.class);
+            final IUser groupOwner = _orientDbGraph.getVertex(IdConverter.toRid(this.getLoggedInUser().getId()), IUser.class);
 
             final IGroup group = _orientDbGraph.addVertex("class:group", IGroup.class);
             group.setDescription(newGroup.getDescription());
@@ -104,8 +103,7 @@ public class GroupService extends NdexService
             {
                 for (Membership member : newGroup.getMembers())
                 {
-                    final ORID memberRid = RidConverter.convertToRid(member.getResourceId());
-                    final IUser groupMember = _orientDbGraph.getVertex(memberRid, IUser.class);
+                    final IUser groupMember = _orientDbGraph.getVertex(IdConverter.toRid(member.getResourceId()), IUser.class);
                     
                     final IGroupMembership membership = _orientDbGraph.addVertex("class:groupMembership", IGroupMembership.class);
                     membership.setPermissions(member.getPermissions());
@@ -119,7 +117,7 @@ public class GroupService extends NdexService
 
             _orientDbGraph.getBaseGraph().commit();
 
-            newGroup.setId(RidConverter.convertToJid((ORID) group.asVertex().getId()));
+            newGroup.setId(IdConverter.toJid((ORID) group.asVertex().getId()));
             return newGroup;
         }
         catch (Exception e)
@@ -159,8 +157,8 @@ public class GroupService extends NdexService
         if (groupId == null || groupId.isEmpty())
             throw new IllegalArgumentException("No group ID was specified.");
 
-        final ORID groupRid = RidConverter.convertToRid(groupId);
-
+        final ORID groupRid = IdConverter.toRid(groupId);
+        
         try
         {
             setupDatabase();
@@ -171,7 +169,7 @@ public class GroupService extends NdexService
             else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
                 throw new SecurityException("Insufficient privileges to delete the group.");
 
-            final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(@rid) from GroupMembership where in_GroupMembers = " + groupRid + " and permissions = 'ADMIN'"));
+            final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(@rid) from GroupMembership where in_groupMembers = " + groupRid + " and permissions = 'ADMIN'"));
             if (adminCount == null || adminCount.isEmpty())
                 throw new NdexException("Unable to count ADMIN members.");
             else if ((long)adminCount.get(0).field("count") > 1)
@@ -189,9 +187,7 @@ public class GroupService extends NdexService
             final List<ODocument> groupChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + groupRid + " while @class <> 'user' and @class <> 'group')"));
             for (ODocument groupChild : groupChildren)
             {
-                final ORID childId = groupChild.field("rid", OType.LINK);
-
-                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(childId);
+                final OrientElement element = _orientDbGraph.getBaseGraph().getElement(groupChild.field("rid", OType.LINK));
                 if (element != null)
                     element.remove();
             }
@@ -302,9 +298,7 @@ public class GroupService extends NdexService
         {
             setupDatabase();
             
-            final ORID groupRid = RidConverter.convertToRid(groupId);
-            final IGroup group = _orientDbGraph.getVertex(groupRid, IGroup.class);
-
+            final IGroup group = _orientDbGraph.getVertex(IdConverter.toRid(groupId), IGroup.class);
             if (group != null)
                 return new Group(group, true);
         }
@@ -329,6 +323,82 @@ public class GroupService extends NdexService
     }
 
     /**************************************************************************
+    * Removes a member from a group.
+    * 
+    * @param groupId
+    *            The group ID.
+    * @param userId
+    *            The ID of the member to remove.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The network or member doesn't exist.
+    * @throws SecurityException
+    *            The user doesn't have access to change members.
+    * @throws NdexException
+    *            Failed to query the database.
+    **************************************************************************/
+    @DELETE
+    @Path("/{groupId}/member/{userId}")
+    @Produces("application/json")
+    public void removeMember(@PathParam("groupId")final String groupId, @PathParam("userId")final String userId) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        if (groupId == null || groupId.isEmpty())
+            throw new IllegalArgumentException("No group ID was specified.");
+        else if (userId == null || userId.isEmpty())
+            throw new IllegalArgumentException("No member was specified.");
+        
+        try
+        {
+            setupDatabase();
+            
+            final ORID groupRid = IdConverter.toRid(groupId);
+            final IGroup group = _orientDbGraph.getVertex(groupRid, IGroup.class);
+            
+            if (group == null)
+                throw new ObjectNotFoundException("Group", groupId);
+            else if (!hasPermission(new Group(group), Permissions.ADMIN))
+                throw new SecurityException("Access denied.");
+    
+            final IUser user = _orientDbGraph.getVertex(IdConverter.toRid(userId), IUser.class);
+            if (user == null)
+                throw new ObjectNotFoundException("User", userId);
+            
+            for (IGroupMembership groupMember : group.getMembers())
+            {
+                String memberId = IdConverter.toJid((ORID)groupMember.getMember().asVertex().getId());
+                if (memberId.equals(userId))
+                {
+                    if (countAdminMembers(groupRid) < 2)
+                        throw new SecurityException("Cannot remove the only ADMIN member.");
+                    
+                    group.removeMember(groupMember);
+                    user.removeGroup(groupMember);
+                    _orientDbGraph.getBaseGraph().commit();
+                    return;
+                }
+            }
+        }
+        catch (ObjectNotFoundException | SecurityException ne)
+        {
+            throw ne;
+        }
+        catch (Exception e)
+        {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Group", groupId);
+            
+            _logger.error("Failed to remove member.", e);
+            _orientDbGraph.getBaseGraph().rollback();
+            throw new NdexException("Failed to remove member.");
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+
+    /**************************************************************************
     * Updates a group.
     * 
     * @param updatedGroup
@@ -349,19 +419,16 @@ public class GroupService extends NdexService
         if (updatedGroup == null)
             throw new IllegalArgumentException("The updated group is empty.");
 
-        final ORID groupRid = RidConverter.convertToRid(updatedGroup.getId());
-
         try
         {
             setupDatabase();
             
-            final IGroup groupToUpdate = _orientDbGraph.getVertex(groupRid, IGroup.class);
+            final IGroup groupToUpdate = _orientDbGraph.getVertex(IdConverter.toRid(updatedGroup.getId()), IGroup.class);
             if (groupToUpdate == null)
                 throw new ObjectNotFoundException("Group", updatedGroup.getId());
             else if (!hasPermission(updatedGroup, Permissions.WRITE))
                 throw new SecurityException("Access denied.");
             
-            //TODO: Don't allow the only ADMIN member to change their own permissions
             if (updatedGroup.getDescription() != null && !updatedGroup.getDescription().isEmpty())
                 groupToUpdate.setDescription(updatedGroup.getDescription());
             
@@ -395,7 +462,96 @@ public class GroupService extends NdexService
         }
     }
     
+    /**************************************************************************
+    * Changes a member's permissions to a group.
+    * 
+    * @param groupId
+    *            The group ID.
+    * @param groupMember
+    *            The member being updated.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws ObjectNotFoundException
+    *            The network or member doesn't exist.
+    * @throws SecurityException
+    *            The user doesn't have access to change members.
+    * @throws NdexException
+    *            Failed to query the database.
+    **************************************************************************/
+    @POST
+    @Path("/{groupId}/member")
+    @Produces("application/json")
+    public void updateMember(@PathParam("groupId")final String groupId, final Membership groupMember) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        if (groupId == null || groupId.isEmpty())
+            throw new IllegalArgumentException("No group ID was specified.");
+        else if (groupMember == null)
+            throw new IllegalArgumentException("The member to update is empty.");
+        else if (groupMember.getResourceId() == null || groupMember.getResourceId().isEmpty())
+            throw new IllegalArgumentException("No member ID was specified.");
+        
+        try
+        {
+            setupDatabase();
+            
+            final ORID groupRid = IdConverter.toRid(groupId);
+            final IGroup group = _orientDbGraph.getVertex(groupRid, IGroup.class);
+            
+            if (group == null)
+                throw new ObjectNotFoundException("Group", groupId);
+            else if (!hasPermission(new Group(group), Permissions.ADMIN))
+                throw new SecurityException("Access denied.");
     
+            final IUser user = _orientDbGraph.getVertex(IdConverter.toRid(groupMember.getResourceId()), IUser.class);
+            if (user == null)
+                throw new ObjectNotFoundException("User", groupMember.getResourceId());
+            
+            for (IGroupMembership groupMembership : group.getMembers())
+            {
+                final String memberId = IdConverter.toJid((ORID)groupMembership.getMember().asVertex().getId());
+                if (memberId.equals(groupMember.getResourceId()))
+                {
+                    if (countAdminMembers(groupRid) < 2)
+                        throw new SecurityException("Cannot change the permissions on the only ADMIN member.");
+                    
+                    groupMembership.setPermissions(groupMember.getPermissions());
+                    _orientDbGraph.getBaseGraph().commit();
+                    return;
+                }
+            }
+        }
+        catch (ObjectNotFoundException | SecurityException ne)
+        {
+            throw ne;
+        }
+        catch (Exception e)
+        {
+            if (e.getMessage().indexOf("cluster: null") > -1)
+                throw new ObjectNotFoundException("Group", groupId);
+            
+            _logger.error("Failed to update member: " + groupMember.getResourceName() + ".", e);
+            _orientDbGraph.getBaseGraph().rollback();
+            throw new NdexException("Failed to update member: " + groupMember.getResourceName() + ".");
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+    
+    
+
+    /**************************************************************************
+    * Counter the number of administrative members in the network.
+    **************************************************************************/
+    private long countAdminMembers(final ORID groupRid) throws NdexException
+    {
+        final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(@rid) from GroupMembership where in_groupMembers = " + groupRid + " and permissions = 'ADMIN'"));
+        if (adminCount == null || adminCount.isEmpty())
+            throw new NdexException("Unable to count ADMIN members.");
+        
+        return (long)adminCount.get(0).field("count");
+    }
     
     /**************************************************************************
     * Determines if the logged in user has sufficient permissions to a group. 

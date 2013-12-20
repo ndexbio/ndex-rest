@@ -6,7 +6,7 @@ import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.Request;
 import com.orientechnologies.orient.core.id.ORID;
 
@@ -34,11 +34,11 @@ public class TestRequestService extends TestNdexService
     {
         final Request newRequest = new Request();
         newRequest.setFrom("fjcriscuolo");
-        newRequest.setFromId(RidConverter.convertToJid(getRid("fjcriscuolo")));
+        newRequest.setFromId(IdConverter.toJid(getRid("fjcriscuolo")));
         newRequest.setMessage("This is a test request.");
         newRequest.setRequestType("Bogus Request Type");
         newRequest.setTo("REACTOME TEST");
-        newRequest.setToId(RidConverter.convertToJid(getRid("REACTOME TEST")));
+        newRequest.setToId(IdConverter.toJid(getRid("REACTOME TEST")));
         
         _requestService.createRequest(newRequest);
     }
@@ -49,7 +49,7 @@ public class TestRequestService extends TestNdexService
         Assert.assertTrue(createNewRequest());
 
         final ORID testRequestRid = getRid("This is a (unit) test request.");
-        Assert.assertTrue(deleteTargetRequest(RidConverter.convertToJid(testRequestRid)));
+        Assert.assertTrue(deleteTargetRequest(IdConverter.toJid(testRequestRid)));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -64,7 +64,7 @@ public class TestRequestService extends TestNdexService
         try
         {
             final ORID testRequestRid = getRid("John, we'd like to invite you to join triptychjs.");
-            final Request testRequest = _requestService.getRequest(RidConverter.convertToJid(testRequestRid));
+            final Request testRequest = _requestService.getRequest(IdConverter.toJid(testRequestRid));
             Assert.assertNotNull(testRequest);
         }
         catch (Exception e)
@@ -89,7 +89,7 @@ public class TestRequestService extends TestNdexService
             
             final ORID testRequestRid = getRid("This is a (unit) test request.");
 
-            final Request testRequest = _requestService.getRequest(RidConverter.convertToJid(testRequestRid));
+            final Request testRequest = _requestService.getRequest(IdConverter.toJid(testRequestRid));
             testRequest.setResponse("DECLINED");
             testRequest.setResponseMessage("Because this is a test.");
             testRequest.setResponder(testRequest.getToId());
@@ -118,11 +118,11 @@ public class TestRequestService extends TestNdexService
     {
         final Request newRequest = new Request();
         newRequest.setFrom("fjcriscuolo");
-        newRequest.setFromId(RidConverter.convertToJid(getRid("fjcriscuolo")));
+        newRequest.setFromId(IdConverter.toJid(getRid("fjcriscuolo")));
         newRequest.setMessage("This is a (unit) test request.");
         newRequest.setRequestType("Network Access");
         newRequest.setTo("REACTOME TEST");
-        newRequest.setToId(RidConverter.convertToJid(getRid("REACTOME TEST")));
+        newRequest.setToId(IdConverter.toJid(getRid("REACTOME TEST")));
         
         try
         {

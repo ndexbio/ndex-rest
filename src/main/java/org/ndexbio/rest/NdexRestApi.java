@@ -3,13 +3,9 @@ package org.ndexbio.rest;
 import java.util.HashSet;
 import java.util.Set;
 import javax.ws.rs.core.Application;
-import org.ndexbio.rest.filters.BasicAuthenticationFilter;
-import org.ndexbio.rest.filters.CrossOriginResourceSharingFilter;
-import org.ndexbio.rest.services.GroupService;
-import org.ndexbio.rest.services.NetworkService;
-import org.ndexbio.rest.services.RequestService;
-import org.ndexbio.rest.services.TaskService;
-import org.ndexbio.rest.services.UserService;
+import org.ndexbio.rest.exceptions.mappers.*;
+import org.ndexbio.rest.filters.*;
+import org.ndexbio.rest.services.*;
 
 public class NdexRestApi extends Application
 {
@@ -28,6 +24,11 @@ public class NdexRestApi extends Application
         
         _providers.add(new BasicAuthenticationFilter());
         _providers.add(new CrossOriginResourceSharingFilter());
+        _providers.add(new DuplicateObjectExceptionMapper());
+        _providers.add(new IllegalArgumentExceptionMapper());
+        _providers.add(new NdexExceptionMapper());
+        _providers.add(new ObjectNotFoundExceptionMapper());
+        _providers.add(new SecurityExceptionMapper());
     }
     
     

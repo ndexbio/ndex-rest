@@ -24,7 +24,7 @@ import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.Request;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,8 +74,8 @@ public class RequestService extends NdexService
         if (newRequest == null)
             throw new IllegalArgumentException("The request to create is empty.");
         
-        final ORID fromRid = RidConverter.convertToRid(newRequest.getFromId());
-        final ORID toRid = RidConverter.convertToRid(newRequest.getToId());
+        final ORID fromRid = IdConverter.toRid(newRequest.getFromId());
+        final ORID toRid = IdConverter.toRid(newRequest.getToId());
         
         if (fromRid.equals(toRid))
             throw new IllegalArgumentException("Nice try, but you cannot make a request to yourself. You may want to consider schizophrenia counseling.");
@@ -137,7 +137,7 @@ public class RequestService extends NdexService
         if (requestId == null || requestId.isEmpty())
             throw new IllegalArgumentException("No request ID was specified.");
         
-        final ORID requestRid = RidConverter.convertToRid(requestId);
+        final ORID requestRid = IdConverter.toRid(requestId);
 
         try
         {
@@ -188,7 +188,7 @@ public class RequestService extends NdexService
         if (requestId == null || requestId.isEmpty())
             throw new IllegalArgumentException("No request ID was specified.");
         
-        final ORID requestRid = RidConverter.convertToRid(requestId);
+        final ORID requestRid = IdConverter.toRid(requestId);
 
         try
         {
@@ -228,7 +228,7 @@ public class RequestService extends NdexService
         if (updatedRequest == null)
             throw new IllegalArgumentException("The updated request is empty.");
         
-        final ORID requestRid = RidConverter.convertToRid(updatedRequest.getId());
+        final ORID requestRid = IdConverter.toRid(updatedRequest.getId());
 
         try
         {
@@ -309,7 +309,7 @@ public class RequestService extends NdexService
         
         _orientDbGraph.getBaseGraph().commit();
 
-        requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));
+        requestToCreate.setId(IdConverter.toJid((ORID)newRequest.asVertex().getId()));
     }
     
     /**************************************************************************
@@ -347,7 +347,7 @@ public class RequestService extends NdexService
         
         _orientDbGraph.getBaseGraph().commit();
 
-        requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));
+        requestToCreate.setId(IdConverter.toJid((ORID)newRequest.asVertex().getId()));
     }
     
     /**************************************************************************
@@ -385,7 +385,7 @@ public class RequestService extends NdexService
         
         _orientDbGraph.getBaseGraph().commit();
 
-        requestToCreate.setId(RidConverter.convertToJid((ORID)newRequest.asVertex().getId()));
+        requestToCreate.setId(IdConverter.toJid((ORID)newRequest.asVertex().getId()));
     }
 
     /**************************************************************************
@@ -396,8 +396,8 @@ public class RequestService extends NdexService
     **************************************************************************/
     private void processGroupInvitation(final Request requestToProcess) throws Exception
     {
-        final ORID groupId = RidConverter.convertToRid(requestToProcess.getFromId());
-        final ORID userId = RidConverter.convertToRid(requestToProcess.getToId());
+        final ORID groupId = IdConverter.toRid(requestToProcess.getFromId());
+        final ORID userId = IdConverter.toRid(requestToProcess.getToId());
         
         IGroup group = _orientDbGraph.getVertex(groupId, IGroup.class);
         IUser user = _orientDbGraph.getVertex(userId, IUser.class);
@@ -418,8 +418,8 @@ public class RequestService extends NdexService
     **************************************************************************/
     private void processJoinGroup(final Request requestToProcess) throws Exception
     {
-        final ORID groupId = RidConverter.convertToRid(requestToProcess.getToId());
-        final ORID userId = RidConverter.convertToRid(requestToProcess.getFromId());
+        final ORID groupId = IdConverter.toRid(requestToProcess.getToId());
+        final ORID userId = IdConverter.toRid(requestToProcess.getFromId());
         
         IGroup group = _orientDbGraph.getVertex(groupId, IGroup.class);
         IUser user = _orientDbGraph.getVertex(userId, IUser.class);
@@ -440,8 +440,8 @@ public class RequestService extends NdexService
     **************************************************************************/
     private void processNetworkAccess(final Request requestToProcess) throws Exception
     {
-        final ORID networkId = RidConverter.convertToRid(requestToProcess.getToId());
-        final ORID userId = RidConverter.convertToRid(requestToProcess.getFromId());
+        final ORID networkId = IdConverter.toRid(requestToProcess.getToId());
+        final ORID userId = IdConverter.toRid(requestToProcess.getFromId());
         
         INetwork network = _orientDbGraph.getVertex(networkId, INetwork.class);
         IUser user = _orientDbGraph.getVertex(userId, IUser.class);

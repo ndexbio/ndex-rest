@@ -1,6 +1,6 @@
 package org.ndexbio.rest.gremlin;
 
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.NetworkQueryParameters;
 
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
@@ -39,7 +39,7 @@ public class SearchSpec {
 				.size()];
 		for (int index = 0; index < parameters.getStartingTermIds().size(); index++) {
 			String jid = parameters.getStartingTermIds().get(index);
-			ORID rid = RidConverter.convertToRid(jid);
+			ORID rid = IdConverter.toRid(jid);
 			startingTerms[index] = rid;
 		}
 		searchDepth = parameters.getSearchDepth();

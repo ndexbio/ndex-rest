@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 * workaround for the limitations of limited characters that can be displayed
 * in URLs. RIDs are the true IDs used by OrientDB.
 ******************************************************************************/
-public class RidConverter
+public class IdConverter
 {
     /**************************************************************************
     * Converts a JID to a RID.
@@ -22,7 +22,7 @@ public class RidConverter
     *            The JID isn't a valid JID.
     * @return The JID converted to a RID.
     **************************************************************************/
-    public static ORID convertToRid(String Jid) throws IllegalArgumentException
+    public static ORID toRid(String Jid) throws IllegalArgumentException
     {
         final Matcher m = Pattern.compile("^C(\\d*)R(\\d*)$").matcher(Jid.trim());
 
@@ -39,7 +39,7 @@ public class RidConverter
     *            The RID.
     * @return The RID converted to a JID.
     **************************************************************************/
-    public static String convertToJid(ORID Rid)
+    public static String toJid(ORID Rid)
     {
         return Rid.toString().replace("#", "C").replace(":", "R");
     }

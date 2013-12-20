@@ -4,11 +4,13 @@ import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
+import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.Group;
+import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.SearchParameters;
 import com.orientechnologies.orient.core.id.ORID;
 
@@ -48,7 +50,7 @@ public class TestGroupService extends TestNdexService
         Assert.assertTrue(createNewGroup());
 
         final ORID testGroupRid = getRid("Test Group");
-        Assert.assertTrue(deleteTargetGroup(RidConverter.convertToJid(testGroupRid)));
+        Assert.assertTrue(deleteTargetGroup(IdConverter.toJid(testGroupRid)));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -99,7 +101,7 @@ public class TestGroupService extends TestNdexService
         try
         {
             final ORID groupRid = getRid("triptychjs");
-            final Group testGroup = _groupService.getGroup(RidConverter.convertToJid(groupRid));
+            final Group testGroup = _groupService.getGroup(IdConverter.toJid(groupRid));
             Assert.assertNotNull(testGroup);
         }
         catch (Exception e)
@@ -129,6 +131,47 @@ public class TestGroupService extends TestNdexService
     {
         _groupService.getGroup("");
     }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void removeMemberInvalidGroup() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID userId = getRid("dexterpratt");
+
+        _groupService.removeMember("", IdConverter.toJid(userId));
+    }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void removeMemberInvalidUserId() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+
+        _groupService.removeMember(IdConverter.toJid(testGroupRid), "");
+    }
+    
+    @Test(expected = ObjectNotFoundException.class)
+    public void removeMemberNonexistantGroup() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID userId = getRid("dexterpratt");
+
+        _groupService.removeMember("C999R999", IdConverter.toJid(userId));
+    }
+    
+    @Test(expected = ObjectNotFoundException.class)
+    public void removeMemberNonexistantUser() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+
+        _groupService.removeMember(IdConverter.toJid(testGroupRid), "C999R999");
+    }
+    
+    @Test(expected = SecurityException.class)
+    public void removeMemberOnlyAdminMember() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        final ORID userId = getRid("dexterpratt");
+
+        _groupService.removeMember(IdConverter.toJid(testGroupRid), IdConverter.toJid(userId));
+    }
 
     @Test
     public void updateGroup()
@@ -143,7 +186,7 @@ public class TestGroupService extends TestNdexService
             this.setLoggedInUser();
             
             final ORID testGroupRid = getRid("Test Group");
-            final Group testGroup = _groupService.getGroup(RidConverter.convertToJid(testGroupRid));
+            final Group testGroup = _groupService.getGroup(IdConverter.toJid(testGroupRid));
 
             testGroup.setName("Updated Test Group");
             _groupService.updateGroup(testGroup);
@@ -177,6 +220,81 @@ public class TestGroupService extends TestNdexService
         _groupService.updateGroup(updatedGroup);
     }
     
+    @Test(expected = IllegalArgumentException.class)
+    public void updateMemberInvalidGroup() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testUserId = getRid("dexterpratt");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId(IdConverter.toJid(testUserId));
+        testMembership.setResourceName("dexterpratt");
+
+        _groupService.updateMember("", testMembership);
+    }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void updateMemberInvalidMembership() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        
+        _groupService.updateMember(IdConverter.toJid(testGroupRid), null);
+    }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void updateMemberInvalidUserId() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId("C999R999");
+        testMembership.setResourceName("dexterpratt");
+
+        _groupService.updateMember(IdConverter.toJid(testGroupRid), testMembership);
+    }
+    
+    @Test(expected = ObjectNotFoundException.class)
+    public void updateMemberNonexistantGroup() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testUserId = getRid("dexterpratt");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId(IdConverter.toJid(testUserId));
+        testMembership.setResourceName("dexterpratt");
+
+        _groupService.updateMember("C999R999", testMembership);
+    }
+    
+    @Test(expected = ObjectNotFoundException.class)
+    public void updateMemberNonexistantUser() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId("C999R999");
+        testMembership.setResourceName("dexterpratt");
+
+        _groupService.updateMember(IdConverter.toJid(testGroupRid), testMembership);
+    }
+    
+    @Test(expected = SecurityException.class)
+    public void updateMemberOnlyAdminMember() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        final ORID testUserId = getRid("dexterpratt");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId(IdConverter.toJid(testUserId));
+        testMembership.setResourceName("dexterpratt");
+
+        _groupService.updateMember(IdConverter.toJid(testGroupRid), testMembership);
+    }
+
+
     
     
     private boolean createNewGroup()

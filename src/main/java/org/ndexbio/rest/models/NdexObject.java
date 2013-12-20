@@ -2,7 +2,7 @@ package org.ndexbio.rest.models;
 
 import java.util.Date;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import com.orientechnologies.orient.core.id.ORID;
 import com.tinkerpop.frames.VertexFrame;
 
@@ -64,6 +64,6 @@ public abstract class NdexObject
         if (null == vf)
             return null;
 
-        return RidConverter.convertToJid((ORID)vf.asVertex().getId());
+        return IdConverter.toJid((ORID)vf.asVertex().getId());
     }
 }

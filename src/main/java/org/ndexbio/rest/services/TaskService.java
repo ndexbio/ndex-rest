@@ -13,7 +13,7 @@ import org.ndexbio.rest.domain.ITask;
 import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.Task;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +58,7 @@ public class TaskService extends NdexService
         if (newTask == null)
             throw new IllegalArgumentException("The task to create is empty.");
         
-        final ORID userRid = RidConverter.convertToRid(this.getLoggedInUser().getId());
+        final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
 
         try
         {
@@ -78,7 +78,7 @@ public class TaskService extends NdexService
 
             _orientDbGraph.getBaseGraph().commit();
 
-            newTask.setId(RidConverter.convertToJid((ORID) task.asVertex().getId()));
+            newTask.setId(IdConverter.toJid((ORID) task.asVertex().getId()));
             return newTask;
         }
         catch (Exception e)
@@ -115,7 +115,7 @@ public class TaskService extends NdexService
         if (taskId == null || taskId.isEmpty())
             throw new IllegalArgumentException("The task ID was not specified.");
         
-        final ORID taskRid = RidConverter.convertToRid(taskId);
+        final ORID taskRid = IdConverter.toRid(taskId);
 
         try
         {
@@ -171,7 +171,7 @@ public class TaskService extends NdexService
 
         try
         {
-            final ORID taskRid = RidConverter.convertToRid(taskId);
+            final ORID taskRid = IdConverter.toRid(taskId);
             
             setupDatabase();
             
@@ -222,7 +222,7 @@ public class TaskService extends NdexService
         if (updatedTask == null)
             throw new IllegalArgumentException("The task to update is empty.");
         
-        ORID taskRid = RidConverter.convertToRid(updatedTask.getId());
+        ORID taskRid = IdConverter.toRid(updatedTask.getId());
 
         try
         {

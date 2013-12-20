@@ -19,7 +19,7 @@ import org.ndexbio.rest.domain.IUser;
 import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.SearchParameters;
@@ -256,7 +256,7 @@ public enum NDExMemoryPersistence implements NDExPersistenceService {
 	        {
 	           
 	            final Membership newNetworkMembership = newNetwork.getMembers().get(0);
-	            final ORID userRid = RidConverter.convertToRid(newNetworkMembership.getResourceId());
+	            final ORID userRid = IdConverter.toRid(newNetworkMembership.getResourceId());
 
 	            final IUser networkOwner =  ndexService._orientDbGraph.getVertex(userRid, IUser.class);
 	            if (networkOwner == null)

@@ -9,7 +9,7 @@ import org.junit.runners.MethodSorters;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
 import org.ndexbio.rest.models.NewUser;
 import org.ndexbio.rest.models.SearchParameters;
 import org.ndexbio.rest.models.User;
@@ -213,7 +213,7 @@ public class TestUserService extends TestNdexService
         try
         {
             final ORID testUserRid = getRid("dexterpratt");
-            final User testUser = _userService.getUser(RidConverter.convertToJid(testUserRid));
+            final User testUser = _userService.getUser(IdConverter.toJid(testUserRid));
             Assert.assertNotNull(testUser);
         }
         catch (Exception e)
@@ -343,7 +343,7 @@ public class TestUserService extends TestNdexService
         try
         {
             final ORID testNetworkRid = getRid("REACTOME TEST");
-            _userService.addNetworkToWorkSurface(RidConverter.convertToJid(testNetworkRid));
+            _userService.addNetworkToWorkSurface(IdConverter.toJid(testNetworkRid));
             
             final User testUser = _userService.getUser("dexterpratt");
             Assert.assertEquals(testUser.getWorkSurface().size(), 1);
@@ -367,7 +367,7 @@ public class TestUserService extends TestNdexService
         try
         {
             final ORID testNetworkRid = getRid("REACTOME TEST");
-            _userService.deleteNetworkFromWorkSurface(RidConverter.convertToJid(testNetworkRid));
+            _userService.deleteNetworkFromWorkSurface(IdConverter.toJid(testNetworkRid));
             
             final User testUser = _userService.getUser("dexterpratt");
             Assert.assertEquals(testUser.getWorkSurface().size(), 0);

@@ -5,10 +5,12 @@ import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
+import org.ndexbio.rest.domain.Permissions;
 import org.ndexbio.rest.exceptions.DuplicateObjectException;
 import org.ndexbio.rest.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.ObjectNotFoundException;
-import org.ndexbio.rest.helpers.RidConverter;
+import org.ndexbio.rest.helpers.IdConverter;
+import org.ndexbio.rest.models.Membership;
 import org.ndexbio.rest.models.Network;
 import org.ndexbio.rest.models.NetworkQueryParameters;
 import org.ndexbio.rest.models.SearchParameters;
@@ -28,7 +30,7 @@ public class TestNetworkService extends TestNdexService
         try
         {
             final ORID testNetworkRid = getRid("REACTOME TEST");
-            final Collection<String> suggestions = _networkService.autoSuggestTerms(RidConverter.convertToJid(testNetworkRid), "RBL");
+            final Collection<String> suggestions = _networkService.autoSuggestTerms(IdConverter.toJid(testNetworkRid), "RBL");
             Assert.assertNotNull(suggestions);
         }
         catch (Exception e)
@@ -48,7 +50,7 @@ public class TestNetworkService extends TestNdexService
     public void autoSuggestInvalidPartialTerm() throws IllegalArgumentException, NdexException
     {
         final ORID testNetworkRid = getRid("REACTOME TEST");
-        _networkService.autoSuggestTerms(RidConverter.convertToJid(testNetworkRid), "");
+        _networkService.autoSuggestTerms(IdConverter.toJid(testNetworkRid), "");
     }
 
     @Test
@@ -94,7 +96,7 @@ public class TestNetworkService extends TestNdexService
         Assert.assertTrue(createNewNetwork());
 
         final ORID testNetworkRid = getRid("Test Network");
-        Assert.assertTrue(deleteTargetNetwork(RidConverter.convertToJid(testNetworkRid)));
+        Assert.assertTrue(deleteTargetNetwork(IdConverter.toJid(testNetworkRid)));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -140,7 +142,7 @@ public class TestNetworkService extends TestNdexService
         try
         {
             final ORID networkRid = getRid("NCI_NATURE:FoxO family signaling");
-            final Network testNetwork = _networkService.getNetwork(RidConverter.convertToJid(networkRid));
+            final Network testNetwork = _networkService.getNetwork(IdConverter.toJid(networkRid));
             Assert.assertNotNull(testNetwork);
         }
         catch (Exception e)
@@ -162,7 +164,7 @@ public class TestNetworkService extends TestNdexService
         try
         {
             final ORID networkRid = getRid("NCI_NATURE:FoxO family signaling");
-            _networkService.getEdges(RidConverter.convertToJid(networkRid), 0, 25);
+            _networkService.getEdges(IdConverter.toJid(networkRid), 0, 25);
         }
         catch (Exception e)
         {
@@ -187,7 +189,7 @@ public class TestNetworkService extends TestNdexService
             final NetworkQueryParameters queryParameters = new NetworkQueryParameters();
             queryParameters.getStartingTermStrings().add("RBL_HUMAN");
             
-            _networkService.queryNetwork(RidConverter.convertToJid(networkRid), queryParameters);
+            _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
         }
         catch (Exception e)
         {
@@ -200,6 +202,121 @@ public class TestNetworkService extends TestNdexService
     public void queryNetworkInvalid() throws IllegalArgumentException, NdexException
     {
         _networkService.queryNetwork("", null);
+    }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void removeMemberInvalidNetwork() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID userId = getRid("dexterpratt");
+
+        _networkService.removeMember("", IdConverter.toJid(userId));
+    }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void removeMemberInvalidUserId() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+
+        _networkService.removeMember(IdConverter.toJid(testGroupRid), "");
+    }
+    
+    @Test(expected = ObjectNotFoundException.class)
+    public void removeMemberNonexistantNetwork() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID userId = getRid("dexterpratt");
+
+        _networkService.removeMember("C999R999", IdConverter.toJid(userId));
+    }
+    
+    @Test(expected = ObjectNotFoundException.class)
+    public void removeMemberNonexistantUser() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+
+        _networkService.removeMember(IdConverter.toJid(testGroupRid), "C999R999");
+    }
+    
+    @Test(expected = SecurityException.class)
+    public void removeMemberOnlyAdminMember() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        final ORID userId = getRid("dexterpratt");
+
+        _networkService.removeMember(IdConverter.toJid(testGroupRid), IdConverter.toJid(userId));
+    }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void updateMemberInvalidNetwork() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testUserId = getRid("dexterpratt");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId(IdConverter.toJid(testUserId));
+        testMembership.setResourceName("dexterpratt");
+
+        _networkService.updateMember("", testMembership);
+    }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void updateMemberInvalidMembership() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        
+        _networkService.updateMember(IdConverter.toJid(testGroupRid), null);
+    }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void updateMemberInvalidUserId() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId("C999R999");
+        testMembership.setResourceName("dexterpratt");
+
+        _networkService.updateMember(IdConverter.toJid(testGroupRid), testMembership);
+    }
+    
+    @Test(expected = ObjectNotFoundException.class)
+    public void updateMemberNonexistantNetwork() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testUserId = getRid("dexterpratt");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId(IdConverter.toJid(testUserId));
+        testMembership.setResourceName("dexterpratt");
+
+        _networkService.updateMember("C999R999", testMembership);
+    }
+    
+    @Test(expected = ObjectNotFoundException.class)
+    public void updateMemberNonexistantUser() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId("C999R999");
+        testMembership.setResourceName("dexterpratt");
+
+        _networkService.updateMember(IdConverter.toJid(testGroupRid), testMembership);
+    }
+    
+    @Test(expected = SecurityException.class)
+    public void updateMemberOnlyAdminMember() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    {
+        final ORID testGroupRid = getRid("triptychjs");
+        final ORID testUserId = getRid("dexterpratt");
+        
+        final Membership testMembership = new Membership();
+        testMembership.setPermissions(Permissions.READ);
+        testMembership.setResourceId(IdConverter.toJid(testUserId));
+        testMembership.setResourceName("dexterpratt");
+
+        _networkService.updateMember(IdConverter.toJid(testGroupRid), testMembership);
     }
 
     @Test
@@ -215,7 +332,7 @@ public class TestNetworkService extends TestNdexService
             this.setLoggedInUser();
 
             final ORID testNetworkRid = getRid("Test Network");
-            final Network testNetwork = _networkService.getNetwork(RidConverter.convertToJid(testNetworkRid));
+            final Network testNetwork = _networkService.getNetwork(IdConverter.toJid(testNetworkRid));
 
             testNetwork.setTitle("Updated Test Network");
             _networkService.updateNetwork(testNetwork);
