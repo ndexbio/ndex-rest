@@ -7,11 +7,11 @@ import org.junit.runners.MethodSorters;
 import org.ndexbio.common.exceptions.DuplicateObjectException;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
+import org.ndexbio.common.helpers.IdConverter;
+import org.ndexbio.common.models.data.Permissions;
 import org.ndexbio.common.models.object.Group;
 import org.ndexbio.common.models.object.Membership;
 import org.ndexbio.common.models.object.SearchParameters;
-import org.ndexbio.common.models.data.Permissions;
-import org.ndexbio.common.helpers.IdConverter;
 import com.orientechnologies.orient.core.id.ORID;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)

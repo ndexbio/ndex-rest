@@ -10,6 +10,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import javax.servlet.http.HttpServletRequest;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
+import com.tinkerpop.blueprints.impls.orient.OrientGraph;
+import com.tinkerpop.frames.FramedGraph;
+import com.tinkerpop.frames.FramedGraphFactory;
+import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
+import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
@@ -21,16 +31,6 @@ import org.junit.Test;
 import org.ndexbio.common.models.object.*;
 import org.ndexbio.common.models.data.*;
 import org.ndexbio.rest.services.NetworkService;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.frames.FramedGraph;
-import com.tinkerpop.frames.FramedGraphFactory;
-import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
-import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 public class NetworkFromExcelTest
 {

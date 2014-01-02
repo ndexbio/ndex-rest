@@ -4,20 +4,23 @@ import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.servlet.http.HttpServletRequest;
+
 import org.easymock.EasyMock;
 import org.junit.Assert;
 import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.common.models.data.Permissions;
 import org.ndexbio.common.models.object.Membership;
 import org.ndexbio.common.models.object.Network;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.common.models.object.NewUser;
 import org.ndexbio.common.models.object.User;
-import org.ndexbio.common.models.data.Permissions;
 import org.ndexbio.orientdb.gremlin.RepresentationCriteria;
 import org.ndexbio.orientdb.gremlin.SearchType;
 import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.UserService;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class NetworkQueryTest {

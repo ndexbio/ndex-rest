@@ -7,16 +7,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
 import javax.servlet.http.HttpServletRequest;
-import org.easymock.EasyMock;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
-import org.ndexbio.common.models.data.*;
-import org.ndexbio.common.models.object.*;
-import org.ndexbio.common.helpers.IdConverter;
-import org.ndexbio.rest.services.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orientechnologies.orient.client.remote.OServerAdmin;
@@ -31,6 +21,16 @@ import com.tinkerpop.frames.FramedGraph;
 import com.tinkerpop.frames.FramedGraphFactory;
 import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
 import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
+import org.easymock.EasyMock;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runners.MethodSorters;
+import org.ndexbio.common.helpers.IdConverter;
+import org.ndexbio.common.models.object.*;
+import org.ndexbio.common.models.data.*;
+import org.ndexbio.rest.services.*;
 
 /******************************************************************************
 * This class creates the bare minimum for a test database needed to develop

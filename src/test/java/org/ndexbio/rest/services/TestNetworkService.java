@@ -12,8 +12,8 @@ import org.ndexbio.common.models.object.Membership;
 import org.ndexbio.common.models.object.Network;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.common.models.object.SearchParameters;
-import org.ndexbio.common.models.data.Permissions;
 import org.ndexbio.common.helpers.IdConverter;
+import org.ndexbio.common.models.data.Permissions;
 import com.orientechnologies.orient.core.id.ORID;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
