@@ -12,7 +12,7 @@ import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.models.object.NewUser;
 import org.ndexbio.common.models.object.SearchParameters;
 import org.ndexbio.common.models.object.User;
-import org.ndexbio.rest.helpers.IdConverter;
+import org.ndexbio.common.helpers.IdConverter;
 import com.orientechnologies.orient.core.id.ORID;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)

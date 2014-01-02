@@ -10,8 +10,8 @@ import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.models.object.Group;
 import org.ndexbio.common.models.object.Membership;
 import org.ndexbio.common.models.object.SearchParameters;
-import org.ndexbio.rest.domain.Permissions;
-import org.ndexbio.rest.helpers.IdConverter;
+import org.ndexbio.common.models.data.Permissions;
+import org.ndexbio.common.helpers.IdConverter;
 import com.orientechnologies.orient.core.id.ORID;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
