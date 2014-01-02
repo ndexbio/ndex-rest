@@ -6,17 +6,20 @@ import java.net.URL;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
+
 import javax.servlet.http.HttpServletRequest;
+
 import org.easymock.EasyMock;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
+import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.object.*;
-import org.ndexbio.rest.domain.*;
-import org.ndexbio.rest.helpers.IdConverter;
+import org.ndexbio.common.models.data.*;
 import org.ndexbio.rest.services.*;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orientechnologies.orient.client.remote.OServerAdmin;
