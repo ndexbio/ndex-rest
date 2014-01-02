@@ -4,10 +4,10 @@ import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
-import org.ndexbio.rest.exceptions.DuplicateObjectException;
-import org.ndexbio.rest.exceptions.NdexException;
+import org.ndexbio.common.exceptions.DuplicateObjectException;
+import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.common.models.object.Request;
 import org.ndexbio.rest.helpers.IdConverter;
-import org.ndexbio.rest.models.Request;
 import com.orientechnologies.orient.core.id.ORID;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)

@@ -6,13 +6,13 @@ import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
-import org.ndexbio.rest.exceptions.DuplicateObjectException;
-import org.ndexbio.rest.exceptions.NdexException;
-import org.ndexbio.rest.exceptions.ObjectNotFoundException;
+import org.ndexbio.common.exceptions.DuplicateObjectException;
+import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.common.exceptions.ObjectNotFoundException;
+import org.ndexbio.common.models.object.NewUser;
+import org.ndexbio.common.models.object.SearchParameters;
+import org.ndexbio.common.models.object.User;
 import org.ndexbio.rest.helpers.IdConverter;
-import org.ndexbio.rest.models.NewUser;
-import org.ndexbio.rest.models.SearchParameters;
-import org.ndexbio.rest.models.User;
 import com.orientechnologies.orient.core.id.ORID;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)

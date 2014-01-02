@@ -4,8 +4,8 @@ import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
+import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.rest.services.FeedbackService;
-import org.ndexbio.rest.exceptions.NdexException;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class TestFeedbackService extends TestNdexService

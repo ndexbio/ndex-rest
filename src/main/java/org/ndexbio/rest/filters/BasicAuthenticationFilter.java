@@ -9,8 +9,8 @@ import javax.ws.rs.ext.Provider;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
+import org.ndexbio.common.models.object.User;
 import org.ndexbio.rest.helpers.Security;
-import org.ndexbio.rest.models.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
