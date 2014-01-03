@@ -9,7 +9,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
-import org.ndexbio.rest.NdexSchemaManager;
+import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.models.data.IBaseTerm;

@@ -30,6 +30,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.ndexbio.common.models.object.*;
 import org.ndexbio.common.models.data.*;
+import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.services.NetworkService;
 
 public class NetworkFromExcelTest

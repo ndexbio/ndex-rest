@@ -12,7 +12,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.ndexbio.common.models.object.User;
 import org.ndexbio.common.models.data.*;
-import org.ndexbio.rest.NdexSchemaManager;
+import org.ndexbio.orientdb.NdexSchemaManager;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORID;

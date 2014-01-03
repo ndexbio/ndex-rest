@@ -30,6 +30,7 @@ import org.junit.runners.MethodSorters;
 import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.object.*;
 import org.ndexbio.common.models.data.*;
+import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.services.*;
 
 /******************************************************************************
