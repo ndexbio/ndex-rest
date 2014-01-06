@@ -241,7 +241,7 @@ public class TestGroupService extends TestNdexService
         _groupService.updateMember(IdConverter.toJid(testGroupRid), null);
     }
     
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = ObjectNotFoundException.class)
     public void updateMemberInvalidUserId() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
         final ORID testGroupRid = getRid("triptychjs");

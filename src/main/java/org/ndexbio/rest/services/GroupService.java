@@ -94,8 +94,8 @@ public class GroupService extends NdexService
                 membership.setMember(groupOwner);
                 membership.setGroup(group);
     
-                groupOwner.addGroup(membership);
-                group.addMember(membership);
+                //groupOwner.addGroup(membership);
+                //group.addMember(membership);
             }
             else
             {
@@ -525,7 +525,7 @@ public class GroupService extends NdexService
         catch (Exception e)
         {
             if (e.getMessage().indexOf("cluster: null") > -1)
-                throw new ObjectNotFoundException("Group", groupId);
+                throw new ObjectNotFoundException("Either the Group " + groupId + " or User " + groupMember.getResourceId() + " was not found.");
             
             _logger.error("Failed to update member: " + groupMember.getResourceName() + ".", e);
             _orientDbGraph.getBaseGraph().rollback();
