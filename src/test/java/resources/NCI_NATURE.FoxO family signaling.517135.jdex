@@ -1,13 +1,20 @@
 {
-    "format": "PC SIF",
 	"members":
 	[
 		{
 			"resourceName": "jstegall",
 			"permissions": "ADMIN"
 		}
-	], 
-    "nodes": {
+	],
+	"metadata":
+	{
+		"format": "JDEX",
+    	"source": "NCI_NATURE",
+    	"company": "Cytoscape Consortium",
+    	"species": "Human"
+	},
+    "nodes":
+    {
         "2": {
             "name": "534663",
             "represents": 1
@@ -1146,9 +1153,7 @@
             "name": "UBP7_HUMAN"
         }
     },
-    "nodeTypes": {},
-    "source": "NCI_NATURE",
-    "title": "NCI_NATURE:FoxO family signaling",
+    "name": "NCI_NATURE:FoxO family signaling",
     "citations": {},
     "supports": {}
 }

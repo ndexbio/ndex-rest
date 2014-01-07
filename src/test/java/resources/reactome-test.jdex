@@ -1,12 +1,17 @@
 {
-    "format": "PC SIF",
 	"members":
 	[
 		{
 			"resourceName": "dexterpratt",
 			"permissions": "ADMIN"
 		}
-	], 
+	],
+	"metadata":
+	{
+    	"format": "JDEX",
+    	"source": "REACTOME",
+    	"company": "Cytoscape Consortium"
+	},
     "nodes": {
         "2": {
             "name": "102654",
@@ -1900,9 +1905,7 @@
             "name": "CDK1_HUMAN"
         }
     },
-    "nodeTypes": {},
-    "source": "REACTOME",
-    "title": "REACTOME TEST",
+    "name": "REACTOME TEST",
     "citations": {},
     "supports": {}
 }

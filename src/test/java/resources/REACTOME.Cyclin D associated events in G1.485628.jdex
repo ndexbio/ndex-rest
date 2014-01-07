@@ -7,6 +7,11 @@
 			"permissions": "ADMIN"
 		}
 	], 
+	"metadata":
+	{
+    	"format": "JDEX",
+    	"source": "REACTOME"
+	},
     "nodes": {
         "2": {
             "name": "102654",
@@ -1902,7 +1907,7 @@
     },
     "nodeTypes": {},
     "source": "REACTOME",
-    "title": "REACTOME:Cyclin D associated events in G1",
+    "name": "REACTOME:Cyclin D associated events in G1",
     "citations": {},
     "supports": {}
 }

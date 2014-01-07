@@ -7,6 +7,11 @@
 			"permissions": "ADMIN"
 		}
 	], 
+	"metadata":
+	{
+    	"format": "JDEX",
+    	"source": "REACTOME"
+	},
     "nodes": {
         "2": {
             "name": "102654",
@@ -1902,7 +1907,7 @@
     },
     "nodeTypes": {},
     "source": "REACTOME",
-    "title": "REACTOME:G1 Phase",
+    "name": "REACTOME:G1 Phase",
     "citations": {},
     "supports": {}
 }

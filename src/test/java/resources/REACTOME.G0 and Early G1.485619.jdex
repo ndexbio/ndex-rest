@@ -7,6 +7,11 @@
 			"permissions": "ADMIN"
 		}
 	], 
+	"metadata":
+	{
+    	"format": "JDEX",
+    	"source": "REACTOME"
+	},
     "nodes": {
         "2": {
             "name": "496952",
@@ -1851,7 +1856,7 @@
     },
     "nodeTypes": {},
     "source": "REACTOME",
-    "title": "REACTOME:G0 and Early G1",
+    "name": "REACTOME:G0 and Early G1",
     "citations": {},
     "supports": {}
 }

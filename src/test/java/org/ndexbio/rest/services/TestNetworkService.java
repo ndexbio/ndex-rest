@@ -1,6 +1,7 @@
 package org.ndexbio.rest.services;
 
 import java.util.Collection;
+import java.util.List;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -65,10 +66,10 @@ public class TestNetworkService extends TestNdexService
         Assert.assertTrue(createNewNetwork());
         
         final Network newNetwork = new Network();
-        newNetwork.setCopyright("2013 Cytoscape Consortium");
         newNetwork.setDescription("This is a test network.");
-        newNetwork.setFormat("JDEX");
-        newNetwork.setTitle("Test Network");
+        newNetwork.getMetadata().put("Copyright", "2013 Cytoscape Consortium");
+        newNetwork.getMetadata().put("Format", "JDEX");
+        newNetwork.setName("Test Network");
         
         _networkService.createNetwork(newNetwork);
     }
@@ -83,9 +84,9 @@ public class TestNetworkService extends TestNdexService
     public void createNetworkInvalidTitle() throws IllegalArgumentException, DuplicateObjectException, NdexException
     {
         final Network newNetwork = new Network();
-        newNetwork.setCopyright("2013 Cytoscape Consortium");
         newNetwork.setDescription("This is a test network.");
-        newNetwork.setFormat("JDEX");
+        newNetwork.getMetadata().put("Copyright", "2013 Cytoscape Consortium");
+        newNetwork.getMetadata().put("Format", "JDEX");
         
         _networkService.createNetwork(newNetwork);
     }
@@ -122,6 +123,26 @@ public class TestNetworkService extends TestNdexService
         try
         {
             _networkService.findNetworks(searchParameters);
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void findNetworksByMetadata()
+    {
+        final SearchParameters searchParameters = new SearchParameters();
+        searchParameters.setSearchString("[company]=\"Cytoscape Consortium\"");
+        searchParameters.setSkip(0);
+        searchParameters.setTop(25);
+        
+        try
+        {
+            List<Network> networksFound = _networkService.findNetworks(searchParameters);
+            Assert.assertTrue(networksFound.size() == 2);
         }
         catch (Exception e)
         {
@@ -334,9 +355,9 @@ public class TestNetworkService extends TestNdexService
             final ORID testNetworkRid = getRid("Test Network");
             final Network testNetwork = _networkService.getNetwork(IdConverter.toJid(testNetworkRid));
 
-            testNetwork.setTitle("Updated Test Network");
+            testNetwork.setName("Updated Test Network");
             _networkService.updateNetwork(testNetwork);
-            Assert.assertEquals(_networkService.getNetwork(testNetwork.getId()).getTitle(), testNetwork.getTitle());
+            Assert.assertEquals(_networkService.getNetwork(testNetwork.getId()).getName(), testNetwork.getName());
 
             Assert.assertTrue(deleteTargetNetwork(testNetwork.getId()));
         }
@@ -358,10 +379,10 @@ public class TestNetworkService extends TestNdexService
     private boolean createNewNetwork()
     {
         final Network newNetwork = new Network();
-        newNetwork.setCopyright("2013 Cytoscape Consortium");
         newNetwork.setDescription("This is a test network.");
-        newNetwork.setFormat("JDEX");
-        newNetwork.setTitle("Test Network");
+        newNetwork.getMetadata().put("Copyright", "2013 Cytoscape Consortium");
+        newNetwork.getMetadata().put("Format", "JDEX");
+        newNetwork.setName("Test Network");
         
         try
         {

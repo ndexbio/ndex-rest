@@ -10,6 +10,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Set;
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
@@ -143,7 +145,7 @@ public class NetworkService extends NdexService
     {
         if (newNetwork == null)
             throw new IllegalArgumentException("The network to create is null.");
-        else if (newNetwork.getTitle() == null || newNetwork.getTitle().isEmpty())
+        else if (newNetwork.getName() == null || newNetwork.getName().isEmpty())
             throw new IllegalArgumentException("The network does not have a title.");
 
         try
@@ -153,18 +155,18 @@ public class NetworkService extends NdexService
             final IUser networkOwner = _orientDbGraph.getVertex(IdConverter.toRid(this.getLoggedInUser().getId()), IUser.class);
             
             final List<ODocument> existingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @RID from Network where out_networkMemberships.out_membershipMember.username = '"
-                + networkOwner.getUsername() + "' and title = '" + newNetwork.getTitle() + "'"));
+                + networkOwner.getUsername() + "' and title = '" + newNetwork.getName() + "'"));
             if (!existingNetworks.isEmpty())
-                throw new DuplicateObjectException("You already have a network titled: " + newNetwork.getTitle());
-
+                throw new DuplicateObjectException("You already have a network titled: " + newNetwork.getName());
 
             final Map<String, VertexFrame> networkIndex = new HashMap<String, VertexFrame>();
 
             final INetwork network = _orientDbGraph.addVertex("class:network", INetwork.class);
+            network.setIsLocked(newNetwork.getIsLocked());
             network.setIsPublic(newNetwork.getIsPublic());
-            network.setFormat(newNetwork.getFormat());
-            network.setSource(newNetwork.getSource());
-            network.setTitle(newNetwork.getTitle());
+            network.setName(newNetwork.getName());
+            network.setMetadata(newNetwork.getMetadata());
+            network.setMetaterms(new HashMap<String, IBaseTerm>());
             
             if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0)
             {
@@ -192,24 +194,17 @@ public class NetworkService extends NdexService
                 }
             }
 
-            // First create all namespaces used by the network
+            //Namespaces must be created first since they can be referenced by
+            //terms
             createNamespaces(network, newNetwork, networkIndex);
 
-            // Then create terms which may reference the namespaces
-            // The terms are created in order of reference - later terms may
-            // refer to earlier terms
+            //Terms must be created second since they reference other terms
+            //and are also referenced by nodes/edges.
             createTerms(network, newNetwork, networkIndex);
 
-            // Then create nodes that may reference terms
             createNodes(network, newNetwork, networkIndex);
-
-            // Then create edges that reference terms nodes
             createEdges(network, newNetwork, networkIndex);
-
-            // Then create citations that reference edges
             createCitations(network, newNetwork, networkIndex);
-
-            // Then create supports that reference edges and citations
             createSupports(network, newNetwork, networkIndex);
 
             _orientDbGraph.getBaseGraph().commit();
@@ -222,7 +217,7 @@ public class NetworkService extends NdexService
         }
         catch (Exception e)
         {
-            _logger.error("Failed to create network: " + newNetwork.getTitle() + ".", e);
+            _logger.error("Failed to create network: " + newNetwork.getName() + ".", e);
             _orientDbGraph.getBaseGraph().rollback();
             throw new NdexException("Failed to create the network.");
         }
@@ -327,16 +322,7 @@ public class NetworkService extends NdexService
             searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
 
         final List<Network> foundNetworks = new ArrayList<Network>();
-
-        final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
-        String query = "select from Network where isPublic = true";
-        
-        if (this.getLoggedInUser() != null)
-            query += " or out_networkMemberships.out_membershipMember.username = '" + this.getLoggedInUser().getUsername() + "'";
-        
-        query += " and (title.toUpperCase() like '%" + searchParameters.getSearchString() + "%'"
-            + " or description.toUpperCase() like '%" + searchParameters.getSearchString() + "%')"
-            + " order by creation_date desc skip " + startIndex + " limit " + searchParameters.getTop();
+        final String query = buildSearchQuery(searchParameters);
 
         try
         {
@@ -476,7 +462,7 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-    * Get a subnetwork network based on network query parameters.
+    * Gets a subnetwork network based on network query parameters.
     * 
     * @param networkId
     *            The network ID.
@@ -704,23 +690,41 @@ public class NetworkService extends NdexService
         {
             setupDatabase();
 
-            final INetwork network = _orientDbGraph.getVertex(IdConverter.toRid(updatedNetwork.getId()), INetwork.class);
-            if (network == null)
+            final INetwork networkToUpdate = _orientDbGraph.getVertex(IdConverter.toRid(updatedNetwork.getId()), INetwork.class);
+            if (networkToUpdate == null)
                 throw new ObjectNotFoundException("Network", updatedNetwork.getId());
             else if (!hasPermission(updatedNetwork, Permissions.WRITE))
                 throw new SecurityException("Access denied.");
 
-            if (updatedNetwork.getDescription() != null && !updatedNetwork.getDescription().isEmpty())
-                network.setDescription(updatedNetwork.getDescription());
+            if (!updatedNetwork.getDescription().equals(networkToUpdate.getDescription()))
+                networkToUpdate.setDescription(updatedNetwork.getDescription());
 
-            if (updatedNetwork.getIsPublic() != network.getIsPublic())
-                network.setIsPublic(updatedNetwork.getIsPublic());
+            if (updatedNetwork.getIsLocked() != networkToUpdate.getIsLocked())
+                networkToUpdate.setIsLocked(updatedNetwork.getIsLocked());
 
-            if (updatedNetwork.getSource() != null && !updatedNetwork.getSource().isEmpty())
-                network.setSource(updatedNetwork.getSource());
+            if (updatedNetwork.getIsPublic() != networkToUpdate.getIsPublic())
+                networkToUpdate.setIsPublic(updatedNetwork.getIsPublic());
+            
+            if (!updatedNetwork.getName().equals(networkToUpdate.getName()))
+                networkToUpdate.setName(updatedNetwork.getName());
+            
+            if (!updatedNetwork.getMetadata().equals(networkToUpdate.getMetadata()))
+                networkToUpdate.setMetadata(updatedNetwork.getMetadata());
+            
+            if (!updatedNetwork.getMetaterms().equals(networkToUpdate.getMetaterms()))
+            {
+                for (Entry<String, BaseTerm> metaterm : updatedNetwork.getMetaterms().entrySet())
+                {
+                    final String query = "SELECT FROM BaseTerm WHERE in_networkTerms = " + networkToUpdate.asVertex().getId() + " AND name = '" + metaterm.getValue().getName() + "'";
+                    final List<ODocument> matchingTerms = _orientDbGraph
+                        .getBaseGraph()
+                        .getRawGraph()
+                        .query(new OSQLSynchQuery<ODocument>(query));
 
-            if (updatedNetwork.getTitle() != null && !updatedNetwork.getTitle().isEmpty())
-                network.setTitle(updatedNetwork.getTitle());
+                    if (matchingTerms.size() > 0)
+                        networkToUpdate.addMetaterm(metaterm.getKey(), _orientDbGraph.getVertex(matchingTerms.get(0), IBaseTerm.class));
+                }
+            }
 
             _orientDbGraph.getBaseGraph().commit();
         }
@@ -733,7 +737,7 @@ public class NetworkService extends NdexService
             if (e.getMessage().indexOf("cluster: null") > -1)
                 throw new ObjectNotFoundException("Network", updatedNetwork.getId());
             
-            _logger.error("Failed to update network: " + updatedNetwork.getTitle() + ".", e);
+            _logger.error("Failed to update network: " + updatedNetwork.getName() + ".", e);
             _orientDbGraph.getBaseGraph().rollback();
             throw new NdexException("Failed to update the network.");
         }
@@ -840,6 +844,60 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
+    * Builds the SQL for the query to find networks.
+    * 
+    * @param searchParameters
+    *            The search parameters. 
+    * @return A string containing the SQL query.
+    **************************************************************************/
+    private String buildSearchQuery(SearchParameters searchParameters)
+    {
+        final Pattern metadataRegex = Pattern.compile("((\\[.+\\])([:~=])(\".+\"))");
+        final ArrayList<MetaParameter> metadataParameters = parseMetaParameters(searchParameters, metadataRegex);
+        
+        final Pattern metatermRegex = Pattern.compile("(\\<.+\\>[:~=]\".+\")");
+        final ArrayList<MetaParameter> metatermParameters = parseMetaParameters(searchParameters, metatermRegex);
+
+        //Replace all multiple spaces (left by previous parsing) with a single space
+        searchParameters.setSearchString(searchParameters.getSearchString().replace("  ", " ").trim());
+        
+        String query = "SELECT FROM Network\n";
+        
+        if (this.getLoggedInUser() != null)
+        {
+            query += "WHERE (isPublic = true"
+                + "\n  AND out_networkMemberships.out_membershipMember.username = '" + this.getLoggedInUser().getUsername() + "')";
+        }
+        else
+            query += "WHERE isPublic = true";
+
+        if (searchParameters.getSearchString().contains("-desc"))
+        {
+            searchParameters.getSearchString().replace(" -desc", "");
+            query += "\n  AND name.toUpperCase() like '" + searchParameters.getSearchString() + "%'";
+        }
+        else
+        {
+            query += "\n  AND (name.toUpperCase() like '" + searchParameters.getSearchString() + "%'"
+                + "\n  OR description.toUpperCase() like '" + searchParameters.getSearchString() + "%')";
+        }
+        
+        for (MetaParameter metadataParameter : metadataParameters)
+            query += "\n  AND metadata['" + metadataParameter.getKey() + "']" + metadataParameter.toString();
+        
+        for (MetaParameter metatermParameter : metatermParameters)
+            query += "\n  AND metadata['" + metatermParameter.getKey() + "']" + metatermParameter.toString();
+            
+        final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
+        query += "\n  ORDER BY creation_date DESC"
+            + "\n  SKIP " + startIndex
+            + "\n  LIMIT " + searchParameters.getTop();
+
+        _logger.debug(query);
+        return query;
+    }
+    
+    /**************************************************************************
     * Counter the number of administrative members in the network.
     **************************************************************************/
     private long countAdminMembers(final ORID networkRid) throws NdexException
@@ -883,7 +941,7 @@ public class NetworkService extends NdexService
         for (final Entry<String, Term> termEntry : networkToCreate.getTerms().entrySet())
         {
             final Term term = termEntry.getValue();
-
+            
             if (term.getTermType() == null || term.getTermType().isEmpty() || term.getTermType().equals("Base"))
             {
                 final IBaseTerm newBaseTerm = _orientDbGraph.addVertex("class:baseTerm", IBaseTerm.class);
@@ -900,6 +958,19 @@ public class NetworkService extends NdexService
 
                 newNetwork.addTerm(newBaseTerm);
                 networkIndex.put(newBaseTerm.getJdexId(), newBaseTerm);
+
+                //If the base term is also used as a metaterm, add it now
+                if (networkToCreate.getMetaterms().containsValue(term))
+                {
+                    for (Entry<String, BaseTerm> metaterm : networkToCreate.getMetaterms().entrySet())
+                    {
+                        if (metaterm.equals(term))
+                        {
+                            newNetwork.addMetaterm(metaterm.getKey(), newBaseTerm);
+                            break;
+                        }
+                    }
+                }
             }
             else if (term.getTermType().equals("Function"))
             {
@@ -921,14 +992,8 @@ public class NetworkService extends NdexService
                     }
                     
                 }
+                
                 newFunctionTerm.setTermParameters(iParameters);
-
-                /*
-                 * for (Map.Entry<Integer, String> entry : term
-                 * .getTermParameters().entrySet())
-                 * functionTerm.getTermParameters().put(entry.getKey(), (ITerm)
-                 * networkIndex.get(entry.getValue()));
-                 */
                 newNetwork.addTerm(newFunctionTerm);
                 networkIndex.put(newFunctionTerm.getJdexId(), newFunctionTerm);
             }
@@ -1055,10 +1120,13 @@ public class NetworkService extends NdexService
 
         //Now create the output network
         final Network networkByEdges = new Network();
-        networkByEdges.setFormat(network.getFormat());
-        networkByEdges.setSource(network.getSource());
-        networkByEdges.setTitle(network.getTitle());
-
+        networkByEdges.setDescription(network.getDescription());
+        networkByEdges.setMetadata(network.getMetadata());
+        networkByEdges.setName(network.getName());
+        
+        for (Entry<String, IBaseTerm> metaterm : network.getMetaterms().entrySet())
+            networkByEdges.getMetaterms().put(metaterm.getKey(), new BaseTerm(metaterm.getValue()));
+        
         for (final IEdge edge : foundEdges)
             networkByEdges.getEdges().put(edge.getJdexId(), new Edge(edge));
 
@@ -1093,10 +1161,13 @@ public class NetworkService extends NdexService
         //Now create the output network
         final Network networkByNodes = new Network();
 
-        networkByNodes.setFormat(network.getFormat());
-        networkByNodes.setSource(network.getSource());
-        networkByNodes.setTitle(network.getTitle());
-
+        networkByNodes.setDescription(network.getDescription());
+        networkByNodes.setMetadata(network.getMetadata());
+        networkByNodes.setName(network.getName());
+        
+        for (Entry<String, IBaseTerm> metaterm : network.getMetaterms().entrySet())
+            networkByNodes.getMetaterms().put(metaterm.getKey(), new BaseTerm(metaterm.getValue()));
+        
         for (final INode node : foundINodes)
             networkByNodes.getNodes().put(node.getJdexId(), new Node(node));
 
@@ -1231,5 +1302,35 @@ public class NetworkService extends NdexService
             foundEdges.add(_orientDbGraph.getVertex(edge, IEdge.class));
 
         return foundEdges;
+    }
+
+    /**************************************************************************
+    * Parses metadata and metaterm parameters using the given regex and
+    * removes them from the search parameters. 
+    * 
+    * @param searchParameters
+    *            The search parameters.
+    * @param metaRegex
+    *            The regex pattern to use for parsing parameters.
+    * @return An ArrayList containing the search parameters.
+    **************************************************************************/
+    private ArrayList<MetaParameter> parseMetaParameters(SearchParameters searchParameters, Pattern metaRegex)
+    {
+        final ArrayList<MetaParameter> metadataParameters = new ArrayList<MetaParameter>();
+        final Matcher metadataMatches = metaRegex.matcher(searchParameters.getSearchString());
+        
+        for (int groupIndex = 1; groupIndex < metadataMatches.groupCount(); groupIndex += 4)
+        {
+            metadataParameters.add(new MetaParameter(metadataMatches.group(groupIndex + 1),
+                metadataMatches.group(groupIndex + 2).charAt(0),
+                metadataMatches.group(groupIndex + 3)));
+            
+            searchParameters.setSearchString(searchParameters.getSearchString().replace(metadataMatches.group(groupIndex), ""));
+        }
+        
+        if (metadataParameters.size() > 0)
+            return metadataParameters;
+        else
+            return null;
     }
 }

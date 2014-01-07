@@ -427,16 +427,16 @@ public class GroupService extends NdexService
             else if (!hasPermission(updatedGroup, Permissions.WRITE))
                 throw new SecurityException("Access denied.");
             
-            if (updatedGroup.getDescription() != null && !updatedGroup.getDescription().isEmpty())
+            if (!updatedGroup.getDescription().equals(groupToUpdate.getDescription()))
                 groupToUpdate.setDescription(updatedGroup.getDescription());
             
-            if (updatedGroup.getName() != null && !updatedGroup.getName().isEmpty())
+            if (!updatedGroup.getName().equals(groupToUpdate.getName()))
                 groupToUpdate.setName(updatedGroup.getName());
             
-            if (updatedGroup.getOrganizationName() != null && !updatedGroup.getOrganizationName().isEmpty())
+            if (!updatedGroup.getOrganizationName().equals(groupToUpdate.getOrganizationName()))
                 groupToUpdate.setOrganizationName(updatedGroup.getOrganizationName());
             
-            if (updatedGroup.getWebsite() != null && !updatedGroup.getWebsite().isEmpty())
+            if (!updatedGroup.getWebsite().equals(groupToUpdate.getWebsite()))
                 groupToUpdate.setWebsite(updatedGroup.getWebsite());
             
             _orientDbGraph.getBaseGraph().commit();

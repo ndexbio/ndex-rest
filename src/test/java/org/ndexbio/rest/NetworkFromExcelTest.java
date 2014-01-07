@@ -95,8 +95,8 @@ public class NetworkFromExcelTest
             final HSSFWorkbook excelWorkbook = new HSSFWorkbook(networkFileStream);
     
             final Network networkToCreate = deserializeNetwork(excelWorkbook.getSheetAt(0));
-            networkToCreate.setTitle("Example Protein Interactions");
-            networkToCreate.setSource("Ideker Lab");
+            networkToCreate.setName("Example Protein Interactions");
+            networkToCreate.getMetadata().put("Source", "Ideker Lab");
     
             final Network newNetwork = _networkService.createNetwork(networkToCreate);
             Assert.assertNotNull(newNetwork);
@@ -115,7 +115,7 @@ public class NetworkFromExcelTest
         final Network network = new Network();
         final Iterator<Row> rowIterator = sheet.iterator();
         rowIterator.next();
-        network.setFormat("SIF");
+        network.getMetadata().put("Format", "Excel");
 
         final Map<String, BaseTerm> termMap = new HashMap<String, BaseTerm>();
         final Map<String, Node> nodeMap = new HashMap<String, Node>();
