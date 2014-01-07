@@ -663,25 +663,25 @@ public class UserService extends NdexService
             
             final IUser userToUpdate = _orientDbGraph.getVertex(userRid, IUser.class);
 
-            if (!updatedUser.getBackgroundImage().equals(userToUpdate.getBackgroundImage()))
+            if (updatedUser.getBackgroundImage() != null && !updatedUser.getBackgroundImage().equals(userToUpdate.getBackgroundImage()))
                 userToUpdate.setBackgroundImage(updatedUser.getBackgroundImage());
     
-            if (!updatedUser.getDescription().equals(userToUpdate.getDescription()))
+            if (updatedUser.getDescription() != null && !updatedUser.getDescription().equals(userToUpdate.getDescription()))
                 userToUpdate.setDescription(updatedUser.getDescription());
             
-            if (!updatedUser.getEmailAddress().equals(userToUpdate.getEmailAddress()))
+            if (updatedUser.getEmailAddress() != null && !updatedUser.getEmailAddress().equals(userToUpdate.getEmailAddress()))
                 userToUpdate.setEmailAddress(updatedUser.getEmailAddress());
             
-            if (!updatedUser.getFirstName().equals(userToUpdate.getFirstName()))
+            if (updatedUser.getFirstName() != null && !updatedUser.getFirstName().equals(userToUpdate.getFirstName()))
                 userToUpdate.setFirstName(updatedUser.getFirstName());
     
-            if (!updatedUser.getForegroundImage().equals(userToUpdate.getForegroundImage()))
+            if (updatedUser.getForegroundImage() != null && !updatedUser.getForegroundImage().equals(userToUpdate.getForegroundImage()))
                 userToUpdate.setForegroundImage(updatedUser.getForegroundImage());
     
-            if (!updatedUser.getLastName().equals(userToUpdate.getLastName()))
+            if (updatedUser.getLastName() != null && !updatedUser.getLastName().equals(userToUpdate.getLastName()))
                 userToUpdate.setLastName(updatedUser.getLastName());
     
-            if (!updatedUser.getWebsite().equals(userToUpdate.getWebsite()))
+            if (updatedUser.getWebsite() != null && !updatedUser.getWebsite().equals(userToUpdate.getWebsite()))
                 userToUpdate.setWebsite(updatedUser.getWebsite());
 
             _orientDbGraph.getBaseGraph().commit();

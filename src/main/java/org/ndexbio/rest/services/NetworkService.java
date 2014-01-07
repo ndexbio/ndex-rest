@@ -690,7 +690,7 @@ public class NetworkService extends NdexService
             else if (!hasPermission(updatedNetwork, Permissions.WRITE))
                 throw new SecurityException("Access denied.");
 
-            if (!updatedNetwork.getDescription().equals(networkToUpdate.getDescription()))
+            if (updatedNetwork.getDescription() != null && !updatedNetwork.getDescription().equals(networkToUpdate.getDescription()))
                 networkToUpdate.setDescription(updatedNetwork.getDescription());
 
             if (updatedNetwork.getIsLocked() != networkToUpdate.getIsLocked())
@@ -699,13 +699,13 @@ public class NetworkService extends NdexService
             if (updatedNetwork.getIsPublic() != networkToUpdate.getIsPublic())
                 networkToUpdate.setIsPublic(updatedNetwork.getIsPublic());
             
-            if (!updatedNetwork.getName().equals(networkToUpdate.getName()))
+            if (updatedNetwork.getName() != null && !updatedNetwork.getName().equals(networkToUpdate.getName()))
                 networkToUpdate.setName(updatedNetwork.getName());
             
-            if (!updatedNetwork.getMetadata().equals(networkToUpdate.getMetadata()))
+            if (updatedNetwork.getMetadata() != null && !updatedNetwork.getMetadata().equals(networkToUpdate.getMetadata()))
                 networkToUpdate.setMetadata(updatedNetwork.getMetadata());
             
-            if (!updatedNetwork.getMetaterms().equals(networkToUpdate.getMetaterms()))
+            if (updatedNetwork.getMetaterms() != null && !updatedNetwork.getMetaterms().equals(networkToUpdate.getMetaterms()))
             {
                 for (Entry<String, BaseTerm> metaterm : updatedNetwork.getMetaterms().entrySet())
                 {
