@@ -8,10 +8,10 @@
 	],
 	"metadata":
 	{
-		"format": "JDEX",
-    	"source": "NCI_NATURE",
-    	"company": "Cytoscape Consortium",
-    	"species": "Human"
+		"Format": "JDEX",
+    	"Source": "NCI_NATURE",
+    	"Company": "Cytoscape Consortium",
+    	"Species": "Human"
 	},
     "nodes":
     {

@@ -8,9 +8,9 @@
 	],
 	"metadata":
 	{
-    	"format": "JDEX",
-    	"source": "REACTOME",
-    	"company": "Cytoscape Consortium"
+    	"Format": "JDEX",
+    	"Source": "REACTOME",
+    	"Company": "Cytoscape Consortium"
 	},
     "nodes": {
         "2": {

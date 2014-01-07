@@ -9,8 +9,8 @@
 	], 
 	"metadata":
 	{
-    	"format": "JDEX",
-    	"source": "REACTOME"
+    	"Format": "JDEX",
+    	"Source": "REACTOME"
 	},
     "nodes": {
         "2": {
