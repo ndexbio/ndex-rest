@@ -174,13 +174,10 @@ public class NetworkService extends NdexService
                 membership.setPermissions(Permissions.ADMIN);
                 membership.setMember(networkOwner);
                 membership.setNetwork(network);
-                
-                //networkOwner.addNetwork(membership);
-                //network.addMember(membership);
             }
             else
             {
-                for (Membership member : newNetwork.getMembers())
+                for (final Membership member : newNetwork.getMembers())
                 {
                     final IUser networkMember = _orientDbGraph.getVertex(IdConverter.toRid(member.getResourceId()), IUser.class);
                     
@@ -188,9 +185,6 @@ public class NetworkService extends NdexService
                     membership.setPermissions(member.getPermissions());
                     membership.setMember(networkMember);
                     membership.setNetwork(network);
-        
-                    //networkMember.addNetwork(membership);
-                    //network.addMember(membership);
                 }
             }
 
@@ -962,7 +956,7 @@ public class NetworkService extends NdexService
                 //If the base term is also used as a metaterm, add it now
                 if (networkToCreate.getMetaterms().containsValue(term))
                 {
-                    for (Entry<String, BaseTerm> metaterm : networkToCreate.getMetaterms().entrySet())
+                    for (final Entry<String, BaseTerm> metaterm : networkToCreate.getMetaterms().entrySet())
                     {
                         if (metaterm.equals(term))
                         {
@@ -1124,8 +1118,11 @@ public class NetworkService extends NdexService
         networkByEdges.setMetadata(network.getMetadata());
         networkByEdges.setName(network.getName());
         
-        for (Entry<String, IBaseTerm> metaterm : network.getMetaterms().entrySet())
-            networkByEdges.getMetaterms().put(metaterm.getKey(), new BaseTerm(metaterm.getValue()));
+        if (network.getMetaterms() != null)
+        {
+            for (Entry<String, IBaseTerm> metaterm : network.getMetaterms().entrySet())
+                networkByEdges.getMetaterms().put(metaterm.getKey(), new BaseTerm(metaterm.getValue()));
+        }
         
         for (final IEdge edge : foundEdges)
             networkByEdges.getEdges().put(edge.getJdexId(), new Edge(edge));
@@ -1160,13 +1157,15 @@ public class NetworkService extends NdexService
 
         //Now create the output network
         final Network networkByNodes = new Network();
-
         networkByNodes.setDescription(network.getDescription());
         networkByNodes.setMetadata(network.getMetadata());
         networkByNodes.setName(network.getName());
         
-        for (Entry<String, IBaseTerm> metaterm : network.getMetaterms().entrySet())
-            networkByNodes.getMetaterms().put(metaterm.getKey(), new BaseTerm(metaterm.getValue()));
+        if (network.getMetaterms() != null)
+        {
+            for (Entry<String, IBaseTerm> metaterm : network.getMetaterms().entrySet())
+                networkByNodes.getMetaterms().put(metaterm.getKey(), new BaseTerm(metaterm.getValue()));
+        }
         
         for (final INode node : foundINodes)
             networkByNodes.getNodes().put(node.getJdexId(), new Node(node));
