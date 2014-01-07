@@ -175,8 +175,8 @@ public class NetworkService extends NdexService
                 membership.setMember(networkOwner);
                 membership.setNetwork(network);
                 
-                networkOwner.addNetwork(membership);
-                network.addMember(membership);
+                //networkOwner.addNetwork(membership);
+                //network.addMember(membership);
             }
             else
             {
@@ -189,8 +189,8 @@ public class NetworkService extends NdexService
                     membership.setMember(networkMember);
                     membership.setNetwork(network);
         
-                    networkMember.addNetwork(membership);
-                    network.addMember(membership);
+                    //networkMember.addNetwork(membership);
+                    //network.addMember(membership);
                 }
             }
 
@@ -803,7 +803,7 @@ public class NetworkService extends NdexService
                 processNetworkTask.setStartTime(new Date());
                 processNetworkTask.setStatus(Status.QUEUED);
                 
-                taskOwner.addTask(processNetworkTask);
+                //taskOwner.addTask(processNetworkTask);
                 _orientDbGraph.getBaseGraph().commit();
             }
             else

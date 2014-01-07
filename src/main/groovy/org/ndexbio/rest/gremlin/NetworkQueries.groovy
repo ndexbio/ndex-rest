@@ -10,6 +10,7 @@ import com.tinkerpop.blueprints.impls.orient.OrientVertex
 import com.tinkerpop.gremlin.groovy.Gremlin
 import org.ndexbio.orientdb.gremlin.RepresentationCriteria
 import org.ndexbio.orientdb.gremlin.SearchSpec
+import org.ndexbio.orientdb.gremlin.SearchType
 import org.ndexbio.common.models.object.NetworkQueryParameters
 
 class NetworkQueries {
