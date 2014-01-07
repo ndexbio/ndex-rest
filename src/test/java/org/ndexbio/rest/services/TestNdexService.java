@@ -117,7 +117,7 @@ public abstract class TestNdexService
         if (!matchingGroups.isEmpty())
             return (ORID)_orientDbGraph.getVertex(matchingGroups.get(0)).getId();
 
-        final List<ODocument> matchingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Network where title = '" + objectName + "'"));
+        final List<ODocument> matchingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Network where name = '" + objectName + "'"));
         if (!matchingNetworks.isEmpty())
             return (ORID)_orientDbGraph.getVertex(matchingNetworks.get(0)).getId();
 
