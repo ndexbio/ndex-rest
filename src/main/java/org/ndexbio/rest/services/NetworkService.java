@@ -745,10 +745,8 @@ public class NetworkService extends NdexService
     * Saves an uploaded network file. Determines the type of file uploaded,
     * saves the file, and creates a task.
     * 
-    * @param ownerId
-    *            The ID of the user creating the group.
-    * @param newNetwork
-    *            The network to create.
+    * @param uploadedNetwork
+    *            The uploaded network file.
     * @throws IllegalArgumentException
     *            Bad input.
     * @throws NdexException
@@ -759,7 +757,7 @@ public class NetworkService extends NdexService
     @Path("/upload")
     @Consumes("multipart/form-data")
     @Produces("application/json")
-    public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork, @Context HttpServletRequest httpRequest) throws IllegalArgumentException, SecurityException, NdexException
+    public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork) throws IllegalArgumentException, SecurityException, NdexException
     {
         if (uploadedNetwork == null || uploadedNetwork.getFileData().length < 1)
             throw new IllegalArgumentException("No uploaded network.");
@@ -1318,7 +1316,7 @@ public class NetworkService extends NdexService
         final ArrayList<MetaParameter> metadataParameters = new ArrayList<MetaParameter>();
         final Matcher metadataMatches = metaRegex.matcher(searchParameters.getSearchString());
         
-        for (int groupIndex = 1; groupIndex < metadataMatches.groupCount(); groupIndex += 4)
+        for (int groupIndex = 0; groupIndex < metadataMatches.groupCount(); groupIndex += 4)
         {
             metadataParameters.add(new MetaParameter(metadataMatches.group(groupIndex + 1),
                 metadataMatches.group(groupIndex + 2).charAt(0),
