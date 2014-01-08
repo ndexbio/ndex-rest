@@ -313,7 +313,7 @@ public class NetworkService extends NdexService
         else if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
             throw new IllegalArgumentException("No search string was specified.");
         else
-            searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
+            searchParameters.setSearchString(searchParameters.getSearchString().trim());
 
         final List<Network> foundNetworks = new ArrayList<Network>();
         final String query = buildSearchQuery(searchParameters);
@@ -844,10 +844,10 @@ public class NetworkService extends NdexService
     **************************************************************************/
     private String buildSearchQuery(SearchParameters searchParameters)
     {
-        final Pattern metadataRegex = Pattern.compile("((\\[.+\\])([:~=])(\".+\"))");
+        final Pattern metadataRegex = Pattern.compile("\\[(.+)\\]([:~=])(\".+\")");
         final ArrayList<MetaParameter> metadataParameters = parseMetaParameters(searchParameters, metadataRegex);
         
-        final Pattern metatermRegex = Pattern.compile("(\\<.+\\>[:~=]\".+\")");
+        final Pattern metatermRegex = Pattern.compile("\\<(.+)\\>([:~=])(\".+\")");
         final ArrayList<MetaParameter> metatermParameters = parseMetaParameters(searchParameters, metatermRegex);
 
         //Replace all multiple spaces (left by previous parsing) with a single space
@@ -858,7 +858,7 @@ public class NetworkService extends NdexService
         if (this.getLoggedInUser() != null)
         {
             query += "WHERE (isPublic = true"
-                + "\n  AND out_networkMemberships.out_membershipMember.username = '" + this.getLoggedInUser().getUsername() + "')";
+                + "\n  OR out_networkMemberships.in_accountNetworks.username = '" + this.getLoggedInUser().getUsername() + "')";
         }
         else
             query += "WHERE isPublic = true";
@@ -868,16 +868,16 @@ public class NetworkService extends NdexService
             searchParameters.getSearchString().replace(" -desc", "");
             query += "\n  AND name.toUpperCase() like '" + searchParameters.getSearchString() + "%'";
         }
-        else
+        else if (searchParameters.getSearchString() != null && !searchParameters.getSearchString().isEmpty())
         {
             query += "\n  AND (name.toUpperCase() like '" + searchParameters.getSearchString() + "%'"
                 + "\n  OR description.toUpperCase() like '" + searchParameters.getSearchString() + "%')";
         }
         
-        for (MetaParameter metadataParameter : metadataParameters)
+        for (final MetaParameter metadataParameter : metadataParameters)
             query += "\n  AND metadata['" + metadataParameter.getKey() + "']" + metadataParameter.toString();
         
-        for (MetaParameter metatermParameter : metatermParameters)
+        for (final MetaParameter metatermParameter : metatermParameters)
             query += "\n  AND metadata['" + metatermParameter.getKey() + "']" + metatermParameter.toString();
             
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
@@ -1316,7 +1316,10 @@ public class NetworkService extends NdexService
         final ArrayList<MetaParameter> metadataParameters = new ArrayList<MetaParameter>();
         final Matcher metadataMatches = metaRegex.matcher(searchParameters.getSearchString());
         
-        for (int groupIndex = 0; groupIndex < metadataMatches.groupCount(); groupIndex += 4)
+        if (!metadataMatches.find())
+            return metadataParameters;
+
+        for (int groupIndex = 0; groupIndex < metadataMatches.groupCount(); groupIndex += 3)
         {
             metadataParameters.add(new MetaParameter(metadataMatches.group(groupIndex + 1),
                 metadataMatches.group(groupIndex + 2).charAt(0),
@@ -1325,9 +1328,6 @@ public class NetworkService extends NdexService
             searchParameters.setSearchString(searchParameters.getSearchString().replace(metadataMatches.group(groupIndex), ""));
         }
         
-        if (metadataParameters.size() > 0)
-            return metadataParameters;
-        else
-            return null;
+        return metadataParameters;
     }
 }
