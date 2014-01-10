@@ -239,13 +239,13 @@ public class RequestService extends NdexService
             requestToUpdate.setResponder(updatedRequest.getResponder());
             requestToUpdate.setResponse(updatedRequest.getResponse());
             
-            if (updatedRequest.getResponse() != "DECLINED")
+            if (!updatedRequest.getResponse().equals("DECLINED"))
             {
-                if (updatedRequest.getRequestType() == "Group Invitation")
+                if (updatedRequest.getRequestType().equals("Group Invitation"))
                     processGroupInvitation(updatedRequest);
-                else if (updatedRequest.getRequestType() == "Join Group")
+                else if (updatedRequest.getRequestType().equals("Join Group"))
                     processJoinGroup(updatedRequest);
-                else if (updatedRequest.getRequestType() == "Network Access")
+                else if (updatedRequest.getRequestType().equals("Network Access"))
                     processNetworkAccess(updatedRequest);
             }
             

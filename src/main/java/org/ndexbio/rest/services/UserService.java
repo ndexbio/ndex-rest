@@ -29,6 +29,7 @@ import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.IUser;
+import org.ndexbio.common.models.object.Network;
 import org.ndexbio.common.models.object.NewUser;
 import org.ndexbio.common.models.object.SearchParameters;
 import org.ndexbio.common.models.object.UploadedFile;
@@ -82,10 +83,12 @@ public class UserService extends NdexService
     @PUT
     @Path("/work-surface")
     @Produces("application/json")
-    public void addNetworkToWorkSurface(final String networkId) throws IllegalArgumentException, ObjectNotFoundException, NdexException
+    public Iterable<Network> addNetworkToWorkSurface(String networkId) throws IllegalArgumentException, ObjectNotFoundException, NdexException
     {
         if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("The network to add is empty.");
+        else
+            networkId = networkId.replace("\"", "");
 
         final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
         final ORID networkRid = IdConverter.toRid(networkId);
@@ -112,6 +115,16 @@ public class UserService extends NdexService
 
             user.addNetworkToWorkSurface(network);
             _orientDbGraph.getBaseGraph().commit();
+            
+            final ArrayList<Network> updatedWorkSurface = new ArrayList<Network>();
+            final Iterable<INetwork> onWorkSurface = user.getWorkSurface();
+            if (onWorkSurface != null)
+            {
+                for (INetwork workSurfaceNetwork : onWorkSurface)
+                    updatedWorkSurface.add(new Network(workSurfaceNetwork));
+            }
+            
+            return updatedWorkSurface;
         }
         catch (DuplicateObjectException | ObjectNotFoundException onfe)
         {
@@ -254,7 +267,7 @@ public class UserService extends NdexService
 
             final BufferedImage newImage = ImageIO.read(new ByteArrayInputStream(uploadedImage.getFileData()));
             
-            if (imageType.toLowerCase() == "profile")
+            if (imageType.toLowerCase().equals("profile"))
             {
                 final BufferedImage resizedImage = resizeImage(newImage,
                     Integer.parseInt(Configuration.getInstance().getProperty("Profile-Image-Width")),
@@ -355,7 +368,7 @@ public class UserService extends NdexService
     @DELETE
     @Path("/work-surface/{networkId}")
     @Produces("application/json")
-    public void deleteNetworkFromWorkSurface(@PathParam("networkId")final String networkId) throws IllegalArgumentException, ObjectNotFoundException, NdexException
+    public Iterable<Network> deleteNetworkFromWorkSurface(@PathParam("networkId")final String networkId) throws IllegalArgumentException, ObjectNotFoundException, NdexException
     {
         if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("The network to delete is empty.");
@@ -375,6 +388,16 @@ public class UserService extends NdexService
             
             user.removeNetworkFromWorkSurface(network);
             _orientDbGraph.getBaseGraph().commit();
+            
+            final ArrayList<Network> updatedWorkSurface = new ArrayList<Network>();
+            final Iterable<INetwork> onWorkSurface = user.getWorkSurface();
+            if (onWorkSurface != null)
+            {
+                for (INetwork workSurfaceNetwork : onWorkSurface)
+                    updatedWorkSurface.add(new Network(workSurfaceNetwork));
+            }
+            
+            return updatedWorkSurface;
         }
         catch (ObjectNotFoundException onfe)
         {
