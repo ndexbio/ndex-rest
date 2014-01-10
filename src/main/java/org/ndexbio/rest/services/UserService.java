@@ -675,7 +675,7 @@ public class UserService extends NdexService
     {
         if (updatedUser == null)
             throw new IllegalArgumentException("The updated user is empty.");
-        else if (updatedUser.getId() != this.getLoggedInUser().getId())
+        else if (!updatedUser.getId().equals(this.getLoggedInUser().getId()))
             throw new SecurityException("You cannot update other users.");
         	
         final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
