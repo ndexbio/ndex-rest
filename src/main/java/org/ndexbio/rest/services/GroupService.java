@@ -167,13 +167,13 @@ public class GroupService extends NdexService
             else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
                 throw new SecurityException("Insufficient privileges to delete the group.");
 
-            final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(@rid) from GroupMembership where in_groupMembers = " + groupRid + " and permissions = 'ADMIN'"));
+            final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM GroupMembership WHERE in_groupMembers = " + groupRid + " AND permissions = 'ADMIN'"));
             if (adminCount == null || adminCount.isEmpty())
                 throw new NdexException("Unable to count ADMIN members.");
             else if ((long)adminCount.get(0).field("count") > 1)
                 throw new NdexException("Cannot delete a group that contains other ADMIN members.");
 
-            final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(@rid) from Membership where in_userNetworks = " + groupRid + " and permissions = 'ADMIN'"));
+            final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Membership WHERE in_userNetworks = " + groupRid + " AND permissions = 'ADMIN'"));
             if (adminCount == null || adminCount.isEmpty())
                 throw new NdexException("Unable to query group/network membership.");
             else if ((long)adminNetworks.get(0).field("count") > 1)
@@ -182,7 +182,7 @@ public class GroupService extends NdexService
             for (IGroupMembership groupMembership : groupToDelete.getMembers())
                 _orientDbGraph.removeVertex(groupMembership.asVertex());
 
-            final List<ODocument> groupChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + groupRid + " while @class <> 'user' and @class <> 'group')"));
+            final List<ODocument> groupChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("SELECT @RID FROM (TRAVERSE * FROM " + groupRid + " WHILE @Class <> 'user' and @Class <> 'group')"));
             for (ODocument groupChild : groupChildren)
             {
                 final OrientElement element = _orientDbGraph.getBaseGraph().getElement(groupChild.field("rid", OType.LINK));
@@ -239,24 +239,21 @@ public class GroupService extends NdexService
         final List<Group> foundGroups = new ArrayList<Group>();
         
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
-
-        final String whereClause = " where name.toUpperCase() like '%" + searchParameters.getSearchString()
-            + "%' OR description.toUpperCase() like '%" + searchParameters.getSearchString()
-            + "%' OR organizationName.toUpperCase() like '%" + searchParameters.getSearchString() + "%'";
-
-        final String query = "select from Group " + whereClause + " order by creation_date desc skip " + startIndex + " limit " + searchParameters.getTop();
+        final String query = "SELECT FROM Group\n"
+            + "WHERE name.toLowerCase() LIKE '%" + searchParameters.getSearchString() + "%'\n"
+            + "  OR description.toLowerCase() LIKE '%" + searchParameters.getSearchString() + "%'\n"
+            + "  OR organizationName.toLowerCase() LIKE '%" + searchParameters.getSearchString() + "%'\n"
+            + "ORDER BY creation_date DESC\n"
+            + "SKIP " + startIndex + "\n"
+            + "LIMIT " + searchParameters.getTop();
 
         try
         {
             setupDatabase();
             
-            final List<ODocument> groupDocumentList = _orientDbGraph
-                .getBaseGraph()
-                .getRawGraph()
-                .query(new OSQLSynchQuery<ODocument>(query));
-            
-            for (final ODocument document : groupDocumentList)
-                foundGroups.add(new Group(_orientDbGraph.getVertex(document, IGroup.class)));
+            final List<ODocument> groups = _ndexDatabase.query(new OSQLSynchQuery<ODocument>(query));
+            for (final ODocument group : groups)
+                foundGroups.add(new Group(_orientDbGraph.getVertex(group, IGroup.class)));
     
             return foundGroups;
         }

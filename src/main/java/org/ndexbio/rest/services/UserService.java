@@ -569,30 +569,27 @@ public class UserService extends NdexService
         else if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
             throw new IllegalArgumentException("No search string was specified.");
         else
-            searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
+            searchParameters.setSearchString(searchParameters.getSearchString().toLowerCase().trim());
         
         final List<User> foundUsers = new ArrayList<User>();
         
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
 
-        final String whereClause = " where username.toUpperCase() like '%" + searchParameters.getSearchString()
-                    + "%' OR lastName.toUpperCase() like '%" + searchParameters.getSearchString()
-                    + "%' OR firstName.toUpperCase() like '%" + searchParameters.getSearchString() + "%'";
-
-        final String query = "select from User " + whereClause
-                + " order by creation_date desc skip " + startIndex + " limit " + searchParameters.getTop();
+        final String query = "SELECT FROM User\n"
+            + "WHERE username.toLowerCase() LIKE '%" + searchParameters.getSearchString() + "%'\n"
+            + "  OR lastName.toLowerCase() LIKE '%" + searchParameters.getSearchString() + "%'\n"
+            + "  OR firstName.toLowerCase() LIKE '%" + searchParameters.getSearchString() + "%'\n"            
+            + "ORDER BY creation_date DESC\n"
+            + "SKIP " + startIndex + "\n"
+            + "LIMIT " + searchParameters.getTop();
         
         try
         {
             setupDatabase();
             
-            final List<ODocument> userDocumentList = _orientDbGraph
-                .getBaseGraph()
-                .getRawGraph()
-                .query(new OSQLSynchQuery<ODocument>(query));
-            
-            for (final ODocument document : userDocumentList)
-                foundUsers.add(new User(_orientDbGraph.getVertex(document, IUser.class)));
+            final List<ODocument> users = _ndexDatabase.query(new OSQLSynchQuery<ODocument>(query));
+            for (final ODocument user : users)
+                foundUsers.add(new User(_orientDbGraph.getVertex(user, IUser.class)));
     
             return foundUsers;
         }

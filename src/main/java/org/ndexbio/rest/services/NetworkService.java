@@ -24,6 +24,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+import cern.colt.Arrays;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -322,13 +323,9 @@ public class NetworkService extends NdexService
         {
             setupDatabase();
 
-            final List<ODocument> networkDocumentList = _orientDbGraph
-                .getBaseGraph()
-                .getRawGraph()
-                .query(new OSQLSynchQuery<ODocument>(query));
-
-            for (final ODocument document : networkDocumentList)
-                foundNetworks.add(new Network(_orientDbGraph.getVertex(document, INetwork.class)));
+            final List<ODocument> networks = _ndexDatabase.query(new OSQLSynchQuery<ODocument>(query));
+            for (final ODocument network : networks)
+                foundNetworks.add(new Network(_orientDbGraph.getVertex(network, INetwork.class)));
 
             return foundNetworks;
         }
@@ -391,7 +388,7 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-    * Gets a page of Edges for the specified network, along with the
+    * Gets a page of edges for the specified network, along with the
     * supporting nodes, terms, namespaces, supports, and citations.
     * 
     * @param networkId
@@ -455,6 +452,263 @@ public class NetworkService extends NdexService
         }
     }
 
+    /**************************************************************************
+    * Gets all namespaces in the network that intersect with a list of
+    * namespaces.
+    * 
+    * @param networkId
+    *            The network ID.
+    * @param namespaces
+    *            A list of namespaces being sought.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return The edges of the network.
+    **************************************************************************/
+    @POST
+    @Path("/{networkId}/namespaces")
+    @Produces("application/json")
+    public Iterable<Namespace> getIntersectingNamespaces(@PathParam("networkId")final String networkId, final String namespaces[]) throws IllegalArgumentException, NdexException
+    {
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
+
+        final List<Namespace> foundNamespaces = new ArrayList<Namespace>();
+
+        String joinedNamespaces = "";
+        for (final String namespace : namespaces)
+            joinedNamespaces += "'" + namespace + "',";
+        
+        joinedNamespaces = joinedNamespaces.substring(0, joinedNamespaces.length() - 2);
+
+        final ORID networkRid = IdConverter.toRid(networkId);
+        final String query = "SELECT FROM Namespace\n"
+            + "WHERE in_networkNamespaces = " + networkRid + "\n"
+            + "  AND prefix IN [" + joinedNamespaces + "]\n"
+            + "ORDER BY prefix";
+        
+        try
+        {
+            setupDatabase();
+
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            if (network == null)
+                throw new ObjectNotFoundException("Network", networkId);
+            
+            final List<ODocument> namespacesFound = _ndexDatabase.query(new OSQLSynchQuery<ODocument>(query));
+            for (final ODocument namespace : namespacesFound)
+                foundNamespaces.add(new Namespace(_orientDbGraph.getVertex(namespace, INamespace.class)));
+
+            return foundNamespaces;
+        }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
+        catch (Exception e)
+        {
+            _logger.error("Failed to query network: " + networkId + ".", e);
+            throw new NdexException(e.getMessage());
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+    
+    /**************************************************************************
+    * Gets all terms in the network that intersect with a list of terms.
+    * 
+    * @param networkId
+    *            The network ID.
+    * @param terms
+    *            A list of terms being sought.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return The edges of the network.
+    **************************************************************************/
+    @POST
+    @Path("/{networkId}/terms")
+    @Produces("application/json")
+    public Iterable<BaseTerm> getIntersectingTerms(@PathParam("networkId")final String networkId, final String terms[]) throws IllegalArgumentException, NdexException
+    {
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
+
+        final List<BaseTerm> foundTerms = new ArrayList<BaseTerm>();
+        
+        String joinedTerms = "";
+        for (final String baseTerm : terms)
+            joinedTerms += "'" + baseTerm + "',";
+        
+        joinedTerms = joinedTerms.substring(0, joinedTerms.length() - 2);
+
+        final ORID networkRid = IdConverter.toRid(networkId);
+        final String query = "SELECT FROM BaseTerm\n"
+            + "WHERE in_networkTerms = " + networkRid + "\n"
+            + "  AND name IN [" + joinedTerms + "]\n"
+            + "ORDER BY name";
+        
+        try
+        {
+            setupDatabase();
+
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            if (network == null)
+                throw new ObjectNotFoundException("Network", networkId);
+            
+            final List<ODocument> baseTerms = _ndexDatabase.query(new OSQLSynchQuery<ODocument>(query));
+            for (final ODocument baseTerm : baseTerms)
+                foundTerms.add(new BaseTerm(_orientDbGraph.getVertex(baseTerm, IBaseTerm.class)));
+
+            return foundTerms;
+        }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
+        catch (Exception e)
+        {
+            _logger.error("Failed to query network: " + networkId + ".", e);
+            throw new NdexException(e.getMessage());
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+    
+    /**************************************************************************
+    * Gets a page of namespaces for the specified network.
+    * 
+    * @param networkId
+    *            The network ID.
+    * @param skip
+    *            The number of namespaces to skip.
+    * @param top
+    *            The number of namespaces to retrieve.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return The edges of the network.
+    **************************************************************************/
+    @GET
+    @Path("/{networkId}/namespaces/{skip}/{top}")
+    @Produces("application/json")
+    public Iterable<Namespace> getNamespaces(@PathParam("networkId")final String networkId, @PathParam("skip")final int skip, @PathParam("top")final int top) throws IllegalArgumentException, NdexException
+    {
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
+        else if (top < 1)
+            throw new IllegalArgumentException("Number of results to return is less than 1.");
+
+        final List<Namespace> foundNamespaces = new ArrayList<Namespace>();
+
+        final int startIndex = skip * top;
+        final ORID networkRid = IdConverter.toRid(networkId);
+        final String query = "SELECT FROM Namespace\n"
+            + "WHERE in_networkNamespaces = " + networkRid + "\n"
+            + "ORDER BY prefix\n"
+            + "SKIP " + startIndex + "\n"
+            + "LIMIT " + top;
+        
+        try
+        {
+            setupDatabase();
+
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            if (network == null)
+                throw new ObjectNotFoundException("Network", networkId);
+            
+            final List<ODocument> namespaces = _ndexDatabase.query(new OSQLSynchQuery<ODocument>(query));
+            for (final ODocument namespace : namespaces)
+                foundNamespaces.add(new Namespace(_orientDbGraph.getVertex(namespace, INamespace.class)));
+
+            return foundNamespaces;
+        }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
+        catch (Exception e)
+        {
+            _logger.error("Failed to query network: " + networkId + ".", e);
+            throw new NdexException(e.getMessage());
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+
+    /**************************************************************************
+    * Gets a page of terms for the specified network.
+    * 
+    * @param networkId
+    *            The network ID.
+    * @param skip
+    *            The number of terms to skip.
+    * @param top
+    *            The number of terms to retrieve.
+    * @throws IllegalArgumentException
+    *            Bad input.
+    * @throws NdexException
+    *            Failed to query the database.
+    * @return The edges of the network.
+    **************************************************************************/
+    @GET
+    @Path("/{networkId}/terms/{skip}/{top}")
+    @Produces("application/json")
+    public Iterable<BaseTerm> getTerms(@PathParam("networkId")final String networkId, @PathParam("skip")final int skip, @PathParam("top")final int top) throws IllegalArgumentException, NdexException
+    {
+        if (networkId == null || networkId.isEmpty())
+            throw new IllegalArgumentException("No network ID was specified.");
+        else if (top < 1)
+            throw new IllegalArgumentException("Number of results to return is less than 1.");
+
+        final List<BaseTerm> foundTerms = new ArrayList<BaseTerm>();
+
+        final int startIndex = skip * top;
+        final ORID networkRid = IdConverter.toRid(networkId);
+        final String query = "SELECT FROM BaseTerm\n"
+            + "WHERE in_networkTerms = " + networkRid + "\n"
+            + "ORDER BY name\n"
+            + "SKIP " + startIndex + "\n"
+            + "LIMIT " + top;
+        
+        try
+        {
+            setupDatabase();
+
+            final INetwork network = _orientDbGraph.getVertex(networkRid, INetwork.class);
+            if (network == null)
+                throw new ObjectNotFoundException("Network", networkId);
+            
+            final List<ODocument> baseTerms = _ndexDatabase.query(new OSQLSynchQuery<ODocument>(query));
+            for (final ODocument baseTerm : baseTerms)
+                foundTerms.add(new BaseTerm(_orientDbGraph.getVertex(baseTerm, IBaseTerm.class)));
+
+            return foundTerms;
+        }
+        catch (ObjectNotFoundException onfe)
+        {
+            throw onfe;
+        }
+        catch (Exception e)
+        {
+            _logger.error("Failed to query network: " + networkId + ".", e);
+            throw new NdexException(e.getMessage());
+        }
+        finally
+        {
+            teardownDatabase();
+        }
+    }
+    
     /**************************************************************************
     * Gets a subnetwork network based on network query parameters.
     * 
@@ -782,8 +1036,8 @@ public class NetworkService extends NdexService
             
             final IUser taskOwner = _orientDbGraph.getVertex(IdConverter.toRid(this.getLoggedInUser().getId()), IUser.class);
             
-            if (uploadedNetwork.getFilename().endsWith(".sif") || uploadedNetwork.getFilename().endsWith(".xbel") ||
-                uploadedNetwork.getFilename().endsWith(".xls") || uploadedNetwork.getFilename().endsWith(".xlsx"))
+            if (uploadedNetwork.getFilename().toLowerCase().endsWith(".sif") || uploadedNetwork.getFilename().toLowerCase().endsWith(".xbel") ||
+                uploadedNetwork.getFilename().toLowerCase().endsWith(".xls") || uploadedNetwork.getFilename().toLowerCase().endsWith(".xlsx"))
             {
                 ITask processNetworkTask = _orientDbGraph.addVertex("class:network", ITask.class);
                 processNetworkTask.setDescription("Process uploaded network");
@@ -851,39 +1105,40 @@ public class NetworkService extends NdexService
         final ArrayList<MetaParameter> metatermParameters = parseMetaParameters(searchParameters, metatermRegex);
 
         //Replace all multiple spaces (left by previous parsing) with a single space
-        searchParameters.setSearchString(searchParameters.getSearchString().replace("  ", " ").trim());
+        searchParameters.setSearchString(searchParameters.getSearchString().replace("  ", " ").toLowerCase().trim());
         
         String query = "SELECT FROM Network\n";
         
         if (this.getLoggedInUser() != null)
         {
-            query += "WHERE (isPublic = true"
-                + "\n  OR out_networkMemberships.in_accountNetworks.username = '" + this.getLoggedInUser().getUsername() + "')";
+            query += "WHERE (isPublic = true\n"
+                + "  OR out_networkMemberships.in_accountNetworks.username = '" + this.getLoggedInUser().getUsername() + "')\n";
         }
         else
-            query += "WHERE isPublic = true";
+            query += "WHERE isPublic = true\n";
 
         if (searchParameters.getSearchString().contains("-desc"))
         {
             searchParameters.getSearchString().replace(" -desc", "");
-            query += "\n  AND name.toUpperCase() like '" + searchParameters.getSearchString() + "%'";
+            query += "  AND name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%'\n";
         }
-        else if (searchParameters.getSearchString() != null && !searchParameters.getSearchString().isEmpty())
+        
+        if (searchParameters.getSearchString() != null && !searchParameters.getSearchString().isEmpty())
         {
-            query += "\n  AND (name.toUpperCase() like '" + searchParameters.getSearchString() + "%'"
-                + "\n  OR description.toUpperCase() like '" + searchParameters.getSearchString() + "%')";
+            query += "  AND (name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%'\n"
+                + "  OR description.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%')\n";
         }
         
         for (final MetaParameter metadataParameter : metadataParameters)
-            query += "\n  AND metadata['" + metadataParameter.getKey() + "']" + metadataParameter.toString();
+            query += "  AND metadata['" + metadataParameter.getKey() + "']" + metadataParameter.toString() + "\n";
         
         for (final MetaParameter metatermParameter : metatermParameters)
-            query += "\n  AND metadata['" + metatermParameter.getKey() + "']" + metatermParameter.toString();
+            query += "  AND metadata['" + metatermParameter.getKey() + "']" + metatermParameter.toString() + "\n";
             
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
-        query += "\n  ORDER BY creation_date DESC"
-            + "\n  SKIP " + startIndex
-            + "\n  LIMIT " + searchParameters.getTop();
+        query += "ORDER BY creation_date DESC\n"
+            + "SKIP " + startIndex + "\n"
+            + "LIMIT " + searchParameters.getTop();
 
         _logger.debug(query);
         return query;
@@ -940,7 +1195,7 @@ public class NetworkService extends NdexService
                 newBaseTerm.setName(((BaseTerm)term).getName());
                 newBaseTerm.setJdexId(termEntry.getKey());
 
-                String jdexId = ((BaseTerm)term).getNamespace();
+                String jdexId = ((BaseTerm)term).getNamespace().getJdexId();
                 if (jdexId != null && !jdexId.isEmpty())
                 {
                     final VertexFrame namespace = networkIndex.get(jdexId);
