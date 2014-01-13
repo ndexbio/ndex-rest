@@ -1080,8 +1080,7 @@ public class NetworkService extends NdexService
                 
                 for (ITerm iterm : ((IFunctionTerm) term).getTermParameters())
                 {
-                	if (iterm instanceof IFunctionTerm)
-                		 addTermAndFunctionalDependencies((IFunctionTerm) iterm, terms);
+                	addTermAndFunctionalDependencies(iterm, terms);
                 }
             }
         }
