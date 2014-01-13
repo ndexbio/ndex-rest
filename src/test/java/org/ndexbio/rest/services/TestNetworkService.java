@@ -1,7 +1,9 @@
 package org.ndexbio.rest.services;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import com.orientechnologies.orient.core.id.ORID;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -9,19 +11,18 @@ import org.junit.runners.MethodSorters;
 import org.ndexbio.common.exceptions.DuplicateObjectException;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
+import org.ndexbio.common.models.object.BaseTerm;
 import org.ndexbio.common.models.object.Membership;
 import org.ndexbio.common.models.object.Network;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.common.models.object.SearchParameters;
 import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.Permissions;
-import com.orientechnologies.orient.core.id.ORID;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class TestNetworkService extends TestNdexService
 {
     private static final NetworkService _networkService = new NetworkService(_mockRequest);
-    
     
     
     
@@ -214,7 +215,24 @@ public class TestNetworkService extends TestNdexService
             e.printStackTrace();
         }
     }
-
+    
+    @Test
+    public void getIntersectingTerms() throws IllegalArgumentException, NdexException
+    {
+        final ORID networkRid = getRid("NCI_NATURE:FoxO family signaling");
+        final Iterable<BaseTerm> intersectingTerms = _networkService.getIntersectingTerms(IdConverter.toJid(networkRid), new String[] { "GDP", "GTP", "RAL", "RFP" });
+        
+        int termCount = 0;
+        final Iterator<BaseTerm> termIterator = intersectingTerms.iterator();
+        while (termIterator.hasNext())
+        {
+            termCount++;
+            termIterator.next();
+        }
+        
+        Assert.assertEquals(termCount, 3);
+    }
+    
     @Test
     public void getNamespaces()
     {
