@@ -256,7 +256,7 @@ public class NetworkService extends NdexService
             final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Membership WHERE in_members = " + networkRid + " AND permissions = 'ADMIN'"));
             if (adminCount == null || adminCount.isEmpty())
                 throw new NdexException("Unable to count ADMIN members.");
-            else if ((long)adminCount.get(0).field("count") > 1)
+            else if ((long)adminCount.get(0).field("COUNT") > 1)
                 throw new NdexException("Cannot delete a network that contains other ADMIN members.");
 
             for (INetworkMembership networkMembership : networkToDelete.getMembers())
@@ -1159,7 +1159,7 @@ public class NetworkService extends NdexService
         if (adminCount == null || adminCount.isEmpty())
             throw new NdexException("Unable to count ADMIN members.");
         
-        return (long)adminCount.get(0).field("count");
+        return (long)adminCount.get(0).field("COUNT");
     }
     
     /**************************************************************************

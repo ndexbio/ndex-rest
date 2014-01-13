@@ -85,7 +85,7 @@ public class RequestService extends NdexService
             final List<ODocument> existingRequests = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Request WHERE out_fromUser = " + fromRid.toString() + " AND (out_toNetwork = " + toRid.toString() + " OR out_toGroup = " + toRid.toString() + ")"));
             if (existingRequests == null || existingRequests.isEmpty())
                 throw new NdexException("Unable to get request count.");
-            else if ((long)existingRequests.get(0).field("count") > 0)
+            else if ((long)existingRequests.get(0).field("COUNT") > 0)
                 throw new DuplicateObjectException("You have already made that request and cannot make another.");
             
             if (newRequest.getRequestType().equals("Group Invitation"))

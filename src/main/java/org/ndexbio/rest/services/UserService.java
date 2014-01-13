@@ -436,13 +436,13 @@ public class UserService extends NdexService
             final List<ODocument> adminGroups = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Membership WHERE in_groups = " + userRid + " AND permissions = 'ADMIN'"));
             if (adminGroups == null || adminGroups.isEmpty())
                 throw new NdexException("Unable to query user/group membership.");
-            else if ((long)adminGroups.get(0).field("count") > 1)
+            else if ((long)adminGroups.get(0).field("COUNT") > 1)
                 throw new NdexException("Cannot delete a user that is an ADMIN member of any group.");
 
             final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Membership WHERE in_networks = " + userRid + " AND permissions = 'ADMIN'"));
             if (adminNetworks == null || adminNetworks.isEmpty())
                 throw new NdexException("Unable to query user/network membership.");
-            else if ((long)adminNetworks.get(0).field("count") > 1)
+            else if ((long)adminNetworks.get(0).field("COUNT") > 1)
                 throw new NdexException("Cannot delete a user that is an ADMIN member of any network.");
 
             final List<ODocument> userChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("SELECT @RID FROM (TRAVERSE * FROM " + userRid + " WHILE @class <> 'user')"));

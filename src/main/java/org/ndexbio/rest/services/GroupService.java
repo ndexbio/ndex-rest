@@ -170,13 +170,13 @@ public class GroupService extends NdexService
             final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM GroupMembership WHERE in_groupMembers = " + groupRid + " AND permissions = 'ADMIN'"));
             if (adminCount == null || adminCount.isEmpty())
                 throw new NdexException("Unable to count ADMIN members.");
-            else if ((long)adminCount.get(0).field("count") > 1)
+            else if ((long)adminCount.get(0).field("COUNT") > 1)
                 throw new NdexException("Cannot delete a group that contains other ADMIN members.");
 
             final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Membership WHERE in_userNetworks = " + groupRid + " AND permissions = 'ADMIN'"));
             if (adminCount == null || adminCount.isEmpty())
                 throw new NdexException("Unable to query group/network membership.");
-            else if ((long)adminNetworks.get(0).field("count") > 1)
+            else if ((long)adminNetworks.get(0).field("COUNT") > 1)
                 throw new NdexException("Cannot delete a group that is an ADMIN member of any network.");
 
             for (IGroupMembership groupMembership : groupToDelete.getMembers())
@@ -545,7 +545,7 @@ public class GroupService extends NdexService
         if (adminCount == null || adminCount.isEmpty())
             throw new NdexException("Unable to count ADMIN members.");
         
-        return (long)adminCount.get(0).field("count");
+        return (long)adminCount.get(0).field("COUNT");
     }
     
     /**************************************************************************
