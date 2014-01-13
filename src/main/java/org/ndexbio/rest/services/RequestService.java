@@ -82,7 +82,7 @@ public class RequestService extends NdexService
         {
             setupDatabase();
             
-            final List<ODocument> existingRequests = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Request where out_fromUser = " + fromRid.toString() + " and (out_toNetwork = " + toRid.toString() + " or out_toGroup = " + toRid.toString() + ")"));
+            final List<ODocument> existingRequests = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Request WHERE out_fromUser = " + fromRid.toString() + " AND (out_toNetwork = " + toRid.toString() + " OR out_toGroup = " + toRid.toString() + ")"));
             if (existingRequests == null || existingRequests.isEmpty())
                 throw new NdexException("Unable to get request count.");
             else if ((long)existingRequests.get(0).field("count") > 0)

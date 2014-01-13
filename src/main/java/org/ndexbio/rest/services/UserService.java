@@ -433,19 +433,19 @@ public class UserService extends NdexService
             
             final IUser userToDelete = _orientDbGraph.getVertex(userRid, IUser.class);
             
-            final List<ODocument> adminGroups = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_groups = ? and permissions = 'ADMIN'"));
+            final List<ODocument> adminGroups = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Membership WHERE in_groups = " + userRid + " AND permissions = 'ADMIN'"));
             if (adminGroups == null || adminGroups.isEmpty())
                 throw new NdexException("Unable to query user/group membership.");
             else if ((long)adminGroups.get(0).field("count") > 1)
                 throw new NdexException("Cannot delete a user that is an ADMIN member of any group.");
 
-            final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_networks = ? and permissions = 'ADMIN'"));
+            final List<ODocument> adminNetworks = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Membership WHERE in_networks = " + userRid + " AND permissions = 'ADMIN'"));
             if (adminNetworks == null || adminNetworks.isEmpty())
                 throw new NdexException("Unable to query user/network membership.");
             else if ((long)adminNetworks.get(0).field("count") > 1)
                 throw new NdexException("Cannot delete a user that is an ADMIN member of any network.");
 
-            final List<ODocument> userChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + userRid + " while @class <> 'user')"));
+            final List<ODocument> userChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("SELECT @RID FROM (TRAVERSE * FROM " + userRid + " WHILE @class <> 'user')"));
             for (ODocument userChild : userChildren)
             {
                 final ORID childId = userChild.field("rid", OType.LINK);
@@ -637,7 +637,7 @@ public class UserService extends NdexService
         catch (IllegalArgumentException ae)
         {
             //The user ID is actually a username
-            final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + userId + "'"));
+            final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("SELECT FROM User WHERE username = '" + userId + "'"));
             if (!matchingUsers.isEmpty())
                 return new User(_orientDbGraph.getVertex(matchingUsers.get(0), IUser.class), true);
         }

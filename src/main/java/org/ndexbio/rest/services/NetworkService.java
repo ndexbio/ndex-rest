@@ -155,7 +155,7 @@ public class NetworkService extends NdexService
 
             final IUser networkOwner = _orientDbGraph.getVertex(IdConverter.toRid(this.getLoggedInUser().getId()), IUser.class);
             
-            final List<ODocument> existingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @RID from Network where out_networkMemberships.out_membershipMember.username = '"
+            final List<ODocument> existingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("SELECT @RID FROM Network WHERE out_networkMemberships.out_membershipMember.username = '"
                 + networkOwner.getUsername() + "' and title = '" + newNetwork.getName() + "'"));
             if (!existingNetworks.isEmpty())
                 throw new DuplicateObjectException("You already have a network titled: " + newNetwork.getName());
@@ -254,7 +254,7 @@ public class NetworkService extends NdexService
             else if (!hasPermission(new Network(networkToDelete), Permissions.ADMIN))
                 throw new SecurityException("Insufficient privileges to delete the group.");
 
-            final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(*) from Membership where in_members = ? and permissions = 'ADMIN'"));
+            final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Membership WHERE in_members = " + networkRid + " AND permissions = 'ADMIN'"));
             if (adminCount == null || adminCount.isEmpty())
                 throw new NdexException("Unable to count ADMIN members.");
             else if ((long)adminCount.get(0).field("count") > 1)
@@ -263,7 +263,7 @@ public class NetworkService extends NdexService
             for (INetworkMembership networkMembership : networkToDelete.getMembers())
                 _orientDbGraph.removeVertex(networkMembership.asVertex());
 
-            final List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("select @rid from (traverse * from " + networkRid + " while @class <> 'network' and @class <> 'user' and @class <> 'group')"));
+            final List<ODocument> networkChildren = _ndexDatabase.query(new OSQLSynchQuery<Object>("SELECT @RID FROM (TRAVERSE * FROM " + networkRid + " WHILE @class <> 'network' AND @class <> 'user' AND @class <> 'group')"));
             for (ODocument networkChild : networkChildren)
             {
                 final OrientElement element = _orientDbGraph.getBaseGraph().getElement(networkChild.field("rid", OType.LINK));
@@ -1090,7 +1090,11 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-    * Builds the SQL for the query to find networks.
+    * Builds the SQL for the query to find networks. Note: just because a
+    * query works in the OrientDB console, doesn't mean it'll work in the Java
+    * query parser. The parsers are different or the Java parser has bugs as
+    * of January 2014. If you use line breaks to format the query, make sure
+    * to put a space after ending parentheses.
     * 
     * @param searchParameters
     *            The search parameters. 
@@ -1111,8 +1115,8 @@ public class NetworkService extends NdexService
         
         if (this.getLoggedInUser() != null)
         {
-            query += "WHERE (isPublic = true\n"
-                + "  OR out_networkMemberships.in_accountNetworks.username = '" + this.getLoggedInUser().getUsername() + "')\n";
+            query += "WHERE (isPublic = true"
+                + " OR out_networkMemberships.in_accountNetworks.username = '" + this.getLoggedInUser().getUsername() + "') \n";
         }
         else
             query += "WHERE isPublic = true\n";
@@ -1122,11 +1126,14 @@ public class NetworkService extends NdexService
             searchParameters.getSearchString().replace(" -desc", "");
             query += "  AND name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%'\n";
         }
+
+        if (searchParameters.getSearchString().contains("term:"))
+            query += parseTermParameters(searchParameters);
         
         if (searchParameters.getSearchString() != null && !searchParameters.getSearchString().isEmpty())
         {
-            query += "  AND (name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%'\n"
-                + "  OR description.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%')\n";
+            query += "  AND (name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%'"
+                + " OR description.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%') \n";
         }
         
         for (final MetaParameter metadataParameter : metadataParameters)
@@ -1136,7 +1143,7 @@ public class NetworkService extends NdexService
             query += "  AND metadata['" + metatermParameter.getKey() + "']" + metatermParameter.toString() + "\n";
             
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
-        query += "ORDER BY creation_date DESC\n"
+        query += "ORDER BY name DESC\n"
             + "SKIP " + startIndex + "\n"
             + "LIMIT " + searchParameters.getTop();
 
@@ -1149,7 +1156,7 @@ public class NetworkService extends NdexService
     **************************************************************************/
     private long countAdminMembers(final ORID networkRid) throws NdexException
     {
-        final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(@rid) from NetworkMembership where in_userNetworks = " + networkRid + " and permissions = 'ADMIN'"));
+        final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM NetworkMembership WHERE in_userNetworks = " + networkRid + " AND permissions = 'ADMIN'"));
         if (adminCount == null || adminCount.isEmpty())
             throw new NdexException("Unable to count ADMIN members.");
         
@@ -1566,7 +1573,7 @@ public class NetworkService extends NdexService
     *            The regex pattern to use for parsing parameters.
     * @return An ArrayList containing the search parameters.
     **************************************************************************/
-    private ArrayList<MetaParameter> parseMetaParameters(SearchParameters searchParameters, Pattern metaRegex)
+    private ArrayList<MetaParameter> parseMetaParameters(final SearchParameters searchParameters, final Pattern metaRegex)
     {
         final ArrayList<MetaParameter> metadataParameters = new ArrayList<MetaParameter>();
         final Matcher metadataMatches = metaRegex.matcher(searchParameters.getSearchString());
@@ -1584,5 +1591,33 @@ public class NetworkService extends NdexService
         }
         
         return metadataParameters;
+    }
+    
+    /**************************************************************************
+    * Parses (base) terms from the search parameters. 
+    * 
+    * @param searchParameters
+    *            The search parameters.
+    * @return A string containing additional SQL to add to the WHERE clause.
+    **************************************************************************/
+    private String parseTermParameters(final SearchParameters searchParameters)
+    {
+        final Pattern termRegex = Pattern.compile("term:\\{(.+)\\}");
+        final Matcher termMatcher = termRegex.matcher(searchParameters.getSearchString());
+        
+        if (termMatcher.find())
+        {
+            final String namespaceAndTerm[] = termMatcher.group(1).split(":");
+            if (namespaceAndTerm.length != 2)
+                throw new IllegalArgumentException("Error parsing terms from: \"" + termMatcher.group(0) + "\".");
+            
+            searchParameters.setSearchString(searchParameters.getSearchString().replace(termMatcher.group(0), ""));
+            
+            return "  AND @RID IN (SELECT in_networkTerms FROM (TRAVERSE out_networkTerms FROM Network) \n"
+                + "    WHERE out_baseTermNamespace.prefix.toLowerCase() = '" + namespaceAndTerm[0].trim().toLowerCase() + "'"
+                + " AND name.toLowerCase() = '" + namespaceAndTerm[1].trim().toLowerCase() + "') \n";
+        }
+        
+        return null;
     }
 }
