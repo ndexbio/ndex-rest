@@ -234,7 +234,7 @@ public class GroupService extends NdexService
         else if (searchParameters.getSearchString() == null || searchParameters.getSearchString().isEmpty())
             throw new IllegalArgumentException("No search string was specified.");
         else
-            searchParameters.setSearchString(searchParameters.getSearchString().toUpperCase().trim());
+            searchParameters.setSearchString(searchParameters.getSearchString().toLowerCase().trim());
         
         final List<Group> foundGroups = new ArrayList<Group>();
         
@@ -300,7 +300,7 @@ public class GroupService extends NdexService
         catch (IllegalArgumentException iae)
         {
             //The group ID is actually a group name
-            final List<ODocument> matchingGroups = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Group where name = '" + groupId + "'"));
+            final List<ODocument> matchingGroups = _ndexDatabase.query(new OSQLSynchQuery<Object>("SELECT FROM Group WHERE name = '" + groupId + "'"));
             if (!matchingGroups.isEmpty())
                 return new Group(_orientDbGraph.getVertex(matchingGroups.get(0), IGroup.class), true);
         }
@@ -541,7 +541,7 @@ public class GroupService extends NdexService
     **************************************************************************/
     private long countAdminMembers(final ORID groupRid) throws NdexException
     {
-        final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("select count(@rid) from GroupMembership where in_groupMembers = " + groupRid + " and permissions = 'ADMIN'"));
+        final List<ODocument> adminCount = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM GroupMembership WHERE in_groupMembers = " + groupRid + " AND permissions = 'ADMIN'"));
         if (adminCount == null || adminCount.isEmpty())
             throw new NdexException("Unable to count ADMIN members.");
         

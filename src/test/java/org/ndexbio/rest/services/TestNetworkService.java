@@ -122,7 +122,8 @@ public class TestNetworkService extends TestNdexService
         
         try
         {
-            _networkService.findNetworks(searchParameters);
+            final List<Network> networksFound = _networkService.findNetworks(searchParameters);
+            Assert.assertTrue(networksFound.size() > 0);
         }
         catch (Exception e)
         {
@@ -141,8 +142,28 @@ public class TestNetworkService extends TestNdexService
         
         try
         {
-            List<Network> networksFound = _networkService.findNetworks(searchParameters);
+            final List<Network> networksFound = _networkService.findNetworks(searchParameters);
             Assert.assertTrue(networksFound.size() == 2);
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    @Test
+    public void findNetworksByTerm()
+    {
+        final SearchParameters searchParameters = new SearchParameters();
+        searchParameters.setSearchString("term:{bel:pathology}");
+        searchParameters.setSkip(0);
+        searchParameters.setTop(25);
+        
+        try
+        {
+            final List<Network> networksFound = _networkService.findNetworks(searchParameters);
+            Assert.assertTrue(networksFound.size() > 0);
         }
         catch (Exception e)
         {
@@ -186,6 +207,36 @@ public class TestNetworkService extends TestNdexService
         {
             final ORID networkRid = getRid("NCI_NATURE:FoxO family signaling");
             _networkService.getEdges(IdConverter.toJid(networkRid), 0, 25);
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void getNamespaces()
+    {
+        try
+        {
+            final ORID networkRid = getRid("NCI_NATURE:FoxO family signaling");
+            _networkService.getNamespaces(IdConverter.toJid(networkRid), 0, 25);
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void getTerms()
+    {
+        try
+        {
+            final ORID networkRid = getRid("NCI_NATURE:FoxO family signaling");
+            _networkService.getTerms(IdConverter.toJid(networkRid), 0, 25);
         }
         catch (Exception e)
         {
