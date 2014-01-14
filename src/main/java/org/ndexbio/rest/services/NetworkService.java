@@ -304,9 +304,9 @@ public class NetworkService extends NdexService
     **************************************************************************/
     @POST
     @PermitAll
-    @Path("/search")
+    @Path("/search/{searchOperator}")
     @Produces("application/json")
-    public List<Network> findNetworks(SearchParameters searchParameters) throws IllegalArgumentException, NdexException
+    public List<Network> findNetworks(final SearchParameters searchParameters, @PathParam("searchOperator")final String searchOperator) throws IllegalArgumentException, NdexException
     {
         if (searchParameters == null)
             throw new IllegalArgumentException("Search Parameters are empty.");
@@ -316,7 +316,7 @@ public class NetworkService extends NdexService
             searchParameters.setSearchString(searchParameters.getSearchString().trim());
 
         final List<Network> foundNetworks = new ArrayList<Network>();
-        final String query = buildSearchQuery(searchParameters);
+        final String query = buildSearchQuery(searchParameters, searchOperator);
 
         try
         {
@@ -1094,10 +1094,12 @@ public class NetworkService extends NdexService
     * to put a space after ending parentheses.
     * 
     * @param searchParameters
-    *            The search parameters. 
+    *            The search parameters.
+    * @param searchOperator
+    *            The operator used for the default search.
     * @return A string containing the SQL query.
     **************************************************************************/
-    private String buildSearchQuery(SearchParameters searchParameters)
+    private String buildSearchQuery(final SearchParameters searchParameters, final String searchOperator)
     {
         final Pattern metadataRegex = Pattern.compile("\\[(.+)\\]([:~=])(\".+\")");
         final ArrayList<MetaParameter> metadataParameters = parseMetaParameters(searchParameters, metadataRegex);
@@ -1129,8 +1131,21 @@ public class NetworkService extends NdexService
         
         if (searchParameters.getSearchString() != null && !searchParameters.getSearchString().isEmpty())
         {
-            query += "  AND (name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%'"
-                + " OR description.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%') \n";
+            if (searchOperator.equals("exact-match"))
+            {
+                query += "  AND (name.toLowerCase() = '" + searchParameters.getSearchString() + "'"
+                    + " OR description.toLowerCase() = '" + searchParameters.getSearchString() + "') \n";
+            }
+            else if (searchOperator.equals("contains"))
+            {
+                query += "  AND (name.toLowerCase() LIKE '%" + searchParameters.getSearchString() + "%'"
+                    + " OR description.toLowerCase() LIKE '%" + searchParameters.getSearchString() + "%') \n";
+            }
+            else
+            {
+                query += "  AND (name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%'"
+                    + " OR description.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%') \n";
+            }
         }
         
         for (final MetaParameter metadataParameter : metadataParameters)
