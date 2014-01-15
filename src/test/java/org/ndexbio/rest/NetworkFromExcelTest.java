@@ -160,9 +160,9 @@ public class NetworkFromExcelTest
     private void createEdge(Node subjectNode, Term predicate, Node objectNode, Network network)
     {
         final Edge newEdge = new Edge();
-        newEdge.setObjectId(objectNode.getId());
-        newEdge.setPredicateId(predicate.getId());
-        newEdge.setSubjectId(subjectNode.getId());
+        newEdge.setO(objectNode.getId());
+        newEdge.setP(predicate.getId());
+        newEdge.setS(subjectNode.getId());
         
         _jdexId++;
         newEdge.setId(_jdexId.toString());

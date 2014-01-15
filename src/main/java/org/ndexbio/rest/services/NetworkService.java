@@ -190,17 +190,20 @@ public class NetworkService extends NdexService
             }
 
             //Namespaces must be created first since they can be referenced by
-            //terms
+            //terms.
             createNamespaces(network, newNetwork, networkIndex);
 
             //Terms must be created second since they reference other terms
             //and are also referenced by nodes/edges.
             createTerms(network, newNetwork, networkIndex);
+            
+            //Supports and citations must be created next as they're
+            //referenced by nodes/edges.
+            createSupports(network, newNetwork, networkIndex);
+            createCitations(network, newNetwork, networkIndex);
 
             createNodes(network, newNetwork, networkIndex);
             createEdges(network, newNetwork, networkIndex);
-            createCitations(network, newNetwork, networkIndex);
-            createSupports(network, newNetwork, networkIndex);
 
             _orientDbGraph.getBaseGraph().commit();
 
@@ -1176,6 +1179,59 @@ public class NetworkService extends NdexService
         
         return (long)adminCount.get(0).field("COUNT");
     }
+
+    private void createCitations(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
+    {
+        for (final Entry<String, Citation> citationEntry : networkToCreate.getCitations().entrySet())
+        {
+            final Citation citation = citationEntry.getValue();
+
+            final ICitation newCitation = _orientDbGraph.addVertex("class:citation", ICitation.class);
+            newCitation.setJdexId(citationEntry.getKey());
+            newCitation.setTitle(citation.getTitle());
+            newCitation.setIdentifier(citation.getIdentifier());
+            newCitation.setType(citation.getType());
+            newCitation.setContributors(citation.getContributors());
+            
+            for (final Support support : citation.getSupports())
+                newCitation.addSupport((ISupport)networkIndex.get(support.getId()));
+
+            newNetwork.addCitation(newCitation);
+            networkIndex.put(newCitation.getJdexId(), newCitation);
+        }
+    }
+
+    private void createEdges(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
+    {
+        int edgeCount = 0;
+
+        for (final Entry<String, Edge> edgeEntry : networkToCreate.getEdges().entrySet())
+        {
+            final Edge edgeToCreate = edgeEntry.getValue();
+            
+            final IEdge newEdge = _orientDbGraph.addVertex("class:edge", IEdge.class);
+            newEdge.setJdexId(edgeEntry.getKey());
+            
+            edgeCount++;
+
+            final INode subjectNode = (INode) networkIndex.get(edgeToCreate.getS());
+            newEdge.setSubject(subjectNode);
+            
+            final IBaseTerm predicateTerm = (IBaseTerm) networkIndex.get(edgeToCreate.getP());
+            newEdge.setPredicate(predicateTerm);
+            
+            final INode objectNode = (INode) networkIndex.get(edgeToCreate.getO());
+            newEdge.setObject(objectNode);
+            
+            for (final String citationId : edgeToCreate.getCitations())
+                newEdge.addCitation((ICitation)networkIndex.get(citationId));
+
+            newNetwork.addNdexEdge(newEdge);
+            networkIndex.put(newEdge.getJdexId(), newEdge);
+        }
+        
+        newNetwork.setNdexEdgeCount(edgeCount);
+    }
     
     /**************************************************************************
     * Maps namespaces from network model object to namespaces in the network
@@ -1195,6 +1251,42 @@ public class NetworkService extends NdexService
             newNamespace.setUri(namespace.getUri());
             newNetwork.addNamespace(newNamespace);
             networkIndex.put(namespace.getJdexId(), newNamespace);
+        }
+    }
+
+    private void createNodes(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
+    {
+        int nodeCount = 0;
+
+        for (final Entry<String, Node> nodeEntry : networkToCreate.getNodes().entrySet())
+        {
+            final INode node = _orientDbGraph.addVertex("class:node", INode.class);
+            node.setJdexId(nodeEntry.getKey());
+
+            nodeCount++;
+
+            final ITerm representedITerm = (ITerm) networkIndex.get(nodeEntry.getValue().getRepresents());
+            node.setRepresents(representedITerm);
+
+            newNetwork.addNdexNode(node);
+            networkIndex.put(node.getJdexId(), node);
+        }
+
+        newNetwork.setNdexNodeCount(nodeCount);
+    }
+
+    private void createSupports(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
+    {
+        for (final Entry<String, Support> supportEntry : networkToCreate.getSupports().entrySet())
+        {
+            final Support support = supportEntry.getValue();
+
+            final ISupport newSupport = _orientDbGraph.addVertex("class:support", ISupport.class);
+            newSupport.setJdexId(supportEntry.getKey());
+            newSupport.setText(support.getText());
+
+            newNetwork.addSupport(newSupport);
+            networkIndex.put(newSupport.getJdexId(), newSupport);
         }
     }
 
@@ -1252,11 +1344,11 @@ public class NetworkService extends NdexService
                 List<ITerm> iParameters = new ArrayList<ITerm>();
                 for (Map.Entry<Integer, String> entry : ((FunctionTerm)term).getParameters().entrySet())
                 {
-                	// All Terms mentioned as parameters are expected to have been found and created
-                	// prior to the current term - it is a requirement of a JDEx format file.
+                    // All Terms mentioned as parameters are expected to have been found and created
+                    // prior to the current term - it is a requirement of a JDEx format file.
                     ITerm parameter = ((ITerm) networkIndex.get(entry.getValue()));
                     if (null != parameter){
-                    	iParameters.add(parameter);
+                        iParameters.add(parameter);
                     }
                     
                 }
@@ -1265,98 +1357,6 @@ public class NetworkService extends NdexService
                 newNetwork.addTerm(newFunctionTerm);
                 networkIndex.put(newFunctionTerm.getJdexId(), newFunctionTerm);
             }
-        }
-    }
-
-    private void createNodes(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
-    {
-        int nodeCount = 0;
-
-        for (final Entry<String, Node> nodeEntry : networkToCreate.getNodes().entrySet())
-        {
-            final INode node = _orientDbGraph.addVertex("class:node", INode.class);
-            node.setJdexId(nodeEntry.getKey());
-
-            nodeCount++;
-
-            final ITerm representedITerm = (ITerm) networkIndex.get(nodeEntry.getValue().getRepresents());
-            node.setRepresents(representedITerm);
-
-            newNetwork.addNdexNode(node);
-            networkIndex.put(node.getJdexId(), node);
-        }
-
-        newNetwork.setNdexNodeCount(nodeCount);
-    }
-
-    private void createEdges(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
-    {
-        int edgeCount = 0;
-
-        for (final Entry<String, Edge> edgeEntry : networkToCreate.getEdges().entrySet())
-        {
-            final Edge edgeToCreate = edgeEntry.getValue();
-            
-            final IEdge newEdge = _orientDbGraph.addVertex("class:edge", IEdge.class);
-            newEdge.setJdexId(edgeEntry.getKey());
-            
-            edgeCount++;
-
-            final INode subjectNode = (INode) networkIndex.get(edgeToCreate.getSubjectId());
-            newEdge.setSubject(subjectNode);
-            
-            final IBaseTerm predicateTerm = (IBaseTerm) networkIndex.get(edgeToCreate.getPredicateId());
-            newEdge.setPredicate(predicateTerm);
-            
-            final INode objectNode = (INode) networkIndex.get(edgeToCreate.getObjectId());
-            newEdge.setObject(objectNode);
-
-            newNetwork.addNdexEdge(newEdge);
-            networkIndex.put(newEdge.getJdexId(), newEdge);
-        }
-        
-        newNetwork.setNdexEdgeCount(edgeCount);
-    }
-
-    private void createCitations(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
-    {
-        for (final Entry<String, Citation> citationEntry : networkToCreate.getCitations().entrySet())
-        {
-            final Citation citation = citationEntry.getValue();
-
-            final ICitation newCitation = _orientDbGraph.addVertex("class:citation", ICitation.class);
-            newCitation.setJdexId(citationEntry.getKey());
-            newCitation.setTitle(citation.getTitle());
-            newCitation.setIdentifier(citation.getIdentifier());
-            newCitation.setType(citation.getType());
-            newCitation.setContributors(citation.getContributors());
-
-            for (final String edgeId : citation.getEdges())
-                newCitation.addNdexEdge((IEdge) networkIndex.get(edgeId));
-
-            newNetwork.addCitation(newCitation);
-            networkIndex.put(newCitation.getJdexId(), newCitation);
-        }
-    }
-
-    private void createSupports(final INetwork newNetwork, final Network networkToCreate, final Map<String, VertexFrame> networkIndex)
-    {
-        for (final Entry<String, Support> supportEntry : networkToCreate.getSupports().entrySet())
-        {
-            final Support support = supportEntry.getValue();
-
-            final ISupport newSupport = _orientDbGraph.addVertex("class:support", ISupport.class);
-            newSupport.setJdexId(supportEntry.getKey());
-            newSupport.setText(support.getText());
-
-            for (final String edgeId : support.getEdges())
-                newSupport.addNdexEdge((IEdge) networkIndex.get(edgeId));
-
-            if (support.getCitationId() != null && !support.getCitationId().isEmpty())
-                newSupport.setSupportCitation((ICitation) networkIndex.get(support.getCitationId()));
-
-            newNetwork.addSupport(newSupport);
-            networkIndex.put(newSupport.getJdexId(), newSupport);
         }
     }
     
