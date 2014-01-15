@@ -162,8 +162,9 @@ public class NetworkService extends NdexService
             final Map<String, VertexFrame> networkIndex = new HashMap<String, VertexFrame>();
 
             final INetwork network = _orientDbGraph.addVertex("class:network", INetwork.class);
-            network.setIsLocked(newNetwork.getIsLocked());
-            network.setIsPublic(newNetwork.getIsPublic());
+            network.setIsComplete(true);
+            network.setIsLocked(false);
+            network.setIsPublic(false);
             network.setName(newNetwork.getName());
             network.setMetadata(newNetwork.getMetadata());
             network.setMetaterms(new HashMap<String, IBaseTerm>());
@@ -1114,11 +1115,12 @@ public class NetworkService extends NdexService
         
         if (this.getLoggedInUser() != null)
         {
-            query += "WHERE (isPublic = true"
+            query += "WHERE isComplete = true\n"
+                + "  AND (isPublic = true"
                 + " OR out_networkMemberships.in_accountNetworks.username = '" + this.getLoggedInUser().getUsername() + "') \n";
         }
         else
-            query += "WHERE isPublic = true\n";
+            query += "WHERE isComplete = true AND isPublic = true\n";
 
         if (searchParameters.getSearchString().contains("-desc"))
         {
