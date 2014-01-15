@@ -489,6 +489,7 @@ public class TestNetworkService extends TestNdexService
     {
         final Network newNetwork = new Network();
         newNetwork.setDescription("This is a test network.");
+        newNetwork.setIsComplete(true);
         newNetwork.getMetadata().put("Copyright", "2013 Cytoscape Consortium");
         newNetwork.getMetadata().put("Format", "JDEX");
         newNetwork.setName("Test Network");
