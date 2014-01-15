@@ -123,7 +123,7 @@ public class TestNetworkService extends TestNdexService
         
         try
         {
-            final List<Network> networksFound = _networkService.findNetworks(searchParameters);
+            final List<Network> networksFound = _networkService.findNetworks(searchParameters, "starts-with");
             Assert.assertTrue(networksFound.size() > 0);
         }
         catch (Exception e)
@@ -143,7 +143,7 @@ public class TestNetworkService extends TestNdexService
         
         try
         {
-            final List<Network> networksFound = _networkService.findNetworks(searchParameters);
+            final List<Network> networksFound = _networkService.findNetworks(searchParameters, "starts-with");
             Assert.assertTrue(networksFound.size() == 2);
         }
         catch (Exception e)
@@ -163,7 +163,7 @@ public class TestNetworkService extends TestNdexService
         
         try
         {
-            final List<Network> networksFound = _networkService.findNetworks(searchParameters);
+            final List<Network> networksFound = _networkService.findNetworks(searchParameters, "starts-with");
             Assert.assertTrue(networksFound.size() > 0);
         }
         catch (Exception e)
@@ -176,7 +176,47 @@ public class TestNetworkService extends TestNdexService
     @Test(expected = IllegalArgumentException.class)
     public void findNetworksInvalid() throws IllegalArgumentException, NdexException
     {
-        _networkService.findNetworks(null);
+        _networkService.findNetworks(null, null);
+    }
+
+    @Test
+    public void findNetworksUsingContains()
+    {
+        final SearchParameters searchParameters = new SearchParameters();
+        searchParameters.setSearchString("tome");
+        searchParameters.setSkip(0);
+        searchParameters.setTop(25);
+        
+        try
+        {
+            final List<Network> networksFound = _networkService.findNetworks(searchParameters, "contains");
+            Assert.assertTrue(networksFound.size() > 0);
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void findNetworksUsingExactMatch()
+    {
+        final SearchParameters searchParameters = new SearchParameters();
+        searchParameters.setSearchString("reactome test");
+        searchParameters.setSkip(0);
+        searchParameters.setTop(25);
+        
+        try
+        {
+            final List<Network> networksFound = _networkService.findNetworks(searchParameters, "exact-match");
+            Assert.assertTrue(networksFound.size() > 0);
+        }
+        catch (Exception e)
+        {
+            Assert.fail(e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     @Test
