@@ -1193,8 +1193,8 @@ public class NetworkService extends NdexService
             newCitation.setType(citation.getType());
             newCitation.setContributors(citation.getContributors());
             
-            for (final Support support : citation.getSupports())
-                newCitation.addSupport((ISupport)networkIndex.get(support.getId()));
+            for (final String supportId : citation.getSupports())
+                newCitation.addSupport((ISupport)networkIndex.get(supportId));
 
             newNetwork.addCitation(newCitation);
             networkIndex.put(newCitation.getJdexId(), newCitation);
