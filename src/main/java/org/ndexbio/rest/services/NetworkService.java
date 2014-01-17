@@ -164,7 +164,7 @@ public class NetworkService extends NdexService
             final INetwork network = _orientDbGraph.addVertex("class:network", INetwork.class);
             network.setIsComplete(true);
             network.setIsLocked(false);
-            network.setIsPublic(false);
+            network.setIsPublic(newNetwork.getIsPublic());
             network.setName(newNetwork.getName());
             network.setMetadata(newNetwork.getMetadata());
             network.setMetaterms(new HashMap<String, IBaseTerm>());
