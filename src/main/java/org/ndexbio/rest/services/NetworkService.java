@@ -1482,6 +1482,16 @@ public class NetworkService extends NdexService
         {
             if (node.getRepresents() != null)
                 addTermAndFunctionalDependencies(node.getRepresents(), edgeTerms);
+            if (node.getAliases() != null){
+            	for (ITerm iTerm : node.getAliases()){
+            		addTermAndFunctionalDependencies(iTerm, edgeTerms);
+            	}
+            }
+            if (node.getRelatedTerms() != null){
+            	for (ITerm iTerm : node.getRelatedTerms()){
+            		addTermAndFunctionalDependencies(iTerm, edgeTerms);
+            	}
+            }
         }
 
         return edgeTerms;
