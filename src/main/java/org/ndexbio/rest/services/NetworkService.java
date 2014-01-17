@@ -1131,7 +1131,7 @@ public class NetworkService extends NdexService
             query += "  AND name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%'\n";
         }
 
-        if (searchParameters.getSearchString().contains("term:"))
+        if (searchParameters.getSearchString().contains("terms:"))
             query += parseTermParameters(searchParameters);
         
         if (searchParameters.getSearchString() != null && !searchParameters.getSearchString().isEmpty())
@@ -1616,20 +1616,49 @@ public class NetworkService extends NdexService
     **************************************************************************/
     private String parseTermParameters(final SearchParameters searchParameters)
     {
-        final Pattern termRegex = Pattern.compile("term:\\{(.+)\\}");
+        final Pattern termRegex = Pattern.compile("terms:\\{(.+)\\}");
         final Matcher termMatcher = termRegex.matcher(searchParameters.getSearchString());
         
         if (termMatcher.find())
         {
-            final String namespaceAndTerm[] = termMatcher.group(1).split(":");
-            if (namespaceAndTerm.length != 2)
-                throw new IllegalArgumentException("Error parsing terms from: \"" + termMatcher.group(0) + "\".");
+            final String terms[] = termMatcher.group(1).split(",");
+            final StringBuilder termConditions = new StringBuilder();
+            termConditions.append("  AND @RID IN (SELECT in_networkTerms FROM (TRAVERSE out_networkTerms FROM Network) \n");
             
-            searchParameters.setSearchString(searchParameters.getSearchString().replace(termMatcher.group(0), ""));
+            for (final String term : terms)
+            {
+                final String namespaceAndTerm[] = term.split(":");
+                if (namespaceAndTerm.length != 2)
+                    throw new IllegalArgumentException("Error parsing terms from: \"" + termMatcher.group(0) + "\".");
+                
+                searchParameters.setSearchString(searchParameters.getSearchString().replace(termMatcher.group(0), ""));
+
+                if (termConditions.length() < 100)
+                    termConditions.append("    WHERE (");
+                else
+                    //TODO: Originally the idea here was to perform a UNION
+                    //query against the network get all terms, unfortunately,
+                    //while OrientDB has a UNION function, it's more of an
+                    //array concatenation as opposed to merging query results.
+                    //Instead it seems that OrientDB has a CONTAINS operator
+                    //that might do the trick, otherwise multi-term searching
+                    //will be very, very tricky. Another alternative would be
+                    //using custom Java functions, which OrientDB supports as
+                    //being usable within a SQL query. Once a solution has
+                    //been discovered, replace the commented line below with
+                    //whatever is needed to join all the conditions together.
+                    break;
+                    //termConditions.append("\n      AND ");
+                
+                termConditions.append("out_baseTermNamespace.prefix.toLowerCase() = '");
+                termConditions.append(namespaceAndTerm[0].trim().toLowerCase());
+                termConditions.append("' AND name.toLowerCase() = '");
+                termConditions.append(namespaceAndTerm[1].trim().toLowerCase());
+                termConditions.append("') ");
+            }
             
-            return "  AND @RID IN (SELECT in_networkTerms FROM (TRAVERSE out_networkTerms FROM Network) \n"
-                + "    WHERE out_baseTermNamespace.prefix.toLowerCase() = '" + namespaceAndTerm[0].trim().toLowerCase() + "'"
-                + " AND name.toLowerCase() = '" + namespaceAndTerm[1].trim().toLowerCase() + "') \n";
+            termConditions.append(") \n");
+            return termConditions.toString();
         }
         
         return null;
