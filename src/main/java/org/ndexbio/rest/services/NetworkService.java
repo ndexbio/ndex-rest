@@ -1612,7 +1612,7 @@ public class NetworkService extends NdexService
         {
             metadataParameters.add(new MetaParameter(metadataMatches.group(groupIndex + 1),
                 metadataMatches.group(groupIndex + 2).charAt(0),
-                metadataMatches.group(groupIndex + 3)));
+                metadataMatches.group(groupIndex + 3).substring(1, metadataMatches.group(groupIndex + 3).length() - 1)));
             
             searchParameters.setSearchString(searchParameters.getSearchString().replace(metadataMatches.group(groupIndex), ""));
         }
