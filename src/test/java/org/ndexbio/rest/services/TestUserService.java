@@ -191,7 +191,7 @@ public class TestUserService extends TestNdexService
         
         try
         {
-            final Collection<User> usersFound = _userService.findUsers(searchParameters);
+            final Collection<User> usersFound = _userService.findUsers(searchParameters, "contains");
             Assert.assertNotNull(usersFound);
         }
         catch (Exception e)
@@ -204,7 +204,7 @@ public class TestUserService extends TestNdexService
     @Test(expected = IllegalArgumentException.class)
     public void findUsersInvalid() throws IllegalArgumentException, NdexException
     {
-        _userService.findUsers(null);
+        _userService.findUsers(null, null);
     }
 
     @Test

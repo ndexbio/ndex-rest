@@ -75,7 +75,7 @@ public class TestGroupService extends TestNdexService
         
         try
         {
-            _groupService.findGroups(searchParameters);
+            _groupService.findGroups(searchParameters, "contains");
         }
         catch (Exception e)
         {
@@ -92,7 +92,7 @@ public class TestGroupService extends TestNdexService
         searchParameters.setSkip(0);
         searchParameters.setTop(25);
         
-        _groupService.findGroups(null);
+        _groupService.findGroups(null, null);
     }
 
     @Test

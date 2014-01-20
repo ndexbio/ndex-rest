@@ -961,7 +961,7 @@ public class NetworkService extends NdexService
             
             if (updatedNetwork.getMetadata() != null && !updatedNetwork.getMetadata().equals(networkToUpdate.getMetadata()))
                 networkToUpdate.setMetadata(updatedNetwork.getMetadata());
-            
+            /*
             if (updatedNetwork.getMetaterms() != null && !updatedNetwork.getMetaterms().equals(networkToUpdate.getMetaterms()))
             {
                 for (Entry<String, BaseTerm> metaterm : updatedNetwork.getMetaterms().entrySet())
@@ -976,7 +976,7 @@ public class NetworkService extends NdexService
                         networkToUpdate.addMetaterm(metaterm.getKey(), _orientDbGraph.getVertex(matchingTerms.get(0), IBaseTerm.class));
                 }
             }
-
+			*/
             _orientDbGraph.getBaseGraph().commit();
         }
         catch (SecurityException | ObjectNotFoundException onfe)
@@ -1225,6 +1225,9 @@ public class NetworkService extends NdexService
             
             for (final String citationId : edgeToCreate.getCitations())
                 newEdge.addCitation((ICitation)networkIndex.get(citationId));
+            
+            for (final String supportId : edgeToCreate.getSupports())
+                newEdge.addSupport((ISupport)networkIndex.get(supportId));
 
             newNetwork.addNdexEdge(newEdge);
             networkIndex.put(newEdge.getJdexId(), newEdge);
