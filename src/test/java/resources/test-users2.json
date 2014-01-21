@@ -1,0 +1,32 @@
+[
+	{
+		"accountType": "User",
+		"username": "biologist1",
+		"password": "bio1",
+		"firstName": "Jane",
+		"lastName": "Smith",
+	    "emailAddress": "dexterpratt.bio+bio1@gmail.com",
+		"website": "www.ndexbio.org",
+		"description": "Researching Calmodulin signaling"
+	},
+	{
+		"accountType": "User",
+		"username": "biologist2",
+		"password": "bio2",
+		"firstName": "Max",
+		"lastName": "Yu",
+		"emailAddress": "dexterpratt.bio+bio2@gmail.com",
+		"website": "www.cytoscapeconsortium.org",
+		"description": "Interested in systems biology and RNAseq"
+	},
+	{
+		"accountType": "User",
+		"username": "biologist3",
+		"password": "bio3",
+		"firstName": "Sarah",
+		"lastName": "Larson",
+		"emailAddress": "dexterpratt.bio+bio3@gmail.com",
+		"website": "www.ucsd.edu",
+		"description": "Studying apoptosis and TNF"
+	}
+]

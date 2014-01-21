@@ -1,0 +1,16 @@
+[
+	{
+		"accountType": "Group",
+		"name": "calm1project",
+		"organizationName": "CALM1 project",
+		"website": "www.ndexbio.org",
+		"description": "Studying calmodulin 1 and its interactions",
+		"members":
+		[
+			{
+				"resourceName": "biologist1",
+				"permissions": "ADMIN"
+			}
+		] 
+	}
+]
