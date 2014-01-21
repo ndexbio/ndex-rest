@@ -26,6 +26,7 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
+import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 import com.tinkerpop.frames.FramedGraph;
 import com.tinkerpop.frames.FramedGraphFactory;
 import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
@@ -67,7 +68,7 @@ public abstract class NdexService
         for (Method method : this.getClass().getMethods())
         {
             final Collection<String> methodAnnotationStrings = new ArrayList<String>();
-            for (Annotation annotation : method.getDeclaredAnnotations())
+            for (final Annotation annotation : method.getDeclaredAnnotations())
                 methodAnnotationStrings.add(annotation.toString());
             
             if (methodAnnotationStrings.size() > 0)
@@ -132,7 +133,12 @@ public abstract class NdexService
             Configuration.getInstance().getProperty("OrientDB-Username"),
             Configuration.getInstance().getProperty("OrientDB-Password"));
         
-        _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
+        if (Boolean.parseBoolean(Configuration.getInstance().getProperty("OrientDB-Use-Transactions")))
+            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
+        else
+            _orientDbGraph = _graphFactory.create((OrientBaseGraph) new OrientGraphNoTx(_ndexDatabase));
+
+        
         NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
     }
     
