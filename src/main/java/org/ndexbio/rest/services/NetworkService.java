@@ -1044,7 +1044,7 @@ public class NetworkService extends NdexService
             if (uploadedNetwork.getFilename().toLowerCase().endsWith(".sif") || uploadedNetwork.getFilename().toLowerCase().endsWith(".xbel") ||
                 uploadedNetwork.getFilename().toLowerCase().endsWith(".xls") || uploadedNetwork.getFilename().toLowerCase().endsWith(".xlsx"))
             {
-                ITask processNetworkTask = _orientDbGraph.addVertex("class:network", ITask.class);
+                ITask processNetworkTask = _orientDbGraph.addVertex("class:task", ITask.class);
                 processNetworkTask.setDescription("Process uploaded network");
                 processNetworkTask.setType(TaskType.PROCESS_UPLOADED_NETWORK);
                 processNetworkTask.setOwner(taskOwner);
@@ -1069,7 +1069,7 @@ public class NetworkService extends NdexService
         catch (Exception e)
         {
             _logger.error("Failed to process uploaded network: " + uploadedNetwork.getFilename() + ".", e);
-            _orientDbGraph.getBaseGraph().rollback();
+            //_orientDbGraph.getBaseGraph().rollback();
             throw new NdexException(e.getMessage());
         }
     }
