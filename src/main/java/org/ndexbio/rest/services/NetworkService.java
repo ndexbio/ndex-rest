@@ -155,7 +155,7 @@ public class NetworkService extends NdexService
             final IUser networkOwner = _orientDbGraph.getVertex(IdConverter.toRid(this.getLoggedInUser().getId()), IUser.class);
             
             final List<ODocument> existingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("SELECT @RID FROM Network WHERE out_networkMemberships.out_membershipMember.username = '"
-                + networkOwner.getUsername() + "' and title = '" + newNetwork.getName() + "'"));
+                + networkOwner.getUsername() + "' AND title = '" + newNetwork.getName() + "'"));
             if (!existingNetworks.isEmpty())
                 throw new DuplicateObjectException("You already have a network titled: " + newNetwork.getName());
 
@@ -168,6 +168,8 @@ public class NetworkService extends NdexService
             network.setName(newNetwork.getName());
             network.setMetadata(newNetwork.getMetadata());
             network.setMetaterms(new HashMap<String, IBaseTerm>());
+            network.setNdexEdgeCount(newNetwork.getEdges().size());
+            network.setNdexNodeCount(newNetwork.getNodes().size());
             
             if (newNetwork.getMembers() == null || newNetwork.getMembers().size() == 0)
             {
