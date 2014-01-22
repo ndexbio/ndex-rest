@@ -13,6 +13,7 @@ import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Set;
+
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
@@ -24,6 +25,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -31,6 +33,7 @@ import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientElement;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 import com.tinkerpop.frames.VertexFrame;
+
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.helpers.Configuration;
@@ -39,6 +42,7 @@ import org.ndexbio.common.models.data.*;
 import org.ndexbio.common.models.object.*;
 import org.ndexbio.orientdb.gremlin.*;
 import org.ndexbio.rest.gremlin.NetworkQueries;
+//import org.ndexbio.rest.gremlin.NetworkQueries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

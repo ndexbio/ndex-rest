@@ -43,8 +43,8 @@ class NetworkQueries {
 
         if (foundInEdges.isEmpty())
             return foundOutEdges;
-        if (foundOutEdges.isEmpty())
-            return foundInEdges;
+        if (foundOutEdges.isEmpty())   
+            return foundInEdges;   
 
         foundInEdges.addAll(foundOutEdges);
 
