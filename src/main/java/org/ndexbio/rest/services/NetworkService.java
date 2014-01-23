@@ -462,34 +462,34 @@ public class NetworkService extends NdexService
     }
 
     /**************************************************************************
-    * Gets all namespaces in the network that intersect with a list of
-    * namespaces.
+    * Gets all BaseTerms in the network that are in Namespaces identified by 
+    * a list of Namespace prefixes
     * 
     * @param networkId
     *            The network ID.
     * @param namespaces
-    *            A list of namespaces being sought.
+    *            A list of namespace prefixes, i.e. HGNC, UniProt, etc.
     * @throws IllegalArgumentException
     *            Bad input.
     * @throws NdexException
     *            Failed to query the database.
-    * @return The edges of the network.
+    * @return The BaseTerms in the found the Namespaces
     **************************************************************************/
     @POST
     @Path("/{networkId}/namespaces")
     @Produces("application/json")
-    public Iterable<Namespace> getIntersectingNamespaces(@PathParam("networkId")final String networkId, final String namespaces[]) throws IllegalArgumentException, NdexException
+    public List<BaseTerm> getTermsInNamespaces(@PathParam("networkId")final String networkId, final String namespaces[]) throws IllegalArgumentException, NdexException
     {
         if (networkId == null || networkId.isEmpty())
             throw new IllegalArgumentException("No network ID was specified.");
 
-        final List<Namespace> foundNamespaces = new ArrayList<Namespace>();
+        final List<BaseTerm> foundBaseTerms = new ArrayList<BaseTerm>();
 
         String joinedNamespaces = "";
         for (final String namespace : namespaces)
             joinedNamespaces += "'" + namespace + "',";
         
-        joinedNamespaces = joinedNamespaces.substring(0, joinedNamespaces.length() - 2);
+        joinedNamespaces = joinedNamespaces.substring(0, joinedNamespaces.length() - 1);
 
         final ORID networkRid = IdConverter.toRid(networkId);
         final String query = "SELECT FROM Namespace\n"
@@ -506,10 +506,20 @@ public class NetworkService extends NdexService
                 throw new ObjectNotFoundException("Network", networkId);
             
             final List<ODocument> namespacesFound = _ndexDatabase.query(new OSQLSynchQuery<ODocument>(query));
-            for (final ODocument namespace : namespacesFound)
-                foundNamespaces.add(new Namespace(_orientDbGraph.getVertex(namespace, INamespace.class)));
-
-            return foundNamespaces;
+            for (final ODocument namespace : namespacesFound){
+            	ORID namespaceId = namespace.getIdentity();
+            	final String termQuery = "SElECT FROM ( TRAVERSE in_baseTermNamespace from " + namespaceId 
+            			+ " ) WHERE termType = 'Base' ";
+            	//INamespace iNamespace = _orientDbGraph.getVertex(namespace, INamespace.class);
+            	//Namespace ns = new Namespace(iNamespace);
+            	final List<ODocument> baseTermsFound = _ndexDatabase.query(new OSQLSynchQuery<ODocument>(termQuery));
+            	for (final ODocument baseTerm : baseTermsFound){
+            		final IBaseTerm iBaseTerm = _orientDbGraph.getVertex(baseTerm, IBaseTerm.class);
+            		final BaseTerm bt = new BaseTerm(iBaseTerm);
+            		foundBaseTerms.add(bt);
+            	}
+            }
+            return foundBaseTerms;
         }
         catch (ObjectNotFoundException onfe)
         {
@@ -1100,8 +1110,11 @@ public class NetworkService extends NdexService
     * Builds the SQL for the query to find networks. Note: just because a
     * query works in the OrientDB console, doesn't mean it'll work in the Java
     * query parser. The parsers are different or the Java parser has bugs as
-    * of January 2014. If you use line breaks to format the query, make sure
-    * to put a space after ending parentheses.
+    * of January 2014. 
+    * 
+    * Key bug found: You must always put a space after ending parentheses.
+    * *
+    * (Unless it is the last char in the whole query)
     * 
     * @param searchParameters
     *            The search parameters.
@@ -1134,7 +1147,7 @@ public class NetworkService extends NdexService
         if (searchParameters.getSearchString().contains("-desc"))
         {
             searchParameters.getSearchString().replace(" -desc", "");
-            query += "  AND name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%'\n";
+            query += "  AND name.toLowerCase() LIKE '" + searchParameters.getSearchString() + "%' \n";
         }
 
         if (searchParameters.getSearchString().contains("terms:"))
@@ -1160,10 +1173,10 @@ public class NetworkService extends NdexService
         }
         
         for (final MetaParameter metadataParameter : metadataParameters)
-            query += "  AND metadata['" + metadataParameter.getKey() + "']" + metadataParameter.toString() + "\n";
+            query += "  AND metadata['" + metadataParameter.getKey() + "']" + metadataParameter.toString() + " \n";
         
         for (final MetaParameter metatermParameter : metatermParameters)
-            query += "  AND metadata['" + metatermParameter.getKey() + "']" + metatermParameter.toString() + "\n";
+            query += "  AND metadata['" + metatermParameter.getKey() + "']" + metatermParameter.toString() + " \n";
             
         final int startIndex = searchParameters.getSkip() * searchParameters.getTop();
         query += "ORDER BY name DESC\n"

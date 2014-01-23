@@ -270,7 +270,26 @@ public class TestNetworkService extends TestNdexService
             termIterator.next();
         }
         
-        Assert.assertEquals(termCount, 3);
+        Assert.assertEquals(3, termCount);
+    }
+    
+    @Test
+    public void getTermsInNamespace() throws IllegalArgumentException, NdexException
+    {
+        final ORID networkRid = getRid("Glucocorticoid_receptor_regulatory_network");
+        final Iterable<BaseTerm> namespaceTerms = _networkService.getTermsInNamespaces(
+        		IdConverter.toJid(networkRid), 
+        		new String[] { "HGNC" });
+        
+        int termCount = 0;
+        final Iterator<BaseTerm> termIterator = namespaceTerms.iterator();
+        while (termIterator.hasNext())
+        {
+            termCount++;
+            termIterator.next();
+        }
+        
+        Assert.assertEquals(72, termCount);
     }
     
     @Test
