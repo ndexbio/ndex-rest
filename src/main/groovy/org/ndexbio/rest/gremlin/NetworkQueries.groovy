@@ -51,6 +51,36 @@ class NetworkQueries {
         return foundInEdges;
     }
 
+	def Set<OrientVertex> searchNeighborhoodByNodes(OrientBaseGraph g, OrientVertex network, OIdentifiable[] startingNodes, int searchDepth, SearchType searchType) {
+		def nodes = g.v(startingNodes);
+		def foundInEdges = new HashSet<OrientVertex>();
+		def foundOutEdges = new HashSet<OrientVertex>();
+		
+
+		switch (searchType) {
+			case SearchType.DOWNSTREAM:
+				nodes.as("e").out("edgeSubject").except(foundInEdges).store(foundInEdges).out("edgeObject").loop("e", { it.loops < searchDepth }).iterate();
+				break;
+			case SearchType.UPSTREAM:
+				nodes.as("e").in("edgeObject").except(foundOutEdges).store(foundOutEdges).in("edgeSubject").loop("e", { it.loops < searchDepth }).iterate();
+				break;
+			case SearchType.BOTH:
+				nodes.copySplit(
+						_().as("e1").out("edgeSubject").except(foundInEdges).store(foundInEdges).out("edgeObject").loop("e1", { it.loops < searchDepth }),
+						_().as("e2").in("edgeObject").except(foundOutEdges).store(foundOutEdges).in("edgeSubject").loop("e2", { it.loops < searchDepth })).exhaustMerge().iterate();
+				break;
+		}
+
+		if (foundInEdges.isEmpty())
+			return foundOutEdges;
+		if (foundOutEdges.isEmpty())
+			return foundInEdges;
+
+		foundInEdges.addAll(foundOutEdges);
+
+		return foundInEdges;
+	}
+
     def filterByPredicates(OrientBaseGraph g, SearchSpec searchSpec) {
         def edges = g.v(searchSpec.includedPredicates).in("edgePredicate");
         def foundInEdges = new HashSet<OrientVertex>();
