@@ -4,11 +4,18 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+
 import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
@@ -21,7 +28,9 @@ import org.ndexbio.common.models.data.IJoinGroupRequest;
 import org.ndexbio.common.models.data.INetworkAccessRequest;
 import org.ndexbio.common.models.data.INetworkMembership;
 import org.ndexbio.common.models.data.IUser;
+import org.ndexbio.common.models.object.RestResource;
 import org.ndexbio.common.models.object.User;
+
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
@@ -62,20 +71,55 @@ public abstract class NdexService
     @PermitAll
     @Path("/api")
     @Produces("application/json")
-    public Collection<Collection<String>> getApi()
+    public Collection<RestResource> getApi()
     {
-        final Collection<Collection<String>> methodAnnotationList = new ArrayList<Collection<String>>();
+        final Collection<RestResource> resourceList = new ArrayList<RestResource>();
+        Path serviceClassPathAnnotation = this.getClass().getAnnotation(Path.class);
         for (Method method : this.getClass().getMethods())
         {
-            final Collection<String> methodAnnotationStrings = new ArrayList<String>();
-            for (final Annotation annotation : method.getDeclaredAnnotations())
-                methodAnnotationStrings.add(annotation.toString());
+        	RestResource resource = new RestResource();
+        	resource.setMethodName(method.getName());
+
+            for (Class<?> parameterType : method.getParameterTypes()){
+            	resource.addParameterType(parameterType.getSimpleName());
+            }
+                       
+            for (final Annotation annotation : method.getDeclaredAnnotations()){
+            	if(annotation instanceof GET){
+            		resource.setRequestType("GET");
+                } else if (annotation instanceof PUT){
+                	resource.setRequestType("PUT");
+                } else if (annotation instanceof DELETE){
+                	resource.setRequestType("DELETE");
+                } else if (annotation instanceof POST){
+                	resource.setRequestType("POST");
+                }  else if (annotation instanceof Path){
+                	Path pathAnnotation = (Path)annotation;
+                	resource.setPath(serviceClassPathAnnotation.value() + pathAnnotation.value());
+                }  else if (annotation instanceof Consumes){
+                	Consumes consumesAnnotation = (Consumes)annotation;
+                	if (consumesAnnotation.value() != null && consumesAnnotation.value().length > 0){
+                		String[] consumes = consumesAnnotation.value();
+                		resource.setConsumes(consumes[0]);
+                	}
+                }  else if (annotation instanceof Produces){
+                	Produces producesAnnotation = (Produces)annotation;
+                	if (producesAnnotation.value() != null && producesAnnotation.value().length > 0){
+                		String[] produces = producesAnnotation.value();
+                		resource.setProduces(produces[0]);
+                	}
+                } 
+                
+            }
             
-            if (methodAnnotationStrings.size() > 0)
-                methodAnnotationList.add(methodAnnotationStrings);
+            if (resource.getPath() == null){
+            	resource.setPath(serviceClassPathAnnotation.value());
+            }
+            if (resource.getRequestType() != null)
+                resourceList.add(resource);
         }
     
-        return methodAnnotationList;
+        return resourceList;
     }
 
     /**************************************************************************
