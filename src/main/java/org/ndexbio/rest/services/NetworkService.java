@@ -26,6 +26,8 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
@@ -970,13 +972,14 @@ public class NetworkService extends NdexService {
 	public void updateMember(@PathParam("networkId") final String networkId,
 			final Membership networkMember) throws IllegalArgumentException,
 			ObjectNotFoundException, SecurityException, NdexException {
-		if (networkId == null || networkId.isEmpty())
-			throw new IllegalArgumentException("No network ID was specified.");
-		else if (networkMember == null)
-			throw new IllegalArgumentException("The member to update is empty.");
-		else if (networkMember.getResourceId() == null
-				|| networkMember.getResourceId().isEmpty())
-			throw new IllegalArgumentException("No member ID was specified.");
+		
+		Preconditions.checkArgument(Strings.isNullOrEmpty(networkId),
+				 "A network id is rquired");
+		Preconditions.checkNotNull( networkMember, 
+				"A network member is required");
+		Preconditions.checkState(!Strings.isNullOrEmpty(networkMember.getResourceId()), 
+				"The network member must have a resource id");
+		
 
 		try {
 			setupDatabase();
@@ -1020,7 +1023,7 @@ public class NetworkService extends NdexService {
 			_logger.error(
 					"Failed to update member: "
 							+ networkMember.getResourceName() + ".", e);
-			_orientDbGraph.getBaseGraph().rollback();
+			
 			throw new NdexException("Failed to update member: "
 					+ networkMember.getResourceName() + ".");
 		} finally {
@@ -1044,9 +1047,10 @@ public class NetworkService extends NdexService {
 	@Produces("application/json")
 	public void updateNetwork(final Network updatedNetwork)
 			throws IllegalArgumentException, SecurityException, NdexException {
-		if (updatedNetwork == null)
-			throw new IllegalArgumentException("The updated network is empty.");
-
+		
+		Preconditions.checkNotNull(updatedNetwork, 
+				"A Network is required");
+		
 		try {
 			setupDatabase();
 
@@ -1078,24 +1082,8 @@ public class NetworkService extends NdexService {
 					&& !updatedNetwork.getMetadata().equals(
 							networkToUpdate.getMetadata()))
 				networkToUpdate.setMetadata(updatedNetwork.getMetadata());
-			/*
-			 * if (updatedNetwork.getMetaterms() != null &&
-			 * !updatedNetwork.getMetaterms
-			 * ().equals(networkToUpdate.getMetaterms())) { for (Entry<String,
-			 * BaseTerm> metaterm : updatedNetwork.getMetaterms().entrySet()) {
-			 * final String query =
-			 * "SELECT FROM BaseTerm WHERE in_networkTerms = " +
-			 * networkToUpdate.asVertex().getId() + " AND name = '" +
-			 * metaterm.getValue().getName() + "'"; final List<ODocument>
-			 * matchingTerms = _orientDbGraph .getBaseGraph() .getRawGraph()
-			 * .query(new OSQLSynchQuery<ODocument>(query));
-			 * 
-			 * if (matchingTerms.size() > 0)
-			 * networkToUpdate.addMetaterm(metaterm.getKey(),
-			 * _orientDbGraph.getVertex(matchingTerms.get(0), IBaseTerm.class));
-			 * } }
-			 */
-			_orientDbGraph.getBaseGraph().commit();
+			
+			
 		} catch (SecurityException | ObjectNotFoundException onfe) {
 			throw onfe;
 		} catch (Exception e) {
@@ -1106,7 +1094,7 @@ public class NetworkService extends NdexService {
 			_logger.error(
 					"Failed to update network: " + updatedNetwork.getName()
 							+ ".", e);
-			_orientDbGraph.getBaseGraph().rollback();
+			
 			throw new NdexException("Failed to update the network.");
 		} finally {
 			teardownDatabase();
@@ -1131,9 +1119,16 @@ public class NetworkService extends NdexService {
 	@Produces("application/json")
 	public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork)
 			throws IllegalArgumentException, SecurityException, NdexException {
-		if (uploadedNetwork == null || uploadedNetwork.getFileData().length < 1)
-			throw new IllegalArgumentException("No uploaded network.");
-
+		
+		Preconditions.checkNotNull(uploadedNetwork,
+				"A network is required");
+		Preconditions.checkState(!Strings.isNullOrEmpty(uploadedNetwork.getFilename()),
+			"A file name containg the network data is required"	);
+		Preconditions.checkNotNull(uploadedNetwork.getFileData(),
+				"Network file data is required");
+		Preconditions.checkState(uploadedNetwork.getFileData().length  >0,
+				"The file data is empty");
+		
 		final File uploadedNetworkPath = new File(Configuration.getInstance()
 				.getProperty("Uploaded-Networks-Path"));
 		if (!uploadedNetworkPath.exists())

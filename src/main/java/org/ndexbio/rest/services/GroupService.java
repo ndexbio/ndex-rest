@@ -15,6 +15,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
+import org.junit.Assert;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.helpers.Validation;
@@ -25,9 +26,13 @@ import org.ndexbio.common.models.data.Permissions;
 import org.ndexbio.common.models.object.Group;
 import org.ndexbio.common.models.object.Membership;
 import org.ndexbio.common.models.object.SearchParameters;
+import org.ndexbio.rest.CommonValues;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -63,25 +68,24 @@ public class GroupService extends NdexService {
 	 *             Failed to create the user in the database.
 	 * @return The newly created group.
 	 **************************************************************************/
+	/*
+	 * refactor this method to use non-transactional database interactions
+	 * validate input data before creating a database vertex
+	 */
 	@PUT
 	@Produces("application/json")
 	public Group createGroup(final Group newGroup)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
-		if (newGroup == null)
-			throw new IllegalArgumentException("The group to create is empty.");
-		else if (!Validation.isValid(newGroup.getName(),
-				Validation.REGEX_GROUP_NAME))
-			throw new IllegalArgumentException("Invalid group name: "
-					+ newGroup.getName() + ".");
-
+		Preconditions.checkArgument(null != newGroup, "A group is required");
+		Preconditions.checkState(this.isValidGroupName(newGroup), 
+				"Group " +newGroup.getName() +" already exists");
+			
 		try {
 			setupDatabase();
-
 			final IUser groupOwner = _orientDbGraph.getVertex(
 					IdConverter.toRid(this.getLoggedInUser().getId()),
 					IUser.class);
-
 			final IGroup group = _orientDbGraph.addVertex("class:group",
 					IGroup.class);
 			group.setDescription(newGroup.getDescription());
@@ -89,50 +93,47 @@ public class GroupService extends NdexService {
 			group.setOrganizationName(newGroup.getOrganizationName());
 			group.setWebsite(newGroup.getWebsite());
 			group.setCreatedDate(new Date());
-
-			if (newGroup.getMembers() == null
-					|| newGroup.getMembers().size() == 0) {
-				final IGroupMembership membership = _orientDbGraph.addVertex(
-						"class:groupMembership", IGroupMembership.class);
-				membership.setPermissions(Permissions.ADMIN);
-				membership.setMember(groupOwner);
-				membership.setGroup(group);
-
-				// groupOwner.addGroup(membership);
-				// group.addMember(membership);
-			} else {
-				for (Membership member : newGroup.getMembers()) {
-					final IUser groupMember = _orientDbGraph.getVertex(
-							IdConverter.toRid(member.getResourceId()),
-							IUser.class);
-
-					final IGroupMembership membership = _orientDbGraph
-							.addVertex("class:groupMembership",
-									IGroupMembership.class);
-					membership.setPermissions(member.getPermissions());
-					membership.setMember(groupMember);
-					membership.setGroup(group);
-
-					groupMember.addGroup(membership);
-					group.addMember(membership);
-				}
-			}
-
-			_orientDbGraph.getBaseGraph().commit();
-
+			// register members for new group
+			addGroupMembers(newGroup, groupOwner, group);
 			newGroup.setId(IdConverter.toJid((ORID) group.asVertex().getId()));
 			return newGroup;
-		} catch (Exception e) {
-			if (e.getMessage().indexOf(" duplicated key ") > -1)
-				throw new DuplicateObjectException("A group with the name: "
-						+ newGroup.getName() + " already exists.");
-
+		} catch (Exception e) {		
+			
 			_logger.error(
-					"Failed to create group: " + newGroup.getName() + ".", e);
-			_orientDbGraph.getBaseGraph().rollback();
+					"Failed to create group: " + newGroup.getName() + ".", e);		
 			throw new NdexException("Failed to create your group.");
 		} finally {
 			teardownDatabase();
+		}
+	}
+
+	private void addGroupMembers(final Group newGroup, final IUser groupOwner,
+			final IGroup group) {
+		if (newGroup.getMembers() == null
+				|| newGroup.getMembers().size() == 0) {
+			final IGroupMembership membership = _orientDbGraph.addVertex(
+					"class:groupMembership", IGroupMembership.class);
+			membership.setPermissions(Permissions.ADMIN);
+			membership.setMember(groupOwner);
+			membership.setGroup(group);
+
+			
+		} else {
+			for (Membership member : newGroup.getMembers()) {
+				final IUser groupMember = _orientDbGraph.getVertex(
+						IdConverter.toRid(member.getResourceId()),
+						IUser.class);
+
+				final IGroupMembership membership = _orientDbGraph
+						.addVertex("class:groupMembership",
+								IGroupMembership.class);
+				membership.setPermissions(member.getPermissions());
+				membership.setMember(groupMember);
+				membership.setGroup(group);
+
+				groupMember.addGroup(membership);
+				group.addMember(membership);
+			}
 		}
 	}
 
@@ -150,14 +151,19 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to delete the user from the database.
 	 **************************************************************************/
+	
+	/*
+	 * refactored to accomodate move to non-transactional database 
+	 * operations. 
+	 */
 	@DELETE
 	@Path("/{groupId}")
 	@Produces("application/json")
 	public void deleteGroup(@PathParam("groupId") final String groupId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			SecurityException, NdexException {
-		if (groupId == null || groupId.isEmpty())
-			throw new IllegalArgumentException("No group ID was specified.");
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(groupId), 
+				"No group ID was specified.");
 
 		final ORID groupRid = IdConverter.toRid(groupId);
 
@@ -166,35 +172,15 @@ public class GroupService extends NdexService {
 
 			final IGroup groupToDelete = _orientDbGraph.getVertex(groupRid,
 					IGroup.class);
-			if (groupToDelete == null)
-				throw new ObjectNotFoundException("Group", groupId);
-			else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
-				throw new SecurityException(
-						"Insufficient privileges to delete the group.");
+			// can this group be deleted
+			validateGroupDeletionAuthorization(groupId, groupRid, groupToDelete);
 
-			final List<ODocument> adminCount = _ndexDatabase
-					.query(new OSQLSynchQuery<Integer>(
-							"SELECT COUNT(@RID) FROM GroupMembership WHERE in_groupMembers = "
-									+ groupRid + " AND permissions = 'ADMIN'"));
-			if (adminCount == null || adminCount.isEmpty())
-				throw new NdexException("Unable to count ADMIN members.");
-			else if ((long) adminCount.get(0).field("COUNT") > 1)
-				throw new NdexException(
-						"Cannot delete a group that contains other ADMIN members.");
-
-			final List<ODocument> adminNetworks = _ndexDatabase
-					.query(new OSQLSynchQuery<Integer>(
-							"SELECT COUNT(@RID) FROM Membership WHERE in_userNetworks = "
-									+ groupRid + " AND permissions = 'ADMIN'"));
-			if (adminCount == null || adminCount.isEmpty())
-				throw new NdexException(
-						"Unable to query group/network membership.");
-			else if ((long) adminNetworks.get(0).field("COUNT") > 1)
-				throw new NdexException(
-						"Cannot delete a group that is an ADMIN member of any network.");
-
-			for (IGroupMembership groupMembership : groupToDelete.getMembers())
+			for (IGroupMembership groupMembership : groupToDelete.getMembers()){
+				groupMembership.setMember(null);
+				groupMembership.setGroup(null);
 				_orientDbGraph.removeVertex(groupMembership.asVertex());
+				
+			}
 
 			final List<ODocument> groupChildren = _ndexDatabase
 					.query(new OSQLSynchQuery<Object>(
@@ -211,17 +197,79 @@ public class GroupService extends NdexService {
 			_orientDbGraph.removeVertex(groupToDelete.asVertex());
 			_orientDbGraph.getBaseGraph().commit();
 		} catch (SecurityException | NdexException ne) {
+			_logger.error(ne.getMessage());
 			throw ne;
 		} catch (Exception e) {
-			if (e.getMessage().indexOf("cluster: null") > -1)
+			if (e.getMessage().indexOf("cluster: null") > -1){
+				_logger.error("Group to be deleted, not found in database.");
 				throw new ObjectNotFoundException("Group", groupId);
-
+			}
+			
 			_logger.error("Failed to delete group: " + groupId + ".", e);
-			_orientDbGraph.getBaseGraph().rollback();
+			
 			throw new NdexException("Failed to delete the group.");
 		} finally {
 			teardownDatabase();
 		}
+	}
+
+	private void validateGroupDeletionAuthorization(final String groupId,
+			final ORID groupRid, final IGroup groupToDelete)
+			throws ObjectNotFoundException, NdexException {
+		if (groupToDelete == null)
+			throw new ObjectNotFoundException("Group", groupId);
+		else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
+			throw new SecurityException(
+					"Insufficient privileges to delete the group.");
+
+		final List<ODocument> adminCount = _ndexDatabase
+				.query(new OSQLSynchQuery<Integer>(
+						"SELECT COUNT(@RID) FROM GroupMembership WHERE in_groupMembers = "
+								+ groupRid + " AND permissions = 'ADMIN'"));
+		if (adminCount == null || adminCount.isEmpty())
+			throw new NdexException("Unable to count ADMIN members.");
+		else if ((long) adminCount.get(0).field("COUNT") > 1)
+			throw new NdexException(
+					"Cannot delete a group that contains other ADMIN members.");
+
+		final List<ODocument> adminNetworks = _ndexDatabase
+				.query(new OSQLSynchQuery<Integer>(
+						"SELECT COUNT(@RID) FROM Membership WHERE in_userNetworks = "
+								+ groupRid + " AND permissions = 'ADMIN'"));
+		if (adminCount == null || adminCount.isEmpty())
+			throw new NdexException(
+					"Unable to query group/network membership.");
+		else if ((long) adminNetworks.get(0).field("COUNT") > 1)
+			throw new NdexException(
+					"Cannot delete a group that is an ADMIN member of any network.");
+	}
+	/*
+	 * private method to determine if a proposed group name is novel
+	 * @params groupName - new group name
+	 * @returns boolean - true if group name is new
+	 *                    false id group name already exists
+	 * 
+	 */
+	private boolean isValidGroupName(Group newGroup) throws IllegalArgumentException,
+		NdexException{
+		Preconditions.checkNotNull(newGroup.getName(), "The new group requires a name");
+		Preconditions.checkState(Validation.isValid(newGroup.getName(),
+				Validation.REGEX_GROUP_NAME), "Invalid group name");
+		
+		
+		final SearchParameters searchParameters = new SearchParameters();
+        searchParameters.setSearchString(newGroup.getName());
+        searchParameters.setSkip(0);
+        searchParameters.setTop(1);
+        
+      
+           List<Group> groupList = this.findGroups(searchParameters, 
+        		   CommonValues.SEARCH_MATCH_EXACT);
+           if (groupList.isEmpty()) {
+        	   return true;
+           }
+           return false;
+  	
 	}
 
 	/**************************************************************************
@@ -241,24 +289,25 @@ public class GroupService extends NdexService {
 	public List<Group> findGroups(SearchParameters searchParameters,
 			@PathParam("searchOperator") final String searchOperator)
 			throws IllegalArgumentException, NdexException {
-		if (searchParameters == null)
-			throw new IllegalArgumentException("Search Parameters are empty.");
-		else if (searchParameters.getSearchString() == null
-				|| searchParameters.getSearchString().isEmpty())
-			throw new IllegalArgumentException(
-					"No search string was specified.");
-		else
-			searchParameters.setSearchString(searchParameters.getSearchString()
+		Preconditions.checkNotNull(searchParameters,
+				"A SearchParameters object is required");
+		Preconditions.checkState(!Strings.isNullOrEmpty(searchParameters.getSearchString()),
+				"A search string is required");
+		Preconditions.checkState(!Strings.isNullOrEmpty(searchOperator),
+				"A search operator is required");
+	
+		searchParameters.setSearchString(searchParameters.getSearchString()
 					.toLowerCase().trim());
 
-		final List<Group> foundGroups = new ArrayList<Group>();
+		final List<Group> foundGroups = Lists.newArrayList();
+		
 		String operator = searchOperator.toLowerCase();
 		final int startIndex = searchParameters.getSkip()
 				* searchParameters.getTop();
 
 		String query = "";
-
-		if (operator.equals("exact-match")) {
+		switch(operator) {
+		case CommonValues.SEARCH_MATCH_EXACT:
 			query = "SELECT FROM Group\n" + "WHERE name.toLowerCase() LIKE '"
 					+ searchParameters.getSearchString() + "'\n"
 					+ "  OR description.toLowerCase() LIKE '"
@@ -267,7 +316,8 @@ public class GroupService extends NdexService {
 					+ searchParameters.getSearchString() + "'\n"
 					+ "ORDER BY creation_date DESC\n" + "SKIP " + startIndex
 					+ "\n" + "LIMIT " + searchParameters.getTop();
-		} else if (operator.equals("starts-with")) {
+			break;
+		case CommonValues.SEARCH_MATCH_STARTS_WITH:
 			query = "SELECT FROM Group\n" + "WHERE name.toLowerCase() LIKE '"
 					+ searchParameters.getSearchString() + "%'\n"
 					+ "  OR description.toLowerCase() LIKE '"
@@ -276,7 +326,8 @@ public class GroupService extends NdexService {
 					+ searchParameters.getSearchString() + "%'\n"
 					+ "ORDER BY creation_date DESC\n" + "SKIP " + startIndex
 					+ "\n" + "LIMIT " + searchParameters.getTop();
-		} else if (operator.equals("contains")) {
+			break;
+		case CommonValues.SEARCH_MATCH_CONTAINS:
 			query = "SELECT FROM Group\n" + "WHERE name.toLowerCase() LIKE '%"
 					+ searchParameters.getSearchString() + "%'\n"
 					+ "  OR description.toLowerCase() LIKE '%"
@@ -285,7 +336,10 @@ public class GroupService extends NdexService {
 					+ searchParameters.getSearchString() + "%'\n"
 					+ "ORDER BY creation_date DESC\n" + "SKIP " + startIndex
 					+ "\n" + "LIMIT " + searchParameters.getTop();
-		}
+			break;
+			default:
+				throw new IllegalArgumentException(operator +" is not a supported search operator");
+		} // end of switch clause
 
 		try {
 			setupDatabase();
@@ -301,7 +355,7 @@ public class GroupService extends NdexService {
 			_logger.error(
 					"Failed to search groups: "
 							+ searchParameters.getSearchString(), e);
-			_orientDbGraph.getBaseGraph().rollback();
+			
 			throw new NdexException("Failed to search groups.");
 		} finally {
 			teardownDatabase();
@@ -369,6 +423,9 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to query the database.
 	 **************************************************************************/
+	/*
+	 * refactored to accommodate non-transactional database interactions
+	 */
 	@DELETE
 	@Path("/{groupId}/member/{userId}")
 	@Produces("application/json")
@@ -376,10 +433,11 @@ public class GroupService extends NdexService {
 			@PathParam("userId") final String userId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			SecurityException, NdexException {
-		if (groupId == null || groupId.isEmpty())
-			throw new IllegalArgumentException("No group ID was specified.");
-		else if (userId == null || userId.isEmpty())
-			throw new IllegalArgumentException("No member was specified.");
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(groupId), 
+				"A group id is required");
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(userId),
+				"A user id for the member is required");
+	
 
 		try {
 			setupDatabase();
@@ -387,7 +445,6 @@ public class GroupService extends NdexService {
 			final ORID groupRid = IdConverter.toRid(groupId);
 			final IGroup group = _orientDbGraph.getVertex(groupRid,
 					IGroup.class);
-
 			if (group == null)
 				throw new ObjectNotFoundException("Group", groupId);
 			else if (!hasPermission(new Group(group), Permissions.ADMIN))
@@ -415,11 +472,12 @@ public class GroupService extends NdexService {
 		} catch (ObjectNotFoundException | SecurityException ne) {
 			throw ne;
 		} catch (Exception e) {
-			if (e.getMessage().indexOf("cluster: null") > -1)
+			if (e.getMessage().indexOf("cluster: null") > -1) {
+				_logger.error("Group id " +groupId +" not found");
 				throw new ObjectNotFoundException("Group", groupId);
-
+			}
 			_logger.error("Failed to remove member.", e);
-			_orientDbGraph.getBaseGraph().rollback();
+			
 			throw new NdexException("Failed to remove member.");
 		} finally {
 			teardownDatabase();
@@ -445,8 +503,9 @@ public class GroupService extends NdexService {
 	public void updateGroup(final Group updatedGroup)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			SecurityException, NdexException {
-		if (updatedGroup == null)
-			throw new IllegalArgumentException("The updated group is empty.");
+		Preconditions.checkNotNull(updatedGroup, 
+				"A Group is required.");
+		
 
 		try {
 			setupDatabase();
@@ -478,7 +537,7 @@ public class GroupService extends NdexService {
 							groupToUpdate.getWebsite()))
 				groupToUpdate.setWebsite(updatedGroup.getWebsite());
 
-			_orientDbGraph.getBaseGraph().commit();
+			
 		} catch (SecurityException | ObjectNotFoundException onfe) {
 			throw onfe;
 		} catch (Exception e) {
@@ -487,7 +546,7 @@ public class GroupService extends NdexService {
 
 			_logger.error("Failed to update group: " + updatedGroup.getName()
 					+ ".", e);
-			_orientDbGraph.getBaseGraph().rollback();
+		
 			throw new NdexException("Failed to update the group.");
 		} finally {
 			teardownDatabase();
@@ -510,19 +569,22 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to query the database.
 	 **************************************************************************/
+	/*
+	 * refactored to accommodate non-transactional database interactions
+	 */
 	@POST
 	@Path("/{groupId}/member")
 	@Produces("application/json")
 	public void updateMember(@PathParam("groupId") final String groupId,
 			final Membership groupMember) throws IllegalArgumentException,
 			ObjectNotFoundException, SecurityException, NdexException {
-		if (groupId == null || groupId.isEmpty())
-			throw new IllegalArgumentException("No group ID was specified.");
-		else if (groupMember == null)
-			throw new IllegalArgumentException("The member to update is empty.");
-		else if (groupMember.getResourceId() == null
-				|| groupMember.getResourceId().isEmpty())
-			throw new IllegalArgumentException("No member ID was specified.");
+		Preconditions.checkArgument(Strings.isNullOrEmpty(groupId), 
+				"A group id is required");
+		Preconditions.checkNotNull(groupMember, 
+				"A group member is required");
+		Preconditions.checkState(!Strings.isNullOrEmpty(groupMember.getResourceId()),
+				"A resource id is required for the group member");
+		
 
 		try {
 			setupDatabase();
@@ -548,13 +610,13 @@ public class GroupService extends NdexService {
 						.toJid((ORID) groupMembership.getMember().asVertex()
 								.getId());
 				if (memberId.equals(groupMember.getResourceId())) {
-					if (countAdminMembers(groupRid) < 2)
+					if (countAdminMembers(groupRid) < 2){
 						throw new SecurityException(
 								"Cannot change the permissions on the only ADMIN member.");
-
+					}
 					groupMembership
 							.setPermissions(groupMember.getPermissions());
-					_orientDbGraph.getBaseGraph().commit();
+					
 					return;
 				}
 			}
@@ -569,7 +631,7 @@ public class GroupService extends NdexService {
 			_logger.error(
 					"Failed to update member: " + groupMember.getResourceName()
 							+ ".", e);
-			_orientDbGraph.getBaseGraph().rollback();
+			
 			throw new NdexException("Failed to update member: "
 					+ groupMember.getResourceName() + ".");
 		} finally {
