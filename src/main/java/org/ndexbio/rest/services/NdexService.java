@@ -19,16 +19,21 @@ import javax.ws.rs.Produces;
 import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
+import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.IBaseTerm;
 import org.ndexbio.common.models.data.IFunctionTerm;
 import org.ndexbio.common.models.data.IGroup;
 import org.ndexbio.common.models.data.IGroupInvitationRequest;
 import org.ndexbio.common.models.data.IGroupMembership;
 import org.ndexbio.common.models.data.IJoinGroupRequest;
+import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.INetworkAccessRequest;
 import org.ndexbio.common.models.data.INetworkMembership;
 import org.ndexbio.common.models.data.IUser;
+import org.ndexbio.common.models.object.Membership;
+import org.ndexbio.common.models.object.Network;
 import org.ndexbio.common.models.object.RestResource;
+import org.ndexbio.common.models.object.NdexStatus;
 import org.ndexbio.common.models.object.User;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
@@ -122,20 +127,6 @@ public abstract class NdexService
         return resourceList;
     }
 
-    /**************************************************************************
-    * Gets status for the service.
-    **************************************************************************/
-    @GET
-    @PermitAll
-    @Path("/status")
-    @Produces("application/json")
-    public String getStatus() throws NdexException
-    {
-        return "RUNNING";
-    }
-     
-    
-    
     /**************************************************************************
     * Gets the authenticated user that made the request.
     * 

@@ -63,6 +63,38 @@ public class NetworkService extends NdexService {
 	public NetworkService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
+	
+    /**************************************************************************
+    * Gets status for the service.
+    **************************************************************************/
+    @GET
+    @PermitAll
+    @Path("/status")
+    @Produces("application/json")
+    public NdexStatus getStatus() throws NdexException
+    {
+        
+		try {
+			setupDatabase();
+			NdexStatus status = new NdexStatus();
+			status.setNetworkCount(this.getClassCount("network"));
+			status.setUserCount(this.getClassCount("user"));
+			status.setGroupCount(this.getClassCount("group"));		
+			return status;
+				
+		} finally {
+			teardownDatabase();
+		}		
+         
+    }
+    
+    private Integer getClassCount(String className){
+    	final List<ODocument> classCountResult = _ndexDatabase.query(new OSQLSynchQuery<ODocument>("SELECT COUNT(*) as count FROM " + className));
+		final Long count = classCountResult.get(0).field("count");
+		Integer classCount = count != null ? count.intValue() : null;
+		return classCount; 	
+    }
+    
 
 	/**************************************************************************
 	 * Suggests terms that start with the partial term.
@@ -181,6 +213,9 @@ public class NetworkService extends NdexService {
 			network.setMetaterms(new HashMap<String, IBaseTerm>());
 			network.setNdexEdgeCount(newNetwork.getEdges().size());
 			network.setNdexNodeCount(newNetwork.getNodes().size());
+			if (null != newNetwork.getDescription()){
+				network.setDescription(newNetwork.getDescription());
+			}
 
 			if (newNetwork.getMembers() == null
 					|| newNetwork.getMembers().size() == 0) {
@@ -1425,8 +1460,17 @@ public class NetworkService extends NdexService {
 			newCitation.setType(citation.getType());
 			newCitation.setContributors(citation.getContributors());
 
-			for (final String supportId : citation.getSupports())
-				newCitation.addSupport((ISupport) networkIndex.get(supportId));
+			for (final String supportId : citation.getSupports()){
+				// when creating a network based on a subnetwork
+				// the citations may reference supports that were in the original
+				// network but not in the subnetwork. So if the support is 
+				// not in the networkIndex, skip it, don't error.
+				ISupport support = (ISupport) networkIndex.get(supportId);
+				if (null != support){
+					newCitation.addSupport(support);
+				}
+			}
+				
 
 			newNetwork.addCitation(newCitation);
 			networkIndex.put(newCitation.getJdexId(), newCitation);
@@ -1549,6 +1593,7 @@ public class NetworkService extends NdexService {
 		for (final Entry<String, Term> termEntry : networkToCreate.getTerms()
 				.entrySet()) {
 			final Term term = termEntry.getValue();
+			//System.out.println("Creating " + term.getTermType() + " jdexId = " + termEntry.getKey());
 
 			if (term.getTermType() == null || term.getTermType().isEmpty()
 					|| term.getTermType().equals("Base")) {
@@ -1557,9 +1602,9 @@ public class NetworkService extends NdexService {
 				newBaseTerm.setName(((BaseTerm) term).getName());
 				newBaseTerm.setJdexId(termEntry.getKey());
 
-				String jdexId = ((BaseTerm) term).getNamespace().getJdexId();
-				if (jdexId != null && !jdexId.isEmpty()) {
-					final VertexFrame namespace = networkIndex.get(jdexId);
+				String namespaceJdexId = ((BaseTerm) term).getNamespace();
+				if (namespaceJdexId != null && !namespaceJdexId.isEmpty()) {
+					final VertexFrame namespace = networkIndex.get(namespaceJdexId);
 					if (namespace != null)
 						newBaseTerm.setTermNamespace((INamespace) namespace);
 				}
@@ -1589,7 +1634,7 @@ public class NetworkService extends NdexService {
 					newFunctionTerm.setTermFunc((IBaseTerm) function);
 
 				List<ITerm> iParameters = new ArrayList<ITerm>();
-				for (Map.Entry<Integer, String> entry : ((FunctionTerm) term)
+				for (Map.Entry<String, String> entry : ((FunctionTerm) term)
 						.getParameters().entrySet()) {
 					// All Terms mentioned as parameters are expected to have
 					// been found and created
