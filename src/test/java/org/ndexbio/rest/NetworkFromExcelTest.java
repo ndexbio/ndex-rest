@@ -49,7 +49,8 @@ public class NetworkFromExcelTest
     @BeforeClass
     public static void initializeTests() throws Exception
     {
-        final InputStream propertiesStream = Thread.currentThread().getContextClassLoader().getResourceAsStream("ndex.properties");
+        final InputStream propertiesStream = Thread.currentThread()
+        		.getContextClassLoader().getResourceAsStream("ndex.properties");
         _testProperties.load(propertiesStream);
 
         try

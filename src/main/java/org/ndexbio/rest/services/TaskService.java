@@ -9,6 +9,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.helpers.IdConverter;
@@ -17,6 +18,9 @@ import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.common.models.object.Task;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.id.ORID;
 
 @Path("/tasks")
@@ -38,8 +42,6 @@ public class TaskService extends NdexService
         super(httpRequest);
     }
     
-    
-    
     /**************************************************************************
     * Creates a task. 
     * 
@@ -51,12 +53,16 @@ public class TaskService extends NdexService
     *            Failed to create the task in the database.
     * @return The newly created task.
     **************************************************************************/
+    /*
+     * refactored for non-transactional database operation
+     */
     @PUT
     @Produces("application/json")
     public Task createTask(final Task newTask) throws IllegalArgumentException, NdexException
     {
-        if (newTask == null)
-            throw new IllegalArgumentException("The task to create is empty.");
+    	Preconditions.checkArgument(null != newTask, 
+    			" A task object is required");
+        
         
         final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
 
@@ -75,17 +81,13 @@ public class TaskService extends NdexService
             task.setStatus(newTask.getStatus());
             task.setStartTime(newTask.getCreatedDate());
             task.setType(newTask.getType());
-
-            _orientDbGraph.getBaseGraph().commit();
-
             newTask.setId(IdConverter.toJid((ORID) task.asVertex().getId()));
             return newTask;
         }
         catch (Exception e)
         {
-            _logger.error("Failed to create a task for: " + this.getLoggedInUser().getUsername() + ".", e);
-            _orientDbGraph.getBaseGraph().rollback(); 
-            throw new NdexException("Failed to create a task.");
+            _logger.error("Error creating task for: " + this.getLoggedInUser().getUsername() + ".", e);
+            throw new NdexException("Error creating a task.");
         }
         finally
         {
@@ -107,14 +109,17 @@ public class TaskService extends NdexService
     * @throws NdexException
     *            Failed to delete the task from the database.
     **************************************************************************/
+    /*
+     * refactored for non-transactional database operations
+     */
     @DELETE
     @Path("/{taskId}")
     @Produces("application/json")
     public void deleteTask(@PathParam("taskId")final String taskId) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
-        if (taskId == null || taskId.isEmpty())
-            throw new IllegalArgumentException("The task ID was not specified.");
-        
+    	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId), 
+    			"A task id is required");
+       
         final ORID taskRid = IdConverter.toRid(taskId);
 
         try
@@ -128,7 +133,7 @@ public class TaskService extends NdexService
                 throw new SecurityException("You cannot delete a task you don't own.");
     
             _orientDbGraph.removeVertex(taskToDelete.asVertex());
-            _orientDbGraph.getBaseGraph().commit();
+           
         }
         catch (SecurityException | ObjectNotFoundException onfe)
         {
@@ -136,11 +141,12 @@ public class TaskService extends NdexService
         }
         catch (Exception e)
         {
-            if (e.getMessage().indexOf("cluster: null") > -1)
+            if (e.getMessage().indexOf("cluster: null") > -1){
                 throw new ObjectNotFoundException("Task", taskId);
+            }
             
             _logger.error("Failed to delete task: " + taskId + ".", e);
-            _orientDbGraph.getBaseGraph().rollback(); 
+        
             throw new NdexException("Failed to delete a task.");
         }
         finally
@@ -219,9 +225,9 @@ public class TaskService extends NdexService
     @Produces("application/json")
     public void updateTask(final Task updatedTask) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
-        if (updatedTask == null)
-            throw new IllegalArgumentException("The task to update is empty.");
-        
+       Preconditions.checkArgument(null != updatedTask, 
+    		   "A task is required");
+    	
         ORID taskRid = IdConverter.toRid(updatedTask.getId());
 
         try
@@ -240,7 +246,6 @@ public class TaskService extends NdexService
             taskToUpdate.setStatus(updatedTask.getStatus());
             taskToUpdate.setType(updatedTask.getType());
 
-            _orientDbGraph.getBaseGraph().commit();
         }
         catch (SecurityException | ObjectNotFoundException onfe)
         {
@@ -248,11 +253,12 @@ public class TaskService extends NdexService
         }
         catch (Exception e)
         {
-            if (e.getMessage().indexOf("cluster: null") > -1)
+            if (e.getMessage().indexOf("cluster: null") > -1){
                 throw new ObjectNotFoundException("Task", updatedTask.getId());
+            }
             
             _logger.error("Failed to update task: " + updatedTask.getId() + ".", e);
-            _orientDbGraph.getBaseGraph().rollback(); 
+           
             throw new NdexException("Failed to update task: " + updatedTask.getId() + ".");
         }
         finally

@@ -107,7 +107,7 @@ public class TestNetworkService extends TestNdexService
         _networkService.deleteNetwork(null);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = ObjectNotFoundException.class)
     public void deleteNetworkNonexistant() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
         _networkService.deleteNetwork("C999R999");

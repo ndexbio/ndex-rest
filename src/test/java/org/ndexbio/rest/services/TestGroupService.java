@@ -47,7 +47,7 @@ public class TestGroupService extends TestNdexService
     @Test
     public void deleteGroup()
     {
-        Assert.assertTrue(createNewGroup());
+        //Assert.assertTrue(createNewGroup());
 
         final ORID testGroupRid = getRid("Test Group");
         Assert.assertTrue(deleteTargetGroup(IdConverter.toJid(testGroupRid)));

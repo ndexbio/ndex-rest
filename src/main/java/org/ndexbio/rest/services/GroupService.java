@@ -77,9 +77,14 @@ public class GroupService extends NdexService {
 	public Group createGroup(final Group newGroup)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
-		Preconditions.checkArgument(null != newGroup, "A group is required");
-		Preconditions.checkState(this.isValidGroupName(newGroup), 
-				"Group " +newGroup.getName() +" already exists");
+		try {
+			Preconditions.checkArgument(null != newGroup, "A group is required");
+			Preconditions.checkState(this.isValidGroupName(newGroup), 
+					"Group " +newGroup.getName() +" already exists");
+		} catch (Exception e1) {
+			// for legacy unit tests
+			throw new IllegalArgumentException(e1);
+		}
 			
 		try {
 			setupDatabase();
@@ -162,6 +167,7 @@ public class GroupService extends NdexService {
 	public void deleteGroup(@PathParam("groupId") final String groupId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			SecurityException, NdexException {
+		
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(groupId), 
 				"No group ID was specified.");
 
@@ -242,6 +248,7 @@ public class GroupService extends NdexService {
 		else if ((long) adminNetworks.get(0).field("COUNT") > 1)
 			throw new NdexException(
 					"Cannot delete a group that is an ADMIN member of any network.");
+		_logger.info("OK to delete group id " + groupId);
 	}
 	/*
 	 * private method to determine if a proposed group name is novel
@@ -252,9 +259,13 @@ public class GroupService extends NdexService {
 	 */
 	private boolean isValidGroupName(Group newGroup) throws IllegalArgumentException,
 		NdexException{
-		Preconditions.checkNotNull(newGroup.getName(), "The new group requires a name");
-		Preconditions.checkState(Validation.isValid(newGroup.getName(),
-				Validation.REGEX_GROUP_NAME), "Invalid group name");
+		try {
+			Preconditions.checkNotNull(newGroup.getName(), "The new group requires a name");
+			Preconditions.checkState(Validation.isValid(newGroup.getName(),
+					Validation.REGEX_GROUP_NAME), "Invalid group name");
+		} catch (Exception e) {
+			throw new IllegalArgumentException(e);
+		}
 		
 		
 		final SearchParameters searchParameters = new SearchParameters();
@@ -289,12 +300,17 @@ public class GroupService extends NdexService {
 	public List<Group> findGroups(SearchParameters searchParameters,
 			@PathParam("searchOperator") final String searchOperator)
 			throws IllegalArgumentException, NdexException {
-		Preconditions.checkNotNull(searchParameters,
-				"A SearchParameters object is required");
-		Preconditions.checkState(!Strings.isNullOrEmpty(searchParameters.getSearchString()),
-				"A search string is required");
-		Preconditions.checkState(!Strings.isNullOrEmpty(searchOperator),
-				"A search operator is required");
+		try {
+			Preconditions.checkNotNull(searchParameters,
+					"A SearchParameters object is required");
+			Preconditions.checkState(!Strings.isNullOrEmpty(searchParameters.getSearchString()),
+					"A search string is required");
+			Preconditions.checkState(!Strings.isNullOrEmpty(searchOperator),
+					"A search operator is required");
+		} catch (Exception e1) {
+			// TODO Auto-generated catch block
+			throw new IllegalArgumentException(e1);
+		}
 	
 		searchParameters.setSearchString(searchParameters.getSearchString()
 					.toLowerCase().trim());
@@ -503,7 +519,7 @@ public class GroupService extends NdexService {
 	public void updateGroup(final Group updatedGroup)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			SecurityException, NdexException {
-		Preconditions.checkNotNull(updatedGroup, 
+		Preconditions.checkArgument(null !=updatedGroup, 
 				"A Group is required.");
 		
 
@@ -578,12 +594,16 @@ public class GroupService extends NdexService {
 	public void updateMember(@PathParam("groupId") final String groupId,
 			final Membership groupMember) throws IllegalArgumentException,
 			ObjectNotFoundException, SecurityException, NdexException {
-		Preconditions.checkArgument(Strings.isNullOrEmpty(groupId), 
-				"A group id is required");
-		Preconditions.checkNotNull(groupMember, 
-				"A group member is required");
-		Preconditions.checkState(!Strings.isNullOrEmpty(groupMember.getResourceId()),
-				"A resource id is required for the group member");
+		try {
+			Preconditions.checkArgument(!Strings.isNullOrEmpty(groupId), 
+					"A group id is required");
+			Preconditions.checkNotNull(groupMember, 
+					"A group member is required");
+			Preconditions.checkState(!Strings.isNullOrEmpty(groupMember.getResourceId()),
+					"A resource id is required for the group member");
+		} catch (Exception e1) {
+			throw new IllegalArgumentException(e1);
+		}
 		
 
 		try {

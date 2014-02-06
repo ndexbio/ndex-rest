@@ -28,6 +28,7 @@ import javax.ws.rs.core.Context;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.google.common.collect.Maps;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
@@ -65,38 +66,6 @@ public class NetworkService extends NdexService {
 	public NetworkService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
-	
-    /**************************************************************************
-    * Gets status for the service.
-    **************************************************************************/
-    @GET
-    @PermitAll
-    @Path("/status")
-    @Produces("application/json")
-    public NdexStatus getStatus() throws NdexException
-    {
-        
-		try {
-			setupDatabase();
-			NdexStatus status = new NdexStatus();
-			status.setNetworkCount(this.getClassCount("network"));
-			status.setUserCount(this.getClassCount("user"));
-			status.setGroupCount(this.getClassCount("group"));		
-			return status;
-				
-		} finally {
-			teardownDatabase();
-		}		
-         
-    }
-    
-    private Integer getClassCount(String className){
-    	final List<ODocument> classCountResult = _ndexDatabase.query(new OSQLSynchQuery<ODocument>("SELECT COUNT(*) as count FROM " + className));
-		final Long count = classCountResult.get(0).field("count");
-		Integer classCount = count != null ? count.intValue() : null;
-		return classCount; 	
-    }
-    
 
 	/**************************************************************************
 	 * Suggests terms that start with the partial term.
@@ -173,16 +142,18 @@ public class NetworkService extends NdexService {
 	 *             Failed to create the network in the database.
 	 * @return The newly created network.
 	 **************************************************************************/
+	/*
+	 * refactored to support no-transactional database operations
+	 */
 	@PUT
 	@Produces("application/json")
 	public Network createNetwork(final Network newNetwork)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
-		if (newNetwork == null)
-			throw new IllegalArgumentException("The network to create is null.");
-		else if (newNetwork.getName() == null || newNetwork.getName().isEmpty())
-			throw new IllegalArgumentException(
-					"The network does not have a title.");
+		Preconditions.checkArgument(null != newNetwork, "A newtork is reuired");
+		Preconditions.checkArgument(
+				!Strings.isNullOrEmpty(newNetwork.getName()),
+				"A network name is required");
 
 		try {
 			setupDatabase();
@@ -191,19 +162,13 @@ public class NetworkService extends NdexService {
 					IdConverter.toRid(this.getLoggedInUser().getId()),
 					IUser.class);
 
-			final List<ODocument> existingNetworks = _ndexDatabase
-					.query(new OSQLSynchQuery<Object>(
-							"SELECT @RID FROM Network WHERE out_networkMemberships.out_membershipMember.username = '"
-									+ networkOwner.getUsername()
-									+ "' AND title = '"
-									+ newNetwork.getName()
-									+ "'"));
-			if (!existingNetworks.isEmpty())
-				throw new DuplicateObjectException(
-						"You already have a network titled: "
-								+ newNetwork.getName());
+			try {
+				checkForExistingNetwork(newNetwork, networkOwner);
+			} catch (DuplicateObjectException doe) {
+				throw (doe);
+			}
 
-			final Map<String, VertexFrame> networkIndex = new HashMap<String, VertexFrame>();
+			final Map<String, VertexFrame> networkIndex = Maps.newHashMap();
 
 			final INetwork network = _orientDbGraph.addVertex("class:network",
 					INetwork.class);
@@ -215,31 +180,8 @@ public class NetworkService extends NdexService {
 			network.setMetaterms(new HashMap<String, IBaseTerm>());
 			network.setNdexEdgeCount(newNetwork.getEdges().size());
 			network.setNdexNodeCount(newNetwork.getNodes().size());
-			if (null != newNetwork.getDescription()){
-				network.setDescription(newNetwork.getDescription());
-			}
 
-			if (newNetwork.getMembers() == null
-					|| newNetwork.getMembers().size() == 0) {
-				final INetworkMembership membership = _orientDbGraph.addVertex(
-						"class:networkMembership", INetworkMembership.class);
-				membership.setPermissions(Permissions.ADMIN);
-				membership.setMember(networkOwner);
-				membership.setNetwork(network);
-			} else {
-				for (final Membership member : newNetwork.getMembers()) {
-					final IUser networkMember = _orientDbGraph.getVertex(
-							IdConverter.toRid(member.getResourceId()),
-							IUser.class);
-
-					final INetworkMembership membership = _orientDbGraph
-							.addVertex("class:networkMembership",
-									INetworkMembership.class);
-					membership.setPermissions(member.getPermissions());
-					membership.setMember(networkMember);
-					membership.setNetwork(network);
-				}
-			}
+			createNetworkMembers(newNetwork, networkOwner, network);
 
 			// Namespaces must be created first since they can be referenced by
 			// terms.
@@ -257,19 +199,53 @@ public class NetworkService extends NdexService {
 			createNodes(network, newNetwork, networkIndex);
 			createEdges(network, newNetwork, networkIndex);
 
-			_orientDbGraph.getBaseGraph().commit();
-
 			return new Network(network);
-		} catch (DuplicateObjectException doe) {
-			throw doe;
+
 		} catch (Exception e) {
 			_logger.error("Failed to create network: " + newNetwork.getName()
 					+ ".", e);
-			_orientDbGraph.getBaseGraph().rollback();
 			throw new NdexException("Failed to create the network.");
 		} finally {
 			teardownDatabase();
 		}
+	}
+
+	private void createNetworkMembers(final Network newNetwork,
+			final IUser networkOwner, final INetwork network) {
+		if (newNetwork.getMembers() == null
+				|| newNetwork.getMembers().size() == 0) {
+			final INetworkMembership membership = _orientDbGraph.addVertex(
+					"class:networkMembership", INetworkMembership.class);
+			membership.setPermissions(Permissions.ADMIN);
+			membership.setMember(networkOwner);
+			membership.setNetwork(network);
+		} else {
+			for (final Membership member : newNetwork.getMembers()) {
+				final IUser networkMember = _orientDbGraph.getVertex(
+						IdConverter.toRid(member.getResourceId()), IUser.class);
+
+				final INetworkMembership membership = _orientDbGraph.addVertex(
+						"class:networkMembership", INetworkMembership.class);
+				membership.setPermissions(member.getPermissions());
+				membership.setMember(networkMember);
+				membership.setNetwork(network);
+			}
+		}
+	}
+
+	private void checkForExistingNetwork(final Network newNetwork,
+			final IUser networkOwner) throws DuplicateObjectException {
+		final List<ODocument> existingNetworks = _ndexDatabase
+				.query(new OSQLSynchQuery<Object>(
+						"SELECT @RID FROM Network WHERE out_networkMemberships.out_membershipMember.username = '"
+								+ networkOwner.getUsername()
+								+ "' AND title = '"
+								+ newNetwork.getName()
+								+ "'"));
+		if (!existingNetworks.isEmpty())
+			throw new DuplicateObjectException(
+					"You already have a network titled: "
+							+ newNetwork.getName());
 	}
 
 	/**************************************************************************
@@ -290,8 +266,8 @@ public class NetworkService extends NdexService {
 	public void deleteNetwork(@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			NdexException {
-		if (networkId == null || networkId.isEmpty())
-			throw new IllegalArgumentException("No network ID was specified.");
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId),
+				"A network id is required");
 
 		final ORID networkRid = IdConverter.toRid(networkId);
 
@@ -338,10 +314,9 @@ public class NetworkService extends NdexService {
 		} catch (SecurityException | NdexException ne) {
 			throw ne;
 		} catch (Exception e) {
-			if (e.getMessage().indexOf("cluster: null") > -1)
+			if (e.getMessage().indexOf("cluster: null") > -1) {
 				throw new ObjectNotFoundException("Network", networkId);
-
-			_orientDbGraph.getBaseGraph().rollback();
+			}
 			throw e;
 		} finally {
 			teardownDatabase();
@@ -827,7 +802,8 @@ public class NetworkService extends NdexService {
 	@POST
 	@Path("/{networkId}/query")
 	@Produces("application/json")
-	public Network queryNetwork2(@PathParam("networkId") final String networkId,
+	public Network queryNetwork2(
+			@PathParam("networkId") final String networkId,
 			final NetworkQueryParameters queryParameters)
 			throws IllegalArgumentException, NdexException {
 		if (networkId == null || networkId.isEmpty())
@@ -843,27 +819,23 @@ public class NetworkService extends NdexService {
 			else {
 				List<IBaseTerm> startingTerms = getBaseTermsByNames(network,
 						queryParameters.getStartingTermStrings());
-				
-				if (!startingTerms.isEmpty()) {
-					List<INode> startingNodes = getNodesFromTerms(startingTerms, true);
-					if (!startingNodes.isEmpty()){
-						List<IEdge> foundIEdges = neighborhoodNodeQuery(
-								network,
-								startingNodes,
-								queryParameters.getSearchDepth(),
-								queryParameters.getSearchType()
-								);
 
-					/*
-					List<IEdge> foundIEdges = neighborhoodQuery2(
-							network,
-							startingNodes,
-							queryParameters.getSearchDepth(),
-							queryParameters.getSearchType(),
-							1000
-							);
-					*/
-					return getNetworkBasedOnFoundEdges(foundIEdges, network);
+				if (!startingTerms.isEmpty()) {
+					List<INode> startingNodes = getNodesFromTerms(
+							startingTerms, true);
+					if (!startingNodes.isEmpty()) {
+						List<IEdge> foundIEdges = neighborhoodNodeQuery(
+								network, startingNodes,
+								queryParameters.getSearchDepth(),
+								queryParameters.getSearchType());
+
+						/*
+						 * List<IEdge> foundIEdges = neighborhoodQuery2(
+						 * network, startingNodes,
+						 * queryParameters.getSearchDepth(),
+						 * queryParameters.getSearchType(), 1000 );
+						 */
+						return getNetworkBasedOnFoundEdges(foundIEdges, network);
 					}
 				}
 			}
@@ -875,7 +847,6 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
 
 	/**************************************************************************
 	 * Removes a member from a network.
@@ -900,10 +871,11 @@ public class NetworkService extends NdexService {
 			@PathParam("userId") final String userId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			SecurityException, NdexException {
-		if (networkId == null || networkId.isEmpty())
-			throw new IllegalArgumentException("No network ID was specified.");
-		else if (userId == null || userId.isEmpty())
-			throw new IllegalArgumentException("No member was specified.");
+
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId),
+				"A network id is required");
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(userId),
+				"A user id is required");
 
 		try {
 			setupDatabase();
@@ -939,11 +911,12 @@ public class NetworkService extends NdexService {
 		} catch (ObjectNotFoundException | SecurityException ne) {
 			throw ne;
 		} catch (Exception e) {
-			if (e.getMessage().indexOf("cluster: null") > -1)
+			if (e.getMessage().indexOf("cluster: null") > -1) {
 				throw new ObjectNotFoundException("Network", networkId);
+			}
 
 			_logger.error("Failed to remove member.", e);
-			_orientDbGraph.getBaseGraph().rollback();
+
 			throw new NdexException("Failed to remove member.");
 		} finally {
 			teardownDatabase();
@@ -972,14 +945,18 @@ public class NetworkService extends NdexService {
 	public void updateMember(@PathParam("networkId") final String networkId,
 			final Membership networkMember) throws IllegalArgumentException,
 			ObjectNotFoundException, SecurityException, NdexException {
-		
-		Preconditions.checkArgument(Strings.isNullOrEmpty(networkId),
-				 "A network id is rquired");
-		Preconditions.checkNotNull( networkMember, 
-				"A network member is required");
-		Preconditions.checkState(!Strings.isNullOrEmpty(networkMember.getResourceId()), 
-				"The network member must have a resource id");
-		
+
+		try {
+			Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId),
+					"A network id is rquired");
+			Preconditions.checkNotNull(networkMember,
+					"A network member is required");
+			Preconditions.checkState(
+					!Strings.isNullOrEmpty(networkMember.getResourceId()),
+					"The network member must have a resource id");
+		} catch (Exception e1) {
+			throw new IllegalArgumentException(e1);
+		}
 
 		try {
 			setupDatabase();
@@ -1023,7 +1000,7 @@ public class NetworkService extends NdexService {
 			_logger.error(
 					"Failed to update member: "
 							+ networkMember.getResourceName() + ".", e);
-			
+
 			throw new NdexException("Failed to update member: "
 					+ networkMember.getResourceName() + ".");
 		} finally {
@@ -1047,10 +1024,9 @@ public class NetworkService extends NdexService {
 	@Produces("application/json")
 	public void updateNetwork(final Network updatedNetwork)
 			throws IllegalArgumentException, SecurityException, NdexException {
-		
-		Preconditions.checkNotNull(updatedNetwork, 
-				"A Network is required");
-		
+
+		Preconditions.checkNotNull(updatedNetwork, "A Network is required");
+
 		try {
 			setupDatabase();
 
@@ -1082,8 +1058,7 @@ public class NetworkService extends NdexService {
 					&& !updatedNetwork.getMetadata().equals(
 							networkToUpdate.getMetadata()))
 				networkToUpdate.setMetadata(updatedNetwork.getMetadata());
-			
-			
+
 		} catch (SecurityException | ObjectNotFoundException onfe) {
 			throw onfe;
 		} catch (Exception e) {
@@ -1094,7 +1069,7 @@ public class NetworkService extends NdexService {
 			_logger.error(
 					"Failed to update network: " + updatedNetwork.getName()
 							+ ".", e);
-			
+
 			throw new NdexException("Failed to update the network.");
 		} finally {
 			teardownDatabase();
@@ -1113,22 +1088,30 @@ public class NetworkService extends NdexService {
 	 *             Failed to parse the file, or create the network in the
 	 *             database.
 	 **************************************************************************/
+	/*
+	 * refactored to support non-transactional database operations
+	 */
 	@POST
 	@Path("/upload")
 	@Consumes("multipart/form-data")
 	@Produces("application/json")
 	public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork)
 			throws IllegalArgumentException, SecurityException, NdexException {
-		
-		Preconditions.checkNotNull(uploadedNetwork,
-				"A network is required");
-		Preconditions.checkState(!Strings.isNullOrEmpty(uploadedNetwork.getFilename()),
-			"A file name containg the network data is required"	);
-		Preconditions.checkNotNull(uploadedNetwork.getFileData(),
-				"Network file data is required");
-		Preconditions.checkState(uploadedNetwork.getFileData().length  >0,
-				"The file data is empty");
-		
+
+		try {
+			Preconditions
+					.checkNotNull(uploadedNetwork, "A network is required");
+			Preconditions.checkState(
+					!Strings.isNullOrEmpty(uploadedNetwork.getFilename()),
+					"A file name containg the network data is required");
+			Preconditions.checkNotNull(uploadedNetwork.getFileData(),
+					"Network file data is required");
+			Preconditions.checkState(uploadedNetwork.getFileData().length > 0,
+					"The file data is empty");
+		} catch (Exception e1) {
+			throw new IllegalArgumentException(e1);
+		}
+
 		final File uploadedNetworkPath = new File(Configuration.getInstance()
 				.getProperty("Uploaded-Networks-Path"));
 		if (!uploadedNetworkPath.exists())
@@ -1184,14 +1167,13 @@ public class NetworkService extends NdexService {
 		} catch (Exception e) {
 			_logger.error("Failed to process uploaded network: "
 					+ uploadedNetwork.getFilename() + ".", e);
-			// _orientDbGraph.getBaseGraph().rollback();
+
 			throw new NdexException(e.getMessage());
 		}
 	}
 
-	
-	private List<INode> getNodesFromTerms(
-			List<IBaseTerm> baseTerms, boolean includeAliases) {
+	private List<INode> getNodesFromTerms(List<IBaseTerm> baseTerms,
+			boolean includeAliases) {
 		List<INode> result = new ArrayList<INode>();
 		String termIdCsv = joinBaseTermIdsToCsv(baseTerms);
 
@@ -1199,45 +1181,37 @@ public class NetworkService extends NdexService {
 		// select @RID from (traverse in_functionTermParameters,
 		// in_nodeRepresents from #15:277536, #15:273306 while $depth < 4) where
 		// @CLASS='node' limit 10
-		
-		
+
 		String traverseEdgeTypes = null;
-		if (includeAliases){
+		if (includeAliases) {
 			traverseEdgeTypes = "in_functionTermParameters, in_nodeRepresents, in_nodeRelationshipAliases, in_nodeUnificationAliases";
 		} else {
 			traverseEdgeTypes = "in_functionTermParameters, in_nodeRepresents";
 		}
 
-		final String query = 
-				"SELECT FROM (traverse " 
-				+ traverseEdgeTypes + " from \n["
-				+ termIdCsv
-				+ "] \n"
-				+ "WHILE $depth < 10) \n"
+		final String query = "SELECT FROM (traverse " + traverseEdgeTypes
+				+ " from \n[" + termIdCsv + "] \n" + "WHILE $depth < 10) \n"
 				+ "WHERE @CLASS='node' ";
-		//System.out.println("node query: " + query);
+		// System.out.println("node query: " + query);
 		final List<ODocument> nodes = _ndexDatabase
-					.query(new OSQLSynchQuery<ODocument>(query));
+				.query(new OSQLSynchQuery<ODocument>(query));
 		for (final ODocument node : nodes)
-				result.add(_orientDbGraph.getVertex(node, INode.class));
+			result.add(_orientDbGraph.getVertex(node, INode.class));
 		return result;
 	}
-	
-	private List<IBaseTerm> getBaseTermsByNames(INetwork network, List<String> baseTermNames)
-			throws NdexException {
+
+	private List<IBaseTerm> getBaseTermsByNames(INetwork network,
+			List<String> baseTermNames) throws NdexException {
 		final List<IBaseTerm> foundTerms = new ArrayList<IBaseTerm>();
 		String termNameCsv = joinStringsToCsv(baseTermNames);
-		
+
 		// select from (traverse out_networkTerms from #24:733
-		// while $depth < 2) where @CLASS='baseTerm' and name like "AKT%" limit 10
-		final String query = 
-				"SELECT FROM (traverse out_networkTerms from " 
-				+ network.asVertex().getId()
-				+ " \n"
-				+ "WHILE $depth < 2) \n"
+		// while $depth < 2) where @CLASS='baseTerm' and name like "AKT%" limit
+		// 10
+		final String query = "SELECT FROM (traverse out_networkTerms from "
+				+ network.asVertex().getId() + " \n" + "WHILE $depth < 2) \n"
 				+ "WHERE @CLASS='baseTerm' AND name IN [" + termNameCsv + "] ";
-	
-		
+
 		final List<ODocument> baseTerms = _ndexDatabase
 				.query(new OSQLSynchQuery<ODocument>(query));
 		for (final ODocument baseTerm : baseTerms)
@@ -1247,28 +1221,22 @@ public class NetworkService extends NdexService {
 	}
 
 	/*
-	private List<IEdge> neighborhoodQuery2(INetwork network,
-			List<INode> startingNodes, int searchDepth, String searchType, int i) {
-		final List<IEdge> foundEdges = new ArrayList<IEdge>();
-		String nodeIdCsv = joinNodeIdsToCsv(startingNodes);
-		// select out_edgePredicate.name from (traverse in_edgeSubject, in_edgeObject from #27:22987 while $depth < 6) where @CLASS = 'edge' limit 100
-		ifinal String query = 
-				"SELECT FROM (traverse out_networkTerms from " 
-				+ network.asVertex().getId()
-				+ " \n"
-				+ "WHILE $depth < 2) \n"
-				+ "WHERE @CLASS='baseTerm' AND name IN [" + termNameCsv + "] ";
-	
-		
-		final List<ODocument> edges = _ndexDatabase
-				.query(new OSQLSynchQuery<ODocument>(query));
-		for (final ODocument edge : edges)
-			foundEdges.add(_orientDbGraph.getVertex(edge, IEdge.class));
-		return foundEdges;
-	}
-	*/
-	
-
+	 * private List<IEdge> neighborhoodQuery2(INetwork network, List<INode>
+	 * startingNodes, int searchDepth, String searchType, int i) { final
+	 * List<IEdge> foundEdges = new ArrayList<IEdge>(); String nodeIdCsv =
+	 * joinNodeIdsToCsv(startingNodes); // select out_edgePredicate.name from
+	 * (traverse in_edgeSubject, in_edgeObject from #27:22987 while $depth < 6)
+	 * where @CLASS = 'edge' limit 100 ifinal String query =
+	 * "SELECT FROM (traverse out_networkTerms from " +
+	 * network.asVertex().getId() + " \n" + "WHILE $depth < 2) \n" +
+	 * "WHERE @CLASS='baseTerm' AND name IN [" + termNameCsv + "] ";
+	 * 
+	 * 
+	 * final List<ODocument> edges = _ndexDatabase .query(new
+	 * OSQLSynchQuery<ODocument>(query)); for (final ODocument edge : edges)
+	 * foundEdges.add(_orientDbGraph.getVertex(edge, IEdge.class)); return
+	 * foundEdges; }
+	 */
 
 	private static void addTermAndFunctionalDependencies(final ITerm term,
 			final Set<ITerm> terms) {
@@ -1301,15 +1269,21 @@ public class NetworkService extends NdexService {
 	private String buildSearchQuery(final SearchParameters searchParameters,
 			final String searchOperator) {
 		String query = "";
-	
+
 		// CASE: BaseTerm Search
-		// Some test queries.  Better to find terms by name then filter by namespace and then get networks from namespaces...
-		// GOOD: select in_networkTerms from (traverse in_baseTermNamespace from (select from namespace where prefix = 'HGNC')) where name = 'CALM1'
-		// BETTER: select in_networkNamespaces.name from (traverse out_baseTermNamespace from (select from baseTerm where name in ['CALM1'])) where prefix in ['HGNC'] limit 100
-		if (searchParameters.getSearchString().contains("terms:")){
-			//query += parseTermParameters(searchParameters);
-			query = "SELECT FROM " + getTermSearchExpression(searchParameters.getSearchString());
-					
+		// Some test queries. Better to find terms by name then filter by
+		// namespace and then get networks from namespaces...
+		// GOOD: select in_networkTerms from (traverse in_baseTermNamespace from
+		// (select from namespace where prefix = 'HGNC')) where name = 'CALM1'
+		// BETTER: select in_networkNamespaces.name from (traverse
+		// out_baseTermNamespace from (select from baseTerm where name in
+		// ['CALM1'])) where prefix in ['HGNC'] limit 100
+		if (searchParameters.getSearchString().contains("terms:")) {
+			// query += parseTermParameters(searchParameters);
+			query = "SELECT FROM "
+					+ getTermSearchExpression(searchParameters
+							.getSearchString());
+
 			if (this.getLoggedInUser() != null) {
 				query += "WHERE isComplete = true\n"
 						+ "  AND (isPublic = true"
@@ -1317,14 +1291,14 @@ public class NetworkService extends NdexService {
 						+ this.getLoggedInUser().getUsername() + "') \n";
 			} else
 				query += "WHERE isComplete = true AND isPublic = true\n";
-		
+
 		} else {
 			// CASE: Name and Description Text Search
 			// With option: Metadata Parameter Search
-			// Replace all multiple spaces (left by previous parsing) with a single
+			// Replace all multiple spaces (left by previous parsing) with a
+			// single
 			// space
-			
-			
+
 			final Pattern metadataRegex = Pattern
 					.compile("\\[(.+)\\]([:~=])(\".+\")");
 			final ArrayList<MetaParameter> metadataParameters = parseMetaParameters(
@@ -1334,7 +1308,7 @@ public class NetworkService extends NdexService {
 					.compile("\\<(.+)\\>([:~=])(\".+\")");
 			final ArrayList<MetaParameter> metatermParameters = parseMetaParameters(
 					searchParameters, metatermRegex);
-			
+
 			searchParameters.setSearchString(searchParameters.getSearchString()
 					.replace("  ", " ").toLowerCase().trim());
 
@@ -1387,13 +1361,12 @@ public class NetworkService extends NdexService {
 			query += "ORDER BY name DESC\n" + "SKIP " + startIndex + "\n"
 					+ "LIMIT " + searchParameters.getTop();
 
-
 		}
 
 		_logger.debug(query);
 		return query;
 	}
-	
+
 	private String getTermSearchExpression(final String searchString) {
 		final Pattern termRegex = Pattern.compile("terms:\\{(.+)\\}");
 		final Matcher termMatcher = termRegex.matcher(searchString);
@@ -1402,7 +1375,7 @@ public class NetworkService extends NdexService {
 
 		if (termMatcher.find()) {
 			final String terms[] = termMatcher.group(1).split(",");
-			
+
 			for (final String term : terms) {
 				final String namespaceAndTerm[] = term.split(":");
 				if (namespaceAndTerm.length != 2)
@@ -1414,13 +1387,19 @@ public class NetworkService extends NdexService {
 			}
 			String termNames = joinStringsToCsv(termNameStrings);
 			String namespacePrefixes = joinStringsToCsv(namespacePrefixStrings);
-			//SELECT @class, @rid, name FROM (TRAVERSE out_baseTermNamespace, in_networkNamespaces FROM (SELECT FROM baseTerm where name in ['CALM1']) WHILE $depth < 3 or ($depth = 1 and prefix IN ['HGNC'])) where @class = 'network' limit 500
-			final String searchExpression = " (TRAVERSE out_baseTermNamespace, in_networkNamespaces FROM " +
-					"(SELECT FROM baseTerm where name in [" + termNames + "]) " +
-					"WHILE $depth < 3 or ($depth = 1 and prefix IN [" + namespacePrefixes + "])) ";
+			// SELECT @class, @rid, name FROM (TRAVERSE out_baseTermNamespace,
+			// in_networkNamespaces FROM (SELECT FROM baseTerm where name in
+			// ['CALM1']) WHILE $depth < 3 or ($depth = 1 and prefix IN
+			// ['HGNC'])) where @class = 'network' limit 500
+			final String searchExpression = " (TRAVERSE out_baseTermNamespace, in_networkNamespaces FROM "
+					+ "(SELECT FROM baseTerm where name in ["
+					+ termNames
+					+ "]) "
+					+ "WHILE $depth < 3 or ($depth = 1 and prefix IN ["
+					+ namespacePrefixes + "])) ";
 
 			return searchExpression;
-				
+
 		}
 
 		return null;
@@ -1455,17 +1434,8 @@ public class NetworkService extends NdexService {
 			newCitation.setType(citation.getType());
 			newCitation.setContributors(citation.getContributors());
 
-			for (final String supportId : citation.getSupports()){
-				// when creating a network based on a subnetwork
-				// the citations may reference supports that were in the original
-				// network but not in the subnetwork. So if the support is 
-				// not in the networkIndex, skip it, don't error.
-				ISupport support = (ISupport) networkIndex.get(supportId);
-				if (null != support){
-					newCitation.addSupport(support);
-				}
-			}
-				
+			for (final String supportId : citation.getSupports())
+				newCitation.addSupport((ISupport) networkIndex.get(supportId));
 
 			newNetwork.addCitation(newCitation);
 			networkIndex.put(newCitation.getJdexId(), newCitation);
@@ -1588,7 +1558,6 @@ public class NetworkService extends NdexService {
 		for (final Entry<String, Term> termEntry : networkToCreate.getTerms()
 				.entrySet()) {
 			final Term term = termEntry.getValue();
-			//System.out.println("Creating " + term.getTermType() + " jdexId = " + termEntry.getKey());
 
 			if (term.getTermType() == null || term.getTermType().isEmpty()
 					|| term.getTermType().equals("Base")) {
@@ -1597,9 +1566,10 @@ public class NetworkService extends NdexService {
 				newBaseTerm.setName(((BaseTerm) term).getName());
 				newBaseTerm.setJdexId(termEntry.getKey());
 
-				String namespaceJdexId = ((BaseTerm) term).getNamespace();
-				if (namespaceJdexId != null && !namespaceJdexId.isEmpty()) {
-					final VertexFrame namespace = networkIndex.get(namespaceJdexId);
+				String jdexId = ((BaseTerm) term).getNamespace();
+				
+				if (jdexId != null && !jdexId.isEmpty()) {
+					final VertexFrame namespace = networkIndex.get(jdexId);
 					if (namespace != null)
 						newBaseTerm.setTermNamespace((INamespace) namespace);
 				}
@@ -1629,7 +1599,7 @@ public class NetworkService extends NdexService {
 					newFunctionTerm.setTermFunc((IBaseTerm) function);
 
 				List<ITerm> iParameters = new ArrayList<ITerm>();
-				for (Map.Entry<String, String> entry : ((FunctionTerm) term)
+				for (Entry<String, String> entry : ((FunctionTerm) term)
 						.getParameters().entrySet()) {
 					// All Terms mentioned as parameters are expected to have
 					// been found and created
@@ -1664,8 +1634,6 @@ public class NetworkService extends NdexService {
 
 		return foundTerms;
 	}
-	
-
 
 	private static Network getNetworkBasedOnFoundEdges(
 			final List<IEdge> foundEdges, final INetwork network) {
@@ -1692,12 +1660,12 @@ public class NetworkService extends NdexService {
 
 		for (final IEdge edge : foundEdges)
 			networkByEdges.getEdges().put(edge.getJdexId(), new Edge(edge));
-		
+
 		networkByEdges.setEdgeCount(foundEdges.size());
-		
+
 		for (final INode node : requiredINodes)
 			networkByEdges.getNodes().put(node.getJdexId(), new Node(node));
-		
+
 		networkByEdges.setNodeCount(requiredINodes.size());
 
 		for (final ITerm term : requiredITerms) {
@@ -1887,30 +1855,30 @@ public class NetworkService extends NdexService {
 
 		return foundEdges;
 	}
-	
+
 	private List<IEdge> neighborhoodNodeQuery(final INetwork network,
 			List<INode> startingNodes, int searchDepth, String searchType)
 			throws IllegalArgumentException {
 		final List<IEdge> foundEdges = new ArrayList<IEdge>();
-		//final List<OrientVertex> nodes = new ArrayList<OrientVertex>();
-		//for (INode iNode : startingNodes){
-		//	nodes.add((OrientVertex) iNode.asVertex());
-		//}
-		
-        OIdentifiable[] nodes = new OIdentifiable[startingNodes.size()];
-        for (int index = 0; index < startingNodes.size(); index++)
-        {
-            INode startingNode = startingNodes.get(index);
-            final ORID rid = new ORecordId(startingNode.asVertex().getId().toString());
-            nodes[index] = rid;
-        }
-		
+		// final List<OrientVertex> nodes = new ArrayList<OrientVertex>();
+		// for (INode iNode : startingNodes){
+		// nodes.add((OrientVertex) iNode.asVertex());
+		// }
+
+		OIdentifiable[] nodes = new OIdentifiable[startingNodes.size()];
+		for (int index = 0; index < startingNodes.size(); index++) {
+			INode startingNode = startingNodes.get(index);
+			final ORID rid = new ORecordId(startingNode.asVertex().getId()
+					.toString());
+			nodes[index] = rid;
+		}
+
 		final SearchType searchSpecSearchType = SearchType.valueOf(searchType);
 
 		final Set<OrientVertex> orientEdges = NetworkQueries.INSTANCE
 				.searchNeighborhoodByNodes(_orientDbGraph.getBaseGraph(),
-						(OrientVertex) network.asVertex(), 
-						nodes, searchDepth, searchSpecSearchType);
+						(OrientVertex) network.asVertex(), nodes, searchDepth,
+						searchSpecSearchType);
 		for (final OrientVertex edge : orientEdges)
 			foundEdges.add(_orientDbGraph.getVertex(edge, IEdge.class));
 
@@ -2009,8 +1977,6 @@ public class NetworkService extends NdexService {
 
 		return null;
 	}
-	
-
 
 	/**************************************************************************
 	 * join together a list of strings to create a quoted, comma-separated
