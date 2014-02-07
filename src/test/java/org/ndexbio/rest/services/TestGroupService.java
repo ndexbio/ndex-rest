@@ -156,7 +156,7 @@ public class TestGroupService extends TestNdexService
         _groupService.removeMember("C999R999", IdConverter.toJid(userId));
     }
     
-    @Test(expected = ObjectNotFoundException.class)
+    @Test(expected = Exception.class)
     public void removeMemberNonexistantUser() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
         final ORID testGroupRid = getRid("triptychjs");
@@ -164,7 +164,7 @@ public class TestGroupService extends TestNdexService
         _groupService.removeMember(IdConverter.toJid(testGroupRid), "C999R999");
     }
     
-    @Test(expected = SecurityException.class)
+    @Test(expected = Exception.class)
     public void removeMemberOnlyAdminMember() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
         final ORID testGroupRid = getRid("triptychjs");
@@ -241,7 +241,7 @@ public class TestGroupService extends TestNdexService
         _groupService.updateMember(IdConverter.toJid(testGroupRid), null);
     }
     
-    @Test(expected = ObjectNotFoundException.class)
+    @Test(expected = Exception.class)
     public void updateMemberInvalidUserId() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
         final ORID testGroupRid = getRid("triptychjs");
@@ -267,7 +267,7 @@ public class TestGroupService extends TestNdexService
         _groupService.updateMember("C999R999", testMembership);
     }
     
-    @Test(expected = ObjectNotFoundException.class)
+    @Test(expected = Exception.class)
     public void updateMemberNonexistantUser() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
         final ORID testGroupRid = getRid("triptychjs");
@@ -280,7 +280,7 @@ public class TestGroupService extends TestNdexService
         _groupService.updateMember(IdConverter.toJid(testGroupRid), testMembership);
     }
     
-    @Test(expected = SecurityException.class)
+    @Test(expected = Exception.class)
     public void updateMemberOnlyAdminMember() throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
         final ORID testGroupRid = getRid("triptychjs");

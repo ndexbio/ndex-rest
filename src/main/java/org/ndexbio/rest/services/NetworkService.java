@@ -162,11 +162,8 @@ public class NetworkService extends NdexService {
 					IdConverter.toRid(this.getLoggedInUser().getId()),
 					IUser.class);
 
-			try {
-				checkForExistingNetwork(newNetwork, networkOwner);
-			} catch (DuplicateObjectException doe) {
-				throw (doe);
-			}
+			checkForExistingNetwork(newNetwork, networkOwner);
+			
 
 			final Map<String, VertexFrame> networkIndex = Maps.newHashMap();
 
@@ -201,11 +198,7 @@ public class NetworkService extends NdexService {
 
 			return new Network(network);
 
-		} catch (Exception e) {
-			_logger.error("Failed to create network: " + newNetwork.getName()
-					+ ".", e);
-			throw new NdexException("Failed to create the network.");
-		} finally {
+		}  finally {
 			teardownDatabase();
 		}
 	}
@@ -237,9 +230,9 @@ public class NetworkService extends NdexService {
 			final IUser networkOwner) throws DuplicateObjectException {
 		final List<ODocument> existingNetworks = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
-						"SELECT @RID FROM Network WHERE out_networkMemberships.out_membershipMember.username = '"
+						"SELECT @RID FROM Network WHERE out_networkMemberships.in_accountNetworks.username = '"
 								+ networkOwner.getUsername()
-								+ "' AND title = '"
+								+ "' AND name = '"
 								+ newNetwork.getName()
 								+ "'"));
 		if (!existingNetworks.isEmpty())

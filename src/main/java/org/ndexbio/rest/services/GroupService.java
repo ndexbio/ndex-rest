@@ -449,6 +449,8 @@ public class GroupService extends NdexService {
 			@PathParam("userId") final String userId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			SecurityException, NdexException {
+		
+		
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(groupId), 
 				"A group id is required");
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(userId),
