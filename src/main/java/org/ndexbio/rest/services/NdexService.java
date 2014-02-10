@@ -4,7 +4,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
@@ -16,25 +15,20 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 
-import org.ndexbio.orientdb.NdexSchemaManager;
-import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
-import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.IBaseTerm;
 import org.ndexbio.common.models.data.IFunctionTerm;
 import org.ndexbio.common.models.data.IGroup;
 import org.ndexbio.common.models.data.IGroupInvitationRequest;
 import org.ndexbio.common.models.data.IGroupMembership;
 import org.ndexbio.common.models.data.IJoinGroupRequest;
-import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.INetworkAccessRequest;
 import org.ndexbio.common.models.data.INetworkMembership;
 import org.ndexbio.common.models.data.IUser;
-import org.ndexbio.common.models.object.Membership;
-import org.ndexbio.common.models.object.Network;
 import org.ndexbio.common.models.object.RestResource;
-import org.ndexbio.common.models.object.NdexStatus;
 import org.ndexbio.common.models.object.User;
+import org.ndexbio.orientdb.NdexSchemaManager;
+import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -76,6 +70,7 @@ public abstract class NdexService
     @PermitAll
     @Path("/api")
     @Produces("application/json")
+    @ApiDoc("Retrieves the REST API documentation for the service as an array of RestResources")
     public Collection<RestResource> getApi()
     {
         final Collection<RestResource> resourceList = new ArrayList<RestResource>();
@@ -113,7 +108,15 @@ public abstract class NdexService
                 		String[] produces = producesAnnotation.value();
                 		resource.setProduces(produces[0]);
                 	}
-                } 
+                } else if (annotation instanceof ApiDoc){
+                	ApiDoc apiDocAnnotation = (ApiDoc)annotation;
+                	resource.setApiDoc(apiDocAnnotation.value());
+                } else if (annotation instanceof PermitAll){
+                	resource.setAuthentication("PermitAll");
+                } else {
+                	// annotation class not handled
+                	System.out.println(annotation.toString() + " not handled");
+                }
                 
             }
             

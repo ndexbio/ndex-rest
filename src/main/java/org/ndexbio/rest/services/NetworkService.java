@@ -46,6 +46,7 @@ import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.*;
 import org.ndexbio.common.models.object.*;
 import org.ndexbio.orientdb.gremlin.*;
+import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.gremlin.NetworkQueries;
 //import org.ndexbio.rest.gremlin.NetworkQueries;
 import org.slf4j.Logger;
@@ -147,6 +148,7 @@ public class NetworkService extends NdexService {
 	 */
 	@PUT
 	@Produces("application/json")
+	@ApiDoc("Creates a new network based on JDEx structure.")
 	public Network createNetwork(final Network newNetwork)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
