@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-
+@Path("/admin")
 public class AdminService extends NdexService {
 	private static final Logger logger = LoggerFactory.getLogger(AdminService.class);
 
@@ -32,7 +32,7 @@ public class AdminService extends NdexService {
 
 	@GET
 	@PermitAll
-	@Path("/admin/status")
+	@Path("/status")
 	@Produces("application/json")
 	public NdexStatus getStatus() throws NdexException
 
