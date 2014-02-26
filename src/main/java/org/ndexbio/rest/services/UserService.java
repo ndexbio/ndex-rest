@@ -37,6 +37,7 @@ import org.ndexbio.common.models.object.SearchParameters;
 import org.ndexbio.common.models.object.UploadedFile;
 import org.ndexbio.common.models.object.User;
 import org.ndexbio.rest.CommonValues;
+import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.Security;
 import org.slf4j.Logger;
@@ -85,6 +86,7 @@ public class UserService extends NdexService {
 	@PUT
 	@Path("/work-surface")
 	@Produces("application/json")
+	@ApiDoc("Add a network to the authenticated user's worksurface, returns the current list of networks on the worksurface. Errors if the network does not exist or is already on the worksurface.")
 	public Iterable<Network> addNetworkToWorkSurface(String networkId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			NdexException {
@@ -158,6 +160,7 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/authenticate/{username}/{password}")
 	@Produces("application/json")
+	@ApiDoc("Authenticates the combination of username and password supplied in the route parameters, returns the authenticated user if successful.")
 	public User authenticateUser(@PathParam("username") final String username,
 			@PathParam("password") final String password)
 			throws SecurityException, NdexException {
@@ -199,6 +202,7 @@ public class UserService extends NdexService {
 	@POST
 	@Path("/password")
 	@Produces("application/json")
+	@ApiDoc("Changes the authenticated user's password to the new password in the POST data.")
 	public void changePassword(String password)
 			throws IllegalArgumentException, NdexException {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
@@ -247,6 +251,7 @@ public class UserService extends NdexService {
 	@Path("/image/{imageType}")
 	@Consumes("multipart/form-data")
 	@Produces("application/json")
+	@ApiDoc("Uploads and installs a new image file to be used as either the profile or background image (depending on the imageType route parameter) for the authenticated user.")
 	public void changeProfileImage(
 			@PathParam("imageType") final String imageType,
 			@MultipartForm UploadedFile uploadedImage)
@@ -323,6 +328,7 @@ public class UserService extends NdexService {
 	@PUT
 	@PermitAll
 	@Produces("application/json")
+	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
 	public User createUser(final NewUser newUser)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
@@ -343,7 +349,7 @@ public class UserService extends NdexService {
 			// confirm that the username and email address are unique
 			// method throws an exception if either already exists
 			try {
-				this.checkForExistingUserk(newUser);
+				this.checkForExistingUser(newUser);
 			} catch (DuplicateObjectException doe) {
 				throw doe;
 			}
@@ -375,9 +381,9 @@ public class UserService extends NdexService {
 	 * Both a User's username and emailAddress must be unique in the database.
 	 * Throw a DuplicateObjectException if that is not the case
 	 */
-	private void checkForExistingUserk(final NewUser newUser) 
+	private void checkForExistingUser(final NewUser newUser) 
 			throws DuplicateObjectException {
-		final List<ODocument> existingNetworks = _ndexDatabase
+		final List<ODocument> existingUsers = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
 						"SELECT @RID FROM Network "
 						+ "WHERE username = '"
@@ -385,7 +391,7 @@ public class UserService extends NdexService {
 								+ "' OR emailAddress = '"
 								+ newUser.getEmailAddress()
 								+ "'"));
-		if (!existingNetworks.isEmpty())
+		if (!existingUsers.isEmpty())
 			throw new DuplicateObjectException(
 					CommonValues.DUPLICATED_KEY_FLAG);
 	}
@@ -405,6 +411,7 @@ public class UserService extends NdexService {
 	@DELETE
 	@Path("/work-surface/{networkId}")
 	@Produces("application/json")
+	@ApiDoc("Removes the network with id = networkId from the worksurface of the authenticated user, returning the list of networks on the worksurface. Errors if the network is not found.")
 	public Iterable<Network> deleteNetworkFromWorkSurface(
 			@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, ObjectNotFoundException,
@@ -459,6 +466,7 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@DELETE
 	@Produces("application/json")
+	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user.")
 	public void deleteUser() throws NdexException {
 		final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
 
@@ -532,6 +540,7 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/{username}/forgot-password")
 	@Produces("application/json")
+	@ApiDoc("Causes a new password to be generated for the authenticated user and then emailed to the users emailAddress")
 	public Response emailNewPassword(
 			@PathParam("username") final String username)
 			throws IllegalArgumentException, NdexException {
@@ -607,6 +616,9 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/search/{searchOperator}")
 	@Produces("application/json")
+	@ApiDoc("Returns a list of users based on the searchOperator and POST data searchParameters. "
+			+ "The searchOperator is one of 'starts-with', 'exact-match', or 'contains' "
+			+ "The searchParameters must contain a 'searchString' parameter. ")
 	public List<User> findUsers(SearchParameters searchParameters,
 			@PathParam("searchOperator") final String searchOperator)
 			throws IllegalArgumentException, NdexException {
@@ -694,6 +706,7 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/{userId}")
 	@Produces("application/json")
+	@ApiDoc("Return the user corresponding to userId, whether userId is actually a database id or a username. Error if neither is found.")
 	public User getUser(@PathParam("userId") final String userId)
 			throws IllegalArgumentException, NdexException {
 		if (userId == null || userId.isEmpty())
@@ -740,6 +753,7 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@POST
 	@Produces("application/json")
+	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. Errors if the user object references a different user.")
 	public void updateUser(final User updatedUser)
 			throws IllegalArgumentException, SecurityException, NdexException {
 		Preconditions.checkArgument(null != updatedUser, 
