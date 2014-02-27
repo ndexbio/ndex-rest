@@ -84,6 +84,7 @@ public class NetworkService extends NdexService {
 	@GET
 	@Path("/{networkId}/autosuggest/{partialTerm}")
 	@Produces("application/json")
+	@ApiDoc("Find base terms whose names complete the partial term name partialTerm. Error if the network does not exist or is not specified")
 	public Collection<String> autoSuggestTerms(
 			@PathParam("networkId") final String networkId,
 			@PathParam("partialTerm") final String partialTerm)
@@ -148,11 +149,11 @@ public class NetworkService extends NdexService {
 	 */
 	@PUT
 	@Produces("application/json")
-	@ApiDoc("Creates a new network based on JDEx structure.")
+	@ApiDoc("Creates a new network based on JDEx structure. Errors if the JDEx is not provided or if the JDEx does not specify a name.")
 	public Network createNetwork(final Network newNetwork)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
-		Preconditions.checkArgument(null != newNetwork, "A newtork is reuired");
+		Preconditions.checkArgument(null != newNetwork, "A network is required");
 		Preconditions.checkArgument(
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
@@ -258,6 +259,7 @@ public class NetworkService extends NdexService {
 	@DELETE
 	@Path("/{networkId}")
 	@Produces("application/json")
+	@ApiDoc("Deletes the network specified by networkId. Errors if the networkId is not provided, if the network is not found, if the network has other admin users, or if the authenticated user has insufficient privelges.")
 	public void deleteNetwork(@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			NdexException {
@@ -333,6 +335,7 @@ public class NetworkService extends NdexService {
 	@PermitAll
 	@Path("/search/{searchOperator}")
 	@Produces("application/json")
+	@ApiDoc("Returns a list of networks based on the searchOperator and the POSTed searchParameters.")
 	public List<Network> findNetworks(final SearchParameters searchParameters,
 			@PathParam("searchOperator") final String searchOperator)
 			throws IllegalArgumentException, NdexException {
@@ -383,6 +386,7 @@ public class NetworkService extends NdexService {
 	@GET
 	@Path("/{networkId}")
 	@Produces("application/json")
+	@ApiDoc("Returns a network structure populated with metadata and membership information for the network specified by networkId. Errors if the network is not found or if the authenticated user does not have read permission for the network.")
 	public Network getNetwork(@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, SecurityException, NdexException {
 		if (networkId == null || networkId.isEmpty())
@@ -430,6 +434,7 @@ public class NetworkService extends NdexService {
 	@GET
 	@Path("/{networkId}/edges/{skip}/{top}")
 	@Produces("application/json")
+	@ApiDoc("Returns a network based on a set of edges selected from the network specified by networkId. The returned network is fully poplulated and 'self-sufficient', including all nodes, terms, supports, citations, and namespaces. The query selects a number of edges specified by the 'top' parameter, starting at an offset specified by the 'skip' parameter.")
 	public Network getEdges(@PathParam("networkId") final String networkId,
 			@PathParam("skip") final int skip, @PathParam("top") final int top)
 			throws IllegalArgumentException, NdexException {
@@ -488,6 +493,7 @@ public class NetworkService extends NdexService {
 	@POST
 	@Path("/{networkId}/namespaces")
 	@Produces("application/json")
+	@ApiDoc("Returns a list of all base terms in the network that are in namespaces identified by the POSTed list of namespace prefixes.")
 	public List<BaseTerm> getTermsInNamespaces(
 			@PathParam("networkId") final String networkId,
 			final String namespaces[]) throws IllegalArgumentException,
@@ -563,6 +569,7 @@ public class NetworkService extends NdexService {
 	@POST
 	@Path("/{networkId}/terms")
 	@Produces("application/json")
+	@ApiDoc("Returns a list of all base terms in the network specified by networkId that are in the POSTed list of terms.")
 	public Iterable<BaseTerm> getIntersectingTerms(
 			@PathParam("networkId") final String networkId,
 			final String terms[]) throws IllegalArgumentException,
@@ -626,6 +633,7 @@ public class NetworkService extends NdexService {
 	@GET
 	@Path("/{networkId}/namespaces/{skip}/{top}")
 	@Produces("application/json")
+	@ApiDoc("Returns a list of namespaces in the network specified by networkId. 'top' specified the number of namespaces to retrieve, 'skip' specifies the number to skip.")
 	public Iterable<Namespace> getNamespaces(
 			@PathParam("networkId") final String networkId,
 			@PathParam("skip") final int skip, @PathParam("top") final int top)
@@ -688,6 +696,7 @@ public class NetworkService extends NdexService {
 	@GET
 	@Path("/{networkId}/terms/{skip}/{top}")
 	@Produces("application/json")
+	@ApiDoc("Returns a list of terms in the network specified by networkId. 'top' specified the number of terms to retrieve, 'skip' specifies the number to skip.")
 	public Iterable<BaseTerm> getTerms(
 			@PathParam("networkId") final String networkId,
 			@PathParam("skip") final int skip, @PathParam("top") final int top)
@@ -733,7 +742,7 @@ public class NetworkService extends NdexService {
 	}
 
 	/**************************************************************************
-	 * Gets a subnetwork network based on network query parameters.
+	 * Gets a subnetwork of a network based on network query parameters.
 	 * 
 	 * @param networkId
 	 *            The network ID.
@@ -748,6 +757,7 @@ public class NetworkService extends NdexService {
 	@POST
 	@Path("/{networkId}/query1")
 	@Produces("application/json")
+	@ApiDoc("Returns a network based on a set of edges selected based on the POSTed queryParameters from the network specified by networkId. The returned network is fully poplulated and 'self-sufficient', including all nodes, terms, supports, citations, and namespaces.")
 	public Network queryNetwork(@PathParam("networkId") final String networkId,
 			final NetworkQueryParameters queryParameters)
 			throws IllegalArgumentException, NdexException {
@@ -797,6 +807,7 @@ public class NetworkService extends NdexService {
 	@POST
 	@Path("/{networkId}/query")
 	@Produces("application/json")
+	@ApiDoc("Returns a network based on a set of edges selected based on the POSTed queryParameters from the network specified by networkId. The returned network is fully poplulated and 'self-sufficient', including all nodes, terms, supports, citations, and namespaces.")
 	public Network queryNetwork2(
 			@PathParam("networkId") final String networkId,
 			final NetworkQueryParameters queryParameters)
@@ -862,6 +873,7 @@ public class NetworkService extends NdexService {
 	@DELETE
 	@Path("/{networkId}/member/{userId}")
 	@Produces("application/json")
+	@ApiDoc("Removes a member specified by userId from the network specified by networkId. Errors if the authenticated user does not have sufficient permissions or if the network or user is not found. Removal is also denied if it would leave the network without any Admin member.")
 	public void removeMember(@PathParam("networkId") final String networkId,
 			@PathParam("userId") final String userId)
 			throws IllegalArgumentException, ObjectNotFoundException,
@@ -937,13 +949,14 @@ public class NetworkService extends NdexService {
 	@POST
 	@Path("/{networkId}/member")
 	@Produces("application/json")
+	@ApiDoc("Updates the permission of a member specified by userId for the network specified by networkId to the POSTed permission. Errors if the authenticated user does not have sufficient permissions or if the network or user is not found. Change is also denied if it would leave the network without any Admin member.")
 	public void updateMember(@PathParam("networkId") final String networkId,
 			final Membership networkMember) throws IllegalArgumentException,
 			ObjectNotFoundException, SecurityException, NdexException {
 
 		try {
 			Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId),
-					"A network id is rquired");
+					"A network id is required");
 			Preconditions.checkNotNull(networkMember,
 					"A network member is required");
 			Preconditions.checkState(
@@ -1017,6 +1030,8 @@ public class NetworkService extends NdexService {
 	 **************************************************************************/
 	@POST
 	@Produces("application/json")
+	@ApiDoc("Updates the metadata for the network specified by networkId based on the POSTed JDEx structure. " + 
+			"Errors if the authenticated user does not have sufficient permissions or if the network is not found. ")
 	public void updateNetwork(final Network updatedNetwork)
 			throws IllegalArgumentException, SecurityException, NdexException {
 
@@ -1090,6 +1105,9 @@ public class NetworkService extends NdexService {
 	@Path("/upload")
 	@Consumes("multipart/form-data")
 	@Produces("application/json")
+	@ApiDoc("Saves an uploaded file to a temporary directory and creates a task that specifies the file for parsing and import into the database. " + 
+			"A background process running on the NDEx server processes file import tasks. " + 
+			"Errors if the network is missing or if it has no filename or no file data.")
 	public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork)
 			throws IllegalArgumentException, SecurityException, NdexException {
 
@@ -1131,14 +1149,14 @@ public class NetworkService extends NdexService {
 			final IUser taskOwner = _orientDbGraph.getVertex(
 					IdConverter.toRid(this.getLoggedInUser().getId()),
 					IUser.class);
+			
+			final String fn = uploadedNetwork.getFilename().toLowerCase();
 
-			if (uploadedNetwork.getFilename().toLowerCase().endsWith(".sif")
-					|| uploadedNetwork.getFilename().toLowerCase()
-							.endsWith(".xbel")
-					|| uploadedNetwork.getFilename().toLowerCase()
-							.endsWith(".xls")
-					|| uploadedNetwork.getFilename().toLowerCase()
-							.endsWith(".xlsx")) {
+			if (fn.endsWith(".sif")
+					|| fn.endsWith(".xbel")
+					|| fn.endsWith(".xgmml")
+					|| fn.endsWith(".xls")
+					|| fn.endsWith(".xlsx")) {
 				ITask processNetworkTask = _orientDbGraph.addVertex(
 						"class:task", ITask.class);
 				processNetworkTask.setDescription("Process uploaded network");
@@ -1155,7 +1173,7 @@ public class NetworkService extends NdexService {
 			} else {
 				uploadedNetworkFile.delete();
 				throw new IllegalArgumentException(
-						"The uploaded file type is not supported; must be Excel, SIF, OR XBEL.");
+						"The uploaded file type is not supported; must be Excel, XGMML, SIF, OR XBEL.");
 			}
 		} catch (IllegalArgumentException iae) {
 			throw iae;
