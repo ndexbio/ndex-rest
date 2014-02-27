@@ -16,6 +16,7 @@ import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.ITask;
 import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.common.models.object.Task;
+import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +46,7 @@ public class TaskService extends NdexService
     /**************************************************************************
     * Creates a task. 
     * 
-    * @param newGroup
+    * @param newTask
     *            The task to create.
     * @throws IllegalArgumentException
     *            Bad input.
@@ -58,6 +59,7 @@ public class TaskService extends NdexService
      */
     @PUT
     @Produces("application/json")
+	@ApiDoc("Create a new task owned by the authenticated user based on the supplied JSON task object.")
     public Task createTask(final Task newTask) throws IllegalArgumentException, NdexException
     {
     	Preconditions.checkArgument(null != newTask, 
@@ -115,6 +117,7 @@ public class TaskService extends NdexService
     @DELETE
     @Path("/{taskId}")
     @Produces("application/json")
+	@ApiDoc("Delete the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
     public void deleteTask(@PathParam("taskId")final String taskId) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId), 
@@ -170,6 +173,7 @@ public class TaskService extends NdexService
     @GET
     @Path("/{taskId}")
     @Produces("application/json")
+	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
     public Task getTask(@PathParam("taskId")final String taskId) throws IllegalArgumentException, SecurityException, NdexException
     {
         if (taskId == null || taskId.isEmpty())
@@ -223,6 +227,7 @@ public class TaskService extends NdexService
     **************************************************************************/
     @POST
     @Produces("application/json")
+	@ApiDoc("Updates the task specified by taskId in the POSTed task JSON structure. Properties of the task are changed to match the properties in the JSON structure. Errors if no task found or if authenticated user does not own task.")
     public void updateTask(final Task updatedTask) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
        Preconditions.checkArgument(null != updatedTask, 

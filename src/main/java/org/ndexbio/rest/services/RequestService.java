@@ -2,6 +2,7 @@ package org.ndexbio.rest.services;
 
 import java.util.Date;
 import java.util.List;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -11,6 +12,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.IGroup;
@@ -24,8 +26,10 @@ import org.ndexbio.common.models.data.IRequest;
 import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.common.models.data.Permissions;
 import org.ndexbio.common.models.object.Request;
+import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
@@ -67,6 +71,7 @@ public class RequestService extends NdexService
     **************************************************************************/
     @PUT
     @Produces("application/json")
+	@ApiDoc("Create a new request based on a request JSON structure. Returns the JSON structure including the assigned database id.")
     public Request createRequest(final Request newRequest) throws IllegalArgumentException, DuplicateObjectException, NdexException
     {
         if (newRequest == null)
@@ -76,7 +81,7 @@ public class RequestService extends NdexService
         final ORID toRid = IdConverter.toRid(newRequest.getToId());
         
         if (fromRid.equals(toRid))
-            throw new IllegalArgumentException("Nice try, but you cannot make a request to yourself. You may want to consider schizophrenia counseling.");
+            throw new IllegalArgumentException("The 'from' and 'to' accounts of the request cannot be the same.");
         
         try
         {
@@ -130,6 +135,7 @@ public class RequestService extends NdexService
     @DELETE
     @Path("/{requestId}")
     @Produces("application/json")
+	@ApiDoc("Deletes the request specified by requestId. Errors if requestId not specified or if request not found.")
     public void deleteRequest(@PathParam("requestId")final String requestId) throws IllegalArgumentException, ObjectNotFoundException, NdexException
     {
         if (requestId == null || requestId.isEmpty())
@@ -181,6 +187,7 @@ public class RequestService extends NdexService
     @GET
     @Path("/{requestId}")
     @Produces("application/json")
+	@ApiDoc("Returns the request JSON structure for the request specified by requestId. Errors if requestId not specified or if request not found.")
     public Request getRequest(@PathParam("requestId")final String requestId) throws IllegalArgumentException, NdexException
     {
         if (requestId == null || requestId.isEmpty())
@@ -221,6 +228,10 @@ public class RequestService extends NdexService
     **************************************************************************/
     @POST
     @Produces("application/json")
+	@ApiDoc("Updates a request corresponding to the POSTed request JSON structure. " +
+			"The request JSON must specify the request id. " +
+			"Errors if requestId is not specified or if request is not found." +
+			"If the response field of the request is updated such that the request is accepted, then the action associated with the request is performed.")
     public void updateRequest(final Request updatedRequest) throws IllegalArgumentException, NdexException
     {
         if (updatedRequest == null)
