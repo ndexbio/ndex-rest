@@ -59,17 +59,24 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	public INamespace getNamespace(Namespace namespace, String jdexId) {
 		INamespace ns = (INamespace) _networkIndex.get(jdexId);
 		if (null != ns) return ns;	
-		return findNamespace(namespace);
+		ns = findNamespace(namespace);
+		if (null != ns) {
+			_networkIndex.put(jdexId,ns);
+			System.out.println("found Namespace " + ns.getJdexId() + " " + ns.getPrefix());
+		}
+		return ns;
 	}
 	
 	private INamespace findNamespace(Namespace namespace){
 		final List<ODocument> namespaces = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
-						"SELECT @RID FROM (TRAVERSE out_networkNamespaces FROM " + 
+						"SELECT FROM (TRAVERSE out_networkNamespaces FROM " + 
 				this.getTargetNetwork().asVertex().getId() + 
 				" WHILE $depth < 2) WHERE jdexId = '" + namespace.getJdexId() + "' "));
-		for (final ODocument ns : namespaces)
-			return _orientDbGraph.getVertex(ns, INamespace.class);
+		for (final ODocument ns : namespaces){
+			INamespace ins = _orientDbGraph.getVertex(ns, INamespace.class);
+			return ins;
+		}
 
 		return null;
 		
@@ -79,17 +86,24 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	public IBaseTerm getBaseTerm(BaseTerm baseTerm, String jdexId) {
 		IBaseTerm bt = (IBaseTerm) _networkIndex.get(jdexId);
 		if (null != bt) return bt;	
-		return findBaseTerm(baseTerm, jdexId);
+		bt = findBaseTerm(baseTerm, jdexId);
+		if (null != bt) {
+			_networkIndex.put(jdexId,bt);
+			System.out.println("found BaseTerm " + bt.getJdexId() + " " + bt.getName());
+		}
+		return bt;
 	}
 	
 	public IBaseTerm findBaseTerm(BaseTerm baseTerm, String jdexId) {
 		final List<ODocument> baseTerms = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
-						"SELECT @RID FROM (TRAVERSE out_networkTerms FROM " + 
+						"SELECT FROM (TRAVERSE out_networkTerms FROM " + 
 				this.getTargetNetwork().asVertex().getId() + 
 				" WHILE $depth < 2) WHERE @class = 'baseTerm' AND jdexId = '" + jdexId + "' "));
-		for (final ODocument bt : baseTerms)
-			return _orientDbGraph.getVertex(bt, IBaseTerm.class);
+		for (final ODocument bt : baseTerms){
+			IBaseTerm ibt = _orientDbGraph.getVertex(bt, IBaseTerm.class);
+			return ibt;
+		}
 
 		return null;
 	}
@@ -98,18 +112,24 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	public IFunctionTerm getFunctionTerm(FunctionTerm functionTerm, String jdexId) {
 		IFunctionTerm ft = (IFunctionTerm) _networkIndex.get(jdexId);
 		if (null != ft) return ft;	
-		return findFunctionTerm(functionTerm, jdexId);
+		ft = findFunctionTerm(functionTerm, jdexId);
+		if (null != ft){
+			_networkIndex.put(jdexId,ft);
+			System.out.println("found FunctionTerm " + ft.getJdexId());
+		}
+		return ft;	
 	}
 	
 	public IFunctionTerm findFunctionTerm(FunctionTerm functionTerm, String jdexId) {
 		final List<ODocument> functionTerms = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
-						"SELECT @RID FROM (TRAVERSE out_networkTerms FROM " + 
+						"SELECT FROM (TRAVERSE out_networkTerms FROM " + 
 				this.getTargetNetwork().asVertex().getId() + 
 				" WHILE $depth < 2) WHERE @class = 'functionTerm' AND jdexId = '" + jdexId + "' "));
-		for (final ODocument ft : functionTerms)
-			return _orientDbGraph.getVertex(ft, IFunctionTerm.class);
-
+		for (final ODocument ft : functionTerms){
+			IFunctionTerm ift =  _orientDbGraph.getVertex(ft, IFunctionTerm.class);
+			return ift;
+		}
 		return null;
 	}
 
@@ -117,17 +137,24 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	public ICitation getCitation(Citation citation, String jdexId) {
 		ICitation cit = (ICitation) _networkIndex.get(jdexId);
 		if (null != cit) return cit;	
-		return findCitation(citation, jdexId);
+		cit = findCitation(citation, jdexId);
+		if (null != cit){
+			_networkIndex.put(jdexId,cit);
+			System.out.println("found Citation " + cit.getJdexId());
+		}
+		return cit;
 	}
 	
 	public ICitation findCitation(Citation citation, String jdexId) {
 		final List<ODocument> citations = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
-						"SELECT @RID FROM (TRAVERSE out_networkCitations FROM " + 
+						"SELECT FROM (TRAVERSE out_networkCitations FROM " + 
 				this.getTargetNetwork().asVertex().getId() + 
 				" WHILE $depth < 2) WHERE jdexId = '" + jdexId+ "' "));
-		for (final ODocument cit : citations)
-			return _orientDbGraph.getVertex(cit, ICitation.class);
+		for (final ODocument cit : citations){
+			ICitation iCitation = (ICitation) _orientDbGraph.getVertex(cit, ICitation.class);
+			return iCitation;
+		}
 
 		return null;
 	}
@@ -136,17 +163,24 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	public ISupport getSupport(Support support, String jdexId) {
 		ISupport sup = (ISupport) _networkIndex.get(jdexId);
 		if (null != sup) return sup;	
-		return findSupport(support, jdexId);
+		sup = findSupport(support, jdexId);
+		if (null != sup){
+			_networkIndex.put(jdexId,sup);
+			System.out.println("found Support " + sup.getJdexId());
+		}
+		return sup;
 	}
 	
 	public ISupport findSupport(Support support, String jdexId) {
 		final List<ODocument> supports = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
-						"SELECT @RID FROM (TRAVERSE out_networkSupports FROM " + 
+						"SELECT FROM (TRAVERSE out_networkSupports FROM " + 
 				this.getTargetNetwork().asVertex().getId() + 
 				" WHILE $depth < 2) WHERE jdexId = '" + jdexId + "' "));
-		for (final ODocument sup : supports)
-			return _orientDbGraph.getVertex(sup, ISupport.class);
+		for (final ODocument sup : supports){
+			ISupport iSupport = _orientDbGraph.getVertex(sup, ISupport.class);
+			return iSupport;
+		}
 
 		return null;
 	}
@@ -155,17 +189,24 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	public INode getNode(Node node, String jdexId) {
 		INode n = (INode) _networkIndex.get(jdexId);
 		if (null != n) return n;	
-		return findNode(node, jdexId);
+		n = findNode(node, jdexId);
+		if (null != n) {
+			_networkIndex.put(jdexId,n);
+			System.out.println("found Node " + n.getJdexId());
+		}
+		return n;
 	}
 	
 	public INode findNode(Node node, String jdexId) {	
 		final List<ODocument> nodes = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
-						"SELECT @RID FROM (TRAVERSE out_networkNodes FROM " + 
+						"SELECT FROM (TRAVERSE out_networkNodes FROM " + 
 				this.getTargetNetwork().asVertex().getId() + 
 				" WHILE $depth < 2) WHERE jdexId = '" + jdexId + "' "));
-		for (final ODocument n : nodes)
-			return _orientDbGraph.getVertex(n, INode.class);
+		for (final ODocument n : nodes){
+			INode iNode = _orientDbGraph.getVertex(n, INode.class);
+			return iNode;
+		}
 
 		return null;
 	}
@@ -174,17 +215,24 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	public IEdge getEdge(Edge edge, String jdexId) {
 		IEdge e = (IEdge) _networkIndex.get(jdexId);
 		if (null != e) return e;	
-		return findEdge(edge, jdexId);
+		e = findEdge(edge, jdexId);
+		if (null != e){
+			_networkIndex.put(jdexId,e);
+			System.out.println("found Edge " + e.getJdexId());
+		}
+		return e;
 	}
 	
 	public IEdge findEdge(Edge edge, String jdexId) {
 		final List<ODocument> edges = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
-						"SELECT @RID FROM (TRAVERSE out_networkEdges FROM " + 
+						"SELECT FROM (TRAVERSE out_networkEdges FROM " + 
 				this.getTargetNetwork().asVertex().getId() + 
 				" WHILE $depth < 2) WHERE jdexId = '" + jdexId + "' "));
-		for (final ODocument e : edges)
-			return _orientDbGraph.getVertex(e, IEdge.class);
+		for (final ODocument e : edges){
+			IEdge iEdge = (IEdge) _orientDbGraph.getVertex(e, IEdge.class);
+			return iEdge;
+		}
 
 		return null;
 	}

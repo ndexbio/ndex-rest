@@ -1710,19 +1710,19 @@ public class NetworkService extends NdexService {
 	 * Map namespaces in network model object to namespaces in the network domain object
 	 * 
 	 **************************************************************************/
-	private void createNamespaces(final INetwork newNetwork,
-			final Network networkToCreate,
+	private void createNamespaces(final INetwork domainNetwork,
+			final Network objectNetwork,
 			final Map<String, VertexFrame> networkIndex) {
-		for (final Entry<String, Namespace> namespaceEntry : networkToCreate.getNamespaces().entrySet()) {
+		for (final Entry<String, Namespace> namespaceEntry : objectNetwork.getNamespaces().entrySet()) {
 			final Namespace namespace = namespaceEntry.getValue();
 			final String jdexId = namespaceEntry.getKey();
-			createNamespace(newNetwork, namespace, jdexId, networkIndex);
+			createNamespace(domainNetwork, namespace, jdexId, networkIndex);
 		}
 	}
 
-	private void createNamespaces(final Network networkToCreate,
+	private void createNamespaces(final Network objectNetwork,
 			EquivalenceFinder equivalenceFinder) {
-		for (final Entry<String, Namespace> namespaceEntry : networkToCreate.getNamespaces().entrySet()) {
+		for (final Entry<String, Namespace> namespaceEntry : objectNetwork.getNamespaces().entrySet()) {
 			final Namespace namespace = namespaceEntry.getValue();
 			final String jdexId = namespaceEntry.getKey();
 			INamespace ns = equivalenceFinder.getNamespace(namespace, jdexId);
@@ -1773,20 +1773,26 @@ public class NetworkService extends NdexService {
 
 		String namespaceJdexId = ((BaseTerm) term).getNamespace();
 
+		String nsPrefix = "";
 		if (namespaceJdexId != null && !namespaceJdexId.isEmpty()) {
-			final VertexFrame namespace = networkIndex.get(namespaceJdexId);
+			final INamespace namespace = (INamespace)networkIndex.get(namespaceJdexId);
 			if (null == namespace)
 				throw new NdexException("Namespace " + namespaceJdexId + " referenced by BaseTerm " + jdexId + " was not found in networkIndex cache");
 
-			newBaseTerm.setTermNamespace((INamespace) namespace);
+			newBaseTerm.setTermNamespace(namespace);
+			nsPrefix = namespace.getPrefix();
 		}
 
 		target.addTerm(newBaseTerm);
 		networkIndex.put(newBaseTerm.getJdexId(), newBaseTerm);
+		
+		
+		System.out.println("added BaseTerm " + newBaseTerm.getJdexId() + " " + nsPrefix + ":" + newBaseTerm.getName());
 
 		// TODO: remove this when the handling of metadata is finalized.
 		//       (not currently used)
 		// If the base term is also used as a metaterm, add it now
+		/*
 		if (networkToCreate.getMetaterms().containsValue(term)) {
 			for (final Entry<String, BaseTerm> metaterm : networkToCreate
 					.getMetaterms().entrySet()) {
@@ -1797,43 +1803,52 @@ public class NetworkService extends NdexService {
 				}
 			}
 		}
+		*/
 		
 	}
 
-	private void createFunctionTerm(INetwork target, Network networkToCreate,
-			FunctionTerm term, String jdexId,
+	private IFunctionTerm createFunctionTerm(INetwork target, String jdexId,
 			Map<String, VertexFrame> networkIndex) throws NdexException {
-		final IFunctionTerm newFunctionTerm = _orientDbGraph.addVertex(
+		final IFunctionTerm domainTerm = _orientDbGraph.addVertex(
 				"class:functionTerm", IFunctionTerm.class);
-		newFunctionTerm.setJdexId(jdexId);
+		domainTerm.setJdexId(jdexId);
+		target.addTerm(domainTerm);
+		networkIndex.put(domainTerm.getJdexId(), domainTerm);
+		System.out.println("added FunctionTerm " + domainTerm.getJdexId());
+		return domainTerm;
 		
-		final String termFunctionJdexId = ((FunctionTerm) term).getTermFunction();
+	}
+	
+	private void populateFunctionTerm(FunctionTerm objectTerm, 
+			IFunctionTerm domainTerm, 
+			Map<String, VertexFrame> networkIndex) throws NdexException{
 
-		final VertexFrame function = networkIndex.get(termFunctionJdexId);
+		if (null == domainTerm)
+			throw new NdexException("domain FunctionTerm null for " + objectTerm.getTermFunction());
+
+		// populate term function
+		final IBaseTerm function = (IBaseTerm) networkIndex.get(objectTerm.getTermFunction());
 		if (null == function)
-			throw new NdexException("BaseTerm " + termFunctionJdexId + " referenced as function of FunctionTerm " + jdexId + " was not found in networkIndex cache");
+			throw new NdexException("BaseTerm " + objectTerm.getTermFunction() + " referenced as function of FunctionTerm " + domainTerm.getJdexId() + " was not found in networkIndex cache");
 
-		newFunctionTerm.setTermFunc((IBaseTerm) function);
+		domainTerm.setTermFunc(function);
 
+		// populate parameters
 		List<ITerm> iParameters = new ArrayList<ITerm>();
-		for (Entry<String, String> entry : ((FunctionTerm) term)
-				.getParameters().entrySet()) {
+		for (Entry<String, String> entry : objectTerm.getParameters().entrySet()) {
 			// All Terms mentioned as parameters should exist
 			// (found or created) prior to the current term - 
 			// it is a requirement of a JDEx format file.
 			String parameterJdexId = entry.getValue();
 			ITerm parameter = (ITerm) networkIndex.get(parameterJdexId);
 			if (null == parameter) 
-				throw new NdexException("BaseTerm " + parameterJdexId + " referenced as parameter of FunctionTerm " + jdexId + " was not found in networkIndex cache");
+				throw new NdexException("Term " + parameterJdexId + " referenced as parameter of FunctionTerm " + domainTerm.getJdexId() + " was not found in networkIndex cache");
 
 			iParameters.add(parameter);
 			
 		}
 
-		newFunctionTerm.setTermParameters(iParameters);
-		target.addTerm(newFunctionTerm);
-		networkIndex.put(newFunctionTerm.getJdexId(), newFunctionTerm);
-		
+		domainTerm.setTermParameters(iParameters);
 	}
 
 	private boolean isFunctionTerm(Term term) {
@@ -1867,9 +1882,11 @@ public class NetworkService extends NdexService {
 		
 		// Sort terms by dependency before creation because function terms can 
 		// depend on each other.
-		TermDependencyComparator tdc =  new TermDependencyComparator(sourceNetwork.getTerms());
+		//TermDependencyComparator tdc =  new TermDependencyComparator(sourceNetwork.getTerms());
         List<String> sortedTermIds = new ArrayList<String>(sourceNetwork.getTerms().keySet());
-        Collections.sort(sortedTermIds, tdc);
+        //Collections.sort(sortedTermIds, tdc);
+        // Pass1 - create base terms and function term shells
+        Map<FunctionTerm, IFunctionTerm> newFunctionTermMap = new HashMap<FunctionTerm, IFunctionTerm>();
 		for (final String jdexId : sortedTermIds) {
 			final Term term = sourceNetwork.getTerms().get(jdexId);
 			if (isBaseTerm(term)){
@@ -1878,9 +1895,15 @@ public class NetworkService extends NdexService {
 					createBaseTerm(equivalenceFinder.getTargetNetwork(), sourceNetwork, (BaseTerm)term, jdexId, equivalenceFinder.getNetworkIndex());			
 			} else if (isFunctionTerm(term)){
 				IFunctionTerm iFunctionTerm = equivalenceFinder.getFunctionTerm((FunctionTerm) term, jdexId);
-				if (null == iFunctionTerm)
-					createFunctionTerm(equivalenceFinder.getTargetNetwork(), sourceNetwork, (FunctionTerm)term, jdexId, equivalenceFinder.getNetworkIndex());
+				if (null == iFunctionTerm){
+					iFunctionTerm = createFunctionTerm(equivalenceFinder.getTargetNetwork(), jdexId, equivalenceFinder.getNetworkIndex());
+					newFunctionTermMap.put((FunctionTerm)term, iFunctionTerm);
+				}
 			}
+		}
+		// Pass2 - populate new function terms with function and parameter references
+		for (final Entry<FunctionTerm, IFunctionTerm> entry : newFunctionTermMap.entrySet()){
+			populateFunctionTerm(entry.getKey(), entry.getValue(), equivalenceFinder.getNetworkIndex());
 		}
 	}
 
@@ -1901,20 +1924,50 @@ public class NetworkService extends NdexService {
 	private void createTerms(final INetwork targetNetwork,
 			final Network sourceNetwork,
 			final Map<String, VertexFrame> networkIndex) throws NdexException {
-		TermDependencyComparator tdc =  new TermDependencyComparator(sourceNetwork.getTerms());
+		//validateTermMap(sourceNetwork.getTerms());
+		//TermDependencyComparator tdc =  new TermDependencyComparator(sourceNetwork.getTerms());
         List<String> sortedTermIds = new ArrayList<String>(sourceNetwork.getTerms().keySet());
-        Collections.sort(sortedTermIds, tdc);
+        //Collections.sort(sortedTermIds, tdc);
+        // Pass1 - create base terms and function term shells
+        Map<FunctionTerm, IFunctionTerm> newFunctionTermMap = new HashMap<FunctionTerm, IFunctionTerm>();
 		for (final String jdexId : sortedTermIds) {
 			final Term term = sourceNetwork.getTerms().get(jdexId);
 			if (isBaseTerm(term)){
 				createBaseTerm(targetNetwork, sourceNetwork, (BaseTerm)term, jdexId, networkIndex);			
 			} else if (isFunctionTerm(term)){
-				createFunctionTerm(targetNetwork, sourceNetwork, (FunctionTerm)term, jdexId, networkIndex);
+				IFunctionTerm iFunctionTerm = createFunctionTerm(targetNetwork, jdexId, networkIndex);
+				newFunctionTermMap.put((FunctionTerm)term, iFunctionTerm);
 			}		
+		}
+		// Pass2 - populate new function terms with function and parameter references
+		for (final Entry<FunctionTerm, IFunctionTerm> entry : newFunctionTermMap.entrySet()){
+			populateFunctionTerm(entry.getKey(), entry.getValue(), networkIndex);
 		}
 	}
 	
+	private void validateTermMap(Map<String, Term> termMap) throws NdexException{
+		Set<String> parameterIds = new HashSet<String>();
+		for (Entry<String, Term> entry : termMap.entrySet()){
+			String jdexId = entry.getKey();
+			Term term = entry.getValue();
+			if (term.getTermType().equals("Function")){
+				for (String parameterId : ((FunctionTerm)term).getParameters().values()){
+					if(!termMap.containsKey(parameterId)){
+						throw new NdexException("term " + jdexId + "missing parameter term for id "+ parameterId);
+					}
+					parameterIds.add(parameterId);
+				}
+			} else {
+				System.out.println("BaseTerm " + jdexId + " " + ((BaseTerm)term).getName());
 
+			}
+		}
+		
+		for (String parameterId : parameterIds){
+			System.out.println("Found term " + parameterId + " as parameter");
+		}
+		
+	}
 
 	/**************************************************************************
 	 * CITATIONS

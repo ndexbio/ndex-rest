@@ -22,11 +22,11 @@ public class TestNetworkAdditionService extends TestNdexService
     private static  NetworkService _networkService = new NetworkService(_mockRequest);
 
     @Test
-    public void copyBELNetworkInBlocks()
+    public void copyBELNetworkInBlocks() throws IllegalArgumentException, NdexException
     {
     	int edgesPerBlock = 100;
-        try
-        {
+        //try
+        //{
             final ORID sourceNetworkRid = getRid("BEL Framework Small Corpus Document");
             // Get the source network stats
             
@@ -38,12 +38,12 @@ public class TestNetworkAdditionService extends TestNdexService
             
             // Stats should be equal
         
-        }
-        catch (Exception e)
-        {
-            Assert.fail(e.getMessage());
-            e.printStackTrace();
-        }
+        //}
+        //catch (Exception e)
+        //{
+        //    Assert.fail(e.getMessage());
+        //    e.printStackTrace();
+        //}
     }
     
     private void copyNetworkInBlocks(String sourceNetworkId, int edgesPerBlock) throws IllegalArgumentException, NdexException{
@@ -71,7 +71,7 @@ public class TestNetworkAdditionService extends TestNdexService
     		System.out.println("Getting " + edgesPerBlock + " at offset " + skipBlocks);
     		currentSubnetwork = _networkService.getEdges(sourceNetworkId, skipBlocks, edgesPerBlock);
     		// Add the subnetwork to the target
-    		System.out.println("Adding" + currentSubnetwork.getEdgeCount()  + " edges to network ");
+    		System.out.println("Adding " + currentSubnetwork.getEdgeCount()  + " edges to network " + targetNetworkId);
     		if (currentSubnetwork.getEdgeCount() > 0) 
     			_networkService.addNetwork(targetNetworkId, "JDEX_ID", currentSubnetwork);
     	} while (currentSubnetwork.getEdgeCount() > 0);
