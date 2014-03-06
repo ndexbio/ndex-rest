@@ -624,32 +624,26 @@ public class NetworkService extends NdexService {
 			if (network == null)
 				throw new ObjectNotFoundException("Network", networkId);
 			
+			
 			// Check that all citations are elements of the network
 			final String citationIdCsv = IdConverter.toRidCsv(citations);
 			final String citationQuery = "SELECT FROM (TRAVERSE out_networkCitations from " + network.asVertex().getId()
 					+ " ) WHERE @RID in [ " + citationIdCsv + " ]";
-			final List<ODocument> citationsFound = _ndexDatabase
+			final List<ODocument> foundCitations = _ndexDatabase
 					.query(new OSQLSynchQuery<ODocument>(citationQuery));
-			if (null == citationsFound || citationsFound.size() != citations.length)
+			if (null == foundCitations || foundCitations.size() != citations.length)
 				throw new ObjectNotFoundException("One or more citations with ids in [" + citationIdCsv + "] was not found in network " + networkId);
-
-			final List<IEdge> foundIEdges = new ArrayList<IEdge>();
-			final int startIndex = skip * top;
 			
-			
-			// Find edges from the citations
-			final String edgeQuery = "SELECT FROM (TRAVERSE in_edgeCitations, out_citationSupports, in_edgeSupports from [ " 
-					+ citationIdCsv
-					+ " ]) WHERE @class = 'edge' SKIP " + startIndex + " LIMIT " + top;
-			
-			final List<ODocument> edgesFound = _ndexDatabase
-					.query(new OSQLSynchQuery<ODocument>(edgeQuery));
-			
-			for (final ODocument edge : edgesFound) {
-				foundIEdges.add(_orientDbGraph.getVertex(edge, IEdge.class));
+			List<ICitation> requiredCitations = new ArrayList<ICitation>();
+			for (ODocument cit : foundCitations){
+				final ICitation iCitation = _orientDbGraph.getVertex(
+						cit, ICitation.class);
+				requiredCitations.add(iCitation);
+				
 			}
+			return getNetworkBasedOnCitations(requiredCitations, network);
+
 			
-			return getNetworkBasedOnFoundEdges(foundIEdges, network);
 		} catch (ObjectNotFoundException onfe) {
 			throw onfe;
 		} catch (Exception e) {
@@ -1915,62 +1909,130 @@ public class NetworkService extends NdexService {
 	}
 
 	private static Network getNetworkBasedOnFoundEdges(
-			final List<IEdge> foundEdges, final INetwork network) {
-		final Set<INode> requiredINodes = getEdgeNodes(foundEdges);
-		final Set<ITerm> requiredITerms = getEdgeTerms(foundEdges,
+			final List<IEdge> requiredIEdges, final INetwork network) {
+		final Set<INode> requiredINodes = getEdgeNodes(requiredIEdges);
+		final Set<ITerm> requiredITerms = getEdgeTerms(requiredIEdges,
 				requiredINodes);
-		final Set<ISupport> requiredISupports = getEdgeSupports(foundEdges);
-		final Set<ICitation> requiredICitations = getEdgeCitations(foundEdges,
+		final Set<ISupport> requiredISupports = getEdgeSupports(requiredIEdges);
+		final Set<ICitation> requiredICitations = getEdgeCitations(requiredIEdges,
 				requiredISupports);
 		final Set<INamespace> requiredINamespaces = getTermNamespaces(requiredITerms);
+		
+		return createOutputNetwork(requiredINamespaces, requiredITerms, requiredICitations, requiredISupports, requiredINodes, requiredIEdges, network);
+	}
+	
+	private static Network createOutputNetwork(
+			final Collection<INamespace> requiredINamespaces, 
+			final Collection<ITerm> requiredITerms,
+			final Collection<ICitation> requiredICitations,
+			final Collection<ISupport> requiredISupports,
+			final Collection<INode> requiredINodes, 
+			final Collection<IEdge> requiredIEdges, final INetwork network){
 
 		// Now create the output network
-		final Network networkByEdges = new Network();
-		networkByEdges.setDescription(network.getDescription());
-		networkByEdges.setMetadata(network.getMetadata());
-		networkByEdges.setName(network.getName());
+		final Network outputNetwork = new Network();
+		outputNetwork.setDescription(network.getDescription());
+		outputNetwork.setMetadata(network.getMetadata());
+		outputNetwork.setName(network.getName());
 
 		if (network.getMetaterms() != null) {
 			for (Entry<String, IBaseTerm> metaterm : network.getMetaterms()
 					.entrySet())
-				networkByEdges.getMetaterms().put(metaterm.getKey(),
+				outputNetwork.getMetaterms().put(metaterm.getKey(),
 						new BaseTerm(metaterm.getValue()));
 		}
 
-		for (final IEdge edge : foundEdges)
-			networkByEdges.getEdges().put(edge.getJdexId(), new Edge(edge));
+		for (final IEdge edge: requiredIEdges)
+			outputNetwork.getEdges().put(edge.getJdexId(), new Edge(edge));
 
-		networkByEdges.setEdgeCount(foundEdges.size());
+		outputNetwork.setEdgeCount(requiredIEdges.size());
 
 		for (final INode node : requiredINodes)
-			networkByEdges.getNodes().put(node.getJdexId(), new Node(node));
+			outputNetwork.getNodes().put(node.getJdexId(), new Node(node));
 
-		networkByEdges.setNodeCount(requiredINodes.size());
+		outputNetwork.setNodeCount(requiredINodes.size());
 
 		for (final ITerm term : requiredITerms) {
 			if (term instanceof IBaseTerm)
-				networkByEdges.getTerms().put(term.getJdexId(),
+				outputNetwork.getTerms().put(term.getJdexId(),
 						new BaseTerm((IBaseTerm) term));
 			else if (term instanceof IFunctionTerm)
-				networkByEdges.getTerms().put(term.getJdexId(),
+				outputNetwork.getTerms().put(term.getJdexId(),
 						new FunctionTerm((IFunctionTerm) term));
 		}
 
 		for (final INamespace namespace : requiredINamespaces)
-			networkByEdges.getNamespaces().put(namespace.getJdexId(),
+			outputNetwork.getNamespaces().put(namespace.getJdexId(),
 					new Namespace(namespace));
 
 		for (final ISupport support : requiredISupports)
-			networkByEdges.getSupports().put(support.getJdexId(),
+			outputNetwork.getSupports().put(support.getJdexId(),
 					new Support(support));
 
 		for (final ICitation citation : requiredICitations)
-			networkByEdges.getCitations().put(citation.getJdexId(),
+			outputNetwork.getCitations().put(citation.getJdexId(),
 					new Citation(citation));
 
-		return networkByEdges;
+		return outputNetwork;
+	}
+	
+	private  Network getNetworkBasedOnCitations(
+			final List<ICitation> requiredICitations, final INetwork network) {
+		final String citationIdCsv = joinCitationIdsToCsv(requiredICitations);
+		final Set<ISupport> requiredISupports = getCitationSupports(citationIdCsv);
+		final Set<INode> requiredINodes = getCitationNodes(citationIdCsv);
+		final Set<IEdge> requiredIEdges = getCitationEdges(citationIdCsv);
+		final Set<ITerm> requiredITerms = getEdgeTerms(requiredIEdges,requiredINodes);
+		final Set<INamespace> requiredINamespaces = getTermNamespaces(requiredITerms);
+		return createOutputNetwork(requiredINamespaces, requiredITerms, requiredICitations, requiredISupports, requiredINodes, requiredIEdges, network);
 	}
 
+	private  Set<ISupport> getCitationSupports(String citationIdCsv) {
+		Set<ISupport> foundISupports = new HashSet<ISupport>();
+		final String supportQuery = "SELECT FROM (TRAVERSE out_citationSupports from [ " 
+				+ citationIdCsv
+				+ " ]) WHERE @class = 'support'";
+		
+		final List<ODocument> supportsFound = _ndexDatabase
+				.query(new OSQLSynchQuery<ODocument>(supportQuery));
+		
+		for (final ODocument support : supportsFound) {
+			foundISupports.add(_orientDbGraph.getVertex(support, ISupport.class));
+		}
+		return foundISupports;
+	}
+	
+	private  Set<IEdge> getCitationEdges(String citationIdCsv) {
+		Set<IEdge> foundIEdges = new HashSet<IEdge>();
+		final String edgeQuery = "SELECT FROM (TRAVERSE in_edgeCitations, out_citationSupports, in_edgeSupports from [ " 
+				+ citationIdCsv
+				+ " ]) WHERE @class = 'edge'";
+		
+		final List<ODocument> edgesFound = _ndexDatabase
+				.query(new OSQLSynchQuery<ODocument>(edgeQuery));
+		
+		for (final ODocument edge : edgesFound) {
+			foundIEdges.add(_orientDbGraph.getVertex(edge, IEdge.class));
+		}
+		return foundIEdges;
+	}
+
+	private  Set<INode> getCitationNodes(String citationIdCsv) {
+		Set<INode> foundINodes = new HashSet<INode>();
+		final String nodeQuery = "SELECT FROM (TRAVERSE in_nodeCitations, out_citationSupports, in_nodeSupports, in_edgeCitations, in_edgeSupports, in_edgeSubject, out_edgeObject from [ " 
+				+ citationIdCsv
+				+ " ]) WHERE @class = 'node'";
+		
+		final List<ODocument> nodesFound = _ndexDatabase
+				.query(new OSQLSynchQuery<ODocument>(nodeQuery));
+		
+		for (final ODocument node : nodesFound) {
+			foundINodes.add(_orientDbGraph.getVertex(node, INode.class));
+		}
+		return foundINodes;
+	}
+
+	/*
 	private static Network getNetworkBasedOnFoundNodes(
 			final List<INode> foundINodes, final INetwork network) {
 		final Set<ITerm> requiredITerms = getNodeTerms(foundINodes);
@@ -2007,7 +2069,8 @@ public class NetworkService extends NdexService {
 
 		return networkByNodes;
 	}
-
+*/
+	
 	private static Set<INode> getEdgeNodes(final List<IEdge> edges) {
 		final Set<INode> edgeNodes = new HashSet<INode>();
 
@@ -2019,7 +2082,7 @@ public class NetworkService extends NdexService {
 		return edgeNodes;
 	}
 
-	private static Set<ITerm> getEdgeTerms(final List<IEdge> edges,
+	private static Set<ITerm> getEdgeTerms(final Collection<IEdge> edges,
 			final Collection<INode> nodes) {
 		final Set<ITerm> edgeTerms = new HashSet<ITerm>();
 
@@ -2045,6 +2108,7 @@ public class NetworkService extends NdexService {
 		return edgeTerms;
 	}
 
+	/*
 	private static Set<ITerm> getNodeTerms(final Collection<INode> nodes) {
 		final Set<ITerm> nodeTerms = new HashSet<ITerm>();
 
@@ -2056,7 +2120,8 @@ public class NetworkService extends NdexService {
 
 		return nodeTerms;
 	}
-
+*/
+	
 	private static Set<ISupport> getEdgeSupports(final List<IEdge> edges) {
 		final Set<ISupport> edgeSupports = new HashSet<ISupport>();
 
@@ -2302,6 +2367,15 @@ public class NetworkService extends NdexService {
 		String resultString = "";
 		for (final IBaseTerm iBaseTerm : iBaseTerms) {
 			resultString += iBaseTerm.asVertex().getId().toString() + ", ";
+		}
+		resultString = resultString.substring(0, resultString.length() - 2);
+		return resultString;
+	}
+	
+	private static String joinCitationIdsToCsv(List<ICitation> iCitations) {
+		String resultString = "";
+		for (final ICitation iCitation: iCitations) {
+			resultString += iCitation.asVertex().getId().toString() + ", ";
 		}
 		resultString = resultString.substring(0, resultString.length() - 2);
 		return resultString;
