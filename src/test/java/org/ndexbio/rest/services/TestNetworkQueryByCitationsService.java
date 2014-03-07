@@ -88,31 +88,31 @@ public class TestNetworkQueryByCitationsService extends TestNdexService
         System.out.println("- " + network.getNodes().size() + " nodes");
         System.out.println("- " + network.getEdges().size() + " edges");
         for (Citation citation : network.getCitations().values()){
-        	System.out.println("citiation: " + citation.getIdentifier() + " " + citation.getTitle());
+        	System.out.println("citation: " + citation.getIdentifier() + " " + citation.getTitle());
         	System.out.println("has supports: " + citation.getSupports().size());
         	//for (String supportId : citation.getSupports()){
         	//	System.out.println("- " + supportId );
         	//}
         }
-        System.out.println("Terms:");
+        System.out.println(network.getTerms().size() + " Terms:");
         summarizeTerms(network.getTerms().keySet(), network);
         
         
-        System.out.println("Terms from Nodes:");
+        
         Set<String> termIdsFromNodesAndEdges = new HashSet<String>();
         for (Entry<String, Node> entry : network.getNodes().entrySet()){
+        	
         	String nodeId = entry.getKey();
         	Node node = entry.getValue();
+        	//System.out.println("Node " + nodeId);
         	String termId = node.getRepresents();
-        	Term term = network.getTerms().get(termId);
-        	if (null == term){
-        		System.out.println("Missing term " + termId + " represented by node " + nodeId);
-        	}
+
         	getAllTermIds(termId, network, termIdsFromNodesAndEdges);      	
         }
         for (Edge edge : network.getEdges().values()){
         	termIdsFromNodesAndEdges.add(edge.getP());
         }
+        System.out.println(termIdsFromNodesAndEdges.size() + " Terms from Nodes:");
         summarizeTerms(termIdsFromNodesAndEdges, network);
         
         System.out.println("_________________________________");
@@ -121,10 +121,13 @@ public class TestNetworkQueryByCitationsService extends TestNdexService
     private void getAllTermIds(String termId, Network network, Set<String>termIds){
     	termIds.add(termId);
     	Term term = network.getTerms().get(termId);
-    	if (null != term && "Function".equals(term.getTermType())){
+    	if (null == term){
+    		System.out.println("  Missing term " + termId );
+    	} else if ("Function".equals(term.getTermType())){
     		FunctionTerm ft = (FunctionTerm)term;
     		termIds.add(ft.getTermFunction());
-    		for (String parameterId : ft.getParameters().keySet()){
+    		//System.out.println("  Function term " + termId + " function = " + ft.getTermFunction());
+    		for (String parameterId : ft.getParameters().values()){
     			getAllTermIds(parameterId, network, termIds);
     		}
     	}

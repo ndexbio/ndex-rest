@@ -1491,14 +1491,21 @@ public class NetworkService extends NdexService {
 	 */
 
 	private static void addTermAndFunctionalDependencies(final ITerm term,
-			final Set<ITerm> terms) {
+			final Set<ITerm> terms) throws NdexException {
 		if (terms.add(term)) {
+			
 			if (term instanceof IFunctionTerm) {
 				terms.add(((IFunctionTerm) term).getTermFunc());
-
+				//System.out.println("Added Function Term " + term.getJdexId());
 				for (ITerm iterm : ((IFunctionTerm) term).getTermParameters()) {
 					addTermAndFunctionalDependencies(iterm, terms);
 				}
+			} else if (term instanceof IReifiedEdgeTerm) {
+				//System.out.println("Added Reified Edge Term " + term.getJdexId());
+			} else if (term instanceof IBaseTerm) {
+				//System.out.println("Added Base Term " + term.getJdexId() + " " + ((IBaseTerm)term).getName());
+			} else {
+				throw new NdexException("Unknown type for term " + term.getJdexId());
 			}
 		}
 	}
@@ -1909,7 +1916,7 @@ public class NetworkService extends NdexService {
 	}
 
 	private static Network getNetworkBasedOnFoundEdges(
-			final List<IEdge> requiredIEdges, final INetwork network) {
+			final List<IEdge> requiredIEdges, final INetwork network) throws NdexException {
 		final Set<INode> requiredINodes = getEdgeNodes(requiredIEdges);
 		final Set<ITerm> requiredITerms = getEdgeTerms(requiredIEdges,
 				requiredINodes);
@@ -1959,10 +1966,13 @@ public class NetworkService extends NdexService {
 			else if (term instanceof IFunctionTerm)
 				outputNetwork.getTerms().put(term.getJdexId(),
 						new FunctionTerm((IFunctionTerm) term));
-			else if (term instanceof IReifiedEdgeTerm)
+			else if (term instanceof IReifiedEdgeTerm){
+				
 				outputNetwork.getTerms().put(term.getJdexId(),
 						new ReifiedEdgeTerm((IReifiedEdgeTerm) term));
 		}
+			}
+				
 
 		for (final INamespace namespace : requiredINamespaces)
 			outputNetwork.getNamespaces().put(namespace.getJdexId(),
@@ -1980,7 +1990,7 @@ public class NetworkService extends NdexService {
 	}
 	
 	private  Network getNetworkBasedOnCitations(
-			final List<ICitation> requiredICitations, final INetwork network) {
+			final List<ICitation> requiredICitations, final INetwork network) throws NdexException {
 		final String citationIdCsv = joinCitationIdsToCsv(requiredICitations);
 		final Set<ISupport> requiredISupports = getCitationSupports(citationIdCsv);
 		final Set<INode> requiredINodes = getCitationNodes(citationIdCsv);
@@ -2086,7 +2096,7 @@ public class NetworkService extends NdexService {
 	}
 
 	private static Set<ITerm> getEdgeTerms(final Collection<IEdge> edges,
-			final Collection<INode> nodes) {
+			final Collection<INode> nodes) throws NdexException {
 		final Set<ITerm> edgeTerms = new HashSet<ITerm>();
 
 		for (final IEdge edge : edges)

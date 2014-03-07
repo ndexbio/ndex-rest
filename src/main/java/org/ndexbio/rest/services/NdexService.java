@@ -24,6 +24,7 @@ import org.ndexbio.common.models.data.IGroupMembership;
 import org.ndexbio.common.models.data.IJoinGroupRequest;
 import org.ndexbio.common.models.data.INetworkAccessRequest;
 import org.ndexbio.common.models.data.INetworkMembership;
+import org.ndexbio.common.models.data.IReifiedEdgeTerm;
 import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.common.models.object.RestResource;
 import org.ndexbio.common.models.object.User;
@@ -164,6 +165,7 @@ public abstract class NdexService
                 .withClass(IJoinGroupRequest.class)
                 .withClass(INetworkAccessRequest.class)
                 .withClass(IBaseTerm.class)
+                .withClass(IReifiedEdgeTerm.class)
                 .withClass(IFunctionTerm.class).build());
 
         _ndexDatabase = ODatabaseDocumentPool.global().acquire(

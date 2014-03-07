@@ -10,6 +10,7 @@ import org.jboss.resteasy.util.Base64;
 import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.models.data.IBaseTerm;
 import org.ndexbio.common.models.data.IFunctionTerm;
+import org.ndexbio.common.models.data.IReifiedEdgeTerm;
 import org.ndexbio.common.models.data.IGroup;
 import org.ndexbio.common.models.data.IGroupInvitationRequest;
 import org.ndexbio.common.models.data.IGroupMembership;
@@ -52,6 +53,7 @@ public class Security
                 .withClass(IJoinGroupRequest.class)
                 .withClass(INetworkAccessRequest.class)
                 .withClass(IBaseTerm.class)
+                .withClass(IReifiedEdgeTerm.class)
                 .withClass(IFunctionTerm.class)
                 .build());
 
