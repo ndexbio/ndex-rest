@@ -2368,50 +2368,7 @@ public class NetworkService extends NdexService {
 	}
 
 
-	
-	/**************************************************************************
-	 * 
-	 * Not currently used, may not be necessary
-	 * 
-	 * 
-	 **************************************************************************/
-	private static Network getNetworkBasedOnFoundNodes(
-			final List<INode> foundINodes, final INetwork network) {
-		final Set<ITerm> requiredITerms = getNodeTerms(foundINodes);
-		final Set<INamespace> requiredINamespaces = getTermNamespaces(requiredITerms);
 
-		// Now create the output network
-		final Network networkByNodes = new Network();
-		networkByNodes.setDescription(network.getDescription());
-		networkByNodes.setMetadata(network.getMetadata());
-		networkByNodes.setName(network.getName());
-
-		if (network.getMetaterms() != null) {
-			for (Entry<String, IBaseTerm> metaterm : network.getMetaterms()
-					.entrySet())
-				networkByNodes.getMetaterms().put(metaterm.getKey(),
-						new BaseTerm(metaterm.getValue()));
-		}
-
-		for (final INode node : foundINodes)
-			networkByNodes.getNodes().put(node.getJdexId(), new Node(node));
-
-		for (final ITerm term : requiredITerms) {
-			if (term instanceof IBaseTerm)
-				networkByNodes.getTerms().put(term.getJdexId(),
-						new BaseTerm((IBaseTerm) term));
-			else if (term instanceof IFunctionTerm)
-				networkByNodes.getTerms().put(term.getJdexId(),
-						new FunctionTerm((IFunctionTerm) term));
-		}
-
-		for (final INamespace requiredNamespace : requiredINamespaces)
-			networkByNodes.getNamespaces().put(requiredNamespace.getJdexId(),
-					new Namespace(requiredNamespace));
-
-		return networkByNodes;
-	}
-*/
 	
 	private static Set<INode> getEdgeNodes(final List<IEdge> edges) {
 		final Set<INode> edgeNodes = new HashSet<INode>();
