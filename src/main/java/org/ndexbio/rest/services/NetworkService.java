@@ -4,12 +4,14 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Set;
@@ -50,6 +52,7 @@ import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.equivalence.EquivalenceFinder;
 import org.ndexbio.rest.equivalence.IdEquivalenceFinder;
 import org.ndexbio.rest.gremlin.NetworkQueries;
+import org.ndexbio.rest.helpers.TermDependencyComparator;
 //import org.ndexbio.rest.gremlin.NetworkQueries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -192,18 +195,34 @@ public class NetworkService extends NdexService {
 			// Namespaces must be created first since they can be referenced by
 			// terms.
 			createNamespaces(network, newNetwork, networkIndex);
+			System.out.println(networkIndex.values().size() + " entries in map after Namespaces");
+
 
 			// Terms must be created second since they reference other terms
 			// and are also referenced by nodes/edges.
 			createTerms(network, newNetwork, networkIndex);
+			System.out.println(networkIndex.values().size() + " entries in map after Terms");
 
-			// Supports and citations must be created next as they're
-			// referenced by nodes/edges.
-			createSupports(network, newNetwork, networkIndex);
+
+			// Citations must be created next as they're
+			// referenced by supports and edges.	
 			createCitations(network, newNetwork, networkIndex);
+			System.out.println(networkIndex.values().size() + " entries in map after Citations");
+
+			
+			// Supports and Nodes must be created next as they're
+			// referenced by edges.
+			createSupports(network, newNetwork, networkIndex);
+			System.out.println(networkIndex.values().size() + " entries in map after Supports");
 
 			createNodes(network, newNetwork, networkIndex);
+			System.out.println(networkIndex.values().size() + " entries in map after Nodes");
+
+			
+			// Finally, we create edges
 			createEdges(network, newNetwork, networkIndex);
+			System.out.println(networkIndex.values().size() + " entries in map after Edges");
+
 
 			return new Network(network);
 
@@ -254,7 +273,7 @@ public class NetworkService extends NdexService {
 	 * 
 	 * @param ownerId
 	 *            The ID of the user creating the group.
-	 * @param source
+	 * @param sourceNetwork
 	 *            The network to create.
 	 * @throws IllegalArgumentException
 	 *             Bad input.
@@ -275,62 +294,70 @@ public class NetworkService extends NdexService {
 			+ "Errors if the JDEx is not provided or if networkId is not found.")
 	public Network addNetwork(@PathParam("networkId") final String networkId,
 			@PathParam("equivalenceMethod") final String equivalenceMethod,
-			final Network source) throws IllegalArgumentException,
+			final Network sourceNetwork) throws IllegalArgumentException,
 			DuplicateObjectException, NdexException {
-		Preconditions.checkArgument(null != source,
+		Preconditions.checkArgument(null != sourceNetwork,
 				"A source network structure is required");
 		final ORID networkRid = IdConverter.toRid(networkId);
 
 		try {
 			setupDatabase();
 
-			final INetwork target = _orientDbGraph.getVertex(networkRid,
+			final INetwork targetNetwork = _orientDbGraph.getVertex(networkRid,
 					INetwork.class);
-			if (target == null)
+			if (targetNetwork == null)
 				throw new ObjectNotFoundException("Network", networkId);
-			else if (!hasPermission(new Network(target), Permissions.ADMIN)) // this
-																				// seems
-																				// inelegant
-																				// to
-																				// instantiate
-																				// an
-																				// object
-																				// model
-																				// of
-																				// the
-																				// network
-																				// just
-																				// to
-																				// test
-																				// permissions...
+			else if (!hasPermission(new Network(targetNetwork), Permissions.ADMIN)) 
 				throw new SecurityException(
 						"Insufficient privileges to add content to this network.");
 
 			final Map<String, VertexFrame> networkIndex = Maps.newHashMap();
 
 			final EquivalenceFinder equivalenceFinder = getEquivalenceFinder(
-					equivalenceMethod, target, networkIndex);
+					equivalenceMethod, targetNetwork, networkIndex);
 
 			// Namespaces not found in target must be created
 			// first since they can be referenced by terms.
-			createNamespaces(source, equivalenceFinder);
+			createNamespaces(sourceNetwork, equivalenceFinder);
+			
+			System.out.println(networkIndex.values().size() + " entries in map after Namespaces");
 
 			// Terms not found in target are then created.
 			// They can reference other terms
 			// and are also referenced by nodes and edges.
-			createTerms(target, source, networkIndex);
+			createTerms(sourceNetwork, equivalenceFinder);
+			
+			System.out.println(networkIndex.values().size() + " entries in map after Terms");
 
-			// Supports and citations not found in target are then created
-			// They can be referenced by nodes and edges.
-			createSupports(target, source, networkIndex);
-			createCitations(target, source, networkIndex);
 
-			createNodes(target, source, networkIndex);
-			createEdges(target, source, networkIndex);
+			// Citations not found in target are then created
+			// They can be referenced by supports and edges.
+			createCitations(sourceNetwork, equivalenceFinder);
+			
+			System.out.println(networkIndex.values().size() + " entries in map after Citations");
 
-			// TODO : update target node and edge counts...
+			
+			// Supports not found in target are then created
+			// They can be referenced by edges.
+			createSupports(sourceNetwork, equivalenceFinder);
+			
+			System.out.println(networkIndex.values().size() + " entries in map after Supports");
 
-			return new Network(target);
+
+			// Nodes not found in target are then created
+			// They can be referenced by edges.
+			createNodes(sourceNetwork, equivalenceFinder);
+			
+			System.out.println(networkIndex.values().size() + " entries in map after Nodes");
+
+			
+			// Finally, edges not found in target are created
+			createEdges(sourceNetwork, equivalenceFinder);
+			
+			System.out.println(networkIndex.values().size() + " entries in map after Edges");
+
+
+			return new Network(targetNetwork);
 
 		} finally {
 			teardownDatabase();
@@ -623,7 +650,6 @@ public class NetworkService extends NdexService {
 					IdConverter.toRid(networkId), INetwork.class);
 			if (network == null)
 				throw new ObjectNotFoundException("Network", networkId);
-			
 			
 			// Check that all citations are elements of the network
 			final String citationIdCsv = IdConverter.toRidCsv(citations);
@@ -1678,37 +1704,42 @@ public class NetworkService extends NdexService {
 		return (long) adminCount.get(0).field("COUNT");
 	}
 
-	/*
+	/**************************************************************************
+	 * NAMESPACES
 	 * 
-	 * Namespaces
-	 */
-
-	private void createNamespaces(final INetwork newNetwork,
-			final Network networkToCreate,
+	 * Map namespaces in network model object to namespaces in the network domain object
+	 * 
+	 **************************************************************************/
+	private void createNamespaces(final INetwork domainNetwork,
+			final Network objectNetwork,
 			final Map<String, VertexFrame> networkIndex) {
-		for (final Namespace namespace : networkToCreate.getNamespaces()
-				.values()) {
-			createNamespace(newNetwork, namespace, networkIndex);
+		for (final Entry<String, Namespace> namespaceEntry : objectNetwork.getNamespaces().entrySet()) {
+			final Namespace namespace = namespaceEntry.getValue();
+			final String jdexId = namespaceEntry.getKey();
+			createNamespace(domainNetwork, namespace, jdexId, networkIndex);
 		}
 	}
 
-	private void createNamespaces(final Network networkToCreate,
+	private void createNamespaces(final Network objectNetwork,
 			EquivalenceFinder equivalenceFinder) {
-		for (final Namespace namespace : networkToCreate.getNamespaces()
-				.values()) {
-			INamespace ns = equivalenceFinder.getNamespace(namespace);
+		for (final Entry<String, Namespace> namespaceEntry : objectNetwork.getNamespaces().entrySet()) {
+			final Namespace namespace = namespaceEntry.getValue();
+			final String jdexId = namespaceEntry.getKey();
+			INamespace ns = equivalenceFinder.getNamespace(namespace, jdexId);
 			if (null == ns)
-				createNamespace(equivalenceFinder.getTarget(), namespace,
+				createNamespace(equivalenceFinder.getTargetNetwork(), namespace,
+						jdexId,
 						equivalenceFinder.getNetworkIndex());
 		}
 	}
 
 	private void createNamespace(final INetwork newNetwork,
 			final Namespace namespace,
+			final String jdexId,
 			final Map<String, VertexFrame> networkIndex) {
 		final INamespace newNamespace = _orientDbGraph.addVertex(
 				"class:namespace", INamespace.class);
-		newNamespace.setJdexId(namespace.getJdexId());
+		newNamespace.setJdexId(jdexId);
 
 		final String prefix = namespace.getPrefix();
 		if (prefix != null && !prefix.isEmpty())
@@ -1725,181 +1756,464 @@ public class NetworkService extends NdexService {
 	 * 
 	 * Maps terms in network model object to terms in the network domain object
 	 * 
-	 * Note that this requires that the list of terms is ordered such that terms
+	 * Note that term creation requires that the list of terms is ordered such that terms
 	 * may only refer to other terms if those terms come earlier in the list.
+	 * 
+	 * The order of jdexIds in the network model object should be in order of dependency
+	 * @throws NdexException 
+	 * 
 	 **************************************************************************/
-	private void createTerms(final INetwork newNetwork,
-			final Network networkToCreate,
-			final Map<String, VertexFrame> networkIndex) {
-		for (final Entry<String, Term> termEntry : networkToCreate.getTerms()
-				.entrySet()) {
-			final Term term = termEntry.getValue();
 
-			if (term.getTermType() == null || term.getTermType().isEmpty()
-					|| term.getTermType().equals("Base")) {
-				final IBaseTerm newBaseTerm = _orientDbGraph.addVertex(
-						"class:baseTerm", IBaseTerm.class);
-				newBaseTerm.setName(((BaseTerm) term).getName());
-				newBaseTerm.setJdexId(termEntry.getKey());
+	private void createBaseTerm(INetwork target, Network networkToCreate,
+			BaseTerm term, String jdexId, Map<String, VertexFrame> networkIndex) throws NdexException {
+		final IBaseTerm newBaseTerm = _orientDbGraph.addVertex(
+				"class:baseTerm", IBaseTerm.class);
+		newBaseTerm.setName(((BaseTerm) term).getName());
+		newBaseTerm.setJdexId(jdexId);
 
-				String jdexId = ((BaseTerm) term).getNamespace();
+		String namespaceJdexId = ((BaseTerm) term).getNamespace();
 
-				if (jdexId != null && !jdexId.isEmpty()) {
-					final VertexFrame namespace = networkIndex.get(jdexId);
-					if (namespace != null)
-						newBaseTerm.setTermNamespace((INamespace) namespace);
+		String nsPrefix = "";
+		if (namespaceJdexId != null && !namespaceJdexId.isEmpty()) {
+			final INamespace namespace = (INamespace)networkIndex.get(namespaceJdexId);
+			if (null == namespace)
+				throw new NdexException("Namespace " + namespaceJdexId + " referenced by BaseTerm " + jdexId + " was not found in networkIndex cache");
+
+			newBaseTerm.setTermNamespace(namespace);
+			nsPrefix = namespace.getPrefix();
+		}
+
+		target.addTerm(newBaseTerm);
+		networkIndex.put(newBaseTerm.getJdexId(), newBaseTerm);
+		
+		
+		System.out.println("added BaseTerm " + newBaseTerm.getJdexId() + " " + nsPrefix + ":" + newBaseTerm.getName());
+
+		// TODO: remove this when the handling of metadata is finalized.
+		//       (not currently used)
+		// If the base term is also used as a metaterm, add it now
+		/*
+		if (networkToCreate.getMetaterms().containsValue(term)) {
+			for (final Entry<String, BaseTerm> metaterm : networkToCreate
+					.getMetaterms().entrySet()) {
+				if (metaterm.equals(term)) {
+					target.addMetaterm(metaterm.getKey(),
+							newBaseTerm);
+					break;
 				}
-
-				newNetwork.addTerm(newBaseTerm);
-				networkIndex.put(newBaseTerm.getJdexId(), newBaseTerm);
-
-				// If the base term is also used as a metaterm, add it now
-				if (networkToCreate.getMetaterms().containsValue(term)) {
-					for (final Entry<String, BaseTerm> metaterm : networkToCreate
-							.getMetaterms().entrySet()) {
-						if (metaterm.equals(term)) {
-							newNetwork.addMetaterm(metaterm.getKey(),
-									newBaseTerm);
-							break;
-						}
-					}
-				}
-			} else if (term.getTermType().equals("Function")) {
-				final IFunctionTerm newFunctionTerm = _orientDbGraph.addVertex(
-						"class:functionTerm", IFunctionTerm.class);
-				newFunctionTerm.setJdexId(termEntry.getKey());
-
-				final VertexFrame function = networkIndex
-						.get(((FunctionTerm) term).getTermFunction());
-				if (function != null)
-					newFunctionTerm.setTermFunc((IBaseTerm) function);
-
-				List<ITerm> iParameters = new ArrayList<ITerm>();
-				for (Entry<String, String> entry : ((FunctionTerm) term)
-						.getParameters().entrySet()) {
-					// All Terms mentioned as parameters are expected to have
-					// been found and created
-					// prior to the current term - it is a requirement of a JDEx
-					// format file.
-					ITerm parameter = ((ITerm) networkIndex.get(entry
-							.getValue()));
-					if (null != parameter) {
-						iParameters.add(parameter);
-					}
-
-				}
-
-				newFunctionTerm.setTermParameters(iParameters);
-				newNetwork.addTerm(newFunctionTerm);
-				networkIndex.put(newFunctionTerm.getJdexId(), newFunctionTerm);
 			}
 		}
+		*/
+		
 	}
 
-	private void createSupports(final INetwork newNetwork,
-			final Network networkToCreate,
-			final Map<String, VertexFrame> networkIndex) {
-		for (final Entry<String, Support> supportEntry : networkToCreate
-				.getSupports().entrySet()) {
-			final Support support = supportEntry.getValue();
+	private IFunctionTerm createFunctionTerm(INetwork target, String jdexId,
+			Map<String, VertexFrame> networkIndex) throws NdexException {
+		final IFunctionTerm domainTerm = _orientDbGraph.addVertex(
+				"class:functionTerm", IFunctionTerm.class);
+		domainTerm.setJdexId(jdexId);
+		target.addTerm(domainTerm);
+		networkIndex.put(domainTerm.getJdexId(), domainTerm);
+		System.out.println("added FunctionTerm " + domainTerm.getJdexId());
+		return domainTerm;
+		
+	}
+	
+	private void populateFunctionTerm(FunctionTerm objectTerm, 
+			IFunctionTerm domainTerm, 
+			Map<String, VertexFrame> networkIndex) throws NdexException{
 
-			final ISupport newSupport = _orientDbGraph.addVertex(
-					"class:support", ISupport.class);
-			newSupport.setJdexId(supportEntry.getKey());
-			newSupport.setText(support.getText());
+		if (null == domainTerm)
+			throw new NdexException("domain FunctionTerm null for " + objectTerm.getTermFunction());
 
-			newNetwork.addSupport(newSupport);
-			networkIndex.put(newSupport.getJdexId(), newSupport);
+		// populate term function
+		final IBaseTerm function = (IBaseTerm) networkIndex.get(objectTerm.getTermFunction());
+		if (null == function)
+			throw new NdexException("BaseTerm " + objectTerm.getTermFunction() + " referenced as function of FunctionTerm " + domainTerm.getJdexId() + " was not found in networkIndex cache");
+
+		domainTerm.setTermFunc(function);
+
+		// populate parameters
+		List<ITerm> iParameters = new ArrayList<ITerm>();
+		for (Entry<String, String> entry : objectTerm.getParameters().entrySet()) {
+			// All Terms mentioned as parameters should exist
+			// (found or created) prior to the current term - 
+			// it is a requirement of a JDEx format file.
+			String parameterJdexId = entry.getValue();
+			ITerm parameter = (ITerm) networkIndex.get(parameterJdexId);
+			if (null == parameter) 
+				throw new NdexException("Term " + parameterJdexId + " referenced as parameter of FunctionTerm " + domainTerm.getJdexId() + " was not found in networkIndex cache");
+
+			iParameters.add(parameter);
+			
+		}
+
+		domainTerm.setTermParameters(iParameters);
+	}
+
+	private boolean isFunctionTerm(Term term) {
+		if (term.getTermType().equals("Function")) return true;
+		return false;
+	}
+
+	private boolean isBaseTerm(Term term) {
+		if (term.getTermType() == null 
+				|| term.getTermType().isEmpty()
+				|| term.getTermType().equals("Base"))
+			return true;
+		return false;
+	}
+	
+	/**************************************************************************
+	 * Creating terms with an equivalenceFinder
+	 * 
+	 * The equivalence finder determines whether a term is already in the
+	 * target network. If it is, the term is cached for re-use
+	 * 
+	 * If no term is found, then a new term is created and cached.
+	 * 
+	 * A critical point is whether the jdexIds of terms in the source network can be 
+	 * used when creating terms in the target network or whether a new 
+	 * @throws NdexException 
+	 * 
+	 **************************************************************************/
+	private void createTerms(final Network sourceNetwork,
+			final EquivalenceFinder equivalenceFinder) throws NdexException {
+		
+		// Sort terms by dependency before creation because function terms can 
+		// depend on each other.
+		//TermDependencyComparator tdc =  new TermDependencyComparator(sourceNetwork.getTerms());
+        List<String> sortedTermIds = new ArrayList<String>(sourceNetwork.getTerms().keySet());
+        //Collections.sort(sortedTermIds, tdc);
+        // Pass1 - create base terms and function term shells
+        Map<FunctionTerm, IFunctionTerm> newFunctionTermMap = new HashMap<FunctionTerm, IFunctionTerm>();
+		for (final String jdexId : sortedTermIds) {
+			final Term term = sourceNetwork.getTerms().get(jdexId);
+			if (isBaseTerm(term)){
+				IBaseTerm iBaseTerm = equivalenceFinder.getBaseTerm((BaseTerm) term, jdexId);
+				if (null == iBaseTerm)
+					createBaseTerm(equivalenceFinder.getTargetNetwork(), sourceNetwork, (BaseTerm)term, jdexId, equivalenceFinder.getNetworkIndex());			
+			} else if (isFunctionTerm(term)){
+				IFunctionTerm iFunctionTerm = equivalenceFinder.getFunctionTerm((FunctionTerm) term, jdexId);
+				if (null == iFunctionTerm){
+					iFunctionTerm = createFunctionTerm(equivalenceFinder.getTargetNetwork(), jdexId, equivalenceFinder.getNetworkIndex());
+					newFunctionTermMap.put((FunctionTerm)term, iFunctionTerm);
+				}
+			}
+		}
+		// Pass2 - populate new function terms with function and parameter references
+		for (final Entry<FunctionTerm, IFunctionTerm> entry : newFunctionTermMap.entrySet()){
+			populateFunctionTerm(entry.getKey(), entry.getValue(), equivalenceFinder.getNetworkIndex());
 		}
 	}
 
-	private void createCitations(final INetwork newNetwork,
-			final Network networkToCreate,
+
+
+	/**************************************************************************
+	 * Creating terms for an new network
+	 * 
+	 * No pre-existing terms, therefore no need to check 
+	 * for equivalent terms pre-existing in network.
+	 * 
+	 * Terms must be created in order of dependency.
+	 * 
+	 * Hence they must be created in order of jdexId
+	 * @throws NdexException 
+	 * 
+	 **************************************************************************/
+	private void createTerms(final INetwork targetNetwork,
+			final Network sourceNetwork,
+			final Map<String, VertexFrame> networkIndex) throws NdexException {
+		//validateTermMap(sourceNetwork.getTerms());
+		//TermDependencyComparator tdc =  new TermDependencyComparator(sourceNetwork.getTerms());
+        List<String> sortedTermIds = new ArrayList<String>(sourceNetwork.getTerms().keySet());
+        //Collections.sort(sortedTermIds, tdc);
+        // Pass1 - create base terms and function term shells
+        Map<FunctionTerm, IFunctionTerm> newFunctionTermMap = new HashMap<FunctionTerm, IFunctionTerm>();
+		for (final String jdexId : sortedTermIds) {
+			final Term term = sourceNetwork.getTerms().get(jdexId);
+			if (isBaseTerm(term)){
+				createBaseTerm(targetNetwork, sourceNetwork, (BaseTerm)term, jdexId, networkIndex);			
+			} else if (isFunctionTerm(term)){
+				IFunctionTerm iFunctionTerm = createFunctionTerm(targetNetwork, jdexId, networkIndex);
+				newFunctionTermMap.put((FunctionTerm)term, iFunctionTerm);
+			}		
+		}
+		// Pass2 - populate new function terms with function and parameter references
+		for (final Entry<FunctionTerm, IFunctionTerm> entry : newFunctionTermMap.entrySet()){
+			populateFunctionTerm(entry.getKey(), entry.getValue(), networkIndex);
+		}
+	}
+	
+	private void validateTermMap(Map<String, Term> termMap) throws NdexException{
+		Set<String> parameterIds = new HashSet<String>();
+		for (Entry<String, Term> entry : termMap.entrySet()){
+			String jdexId = entry.getKey();
+			Term term = entry.getValue();
+			if (term.getTermType().equals("Function")){
+				for (String parameterId : ((FunctionTerm)term).getParameters().values()){
+					if(!termMap.containsKey(parameterId)){
+						throw new NdexException("term " + jdexId + "missing parameter term for id "+ parameterId);
+					}
+					parameterIds.add(parameterId);
+				}
+			} else {
+				System.out.println("BaseTerm " + jdexId + " " + ((BaseTerm)term).getName());
+
+			}
+		}
+		
+		for (String parameterId : parameterIds){
+			System.out.println("Found term " + parameterId + " as parameter");
+		}
+		
+	}
+
+	/**************************************************************************
+	 * CITATIONS
+	 * 
+	 * Maps citations in network model object to citations in the network domain object
+	 * 
+	 * 
+	 **************************************************************************/
+	private void createCitations(final INetwork targetNetwork,
+			final Network sourceNetwork,
 			final Map<String, VertexFrame> networkIndex) {
-		for (final Entry<String, Citation> citationEntry : networkToCreate
+		for (final Entry<String, Citation> citationEntry : sourceNetwork
 				.getCitations().entrySet()) {
 			final Citation citation = citationEntry.getValue();
-
-			final ICitation newCitation = _orientDbGraph.addVertex(
-					"class:citation", ICitation.class);
-			newCitation.setJdexId(citationEntry.getKey());
-			newCitation.setTitle(citation.getTitle());
-			newCitation.setIdentifier(citation.getIdentifier());
-			newCitation.setType(citation.getType());
-			newCitation.setContributors(citation.getContributors());
-
-			for (final String supportId : citation.getSupports())
-				newCitation.addSupport((ISupport) networkIndex.get(supportId));
-
-			newNetwork.addCitation(newCitation);
-			networkIndex.put(newCitation.getJdexId(), newCitation);
+			final String jdexId = citationEntry.getKey();
+			createCitation(targetNetwork, citation, jdexId, networkIndex);		
 		}
 	}
 
-	private void createEdges(final INetwork newNetwork,
-			final Network networkToCreate,
-			final Map<String, VertexFrame> networkIndex) {
-		int edgeCount = 0;
-
-		for (final Entry<String, Edge> edgeEntry : networkToCreate.getEdges()
-				.entrySet()) {
-			final Edge edgeToCreate = edgeEntry.getValue();
-
-			final IEdge newEdge = _orientDbGraph.addVertex("class:edge",
-					IEdge.class);
-			newEdge.setJdexId(edgeEntry.getKey());
-
-			edgeCount++;
-
-			final INode subjectNode = (INode) networkIndex.get(edgeToCreate
-					.getS());
-			newEdge.setSubject(subjectNode);
-
-			final IBaseTerm predicateTerm = (IBaseTerm) networkIndex
-					.get(edgeToCreate.getP());
-			newEdge.setPredicate(predicateTerm);
-
-			final INode objectNode = (INode) networkIndex.get(edgeToCreate
-					.getO());
-			newEdge.setObject(objectNode);
-
-			for (final String citationId : edgeToCreate.getCitations())
-				newEdge.addCitation((ICitation) networkIndex.get(citationId));
-
-			for (final String supportId : edgeToCreate.getSupports())
-				newEdge.addSupport((ISupport) networkIndex.get(supportId));
-
-			newNetwork.addNdexEdge(newEdge);
-			networkIndex.put(newEdge.getJdexId(), newEdge);
+	private void createCitations(final Network sourceNetwork,
+			final EquivalenceFinder equivalenceFinder) {
+		for (final Entry<String, Citation> citationEntry : sourceNetwork
+				.getCitations().entrySet()) {
+			final Citation citation = citationEntry.getValue();
+			final String jdexId = citationEntry.getKey();
+			ICitation iCitation = equivalenceFinder.getCitation(citation, jdexId);
+			if (null == iCitation)
+				createCitation(equivalenceFinder.getTargetNetwork(), citation, jdexId, equivalenceFinder.getNetworkIndex());
 		}
+	}
+	
+	private void createCitation(final INetwork targetNetwork,
+			final Citation citation,
+			final String jdexId,
+			final Map<String, VertexFrame> networkIndex){
+		final ICitation newCitation = _orientDbGraph.addVertex(
+				"class:citation", ICitation.class);
+		newCitation.setJdexId(jdexId);
+		newCitation.setTitle(citation.getTitle());
+		newCitation.setIdentifier(citation.getIdentifier());
+		newCitation.setType(citation.getType());
+		newCitation.setContributors(citation.getContributors());
 
-		newNetwork.setNdexEdgeCount(edgeCount);
+		targetNetwork.addCitation(newCitation);
+		networkIndex.put(newCitation.getJdexId(), newCitation);
 	}
 
-	private void createNodes(final INetwork newNetwork,
-			final Network networkToCreate,
-			final Map<String, VertexFrame> networkIndex) {
+	/**************************************************************************
+	 * SUPPORTS
+	 * 
+	 * Maps supports in network model object to supports in the network domain object
+	 * @throws NdexException 
+	 * 
+	 * 
+	 **************************************************************************/
+	private void createSupports(final INetwork targetNetwork,
+			final Network sourceNetwork,
+			final Map<String, VertexFrame> networkIndex) throws NdexException {
+		for (final Entry<String, Support> supportEntry : sourceNetwork
+				.getSupports().entrySet()) {
+			final Support support = supportEntry.getValue();
+			final String jdexId = supportEntry.getKey();
+			createSupport(targetNetwork, support, jdexId, networkIndex);
+			
+		}
+	}
+	
+	private void createSupports(final Network sourceNetwork,
+			final EquivalenceFinder equivalenceFinder) throws NdexException {
+		for (final Entry<String, Support> supportEntry : sourceNetwork
+				.getSupports().entrySet()) {
+			final Support support = supportEntry.getValue();
+			final String jdexId = supportEntry.getKey();
+			ISupport iSupport = equivalenceFinder.getSupport(support, jdexId);
+			if (null == iSupport)
+				createSupport(equivalenceFinder.getTargetNetwork(), support, jdexId, equivalenceFinder.getNetworkIndex());
+			
+		}
+	}
+	
+	private void createSupport(final INetwork targetNetwork,
+			final Support support,
+			final String jdexId,
+			final Map<String, VertexFrame> networkIndex) throws NdexException{
+		final ISupport newSupport = _orientDbGraph.addVertex(
+				"class:support", ISupport.class);
+		newSupport.setJdexId(jdexId);
+		newSupport.setText(support.getText());
+		
+		if (null != support.getCitation()){
+			ICitation iCitation = (ICitation) networkIndex.get(support.getCitation());
+			if (null == iCitation)
+				throw new NdexException("Citation " + support.getCitation() + " referenced by support " + jdexId + " was not found in networkIndex cache");
+			newSupport.setSupportCitation(iCitation);
+		}
+
+		targetNetwork.addSupport(newSupport);
+		networkIndex.put(newSupport.getJdexId(), newSupport);
+		
+	}
+
+	/**************************************************************************
+	 * NODES
+	 * 
+	 * Maps nodes in network model object to nodes in the network domain object
+	 * @throws NdexException 
+	 * 
+	 * 
+	 **************************************************************************/
+	private void createNodes(final Network sourceNetwork,
+			final EquivalenceFinder equivalenceFinder) throws NdexException {
 		int nodeCount = 0;
 
-		for (final Entry<String, Node> nodeEntry : networkToCreate.getNodes()
+		for (final Entry<String, Node> nodeEntry : sourceNetwork.getNodes()
 				.entrySet()) {
-			final INode node = _orientDbGraph.addVertex("class:node",
-					INode.class);
-			node.setJdexId(nodeEntry.getKey());
+			final Node node = nodeEntry.getValue();
+			final String jdexId = nodeEntry.getKey();
+			INode iNode = equivalenceFinder.getNode(node, jdexId);
+			if (null == iNode){
+				createNode(equivalenceFinder.getTargetNetwork(), node, jdexId, equivalenceFinder.getNetworkIndex());
+				nodeCount++;
+			}					
+		}
+		equivalenceFinder.getTargetNetwork().setNdexNodeCount(nodeCount);
+	}
+	
+	private void createNodes(final INetwork targetNetwork,
+			final Network sourceNetwork,
+			final Map<String, VertexFrame> networkIndex) throws NdexException {
+		int nodeCount = 0;
 
-			nodeCount++;
+		for (final Entry<String, Node> nodeEntry : sourceNetwork.getNodes()
+				.entrySet()) {
+			final Node node = nodeEntry.getValue();
+			final String jdexId = nodeEntry.getKey();
 
-			final ITerm representedITerm = (ITerm) networkIndex.get(nodeEntry
-					.getValue().getRepresents());
-			node.setRepresents(representedITerm);
-
-			newNetwork.addNdexNode(node);
-			networkIndex.put(node.getJdexId(), node);
+			createNode(targetNetwork, node, jdexId, networkIndex);
+			nodeCount++;			
 		}
 
-		newNetwork.setNdexNodeCount(nodeCount);
+		targetNetwork.setNdexNodeCount(nodeCount);
+	}
+	
+	private void createNode(final INetwork targetNetwork,
+			final Node node,
+			final String jdexId,
+			final Map<String, VertexFrame> networkIndex) throws NdexException{
+		final INode iNode = _orientDbGraph.addVertex("class:node",
+				INode.class);
+		iNode.setJdexId(jdexId);
+		if (null != node.getName())
+			iNode.setName(node.getName());
+
+		final ITerm representedITerm = (ITerm) networkIndex.get(node.getRepresents());
+		if (null == representedITerm)
+			throw new NdexException("Term " + node.getRepresents() + " referenced by node " + jdexId + " was not found in networkIndex cache");
+
+		iNode.setRepresents(representedITerm);
+
+		targetNetwork.addNdexNode(iNode);
+		networkIndex.put(iNode.getJdexId(), iNode);
+		
 	}
 
+	/**************************************************************************
+	 * EDGES
+	 * 
+	 * Maps edges in network model object to edges in the network domain object
+	 * @throws NdexException 
+	 * 
+	 * 
+	 **************************************************************************/
+	private void createEdges(final Network sourceNetwork,
+			final EquivalenceFinder equivalenceFinder) throws NdexException {
+		int edgeCount = 0;
+
+		for (final Entry<String, Edge> edgeEntry : sourceNetwork.getEdges()
+				.entrySet()) {
+			final Edge edge = edgeEntry.getValue();
+			final String jdexId = edgeEntry.getKey();
+			IEdge iEdge = equivalenceFinder.getEdge(edge, jdexId);
+			if (null == iEdge){
+				createEdge(equivalenceFinder.getTargetNetwork(), edge, jdexId, equivalenceFinder.getNetworkIndex());
+				edgeCount++;
+			}
+		}
+		equivalenceFinder.getTargetNetwork().setNdexEdgeCount(edgeCount);
+	}
+	
+	private void createEdges(final INetwork targetNetwork,
+			final Network sourceNetwork,
+			final Map<String, VertexFrame> networkIndex) throws NdexException {
+		int edgeCount = 0;
+
+		for (final Entry<String, Edge> edgeEntry : sourceNetwork.getEdges()
+				.entrySet()) {
+			final Edge edge = edgeEntry.getValue();
+			final String jdexId = edgeEntry.getKey();	
+			createEdge(targetNetwork, edge, jdexId, networkIndex);
+			edgeCount++;
+		}
+		targetNetwork.setNdexEdgeCount(edgeCount);
+	}
+	
+	private void createEdge(final INetwork targetNetwork,
+			final Edge edge,
+			final String jdexId,
+			final Map<String, VertexFrame> networkIndex) throws NdexException{
+		final IEdge newEdge = _orientDbGraph.addVertex("class:edge",
+				IEdge.class);
+		newEdge.setJdexId(jdexId);
+
+		final INode subjectNode = (INode) networkIndex.get(edge.getS());
+		if (null == subjectNode)
+			throw new NdexException("Node " + edge.getS() + " referenced as subject  of Edge " + jdexId + " was not found in networkIndex cache");
+		newEdge.setSubject(subjectNode);
+
+		final IBaseTerm predicateTerm = (IBaseTerm) networkIndex.get(edge.getP());
+		if (null == predicateTerm)
+			throw new NdexException("BaseTerm " + edge.getP() + " referenced as predicate  of Edge " + jdexId + " was not found in networkIndex cache");
+		newEdge.setPredicate(predicateTerm);
+
+		final INode objectNode = (INode) networkIndex.get(edge.getO());
+		if (null == objectNode)
+			throw new NdexException("Node " + edge.getO() + " referenced as object  of Edge " + jdexId + " was not found in networkIndex cache");
+		newEdge.setObject(objectNode);
+
+		for (final String citationId : edge.getCitations())
+			newEdge.addCitation((ICitation) networkIndex.get(citationId));
+
+		for (final String supportId : edge.getSupports())
+			newEdge.addSupport((ISupport) networkIndex.get(supportId));
+
+		targetNetwork.addNdexEdge(newEdge);
+		networkIndex.put(newEdge.getJdexId(), newEdge);
+	}
+
+
+	/**************************************************************************
+	 * 
+	 * Finds terms in network by name
+	 * 
+	 * TODO: review implementation
+	 * 
+	 * 
+	 **************************************************************************/
 	private List<Term> getBaseTermsByName(INetwork network, String baseTermName)
 			throws NdexException {
 		final List<Term> foundTerms = new ArrayList<Term>();
@@ -1915,6 +2229,14 @@ public class NetworkService extends NdexService {
 		return foundTerms;
 	}
 
+	/**************************************************************************
+	 * 
+	 * Constructs and returns a self-sufficient network based on a set of edges
+	 * 
+	 * Finds all referenced nodes, terms, supports, and citations for the edges.
+	 * 
+	 * 
+	 **************************************************************************/
 	private static Network getNetworkBasedOnFoundEdges(
 			final List<IEdge> requiredIEdges, final INetwork network) throws NdexException {
 		final Set<INode> requiredINodes = getEdgeNodes(requiredIEdges);
@@ -2045,7 +2367,14 @@ public class NetworkService extends NdexService {
 		return foundINodes;
 	}
 
-	/*
+
+	
+	/**************************************************************************
+	 * 
+	 * Not currently used, may not be necessary
+	 * 
+	 * 
+	 **************************************************************************/
 	private static Network getNetworkBasedOnFoundNodes(
 			final List<INode> foundINodes, final INetwork network) {
 		final Set<ITerm> requiredITerms = getNodeTerms(foundINodes);

@@ -25,23 +25,23 @@ import com.tinkerpop.frames.VertexFrame;
 public interface EquivalenceFinder {
 
     
-    INetwork getTarget();
+    INetwork getTargetNetwork();
     
     Map<String, VertexFrame> getNetworkIndex();
     
-    INamespace getNamespace(Namespace namespace);
+    INamespace getNamespace(Namespace namespace, String jdexId);
     
-    IBaseTerm getBaseTerm(BaseTerm baseTerm);
+    IBaseTerm getBaseTerm(BaseTerm baseTerm, String jdexId);
     
-    IFunctionTerm getFunctionTerm(FunctionTerm functionTerm);
+    IFunctionTerm getFunctionTerm(FunctionTerm functionTerm, String jdexId);
     
-    ICitation getCitation(Citation citation);
+    ICitation getCitation(Citation citation, String jdexId);
     
-    ISupport getSupport(Support support);
+    ISupport getSupport(Support support, String jdexId);
     
-    INode getNode(Node node);
+    INode getNode(Node node, String jdexId);
     
-    IEdge getEdge(Edge edge);
+    IEdge getEdge(Edge edge, String jdexId);
 
 
 }

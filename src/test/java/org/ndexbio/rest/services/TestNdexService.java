@@ -87,10 +87,12 @@ public abstract class TestNdexService
     @Before
     public void setLoggedInUser()
     {
-        final User loggedInUser = getUser("dexterpratt");
+        //final User loggedInUser = getUser("dexterpratt");
+    	
+    	final TestUserAnswer testUserAnswer = new TestUserAnswer(this);
 
         EasyMock.expect(_mockRequest.getAttribute("User"))
-            .andReturn(loggedInUser)
+            .andAnswer(testUserAnswer)
             .anyTimes();
 
         EasyMock.replay(_mockRequest);
