@@ -1,9 +1,13 @@
 package org.ndexbio.rest.services;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
@@ -13,10 +17,14 @@ import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.object.BaseTerm;
 import org.ndexbio.common.models.object.Citation;
+import org.ndexbio.common.models.object.Edge;
+import org.ndexbio.common.models.object.FunctionTerm;
 import org.ndexbio.common.models.object.NdexObject;
 import org.ndexbio.common.models.object.Network;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
+import org.ndexbio.common.models.object.Node;
 import org.ndexbio.common.models.object.Support;
+import org.ndexbio.common.models.object.Term;
 
 import com.orientechnologies.orient.core.id.ORID;
 
@@ -82,11 +90,69 @@ public class TestNetworkQueryByCitationsService extends TestNdexService
         for (Citation citation : network.getCitations().values()){
         	System.out.println("citiation: " + citation.getIdentifier() + " " + citation.getTitle());
         	System.out.println("has supports: " + citation.getSupports().size());
-        	for (String supportId : citation.getSupports()){
-        		System.out.println("- " + supportId );
+        	//for (String supportId : citation.getSupports()){
+        	//	System.out.println("- " + supportId );
+        	//}
+        }
+        System.out.println("Terms:");
+        summarizeTerms(network.getTerms().keySet(), network);
+        
+        
+        System.out.println("Terms from Nodes:");
+        Set<String> termIdsFromNodesAndEdges = new HashSet<String>();
+        for (Entry<String, Node> entry : network.getNodes().entrySet()){
+        	String nodeId = entry.getKey();
+        	Node node = entry.getValue();
+        	String termId = node.getRepresents();
+        	Term term = network.getTerms().get(termId);
+        	if (null == term){
+        		System.out.println("Missing term " + termId + " represented by node " + nodeId);
+        	}
+        	getAllTermIds(termId, network, termIdsFromNodesAndEdges);      	
+        }
+        for (Edge edge : network.getEdges().values()){
+        	termIdsFromNodesAndEdges.add(edge.getP());
+        }
+        summarizeTerms(termIdsFromNodesAndEdges, network);
+        
+        System.out.println("_________________________________");
+    }
+    
+    private void getAllTermIds(String termId, Network network, Set<String>termIds){
+    	termIds.add(termId);
+    	Term term = network.getTerms().get(termId);
+    	if (null != term && "Function".equals(term.getTermType())){
+    		FunctionTerm ft = (FunctionTerm)term;
+    		termIds.add(ft.getTermFunction());
+    		for (String parameterId : ft.getParameters().keySet()){
+    			getAllTermIds(parameterId, network, termIds);
+    		}
+    	}
+    }
+    
+    private void summarizeTerms(Collection<String> termIds, Network network){
+        int baseTermCount = 0;
+        int functionTermCount = 0;
+        int reifiedEdgeTermCount = 0;
+        int nullTermCount = 0;
+        for (String termId : termIds){
+        	Term term = network.getTerms().get(termId);
+        	if (null == term){
+        		nullTermCount++;
+        	} else {
+        	if ("ReifiedEdge".equals(term.getTermType())){
+        		reifiedEdgeTermCount++;
+        	} else if ("Function".equals(term.getTermType())){
+        		functionTermCount++;
+        	} else {
+        		baseTermCount++;
+        	}
         	}
         }
-        System.out.println("_________________________________");
+        System.out.println("   baseTerms: " + baseTermCount);
+        System.out.println("   functionTerms: " + functionTermCount);
+        System.out.println("   reifiedEdgeTerms: " + reifiedEdgeTermCount);
+        System.out.println("   missing terms: " + nullTermCount);	
     }
 
 	private void checkForNullJdexIds(Map<String, Support> objectMap) {
@@ -94,7 +160,7 @@ public class TestNetworkQueryByCitationsService extends TestNdexService
 		int nullValueCount = 0;
 		int nullSupportJdexIdCount = 0;
 		for (Entry<String, Support> entry : objectMap.entrySet()){
-			System.out.println("- " + entry.getKey() + " " + entry.getValue().getText().substring(0,20));
+			//System.out.println("   " + entry.getKey() + " " + entry.getValue().getText().substring(0,20));
 			if (entry.getKey() == null) nullKeyCount++;
 			if (entry.getValue() == null) nullValueCount++;
 			if (entry.getValue() != null && entry.getValue().getJdexId() == null) nullSupportJdexIdCount++;

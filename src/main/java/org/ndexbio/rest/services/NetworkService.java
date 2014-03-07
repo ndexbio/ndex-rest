@@ -1959,6 +1959,9 @@ public class NetworkService extends NdexService {
 			else if (term instanceof IFunctionTerm)
 				outputNetwork.getTerms().put(term.getJdexId(),
 						new FunctionTerm((IFunctionTerm) term));
+			else if (term instanceof IReifiedEdgeTerm)
+				outputNetwork.getTerms().put(term.getJdexId(),
+						new ReifiedEdgeTerm((IReifiedEdgeTerm) term));
 		}
 
 		for (final INamespace namespace : requiredINamespaces)
@@ -2004,7 +2007,7 @@ public class NetworkService extends NdexService {
 	
 	private  Set<IEdge> getCitationEdges(String citationIdCsv) {
 		Set<IEdge> foundIEdges = new HashSet<IEdge>();
-		final String edgeQuery = "SELECT FROM (TRAVERSE in_edgeCitations, out_citationSupports, in_edgeSupports from [ " 
+		final String edgeQuery = "SELECT FROM (TRAVERSE in_edgeCitations, out_citationSupports, in_edgeSupports, out_edgeObject, out_nodeRepresents, out_reifiedEdgeTermEdge from [ " 
 				+ citationIdCsv
 				+ " ]) WHERE @class = 'edge'";
 		
@@ -2019,7 +2022,7 @@ public class NetworkService extends NdexService {
 
 	private  Set<INode> getCitationNodes(String citationIdCsv) {
 		Set<INode> foundINodes = new HashSet<INode>();
-		final String nodeQuery = "SELECT FROM (TRAVERSE in_nodeCitations, out_citationSupports, in_nodeSupports, in_edgeCitations, in_edgeSupports, in_edgeSubject, out_edgeObject from [ " 
+		final String nodeQuery = "SELECT FROM (TRAVERSE in_nodeCitations, out_citationSupports, in_nodeSupports, in_edgeCitations, in_edgeSupports, in_edgeSubject, out_edgeObject, out_nodeRepresents, out_reifiedEdgeTermEdge from [ " 
 				+ citationIdCsv
 				+ " ]) WHERE @class = 'node'";
 		
@@ -2090,9 +2093,12 @@ public class NetworkService extends NdexService {
 			edgeTerms.add(edge.getPredicate());
 
 		for (final INode node : nodes) {
-			if (node.getRepresents() != null)
+			if (node.getRepresents() != null){
 				addTermAndFunctionalDependencies(node.getRepresents(),
 						edgeTerms);
+			} else {
+				System.out.println("missing represents for node " + node.getJdexId());
+			}
 			if (node.getAliases() != null) {
 				for (ITerm iTerm : node.getAliases()) {
 					addTermAndFunctionalDependencies(iTerm, edgeTerms);
