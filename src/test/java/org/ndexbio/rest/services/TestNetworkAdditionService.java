@@ -6,6 +6,7 @@ import org.junit.runners.MethodSorters;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.object.Network;
+import org.ndexbio.rest.helpers.ObjectModelTools;
 
 import com.orientechnologies.orient.core.id.ORID;
 
@@ -18,14 +19,15 @@ public class TestNetworkAdditionService extends TestNdexService
     public void copyBELNetworkInBlocks() throws IllegalArgumentException, NdexException
     {
     	int edgesPerBlock = 100;
+    	int nodesPerBlock = 100;
         //try
         //{
-            final ORID sourceNetworkRid = getRid("BEL Framework Small Corpus Document");
+            final ORID sourceNetworkRid = getRid("BEL Framework Three Citation Corpus Document");
             // Get the source network stats
             
             String sourceNetworkId = IdConverter.toJid(sourceNetworkRid);
             
-            copyNetworkInBlocks(sourceNetworkId, edgesPerBlock);
+            copyNetworkInBlocks(sourceNetworkId, edgesPerBlock, nodesPerBlock);
             
             // Get the target network stats
             
@@ -39,7 +41,7 @@ public class TestNetworkAdditionService extends TestNdexService
         //}
     }
     
-    private void copyNetworkInBlocks(String sourceNetworkId, int edgesPerBlock) throws IllegalArgumentException, NdexException{
+    private void copyNetworkInBlocks(String sourceNetworkId, int edgesPerBlock, int nodesPerBlock) throws IllegalArgumentException, NdexException{
     	Network currentSubnetwork = null;
     	
     	int skipBlocks = 0;
@@ -50,6 +52,8 @@ public class TestNetworkAdditionService extends TestNdexService
     	
     	currentSubnetwork.setName(currentSubnetwork.getName() + " - copy " + Math.random());
     	currentSubnetwork.setMembers(null);
+    	
+    	ObjectModelTools.summarizeNetwork(currentSubnetwork);
     	
     	// Create the target network
     	System.out.println("Creating network with " + currentSubnetwork.getEdgeCount()  + " edges");
@@ -65,9 +69,23 @@ public class TestNetworkAdditionService extends TestNdexService
     		currentSubnetwork = _networkService.getEdges(sourceNetworkId, skipBlocks, edgesPerBlock);
     		// Add the subnetwork to the target
     		System.out.println("Adding " + currentSubnetwork.getEdgeCount()  + " edges to network " + targetNetworkId);
+    		ObjectModelTools.summarizeNetwork(currentSubnetwork);
     		if (currentSubnetwork.getEdgeCount() > 0) 
     			_networkService.addNetwork(targetNetworkId, "JDEX_ID", currentSubnetwork);
     	} while (currentSubnetwork.getEdgeCount() > 0);
+    	
+    	skipBlocks = -1;
+    	// Loop getting subnetworks by nodes not in edges until the returned subnetwork has no more nodes
+    	do { 
+    		skipBlocks++;
+    		System.out.println("Getting " + nodesPerBlock + " at offset " + skipBlocks);
+    		currentSubnetwork = _networkService.getNetworkByNonEdgeNodes(sourceNetworkId, skipBlocks, nodesPerBlock);
+    		// Add the subnetwork to the target
+    		System.out.println("Adding " + currentSubnetwork.getNodeCount()  + " nodes to network " + targetNetworkId);
+    		ObjectModelTools.summarizeNetwork(currentSubnetwork);
+    		if (currentSubnetwork.getNodeCount() > 0) 
+    			_networkService.addNetwork(targetNetworkId, "JDEX_ID", currentSubnetwork);
+    	} while (currentSubnetwork.getNodeCount() > 0);
     			
     }
     /*
