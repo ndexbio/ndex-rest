@@ -1628,14 +1628,14 @@ public class NetworkService extends NdexService {
 			
 			if (term instanceof IFunctionTerm) {
 				terms.add(((IFunctionTerm) term).getTermFunc());
-				System.out.println("Object Model: Added Function Term " + term.getJdexId());
+				//System.out.println("Object Model: Added Function Term " + term.getJdexId());
 				for (ITerm iterm : ((IFunctionTerm) term).getTermParameters()) {
 					addTermAndFunctionalDependencies(iterm, terms);
 				}
 			} else if (term instanceof IReifiedEdgeTerm) {
-				System.out.println("Object Model: Added Reified Edge Term " + term.getJdexId());
+				//System.out.println("Object Model: Added Reified Edge Term " + term.getJdexId());
 			} else if (term instanceof IBaseTerm) {
-				System.out.println("Object Model: Added Base Term " + term.getJdexId() + " " + ((IBaseTerm)term).getName());
+				//System.out.println("Object Model: Added Base Term " + term.getJdexId() + " " + ((IBaseTerm)term).getName());
 			} else {
 				throw new NdexException("Unknown type for term " + term.getJdexId());
 			}
@@ -1893,7 +1893,7 @@ public class NetworkService extends NdexService {
 		networkIndex.put(newBaseTerm.getJdexId(), newBaseTerm);
 		
 		
-		System.out.println("Domain Model: added BaseTerm " + newBaseTerm.getJdexId() + " " + nsPrefix + ":" + newBaseTerm.getName());
+		//System.out.println("Domain Model: added BaseTerm " + newBaseTerm.getJdexId() + " " + nsPrefix + ":" + newBaseTerm.getName());
 
 		// TODO: remove this when the handling of metadata is finalized.
 		//       (not currently used)
@@ -1920,7 +1920,7 @@ public class NetworkService extends NdexService {
 		domainTerm.setJdexId(jdexId);
 		target.addTerm(domainTerm);
 		networkIndex.put(domainTerm.getJdexId(), domainTerm);
-		System.out.println("Domain Model: added FunctionTerm " + domainTerm.getJdexId());
+		//System.out.println("Domain Model: added FunctionTerm " + domainTerm.getJdexId());
 		return domainTerm;
 		
 	}
@@ -1974,7 +1974,7 @@ public class NetworkService extends NdexService {
 		domainTerm.setJdexId(jdexId);
 		target.addTerm(domainTerm);
 		networkIndex.put(domainTerm.getJdexId(), domainTerm);
-		System.out.println("Domain Model: added ReifiedTerm " + domainTerm.getJdexId());
+		//System.out.println("Domain Model: added ReifiedTerm " + domainTerm.getJdexId());
 		return domainTerm;
 		
 	}
