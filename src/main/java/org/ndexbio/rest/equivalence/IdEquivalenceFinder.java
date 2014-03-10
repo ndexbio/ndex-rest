@@ -3,6 +3,7 @@ package org.ndexbio.rest.equivalence;
 import java.util.List;
 import java.util.Map;
 
+import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.data.IBaseTerm;
 import org.ndexbio.common.models.data.ICitation;
 import org.ndexbio.common.models.data.IEdge;
@@ -10,6 +11,7 @@ import org.ndexbio.common.models.data.IFunctionTerm;
 import org.ndexbio.common.models.data.INamespace;
 import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.INode;
+import org.ndexbio.common.models.data.IReifiedEdgeTerm;
 import org.ndexbio.common.models.data.ISupport;
 import org.ndexbio.common.models.object.BaseTerm;
 import org.ndexbio.common.models.object.Citation;
@@ -17,6 +19,7 @@ import org.ndexbio.common.models.object.Edge;
 import org.ndexbio.common.models.object.FunctionTerm;
 import org.ndexbio.common.models.object.Namespace;
 import org.ndexbio.common.models.object.Node;
+import org.ndexbio.common.models.object.ReifiedEdgeTerm;
 import org.ndexbio.common.models.object.Support;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -83,7 +86,7 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	}
 
 	@Override
-	public IBaseTerm getBaseTerm(BaseTerm baseTerm, String jdexId) {
+	public IBaseTerm getBaseTerm(BaseTerm baseTerm, String jdexId) throws NdexException {
 		IBaseTerm bt = (IBaseTerm) _networkIndex.get(jdexId);
 		if (null != bt) return bt;	
 		bt = findBaseTerm(baseTerm, jdexId);
@@ -94,12 +97,14 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 		return bt;
 	}
 	
-	public IBaseTerm findBaseTerm(BaseTerm baseTerm, String jdexId) {
+	public IBaseTerm findBaseTerm(BaseTerm baseTerm, String jdexId) throws NdexException {
 		final List<ODocument> baseTerms = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
 						"SELECT FROM (TRAVERSE out_networkTerms FROM " + 
 				this.getTargetNetwork().asVertex().getId() + 
 				" WHILE $depth < 2) WHERE @class = 'baseTerm' AND jdexId = '" + jdexId + "' "));
+		if (baseTerms.size() > 1) throw new NdexException("Found multiple baseTerms by jdexId = " + jdexId);
+
 		for (final ODocument bt : baseTerms){
 			IBaseTerm ibt = _orientDbGraph.getVertex(bt, IBaseTerm.class);
 			return ibt;
@@ -109,7 +114,7 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	}
 
 	@Override
-	public IFunctionTerm getFunctionTerm(FunctionTerm functionTerm, String jdexId) {
+	public IFunctionTerm getFunctionTerm(FunctionTerm functionTerm, String jdexId) throws NdexException {
 		IFunctionTerm ft = (IFunctionTerm) _networkIndex.get(jdexId);
 		if (null != ft) return ft;	
 		ft = findFunctionTerm(functionTerm, jdexId);
@@ -120,15 +125,44 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 		return ft;	
 	}
 	
-	public IFunctionTerm findFunctionTerm(FunctionTerm functionTerm, String jdexId) {
+	public IFunctionTerm findFunctionTerm(FunctionTerm functionTerm, String jdexId) throws NdexException {
 		final List<ODocument> functionTerms = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
 						"SELECT FROM (TRAVERSE out_networkTerms FROM " + 
 				this.getTargetNetwork().asVertex().getId() + 
 				" WHILE $depth < 2) WHERE @class = 'functionTerm' AND jdexId = '" + jdexId + "' "));
+		if (functionTerms.size() > 1) throw new NdexException("Found multiple functionTerms by jdexId = " + jdexId);
 		for (final ODocument ft : functionTerms){
 			IFunctionTerm ift =  _orientDbGraph.getVertex(ft, IFunctionTerm.class);
 			return ift;
+		}
+		return null;
+	}
+	
+	@Override
+	public IReifiedEdgeTerm getReifiedEdgeTerm(ReifiedEdgeTerm reifiedEdgeTerm,
+			String jdexId) throws NdexException {
+		IReifiedEdgeTerm ret = (IReifiedEdgeTerm) _networkIndex.get(jdexId);
+		if (null != ret) return ret;	
+		ret = findReifiedEdgeTerm(reifiedEdgeTerm, jdexId);
+		if (null != ret){
+			_networkIndex.put(jdexId,ret);
+			System.out.println("found ReifiedEdgeTerm " + ret.getJdexId());
+		}
+		return ret;	
+	}
+	
+	public IReifiedEdgeTerm findReifiedEdgeTerm(ReifiedEdgeTerm reifiedEdgeTerm, String jdexId) throws NdexException {
+		final List<ODocument> reifiedEdgeTerms = _ndexDatabase
+				.query(new OSQLSynchQuery<Object>(
+						"SELECT FROM (TRAVERSE out_networkTerms FROM " + 
+				this.getTargetNetwork().asVertex().getId() + 
+				" WHILE $depth < 2) WHERE @class = 'reifiedEdgeTerm' AND jdexId = '" + jdexId + "' "));
+		if (reifiedEdgeTerms.size() > 1) throw new NdexException("Found multiple reifiedEdgeTerms by jdexId = " + jdexId);
+
+		for (final ODocument ft : reifiedEdgeTerms){
+			IReifiedEdgeTerm ret =  _orientDbGraph.getVertex(ft, IReifiedEdgeTerm.class);
+			return ret;
 		}
 		return null;
 	}
@@ -236,6 +270,8 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 
 		return null;
 	}
+
+
 	
 
 }

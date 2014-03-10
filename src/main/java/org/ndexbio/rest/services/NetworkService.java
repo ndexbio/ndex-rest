@@ -30,6 +30,7 @@ import javax.ws.rs.core.Context;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
@@ -200,7 +201,7 @@ public class NetworkService extends NdexService {
 
 			// Terms must be created second since they reference other terms
 			// and are also referenced by nodes/edges.
-			createTerms(network, newNetwork, networkIndex);
+			Map<ReifiedEdgeTerm, IReifiedEdgeTerm> newReifiedEdgeTermMap = createTerms(network, newNetwork, networkIndex);
 			System.out.println(networkIndex.values().size() + " entries in map after Terms");
 
 
@@ -223,6 +224,10 @@ public class NetworkService extends NdexService {
 			createEdges(network, newNetwork, networkIndex);
 			System.out.println(networkIndex.values().size() + " entries in map after Edges");
 
+			// Finally, we populate reifiedEdgeTerms, now that the edges exist
+			for (final Entry<ReifiedEdgeTerm, IReifiedEdgeTerm> entry : newReifiedEdgeTermMap.entrySet()){
+				populateReifiedEdgeTerm(entry.getKey(), entry.getValue(), networkIndex);
+			}
 
 			return new Network(network);
 
@@ -325,7 +330,7 @@ public class NetworkService extends NdexService {
 			// Terms not found in target are then created.
 			// They can reference other terms
 			// and are also referenced by nodes and edges.
-			createTerms(sourceNetwork, equivalenceFinder);
+			Map<ReifiedEdgeTerm, IReifiedEdgeTerm> newReifiedEdgeTermMap = createTerms(sourceNetwork, equivalenceFinder);
 			
 			System.out.println(networkIndex.values().size() + " entries in map after Terms");
 
@@ -351,12 +356,17 @@ public class NetworkService extends NdexService {
 			System.out.println(networkIndex.values().size() + " entries in map after Nodes");
 
 			
-			// Finally, edges not found in target are created
+			// edges not found in target are created
 			createEdges(sourceNetwork, equivalenceFinder);
+			
+			// Finally, we populate reifiedEdgeTerms, now that the edges exist
+			for (final Entry<ReifiedEdgeTerm, IReifiedEdgeTerm> entry : newReifiedEdgeTermMap.entrySet()){
+				populateReifiedEdgeTerm(entry.getKey(), entry.getValue(), networkIndex);
+			}
 			
 			System.out.println(networkIndex.values().size() + " entries in map after Edges");
 
-
+			updateNetworkStatistics(targetNetwork);
 			return new Network(targetNetwork);
 
 		} finally {
@@ -605,7 +615,75 @@ public class NetworkService extends NdexService {
 		}
 	}
 
+	/**************************************************************************
+	 * Gets a subnetwork with one block of nodes that are
+	 * (1) contained in the queried network but
+	 * (2) neither the subject nor object of a given edge. 
+	 * 
+	 * includes all terms, namespaces, supports, and citations linked to those nodes.
+	 * 
+	 * @param networkId
+	 *            The network ID.
+	 * @param skip
+	 *            The number of blocks of nodes to skip.
+	 * @param top
+	 *            The number of nodes in a block to.
+	 *            
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws NdexException
+	 *             Failed to query the database.
+	 * @return The edges of the network.
+	 **************************************************************************/
+	@GET
+	@Path("/{networkId}/nodes/{skip}/{top}")
+	@Produces("application/json")
+	@ApiDoc("Returns a subnetwork based on a set of nodes selected from the network specified by networkId. The returned subnetwork is fully poplulated and 'self-sufficient', including all terms, supports, citations, and namespaces referenced by the nodes. The query selects a number of nodes specified by the 'top' parameter, starting at an offset specified by the 'skip' parameter.")
+	public Network getNetworkByNonEdgeNodes(@PathParam("networkId") final String networkId,
+			@PathParam("skip") final int skip, @PathParam("top") final int top)
+			throws IllegalArgumentException, NdexException {
+		if (networkId == null || networkId.isEmpty())
+			throw new IllegalArgumentException("No network ID was specified.");
+		else if (top < 1)
+			throw new IllegalArgumentException(
+					"Specified number of nodes in block to return is less than 1.");
+
+		try {
+			setupDatabase();
+
+			final INetwork network = _orientDbGraph.getVertex(
+					IdConverter.toRid(networkId), INetwork.class);
+			if (network == null)
+				throw new ObjectNotFoundException("Network", networkId);
+			
+			final int startIndex = skip * top;
+
+			final String nodeQuery = "SELECT FROM (TRAVERSE out_networkNodes from " 
+					+ network.asVertex().getId() 
+					+ " while $depth < 2) where $depth > 0 and out_edgeSubject is null and in_edgeObject is null"
+					+ " SKIP " + startIndex + " LIMIT " + top;
+			final List<ODocument> foundNodes = _ndexDatabase
+					.query(new OSQLSynchQuery<ODocument>(nodeQuery));
+
+			List<INode> requiredNodes = new ArrayList<INode>();
+			for (ODocument n : foundNodes){
+				final INode iNode = _orientDbGraph.getVertex(n, INode.class);
+				requiredNodes.add(iNode);
+				
+			}
+			return getNetworkBasedOnNonEdgeNodes(requiredNodes, network);
+		} catch (ObjectNotFoundException onfe) {
+			throw onfe;
+		} catch (Exception e) {
+			_logger.error("Failed to query network: " + networkId + ".", e);
+			throw new NdexException(e.getMessage());
+		} finally {
+			teardownDatabase();
+		}
+	}
 	
+
+
 	/**************************************************************************
 	 * Gets a subnetwork of a network corresponding to a page of edges for a specified 
 	 * set of citations in the network.
@@ -1449,6 +1527,34 @@ public class NetworkService extends NdexService {
 			throw new NdexException(e.getMessage());
 		}
 	}
+	
+	private void updateNetworkStatistics(INetwork network) throws NdexException{
+		String query = "SELECT count(*) from (traverse out_networkEdges from " + network.asVertex().getId() + " while $depth < 2) where $depth > 0  ";
+		final List<ODocument> edgeResults = _ndexDatabase
+				.query(new OSQLSynchQuery<ODocument>(query));
+		final ODocument edgeResult = edgeResults.get(0);
+		if (null == edgeResult) throw new NdexException("Unexpected null result getting count of edges in network " + network.asVertex().getId());
+		int count = safeLongToInt((Long) edgeResult.field("count"));
+		network.setNdexEdgeCount(count);
+		System.out.println("found " + count + " edges");
+		
+		query = "SELECT count(*) from (traverse out_networkNodes from " + network.asVertex().getId() + " while $depth < 2) where $depth > 0  ";
+		final List<ODocument> nodeResults = _ndexDatabase
+				.query(new OSQLSynchQuery<ODocument>(query));
+		final ODocument nodeResult = nodeResults.get(0);
+		if (null == nodeResult) throw new NdexException("Unexpected null result getting count of nodes in network " + network.asVertex().getId());
+		count = safeLongToInt((Long) nodeResult.field("count"));
+		network.setNdexNodeCount(count);
+		System.out.println("found " + count + " nodes");
+	}
+	
+	public static int safeLongToInt(long l) {
+	    if (l < Integer.MIN_VALUE || l > Integer.MAX_VALUE) {
+	        throw new IllegalArgumentException
+	            (l + " cannot be cast to int without changing its value.");
+	    }
+	    return (int) l;
+	}
 
 	private List<INode> getNodesFromTerms(List<IBaseTerm> baseTerms,
 			boolean includeAliases) {
@@ -1522,14 +1628,14 @@ public class NetworkService extends NdexService {
 			
 			if (term instanceof IFunctionTerm) {
 				terms.add(((IFunctionTerm) term).getTermFunc());
-				//System.out.println("Added Function Term " + term.getJdexId());
+				System.out.println("Object Model: Added Function Term " + term.getJdexId());
 				for (ITerm iterm : ((IFunctionTerm) term).getTermParameters()) {
 					addTermAndFunctionalDependencies(iterm, terms);
 				}
 			} else if (term instanceof IReifiedEdgeTerm) {
-				//System.out.println("Added Reified Edge Term " + term.getJdexId());
+				System.out.println("Object Model: Added Reified Edge Term " + term.getJdexId());
 			} else if (term instanceof IBaseTerm) {
-				//System.out.println("Added Base Term " + term.getJdexId() + " " + ((IBaseTerm)term).getName());
+				System.out.println("Object Model: Added Base Term " + term.getJdexId() + " " + ((IBaseTerm)term).getName());
 			} else {
 				throw new NdexException("Unknown type for term " + term.getJdexId());
 			}
@@ -1721,7 +1827,7 @@ public class NetworkService extends NdexService {
 	}
 
 	private void createNamespaces(final Network objectNetwork,
-			EquivalenceFinder equivalenceFinder) {
+			EquivalenceFinder equivalenceFinder) throws NdexException {
 		for (final Entry<String, Namespace> namespaceEntry : objectNetwork.getNamespaces().entrySet()) {
 			final Namespace namespace = namespaceEntry.getValue();
 			final String jdexId = namespaceEntry.getKey();
@@ -1787,7 +1893,7 @@ public class NetworkService extends NdexService {
 		networkIndex.put(newBaseTerm.getJdexId(), newBaseTerm);
 		
 		
-		System.out.println("added BaseTerm " + newBaseTerm.getJdexId() + " " + nsPrefix + ":" + newBaseTerm.getName());
+		System.out.println("Domain Model: added BaseTerm " + newBaseTerm.getJdexId() + " " + nsPrefix + ":" + newBaseTerm.getName());
 
 		// TODO: remove this when the handling of metadata is finalized.
 		//       (not currently used)
@@ -1814,7 +1920,7 @@ public class NetworkService extends NdexService {
 		domainTerm.setJdexId(jdexId);
 		target.addTerm(domainTerm);
 		networkIndex.put(domainTerm.getJdexId(), domainTerm);
-		System.out.println("added FunctionTerm " + domainTerm.getJdexId());
+		System.out.println("Domain Model: added FunctionTerm " + domainTerm.getJdexId());
 		return domainTerm;
 		
 	}
@@ -1835,24 +1941,67 @@ public class NetworkService extends NdexService {
 
 		// populate parameters
 		List<ITerm> iParameters = new ArrayList<ITerm>();
+		List<String> orderedParameterIds = Lists.newArrayList();
+		// Ensure that the parameters are ordered by the integer value of their keys
+		TreeMap<Integer, String> sortedParameterMap = new TreeMap<Integer, String>();
 		for (Entry<String, String> entry : objectTerm.getParameters().entrySet()) {
+			Integer parameterIndex = Integer.parseInt(entry.getKey());
+			sortedParameterMap.put(parameterIndex, entry.getValue());
+		}
+		
+		for (Integer index: sortedParameterMap.keySet()) {
 			// All Terms mentioned as parameters should exist
 			// (found or created) prior to the current term - 
 			// it is a requirement of a JDEx format file.
-			String parameterJdexId = entry.getValue();
+			String parameterJdexId = sortedParameterMap.get(index);
 			ITerm parameter = (ITerm) networkIndex.get(parameterJdexId);
 			if (null == parameter) 
 				throw new NdexException("Term " + parameterJdexId + " referenced as parameter of FunctionTerm " + domainTerm.getJdexId() + " was not found in networkIndex cache");
 
 			iParameters.add(parameter);
+			orderedParameterIds.add(parameterJdexId);
 			
 		}
 
 		domainTerm.setTermParameters(iParameters);
+		domainTerm.setTermOrderedParameterIds(orderedParameterIds);
 	}
 
+	private IReifiedEdgeTerm createReifiedEdgeTerm(INetwork target, String jdexId,
+			Map<String, VertexFrame> networkIndex) throws NdexException {
+		final IReifiedEdgeTerm domainTerm = _orientDbGraph.addVertex(
+				"class:reifiedEdgeTerm", IReifiedEdgeTerm.class);
+		domainTerm.setJdexId(jdexId);
+		target.addTerm(domainTerm);
+		networkIndex.put(domainTerm.getJdexId(), domainTerm);
+		System.out.println("Domain Model: added ReifiedTerm " + domainTerm.getJdexId());
+		return domainTerm;
+		
+	}
+	
+	private void populateReifiedEdgeTerm(ReifiedEdgeTerm objectTerm, 
+			IReifiedEdgeTerm domainTerm, 
+			Map<String, VertexFrame> networkIndex) throws NdexException{
+
+		if (null == domainTerm)
+			throw new NdexException("domain ReifiedEdgeTerm null for " + objectTerm.getTermEdge());
+
+		// populate term edge
+		final IEdge edge = (IEdge) networkIndex.get(objectTerm.getTermEdge());
+		if (null == edge)
+			throw new NdexException("Edge " + objectTerm.getTermEdge() + " referenced as edge of ReifiedEdgeTerm " + domainTerm.getJdexId() + " was not found in networkIndex cache");
+
+		domainTerm.setEdge(edge);
+
+	}
+	
 	private boolean isFunctionTerm(Term term) {
 		if (term.getTermType().equals("Function")) return true;
+		return false;
+	}
+	
+	private boolean isReifiedEdgeTerm(Term term) {
+		if (term.getTermType().equals("ReifiedEdge")) return true;
 		return false;
 	}
 
@@ -1877,7 +2026,7 @@ public class NetworkService extends NdexService {
 	 * @throws NdexException 
 	 * 
 	 **************************************************************************/
-	private void createTerms(final Network sourceNetwork,
+	private Map<ReifiedEdgeTerm, IReifiedEdgeTerm> createTerms(final Network sourceNetwork,
 			final EquivalenceFinder equivalenceFinder) throws NdexException {
 		
 		// Sort terms by dependency before creation because function terms can 
@@ -1887,6 +2036,7 @@ public class NetworkService extends NdexService {
         //Collections.sort(sortedTermIds, tdc);
         // Pass1 - create base terms and function term shells
         Map<FunctionTerm, IFunctionTerm> newFunctionTermMap = new HashMap<FunctionTerm, IFunctionTerm>();
+        Map<ReifiedEdgeTerm, IReifiedEdgeTerm> newReifiedEdgeTermMap = new HashMap<ReifiedEdgeTerm, IReifiedEdgeTerm>();
 		for (final String jdexId : sortedTermIds) {
 			final Term term = sourceNetwork.getTerms().get(jdexId);
 			if (isBaseTerm(term)){
@@ -1899,12 +2049,21 @@ public class NetworkService extends NdexService {
 					iFunctionTerm = createFunctionTerm(equivalenceFinder.getTargetNetwork(), jdexId, equivalenceFinder.getNetworkIndex());
 					newFunctionTermMap.put((FunctionTerm)term, iFunctionTerm);
 				}
+			} else if (isReifiedEdgeTerm(term)){
+				IReifiedEdgeTerm iReifiedEdgeTerm = equivalenceFinder.getReifiedEdgeTerm((ReifiedEdgeTerm) term, jdexId);
+				if (null == iReifiedEdgeTerm){
+					iReifiedEdgeTerm = createReifiedEdgeTerm(equivalenceFinder.getTargetNetwork(), jdexId, equivalenceFinder.getNetworkIndex());
+					newReifiedEdgeTermMap.put((ReifiedEdgeTerm)term, iReifiedEdgeTerm);
+				}
 			}
 		}
 		// Pass2 - populate new function terms with function and parameter references
 		for (final Entry<FunctionTerm, IFunctionTerm> entry : newFunctionTermMap.entrySet()){
 			populateFunctionTerm(entry.getKey(), entry.getValue(), equivalenceFinder.getNetworkIndex());
 		}
+		
+		// Return the map of terms we will need to populate after we make the edges...
+		return newReifiedEdgeTermMap;
 	}
 
 
@@ -1921,7 +2080,7 @@ public class NetworkService extends NdexService {
 	 * @throws NdexException 
 	 * 
 	 **************************************************************************/
-	private void createTerms(final INetwork targetNetwork,
+	private Map<ReifiedEdgeTerm, IReifiedEdgeTerm> createTerms(final INetwork targetNetwork,
 			final Network sourceNetwork,
 			final Map<String, VertexFrame> networkIndex) throws NdexException {
 		//validateTermMap(sourceNetwork.getTerms());
@@ -1930,6 +2089,7 @@ public class NetworkService extends NdexService {
         //Collections.sort(sortedTermIds, tdc);
         // Pass1 - create base terms and function term shells
         Map<FunctionTerm, IFunctionTerm> newFunctionTermMap = new HashMap<FunctionTerm, IFunctionTerm>();
+        Map<ReifiedEdgeTerm, IReifiedEdgeTerm> newReifiedEdgeTermMap = new HashMap<ReifiedEdgeTerm, IReifiedEdgeTerm>();
 		for (final String jdexId : sortedTermIds) {
 			final Term term = sourceNetwork.getTerms().get(jdexId);
 			if (isBaseTerm(term)){
@@ -1937,12 +2097,17 @@ public class NetworkService extends NdexService {
 			} else if (isFunctionTerm(term)){
 				IFunctionTerm iFunctionTerm = createFunctionTerm(targetNetwork, jdexId, networkIndex);
 				newFunctionTermMap.put((FunctionTerm)term, iFunctionTerm);
+			} else if (isReifiedEdgeTerm(term)){
+				IReifiedEdgeTerm iReifiedEdgeTerm = createReifiedEdgeTerm(targetNetwork, jdexId, networkIndex);
+				newReifiedEdgeTermMap.put((ReifiedEdgeTerm)term, iReifiedEdgeTerm);
 			}		
 		}
 		// Pass2 - populate new function terms with function and parameter references
 		for (final Entry<FunctionTerm, IFunctionTerm> entry : newFunctionTermMap.entrySet()){
 			populateFunctionTerm(entry.getKey(), entry.getValue(), networkIndex);
 		}
+		// Return the map of terms we will need to populate after we make the edges...
+		return newReifiedEdgeTermMap;
 	}
 	
 	private void validateTermMap(Map<String, Term> termMap) throws NdexException{
@@ -1988,7 +2153,7 @@ public class NetworkService extends NdexService {
 	}
 
 	private void createCitations(final Network sourceNetwork,
-			final EquivalenceFinder equivalenceFinder) {
+			final EquivalenceFinder equivalenceFinder) throws NdexException {
 		for (final Entry<String, Citation> citationEntry : sourceNetwork
 				.getCitations().entrySet()) {
 			final Citation citation = citationEntry.getValue();
@@ -2237,8 +2402,10 @@ public class NetworkService extends NdexService {
 	 * 
 	 * 
 	 **************************************************************************/
-	private static Network getNetworkBasedOnFoundEdges(
+	private Network getNetworkBasedOnFoundEdges(
 			final List<IEdge> requiredIEdges, final INetwork network) throws NdexException {
+		if (requiredIEdges.size() == 0) return new Network();
+		expandEdgeListToIncludeReifiedEdges(requiredIEdges);
 		final Set<INode> requiredINodes = getEdgeNodes(requiredIEdges);
 		final Set<ITerm> requiredITerms = getEdgeTerms(requiredIEdges,
 				requiredINodes);
@@ -2271,11 +2438,13 @@ public class NetworkService extends NdexService {
 						new BaseTerm(metaterm.getValue()));
 		}
 
-		for (final IEdge edge: requiredIEdges)
-			outputNetwork.getEdges().put(edge.getJdexId(), new Edge(edge));
-
-		outputNetwork.setEdgeCount(requiredIEdges.size());
-
+		if (null != requiredIEdges){
+			for (final IEdge edge: requiredIEdges)
+				outputNetwork.getEdges().put(edge.getJdexId(), new Edge(edge));
+	
+			outputNetwork.setEdgeCount(requiredIEdges.size());
+		}
+		
 		for (final INode node : requiredINodes)
 			outputNetwork.getNodes().put(node.getJdexId(), new Node(node));
 
@@ -2309,6 +2478,16 @@ public class NetworkService extends NdexService {
 					new Citation(citation));
 
 		return outputNetwork;
+	}
+	
+	private Network getNetworkBasedOnNonEdgeNodes(List<INode> requiredINodes,
+			INetwork network) throws NdexException {
+		final Set<ITerm> requiredITerms = getEdgeTerms(null,requiredINodes);
+		final Set<INamespace> requiredINamespaces = getTermNamespaces(requiredITerms);
+		final String iNodeCsv = joinNodeIdsToCsv(requiredINodes);
+		final Set<ISupport> requiredISupports = getNodeSupports(iNodeCsv);
+		final Set<ICitation> requiredICitations = getNodeCitations(iNodeCsv);
+		return createOutputNetwork(requiredINamespaces, requiredITerms, requiredICitations, requiredISupports, requiredINodes, null, network);
 	}
 	
 	private  Network getNetworkBasedOnCitations(
@@ -2366,54 +2545,38 @@ public class NetworkService extends NdexService {
 		}
 		return foundINodes;
 	}
-
-
 	
-	/**************************************************************************
-	 * 
-	 * Not currently used, may not be necessary
-	 * 
-	 * 
-	 **************************************************************************/
-	private static Network getNetworkBasedOnFoundNodes(
-			final List<INode> foundINodes, final INetwork network) {
-		final Set<ITerm> requiredITerms = getNodeTerms(foundINodes);
-		final Set<INamespace> requiredINamespaces = getTermNamespaces(requiredITerms);
-
-		// Now create the output network
-		final Network networkByNodes = new Network();
-		networkByNodes.setDescription(network.getDescription());
-		networkByNodes.setMetadata(network.getMetadata());
-		networkByNodes.setName(network.getName());
-
-		if (network.getMetaterms() != null) {
-			for (Entry<String, IBaseTerm> metaterm : network.getMetaterms()
-					.entrySet())
-				networkByNodes.getMetaterms().put(metaterm.getKey(),
-						new BaseTerm(metaterm.getValue()));
+	private  Set<ICitation> getNodeCitations(String nodeIdCsv) {
+		Set<ICitation> foundICitations = new HashSet<ICitation>();
+		final String citationQuery = "SELECT FROM (TRAVERSE out_nodeCitations, out_nodeSupports, out_supportCitation from [ " 
+				+ nodeIdCsv
+				+ " ]) WHERE @class = 'citation'";
+		
+		final List<ODocument> citationsFound = _ndexDatabase
+				.query(new OSQLSynchQuery<ODocument>(citationQuery));
+		
+		for (final ODocument citation : citationsFound) {
+			foundICitations.add(_orientDbGraph.getVertex(citation, ICitation.class));
 		}
-
-		for (final INode node : foundINodes)
-			networkByNodes.getNodes().put(node.getJdexId(), new Node(node));
-
-		for (final ITerm term : requiredITerms) {
-			if (term instanceof IBaseTerm)
-				networkByNodes.getTerms().put(term.getJdexId(),
-						new BaseTerm((IBaseTerm) term));
-			else if (term instanceof IFunctionTerm)
-				networkByNodes.getTerms().put(term.getJdexId(),
-						new FunctionTerm((IFunctionTerm) term));
-		}
-
-		for (final INamespace requiredNamespace : requiredINamespaces)
-			networkByNodes.getNamespaces().put(requiredNamespace.getJdexId(),
-					new Namespace(requiredNamespace));
-
-		return networkByNodes;
+		return foundICitations;
 	}
-*/
 	
-	private static Set<INode> getEdgeNodes(final List<IEdge> edges) {
+	private  Set<ISupport> getNodeSupports(String nodeIdCsv) {
+		Set<ISupport> foundISupports = new HashSet<ISupport>();
+		final String supportQuery = "SELECT FROM (TRAVERSE out_nodeSupports from [ " 
+				+ nodeIdCsv
+				+ " ]) WHERE @class = 'support'";
+		
+		final List<ODocument> supportsFound = _ndexDatabase
+				.query(new OSQLSynchQuery<ODocument>(supportQuery));
+		
+		for (final ODocument support : supportsFound) {
+			foundISupports.add(_orientDbGraph.getVertex(support, ISupport.class));
+		}
+		return foundISupports;
+	}
+
+	private static Set<INode> getEdgeNodes(final Collection<IEdge> edges) {
 		final Set<INode> edgeNodes = new HashSet<INode>();
 
 		for (final IEdge edge : edges) {
@@ -2428,9 +2591,11 @@ public class NetworkService extends NdexService {
 			final Collection<INode> nodes) throws NdexException {
 		final Set<ITerm> edgeTerms = new HashSet<ITerm>();
 
-		for (final IEdge edge : edges)
-			edgeTerms.add(edge.getPredicate());
-
+		if (null != edges){
+			for (final IEdge edge : edges)
+				edgeTerms.add(edge.getPredicate());
+		}
+		
 		for (final INode node : nodes) {
 			if (node.getRepresents() != null){
 				addTermAndFunctionalDependencies(node.getRepresents(),
@@ -2467,7 +2632,7 @@ public class NetworkService extends NdexService {
 	}
 */
 	
-	private static Set<ISupport> getEdgeSupports(final List<IEdge> edges) {
+	private static Set<ISupport> getEdgeSupports(final Collection<IEdge> edges) {
 		final Set<ISupport> edgeSupports = new HashSet<ISupport>();
 
 		for (final IEdge edge : edges) {
@@ -2478,7 +2643,7 @@ public class NetworkService extends NdexService {
 		return edgeSupports;
 	}
 
-	private static Set<ICitation> getEdgeCitations(final List<IEdge> edges,
+	private static Set<ICitation> getEdgeCitations(final Collection<IEdge> edges,
 			final Collection<ISupport> supports) {
 		final Set<ICitation> edgeCitations = new HashSet<ICitation>();
 		for (final IEdge edge : edges) {
@@ -2492,6 +2657,26 @@ public class NetworkService extends NdexService {
 		}
 
 		return edgeCitations;
+	}
+	
+	private void expandEdgeListToIncludeReifiedEdges(final Collection<IEdge>edges){
+		if (edges.size() == 0) return;
+		System.out.println("Edges to expand = " + edges.size());
+		//final Set<IEdge> expandedEdges = new HashSet<IEdge>();
+		final String edgeIdCsv = joinEdgeIdsToCsv(edges);
+		final String edgeQuery = "SELECT FROM (TRAVERSE in_edgeSubject, out_edgeObject, out_nodeRepresents, out_reifiedEdgeTermEdge from [ " 
+				+ edgeIdCsv
+				+ " ] while $depth < 4) where @class ='edge' and $depth > 0 limit 1000";
+		
+		
+		final List<ODocument> edgesFound = _ndexDatabase
+				.query(new OSQLSynchQuery<ODocument>(edgeQuery));
+		
+		System.out.println("Additional reified edges found = " + edgesFound.size());
+		for (final ODocument edge : edgesFound) {
+			edges.add(_orientDbGraph.getVertex(edge, IEdge.class));
+		}
+
 	}
 
 	private static Set<INamespace> getTermNamespaces(
@@ -2710,6 +2895,7 @@ public class NetworkService extends NdexService {
 	 **************************************************************************/
 	private String joinBaseTermIdsToCsv(List<IBaseTerm> iBaseTerms) {
 		String resultString = "";
+		if (iBaseTerms.size() < 1) return resultString;
 		for (final IBaseTerm iBaseTerm : iBaseTerms) {
 			resultString += iBaseTerm.asVertex().getId().toString() + ", ";
 		}
@@ -2719,8 +2905,29 @@ public class NetworkService extends NdexService {
 	
 	private static String joinCitationIdsToCsv(List<ICitation> iCitations) {
 		String resultString = "";
+		if (iCitations.size() < 1) return resultString;
 		for (final ICitation iCitation: iCitations) {
 			resultString += iCitation.asVertex().getId().toString() + ", ";
+		}
+		resultString = resultString.substring(0, resultString.length() - 2);
+		return resultString;
+	}
+
+	private static String joinNodeIdsToCsv(List<INode> iNodes) {
+		String resultString = "";
+		if (iNodes.size() < 1) return resultString;
+		for (final INode iNode: iNodes) {
+			resultString += iNode.asVertex().getId().toString() + ", ";
+		}
+		resultString = resultString.substring(0, resultString.length() - 2);
+		return resultString;
+	}
+	
+	private static String joinEdgeIdsToCsv(Collection<IEdge> iEdges) {
+		String resultString = "";
+		if (iEdges.size() < 1) return resultString;
+		for (final IEdge iEdge: iEdges) {
+			resultString += iEdge.asVertex().getId().toString() + ", ";
 		}
 		resultString = resultString.substring(0, resultString.length() - 2);
 		return resultString;
