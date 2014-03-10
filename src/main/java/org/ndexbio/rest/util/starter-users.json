@@ -1,0 +1,23 @@
+[
+	{
+		"accountType": "User",
+		"username": "biologist1",
+		"password": "bio1",
+		"firstName": "Jane",
+		"lastName": "Smith",
+	    "emailAddress": "dexterpratt.bio+bio1@gmail.com",
+		"website": "www.ndexbio.org",
+		"description": "Researching Calmodulin signaling"
+	},
+	
+	{
+		"accountType": "User",
+		"username": "dexterpratt",
+		"password": "insecure",
+		"firstName": "Dexter",
+		"lastName": "Pratt",
+	    "emailAddress": "dexterpratt.bio@gmail.com",
+		"website": "www.triptychjs.com",
+		"description": "Apart from my work at the Cytoscape Consortium building NDEx, I collect networks around some of my favorite biomolecules, such as FOX03, RBL2, and MUC1"
+	}
+]
