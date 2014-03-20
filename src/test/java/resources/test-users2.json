@@ -31,6 +31,16 @@
 	},
 	{
 		"accountType": "User",
+		"username": "dbowner",
+		"password": "owner",
+		"firstName": "John",
+		"lastName": "Doe",
+		"emailAddress": "dexterpratt.bio+dbowner@gmail.com",
+		"website": "www.ucsd.edu",
+		"description": "Owner of base NDEx networks"
+	},
+	{
+		"accountType": "User",
 		"username": "dexterpratt",
 		"password": "insecure",
 		"firstName": "Dexter",

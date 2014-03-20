@@ -145,7 +145,7 @@ public class CreateStarterDatabase
     {
         final URL testUsersUrl = getClass().getResource("starter-users.json");
         final UserService userService = new UserService(_mockRequest);
-        try
+        try {
         
             final JsonNode serializedUsers = _jsonMapper.readTree(new File(testUsersUrl.toURI()));
             final Iterator<JsonNode> usersIterator = serializedUsers.elements();
