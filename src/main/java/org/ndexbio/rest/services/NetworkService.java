@@ -376,7 +376,7 @@ public class NetworkService extends NdexService {
 
 	private EquivalenceFinder getEquivalenceFinder(String equivalenceMethod,
 			INetwork target, Map<String, VertexFrame> networkIndex) {
-		if ("JDEX_ID" == equivalenceMethod)
+		if ("JDEX_ID".equals(equivalenceMethod))
 			return new IdEquivalenceFinder(target, networkIndex, _ndexDatabase,
 					_orientDbGraph);
 		throw new IllegalArgumentException("Unknown EquivalenceMethod: "
