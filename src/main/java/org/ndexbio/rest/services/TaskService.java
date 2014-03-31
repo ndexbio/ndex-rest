@@ -1,6 +1,9 @@
 package org.ndexbio.rest.services;
 
+import java.util.Date;
+
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -10,11 +13,16 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
+import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.helpers.IdConverter;
+import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.ITask;
 import org.ndexbio.common.models.data.IUser;
+import org.ndexbio.common.models.data.Priority;
+import org.ndexbio.common.models.data.Status;
+import org.ndexbio.common.models.data.TaskType;
 import org.ndexbio.common.models.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
@@ -271,4 +279,120 @@ public class TaskService extends NdexService
             teardownDatabase();
         }
     }
+    
+	@PUT
+	@Path("/{taskId}/status/{status}")
+	@Produces("application/json")
+	@ApiDoc("Sets the status of the task, throws exception if status is not recognized.")
+	public Task setTaskStatus(@PathParam("taskId") final String taskId,
+			@PathParam("status") final String status) throws NdexException {
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId),
+				"A task ID is required");
+
+		setupDatabase();
+		try {
+			ORID taskRid = IdConverter.toRid(taskId);
+			final ITask taskToUpdate = _orientDbGraph.getVertex(taskRid,
+					ITask.class);
+			if (taskToUpdate == null)
+				throw new ObjectNotFoundException("Task", taskId);
+			else if (!taskToUpdate.getOwner().getUsername()
+					.equals(this.getLoggedInUser().getUsername()))
+				throw new SecurityException("Access denied.");
+
+			if (!isValidTaskStatus(status))
+				throw new IllegalArgumentException(status
+						+ " is not a known TaskStatus");
+
+			Status s = Status.valueOf(status);
+
+			taskToUpdate.setStatus(s);
+			Task updatedTask = new Task(taskToUpdate);
+			return updatedTask;
+		} catch (Exception e) {
+			_logger.error("Error changing task status for: "
+					+ this.getLoggedInUser().getUsername() + ".", e);
+			throw new NdexException("Error changing task status.");
+		} finally {
+			teardownDatabase();
+		}
+	}
+
+	private boolean isValidTaskStatus(String status) {
+		for (Status value : Status.values()) {
+			if (value.name().equals(status)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+	
+    
+    
+	/**************************************************************************
+	 * Exports a network to an xbel-formatted file. Creates a network upload task
+	 * 
+	 * @param networkId
+	 *            The id of the network to export
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws NdexException
+	 *             Failed to create a network export task
+	 **************************************************************************/
+    @PUT
+    @Path("/exportNetwork/xbel/{networkId}")
+    @Produces("application/json")
+	@ApiDoc("Creates a queued task  for asynchronous exporting of a NDEx network to an external "
+			+ "XML file meeting the XBEL validation rules. An Exception is thrown if an invalid "
+			+ "network id is specified")
+	public Task createXBELExportNetworkTask(@PathParam("networkId")final String networkId)
+			throws IllegalArgumentException, SecurityException, NdexException {
+
+		
+			Preconditions
+					.checkArgument(!Strings.isNullOrEmpty(networkId), "A network ID is required");
+		
+			setupDatabase();
+
+
+
+
+				try {
+					final IUser taskOwner = _orientDbGraph.getVertex(
+							IdConverter.toRid(this.getLoggedInUser().getId()),
+							IUser.class);
+					
+					final INetwork network = _orientDbGraph.getVertex(
+							IdConverter.toRid(networkId), INetwork.class);
+					if (network == null)
+						throw new ObjectNotFoundException("Network", networkId);
+					
+					
+					ITask processNetworkTask = _orientDbGraph.addVertex(
+							"class:task", ITask.class);
+					processNetworkTask.setDescription(network.getName() + ".xbel");
+					processNetworkTask.setType(TaskType.EXPORT_NETWORK_TO_FILE);
+					processNetworkTask.setOwner(taskOwner);
+					processNetworkTask.setPriority(Priority.LOW);
+					processNetworkTask.setProgress(0);
+					processNetworkTask.setResource(networkId);
+					processNetworkTask.setStartTime(new Date());
+					processNetworkTask.setStatus(Status.QUEUED);
+					// retain commit statement for planned return to transaction-based operation
+					_orientDbGraph.getBaseGraph().commit();
+					Task newTask = new Task(processNetworkTask);
+					return newTask;
+				} 
+				catch (Exception e)
+		        {
+		            _logger.error("Error creating task for: " + this.getLoggedInUser().getUsername() + ".", e);
+		            throw new NdexException("Error creating a task.");
+		        } 
+				finally {
+					teardownDatabase();
+				}
+			
+		
+	}
 }

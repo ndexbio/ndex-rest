@@ -1432,58 +1432,7 @@ public class NetworkService extends NdexService {
 	}
 	
 
-	/**************************************************************************
-	 * Exports a network to an xbel-formatted file. Creates a network upload task
-	 * 
-	 * @param networkId
-	 *            The id of the network to export
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to create a network export task
-	 **************************************************************************/
-	
-	@POST
-	@Path("/export")
-	@Consumes("multipart/form-data")
-	@Produces("application/json")
-	@ApiDoc("Creates a queued task  for asynchronous exporting of a NDEx network to an external "
-			+ "XML file meeting the XBEL validation rules. An Exception is thrown if an invalid "
-			+ "network id is specified")
-	
-	public void exportNetwork(@MultipartForm String networkId)
-			throws IllegalArgumentException, SecurityException, NdexException {
 
-		
-			Preconditions
-					.checkArgument(!Strings.isNullOrEmpty(networkId), "A network ID is required");
-		
-			setupDatabase();
-
-			final IUser taskOwner = _orientDbGraph.getVertex(
-					IdConverter.toRid(this.getLoggedInUser().getId()),
-					IUser.class);
-
-
-				try {
-					ITask processNetworkTask = _orientDbGraph.addVertex(
-							"class:task", ITask.class);
-					processNetworkTask.setDescription("Export network to file");
-					processNetworkTask.setType(TaskType.EXPORT_NETWORK_TO_FILE);
-					processNetworkTask.setOwner(taskOwner);
-					processNetworkTask.setPriority(Priority.LOW);
-					processNetworkTask.setProgress(0);
-					processNetworkTask.setResource(networkId);
-					processNetworkTask.setStartTime(new Date());
-					processNetworkTask.setStatus(Status.QUEUED);
-					// retain commit statement for planned return to transaction-based operation
-					_orientDbGraph.getBaseGraph().commit();
-				} finally {
-					teardownDatabase();
-				}
-			
-		
-	}
 	
 
 	/**************************************************************************
