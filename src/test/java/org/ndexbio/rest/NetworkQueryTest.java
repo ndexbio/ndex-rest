@@ -10,7 +10,7 @@ import javax.servlet.http.HttpServletRequest;
 import org.easymock.EasyMock;
 import org.junit.Assert;
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.models.data.Permissions;
+import org.ndexbio.common.models.object.Permissions;
 import org.ndexbio.common.models.object.Membership;
 import org.ndexbio.common.models.object.Network;
 import org.ndexbio.common.models.object.NetworkQueryParameters;

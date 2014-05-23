@@ -5,7 +5,7 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.models.data.TaskType;
+import org.ndexbio.common.models.object.TaskType;
 import org.ndexbio.common.models.object.Task;
 import org.ndexbio.common.helpers.IdConverter;
 import com.orientechnologies.orient.core.id.ORID;
