@@ -22,7 +22,7 @@ import org.ndexbio.common.helpers.Validation;
 import org.ndexbio.common.models.data.IGroup;
 import org.ndexbio.common.models.data.IGroupMembership;
 import org.ndexbio.common.models.data.IUser;
-import org.ndexbio.common.models.data.Permissions;
+import org.ndexbio.common.models.object.Permissions;
 import org.ndexbio.common.models.object.Group;
 import org.ndexbio.common.models.object.Membership;
 import org.ndexbio.common.models.object.SearchParameters;

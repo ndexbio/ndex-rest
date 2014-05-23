@@ -24,7 +24,7 @@ import org.ndexbio.common.models.data.INetworkAccessRequest;
 import org.ndexbio.common.models.data.INetworkMembership;
 import org.ndexbio.common.models.data.IRequest;
 import org.ndexbio.common.models.data.IUser;
-import org.ndexbio.common.models.data.Permissions;
+import org.ndexbio.common.models.object.Permissions;
 import org.ndexbio.common.models.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
