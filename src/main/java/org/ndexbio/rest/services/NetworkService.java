@@ -1857,7 +1857,7 @@ public class NetworkService extends NdexService {
 
 		newNamespace.setUri(namespace.getUri());
 		newNetwork.addNamespace(newNamespace);
-		networkIndex.put(namespace.getJdexId(), newNamespace);
+		networkIndex.put(jdexId, newNamespace);
 	}
 
 
