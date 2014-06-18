@@ -53,7 +53,10 @@ public class TestNetworkQueryService extends TestNdexService
             queryParameters.setSearchType("BOTH");
             queryParameters.setSearchDepth(1);
             
-            Network result = _networkService.queryNetwork2(IdConverter.toJid(networkRid), queryParameters);
+            // queryNetwork2 has been removed and replaced by the augmented version of queryNetwork
+            // Network result = _networkService.queryNetwork2(IdConverter.toJid(networkRid), queryParameters);
+
+            Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
             System.out.println("Network has " + result.getEdgeCount() + " edges");
         }
         catch (Exception e)
@@ -76,7 +79,9 @@ public class TestNetworkQueryService extends TestNdexService
             queryParameters.setSearchType("BOTH");
             queryParameters.setSearchDepth(1);
             
-            Network result = _networkService.queryNetwork2(IdConverter.toJid(networkRid), queryParameters);
+          //Network result = _networkService.queryNetwork2(IdConverter.toJid(networkRid), queryParameters);
+            Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
+            
             System.out.println("Network has " + result.getEdgeCount() + " edges");
         }
         catch (Exception e)
@@ -99,7 +104,8 @@ public class TestNetworkQueryService extends TestNdexService
             queryParameters.setSearchType("BOTH");
             queryParameters.setSearchDepth(1);
             
-            Network result = _networkService.queryNetwork2(IdConverter.toJid(networkRid), queryParameters);
+            //Network result = _networkService.queryNetwork2(IdConverter.toJid(networkRid), queryParameters);
+            Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
             System.out.println("Network has " + result.getEdgeCount() + " edges");
         }
         catch (Exception e)

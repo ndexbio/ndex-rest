@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,6 +42,7 @@ import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 import com.tinkerpop.frames.VertexFrame;
 
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
+import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.helpers.IdConverter;
@@ -52,9 +52,8 @@ import org.ndexbio.orientdb.gremlin.*;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.equivalence.EquivalenceFinder;
 import org.ndexbio.rest.equivalence.IdEquivalenceFinder;
-import org.ndexbio.rest.gremlin.NetworkQueries;
-import org.ndexbio.rest.helpers.TermDependencyComparator;
 //import org.ndexbio.rest.gremlin.NetworkQueries;
+import org.ndexbio.rest.helpers.TermDependencyComparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -112,9 +111,9 @@ public class NetworkService extends NdexService {
 					IdConverter.toRid(networkId), INetwork.class);
 			if (network == null)
 				return null;
-			else {
-				final Collection<String> foundTerms = new ArrayList<String>();
-				for (final ITerm networkTerm : network.getTerms()) {
+			
+			final Collection<String> foundTerms = new ArrayList<String>();
+			for (final ITerm networkTerm : network.getTerms()) {
 					if (networkTerm instanceof IBaseTerm) {
 						if (((IBaseTerm) networkTerm).getName().toLowerCase()
 								.startsWith(partialTerm.toLowerCase())) {
@@ -124,10 +123,10 @@ public class NetworkService extends NdexService {
 								return foundTerms;
 						}
 					}
-				}
-
-				return foundTerms;
 			}
+
+			return foundTerms;
+			
 		} catch (Exception e) {
 			_logger.error("Failed to retrieve auto-suggest data for: "
 					+ partialTerm + ".", e);
@@ -1109,6 +1108,9 @@ public class NetworkService extends NdexService {
 		if (networkId == null || networkId.isEmpty())
 			throw new IllegalArgumentException("No network ID was specified.");
 
+		NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
+		return dao.queryForSubnetwork(null, networkId, queryParameters, 0, 1000);
+	/*	
 		try {
 			setupDatabase();
 
@@ -1116,24 +1118,26 @@ public class NetworkService extends NdexService {
 					IdConverter.toRid(networkId), INetwork.class);
 			if (network == null)
 				return null;
-			else {
-				List<Term> baseTerms = getBaseTermsByName(network,
+			
+			List<Term> baseTerms = getBaseTermsByName(network,
 						queryParameters.getStartingTermStrings().get(0));
-				if (!baseTerms.isEmpty()) {
+			if (!baseTerms.isEmpty()) {
 					queryParameters.addStartingTermId(baseTerms.get(0).getId());
 
 					List<IEdge> foundIEdges = neighborhoodQuery(network,
 							queryParameters);
 					return getNetworkBasedOnFoundEdges(foundIEdges, network);
-				} else
-					return null;
-			}
+			} 
+
+			return null;
 		} catch (Exception e) {
 			_logger.error("Failed to query network: " + networkId + ".", e);
 			throw new NdexException("Failed to query the network.");
 		} finally {
 			teardownDatabase();
 		}
+	*/
+		
 	}
 
 	/**************************************************************************
@@ -1149,7 +1153,7 @@ public class NetworkService extends NdexService {
 	 *             Failed to query the database.
 	 * @return A subnetwork of the network.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Path("/{networkId}/query")
 	@Produces("application/json")
 	@ApiDoc("Returns a network based on a set of edges selected based on the POSTed queryParameters from the network specified by networkId. The returned network is fully poplulated and 'self-sufficient', including all nodes, terms, supports, citations, and namespaces.")
@@ -1167,8 +1171,8 @@ public class NetworkService extends NdexService {
 					IdConverter.toRid(networkId), INetwork.class);
 			if (network == null)
 				return null;
-			else {
-				List<IBaseTerm> startingTerms = getBaseTermsByNames(network,
+			
+			List<IBaseTerm> startingTerms = getBaseTermsByNames(network,
 						queryParameters.getStartingTermStrings());
 
 				if (!startingTerms.isEmpty()) {
@@ -1180,16 +1184,16 @@ public class NetworkService extends NdexService {
 								queryParameters.getSearchDepth(),
 								queryParameters.getSearchType());
 
-						/*
-						 * List<IEdge> foundIEdges = neighborhoodQuery2(
-						 * network, startingNodes,
-						 * queryParameters.getSearchDepth(),
-						 * queryParameters.getSearchType(), 1000 );
-						 */
+						
+						 // List<IEdge> foundIEdges = neighborhoodQuery2(
+						 // network, startingNodes,
+						 // queryParameters.getSearchDepth(),
+						 // queryParameters.getSearchType(), 1000 );
+						 //
 						return getNetworkBasedOnFoundEdges(foundIEdges, network);
 					}
 				}
-			}
+			
 			return null;
 		} catch (Exception e) {
 			_logger.error("Failed to query network: " + networkId + ".", e);
@@ -1198,7 +1202,7 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Removes a member from a network.
 	 * 
@@ -2716,6 +2720,7 @@ public class NetworkService extends NdexService {
 		return false;
 	}
 
+	/*
 	private List<IEdge> neighborhoodQuery(final INetwork network,
 			final NetworkQueryParameters queryParameters)
 			throws IllegalArgumentException {
@@ -2762,7 +2767,7 @@ public class NetworkService extends NdexService {
 
 		return foundEdges;
 	}
-
+*/
 	/**************************************************************************
 	 * Parses metadata and metaterm parameters using the given regex and removes
 	 * them from the search parameters.

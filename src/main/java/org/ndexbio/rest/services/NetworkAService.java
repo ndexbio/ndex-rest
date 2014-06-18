@@ -21,7 +21,7 @@ import org.ndexbio.rest.annotations.ApiDoc;
 public class NetworkAService extends NdexService {
 	
 	
-	private NetworkAOrientDBDAO dao = new NetworkAOrientDBDAO();
+	private NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 	
 	public NetworkAService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
