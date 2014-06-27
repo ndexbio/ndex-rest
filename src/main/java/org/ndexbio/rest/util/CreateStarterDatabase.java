@@ -24,7 +24,7 @@ import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
 import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 import org.easymock.EasyMock;
-import org.ndexbio.common.models.object.*;
+import org.ndexbio.model.object.*;
 import org.ndexbio.common.models.data.*;
 import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.services.*;
@@ -129,7 +129,7 @@ public class CreateStarterDatabase
            
             
             _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
-            NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
+            NdexSchemaManager.INSTANCE.init(_ndexDatabase);
             log.info("New ndex database creaated");
         }
         catch (Exception e)

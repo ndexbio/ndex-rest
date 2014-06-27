@@ -9,8 +9,8 @@ import javax.ws.rs.ext.Provider;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
-import org.ndexbio.common.models.object.User;
-import org.ndexbio.rest.helpers.Security;
+import org.ndexbio.model.object.User;
+import org.ndexbio.common.util.Security;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,7 +41,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         try
         {
             authInfo = Security.parseCredentials(requestContext);
-            authUser = Security.authenticateUser(authInfo);
+            authUser = Security.authenticateUser(authInfo[0],authInfo[1]);
             if (authUser != null)
                 requestContext.setProperty("User", authUser);
         }
