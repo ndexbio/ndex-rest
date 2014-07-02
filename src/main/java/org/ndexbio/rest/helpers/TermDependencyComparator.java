@@ -3,18 +3,18 @@ package org.ndexbio.rest.helpers;
 import java.util.Comparator;
 import java.util.Map;
 
-import org.ndexbio.common.models.object.FunctionTerm;
-import org.ndexbio.common.models.object.Term;
-
+@Deprecated
 public class TermDependencyComparator implements Comparator<String> {
 
 
-	private Map<String, Term> base;
+//	private Map<String, Term> base;
 
 	@Override
 	public int compare(String termId1, String termId2) {
+		
+		
 		// Comparing keys, get the values (Terms) and compare
-		Term term1 = base.get(termId1);
+/*		Term term1 = base.get(termId1);
 		Term term2 = base.get(termId2);
 		
 		// if both are function terms, if term1 depends on term2, then term2 comes first		
@@ -38,11 +38,12 @@ public class TermDependencyComparator implements Comparator<String> {
 			return -1; // term1 is BaseTerm while term2 is functionTerm, term1 comes first
 		} else {
 			return 0;  // default: terms have same priority, preserve order
-		}
+		} */
+		return 0;
 	}
 
 	// Recursive scan for dependency...
-	private boolean dependsOn(FunctionTerm term1, String termId2) {
+/*	private boolean dependsOn(FunctionTerm term1, String termId2) {
 		for (String parameterId : term1.getParameters().values()){
 			if (parameterId == termId2) return true;
 			Term parameterTerm = base.get(parameterId);
@@ -54,6 +55,6 @@ public class TermDependencyComparator implements Comparator<String> {
 
 	public TermDependencyComparator (Map<String, Term> base){
 		this.base = base;
-	}
+	}  */
 
 }

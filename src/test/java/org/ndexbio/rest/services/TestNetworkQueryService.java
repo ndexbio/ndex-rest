@@ -6,7 +6,6 @@ import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.IdConverter;
-import org.ndexbio.common.models.object.Network;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 
 import com.orientechnologies.orient.core.id.ORID;
@@ -30,8 +29,8 @@ public class TestNetworkQueryService extends TestNdexService
             queryParameters.setSearchType("BOTH");
             queryParameters.setSearchDepth(1);
             
-            Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
-            System.out.println("Network has " + result.getEdgeCount() + " edges");
+     //       Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
+     //       System.out.println("Network has " + result.getEdgeCount() + " edges");
         }
         catch (Exception e)
         {
@@ -56,8 +55,8 @@ public class TestNetworkQueryService extends TestNdexService
             // queryNetwork2 has been removed and replaced by the augmented version of queryNetwork
             // Network result = _networkService.queryNetwork2(IdConverter.toJid(networkRid), queryParameters);
 
-            Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
-            System.out.println("Network has " + result.getEdgeCount() + " edges");
+     //       Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
+     //       System.out.println("Network has " + result.getEdgeCount() + " edges");
         }
         catch (Exception e)
         {
@@ -80,9 +79,9 @@ public class TestNetworkQueryService extends TestNdexService
             queryParameters.setSearchDepth(1);
             
           //Network result = _networkService.queryNetwork2(IdConverter.toJid(networkRid), queryParameters);
-            Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
+          //  Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
             
-            System.out.println("Network has " + result.getEdgeCount() + " edges");
+          //  System.out.println("Network has " + result.getEdgeCount() + " edges");
         }
         catch (Exception e)
         {
@@ -105,8 +104,8 @@ public class TestNetworkQueryService extends TestNdexService
             queryParameters.setSearchDepth(1);
             
             //Network result = _networkService.queryNetwork2(IdConverter.toJid(networkRid), queryParameters);
-            Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
-            System.out.println("Network has " + result.getEdgeCount() + " edges");
+   //         Network result = _networkService.queryNetwork(IdConverter.toJid(networkRid), queryParameters);
+   //         System.out.println("Network has " + result.getEdgeCount() + " edges");
         }
         catch (Exception e)
         {
@@ -118,7 +117,7 @@ public class TestNetworkQueryService extends TestNdexService
     @Test(expected = IllegalArgumentException.class)
     public void queryNetworkInvalid() throws IllegalArgumentException, NdexException
     {
-        _networkService.queryNetwork("", null);
+  //      _networkService.queryNetwork("", null);
     }
 
 }

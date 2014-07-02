@@ -25,6 +25,8 @@ import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 import org.easymock.EasyMock;
 import org.ndexbio.model.object.*;
+import org.ndexbio.model.object.network.Network;
+import org.ndexbio.common.models.dao.orientdb.UserOrientdbDAO;
 import org.ndexbio.common.models.data.*;
 import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.services.*;
@@ -72,7 +74,7 @@ public class CreateStarterDatabase
     private void exec() {
     	this.deleteExistingDatabase();
     	this.generateStarterDatabase();
-    	this.insertStarterUser();
+    //	this.insertStarterUser();
     	this.insertStarterGroups();
     	this.insertStarterNetwork();
     	 	
@@ -140,7 +142,7 @@ public class CreateStarterDatabase
         }
     }
 
-   
+/*   
    private void insertStarterUser()
     {
         final URL testUsersUrl = getClass().getResource("starter-users.json");
@@ -157,11 +159,11 @@ public class CreateStarterDatabase
                 final User loggedInUser = userService.createUser(newUser);              
                 setLoggedInUser(loggedInUser);
                 final User updatedUser = _jsonMapper.readValue(serializedUser.toString(), User.class);
-                updatedUser.setId(loggedInUser.getId());            
+                updatedUser.setExternalId(loggedInUser.getExternalId());            
                 userService.updateUser(updatedUser);            
                 //Mocking the HTTP request inside a loop, so reset it
                 EasyMock.reset(_mockRequest);
-                log.info("New user " +updatedUser.getUsername() +" created");
+                log.info("New user " +updatedUser.getAccountName() +" created");
             }
         }
         catch (Exception e)
@@ -171,7 +173,7 @@ public class CreateStarterDatabase
             e.printStackTrace();
         }
     }
-    
+*/   
    
     private void insertStarterGroups()
     {
@@ -196,7 +198,7 @@ public class CreateStarterDatabase
                 groupService.createGroup(newGroup);               
                 //Mocking the HTTP request inside a loop, so reset it
                 EasyMock.reset(_mockRequest);
-                log.info("Group: " +newGroup.getName() +" created");
+                log.info("Group: " +newGroup.getAccountName() +" created");
             }
         }
         catch (Exception e)
@@ -275,7 +277,7 @@ public class CreateStarterDatabase
     {
         final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + username + "'"));
         if (!matchingUsers.isEmpty())
-            return new User(_orientDbGraph.getVertex(matchingUsers.get(0), IUser.class), true);
+            return UserOrientdbDAO.getUserFromDocument(matchingUsers.get(0));
         else
             return null;
     }

@@ -24,7 +24,6 @@ import org.ndexbio.common.models.data.INetworkAccessRequest;
 import org.ndexbio.common.models.data.INetworkMembership;
 import org.ndexbio.common.models.data.IRequest;
 import org.ndexbio.common.models.data.IUser;
-import org.ndexbio.common.models.object.Permissions;
 import org.ndexbio.common.models.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
@@ -252,12 +251,12 @@ public class RequestService extends NdexService
             
             if (!updatedRequest.getResponse().equals("DECLINED"))
             {
-                if (updatedRequest.getRequestType().equals("Group Invitation"))
+            /*    if (updatedRequest.getRequestType().equals("Group Invitation"))
                     processGroupInvitation(updatedRequest);
                 else if (updatedRequest.getRequestType().equals("Join Group"))
                     processJoinGroup(updatedRequest);
                 else if (updatedRequest.getRequestType().equals("Network Access"))
-                    processNetworkAccess(updatedRequest);
+                    processNetworkAccess(updatedRequest); */
             }
             
             _orientDbGraph.getBaseGraph().commit();
@@ -403,7 +402,7 @@ public class RequestService extends NdexService
     * @param requestToProcess
     *            The request.
     **************************************************************************/
-    private void processGroupInvitation(final Request requestToProcess) throws Exception
+ /*   private void processGroupInvitation(final Request requestToProcess) throws Exception
     {
         final ORID groupId = IdConverter.toRid(requestToProcess.getFromId());
         final ORID userId = IdConverter.toRid(requestToProcess.getToId());
@@ -418,14 +417,14 @@ public class RequestService extends NdexService
         
         group.addMember(newMember);
     }
-
+*/
     /**************************************************************************
     * Adds a user to their requested group with read-only permissions.
     * 
     * @param requestToProcess
     *            The request.
     **************************************************************************/
-    private void processJoinGroup(final Request requestToProcess) throws Exception
+/*    private void processJoinGroup(final Request requestToProcess) throws Exception
     {
         final ORID groupId = IdConverter.toRid(requestToProcess.getToId());
         final ORID userId = IdConverter.toRid(requestToProcess.getFromId());
@@ -440,14 +439,14 @@ public class RequestService extends NdexService
         
         group.addMember(newMember);
     }
-
+*/
     /**************************************************************************
     * Adds a user to a network's membership with read-only permissions.
     * 
     * @param requestToProcess
     *            The request.
     **************************************************************************/
-    private void processNetworkAccess(final Request requestToProcess) throws Exception
+ /*   private void processNetworkAccess(final Request requestToProcess) throws Exception
     {
         final ORID networkId = IdConverter.toRid(requestToProcess.getToId());
         final ORID userId = IdConverter.toRid(requestToProcess.getFromId());
@@ -461,5 +460,5 @@ public class RequestService extends NdexService
         newMember.setPermissions(Permissions.valueOf(requestToProcess.getResponse()));
         
         network.addMember(newMember);
-    }
+    } */
 }

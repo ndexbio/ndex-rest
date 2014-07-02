@@ -13,14 +13,6 @@ import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.INode;
 import org.ndexbio.common.models.data.IReifiedEdgeTerm;
 import org.ndexbio.common.models.data.ISupport;
-import org.ndexbio.common.models.object.BaseTerm;
-import org.ndexbio.common.models.object.Citation;
-import org.ndexbio.common.models.object.Edge;
-import org.ndexbio.common.models.object.FunctionTerm;
-import org.ndexbio.common.models.object.Namespace;
-import org.ndexbio.common.models.object.Node;
-import org.ndexbio.common.models.object.ReifiedEdgeTerm;
-import org.ndexbio.common.models.object.Support;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -47,7 +39,7 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 	        _orientDbGraph = orientDbGraph;
 
 	}
-
+/*
 	@Override
 	public INetwork getTargetNetwork() {
 		return _target;
@@ -271,7 +263,7 @@ public class IdEquivalenceFinder implements EquivalenceFinder {
 		return null;
 	}
 
-
+*/
 	
 
 }

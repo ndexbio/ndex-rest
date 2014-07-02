@@ -109,7 +109,7 @@ public class CreateTestDatabase
             Assert.assertNotNull(_ndexDatabase);
             
             _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
-            NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
+            NdexSchemaManager.INSTANCE.init(_ndexDatabase);
         }
         catch (Exception e)
         {
@@ -117,7 +117,7 @@ public class CreateTestDatabase
             e.printStackTrace();
         }
     }
-
+/*
     @Test
     public void generateTestUsers()
     {
@@ -322,5 +322,5 @@ public class CreateTestDatabase
         .anyTimes();
 
         EasyMock.replay(_mockRequest);
-    }
+    } */
 }

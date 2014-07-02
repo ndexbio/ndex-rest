@@ -5,7 +5,6 @@ import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.IdConverter;
-import org.ndexbio.common.models.object.Network;
 import org.ndexbio.rest.helpers.ObjectModelTools;
 
 import com.orientechnologies.orient.core.id.ORID;
@@ -27,7 +26,7 @@ public class TestNetworkAdditionService extends TestNdexService
             
             String sourceNetworkId = IdConverter.toJid(sourceNetworkRid);
             
-            copyNetworkInBlocks(sourceNetworkId, edgesPerBlock, nodesPerBlock);
+        //    copyNetworkInBlocks(sourceNetworkId, edgesPerBlock, nodesPerBlock);
             
             // Get the target network stats
             
@@ -41,7 +40,7 @@ public class TestNetworkAdditionService extends TestNdexService
         //}
     }
     
-    private void copyNetworkInBlocks(String sourceNetworkId, int edgesPerBlock, int nodesPerBlock) throws IllegalArgumentException, NdexException{
+/*    private void copyNetworkInBlocks(String sourceNetworkId, int edgesPerBlock, int nodesPerBlock) throws IllegalArgumentException, NdexException{
     	Network currentSubnetwork = null;
     	
     	int skipBlocks = 0;
@@ -88,6 +87,7 @@ public class TestNetworkAdditionService extends TestNdexService
     	} while (currentSubnetwork.getNodeCount() > 0);
     			
     }
+    */
     /*
     @Test
     public void queryBELNetworkByCitations()

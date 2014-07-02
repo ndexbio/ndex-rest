@@ -22,9 +22,9 @@ import org.ndexbio.common.helpers.Validation;
 import org.ndexbio.common.models.data.IGroup;
 import org.ndexbio.common.models.data.IGroupMembership;
 import org.ndexbio.common.models.data.IUser;
-import org.ndexbio.common.models.object.Permissions;
-import org.ndexbio.common.models.object.Group;
-import org.ndexbio.common.models.object.Membership;
+import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.Group;
+import org.ndexbio.model.object.Membership;
 import org.ndexbio.common.models.object.SearchParameters;
 import org.ndexbio.rest.CommonValues;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -80,7 +80,8 @@ public class GroupService extends NdexService {
 	public Group createGroup(final Group newGroup)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
-		try {
+        return newGroup;		
+/*		try {
 			Preconditions.checkArgument(null != newGroup, "A group is required");
 			Preconditions.checkState(this.isValidGroupName(newGroup), 
 					"Group " +newGroup.getName() +" already exists");
@@ -112,10 +113,10 @@ public class GroupService extends NdexService {
 			throw new NdexException("Failed to create your group.");
 		} finally {
 			teardownDatabase();
-		}
+		} */
 	}
 
-	private void addGroupMembers(final Group newGroup, final IUser groupOwner,
+/*	private void addGroupMembers(final Group newGroup, final IUser groupOwner,
 			final IGroup group) {
 		if (newGroup.getMembers() == null
 				|| newGroup.getMembers().size() == 0) {
@@ -144,7 +145,7 @@ public class GroupService extends NdexService {
 			}
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Deletes a group.
 	 * 
@@ -164,7 +165,7 @@ public class GroupService extends NdexService {
 	 * refactored to accomodate move to non-transactional database 
 	 * operations. 
 	 */
-	@DELETE
+/*	@DELETE
 	@Path("/{groupId}")
 	@Produces("application/json")
 	@ApiDoc("Delete the group specified by groupId. " +
@@ -255,6 +256,7 @@ public class GroupService extends NdexService {
 					"Cannot delete a group that is an ADMIN member of any network.");
 		_logger.info("OK to delete group id " + groupId);
 	}
+*/
 	/*
 	 * private method to determine if a proposed group name is novel
 	 * @params groupName - new group name
@@ -262,7 +264,7 @@ public class GroupService extends NdexService {
 	 *                    false id group name already exists
 	 * 
 	 */
-	private boolean isValidGroupName(Group newGroup) throws IllegalArgumentException,
+/*	private boolean isValidGroupName(Group newGroup) throws IllegalArgumentException,
 		NdexException{
 		try {
 			Preconditions.checkNotNull(newGroup.getName(), "The new group requires a name");
@@ -287,7 +289,7 @@ public class GroupService extends NdexService {
            return false;
   	
 	}
-
+*/
 	/**************************************************************************
 	 * Find Groups based on search parameters - string matching for now
 	 * 
@@ -303,7 +305,7 @@ public class GroupService extends NdexService {
 	@Path("/search/{searchOperator}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of groups found based on the searchOperator and the POSTed searchParameters.")
-	public List<Group> findGroups(SearchParameters searchParameters,
+/*	public List<Group> findGroups(SearchParameters searchParameters,
 			@PathParam("searchOperator") final String searchOperator)
 			throws IllegalArgumentException, NdexException {
 		try {
@@ -383,7 +385,7 @@ public class GroupService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Gets a group by ID or name.
 	 * 
@@ -395,7 +397,7 @@ public class GroupService extends NdexService {
 	 *             Failed to query the database.
 	 * @return The group.
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@PermitAll
 	@Path("/{groupId}")
 	@Produces("application/json")
@@ -429,7 +431,7 @@ public class GroupService extends NdexService {
 
 		return null;
 	}
-
+*/
 	/**************************************************************************
 	 * Removes a member from a group.
 	 * 
@@ -449,7 +451,7 @@ public class GroupService extends NdexService {
 	/*
 	 * refactored to accommodate non-transactional database interactions
 	 */
-	@DELETE
+/*	@DELETE
 	@Path("/{groupId}/member/{userId}")
 	@Produces("application/json")
 	@ApiDoc("Removes the member specified by userId from the group specified by groupId. " + 
@@ -511,7 +513,7 @@ public class GroupService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Updates a group.
 	 * 
@@ -526,7 +528,7 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to update the user in the database.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Produces("application/json")
 	@ApiDoc("Updates the group metadata corresponding to the POSTed group JSON structure. " + 
 			"Errors if the JSON structure does not specify the group id or if no group is found by that id. ")
@@ -582,7 +584,7 @@ public class GroupService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Changes a member's permissions to a group.
 	 * 
@@ -602,7 +604,7 @@ public class GroupService extends NdexService {
 	/*
 	 * refactored to accommodate non-transactional database interactions
 	 */
-	@POST
+/*	@POST
 	@Path("/{groupId}/member")
 	@Produces("application/json")
 	@ApiDoc("Updates the membership corresponding to the POSTed GroupMembership JSON structure in the group specified by groupId " +
@@ -676,7 +678,7 @@ public class GroupService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Counter the number of administrative members in the network.
 	 **************************************************************************/
@@ -698,7 +700,7 @@ public class GroupService extends NdexService {
 	 *            The group to test for permissions.
 	 * @return True if the member has permission, false otherwise.
 	 **************************************************************************/
-	private boolean hasPermission(Group targetGroup,
+/*	private boolean hasPermission(Group targetGroup,
 			Permissions requiredPermissions) {
 		for (Membership groupMembership : this.getLoggedInUser().getGroups()) {
 			if (groupMembership.getResourceId().equals(targetGroup.getId())
@@ -709,4 +711,6 @@ public class GroupService extends NdexService {
 
 		return false;
 	}
+*/
+	
 }

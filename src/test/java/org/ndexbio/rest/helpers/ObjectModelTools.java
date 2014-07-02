@@ -6,13 +6,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
 
-import org.ndexbio.common.models.object.Citation;
-import org.ndexbio.common.models.object.Edge;
-import org.ndexbio.common.models.object.FunctionTerm;
-import org.ndexbio.common.models.object.Network;
-import org.ndexbio.common.models.object.Node;
-import org.ndexbio.common.models.object.Support;
-import org.ndexbio.common.models.object.Term;
+import org.ndexbio.model.object.network.Citation;
+import org.ndexbio.model.object.network.Network;
+
+
 
 public class ObjectModelTools {
 	
@@ -21,44 +18,42 @@ public class ObjectModelTools {
 		   System.out.println("Summarizing Object Model Network:");
 	        System.out.println("Subnetwork with edgeCount = " + network.getEdgeCount() + " and nodeCount = " + network.getNodeCount());
 	        System.out.println("- " + network.getNamespaces().size() + " namespaces");
-	        System.out.println("- " + network.getTerms().size() + " terms");
+	        System.out.println("- " + network.getBaseTermIds().size() + " terms");
 	        System.out.println("- " + network.getCitations().size() + " citations");
 	        System.out.println("- " + network.getSupports().size() + " supports");
-	        checkForNullJdexIds(network.getSupports());
+	       // checkForNullJdexIds(network.getSupports());
 	        System.out.println("- " + network.getNodes().size() + " nodes");
 	        System.out.println("- " + network.getEdges().size() + " edges");
-	        for (Citation citation : network.getCitations().values()){
-	        	System.out.println("citation: " + citation.getIdentifier() + " " + citation.getTitle());
+	        for (Citation citation : network.getCitations()){
+	        	System.out.println("citation: " + citation.getProperties().toString());
 	        	System.out.println("has supports: " + citation.getSupports().size());
 	        	//for (String supportId : citation.getSupports()){
 	        	//	System.out.println("- " + supportId );
 	        	//}
 	        }
-	        System.out.println(network.getTerms().size() + " Terms:");
-	        summarizeTerms(network.getTerms().keySet(), network);
+	        System.out.println(network.getBaseTermIds().size() + " Terms:");
+	      //  summarizeTerms(network.getBaseTermIds(), network);
 	        
 	        
 	        
 	        Set<String> termIdsFromNodesAndEdges = new HashSet<String>();
-	        for (Entry<String, Node> entry : network.getNodes().entrySet()){
+	        for (Long entryId : network.getNodes()){
 	        	
-	        	String nodeId = entry.getKey();
-	        	Node node = entry.getValue();
 	        	//System.out.println("Node " + nodeId);
-	        	String termId = node.getRepresents();
+//	        	String termId = node.getRepresents();
 
-	        	getAllTermIds(termId, network, termIdsFromNodesAndEdges);      	
+	//        	getAllTermIds(termId, network, termIdsFromNodesAndEdges);      	
 	        }
-	        for (Edge edge : network.getEdges().values()){
+	 /*       for (Edge edge : network.getEdges().values()){
 	        	termIdsFromNodesAndEdges.add(edge.getP());
-	        }
+	        } */
 	        System.out.println(termIdsFromNodesAndEdges.size() + " Terms from Nodes:");
-	        summarizeTerms(termIdsFromNodesAndEdges, network);
+	//        summarizeTerms(termIdsFromNodesAndEdges, network);
 	        
 	        System.out.println("_________________________________");
 	    }
 	    
-	    public static void getAllTermIds(String termId, Network network, Set<String>termIds){
+/*	    public static void getAllTermIds(String termId, Network network, Set<String>termIds){
 	    	termIds.add(termId);
 	    	Term term = network.getTerms().get(termId);
 	    	if (null == term){
@@ -72,8 +67,8 @@ public class ObjectModelTools {
 	    		}
 	    	}
 	    }
-	    
-	    public static void summarizeTerms(Collection<String> termIds, Network network){
+	*/    
+	 /*   public static void summarizeTerms(Collection<String> termIds, Network network){
 	        int baseTermCount = 0;
 	        int functionTermCount = 0;
 	        int reifiedEdgeTermCount = 0;
@@ -97,8 +92,8 @@ public class ObjectModelTools {
 	        System.out.println("   reifiedEdgeTerms: " + reifiedEdgeTermCount);
 	        System.out.println("   missing terms: " + nullTermCount);	
 	    }
-
-		private static void checkForNullJdexIds(Map<String, Support> objectMap) {
+*/
+	/*	private static void checkForNullJdexIds(Map<String, Support> objectMap) {
 			int nullKeyCount = 0;
 			int nullValueCount = 0;
 			int nullSupportJdexIdCount = 0;
@@ -112,6 +107,6 @@ public class ObjectModelTools {
 				System.out.println("null jdexIds: " + nullKeyCount + ", null objects: " + nullValueCount + ", objects with null jdex: " + nullSupportJdexIdCount);
 			}
 			
-		}
+		} */
 
 }

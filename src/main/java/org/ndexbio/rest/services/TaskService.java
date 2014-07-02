@@ -20,7 +20,6 @@ import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.ITask;
 import org.ndexbio.common.models.data.IUser;
-import org.ndexbio.common.models.object.Priority;
 import org.ndexbio.common.models.object.Status;
 import org.ndexbio.common.models.object.TaskType;
 import org.ndexbio.common.models.object.Task;
@@ -65,7 +64,7 @@ public class TaskService extends NdexService
     /*
      * refactored for non-transactional database operation
      */
-    @PUT
+/*    @PUT
     @Produces("application/json")
 	@ApiDoc("Create a new task owned by the authenticated user based on the supplied JSON task object.")
     public Task createTask(final Task newTask) throws IllegalArgumentException, NdexException
@@ -104,7 +103,7 @@ public class TaskService extends NdexService
             teardownDatabase();
         }
     }
-
+*/
     /**************************************************************************
     * Deletes a task. 
     * 
@@ -122,7 +121,7 @@ public class TaskService extends NdexService
     /*
      * refactored for non-transactional database operations
      */
-    @DELETE
+/*    @DELETE
     @Path("/{taskId}")
     @Produces("application/json")
 	@ApiDoc("Delete the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
@@ -165,7 +164,7 @@ public class TaskService extends NdexService
             teardownDatabase();
         }
     }
-
+*/
     /**************************************************************************
     * Gets a task by ID.
     * 
@@ -178,7 +177,7 @@ public class TaskService extends NdexService
     * @throws NdexException
     *            Failed to query the database.
     **************************************************************************/
-    @GET
+/*    @GET
     @Path("/{taskId}")
     @Produces("application/json")
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
@@ -218,7 +217,7 @@ public class TaskService extends NdexService
         
         return null;
     }
-
+*/
     /**************************************************************************
     * Updates a task.
     * 
@@ -233,7 +232,7 @@ public class TaskService extends NdexService
     * @throws NdexException
     *            Failed to update the task in the database.
     **************************************************************************/
-    @POST
+/*    @POST
     @Produces("application/json")
 	@ApiDoc("Updates the task specified by taskId in the POSTed task JSON structure. Properties of the task are changed to match the properties in the JSON structure. Errors if no task found or if authenticated user does not own task.")
     public void updateTask(final Task updatedTask) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
@@ -328,7 +327,7 @@ public class TaskService extends NdexService
 		return false;
 	}
 	
-    
+  */  
     
 	/**************************************************************************
 	 * Exports a network to an xbel-formatted file. Creates a network upload task
@@ -340,7 +339,7 @@ public class TaskService extends NdexService
 	 * @throws NdexException
 	 *             Failed to create a network export task
 	 **************************************************************************/
-    @PUT
+   /* @PUT
     @Path("/exportNetwork/xbel/{networkId}")
     @Produces("application/json")
 	@ApiDoc("Creates a queued task  for asynchronous exporting of a NDEx network to an external "
@@ -394,5 +393,5 @@ public class TaskService extends NdexService
 				}
 			
 		
-	}
+	}  */
 }

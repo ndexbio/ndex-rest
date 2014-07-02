@@ -48,6 +48,7 @@ import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.*;
 import org.ndexbio.common.models.object.*;
+import org.ndexbio.model.object.network.Network;
 import org.ndexbio.orientdb.gremlin.*;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.equivalence.EquivalenceFinder;
@@ -167,11 +168,13 @@ public class NetworkService extends NdexService {
 		Preconditions.checkArgument(
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
-
+		
+		throw new NdexException ("Unimplmented function createNetwork.");
+/*
 		try {
 			setupDatabase();
 
-			final IUser networkOwner = _orientDbGraph.getVertex(
+			final User networkOwner = _orientDbGraph.getVertex(
 					IdConverter.toRid(this.getLoggedInUser().getId()),
 					IUser.class);
 
@@ -232,10 +235,10 @@ public class NetworkService extends NdexService {
 
 		} finally {
 			teardownDatabase();
-		}
+		} */
 	}
 
-	private void createNetworkMembers(final Network newNetwork,
+/*	private void createNetworkMembers(final Network newNetwork,
 			final IUser networkOwner, final INetwork network) {
 		if (newNetwork.getMembers() == null
 				|| newNetwork.getMembers().size() == 0) {
@@ -271,7 +274,7 @@ public class NetworkService extends NdexService {
 					"You already have a network titled: "
 							+ newNetwork.getName());
 	}
-
+*/
 	/**************************************************************************
 	 * Creates a network.
 	 * 
@@ -302,7 +305,10 @@ public class NetworkService extends NdexService {
 			DuplicateObjectException, NdexException {
 		Preconditions.checkArgument(null != sourceNetwork,
 				"A source network structure is required");
-		final ORID networkRid = IdConverter.toRid(networkId);
+		
+		throw new NdexException ("Unimplmented function addNetwork.");
+		
+	/*	final ORID networkRid = IdConverter.toRid(networkId);
 
 		try {
 			setupDatabase();
@@ -370,17 +376,17 @@ public class NetworkService extends NdexService {
 
 		} finally {
 			teardownDatabase();
-		}
+		} */
 	}
 
-	private EquivalenceFinder getEquivalenceFinder(String equivalenceMethod,
+/*	private EquivalenceFinder getEquivalenceFinder(String equivalenceMethod,
 			INetwork target, Map<String, VertexFrame> networkIndex) {
 		if ("JDEX_ID".equals(equivalenceMethod))
 			return new IdEquivalenceFinder(target, networkIndex, _ndexDatabase,
 					_orientDbGraph);
 		throw new IllegalArgumentException("Unknown EquivalenceMethod: "
 				+ equivalenceMethod);
-	}
+	} */
 
 	/**************************************************************************
 	 * Deletes a network.
@@ -404,7 +410,7 @@ public class NetworkService extends NdexService {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId),
 				"A network id is required");
 
-		final ORID networkRid = IdConverter.toRid(networkId);
+/*		final ORID networkRid = IdConverter.toRid(networkId);
 
 		try {
 			setupDatabase();
@@ -455,7 +461,7 @@ public class NetworkService extends NdexService {
 			throw e;
 		} finally {
 			teardownDatabase();
-		}
+		} */
 	}
 
 	/**************************************************************************
@@ -495,9 +501,9 @@ public class NetworkService extends NdexService {
 
 			final List<ODocument> networks = _ndexDatabase
 					.query(new OSQLSynchQuery<ODocument>(query));
-			for (final ODocument network : networks)
-				foundNetworks.add(new Network(_orientDbGraph.getVertex(network,
-						INetwork.class)));
+		//	for (final ODocument network : networks)
+		//		foundNetworks.add(new Network(_orientDbGraph.getVertex(network,
+		//				INetwork.class)));
 
 			return foundNetworks;
 		} catch (Exception e) {
@@ -533,7 +539,7 @@ public class NetworkService extends NdexService {
 		try {
 			setupDatabase();
 
-			final INetwork network = _orientDbGraph.getVertex(
+/*			final INetwork network = _orientDbGraph.getVertex(
 					IdConverter.toRid(networkId), INetwork.class);
 			if (network == null)
 				return null;
@@ -547,7 +553,8 @@ public class NetworkService extends NdexService {
 				throw new SecurityException(
 						"You do not have access to that network.");
 			} else
-				return new Network(network);
+				return new Network(network); */
+			return new Network();
 		} finally {
 			teardownDatabase();
 		}
@@ -603,7 +610,7 @@ public class NetworkService extends NdexService {
 					break;
 			}
 
-			return getNetworkBasedOnFoundEdges(foundIEdges, network);
+			return null ; //getNetworkBasedOnFoundEdges(foundIEdges, network);
 		} catch (ObjectNotFoundException onfe) {
 			throw onfe;
 		} catch (Exception e) {
@@ -634,7 +641,7 @@ public class NetworkService extends NdexService {
 	 *             Failed to query the database.
 	 * @return The edges of the network.
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@Path("/{networkId}/nodes/{skip}/{top}")
 	@Produces("application/json")
 	@ApiDoc("Returns a subnetwork based on a set of nodes selected from the network specified by networkId. The returned subnetwork is fully poplulated and 'self-sufficient', including all terms, supports, citations, and namespaces referenced by the nodes. The query selects a number of nodes specified by the 'top' parameter, starting at an offset specified by the 'skip' parameter.")
@@ -681,7 +688,7 @@ public class NetworkService extends NdexService {
 		}
 	}
 	
-
+*/
 
 	/**************************************************************************
 	 * Gets a subnetwork of a network corresponding to a page of edges for a specified 
@@ -701,7 +708,7 @@ public class NetworkService extends NdexService {
 	 *             Failed to query the database.
 	 * @return The edges of the network.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Path("/{networkId}/citations/edges/{skip}/{top}")
 	@Produces("application/json")
 	@ApiDoc("Returns a network based on a set of edges selected from the network specified by networkId and linked to the citations specified by the POSTed set of citation ids. "
@@ -756,7 +763,7 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Gets all BaseTerms in the network that are in Namespaces identified by a
 	 * list of Namespace prefixes
@@ -771,7 +778,7 @@ public class NetworkService extends NdexService {
 	 *             Failed to query the database.
 	 * @return The BaseTerms in the found the Namespaces
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Path("/{networkId}/namespaces")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of all base terms in the network that are in namespaces identified by the POSTed list of namespace prefixes.")
@@ -833,7 +840,7 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Gets all terms in the network that intersect with a list of terms.
 	 * 
@@ -847,7 +854,7 @@ public class NetworkService extends NdexService {
 	 *             Failed to query the database.
 	 * @return The edges of the network.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Path("/{networkId}/terms")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of all base terms in the network specified by networkId that are in the POSTed list of terms.")
@@ -895,7 +902,7 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Gets a page of namespaces for the specified network.
 	 * 
@@ -911,7 +918,7 @@ public class NetworkService extends NdexService {
 	 *             Failed to query the database.
 	 * @return The edges of the network.
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@Path("/{networkId}/namespaces/{skip}/{top}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of namespaces in the network specified by networkId. 'top' specified the number of namespaces to retrieve, 'skip' specifies the number to skip.")
@@ -958,7 +965,7 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Gets a page of terms for the specified network.
 	 * 
@@ -974,7 +981,7 @@ public class NetworkService extends NdexService {
 	 *             Failed to query the database.
 	 * @return The edges of the network.
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@Path("/{networkId}/terms/{skip}/{top}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of terms in the network specified by networkId. 'top' specified the number of terms to retrieve, 'skip' specifies the number to skip.")
@@ -1021,7 +1028,7 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-	
+*/	
 	/**************************************************************************
 	 * Gets a page of citations for the specified network.
 	 * 
@@ -1037,7 +1044,7 @@ public class NetworkService extends NdexService {
 	 *             Failed to query the database.
 	 * @return The an iterable of Citation objects
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@Path("/{networkId}/citations/{skip}/{top}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of citations in the network specified by networkId. 'top' specified the number of citations to retrieve in each block, 'skip' specifies the number of blocks to skip.")
@@ -1083,7 +1090,7 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 
 	/**************************************************************************
 	 * Gets a subnetwork of a network based on network query parameters.
@@ -1098,7 +1105,7 @@ public class NetworkService extends NdexService {
 	 *             Failed to query the database.
 	 * @return A subnetwork of the network.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Path("/{networkId}/query1")
 	@Produces("application/json")
 	@ApiDoc("Returns a network based on a set of edges selected based on the POSTed queryParameters from the network specified by networkId. The returned network is fully poplulated and 'self-sufficient', including all nodes, terms, supports, citations, and namespaces.")
@@ -1138,7 +1145,7 @@ public class NetworkService extends NdexService {
 		}
 	*/
 		
-	}
+//	}
 
 	/**************************************************************************
 	 * Gets a subnetwork network based on network query parameters.
@@ -1219,7 +1226,7 @@ public class NetworkService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to query the database.
 	 **************************************************************************/
-	@DELETE
+/*	@DELETE
 	@Path("/{networkId}/member/{userId}")
 	@Produces("application/json")
 	@ApiDoc("Removes a member specified by userId from the network specified by networkId. Errors if the authenticated user does not have sufficient permissions or if the network or user is not found. Removal is also denied if it would leave the network without any Admin member.")
@@ -1278,7 +1285,7 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Changes a member's permissions to a network.
 	 * 
@@ -1295,7 +1302,7 @@ public class NetworkService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to query the database.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Path("/{networkId}/member")
 	@Produces("application/json")
 	@ApiDoc("Updates the permission of a member specified by userId for the network specified by networkId to the POSTed permission. Errors if the authenticated user does not have sufficient permissions or if the network or user is not found. Change is also denied if it would leave the network without any Admin member.")
@@ -1364,7 +1371,7 @@ public class NetworkService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Updates a network.
 	 * 
@@ -1377,7 +1384,7 @@ public class NetworkService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to update the network in the database.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Produces("application/json")
 	@ApiDoc("Updates the metadata for the network specified by networkId based on the POSTed JDEx structure. "
 			+ "Errors if the authenticated user does not have sufficient permissions or if the network is not found. ")
@@ -1435,7 +1442,7 @@ public class NetworkService extends NdexService {
 		}
 	}
 	
-
+*/
 
 	
 
@@ -1454,7 +1461,7 @@ public class NetworkService extends NdexService {
 	/*
 	 * refactored to support non-transactional database operations
 	 */
-	@POST
+/*	@POST
 	@Path("/upload")
 	@Consumes("multipart/form-data")
 	@Produces("application/json")
@@ -1611,7 +1618,7 @@ public class NetworkService extends NdexService {
 
 		return foundTerms;
 	}
-
+*/
 	/*
 	 * private List<IEdge> neighborhoodQuery2(INetwork network, List<INode>
 	 * startingNodes, int searchDepth, String searchType, int i) { final
@@ -1687,7 +1694,7 @@ public class NetworkService extends NdexService {
 				query += "WHERE isComplete = true\n"
 						+ "  AND (isPublic = true"
 						+ " OR out_networkMemberships.in_accountNetworks.username = '"
-						+ this.getLoggedInUser().getUsername() + "') \n";
+						+ this.getLoggedInUser().getAccountName() + "') \n";
 			} else
 				query += "WHERE isComplete = true AND isPublic = true\n";
 
@@ -1717,7 +1724,7 @@ public class NetworkService extends NdexService {
 				query += "WHERE isComplete = true\n"
 						+ "  AND (isPublic = true"
 						+ " OR out_networkMemberships.in_accountNetworks.username = '"
-						+ this.getLoggedInUser().getUsername() + "') \n";
+						+ this.getLoggedInUser().getAccountName() + "') \n";
 			} else
 				query += "WHERE isComplete = true AND isPublic = true\n";
 
@@ -1824,7 +1831,7 @@ public class NetworkService extends NdexService {
 	 * Map namespaces in network model object to namespaces in the network domain object
 	 * 
 	 **************************************************************************/
-	private void createNamespaces(final INetwork domainNetwork,
+/*	private void createNamespaces(final INetwork domainNetwork,
 			final Network objectNetwork,
 			final Map<String, VertexFrame> networkIndex) {
 		for (final Entry<String, Namespace> namespaceEntry : objectNetwork.getNamespaces().entrySet()) {
@@ -1864,7 +1871,7 @@ public class NetworkService extends NdexService {
 		networkIndex.put(jdexId, newNamespace);
 	}
 
-
+*/
 	/**************************************************************************
 	 * TERMS
 	 * 
@@ -1878,7 +1885,7 @@ public class NetworkService extends NdexService {
 	 * 
 	 **************************************************************************/
 
-	private void createBaseTerm(INetwork target, Network networkToCreate,
+/*	private void createBaseTerm(INetwork target, Network networkToCreate,
 			BaseTerm term, String jdexId, Map<String, VertexFrame> networkIndex) throws NdexException {
 		final IBaseTerm newBaseTerm = _orientDbGraph.addVertex(
 				"class:baseTerm", IBaseTerm.class);
@@ -1900,7 +1907,7 @@ public class NetworkService extends NdexService {
 		target.addTerm(newBaseTerm);
 		networkIndex.put(newBaseTerm.getJdexId(), newBaseTerm);
 		
-		
+	*/	
 		//System.out.println("Domain Model: added BaseTerm " + newBaseTerm.getJdexId() + " " + nsPrefix + ":" + newBaseTerm.getName());
 
 		// TODO: remove this when the handling of metadata is finalized.
@@ -1919,7 +1926,7 @@ public class NetworkService extends NdexService {
 		}
 		*/
 		
-	}
+//	}
 
 	private IFunctionTerm createFunctionTerm(INetwork target, String jdexId,
 			Map<String, VertexFrame> networkIndex) throws NdexException {
@@ -1932,7 +1939,8 @@ public class NetworkService extends NdexService {
 		return domainTerm;
 		
 	}
-	
+
+	/*
 	private void populateFunctionTerm(FunctionTerm objectTerm, 
 			IFunctionTerm domainTerm, 
 			Map<String, VertexFrame> networkIndex) throws NdexException{
@@ -2020,7 +2028,7 @@ public class NetworkService extends NdexService {
 			return true;
 		return false;
 	}
-	
+*/	
 	/**************************************************************************
 	 * Creating terms with an equivalenceFinder
 	 * 
@@ -2034,7 +2042,7 @@ public class NetworkService extends NdexService {
 	 * @throws NdexException 
 	 * 
 	 **************************************************************************/
-	private Map<ReifiedEdgeTerm, IReifiedEdgeTerm> createTerms(final Network sourceNetwork,
+/*	private Map<ReifiedEdgeTerm, IReifiedEdgeTerm> createTerms(final Network sourceNetwork,
 			final EquivalenceFinder equivalenceFinder) throws NdexException {
 		
 		// Sort terms by dependency before creation because function terms can 
@@ -2073,7 +2081,7 @@ public class NetworkService extends NdexService {
 		// Return the map of terms we will need to populate after we make the edges...
 		return newReifiedEdgeTermMap;
 	}
-
+*/
 
 
 	/**************************************************************************
@@ -2088,7 +2096,7 @@ public class NetworkService extends NdexService {
 	 * @throws NdexException 
 	 * 
 	 **************************************************************************/
-	private Map<ReifiedEdgeTerm, IReifiedEdgeTerm> createTerms(final INetwork targetNetwork,
+/*	private Map<ReifiedEdgeTerm, IReifiedEdgeTerm> createTerms(final INetwork targetNetwork,
 			final Network sourceNetwork,
 			final Map<String, VertexFrame> networkIndex) throws NdexException {
 		//validateTermMap(sourceNetwork.getTerms());
@@ -2141,6 +2149,7 @@ public class NetworkService extends NdexService {
 		}
 		
 	}
+*/
 
 	/**************************************************************************
 	 * CITATIONS
@@ -2149,7 +2158,7 @@ public class NetworkService extends NdexService {
 	 * 
 	 * 
 	 **************************************************************************/
-	private void createCitations(final INetwork targetNetwork,
+/*	private void createCitations(final INetwork targetNetwork,
 			final Network sourceNetwork,
 			final Map<String, VertexFrame> networkIndex) {
 		for (final Entry<String, Citation> citationEntry : sourceNetwork
@@ -2187,7 +2196,7 @@ public class NetworkService extends NdexService {
 		targetNetwork.addCitation(newCitation);
 		networkIndex.put(newCitation.getJdexId(), newCitation);
 	}
-
+*/
 	/**************************************************************************
 	 * SUPPORTS
 	 * 
@@ -2196,7 +2205,7 @@ public class NetworkService extends NdexService {
 	 * 
 	 * 
 	 **************************************************************************/
-	private void createSupports(final INetwork targetNetwork,
+/*	private void createSupports(final INetwork targetNetwork,
 			final Network sourceNetwork,
 			final Map<String, VertexFrame> networkIndex) throws NdexException {
 		for (final Entry<String, Support> supportEntry : sourceNetwork
@@ -2241,7 +2250,7 @@ public class NetworkService extends NdexService {
 		networkIndex.put(newSupport.getJdexId(), newSupport);
 		
 	}
-
+*/
 	/**************************************************************************
 	 * NODES
 	 * 
@@ -2250,7 +2259,7 @@ public class NetworkService extends NdexService {
 	 * 
 	 * 
 	 **************************************************************************/
-	private void createNodes(final Network sourceNetwork,
+/*	private void createNodes(final Network sourceNetwork,
 			final EquivalenceFinder equivalenceFinder) throws NdexException {
 		int nodeCount = 0;
 
@@ -2304,7 +2313,7 @@ public class NetworkService extends NdexService {
 		networkIndex.put(iNode.getJdexId(), iNode);
 		
 	}
-
+*/
 	/**************************************************************************
 	 * EDGES
 	 * 
@@ -2313,7 +2322,7 @@ public class NetworkService extends NdexService {
 	 * 
 	 * 
 	 **************************************************************************/
-	private void createEdges(final Network sourceNetwork,
+/*	private void createEdges(final Network sourceNetwork,
 			final EquivalenceFinder equivalenceFinder) throws NdexException {
 		int edgeCount = 0;
 
@@ -2377,7 +2386,7 @@ public class NetworkService extends NdexService {
 		targetNetwork.addNdexEdge(newEdge);
 		networkIndex.put(newEdge.getJdexId(), newEdge);
 	}
-
+*/
 
 	/**************************************************************************
 	 * 
@@ -2387,7 +2396,7 @@ public class NetworkService extends NdexService {
 	 * 
 	 * 
 	 **************************************************************************/
-	private List<Term> getBaseTermsByName(INetwork network, String baseTermName)
+/*	private List<Term> getBaseTermsByName(INetwork network, String baseTermName)
 			throws NdexException {
 		final List<Term> foundTerms = new ArrayList<Term>();
 		for (final ITerm networkTerm : network.getTerms()) {
@@ -2401,7 +2410,7 @@ public class NetworkService extends NdexService {
 
 		return foundTerms;
 	}
-
+*/
 	/**************************************************************************
 	 * 
 	 * Constructs and returns a self-sufficient network based on a set of edges
@@ -2410,7 +2419,7 @@ public class NetworkService extends NdexService {
 	 * 
 	 * 
 	 **************************************************************************/
-	private Network getNetworkBasedOnFoundEdges(
+/*	private Network getNetworkBasedOnFoundEdges(
 			final List<IEdge> requiredIEdges, final INetwork network) throws NdexException {
 		if (requiredIEdges.size() == 0) return new Network();
 		expandEdgeListToIncludeReifiedEdges(requiredIEdges);
@@ -2424,8 +2433,9 @@ public class NetworkService extends NdexService {
 		
 		return createOutputNetwork(requiredINamespaces, requiredITerms, requiredICitations, requiredISupports, requiredINodes, requiredIEdges, network);
 	}
-	
-	private static Network createOutputNetwork(
+*/	
+
+/*	private static Network createOutputNetwork(
 			final Collection<INamespace> requiredINamespaces, 
 			final Collection<ITerm> requiredITerms,
 			final Collection<ICitation> requiredICitations,
@@ -2707,7 +2717,7 @@ public class NetworkService extends NdexService {
 	 *            The network to test for permissions.
 	 * @return True if the member has permission, false otherwise.
 	 **************************************************************************/
-	private boolean hasPermission(Network targetNetwork,
+/*	private boolean hasPermission(Network targetNetwork,
 			Permissions requiredPermissions) {
 		for (Membership networkMembership : this.getLoggedInUser()
 				.getNetworks()) {
@@ -2718,7 +2728,7 @@ public class NetworkService extends NdexService {
 		}
 
 		return false;
-	}
+	} */
 
 	/*
 	private List<IEdge> neighborhoodQuery(final INetwork network,

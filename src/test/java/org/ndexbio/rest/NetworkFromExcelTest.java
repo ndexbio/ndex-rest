@@ -70,10 +70,10 @@ public class NetworkFromExcelTest
             
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
             _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
-            NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
+            NdexSchemaManager.INSTANCE.init(_ndexDatabase);
 
-            final User loggedInUser = getUser("dexterpratt");
-            setLoggedInUser(loggedInUser);
+//            final User loggedInUser = getUser("dexterpratt");
+//            setLoggedInUser(loggedInUser);
         }
         catch (Exception e)
         {
@@ -83,7 +83,7 @@ public class NetworkFromExcelTest
     }
 
 
-
+/*
     @Test
     public void createExcelNetwork()
     {
@@ -204,14 +204,6 @@ public class NetworkFromExcelTest
         return newTerm;
     }
 
-    private static User getUser(final String username)
-    {
-        final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + username + "'"));
-        if (!matchingUsers.isEmpty())
-            return new User(_orientDbGraph.getVertex(matchingUsers.get(0), IUser.class), true);
-        else
-            return null;
-    }
     
     private static void setLoggedInUser(final User loggedInUser)
     {
@@ -220,5 +212,5 @@ public class NetworkFromExcelTest
         .anyTimes();
 
         EasyMock.replay(_mockRequest);
-    }
+    } */
 }

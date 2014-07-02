@@ -27,7 +27,7 @@ import org.ndexbio.common.models.data.INetworkMembership;
 import org.ndexbio.common.models.data.IReifiedEdgeTerm;
 import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.common.models.object.RestResource;
-import org.ndexbio.common.models.object.User;
+import org.ndexbio.model.object.User;
 import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.annotations.ApiDoc;
 
@@ -140,9 +140,9 @@ public abstract class NdexService
     {
         final Object user = _httpRequest.getAttribute("User");
         if (user != null)
-            return (User)user;
-        else
-            return null;
+            return (org.ndexbio.model.object.User)user;
+        
+        return null;
     }
 
     /**************************************************************************
@@ -179,7 +179,7 @@ public abstract class NdexService
             _orientDbGraph = _graphFactory.create((OrientBaseGraph) new OrientGraphNoTx(_ndexDatabase));
 
         
-        NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
+        NdexSchemaManager.INSTANCE.init(_ndexDatabase);
     }
     
     /**************************************************************************

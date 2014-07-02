@@ -12,14 +12,6 @@ import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.INode;
 import org.ndexbio.common.models.data.IReifiedEdgeTerm;
 import org.ndexbio.common.models.data.ISupport;
-import org.ndexbio.common.models.object.BaseTerm;
-import org.ndexbio.common.models.object.Citation;
-import org.ndexbio.common.models.object.Edge;
-import org.ndexbio.common.models.object.FunctionTerm;
-import org.ndexbio.common.models.object.Namespace;
-import org.ndexbio.common.models.object.Node;
-import org.ndexbio.common.models.object.ReifiedEdgeTerm;
-import org.ndexbio.common.models.object.Support;
 
 import com.tinkerpop.frames.VertexFrame;
 
@@ -27,7 +19,7 @@ import com.tinkerpop.frames.VertexFrame;
 
 public interface EquivalenceFinder {
 
-    
+  /*  
     INetwork getTargetNetwork();
     
     Map<String, VertexFrame> getNetworkIndex();
@@ -47,7 +39,7 @@ public interface EquivalenceFinder {
     IEdge getEdge(Edge edge, String jdexId) throws NdexException;
 
 	IReifiedEdgeTerm getReifiedEdgeTerm(ReifiedEdgeTerm term, String jdexId) throws NdexException;
-
+*/
 
 }
 

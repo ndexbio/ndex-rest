@@ -29,6 +29,7 @@ import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.helpers.IdConverter;
+import org.ndexbio.common.models.dao.orientdb.UserOrientdbDAO;
 import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.model.object.network.Network;
@@ -83,7 +84,7 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to add the network in the database.
 	 **************************************************************************/
-	@PUT
+/*	@PUT
 	@Path("/work-surface")
 	@Produces("application/json")
 	@ApiDoc("Add a network to the authenticated user's worksurface, returns the current list of networks on the worksurface. Errors if the network does not exist or is already on the worksurface.")
@@ -142,7 +143,7 @@ public class UserService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Authenticates a user trying to login.
 	 * 
@@ -169,8 +170,8 @@ public class UserService extends NdexService {
 			throw new SecurityException("Invalid username or password.");
 
 		try {
-			final User authUser = Security.authenticateUser(new String[] {
-					username, password });
+			UserOrientdbDAO dao = UserOrientdbDAO.createInstance();
+			final User authUser = dao.authenticateUser(username, password);
 			if (authUser == null)
 				throw new SecurityException("Invalid username or password.");
 
@@ -199,7 +200,7 @@ public class UserService extends NdexService {
 	/*
 	 * refactored to support non-transactional database operations
 	 */
-	@POST
+/*	@POST
 	@Path("/password")
 	@Produces("application/json")
 	@ApiDoc("Changes the authenticated user's password to the new password in the POST data.")
@@ -234,7 +235,7 @@ public class UserService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Changes a user's profile/background image.
 	 * 
@@ -247,7 +248,7 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to save the image.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Path("/image/{imageType}")
 	@Consumes("multipart/form-data")
 	@Produces("application/json")
@@ -308,7 +309,7 @@ public class UserService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Creates a user.
 	 * 
@@ -325,7 +326,7 @@ public class UserService extends NdexService {
 	/*
 	 * refactored to accommodate non-transactional database operations
 	 */
-	@PUT
+/*	@PUT
 	@PermitAll
 	@Produces("application/json")
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
@@ -377,11 +378,13 @@ public class UserService extends NdexService {
 			teardownDatabase();
 		}
 	}
+*/
+	
 	/*
 	 * Both a User's username and emailAddress must be unique in the database.
 	 * Throw a DuplicateObjectException if that is not the case
 	 */
-	private void checkForExistingUser(final NewUser newUser) 
+/*	private void checkForExistingUser(final NewUser newUser) 
 			throws DuplicateObjectException {
 		final List<ODocument> existingUsers = _ndexDatabase
 				.query(new OSQLSynchQuery<Object>(
@@ -395,7 +398,7 @@ public class UserService extends NdexService {
 			throw new DuplicateObjectException(
 					CommonValues.DUPLICATED_KEY_FLAG);
 	}
-
+*/
 	/**************************************************************************
 	 * Deletes a network from a user's Work Surface.
 	 * 
@@ -408,7 +411,7 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to remove the network in the database.
 	 **************************************************************************/
-	@DELETE
+/*	@DELETE
 	@Path("/work-surface/{networkId}")
 	@Produces("application/json")
 	@ApiDoc("Removes the network with id = networkId from the worksurface of the authenticated user, returning the list of networks on the worksurface. Errors if the network is not found.")
@@ -457,14 +460,14 @@ public class UserService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Deletes a user.
 	 * 
 	 * @throws NdexException
 	 *             Failed to delete the user from the database.
 	 **************************************************************************/
-	@DELETE
+/*	@DELETE
 	@Produces("application/json")
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user.")
 	public void deleteUser() throws NdexException {
@@ -524,7 +527,7 @@ public class UserService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Emails the user a new randomly generated password.
 	 * 
@@ -536,7 +539,7 @@ public class UserService extends NdexService {
 	 *             Failed to change the password in the database, or failed to
 	 *             send the email.
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@PermitAll
 	@Path("/{username}/forgot-password")
 	@Produces("application/json")
@@ -601,7 +604,7 @@ public class UserService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Finds users based on the search parameters.
 	 * 
@@ -612,7 +615,7 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to query the database.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@PermitAll
 	@Path("/search/{searchOperator}")
 	@Produces("application/json")
@@ -691,7 +694,7 @@ public class UserService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Gets a user by ID or username.
 	 * 
@@ -702,7 +705,7 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to change the password in the database.
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@PermitAll
 	@Path("/{userId}")
 	@Produces("application/json")
@@ -738,7 +741,7 @@ public class UserService extends NdexService {
 
 		return null;
 	}
-
+*/
 	/**************************************************************************
 	 * Updates a user.
 	 * 
@@ -751,7 +754,7 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to update the user in the database.
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@Produces("application/json")
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. Errors if the user object references a different user.")
 	public void updateUser(final User updatedUser)
@@ -821,7 +824,7 @@ public class UserService extends NdexService {
 			teardownDatabase();
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Resizes the source image to the specified dimensions.
 	 * 
@@ -832,7 +835,7 @@ public class UserService extends NdexService {
 	 * @param height
 	 *            The new image height.
 	 **************************************************************************/
-	private BufferedImage resizeImage(final BufferedImage sourceImage,
+/*	private BufferedImage resizeImage(final BufferedImage sourceImage,
 			final int width, final int height) {
 		final Image resizeImage = sourceImage.getScaledInstance(width, height,
 				Image.SCALE_SMOOTH);
@@ -842,5 +845,5 @@ public class UserService extends NdexService {
 		resizedImage.getGraphics().drawImage(resizeImage, 0, 0, null);
 
 		return resizedImage;
-	}
+	} */
 }

@@ -12,8 +12,8 @@ import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.models.object.BaseTerm;
-import org.ndexbio.common.models.object.Network;
+import org.ndexbio.model.object.network.BaseTerm;
+import org.ndexbio.model.object.network.Network;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.rest.annotations.ApiDoc;
 

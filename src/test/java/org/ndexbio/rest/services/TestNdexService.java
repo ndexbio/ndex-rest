@@ -10,7 +10,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.ndexbio.common.models.object.User;
+import org.ndexbio.model.object.User;
 import org.ndexbio.common.models.data.*;
 import org.ndexbio.orientdb.NdexSchemaManager;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
@@ -59,7 +59,7 @@ public abstract class TestNdexService
             
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
             _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
-            NdexSchemaManager.INSTANCE.init(_orientDbGraph.getBaseGraph());
+            NdexSchemaManager.INSTANCE.init(_ndexDatabase);
         }
         catch (Exception e)
         {
@@ -91,11 +91,11 @@ public abstract class TestNdexService
     	
     	final TestUserAnswer testUserAnswer = new TestUserAnswer(this);
 
-        EasyMock.expect(_mockRequest.getAttribute("User"))
+     /*   EasyMock.expect(_mockRequest.getAttribute("User"))
             .andAnswer(testUserAnswer)
             .anyTimes();
 
-        EasyMock.replay(_mockRequest);
+        EasyMock.replay(_mockRequest); */
     }
     
     
@@ -134,21 +134,6 @@ public abstract class TestNdexService
         throw new IllegalArgumentException(objectName + " is not a user, group, network, request, or task.");
     }
 
-    /**************************************************************************
-    * Queries the database for the user's ID by the username. Necessary to
-    * mock the logged in user.
-    * 
-    * @param username
-    *            The username.
-    **************************************************************************/
-    protected User getUser(final String username)
-    {
-        final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + username + "'"));
-        if (!matchingUsers.isEmpty())
-            return new User(_orientDbGraph.getVertex(matchingUsers.get(0), IUser.class), true);
-        else
-            return null;
-    }
     
     /**************************************************************************
     * Emulates a user logged into the system via the mock HTTP request.
