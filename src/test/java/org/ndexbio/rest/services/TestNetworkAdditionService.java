@@ -21,10 +21,10 @@ public class TestNetworkAdditionService extends TestNdexService
     	int nodesPerBlock = 100;
         //try
         //{
-            final ORID sourceNetworkRid = getRid("BEL Framework Three Citation Corpus Document");
+ //           final ORID sourceNetworkRid = getRid("BEL Framework Three Citation Corpus Document");
             // Get the source network stats
             
-            String sourceNetworkId = IdConverter.toJid(sourceNetworkRid);
+  //          String sourceNetworkId = IdConverter.toJid(sourceNetworkRid);
             
         //    copyNetworkInBlocks(sourceNetworkId, edgesPerBlock, nodesPerBlock);
             

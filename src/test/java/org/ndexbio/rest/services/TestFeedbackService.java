@@ -13,7 +13,7 @@ public class TestFeedbackService extends TestNdexService
     private static final FeedbackService _feedbackService = new FeedbackService(_mockRequest);
 
     
-    
+  /*  
     @Test(timeout=5000)
     public void emailFeedback()
     {
@@ -38,5 +38,5 @@ public class TestFeedbackService extends TestNdexService
     public void emailFeedbackInvalidFeedback() throws IllegalArgumentException, NdexException
     {
         _feedbackService.emailFeedback("Bug", "");
-    }
+    } */
 }

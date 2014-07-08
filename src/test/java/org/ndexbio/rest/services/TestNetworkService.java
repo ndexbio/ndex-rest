@@ -21,7 +21,7 @@ public class TestNetworkService extends TestNdexService
 {
     private static final NetworkService _networkService = new NetworkService(_mockRequest);
     
-    
+/*    
     
     @Test
     public void autoSuggest()
@@ -89,7 +89,7 @@ public class TestNetworkService extends TestNdexService
         _networkService.createNetwork(newNetwork);
     }
 */
-    @Test
+ /*   @Test
     public void deleteNetwork()
     {
        // Assert.assertTrue(createNewNetwork());

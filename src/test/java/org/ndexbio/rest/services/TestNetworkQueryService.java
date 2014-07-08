@@ -16,7 +16,7 @@ public class TestNetworkQueryService extends TestNdexService
     private static final NetworkService _networkService = new NetworkService(_mockRequest);
     
     
-    @Test
+/*    @Test
     public void queryNetwork()
     {
         try
@@ -119,5 +119,5 @@ public class TestNetworkQueryService extends TestNdexService
     {
   //      _networkService.queryNetwork("", null);
     }
-
+*/
 }
