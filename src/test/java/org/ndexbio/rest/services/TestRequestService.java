@@ -16,7 +16,7 @@ public class TestRequestService extends TestNdexService
     private static final RequestService _requestService = new RequestService(_mockRequest);
 
     
-    
+   /* 
     @Test
     public void createRequest()
     {
@@ -158,5 +158,5 @@ public class TestRequestService extends TestNdexService
         }
         
         return false;
-    }
+    }  */
 }

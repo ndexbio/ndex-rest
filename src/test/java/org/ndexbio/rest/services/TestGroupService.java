@@ -18,7 +18,7 @@ public class TestGroupService extends TestNdexService
 
     
     
-    @Test
+ /*   @Test
     public void createGroup()
     {
    //     Assert.assertTrue(createNewGroup());
@@ -27,7 +27,7 @@ public class TestGroupService extends TestNdexService
     @Test(expected = IllegalArgumentException.class)
     public void createGroupInvalid() throws IllegalArgumentException, NdexException
     {
-        _groupService.createGroup(null);
+   //     _groupService.createGroup(null);
     }
    /* 
     @Test(expected = IllegalArgumentException.class)

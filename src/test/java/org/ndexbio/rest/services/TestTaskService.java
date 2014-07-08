@@ -16,7 +16,7 @@ public class TestTaskService extends TestNdexService
     private static final TaskService _taskService = new TaskService(_mockRequest);
 
     
-    
+  /*  
     @Test
     public void createTask()
     {
@@ -52,10 +52,10 @@ public class TestTaskService extends TestNdexService
             Assert.assertTrue(createNewTask());
             
             final ORID testTaskRid = getRid("This is a test task.");
-    /*        final Task testTask = _taskService.getTask(IdConverter.toJid(testTaskRid));
+            final Task testTask = _taskService.getTask(IdConverter.toJid(testTaskRid));
             Assert.assertNotNull(testTask);
 
-            Assert.assertTrue(deleteTargetTask(testTask.getId())); */
+            Assert.assertTrue(deleteTargetTask(testTask.getId())); 
         }
         catch (Exception e)
         {
@@ -69,22 +69,22 @@ public class TestTaskService extends TestNdexService
     {
    //     _taskService.getTask("");
     }
-
-    @Test
-    public void updateTask()
+*/
+//    @Test
+/*    public void updateTask()
     {
         try
         {
             Assert.assertTrue(createNewTask());
             
             final ORID testTaskRid = getRid("This is a test task.");
-    /*        final Task testTask = _taskService.getTask(IdConverter.toJid(testTaskRid));
+            final Task testTask = _taskService.getTask(IdConverter.toJid(testTaskRid));
 
             testTask.setDescription("This is an updated test task.");
             _taskService.updateTask(testTask);
             Assert.assertEquals(_taskService.getTask(testTask.getId()).getDescription(), testTask.getDescription());
             
-            Assert.assertTrue(deleteTargetTask(testTask.getId())); */
+            Assert.assertTrue(deleteTargetTask(testTask.getId())); 
         }
         catch (Exception e)
         {
@@ -92,8 +92,8 @@ public class TestTaskService extends TestNdexService
             e.printStackTrace();
         }
     }
-
-    @Test(expected = IllegalArgumentException.class)
+*/
+ /*   @Test(expected = IllegalArgumentException.class)
     public void updateTaskInvalid() throws IllegalArgumentException, NdexException
     {
   //      _taskService.updateTask(null);
@@ -139,5 +139,5 @@ public class TestTaskService extends TestNdexService
         }
         
         return false;
-    }
+    } */
 }
