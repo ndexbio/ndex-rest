@@ -15,6 +15,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 
+import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.models.data.IBaseTerm;
 import org.ndexbio.common.models.data.IFunctionTerm;
@@ -147,8 +148,9 @@ public abstract class NdexService
 
     /**************************************************************************
     * Opens a connection to OrientDB and initializes the OrientDB Graph ORM.
+     * @throws NdexException 
     **************************************************************************/
-    protected void setupDatabase()
+    protected void setupDatabase() throws NdexException
     {
         //When starting up this application, tell OrientDB's global
         //configuration to close the storage; this is required here otherwise
