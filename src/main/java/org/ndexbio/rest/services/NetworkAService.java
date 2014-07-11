@@ -14,6 +14,7 @@ import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.rest.annotations.ApiDoc;
 
@@ -79,4 +80,22 @@ public class NetworkAService extends NdexService {
 		return dao.queryForSubnetwork(this.getLoggedInUser(), networkId, queryParameters, skipBlocks, blockSize);
 	}
 
+
+	@POST
+	@Path("/search/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("Returns a list of NetworkDescriptors based on POSTed NetworkQuery.  The allowed NetworkQuery subtypes "+
+	        "for v1.0 will be NetworkSimpleQuery and NetworkMembershipQuery. 'blockSize' specifies the number of " +
+			"NetworkDescriptors to retrieve in each block, 'skipBlocks' specifies the number of blocks to skip.")
+	public List<NetworkSummary> searchNetwork(
+			final NetworkQueryParameters queryParameters,
+			@PathParam("skipBlocks") final int skipBlocks, 
+			@PathParam("blockSize") final int blockSize)
+	
+			throws IllegalArgumentException, NdexException {
+		
+		return null ;
+	}
+
+	
 }
