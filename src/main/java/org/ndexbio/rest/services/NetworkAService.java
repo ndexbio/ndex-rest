@@ -1,5 +1,6 @@
 package org.ndexbio.rest.services;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
@@ -10,13 +11,20 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
+import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.rest.annotations.ApiDoc;
+
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.iterator.ORecordIteratorClass;
+import com.orientechnologies.orient.core.record.impl.ODocument;
 
 @Path("/network")
 public class NetworkAService extends NdexService {
@@ -88,13 +96,22 @@ public class NetworkAService extends NdexService {
 	        "for v1.0 will be NetworkSimpleQuery and NetworkMembershipQuery. 'blockSize' specifies the number of " +
 			"NetworkDescriptors to retrieve in each block, 'skipBlocks' specifies the number of blocks to skip.")
 	public List<NetworkSummary> searchNetwork(
-			final NetworkQueryParameters queryParameters,
+			final String queryString,
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 	
 			throws IllegalArgumentException, NdexException {
-		
-		return null ;
+        List<NetworkSummary> result = new ArrayList <NetworkSummary> ();
+		if (queryString.equals("*")) {
+			ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			ORecordIteratorClass<ODocument> networks = db.browseClass(NdexClasses.Network);
+			for (ODocument doc : networks) {
+				result.add(NetworkDAO.getNetworkSummary(doc));
+			}
+			db.close();
+	        return result;		
+		}
+		throw new NdexException ("Feature not implemented yet.") ;
 	}
 
 	

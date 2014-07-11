@@ -49,7 +49,6 @@ import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.data.*;
 import org.ndexbio.common.models.object.*;
 import org.ndexbio.model.object.network.Network;
-import org.ndexbio.orientdb.gremlin.*;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.equivalence.EquivalenceFinder;
 import org.ndexbio.rest.equivalence.IdEquivalenceFinder;
