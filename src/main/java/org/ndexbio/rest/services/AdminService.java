@@ -1,6 +1,7 @@
 package org.ndexbio.rest.services;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
@@ -42,9 +43,16 @@ public class AdminService extends NdexService {
 
 			setupDatabase();
 			NdexStatus status = new NdexStatus();
-			status.setNetworkCount(this.getClassCount("network"));
+		/*	status.setNetworkCount(this.getClassCount("network"));
 			status.setUserCount(this.getClassCount("user"));
-			status.setGroupCount(this.getClassCount("group"));
+			status.setGroupCount(this.getClassCount("group")); */
+		    
+			status.setNetworkCount(1);
+			status.setUserCount(1);
+			status.setGroupCount(0);
+			Map<String,String> props = status.getProperties();
+			props.put("ServerResultLimit", "10000");
+			status.setProperties(props);
 			return status;
 		} finally {
 
@@ -54,7 +62,7 @@ public class AdminService extends NdexService {
 
 	}
 
-	private Integer getClassCount(String className) {
+/*	private Integer getClassCount(String className) {
 
 		final List<ODocument> classCountResult = _ndexDatabase
 				.query(new OSQLSynchQuery<ODocument>(
@@ -66,6 +74,6 @@ public class AdminService extends NdexService {
 
 		return classCount;
 
-	}
+	} */
 
 }
