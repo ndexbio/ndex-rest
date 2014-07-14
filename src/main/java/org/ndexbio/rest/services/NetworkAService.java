@@ -15,6 +15,7 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -96,13 +97,13 @@ public class NetworkAService extends NdexService {
 	        "for v1.0 will be NetworkSimpleQuery and NetworkMembershipQuery. 'blockSize' specifies the number of " +
 			"NetworkDescriptors to retrieve in each block, 'skipBlocks' specifies the number of blocks to skip.")
 	public List<NetworkSummary> searchNetwork(
-			final String queryString,
+			final SearchParameters query,
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 	
 			throws IllegalArgumentException, NdexException {
         List<NetworkSummary> result = new ArrayList <NetworkSummary> ();
-		if (queryString.equals("*")) {
+		if (query.getSearchString().equals("*")) {
 			ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			ORecordIteratorClass<ODocument> networks = db.browseClass(NdexClasses.Network);
 			for (ODocument doc : networks) {
