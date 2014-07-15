@@ -2,6 +2,7 @@ package org.ndexbio.rest.services;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.GET;
@@ -19,6 +20,7 @@ import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -62,15 +64,20 @@ public class NetworkAService extends NdexService {
 			+ "'self-sufficient', including all nodes, terms, supports, citations, "
 			+ "and namespaces. The query selects a number of edges specified by the "
 			+ "'blockSize' parameter, starting at an offset specified by the 'skipBlocks' parameter.")
-	public Network getEdges(
+	public PropertyGraphNetwork getEdges(
 			@PathParam("networkId") final String networkId,
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 	
 			throws IllegalArgumentException, NdexException {
 		
-		return dao.getEdges(this.getLoggedInUser(), networkId, skipBlocks, blockSize);
+		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		NetworkDAO dao = new NetworkDAO(db);
+ 		PropertyGraphNetwork n = dao.getProperytGraphNetworkById(UUID.fromString(networkId));
+		db.close();
+        return n;		
 	}
+
 	
 	@POST
 	@Path("/{networkId}/query/{skipBlocks}/{blockSize}")
@@ -89,6 +96,26 @@ public class NetworkAService extends NdexService {
 		return dao.queryForSubnetwork(this.getLoggedInUser(), networkId, queryParameters, skipBlocks, blockSize);
 	}
 
+	
+	
+	@POST
+	@Path("/{networkId}/asPropertyGraph/query/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("Returns a network based on a block of edges retrieved by the POSTed queryParameters "
+			+ "from the network specified by networkId. The returned network is fully poplulated and "
+			+ "'self-sufficient', including all nodes, terms, supports, citations, and namespaces.")
+	public Network queryNetworkAsPropertyGraph(
+			@PathParam("networkId") final String networkId,
+			final NetworkQueryParameters queryParameters,
+			@PathParam("skipBlocks") final int skipBlocks, 
+			@PathParam("blockSize") final int blockSize)
+	
+			throws IllegalArgumentException, NdexException {
+		
+		return dao.queryForSubnetwork(this.getLoggedInUser(), networkId, queryParameters, skipBlocks, blockSize);
+	}
+	
+	
 
 	@POST
 	@Path("/search/{skipBlocks}/{blockSize}")

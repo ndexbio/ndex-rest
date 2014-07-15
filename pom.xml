@@ -92,6 +92,24 @@
 			<version>3.0</version>
 		</dependency>
 
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-server</artifactId>
+      <version>9.2.1.v20140609</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-servlet</artifactId>
+      <version>9.2.1.v20140609</version>
+    </dependency>
+
+<dependency>
+    <groupId>org.eclipse.jetty</groupId>
+    <artifactId>jetty-servlets</artifactId>
+    <version>9.2.1.v20140609</version>
+</dependency>
+
 		<dependency>
 			<groupId>org.ndexbio</groupId>
 			<artifactId>ndex-common</artifactId>
@@ -112,7 +130,14 @@
 					<target>1.7</target>
 				</configuration>
 			</plugin>
-	
+			<plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>9.2.2-SNAPSHOT</version>
+            </plugin>
 		</plugins>
 	</build>
+	<properties>
+		<jettyVersion>9.2.1.v20140609</jettyVersion>
+	</properties>
 </project>
