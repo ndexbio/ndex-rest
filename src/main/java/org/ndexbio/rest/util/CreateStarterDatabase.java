@@ -229,7 +229,7 @@ public class CreateStarterDatabase
                 final User loggedInUser;
                 loggedInUser = getUser("biologist1");             
                 setLoggedInUser(loggedInUser);
-                newNetwork.getMembers().clear();               
+                //newNetwork.getMembers().clear();               
                 networkService.createNetwork(newNetwork);                
                 //Mocking the HTTP request inside a loop, so reset it
                 EasyMock.reset(_mockRequest);
