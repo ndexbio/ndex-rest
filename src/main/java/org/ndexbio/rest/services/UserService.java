@@ -34,7 +34,7 @@ import org.ndexbio.common.models.data.INetwork;
 import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.NewUser;
-import org.ndexbio.common.models.object.SearchParameters;
+import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.common.models.object.UploadedFile;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.CommonValues;

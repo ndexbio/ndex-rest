@@ -25,7 +25,7 @@ import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
-import org.ndexbio.common.models.object.SearchParameters;
+import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.rest.CommonValues;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;

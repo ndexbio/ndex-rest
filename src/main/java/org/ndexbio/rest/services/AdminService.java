@@ -11,7 +11,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.models.object.NdexStatus;
+import org.ndexbio.model.object.NdexStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
