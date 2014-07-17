@@ -24,7 +24,7 @@ public class ObjectModelTools {
 	       // checkForNullJdexIds(network.getSupports());
 	        System.out.println("- " + network.getNodes().size() + " nodes");
 	        System.out.println("- " + network.getEdges().size() + " edges");
-	        for (Citation citation : network.getCitations()){
+	        for (Citation citation : network.getCitations().values()){
 	        	System.out.println("citation: " + citation.getProperties().toString());
 	        	System.out.println("has supports: " + citation.getSupports().size());
 	        	//for (String supportId : citation.getSupports()){
@@ -37,7 +37,7 @@ public class ObjectModelTools {
 	        
 	        
 	        Set<String> termIdsFromNodesAndEdges = new HashSet<String>();
-	        for (Long entryId : network.getNodes()){
+	        for (Long entryId : network.getNodes().keySet()){
 	        	
 	        	//System.out.println("Node " + nodeId);
 //	        	String termId = node.getRepresents();

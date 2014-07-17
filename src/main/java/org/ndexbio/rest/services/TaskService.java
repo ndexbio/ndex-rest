@@ -22,7 +22,7 @@ import org.ndexbio.common.models.data.ITask;
 import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.common.models.object.Status;
 import org.ndexbio.common.models.object.TaskType;
-import org.ndexbio.common.models.object.Task;
+import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
