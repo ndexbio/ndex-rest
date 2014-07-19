@@ -1,53 +1,156 @@
 package org.ndexbio.rest.services;
 
 import java.util.Collection;
-import org.easymock.EasyMock;
+
+
+//import org.easymock.EasyMock;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.runners.MethodSorters;
-import org.ndexbio.model.object.NewUser;
+import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.model.object.SearchParameters;
+import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.model.object.User;
-import com.orientechnologies.orient.core.id.ORID;
+import org.ndexbio.rest.services.UserService;
+
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class TestUserService extends TestNdexService
-{
+public class TestUserService extends TestNdexService {
+	
     private static final UserService _userService = new UserService(_mockRequest);
-
+    private static User testUser;
+    private static User testUser2;
     
+    @BeforeClass
+    public static void setUp() throws Exception {
+    	User newUser = new User();
+        newUser.setEmailAddress("support@ndexbio.org");
+        newUser.setPassword("probably-insecure");
+        newUser.setAccountName("Support");
+        newUser.setFirstName("foo");
+        newUser.setLastName("bar");
+        
+		testUser = _userService.createUser(newUser);
+	
+    }
     
- /*   @Test
-    public void addNetworkToWorkSurface()
-    {
-        Assert.assertTrue(putNetworkOnWorkSurface());
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void addNetworkToWorkSurfaceInvalid() throws IllegalArgumentException, ObjectNotFoundException, NdexException
-    {
-        _userService.addNetworkToWorkSurface("");
-    }
-*/
+    @AfterClass
+	public static void tearDownAfterClass() throws Exception {
+    	
+    	final NdexDatabase database = new NdexDatabase();
+    	final ODatabaseDocumentTx  localConnection = database.getAConnection();  //all DML will be in this connection, in one transaction.
+    	final UserDAO dao = new UserDAO(localConnection);
+    	
+    	dao.deleteUserById(testUser.getExternalId());
+    	dao.deleteUserById(testUser2.getExternalId()); // will fail if createUser test is not run or fails. 
+		
+	}
+    
     @Test
-    public void authenticateUser()
-    {
-        try
-        {
-            final User authenticatedUser = _userService.authenticateUser("Support", "probably-insecure");
+    public void connectionPool() throws NdexException {
+    	
+    	NdexDatabase database = new NdexDatabase();
+    	final ODatabaseDocumentTx[]  localConnection = new ODatabaseDocumentTx[10]; //= database.getAConnection();  //all DML will be in this connection, in one transaction.
+    	
+    	try {
+	    	for(int jj=0; jj<300; jj++) {
+	    		database = new NdexDatabase();
+		    	for(int ii=0; ii<10; ii++) {
+		    		localConnection[ii] = database.getAConnection();
+		    	}
+		    	
+		    	for(int ii=0; ii<10; ii++) {
+		    		localConnection[ii].close();
+		    	}
+		    	database.close();
+	    	}
+	    	
+	    	
+    	} catch (Throwable e) {
+    		Assert.fail(e.getMessage());
+    	}
+    	
+    }
+    
+    @Test
+    public void createUser() {
+    	// no clean up done for creation of user, not a standalone test?
+    	try{
+    		
+	    	final User newUser = new User();
+	        newUser.setEmailAddress("support3@ndexbio.org");
+	        newUser.setPassword("probably-insecure3");
+	        newUser.setAccountName("Support3");
+	        newUser.setFirstName("foo3");
+	        newUser.setLastName("bar3");
+	        
+	        testUser2 = _userService.createUser(newUser);
+	        Assert.assertNotNull(testUser2);
+	        
+    	} catch (Exception e) {
+    		
+    		Assert.fail(e.getMessage());
+    		
+    	}
+    	
+    }
+    
+    @Test
+    public void getUserById() {
+    	
+    	try {
+    		
+	    	final User user = _userService.getUser(testUser.getExternalId().toString());
+	        Assert.assertNotNull(user);
+	        
+    	} catch (Exception e) {
+    		
+    		Assert.fail(e.getMessage());
+    		
+    	}
+    	
+    }
+    
+    @Test
+    public void authenticateUser() {
+    	
+        try {
+        	
+            final User authenticatedUser = _userService.authenticateUser(testUser.getAccountName(), "probably-insecure");
             Assert.assertNotNull(authenticatedUser);
-            Assert.assertEquals(authenticatedUser.getAccountName(), "Support");
-            Assert.assertEquals(authenticatedUser.getFirstName(), "foo");
-            Assert.assertEquals(authenticatedUser.getLastName(), "bar");
-        }
-        catch (Exception e)
-        {
+            Assert.assertEquals(authenticatedUser.getAccountName(), testUser.getAccountName());
+            Assert.assertEquals(authenticatedUser.getFirstName(), testUser.getFirstName());
+            Assert.assertEquals(authenticatedUser.getLastName(), testUser.getLastName());
+            
+        } catch (Exception e) {
+        	
             Assert.fail(e.getMessage());
             e.printStackTrace();
+            
         }
     }
+    
+    @Test
+    public void deleteUser() {
+    	
+    	try {
+    		
+    		_userService.deleteUser();
+    		
+    	} catch (Exception e) {
+    		
+    		Assert.fail(e.getMessage());
+    		
+    	}
+    	
+    }
 
- /*   @Test(expected = SecurityException.class)
+   @Test(expected = SecurityException.class)
     public void authenticateUserInvalid() throws SecurityException, NdexException
     {
         _userService.authenticateUser("dexterpratt", "notsecure");
@@ -64,7 +167,7 @@ public class TestUserService extends TestNdexService
     {
         _userService.authenticateUser("dexterpratt", "");
     }
-
+/*
     @Test
     public void changePassword()
     {
@@ -153,73 +256,59 @@ public class TestUserService extends TestNdexService
         Assert.assertTrue(createNewUser());
         Assert.assertTrue(deleteTargetUser());
     }
-
+*/
     @Test
-    public void emailNewPassword()
-    {
-        try
-        {
-            Assert.assertTrue(createNewUser());
+    public void emailNewPassword() {
+    	
+        try {
+        	
+            Assert.assertNotNull(_userService.emailNewPassword("Support"));
             
-            _userService.emailNewPassword("Support");
-            
-            Assert.assertTrue(deleteTargetUser());
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
+        	
             Assert.fail(e.getMessage());
             e.printStackTrace();
+            
         }
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void emailNewPasswordInvalid() throws IllegalArgumentException, NdexException
-    {
-        _userService.emailNewPassword("");
-    }
-
-    @Test
-    public void findUsers()
-    {
-        final SearchParameters searchParameters = new SearchParameters();
-        searchParameters.setSearchString("dexter");
-        searchParameters.setSkip(0);
-        searchParameters.setTop(25);
         
-        try
-        {
-            final Collection<User> usersFound = _userService.findUsers(searchParameters, "contains");
-            Assert.assertNotNull(usersFound);
-        }
-        catch (Exception e)
-        {
-            Assert.fail(e.getMessage());
-            e.printStackTrace();
-        }
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void findUsersInvalid() throws IllegalArgumentException, NdexException
-    {
-        _userService.findUsers(null, null);
+    public void emailNewPasswordInvalid() throws IllegalArgumentException, NdexException {
+    	
+        _userService.emailNewPassword("");
+        
     }
-
+	
     @Test
-    public void getUserById()
-    {
-        try
-        {
-            final ORID testUserRid = getRid("dexterpratt");
-            final User testUser = _userService.getUser(IdConverter.toJid(testUserRid));
-            Assert.assertNotNull(testUser);
-        }
-        catch (Exception e)
-        {
+    public void findUsers() {
+    	
+        final SearchParameters searchParameters = new SearchParameters();
+        searchParameters.setSearchString("Support");
+        
+        try {
+        	
+            final Collection<User> usersFound = _userService.findUsers(searchParameters, 0 , 5);
+            Assert.assertNotNull(usersFound);
+            
+        } catch (Exception e) {
+        	
             Assert.fail(e.getMessage());
             e.printStackTrace();
+            
         }
+        
     }
-
+    
+    /*@Test(expected = IllegalArgumentException.class)
+    public void findUsersInvalid() throws IllegalArgumentException, NdexException {
+    	
+    	final SearchParameters searchParameters = new SearchParameters();
+        searchParameters.setSearchString("a");
+        _userService.findUsers( searchParameters, null, 'y');
+        
+    }*/
+    /*
     @Test
     public void getUserByUsername()
     {

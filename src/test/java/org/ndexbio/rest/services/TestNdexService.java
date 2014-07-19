@@ -3,7 +3,9 @@ package org.ndexbio.rest.services;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Properties;
+
 import javax.servlet.http.HttpServletRequest;
+
 import org.easymock.EasyMock;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -11,8 +13,13 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.ndexbio.model.object.User;
+import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.data.*;
+import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.orientdb.NdexSchemaManager;
+
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORID;
@@ -85,17 +92,46 @@ public abstract class TestNdexService
     }
 
     @Before
-    public void setLoggedInUser()
-    {
-        //final User loggedInUser = getUser("dexterpratt");
+    public void setLoggedInUser() throws NdexException {
     	
-    	final TestUserAnswer testUserAnswer = new TestUserAnswer(this);
-
-     /*   EasyMock.expect(_mockRequest.getAttribute("User"))
-            .andAnswer(testUserAnswer)
+    	final NdexDatabase database = new NdexDatabase();
+    	final ODatabaseDocumentTx  localConnection = database.getAConnection();  
+    	localConnection.begin();
+    	final UserDAO dao = new UserDAO(localConnection);
+    	final User loggedInUser;
+    	
+    	final SearchParameters search = new SearchParameters();
+    	search.setSearchString("dexter");
+    	search.setSkip(0);
+    	search.setTop(1);
+    	
+    	final List<User> users = dao.findUsers(search);
+    	
+    	if(users.isEmpty()) {
+   
+	    	final User newUser = new User();
+	    	newUser.setEmailAddress("dextertpratt@ndexbio.org");
+	        newUser.setPassword("insecure");
+	        newUser.setAccountName("dexterpratt");
+	        newUser.setFirstName("Dexter");
+	        newUser.setLastName("Pratt");
+	        loggedInUser = dao.createNewUser(newUser);
+        
+    	} else {
+    		
+    		loggedInUser = users.get(0);
+    		
+    	}
+        
+        EasyMock.expect(_mockRequest.getAttribute("User")).andReturn(loggedInUser)
             .anyTimes();
 
-        EasyMock.replay(_mockRequest); */
+        EasyMock.replay(_mockRequest); 
+        
+        localConnection.commit();
+        localConnection.close();
+        database.close();
+        
     }
     
     

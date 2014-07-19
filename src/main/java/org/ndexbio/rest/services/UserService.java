@@ -1,63 +1,42 @@
 package org.ndexbio.rest.services;
 
-import java.awt.Image;
-import java.awt.image.BufferedImage;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
-import javax.imageio.ImageIO;
 import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
-import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
-import org.ndexbio.common.exceptions.*;
-import org.ndexbio.common.helpers.Configuration;
-import org.ndexbio.common.helpers.IdConverter;
-import org.ndexbio.common.models.dao.orientdb.UserOrientdbDAO;
-import org.ndexbio.common.models.data.INetwork;
-import org.ndexbio.common.models.data.IUser;
-import org.ndexbio.model.object.network.Network;
-import org.ndexbio.model.object.NewUser;
-import org.ndexbio.model.object.SearchParameters;
-import org.ndexbio.common.models.object.UploadedFile;
 import org.ndexbio.model.object.User;
-import org.ndexbio.rest.CommonValues;
+import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.common.access.NdexDatabase;
+
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+
+import org.ndexbio.common.exceptions.*;
+import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.ndexbio.rest.helpers.Email;
-import org.ndexbio.rest.helpers.Security;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
-import com.orientechnologies.orient.core.id.ORID;
-import com.orientechnologies.orient.core.metadata.schema.OType;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.impls.orient.OrientElement;
 
 @Path("/users")
 public class UserService extends NdexService {
 	private static final Logger _logger = LoggerFactory
 			.getLogger(UserService.class);
+	
+	private static UserDAO dao;
+	private static NdexDatabase database;
+	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -68,7 +47,104 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	public UserService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
+		
 	}
+	
+	/**************************************************************************
+	 * Creates a user. (1.0-snapshot)
+	 * 
+	 * @param newUser
+	 *            The user to create.
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws DuplicateObjectException
+	 *             A user with the same username/email address already exists.
+	 * @throws NdexException
+	 *             Failed to create the user in the database.
+	 * @return The new user's profile.
+	 **************************************************************************/
+	/*
+	 * refactored to accommodate non-transactional database operations
+	 */
+	@POST
+	@PermitAll
+	@Produces("application/json")
+	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
+	public User createUser(final User newUser)
+			throws IllegalArgumentException, DuplicateObjectException,
+			NdexException {
+		
+		final User user;
+		
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new UserDAO(localConnection);
+		
+		try {
+			
+			user = dao.createNewUser(newUser);
+			localConnection.commit();
+			
+		} catch (Exception e) {
+			
+			throw e;
+			
+		} finally {
+		
+			localConnection.close();
+			database.close();
+		
+		}
+		
+		return user;
+        
+	}
+	
+	/**************************************************************************
+	 * Gets a user by ID or accountName.(1.0 snapshot) 
+	 * 
+	 * @param userId
+	 *            The ID or accountName of the user.
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws NdexException
+	 *             Failed to change the password in the database.
+	 **************************************************************************/
+	@GET
+	@PermitAll
+	@Path("/{userId}")
+	@Produces("application/json")
+	@ApiDoc("Return the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
+	public User getUser(@PathParam("userId") final String userId)
+			throws IllegalArgumentException, NdexException {
+		
+		final User user;
+		
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new UserDAO(localConnection);
+		
+		try {
+			
+			user = dao.getUserById(UUID.fromString(userId));
+			
+		} catch (Exception e) {
+			
+			throw e;
+			
+		} finally  {
+			
+			localConnection.close();
+			database.close();
+			
+		}
+		
+		return user;
+		
+	}
+		
 
 	/**************************************************************************
 	 * Adds a network to the user's Work Surface.
@@ -165,24 +241,46 @@ public class UserService extends NdexService {
 	public User authenticateUser(@PathParam("username") final String username,
 			@PathParam("password") final String password)
 			throws SecurityException, NdexException {
-		if (username == null || username.isEmpty() || password == null
-				|| password.isEmpty())
-			throw new SecurityException("Invalid username or password.");
+		
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new UserDAO(localConnection);
+		
+		if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
+			
+			throw new SecurityException("Invalid username or password2.");
+			
+		}
 
 		try {
-			UserOrientdbDAO dao = UserOrientdbDAO.createInstance();
+			
 			final User authUser = dao.authenticateUser(username, password);
-			if (authUser == null)
-				throw new SecurityException("Invalid username or password.");
+			
+			if (authUser == null) {
+				
+				throw new SecurityException("Invalid username or password2.");
+				
+			}
 
 			return authUser;
+			
 		} catch (SecurityException se) {
+			
 			throw se;
+			
 		} catch (Exception e) {
+			
 			_logger.error("Can't authenticate users.", e);
-			throw new NdexException(
-					"There's a problem with the authentication server. Please try again later.");
+			throw new NdexException("There's a problem with the authentication server. Please try again later.");
+			
+		} finally {
+			
+			localConnection.close();
+			database.close();
+			
 		}
+		
 	}
 
 	/**************************************************************************
@@ -197,10 +295,8 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to change the password in the database.
 	 **************************************************************************/
-	/*
-	 * refactored to support non-transactional database operations
-	 */
-/*	@POST
+	
+	@POST
 	@Path("/password")
 	@Produces("application/json")
 	@ApiDoc("Changes the authenticated user's password to the new password in the POST data.")
@@ -208,34 +304,20 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
 				"A password is required");
+
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new UserDAO(localConnection);
 		
+		dao.changePassword(password, getLoggedInUser().getExternalId());
+		
+		localConnection.commit();
+		localConnection.close();
+		database.close();
 
-		final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
-
-		try {
-			// Remove quotes around the password
-			if (password.startsWith("\""))
-				password = password.substring(1);
-			if (password.endsWith("\""))
-				password = password.substring(0, password.length() - 1);
-
-			setupDatabase();
-
-			final IUser existingUser = _orientDbGraph.getVertex(userRid,
-					IUser.class);
-			existingUser.setPassword(Security.hashText(password.trim()));
-
-			
-		} catch (Exception e) {
-			_logger.error("Failed to change "
-					+ this.getLoggedInUser().getUsername() + "'s password.", e);
-			
-			throw new NdexException("Failed to change your password.");
-		} finally {
-			teardownDatabase();
-		}
 	}
-*/
+
 	/**************************************************************************
 	 * Changes a user's profile/background image.
 	 * 
@@ -310,95 +392,7 @@ public class UserService extends NdexService {
 		}
 	}
 */
-	/**************************************************************************
-	 * Creates a user.
-	 * 
-	 * @param newUser
-	 *            The user to create.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws DuplicateObjectException
-	 *             A user with the same username/email address already exists.
-	 * @throws NdexException
-	 *             Failed to create the user in the database.
-	 * @return The new user's profile.
-	 **************************************************************************/
-	/*
-	 * refactored to accommodate non-transactional database operations
-	 */
-/*	@PUT
-	@PermitAll
-	@Produces("application/json")
-	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
-	public User createUser(final NewUser newUser)
-			throws IllegalArgumentException, DuplicateObjectException,
-			NdexException {
-		
-		Preconditions.checkArgument(null != newUser, 
-				"A user object is required");
-		Preconditions.checkArgument(!Strings.isNullOrEmpty( newUser.getUsername()),
-				"A user name is required" );
-		Preconditions.checkArgument(!Strings.isNullOrEmpty( newUser.getPassword()),
-				"A user password is required" );
-		Preconditions.checkArgument(!Strings.isNullOrEmpty( newUser.getEmailAddress()),
-				"A user email address is required" );
-		
-		
-		try {
-			setupDatabase();
-			
-			// confirm that the username and email address are unique
-			// method throws an exception if either already exists
-			try {
-				this.checkForExistingUser(newUser);
-			} catch (DuplicateObjectException doe) {
-				throw doe;
-			}
-
-			final IUser user = _orientDbGraph.addVertex("class:user",
-					IUser.class);
-			user.setUsername(newUser.getUsername());
-			user.setPassword(Security.hashText(newUser.getPassword()));
-			user.setEmailAddress(newUser.getEmailAddress());
-
-			
-			return new User(user);
-		} catch (Exception e) {
-			if (e.getMessage().indexOf(CommonValues.DUPLICATED_KEY_FLAG) > -1)
-				throw new DuplicateObjectException("A user with that name ("
-						+ newUser.getUsername() + ") or email address ("
-						+ newUser.getEmailAddress() + ") already exists.");
-
-			_logger.error(
-					"Failed to create a new user: " + newUser.getUsername()
-							+ ".", e);
-			
-			throw new NdexException(e.getMessage());
-		} finally {
-			teardownDatabase();
-		}
-	}
-*/
 	
-	/*
-	 * Both a User's username and emailAddress must be unique in the database.
-	 * Throw a DuplicateObjectException if that is not the case
-	 */
-/*	private void checkForExistingUser(final NewUser newUser) 
-			throws DuplicateObjectException {
-		final List<ODocument> existingUsers = _ndexDatabase
-				.query(new OSQLSynchQuery<Object>(
-						"SELECT @RID FROM Network "
-						+ "WHERE username = '"
-								+newUser.getUsername()
-								+ "' OR emailAddress = '"
-								+ newUser.getEmailAddress()
-								+ "'"));
-		if (!existingUsers.isEmpty())
-			throw new DuplicateObjectException(
-					CommonValues.DUPLICATED_KEY_FLAG);
-	}
-*/
 	/**************************************************************************
 	 * Deletes a network from a user's Work Surface.
 	 * 
@@ -467,67 +461,24 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to delete the user from the database.
 	 **************************************************************************/
-/*	@DELETE
+	@DELETE
 	@Produces("application/json")
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user.")
-	public void deleteUser() throws NdexException {
-		final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
+	public void deleteUser() throws NdexException, ObjectNotFoundException {
 
-		try {
-			setupDatabase();
-
-			final IUser userToDelete = _orientDbGraph.getVertex(userRid,
-					IUser.class);
-
-			final List<ODocument> adminGroups = _ndexDatabase
-					.query(new OSQLSynchQuery<Integer>(
-							"SELECT COUNT(@RID) FROM Membership WHERE in_groups = "
-									+ userRid + " AND permissions = 'ADMIN'"));
-			if (adminGroups == null || adminGroups.isEmpty())
-				throw new NdexException(
-						"Unable to query user/group membership.");
-			else if ((long) adminGroups.get(0).field("COUNT") > 1)
-				throw new NdexException(
-						"Cannot delete a user that is an ADMIN member of any group.");
-
-			final List<ODocument> adminNetworks = _ndexDatabase
-					.query(new OSQLSynchQuery<Integer>(
-							"SELECT COUNT(@RID) FROM Membership WHERE in_networks = "
-									+ userRid + " AND permissions = 'ADMIN'"));
-			if (adminNetworks == null || adminNetworks.isEmpty())
-				throw new NdexException(
-						"Unable to query user/network membership.");
-			else if ((long) adminNetworks.get(0).field("COUNT") > 1)
-				throw new NdexException(
-						"Cannot delete a user that is an ADMIN member of any network.");
-
-			final List<ODocument> userChildren = _ndexDatabase
-					.query(new OSQLSynchQuery<Object>(
-							"SELECT @RID FROM (TRAVERSE * FROM " + userRid
-									+ " WHILE @class <> 'user')"));
-			for (ODocument userChild : userChildren) {
-				final ORID childId = userChild.field("rid", OType.LINK);
-
-				final OrientElement element = _orientDbGraph.getBaseGraph()
-						.getElement(childId);
-				if (element != null)
-					element.remove();
-			}
-
-			_orientDbGraph.removeVertex(userToDelete.asVertex());
-			
-		} catch (NdexException ne) {
-			throw ne;
-		} catch (Exception e) {
-			_logger.error("Failed to delete user: "
-					+ this.getLoggedInUser().getUsername() + ".", e);
-			
-			throw new NdexException(e.getMessage());
-		} finally {
-			teardownDatabase();
-		}
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new UserDAO(localConnection);
+		
+		dao.deleteUserById(getLoggedInUser().getExternalId());
+		
+		localConnection.commit();
+		localConnection.close();
+		database.close();
+		
 	}
-*/
+
 	/**************************************************************************
 	 * Emails the user a new randomly generated password.
 	 * 
@@ -539,7 +490,7 @@ public class UserService extends NdexService {
 	 *             Failed to change the password in the database, or failed to
 	 *             send the email.
 	 **************************************************************************/
-/*	@GET
+	@GET
 	@PermitAll
 	@Path("/{username}/forgot-password")
 	@Produces("application/json")
@@ -554,57 +505,20 @@ public class UserService extends NdexService {
 		// now anyone can change anyone else's password to a randomly generated
 		// password
 		
-
-		try {
-			setupDatabase();
-
-			final Collection<ODocument> usersFound = _ndexDatabase.command(
-					new OCommandSQL("select from User where username = ?"))
-					.execute(username);
-
-			if (usersFound.size() < 1)
-				throw new ObjectNotFoundException("User", username);
-
-			final IUser authUser = _orientDbGraph.getVertex(
-					usersFound.toArray()[0], IUser.class);
-
-			final String newPassword = Security.generatePassword();
-			authUser.setPassword(Security.hashText(newPassword));
-
-			final File forgotPasswordFile = new File(Configuration
-					.getInstance().getProperty("Forgot-Password-File"));
-			if (!forgotPasswordFile.exists())
-				throw new java.io.FileNotFoundException(
-						"File containing forgot password email content doesn't exist.");
-
-			final BufferedReader fileReader = Files.newBufferedReader(
-					forgotPasswordFile.toPath(), Charset.forName("US-ASCII"));
-			final StringBuilder forgotPasswordText = new StringBuilder();
-
-			String lineOfText = null;
-			while ((lineOfText = fileReader.readLine()) != null)
-				forgotPasswordText.append(lineOfText.replace("{password}",
-						newPassword));
-
-			Email.sendEmail(
-					Configuration.getInstance().getProperty(
-							"Forgot-Password-Email"),
-					authUser.getEmailAddress(), "Password Recovery",
-					forgotPasswordText.toString());
-
-			
-			return Response.ok().build();
-		} catch (ObjectNotFoundException onfe) {
-			throw onfe;
-		} catch (Exception e) {
-			_logger.error("Failed to change " + username + "'s password.", e);
-			
-			throw new NdexException("Failed to recover your password.");
-		} finally {
-			teardownDatabase();
-		}
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new UserDAO(localConnection);
+		
+		final Response res = dao.emailNewPassword(username);
+		
+		localConnection.commit();
+		localConnection.close();
+		database.close();
+		
+		return res;
 	}
-*/
+
 	/**************************************************************************
 	 * Finds users based on the search parameters.
 	 * 
@@ -615,86 +529,32 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to query the database.
 	 **************************************************************************/
-/*	@POST
+	@POST
 	@PermitAll
-	@Path("/search/{searchOperator}")
+	@Path("/search/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("Returns a list of users based on the searchOperator and POST data searchParameters. "
-			+ "The searchOperator is one of 'starts-with', 'exact-match', or 'contains' "
+	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
 			+ "The searchParameters must contain a 'searchString' parameter. ")
-	public List<User> findUsers(SearchParameters searchParameters,
-			@PathParam("searchOperator") final String searchOperator)
+	public List<User> findUsers(SearchParameters searchParameters, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
-		if (searchParameters == null)
-			throw new IllegalArgumentException("Search Parameters are empty.");
-		else if (searchParameters.getSearchString() == null
-				|| searchParameters.getSearchString().isEmpty())
-			throw new IllegalArgumentException(
-					"No search string was specified.");
-		else
-			searchParameters.setSearchString(searchParameters.getSearchString()
-					.toLowerCase().trim());
-
-		final List<User> foundUsers = new ArrayList<User>();
-		String operator = searchOperator.toLowerCase();
-
-		final int startIndex = searchParameters.getSkip()
-				* searchParameters.getTop();
-
-		String query = "";
-
-		if (operator.equals("exact-match")) {
-
-			query = "SELECT FROM User\n" + "WHERE username.toLowerCase() = '"
-					+ searchParameters.getSearchString() + "'\n"
-					+ "  OR lastName.toLowerCase() = '"
-					+ searchParameters.getSearchString() + "'\n"
-					+ "  OR firstName.toLowerCase() = '"
-					+ searchParameters.getSearchString() + "'\n"
-					+ "ORDER BY creation_date DESC\n" + "SKIP " + startIndex
-					+ "\n" + "LIMIT " + searchParameters.getTop();
-		} else if (operator.equals("starts-with")) {
-			query = "SELECT FROM User\n"
-					+ "WHERE username.toLowerCase() LIKE '"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "  OR lastName.toLowerCase() LIKE '"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "  OR firstName.toLowerCase() LIKE '"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "ORDER BY creation_date DESC\n" + "SKIP " + startIndex
-					+ "\n" + "LIMIT " + searchParameters.getTop();
-		} else if (operator.equals("contains")) {
-			query = "SELECT FROM User\n"
-					+ "WHERE username.toLowerCase() LIKE '%"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "  OR lastName.toLowerCase() LIKE '%"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "  OR firstName.toLowerCase() LIKE '%"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "ORDER BY creation_date DESC\n" + "SKIP " + startIndex
-					+ "\n" + "LIMIT " + searchParameters.getTop();
-		}
-		try {
-			setupDatabase();
-
-			final List<ODocument> users = _ndexDatabase
-					.query(new OSQLSynchQuery<ODocument>(query));
-			for (final ODocument user : users)
-				foundUsers.add(new User(_orientDbGraph.getVertex(user,
-						IUser.class)));
-
-			return foundUsers;
-		} catch (Exception e) {
-			_logger.error(
-					"Failed to search for users: "
-							+ searchParameters.getSearchString() + ".", e);
-			
-			throw new NdexException("Failed to search for users.");
-		} finally {
-			teardownDatabase();
-		}
+		
+		searchParameters.setSkip(skipBlocks);
+		searchParameters.setTop(blockSize);
+		
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new UserDAO(localConnection);
+		
+		final List<User> users = dao.findUsers(searchParameters);
+		
+		localConnection.close();
+		database.close();
+		
+		return users;
+		
 	}
-*/
+
 	/**************************************************************************
 	 * Gets a user by ID or username.
 	 * 
