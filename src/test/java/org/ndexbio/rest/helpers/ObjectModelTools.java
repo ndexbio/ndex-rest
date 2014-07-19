@@ -18,7 +18,7 @@ public class ObjectModelTools {
 		   System.out.println("Summarizing Object Model Network:");
 	        System.out.println("Subnetwork with edgeCount = " + network.getEdgeCount() + " and nodeCount = " + network.getNodeCount());
 	        System.out.println("- " + network.getNamespaces().size() + " namespaces");
-	        System.out.println("- " + network.getBaseTermIds().size() + " terms");
+	        System.out.println("- " + network.getBaseTerms().size() + " terms");
 	        System.out.println("- " + network.getCitations().size() + " citations");
 	        System.out.println("- " + network.getSupports().size() + " supports");
 	       // checkForNullJdexIds(network.getSupports());
@@ -26,12 +26,12 @@ public class ObjectModelTools {
 	        System.out.println("- " + network.getEdges().size() + " edges");
 	        for (Citation citation : network.getCitations().values()){
 	        	System.out.println("citation: " + citation.getProperties().toString());
-	        	System.out.println("has supports: " + citation.getSupports().size());
+	        //	System.out.println("has supports: " + citation.getSupports().size());
 	        	//for (String supportId : citation.getSupports()){
 	        	//	System.out.println("- " + supportId );
 	        	//}
 	        }
-	        System.out.println(network.getBaseTermIds().size() + " Terms:");
+	        System.out.println(network.getBaseTerms().size() + " Terms:");
 	      //  summarizeTerms(network.getBaseTermIds(), network);
 	        
 	        
