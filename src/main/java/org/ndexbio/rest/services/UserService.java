@@ -82,19 +82,27 @@ public class UserService extends NdexService {
 		dao = new UserDAO(localConnection);
 		
 		try {
-			
+
 			user = dao.createNewUser(newUser);
 			localConnection.commit();
-			
-		} catch (Exception e) {
-			
+
+		} catch (IllegalArgumentException e) {
+
 			throw e;
-			
+
+		} catch (DuplicateObjectException e) {
+
+			throw e;
+
+		} catch (Exception e) {
+
+			throw new NdexException(e.getMessage());
+
 		} finally {
-		
+
 			localConnection.close();
 			database.close();
-		
+
 		}
 		
 		return user;
@@ -119,29 +127,43 @@ public class UserService extends NdexService {
 	public User getUser(@PathParam("userId") final String userId)
 			throws IllegalArgumentException, NdexException {
 		
-		final User user;
-		
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
 		localConnection.begin();
 		dao = new UserDAO(localConnection);
 		
 		try {
-			
-			user = dao.getUserById(UUID.fromString(userId));
-			
+
+			final User user = dao.getUserByAccountName(userId);
+			return user;
+
+		} catch (ObjectNotFoundException e) {
+
+			try {
+
+				final User user = dao.getUserById(UUID.fromString(userId));
+				return user;
+
+			} catch (ObjectNotFoundException ee) {
+
+				throw ee;
+
+			} catch (Exception ee) {
+
+				throw new NdexException(ee.getMessage());
+
+			}
+
 		} catch (Exception e) {
-			
-			throw e;
-			
+
+			throw new NdexException(e.getMessage());
+
 		} finally  {
-			
+
 			localConnection.close();
 			database.close();
-			
+
 		}
-		
-		return user;
 		
 	}
 		
@@ -246,24 +268,10 @@ public class UserService extends NdexService {
 		localConnection = database.getAConnection();
 		localConnection.begin();
 		dao = new UserDAO(localConnection);
-		
-		if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
-			
-			throw new SecurityException("Invalid username or password2.");
-			
-		}
 
 		try {
 			
-			final User authUser = dao.authenticateUser(username, password);
-			
-			if (authUser == null) {
-				
-				throw new SecurityException("Invalid username or password2.");
-				
-			}
-
-			return authUser;
+			return dao.authenticateUser(username, password);
 			
 		} catch (SecurityException se) {
 			
@@ -310,12 +318,25 @@ public class UserService extends NdexService {
 		localConnection.begin();
 		dao = new UserDAO(localConnection);
 		
-		dao.changePassword(password, getLoggedInUser().getExternalId());
-		
-		localConnection.commit();
-		localConnection.close();
-		database.close();
+		try {
 
+			dao.changePassword(password, getLoggedInUser().getExternalId());
+			localConnection.commit();
+
+		} catch (IllegalArgumentException e) {
+
+			throw e;
+
+		} catch (Exception e) {
+
+			throw new NdexException(e.getMessage());
+
+		} finally {
+
+			localConnection.close();
+			database.close();
+
+		}
 	}
 
 	/**************************************************************************
@@ -471,11 +492,25 @@ public class UserService extends NdexService {
 		localConnection.begin();
 		dao = new UserDAO(localConnection);
 		
-		dao.deleteUserById(getLoggedInUser().getExternalId());
-		
-		localConnection.commit();
-		localConnection.close();
-		database.close();
+		try {
+
+			dao.deleteUserById(getLoggedInUser().getExternalId());
+			localConnection.commit();
+
+		} catch (ObjectNotFoundException e) {
+
+			throw e;
+
+		} catch (Exception e) {
+
+			throw new NdexException(e.getMessage());
+
+		} finally {
+
+			localConnection.close();
+			database.close();
+
+		}
 		
 	}
 
@@ -510,13 +545,26 @@ public class UserService extends NdexService {
 		localConnection.begin();
 		dao = new UserDAO(localConnection);
 		
-		final Response res = dao.emailNewPassword(username);
-		
-		localConnection.commit();
-		localConnection.close();
-		database.close();
-		
-		return res;
+		try {
+
+			final Response res = dao.emailNewPassword(username);
+			localConnection.commit();
+			return res;
+
+		} catch (IllegalArgumentException e) {
+
+			throw e;
+
+		} catch (Exception e) {
+
+			throw new NdexException(e.getMessage());
+
+		} finally {
+
+			localConnection.close();
+			database.close();
+
+		}
 	}
 
 	/**************************************************************************
@@ -546,12 +594,25 @@ public class UserService extends NdexService {
 		localConnection.begin();
 		dao = new UserDAO(localConnection);
 		
-		final List<User> users = dao.findUsers(searchParameters);
-		
-		localConnection.close();
-		database.close();
-		
-		return users;
+		try {
+
+			final List<User> users = dao.findUsers(searchParameters);
+			return users;
+
+		} catch (IllegalArgumentException e) {
+
+			throw e;
+
+		} catch (Exception e) {
+
+			throw new NdexException(e.getMessage());
+
+		} finally {
+
+			localConnection.close();
+			database.close();
+
+		}
 		
 	}
 
