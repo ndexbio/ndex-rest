@@ -1,14 +1,20 @@
 package org.ndexbio.rest.filters;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.List;
+
 import javax.annotation.security.DenyAll;
 import javax.annotation.security.PermitAll;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
+import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.Provider;
+
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
+import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.object.User;
 import org.ndexbio.common.util.Security;
 import org.slf4j.Logger;
@@ -40,7 +46,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         User authUser = null;
         try
         {
-            authInfo = Security.parseCredentials(requestContext);
+            authInfo = parseCredentials(requestContext);
             authUser = Security.authenticateUser(authInfo[0],authInfo[1]);
             if (authUser != null)
                 requestContext.setProperty("User", authUser);
@@ -75,4 +81,30 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             }
         }
     }
+    
+    /**************************************************************************
+    * Base64-decodes and parses the Authorization header to get the username
+    * and password.
+    * 
+    * @param requestContext
+    *            The servlet HTTP request context.
+    * @throws IOException
+    *            Decoding the Authorization header failed.
+    * @return a String array containing the username and password.
+    **************************************************************************/
+    public static String[] parseCredentials(ContainerRequestContext requestContext) throws IOException
+    {
+        final MultivaluedMap<String, String> headers = requestContext.getHeaders();
+        final List<String> authHeader = headers.get("Authorization");
+        
+        if (authHeader == null || authHeader.isEmpty())
+            return null;
+
+        final String encodedAuthInfo = authHeader.get(0).replaceFirst("Basic" + " ", "");
+        final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+        
+        return decodedAuthInfo.split(":");
+    }
+    
+
 }
