@@ -115,6 +115,9 @@ public abstract class TestNdexService
 	        newUser.setAccountName("dexterpratt");
 	        newUser.setFirstName("Dexter");
 	        newUser.setLastName("Pratt");
+	        newUser.setDescription("Apart from my work at the Cytoscape Consortium building NDEx, I collect networks around some of my favorite biomolecules, such as FOX03, RBL2, and MUC1");
+	        newUser.setWebsite("www.triptychjs.com");
+	        newUser.setImage("http://i.imgur.com/09oVvZg.jpg");
 	        loggedInUser = dao.createNewUser(newUser);
         
     	} else {

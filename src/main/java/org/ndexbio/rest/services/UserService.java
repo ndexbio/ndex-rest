@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
-@Path("/users")
+@Path("/user")
 public class UserService extends NdexService {
 	private static final Logger _logger = LoggerFactory
 			.getLogger(UserService.class);
