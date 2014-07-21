@@ -117,6 +117,23 @@ public class TestUserService extends TestNdexService {
     }
     
     @Test
+    public void getUserByAccountName() {
+    	
+    	try {
+    		
+	    	final User user = _userService.getUser(testUser.getAccountName());
+	    	Assert.assertEquals(user.getAccountName(), testUser.getAccountName());
+	        Assert.assertNotNull(user);
+
+    	} catch (Exception e) {
+    		
+    		Assert.fail(e.getMessage());
+    		
+    	}
+    	
+    }
+    
+    @Test
     public void authenticateUser() {
     	
         try {
@@ -257,7 +274,7 @@ public class TestUserService extends TestNdexService {
         Assert.assertTrue(deleteTargetUser());
     }
 */
-    @Test
+    /*@Test
     public void emailNewPassword() {
     	
         try {
@@ -278,7 +295,7 @@ public class TestUserService extends TestNdexService {
     	
         _userService.emailNewPassword("");
         
-    }
+    }*/
 	
     @Test
     public void findUsers() {
