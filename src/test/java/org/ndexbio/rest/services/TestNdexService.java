@@ -17,7 +17,7 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.data.*;
-import org.ndexbio.model.object.SearchParameters;
+import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.orientdb.NdexSchemaManager;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
@@ -100,12 +100,10 @@ public abstract class TestNdexService
     	final UserDAO dao = new UserDAO(localConnection);
     	final User loggedInUser;
     	
-    	final SearchParameters search = new SearchParameters();
+    	final SimpleUserQuery search = new SimpleUserQuery();
     	search.setSearchString("dexter");
-    	search.setSkip(0);
-    	search.setTop(1);
     	
-    	final List<User> users = dao.findUsers(search);
+    	final List<User> users = dao.findUsers(search, 0, 5);
     	
     	if(users.isEmpty()) {
    

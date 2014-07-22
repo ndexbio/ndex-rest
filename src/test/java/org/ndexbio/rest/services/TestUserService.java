@@ -11,7 +11,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.model.object.SearchParameters;
+import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.model.object.User;
@@ -300,7 +300,7 @@ public class TestUserService extends TestNdexService {
     @Test
     public void findUsers() {
     	
-        final SearchParameters searchParameters = new SearchParameters();
+        final SimpleUserQuery searchParameters = new SimpleUserQuery();
         searchParameters.setSearchString("Support");
         
         try {

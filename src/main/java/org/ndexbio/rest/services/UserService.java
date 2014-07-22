@@ -21,7 +21,7 @@ import org.ndexbio.common.access.NdexDatabase;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 import org.ndexbio.common.exceptions.*;
-import org.ndexbio.model.object.SearchParameters;
+import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -583,11 +583,8 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
 			+ "The searchParameters must contain a 'searchString' parameter. ")
-	public List<User> findUsers(SearchParameters searchParameters, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
+	public List<User> findUsers(SimpleUserQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
-		
-		searchParameters.setSkip(skipBlocks);
-		searchParameters.setTop(blockSize);
 		
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
@@ -596,7 +593,7 @@ public class UserService extends NdexService {
 		
 		try {
 
-			final List<User> users = dao.findUsers(searchParameters);
+			final List<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
 			return users;
 
 		} catch (IllegalArgumentException e) {
