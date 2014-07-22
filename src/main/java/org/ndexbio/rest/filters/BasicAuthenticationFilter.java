@@ -11,6 +11,11 @@ import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.Provider;
 
+import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.common.access.NdexDatabase;
+
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
@@ -41,13 +46,17 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     {
         final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)requestContext.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
         final Method method = methodInvoker.getMethod();
+        NdexDatabase database = null; //not best coding practice? done to avoid compilation errors
 
         String[] authInfo = null;
         User authUser = null;
         try
         {
+        	database = new NdexDatabase();
+        	final UserDAO dao = new UserDAO(database.getTransactionConnection());
+        	
             authInfo = parseCredentials(requestContext);
-            authUser = Security.authenticateUser(authInfo[0],authInfo[1]);
+            authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
             if (authUser != null)
                 requestContext.setProperty("User", authUser);
         }
@@ -57,6 +66,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                 _logger.error("Failed to authenticate a user: " + authInfo[0] + "/" + authInfo[1] + ".", e);
             else
                 _logger.error("Failed to authenticate a user; credential information unknown.");
+        } finally 
+        {
+        	database.close();
         }
         
         if (!method.isAnnotationPresent(PermitAll.class))
