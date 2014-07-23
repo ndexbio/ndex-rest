@@ -16,12 +16,14 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.model.object.SearchParameters;
+//import org.ndexbio.model.object.SearchParameters;
+import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
+import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.rest.annotations.ApiDoc;
 
@@ -148,22 +150,43 @@ public class NetworkAService extends NdexService {
 	        "for v1.0 will be NetworkSimpleQuery and NetworkMembershipQuery. 'blockSize' specifies the number of " +
 			"NetworkDescriptors to retrieve in each block, 'skipBlocks' specifies the number of blocks to skip.")
 	public List<NetworkSummary> searchNetwork(
-			final SearchParameters query,
+			final SimpleNetworkQuery query,
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
-	
 			throws IllegalArgumentException, NdexException {
+		
         List<NetworkSummary> result = new ArrayList <NetworkSummary> ();
-		if (query.getSearchString().equals("*")) {
-			ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-			ORecordIteratorClass<ODocument> networks = db.browseClass(NdexClasses.Network);
-			for (ODocument doc : networks) {
-				result.add(NetworkDAO.getNetworkSummary(doc));
+        ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+        NetworkSearchDAO dao = new NetworkSearchDAO(db);
+        ORecordIteratorClass<ODocument> networks; 
+        
+        try {
+        
+			if (query.getSearchString().equals("*")) {
+				
+				networks = db.browseClass(NdexClasses.Network);
+				
+				for (ODocument doc : networks) {
+					result.add(NetworkDAO.getNetworkSummary(doc));
+				}
+				
+		        return result;		
 			}
-			db.close();
-	        return result;		
-		}
-		throw new NdexException ("Feature not implemented yet.") ;
+			
+			result = dao.findNetworks(query, skipBlocks, blockSize);
+			
+			return result;
+		
+        } catch (Exception e) {
+        	
+        	throw new NdexException(e.getMessage());
+        	
+        } finally {
+        	
+        	db.close();
+        }
+		
+		//throw new NdexException ("Feature not implemented yet.") ;
 	}
 
 	

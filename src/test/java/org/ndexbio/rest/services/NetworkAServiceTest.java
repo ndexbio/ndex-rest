@@ -7,7 +7,7 @@ import javax.servlet.http.HttpServletRequest;
 import org.junit.AfterClass;
 import org.junit.Test;
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.model.object.SearchParameters;
+import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.easymock.EasyMock;
 
 public class NetworkAServiceTest {
@@ -16,9 +16,9 @@ public class NetworkAServiceTest {
 
 	@Test
 	public void test() throws IllegalArgumentException, NdexException {
-	SearchParameters s = new SearchParameters();
-	s.setSearchString("*");
-      _networkService.searchNetwork(s,1, 1);
+		SimpleNetworkQuery s = new SimpleNetworkQuery();
+		s.setSearchString("*");
+	     _networkService.searchNetwork(s, 1, 1);
 		
 	}
 
