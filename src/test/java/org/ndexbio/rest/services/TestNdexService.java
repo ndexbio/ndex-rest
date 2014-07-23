@@ -12,6 +12,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Test;
 import org.ndexbio.model.object.User;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
@@ -135,6 +136,31 @@ public abstract class TestNdexService
         
     }
     
+    @Test
+    public void connectionPool() throws NdexException {
+    	
+    	NdexDatabase database = new NdexDatabase();
+    	final ODatabaseDocumentTx[]  localConnection = new ODatabaseDocumentTx[10]; //= database.getAConnection();  //all DML will be in this connection, in one transaction.
+    	
+    	try {
+	    	for(int jj=0; jj<10; jj++) {
+	    		database = new NdexDatabase();
+		    	for(int ii=0; ii<10; ii++) {
+		    		localConnection[ii] = database.getAConnection();
+		    	}
+		    	
+		    	for(int ii=0; ii<10; ii++) {
+		    		localConnection[ii].close();
+		    	}
+		    	database.close();
+	    	}
+	    	
+	    	
+    	} catch (Throwable e) {
+    		Assert.fail(e.getMessage());
+    	}
+    	
+    }
     
     
     /**************************************************************************

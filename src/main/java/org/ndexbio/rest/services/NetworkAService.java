@@ -162,6 +162,7 @@ public class NetworkAService extends NdexService {
         
         try {
         
+        	//should move this to DAO
 			if (query.getSearchString().equals("*")) {
 				
 				networks = db.browseClass(NdexClasses.Network);

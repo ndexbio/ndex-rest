@@ -34,7 +34,6 @@ public class TestUserService extends TestNdexService {
         newUser.setAccountName("Support");
         newUser.setFirstName("foo");
         newUser.setLastName("bar");
-        
 		testUser = _userService.createUser(newUser);
 	
     }
@@ -47,35 +46,10 @@ public class TestUserService extends TestNdexService {
     	final UserDAO dao = new UserDAO(localConnection);
     	
     	dao.deleteUserById(testUser.getExternalId());
-    	dao.deleteUserById(testUser2.getExternalId()); // will fail if createUser test is not run or fails. 
+    	if(testUser2!=null) 
+    		dao.deleteUserById(testUser2.getExternalId()); 
 		
 	}
-    
-    @Test
-    public void connectionPool() throws NdexException {
-    	
-    	NdexDatabase database = new NdexDatabase();
-    	final ODatabaseDocumentTx[]  localConnection = new ODatabaseDocumentTx[10]; //= database.getAConnection();  //all DML will be in this connection, in one transaction.
-    	
-    	try {
-	    	for(int jj=0; jj<300; jj++) {
-	    		database = new NdexDatabase();
-		    	for(int ii=0; ii<10; ii++) {
-		    		localConnection[ii] = database.getAConnection();
-		    	}
-		    	
-		    	for(int ii=0; ii<10; ii++) {
-		    		localConnection[ii].close();
-		    	}
-		    	database.close();
-	    	}
-	    	
-	    	
-    	} catch (Throwable e) {
-    		Assert.fail(e.getMessage());
-    	}
-    	
-    }
     
     @Test
     public void createUser() {
