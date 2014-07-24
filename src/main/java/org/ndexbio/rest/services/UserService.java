@@ -246,21 +246,21 @@ public class UserService extends NdexService {
 	 * Authenticates a user trying to login.
 	 * 
 	 * @param username
-	 *            The username.
+	 *            The AccountName.
 	 * @param password
 	 *            The password.
 	 * @throws SecurityException
-	 *             Invalid username or password.
+	 *             Invalid accountName or password.
 	 * @throws NdexException
 	 *             Can't authenticate users against the database.
 	 * @return The authenticated user's information.
 	 **************************************************************************/
 	@GET
 	@PermitAll
-	@Path("/authenticate/{username}/{password}")
+	@Path("/authenticate/{accountName}/{password}")
 	@Produces("application/json")
-	@ApiDoc("Authenticates the combination of username and password supplied in the route parameters, returns the authenticated user if successful.")
-	public User authenticateUser(@PathParam("username") final String username,
+	@ApiDoc("Authenticates the combination of accountName and password supplied in the route parameters, returns the authenticated user if successful.")
+	public User authenticateUser(@PathParam("accountName") final String accountName,
 			@PathParam("password") final String password)
 			throws SecurityException, NdexException {
 		
@@ -271,7 +271,7 @@ public class UserService extends NdexService {
 
 		try {
 			
-			return dao.authenticateUser(username, password);
+			return dao.authenticateUser(accountName, password);
 			
 		} catch (SecurityException se) {
 			
@@ -667,82 +667,43 @@ public class UserService extends NdexService {
 	 *            The updated user information.
 	 * @throws IllegalArgumentException
 	 *             Bad input.
-	 * @throws SecurityException
+	 * @throws ObjectNotFoundException
 	 *             Users trying to update someone else.
 	 * @throws NdexException
 	 *             Failed to update the user in the database.
 	 **************************************************************************/
-/*	@POST
+	@POST
 	@Produces("application/json")
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. Errors if the user object references a different user.")
-	public void updateUser(final User updatedUser)
-			throws IllegalArgumentException, SecurityException, NdexException {
+	public User updateUser(final User updatedUser)
+			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		Preconditions.checkArgument(null != updatedUser, 
-				"Upadted user data are required");
+				"Updated user data are required");
 		
-		if (!updatedUser.getId().equals(this.getLoggedInUser().getId())){
-			throw new SecurityException("You cannot update other users.");
-		}
-
-		final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new UserDAO(localConnection);
 
 		try {
-			setupDatabase();
-
-			final IUser userToUpdate = _orientDbGraph.getVertex(userRid,
-					IUser.class);
-
-			if (updatedUser.getBackgroundImage() != null
-					&& !updatedUser.getBackgroundImage().equals(
-							userToUpdate.getBackgroundImage()))
-				userToUpdate.setBackgroundImage(updatedUser
-						.getBackgroundImage());
-
-			if (updatedUser.getDescription() != null
-					&& !updatedUser.getDescription().equals(
-							userToUpdate.getDescription()))
-				userToUpdate.setDescription(updatedUser.getDescription());
-
-			if (updatedUser.getEmailAddress() != null
-					&& !updatedUser.getEmailAddress().equals(
-							userToUpdate.getEmailAddress()))
-				userToUpdate.setEmailAddress(updatedUser.getEmailAddress());
-
-			if (updatedUser.getFirstName() != null
-					&& !updatedUser.getFirstName().equals(
-							userToUpdate.getFirstName()))
-				userToUpdate.setFirstName(updatedUser.getFirstName());
-
-			if (updatedUser.getForegroundImage() != null
-					&& !updatedUser.getForegroundImage().equals(
-							userToUpdate.getForegroundImage()))
-				userToUpdate.setForegroundImage(updatedUser
-						.getForegroundImage());
-
-			if (updatedUser.getLastName() != null
-					&& !updatedUser.getLastName().equals(
-							userToUpdate.getLastName()))
-				userToUpdate.setLastName(updatedUser.getLastName());
-
-			if (updatedUser.getWebsite() != null
-					&& !updatedUser.getWebsite().equals(
-							userToUpdate.getWebsite()))
-				userToUpdate.setWebsite(updatedUser.getWebsite());
-
 			
+			final User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
+			localConnection.commit();
+			
+			return user;
+			
+		} catch (IllegalArgumentException e) {
+			throw e;
+		} catch (ObjectNotFoundException e) {
+			throw e;
 		} catch (Exception e) {
-			if (e.getMessage().indexOf("cluster: null") > -1)
-				throw new ObjectNotFoundException("User", updatedUser.getId());
-
-			_logger.error("Failed to update user: "
-					+ this.getLoggedInUser().getUsername() + ".", e);
-			
-			throw new NdexException("Failed to update your profile.");
+			throw new NdexException(e.getMessage());
 		} finally {
-			teardownDatabase();
+			localConnection.close();
+			database.close();
 		}
 	}
-*/
+
 	/**************************************************************************
 	 * Resizes the source image to the specified dimensions.
 	 * 
