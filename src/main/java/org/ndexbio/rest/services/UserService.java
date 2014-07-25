@@ -15,6 +15,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.access.NdexDatabase;
 
@@ -70,7 +71,7 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Produces("application/json")
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
-	public User createUser(final User newUser)
+	public User createUser(final NewUser newUser)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
 		
@@ -153,6 +154,10 @@ public class UserService extends NdexService {
 				throw new NdexException(ee.getMessage());
 
 			}
+
+		} catch (IllegalArgumentException e) {
+
+			throw e;
 
 		} catch (Exception e) {
 
@@ -673,12 +678,16 @@ public class UserService extends NdexService {
 	 *             Failed to update the user in the database.
 	 **************************************************************************/
 	@POST
+	@Path("/{userIdentifer}")
 	@Produces("application/json")
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. Errors if the user object references a different user.")
 	public User updateUser(final User updatedUser)
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
+		
+		// Currently not using path param. We can already retrieve the id from the authentication
+		// However, this depends on the authentication method staying consistent?
 		
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();

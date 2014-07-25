@@ -59,7 +59,7 @@ public class NetworkQueryTest {
 			if (networkToCreate != null) {
 				System.out.println("Network JDEx is not null");
 				NewUser newUser = new NewUser();
-				newUser.setUsername("querytester");
+				newUser.setAccountName("querytester");
 				newUser.setPassword("querytester");
 				newUser.setEmailAddress("dexterpratt.bio+networkQT@gmail.com");
 

@@ -13,6 +13,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
@@ -108,8 +109,8 @@ public abstract class TestNdexService
     	
     	if(users.isEmpty()) {
    
-	    	final User newUser = new User();
-	    	newUser.setEmailAddress("dextertpratt@ndexbio.org");
+	    	final NewUser newUser = new NewUser();
+	    	newUser.setEmailAddress("dexterpratt@ndexbio.org");
 	        newUser.setPassword("insecure");
 	        newUser.setAccountName("dexterpratt");
 	        newUser.setFirstName("Dexter");

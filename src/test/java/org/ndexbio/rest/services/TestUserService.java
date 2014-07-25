@@ -8,13 +8,16 @@ import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.NewUser;
 import org.ndexbio.rest.services.UserService;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -26,9 +29,9 @@ public class TestUserService extends TestNdexService {
     private static User testUser;
     private static User testUser2;
     
-    @BeforeClass
-    public static void setUp() throws Exception {
-    	User newUser = new User();
+    @Before
+    public void setUpBeforeClass() throws Exception {
+    	NewUser newUser = new NewUser();
         newUser.setEmailAddress("support@ndexbio.org");
         newUser.setPassword("probably-insecure");
         newUser.setAccountName("Support");
@@ -37,18 +40,23 @@ public class TestUserService extends TestNdexService {
 		testUser = _userService.createUser(newUser);
 	
     }
-    
-    @AfterClass
-	public static void tearDownAfterClass() throws Exception {
+  
+    @After
+	public void tearDownAfterClass() throws Exception {
     	
     	final NdexDatabase database = new NdexDatabase();
     	final ODatabaseDocumentTx  localConnection = database.getAConnection();  //all DML will be in this connection, in one transaction.
     	final UserDAO dao = new UserDAO(localConnection);
     	
     	dao.deleteUserById(testUser.getExternalId());
-    	if(testUser2!=null) 
+    	if(testUser2!=null) {
     		dao.deleteUserById(testUser2.getExternalId()); 
+    		testUser2 = null;
+    	}
 		
+    	
+    	localConnection.close();
+    	database.close();
 	}
     
     @Test
@@ -56,7 +64,7 @@ public class TestUserService extends TestNdexService {
     	// no clean up done for creation of user, not a standalone test?
     	try{
     		
-	    	final User newUser = new User();
+	    	final NewUser newUser = new NewUser();
 	        newUser.setEmailAddress("support3@ndexbio.org");
 	        newUser.setPassword("probably-insecure3");
 	        newUser.setAccountName("Support3");
@@ -299,26 +307,12 @@ public class TestUserService extends TestNdexService {
         _userService.findUsers( searchParameters, null, 'y');
         
     }*/
-    /*
-    @Test
-    public void getUserByUsername()
-    {
-        try
-        {
-            final User testUser = _userService.getUser("dexterpratt");
-            Assert.assertNotNull(testUser);
-        }
-        catch (Exception e)
-        {
-            Assert.fail(e.getMessage());
-            e.printStackTrace();
-        }
-    }
+   
 
     @Test(expected = IllegalArgumentException.class)
     public void getUserInvalid() throws IllegalArgumentException, NdexException
     {
-        _userService.getUser("");
+        _userService.getUser(null);
     }
 
     @Test
@@ -326,33 +320,17 @@ public class TestUserService extends TestNdexService {
     {
         try
         {
-            Assert.assertTrue(createNewUser());
-            
-            EasyMock.reset(_mockRequest);
-            User loggedInUser = getUser("Support");
-            setLoggedInUser(loggedInUser);
-
-            loggedInUser.setEmailAddress("updated-support@ndexbio.org");
-            _userService.updateUser(loggedInUser);
-            Assert.assertEquals(_userService.getUser(loggedInUser.getId()).getEmailAddress(), loggedInUser.getEmailAddress());
-
-            Assert.assertTrue(deleteTargetUser());
+        	final User updatedUser = new User();
+            updatedUser.setDescription("change");
+            _userService.updateUser(updatedUser);
+            Assert.assertEquals(_userService.getUser("dexterpratt").getDescription(), updatedUser.getDescription());
+            Assert.assertEquals(_userService.getUser("dexterpratt").getWebsite(), "www.triptychjs.com"); // hardwired names should be replaced by a get logged in user method
         }
         catch (Exception e)
         {
             Assert.fail(e.getMessage());
             e.printStackTrace();
         }
-    }
-
-    @Test(expected = SecurityException.class)
-    public void updateUserInvalidUser() throws IllegalArgumentException, SecurityException, NdexException
-    {
-        Assert.assertTrue(createNewUser());
-        
-        _userService.updateUser(_userService.getUser("Support"));
-        
-        Assert.assertTrue(deleteTargetUser());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -362,59 +340,7 @@ public class TestUserService extends TestNdexService {
     }
     
     
-    
-    private boolean createNewUser()
-    {
-        try
-        {
-            final NewUser newUser = new NewUser();
-            newUser.setEmailAddress("support@ndexbio.org");
-            newUser.setPassword("probably-insecure");
-            newUser.setUsername("Support");
-            
-            final User createdUser = _userService.createUser(newUser);
-            Assert.assertNotNull(createdUser);
-            return true;
-        }
-        catch (DuplicateObjectException doe)
-        {
-            return true;
-        }
-        catch (Exception e)
-        {
-            Assert.fail(e.getMessage());
-            e.printStackTrace();
-        }
-        
-        return false;
-    }
-    
-    private boolean deleteTargetUser()
-    {
-        try
-        {
-            EasyMock.reset(_mockRequest);
-            User loggedInUser = getUser("Support");
-            setLoggedInUser(loggedInUser);
-
-            _userService.deleteUser();
-            Assert.assertNull(_userService.getUser(loggedInUser.getId()));
-
-            EasyMock.reset(_mockRequest);
-            loggedInUser = getUser("dexterpratt");
-            setLoggedInUser(loggedInUser);
-            
-            return true;
-        }
-        catch (Exception e)
-        {
-            Assert.fail(e.getMessage());
-            e.printStackTrace();
-        }
-        
-        return false;
-    }
-    
+   /*
     private boolean putNetworkOnWorkSurface()
     {
         try
