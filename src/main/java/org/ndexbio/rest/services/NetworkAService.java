@@ -7,6 +7,7 @@ import java.util.UUID;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -14,7 +15,9 @@ import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
+import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
+import org.ndexbio.common.exceptions.DuplicateObjectException;
 import org.ndexbio.common.exceptions.NdexException;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.SimpleNetworkQuery;
@@ -25,8 +28,11 @@ import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
+import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.rest.annotations.ApiDoc;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.iterator.ORecordIteratorClass;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -120,6 +126,8 @@ public class NetworkAService extends NdexService {
 
 	
 	
+	
+	
 	@POST
 	@Path("/{networkId}/asPropertyGraph/query/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
@@ -191,4 +199,30 @@ public class NetworkAService extends NdexService {
 	}
 
 	
+	
+	@POST
+	@Path("/asPropertyGraph")
+	@Produces("application/json")
+	@ApiDoc("Creates a new network based on posted PropertyGraphNetwork object. Errors if the posted network is not provided "
+			+ "or if that Network does not specify a name. Errors if the posted network is larger than server-set maximum for"
+			+ " network creation (though this is better to check locally in client before request)")
+	public NetworkSummary createNetwork(final PropertyGraphNetwork newNetwork)
+			throws 	Exception {
+			Preconditions
+				.checkArgument(null != newNetwork, "A network is required");
+			Preconditions.checkArgument(
+				!Strings.isNullOrEmpty(newNetwork.getName()),
+				"A network name is required");
+
+			NdexDatabase db = new NdexDatabase();
+			try {
+				PropertyGraphLoader pgl = new PropertyGraphLoader(db);
+		
+				return pgl.insertNetwork(newNetwork, getLoggedInUser().getAccountName());
+			} finally {
+				db.close();
+			}
+		
+	}
+
 }
