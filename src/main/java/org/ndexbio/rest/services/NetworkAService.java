@@ -31,6 +31,7 @@ import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.rest.annotations.ApiDoc;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -96,7 +97,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 	
-			throws IllegalArgumentException {
+			throws IllegalArgumentException, JsonProcessingException {
 		
 		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
 		NetworkDAO dao = new NetworkDAO(db);
@@ -140,7 +141,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 	
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, JsonProcessingException {
 		
 		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
 		NetworkDAO dao = new NetworkDAO(db);
