@@ -15,10 +15,16 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
+import java.util.UUID;
+
+import org.ndexbio.model.object.SimpleUserQuery;
+import org.ndexbio.common.models.dao.orientdb.GroupDAO;
 import org.junit.Assert;
+import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.helpers.Validation;
+import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.data.IGroup;
 import org.ndexbio.common.models.data.IGroupMembership;
 import org.ndexbio.common.models.data.IUser;
@@ -26,6 +32,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.SearchParameters;
+import org.ndexbio.model.object.User;
 import org.ndexbio.rest.CommonValues;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
@@ -34,17 +41,22 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientElement;
 
-@Path("/groups")
+@Path("/group")
 public class GroupService extends NdexService {
 	private static final Logger _logger = LoggerFactory
 			.getLogger(GroupService.class);
 
+	private static GroupDAO dao;
+	private static NdexDatabase database;
+	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
+	
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
 	 * getLoggedInUser().
@@ -73,47 +85,46 @@ public class GroupService extends NdexService {
 	 * refactor this method to use non-transactional database interactions
 	 * validate input data before creating a database vertex
 	 */
-	@PUT
+	@POST
 	@Produces("application/json")
 	@ApiDoc("Create a group owned by the authenticated user based on the supplied group JSON structure. " +
 	        "Errors if the group name specified in the JSON is not valid or is already in use. ")
 	public Group createGroup(final Group newGroup)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
-        return newGroup;		
-/*		try {
-			Preconditions.checkArgument(null != newGroup, "A group is required");
-			Preconditions.checkState(this.isValidGroupName(newGroup), 
-					"Group " +newGroup.getName() +" already exists");
-		} catch (Exception e1) {
-			// for legacy unit tests
-			throw new IllegalArgumentException(e1);
-		}
-			
+       	
+		final Group group;
+		
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new GroupDAO(localConnection);
+		
 		try {
-			setupDatabase();
-			final IUser groupOwner = _orientDbGraph.getVertex(
-					IdConverter.toRid(this.getLoggedInUser().getId()),
-					IUser.class);
-			final IGroup group = _orientDbGraph.addVertex("class:group",
-					IGroup.class);
-			group.setDescription(newGroup.getDescription());
-			group.setName(newGroup.getName());
-			group.setOrganizationName(newGroup.getOrganizationName());
-			group.setWebsite(newGroup.getWebsite());
-			group.setCreatedDate(new Date());
-			// register members for new group
-			addGroupMembers(newGroup, groupOwner, group);
-			newGroup.setId(IdConverter.toJid((ORID) group.asVertex().getId()));
-			return newGroup;
-		} catch (Exception e) {		
-			
-			_logger.error(
-					"Failed to create group: " + newGroup.getName() + ".", e);		
-			throw new NdexException("Failed to create your group.");
+
+			group = dao.createNewGroup(newGroup);
+			localConnection.commit();
+
+		} catch (IllegalArgumentException e) {
+
+			throw e;
+
+		} catch (DuplicateObjectException e) {
+
+			throw e;
+
+		} catch (Exception e) {
+
+			throw new NdexException(e.getMessage());
+
 		} finally {
-			teardownDatabase();
-		} */
+
+			localConnection.close();
+			database.close();
+
+		}
+		
+		return group;
 	}
 
 /*	private void addGroupMembers(final Group newGroup, final IUser groupOwner,
@@ -161,70 +172,42 @@ public class GroupService extends NdexService {
 	 *             Failed to delete the user from the database.
 	 **************************************************************************/
 	
-	/*
-	 * refactored to accomodate move to non-transactional database 
-	 * operations. 
-	 */
-/*	@DELETE
+	
+	@DELETE
 	@Path("/{groupId}")
 	@Produces("application/json")
 	@ApiDoc("Delete the group specified by groupId. " +
 	        "Errors if the group is not found or if the authenticated user does not have authorization to delete the group.")
 	public void deleteGroup(@PathParam("groupId") final String groupId)
-			throws IllegalArgumentException, ObjectNotFoundException,
-			SecurityException, NdexException {
+			throws ObjectNotFoundException, NdexException {
 		
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(groupId), 
-				"No group ID was specified.");
-
-		final ORID groupRid = IdConverter.toRid(groupId);
-
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new GroupDAO(localConnection);
+		
 		try {
-			setupDatabase();
 
-			final IGroup groupToDelete = _orientDbGraph.getVertex(groupRid,
-					IGroup.class);
-			// can this group be deleted
-			validateGroupDeletionAuthorization(groupId, groupRid, groupToDelete);
+			dao.deleteGroupById(UUID.fromString(groupId));
+			localConnection.commit();
 
-			for (IGroupMembership groupMembership : groupToDelete.getMembers()){
-				groupMembership.setMember(null);
-				groupMembership.setGroup(null);
-				_orientDbGraph.removeVertex(groupMembership.asVertex());
-				
-			}
+		} catch (ObjectNotFoundException e) {
 
-			final List<ODocument> groupChildren = _ndexDatabase
-					.query(new OSQLSynchQuery<Object>(
-							"SELECT @RID FROM (TRAVERSE * FROM "
-									+ groupRid
-									+ " WHILE @Class <> 'user' and @Class <> 'group')"));
-			for (ODocument groupChild : groupChildren) {
-				final OrientElement element = _orientDbGraph.getBaseGraph()
-						.getElement(groupChild.field("rid", OType.LINK));
-				if (element != null)
-					element.remove();
-			}
+			throw e;
 
-			_orientDbGraph.removeVertex(groupToDelete.asVertex());
-			_orientDbGraph.getBaseGraph().commit();
-		} catch (SecurityException | NdexException ne) {
-			_logger.error(ne.getMessage());
-			throw ne;
 		} catch (Exception e) {
-			if (e.getMessage().indexOf("cluster: null") > -1){
-				_logger.error("Group to be deleted, not found in database.");
-				throw new ObjectNotFoundException("Group", groupId);
-			}
-			
-			_logger.error("Failed to delete group: " + groupId + ".", e);
-			
-			throw new NdexException("Failed to delete the group.");
+
+			throw new NdexException(e.getMessage());
+
 		} finally {
-			teardownDatabase();
+
+			localConnection.close();
+			database.close();
+
 		}
 	}
 
+	/*
 	private void validateGroupDeletionAuthorization(final String groupId,
 			final ORID groupRid, final IGroup groupToDelete)
 			throws ObjectNotFoundException, NdexException {
@@ -302,90 +285,40 @@ public class GroupService extends NdexService {
 	 **************************************************************************/
 	@POST
 	@PermitAll
-	@Path("/search/{searchOperator}")
+	@Path("/search/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of groups found based on the searchOperator and the POSTed searchParameters.")
-/*	public List<Group> findGroups(SearchParameters searchParameters,
-			@PathParam("searchOperator") final String searchOperator)
+	public List<Group> findGroups(SimpleUserQuery simpleQuery,
+			@PathParam("skipBlocks") final int skip,
+			@PathParam("blockSize") final int top)
 			throws IllegalArgumentException, NdexException {
-		try {
-			Preconditions.checkNotNull(searchParameters,
-					"A SearchParameters object is required");
-			Preconditions.checkState(!Strings.isNullOrEmpty(searchParameters.getSearchString()),
-					"A search string is required");
-			Preconditions.checkState(!Strings.isNullOrEmpty(searchOperator),
-					"A search operator is required");
-		} catch (Exception e1) {
-			// TODO Auto-generated catch block
-			throw new IllegalArgumentException(e1);
-		}
-	
-		searchParameters.setSearchString(searchParameters.getSearchString()
-					.toLowerCase().trim());
-
-		final List<Group> foundGroups = Lists.newArrayList();
 		
-		String operator = searchOperator.toLowerCase();
-		final int startIndex = searchParameters.getSkip()
-				* searchParameters.getTop();
-
-		String query = "";
-		switch(operator) {
-		case CommonValues.SEARCH_MATCH_EXACT:
-			query = "SELECT FROM Group\n" + "WHERE name.toLowerCase() LIKE '"
-					+ searchParameters.getSearchString() + "'\n"
-					+ "  OR description.toLowerCase() LIKE '"
-					+ searchParameters.getSearchString() + "'\n"
-					+ "  OR organizationName.toLowerCase() LIKE '"
-					+ searchParameters.getSearchString() + "'\n"
-					+ "ORDER BY creation_date DESC\n" + "SKIP " + startIndex
-					+ "\n" + "LIMIT " + searchParameters.getTop();
-			break;
-		case CommonValues.SEARCH_MATCH_STARTS_WITH:
-			query = "SELECT FROM Group\n" + "WHERE name.toLowerCase() LIKE '"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "  OR description.toLowerCase() LIKE '"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "  OR organizationName.toLowerCase() LIKE '"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "ORDER BY creation_date DESC\n" + "SKIP " + startIndex
-					+ "\n" + "LIMIT " + searchParameters.getTop();
-			break;
-		case CommonValues.SEARCH_MATCH_CONTAINS:
-			query = "SELECT FROM Group\n" + "WHERE name.toLowerCase() LIKE '%"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "  OR description.toLowerCase() LIKE '%"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "  OR organizationName.toLowerCase() LIKE '%"
-					+ searchParameters.getSearchString() + "%'\n"
-					+ "ORDER BY creation_date DESC\n" + "SKIP " + startIndex
-					+ "\n" + "LIMIT " + searchParameters.getTop();
-			break;
-			default:
-				throw new IllegalArgumentException(operator +" is not a supported search operator");
-		} // end of switch clause
-
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new GroupDAO(localConnection);
+		
 		try {
-			setupDatabase();
 
-			final List<ODocument> groups = _ndexDatabase
-					.query(new OSQLSynchQuery<ODocument>(query));
-			for (final ODocument group : groups)
-				foundGroups.add(new Group(_orientDbGraph.getVertex(group,
-						IGroup.class)));
+			final List<Group> groups = dao.findGroups(simpleQuery, skip, top);
+			return groups;
 
-			return foundGroups;
+		} catch (IllegalArgumentException e) {
+
+			throw e;
+
 		} catch (Exception e) {
-			_logger.error(
-					"Failed to search groups: "
-							+ searchParameters.getSearchString(), e);
-			
-			throw new NdexException("Failed to search groups.");
+
+			throw new NdexException(e.getMessage());
+
 		} finally {
-			teardownDatabase();
+
+			localConnection.close();
+			database.close();
+
 		}
 	}
-*/
+
 	/**************************************************************************
 	 * Gets a group by ID or name.
 	 * 
@@ -397,41 +330,44 @@ public class GroupService extends NdexService {
 	 *             Failed to query the database.
 	 * @return The group.
 	 **************************************************************************/
-/*	@GET
+	@GET
 	@PermitAll
 	@Path("/{groupId}")
 	@Produces("application/json")
 	@ApiDoc("Returns a group JSON structure for the group specified by groupId. Errors if the group is not found. ")
 	public Group getGroup(@PathParam("groupId") final String groupId)
-			throws IllegalArgumentException, NdexException {
-		if (groupId == null || groupId.isEmpty())
-			throw new IllegalArgumentException("No group ID was specified.");
-
+			throws IllegalArgumentException,ObjectNotFoundException, NdexException {
+		
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new GroupDAO(localConnection);
+		
 		try {
-			setupDatabase();
 
-			final IGroup group = _orientDbGraph.getVertex(
-					IdConverter.toRid(groupId), IGroup.class);
-			if (group != null)
-				return new Group(group, true);
-		} catch (IllegalArgumentException iae) {
-			// The group ID is actually a group name
-			final List<ODocument> matchingGroups = _ndexDatabase
-					.query(new OSQLSynchQuery<Object>(
-							"SELECT FROM Group WHERE name = '" + groupId + "'"));
-			if (!matchingGroups.isEmpty())
-				return new Group(_orientDbGraph.getVertex(
-						matchingGroups.get(0), IGroup.class), true);
+			final Group group = dao.getGroupById(UUID.fromString(groupId));
+			return group;
+
+		} catch (ObjectNotFoundException e) {
+			
+			throw e;
+
+		} catch (IllegalArgumentException e) {
+
+			throw e;
+
 		} catch (Exception e) {
-			_logger.error("Failed to retrieve group: " + groupId + ".", e);
-			throw new NdexException("Failed to retrieve the group.");
-		} finally {
-			teardownDatabase();
-		}
 
-		return null;
+			throw new NdexException(e.getMessage());
+
+		} finally  {
+
+			localConnection.close();
+			database.close();
+
+		}
 	}
-*/
+
 	/**************************************************************************
 	 * Removes a member from a group.
 	 * 
@@ -528,63 +464,40 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to update the user in the database.
 	 **************************************************************************/
-/*	@POST
+	@POST
+	@Path("/{groupId}")
 	@Produces("application/json")
 	@ApiDoc("Updates the group metadata corresponding to the POSTed group JSON structure. " + 
 			"Errors if the JSON structure does not specify the group id or if no group is found by that id. ")
-	public void updateGroup(final Group updatedGroup)
-			throws IllegalArgumentException, ObjectNotFoundException,
-			SecurityException, NdexException {
-		Preconditions.checkArgument(null !=updatedGroup, 
-				"A Group is required.");
+	public Group updateGroup(final Group updatedGroup, 
+							@PathParam("groupId") final String id)
+			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		localConnection.begin();
+		dao = new GroupDAO(localConnection);
 
 		try {
-			setupDatabase();
-
-			final IGroup groupToUpdate = _orientDbGraph.getVertex(
-					IdConverter.toRid(updatedGroup.getId()), IGroup.class);
-			if (groupToUpdate == null)
-				throw new ObjectNotFoundException("Group", updatedGroup.getId());
-			else if (!hasPermission(updatedGroup, Permissions.WRITE))
-				throw new SecurityException("Access denied.");
-
-			if (updatedGroup.getDescription() != null
-					&& !updatedGroup.getDescription().equals(
-							groupToUpdate.getDescription()))
-				groupToUpdate.setDescription(updatedGroup.getDescription());
-
-			if (updatedGroup.getName() != null
-					&& !updatedGroup.getName().equals(groupToUpdate.getName()))
-				groupToUpdate.setName(updatedGroup.getName());
-
-			if (updatedGroup.getOrganizationName() != null
-					&& !updatedGroup.getOrganizationName().equals(
-							groupToUpdate.getOrganizationName()))
-				groupToUpdate.setOrganizationName(updatedGroup
-						.getOrganizationName());
-
-			if (updatedGroup.getWebsite() != null
-					&& !updatedGroup.getWebsite().equals(
-							groupToUpdate.getWebsite()))
-				groupToUpdate.setWebsite(updatedGroup.getWebsite());
-
 			
-		} catch (SecurityException | ObjectNotFoundException onfe) {
-			throw onfe;
+			final Group group = dao.updateGroup(updatedGroup, UUID.fromString(id));
+			localConnection.commit();
+			
+			return group;
+			
+		} catch (IllegalArgumentException e) {
+			throw e;
+		} catch (ObjectNotFoundException e) {
+			throw e;
 		} catch (Exception e) {
-			if (e.getMessage().indexOf("cluster: null") > -1)
-				throw new ObjectNotFoundException("Group", updatedGroup.getId());
-
-			_logger.error("Failed to update group: " + updatedGroup.getName()
-					+ ".", e);
-		
-			throw new NdexException("Failed to update the group.");
+			throw new NdexException(e.getMessage());
 		} finally {
-			teardownDatabase();
+			localConnection.close();
+			database.close();
 		}
+		
 	}
-*/
+
 	/**************************************************************************
 	 * Changes a member's permissions to a group.
 	 * 
@@ -682,7 +595,7 @@ public class GroupService extends NdexService {
 	/**************************************************************************
 	 * Counter the number of administrative members in the network.
 	 **************************************************************************/
-	private long countAdminMembers(final ORID groupRid) throws NdexException {
+	/*private long countAdminMembers(final ORID groupRid) throws NdexException {
 		final List<ODocument> adminCount = _ndexDatabase
 				.query(new OSQLSynchQuery<Integer>(
 						"SELECT COUNT(@RID) FROM GroupMembership WHERE in_groupMembers = "
@@ -691,7 +604,7 @@ public class GroupService extends NdexService {
 			throw new NdexException("Unable to count ADMIN members.");
 
 		return (long) adminCount.get(0).field("COUNT");
-	}
+	}*/
 
 	/**************************************************************************
 	 * Determines if the logged in user has sufficient permissions to a group.
