@@ -29,16 +29,12 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.frames.FramedGraph;
-import com.tinkerpop.frames.FramedGraphFactory;
-import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
-import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 public abstract class TestNdexService
 {
-    protected static FramedGraphFactory _graphFactory = null;
+//    protected static FramedGraphFactory _graphFactory = null;
     protected static ODatabaseDocumentTx _ndexDatabase = null;
-    protected static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
+ //   protected static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
     
     protected static final HttpServletRequest _mockRequest = EasyMock.createMock(HttpServletRequest.class);
     protected static final Properties _testProperties = new Properties();
@@ -53,7 +49,7 @@ public abstract class TestNdexService
 
         try
         {
-            _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
+   /*         _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
                 new TypedGraphModuleBuilder()
                     .withClass(IGroup.class)
                     .withClass(IUser.class)
@@ -65,9 +61,9 @@ public abstract class TestNdexService
                     .withClass(IBaseTerm.class)
                     .withClass(IFunctionTerm.class)
                     .build());
-            
+    */        
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
-            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
+ //           _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
             NdexSchemaManager.INSTANCE.init(_ndexDatabase);
         }
         catch (Exception e)
@@ -80,9 +76,9 @@ public abstract class TestNdexService
     @AfterClass
     public static void cleanUp()
     {
-        _graphFactory = null;
+ //       _graphFactory = null;
         _ndexDatabase.close();
-        _orientDbGraph = null;
+  //      _orientDbGraph = null;
     }
 
     
@@ -175,7 +171,7 @@ public abstract class TestNdexService
     {
         objectName = objectName.replace("'", "\\'");
         
-        final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + objectName + "'"));
+   /*     final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + objectName + "'"));
         if (!matchingUsers.isEmpty())
             return (ORID)_orientDbGraph.getVertex(matchingUsers.get(0)).getId();
         
@@ -194,7 +190,7 @@ public abstract class TestNdexService
         final List<ODocument> matchingTasks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Task where description = '" + objectName + "'"));
         if (!matchingTasks.isEmpty())
             return (ORID)_orientDbGraph.getVertex(matchingTasks.get(0)).getId();
-        
+      */  
         throw new IllegalArgumentException(objectName + " is not a user, group, network, request, or task.");
     }
 

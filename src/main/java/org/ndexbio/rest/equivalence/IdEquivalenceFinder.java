@@ -4,39 +4,30 @@ import java.util.List;
 import java.util.Map;
 
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.models.data.IBaseTerm;
-import org.ndexbio.common.models.data.ICitation;
-import org.ndexbio.common.models.data.IEdge;
-import org.ndexbio.common.models.data.IFunctionTerm;
-import org.ndexbio.common.models.data.INamespace;
-import org.ndexbio.common.models.data.INetwork;
-import org.ndexbio.common.models.data.INode;
-import org.ndexbio.common.models.data.IReifiedEdgeTerm;
-import org.ndexbio.common.models.data.ISupport;
+import org.ndexbio.model.object.network.Network;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.frames.FramedGraph;
-import com.tinkerpop.frames.VertexFrame;
 
 public class IdEquivalenceFinder implements EquivalenceFinder {
 	
-    protected INetwork _target = null;
-    protected Map<String, VertexFrame> _networkIndex = null;
+    protected Network _target = null;
+//    protected Map<String, VertexFrame> _networkIndex = null;
     protected ODatabaseDocumentTx _ndexDatabase = null;
-    protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
+  //  protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
 
-	public IdEquivalenceFinder(INetwork target,
-			Map<String, VertexFrame> networkIndex,
-			ODatabaseDocumentTx ndexDatabase,
-			FramedGraph<OrientBaseGraph> orientDbGraph) {
+	public IdEquivalenceFinder(Network target,
+	//		Map<String, VertexFrame> networkIndex,
+			ODatabaseDocumentTx ndexDatabase  //,
+		//	FramedGraph<OrientBaseGraph> orientDbGraph
+			) {
 
 	        _target = target;
-	        _networkIndex = networkIndex;
+	      //  _networkIndex = networkIndex;
 	        _ndexDatabase = ndexDatabase;
-	        _orientDbGraph = orientDbGraph;
+	       // _orientDbGraph = orientDbGraph;
 
 	}
 /*

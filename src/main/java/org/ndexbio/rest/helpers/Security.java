@@ -6,27 +6,6 @@ import java.util.List;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.MultivaluedMap;
 import org.jboss.resteasy.util.Base64;
-import org.ndexbio.common.helpers.Configuration;
-import org.ndexbio.common.models.data.IBaseTerm;
-import org.ndexbio.common.models.data.IFunctionTerm;
-import org.ndexbio.common.models.data.IReifiedEdgeTerm;
-import org.ndexbio.common.models.data.IGroup;
-import org.ndexbio.common.models.data.IGroupInvitationRequest;
-import org.ndexbio.common.models.data.IGroupMembership;
-import org.ndexbio.common.models.data.IJoinGroupRequest;
-import org.ndexbio.common.models.data.INetworkAccessRequest;
-import org.ndexbio.common.models.data.INetworkMembership;
-import org.ndexbio.common.models.data.IUser;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
-import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.frames.FramedGraph;
-import com.tinkerpop.frames.FramedGraphFactory;
-import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
-import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 public class Security
 {

@@ -3,18 +3,6 @@ package org.ndexbio.rest.equivalence;
 import java.util.Map;
 
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.models.data.IBaseTerm;
-import org.ndexbio.common.models.data.ICitation;
-import org.ndexbio.common.models.data.IEdge;
-import org.ndexbio.common.models.data.IFunctionTerm;
-import org.ndexbio.common.models.data.INamespace;
-import org.ndexbio.common.models.data.INetwork;
-import org.ndexbio.common.models.data.INode;
-import org.ndexbio.common.models.data.IReifiedEdgeTerm;
-import org.ndexbio.common.models.data.ISupport;
-
-import com.tinkerpop.frames.VertexFrame;
-
 
 
 public interface EquivalenceFinder {

@@ -17,10 +17,6 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.frames.FramedGraph;
-import com.tinkerpop.frames.FramedGraphFactory;
-import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
-import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 import org.easymock.EasyMock;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -41,9 +37,9 @@ import org.ndexbio.rest.services.*;
 public class CreateTestDatabase
 {
     private static OServerAdmin _orientDbAdmin;
-    private static FramedGraphFactory _graphFactory = null;
+//    private static FramedGraphFactory _graphFactory = null;
     private static ODatabaseDocumentTx _ndexDatabase = null;
-    private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
+//    private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
 
     private static final HttpServletRequest _mockRequest = EasyMock.createMock(HttpServletRequest.class);
     private static final ObjectMapper _jsonMapper = new ObjectMapper();
@@ -91,7 +87,7 @@ public class CreateTestDatabase
         {
             _orientDbAdmin.createDatabase("ndex", "document", "local");
             Assert.assertTrue(_orientDbAdmin.existsDatabase("local"));
-            
+   /*         
             _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
                 new TypedGraphModuleBuilder()
                     .withClass(IGroup.class)
@@ -104,11 +100,11 @@ public class CreateTestDatabase
                     .withClass(IBaseTerm.class)
                     .withClass(IFunctionTerm.class)
                     .build());
-            
+     */       
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
             Assert.assertNotNull(_ndexDatabase);
             
-            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
+//            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
             NdexSchemaManager.INSTANCE.init(_ndexDatabase);
         }
         catch (Exception e)

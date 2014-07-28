@@ -16,10 +16,6 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.frames.FramedGraph;
-import com.tinkerpop.frames.FramedGraphFactory;
-import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
-import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
@@ -35,9 +31,9 @@ import org.ndexbio.rest.services.NetworkService;
 
 public class NetworkFromExcelTest
 {
-    private static FramedGraphFactory _graphFactory = null;
+//    private static FramedGraphFactory _graphFactory = null;
     private static ODatabaseDocumentTx _ndexDatabase = null;
-    private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
+//    private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
     private static Integer _jdexId = 0;
 
     private static final HttpServletRequest _mockRequest = EasyMock.createMock(HttpServletRequest.class);
@@ -55,7 +51,7 @@ public class NetworkFromExcelTest
 
         try
         {
-            _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
+/*            _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
                 new TypedGraphModuleBuilder()
                     .withClass(IGroup.class)
                     .withClass(IUser.class)
@@ -67,9 +63,9 @@ public class NetworkFromExcelTest
                     .withClass(IBaseTerm.class)
                     .withClass(IFunctionTerm.class)
                     .build());
-            
+ */           
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
-            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
+//            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
             NdexSchemaManager.INSTANCE.init(_ndexDatabase);
 
 //            final User loggedInUser = getUser("dexterpratt");

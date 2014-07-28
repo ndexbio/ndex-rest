@@ -15,15 +15,6 @@ import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.helpers.IdConverter;
-import org.ndexbio.common.models.data.IGroup;
-import org.ndexbio.common.models.data.IGroupInvitationRequest;
-import org.ndexbio.common.models.data.IGroupMembership;
-import org.ndexbio.common.models.data.IJoinGroupRequest;
-import org.ndexbio.common.models.data.INetwork;
-import org.ndexbio.common.models.data.INetworkAccessRequest;
-import org.ndexbio.common.models.data.INetworkMembership;
-import org.ndexbio.common.models.data.IRequest;
-import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.common.models.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
@@ -91,7 +82,7 @@ public class RequestService extends NdexService
                 throw new NdexException("Unable to get request count.");
             else if ((long)existingRequests.get(0).field("COUNT") > 0)
                 throw new DuplicateObjectException("You have already made that request and cannot make another.");
-            
+     /*       
             if (newRequest.getRequestType().equals("Group Invitation"))
                 createGroupInvitationRequest(fromRid, toRid, newRequest);
             else if (newRequest.getRequestType().equals("Join Group"))
@@ -100,7 +91,7 @@ public class RequestService extends NdexService
                 createNetworkAccessRequest(fromRid, toRid, newRequest);
             else
                 throw new IllegalArgumentException("That request type isn't supported: " + newRequest.getRequestType() + ".");
-            
+       */     
             return newRequest;
         }
         catch (IllegalArgumentException | NdexException ne)
@@ -110,7 +101,7 @@ public class RequestService extends NdexService
         catch (Exception e)
         {
             _logger.error("Failed to create a request.", e);
-            _orientDbGraph.getBaseGraph().rollback(); 
+   //         _orientDbGraph.getBaseGraph().rollback(); 
             throw new NdexException("Failed to create your request.");
         }
         finally
@@ -146,12 +137,12 @@ public class RequestService extends NdexService
         {
             setupDatabase();
             
-            final IRequest requestToDelete = _orientDbGraph.getVertex(requestRid, IRequest.class);
-            if (requestToDelete == null)
-                throw new ObjectNotFoundException("Request", requestId);
+  //          final IRequest requestToDelete = _orientDbGraph.getVertex(requestRid, IRequest.class);
+  //          if (requestToDelete == null)
+  //              throw new ObjectNotFoundException("Request", requestId);
             
-            _orientDbGraph.removeVertex(requestToDelete.asVertex());
-            _orientDbGraph.getBaseGraph().commit();
+  //          _orientDbGraph.removeVertex(requestToDelete.asVertex());
+ //           _orientDbGraph.getBaseGraph().commit();
         }
         catch (ObjectNotFoundException onfe)
         {
@@ -163,7 +154,7 @@ public class RequestService extends NdexService
                 throw new ObjectNotFoundException("Request", requestId);
             
             _logger.error("Failed to delete request: " + requestId + ".", e);
-            _orientDbGraph.getBaseGraph().rollback(); 
+  //          _orientDbGraph.getBaseGraph().rollback(); 
             throw new NdexException("Failed to delete the request.");
         }
         finally
@@ -198,9 +189,9 @@ public class RequestService extends NdexService
         {
             setupDatabase();
 
-            final IRequest request = _orientDbGraph.getVertex(requestRid, IRequest.class);
-            if (request != null)
-                return new Request(request);
+       //     final IRequest request = _orientDbGraph.getVertex(requestRid, IRequest.class);
+         //   if (request != null)
+         //       return new Request(request);
         }
         catch (Exception e)
         {
@@ -225,7 +216,7 @@ public class RequestService extends NdexService
     * @throws NdexException
     *            Failed to update the request in the database.
     **************************************************************************/
-    @POST
+  /*  @POST
     @Produces("application/json")
 	@ApiDoc("Updates a request corresponding to the POSTed request JSON structure. " +
 			"The request JSON must specify the request id. " +
@@ -251,13 +242,13 @@ public class RequestService extends NdexService
             
             if (!updatedRequest.getResponse().equals("DECLINED"))
             {
-            /*    if (updatedRequest.getRequestType().equals("Group Invitation"))
+  */          /*    if (updatedRequest.getRequestType().equals("Group Invitation"))
                     processGroupInvitation(updatedRequest);
                 else if (updatedRequest.getRequestType().equals("Join Group"))
                     processJoinGroup(updatedRequest);
                 else if (updatedRequest.getRequestType().equals("Network Access"))
                     processNetworkAccess(updatedRequest); */
-            }
+   /*         }
             
             _orientDbGraph.getBaseGraph().commit();
         }
@@ -280,7 +271,7 @@ public class RequestService extends NdexService
         }
     }
     
-    
+  */  
     
     
     /**************************************************************************
@@ -297,7 +288,7 @@ public class RequestService extends NdexService
     * @throws NdexException
     *            Failed to create the request in the database.
     **************************************************************************/
-    private void createGroupInvitationRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws ObjectNotFoundException, NdexException
+/*    private void createGroupInvitationRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws ObjectNotFoundException, NdexException
     {
         final IGroup requestingGroup = _orientDbGraph.getVertex(fromRid, IGroup.class);
         if (requestingGroup == null)
@@ -319,7 +310,7 @@ public class RequestService extends NdexService
 
         requestToCreate.setId(IdConverter.toJid((ORID)newRequest.asVertex().getId()));
     }
-    
+ */
     /**************************************************************************
     * Creates a join group request. 
     * 
@@ -334,7 +325,7 @@ public class RequestService extends NdexService
     * @throws NdexException
     *            Failed to create the request in the database.
     **************************************************************************/
-    private void createJoinGroupRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws ObjectNotFoundException, NdexException
+  /*  private void createJoinGroupRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws ObjectNotFoundException, NdexException
     {
         final IUser requestOwner = _orientDbGraph.getVertex(fromRid, IUser.class);
         if (requestOwner == null)
@@ -357,7 +348,7 @@ public class RequestService extends NdexService
 
         requestToCreate.setId(IdConverter.toJid((ORID)newRequest.asVertex().getId()));
     }
-    
+   */ 
     /**************************************************************************
     * Creates a network access request. 
     * 
@@ -372,7 +363,7 @@ public class RequestService extends NdexService
     * @throws NdexException
     *            Failed to create the request in the database.
     **************************************************************************/
-    private void createNetworkAccessRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws ObjectNotFoundException, NdexException
+ /*   private void createNetworkAccessRequest(final ORID fromRid, final ORID toRid, final Request requestToCreate) throws ObjectNotFoundException, NdexException
     {
         final IUser requestOwner = _orientDbGraph.getVertex(fromRid, IUser.class);
         if (requestOwner == null)
@@ -395,7 +386,7 @@ public class RequestService extends NdexService
 
         requestToCreate.setId(IdConverter.toJid((ORID)newRequest.asVertex().getId()));
     }
-
+*/
     /**************************************************************************
     * Adds a user to the group that invited them with read-only permissions.
     * 

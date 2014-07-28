@@ -18,10 +18,6 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.frames.FramedGraph;
-import com.tinkerpop.frames.FramedGraphFactory;
-import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
-import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 import org.easymock.EasyMock;
 import org.ndexbio.model.object.*;
@@ -42,9 +38,9 @@ import org.slf4j.LoggerFactory;
 public class CreateStarterDatabase
 {
     private static OServerAdmin _orientDbAdmin;
-    private static FramedGraphFactory _graphFactory = null;
+  // static FramedGraphFactory _graphFactory = null;
     private static ODatabaseDocumentTx _ndexDatabase = null;
-    private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
+  //  private static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
 
     private  final HttpServletRequest _mockRequest;
     private static final ObjectMapper _jsonMapper = new ObjectMapper();
@@ -114,7 +110,7 @@ public class CreateStarterDatabase
         {
             _orientDbAdmin.createDatabase("ndex", "document", "local");
            
-            _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
+    /*        _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
                 new TypedGraphModuleBuilder()
                     .withClass(IGroup.class)
                     .withClass(IUser.class)
@@ -126,11 +122,11 @@ public class CreateStarterDatabase
                     .withClass(IBaseTerm.class)
                     .withClass(IFunctionTerm.class)
                     .build());
-            
+      */      
             _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
            
             
-            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
+        //    _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
             NdexSchemaManager.INSTANCE.init(_ndexDatabase);
             log.info("New ndex database creaated");
         }
@@ -249,7 +245,7 @@ public class CreateStarterDatabase
     private ORID getRid(String objectName) throws IllegalArgumentException
     {
         objectName = objectName.replace("'", "''");
-        
+     /*   
         final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + objectName + "'"));
         if (!matchingUsers.isEmpty())
             return (ORID)_orientDbGraph.getVertex(matchingUsers.get(0)).getId();
@@ -269,7 +265,7 @@ public class CreateStarterDatabase
         final List<ODocument> matchingTasks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Task where description = '" + objectName + "'"));
         if (!matchingTasks.isEmpty())
             return (ORID)_orientDbGraph.getVertex(matchingTasks.get(0)).getId();
-        
+       */ 
         throw new IllegalArgumentException(objectName + " is not a user, group, network, request, or task.");
     }
 

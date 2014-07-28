@@ -17,16 +17,6 @@ import javax.ws.rs.Produces;
 
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
-import org.ndexbio.common.models.data.IBaseTerm;
-import org.ndexbio.common.models.data.IFunctionTerm;
-import org.ndexbio.common.models.data.IGroup;
-import org.ndexbio.common.models.data.IGroupInvitationRequest;
-import org.ndexbio.common.models.data.IGroupMembership;
-import org.ndexbio.common.models.data.IJoinGroupRequest;
-import org.ndexbio.common.models.data.INetworkAccessRequest;
-import org.ndexbio.common.models.data.INetworkMembership;
-import org.ndexbio.common.models.data.IReifiedEdgeTerm;
-import org.ndexbio.common.models.data.IUser;
 import org.ndexbio.common.models.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.orientdb.NdexSchemaManager;
@@ -37,18 +27,14 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
-import com.tinkerpop.frames.FramedGraph;
-import com.tinkerpop.frames.FramedGraphFactory;
-import com.tinkerpop.frames.modules.gremlingroovy.GremlinGroovyModule;
-import com.tinkerpop.frames.modules.typedgraph.TypedGraphModuleBuilder;
 
 public abstract class NdexService
 {
     private HttpServletRequest _httpRequest;
     
-    protected FramedGraphFactory _graphFactory = null;
+//    protected FramedGraphFactory _graphFactory = null;
     protected ODatabaseDocumentTx _ndexDatabase = null;
-    protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
+ //   protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
     
     
     
@@ -157,7 +143,7 @@ public abstract class NdexService
         //OrientDB connection pooling doesn't work as expected
         //OGlobalConfiguration.STORAGE_KEEP_OPEN.setValue(false);
 
-        _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
+   /*     _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
             new TypedGraphModuleBuilder()
                 .withClass(IGroup.class)
                 .withClass(IUser.class)
@@ -169,18 +155,18 @@ public abstract class NdexService
                 .withClass(IBaseTerm.class)
                 .withClass(IReifiedEdgeTerm.class)
                 .withClass(IFunctionTerm.class).build());
-
+*/
         _ndexDatabase = ODatabaseDocumentPool.global().acquire(
             Configuration.getInstance().getProperty("OrientDB-URL"),
             Configuration.getInstance().getProperty("OrientDB-Username"),
             Configuration.getInstance().getProperty("OrientDB-Password"));
         
-        if (Boolean.parseBoolean(Configuration.getInstance().getProperty("OrientDB-Use-Transactions")))
+  /*      if (Boolean.parseBoolean(Configuration.getInstance().getProperty("OrientDB-Use-Transactions")))
             _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
         else
             _orientDbGraph = _graphFactory.create((OrientBaseGraph) new OrientGraphNoTx(_ndexDatabase));
 
-        
+    */    
         NdexSchemaManager.INSTANCE.init(_ndexDatabase);
     }
     
@@ -190,7 +176,7 @@ public abstract class NdexService
     **************************************************************************/
     protected void teardownDatabase()
     {
-        if (_graphFactory != null)
+      /*  if (_graphFactory != null)
             _graphFactory = null;
         
         if (_ndexDatabase != null)
@@ -203,6 +189,6 @@ public abstract class NdexService
         {
             _orientDbGraph.shutdown();
             _orientDbGraph = null;
-        }
+        } */
     }
 }
