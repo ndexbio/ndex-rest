@@ -32,11 +32,11 @@ public class TestUserService extends TestNdexService {
     @Before
     public void setUpBeforeClass() throws Exception {
     	NewUser newUser = new NewUser();
-        newUser.setEmailAddress("support@ndexbio.org");
-        newUser.setPassword("probably-insecure");
-        newUser.setAccountName("Support");
-        newUser.setFirstName("foo");
-        newUser.setLastName("bar");
+        newUser.setEmailAddress("testUser@ndexbio.org");
+        newUser.setPassword("testUser");
+        newUser.setAccountName("testUser");
+        newUser.setFirstName("testUser");
+        newUser.setLastName("testUser");
 		testUser = _userService.createUser(newUser);
 	
     }
@@ -49,9 +49,11 @@ public class TestUserService extends TestNdexService {
     	final UserDAO dao = new UserDAO(localConnection);
     	
     	dao.deleteUserById(testUser.getExternalId());
+    	localConnection.commit();
     	if(testUser2!=null) {
     		dao.deleteUserById(testUser2.getExternalId()); 
     		testUser2 = null;
+    		localConnection.commit();
     	}
 		
     	
@@ -120,7 +122,7 @@ public class TestUserService extends TestNdexService {
     	
         try {
         	
-            final User authenticatedUser = _userService.authenticateUser(testUser.getAccountName(), "probably-insecure");
+            final User authenticatedUser = _userService.authenticateUser(testUser.getAccountName(), "testUser");
             Assert.assertNotNull(authenticatedUser);
             Assert.assertEquals(authenticatedUser.getAccountName(), testUser.getAccountName());
             Assert.assertEquals(authenticatedUser.getFirstName(), testUser.getFirstName());
@@ -283,7 +285,7 @@ public class TestUserService extends TestNdexService {
     public void findUsers() {
     	
         final SimpleUserQuery searchParameters = new SimpleUserQuery();
-        searchParameters.setSearchString("Support");
+        searchParameters.setSearchString("test");
         
         try {
         	
