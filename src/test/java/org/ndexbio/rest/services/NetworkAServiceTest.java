@@ -18,8 +18,8 @@ public class NetworkAServiceTest {
 	public void test() throws IllegalArgumentException, NdexException {
 		SimpleNetworkQuery s = new SimpleNetworkQuery();
 		s.setSearchString("ca");
-		s.setAccountName("dexterpratt");
-	    assertTrue(_networkService.searchNetwork(s, 0, 1).size() > 0);
+		s.setAccountName("support");
+	    assertTrue(_networkService.searchNetwork(s, 0, 1).size() == 1);
 		
 	}
 

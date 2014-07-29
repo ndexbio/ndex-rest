@@ -155,9 +155,9 @@ public class NetworkAService extends NdexService {
 	@POST
 	@Path("/search/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("Returns a list of NetworkDescriptors based on POSTed NetworkQuery.  The allowed NetworkQuery subtypes "+
+	@ApiDoc("Returns a list of NetworkSummaries based on POSTed NetworkQuery.  The allowed NetworkQuery subtypes "+
 	        "for v1.0 will be NetworkSimpleQuery and NetworkMembershipQuery. 'blockSize' specifies the number of " +
-			"NetworkDescriptors to retrieve in each block, 'skipBlocks' specifies the number of blocks to skip.")
+			"NetworkSummaries to retrieve in each block, 'skipBlocks' specifies the number of blocks to skip.")
 	public List<NetworkSummary> searchNetwork(
 			final SimpleNetworkQuery query,
 			@PathParam("skipBlocks") final int skipBlocks, 
@@ -167,21 +167,8 @@ public class NetworkAService extends NdexService {
         List<NetworkSummary> result = new ArrayList <NetworkSummary> ();
         ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
         NetworkSearchDAO dao = new NetworkSearchDAO(db);
-        ORecordIteratorClass<ODocument> networks; 
         
         try {
-        
-        	//should move this to DAO
-			if (query.getSearchString().equals("*")) {
-				
-				networks = db.browseClass(NdexClasses.Network);
-				
-				for (ODocument doc : networks) {
-					result.add(NetworkDAO.getNetworkSummary(doc));
-				}
-				
-		        return result;		
-			}
 			
 			result = dao.findNetworks(query, skipBlocks, blockSize);
 			
