@@ -181,7 +181,7 @@ public class NetworkAService extends NdexService {
         
         try {
 			
-			result = dao.findNetworks(query, skipBlocks, blockSize);
+			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser().getAccountName());
 			
 			return result;
 		
