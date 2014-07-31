@@ -23,7 +23,6 @@ import org.easymock.EasyMock;
 import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.common.models.dao.orientdb.UserOrientdbDAO;
-import org.ndexbio.common.models.data.*;
 import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.services.*;
 import org.slf4j.Logger;
@@ -71,7 +70,7 @@ public class CreateStarterDatabase
     	this.deleteExistingDatabase();
     	this.generateStarterDatabase();
     //	this.insertStarterUser();
-    	this.insertStarterGroups();
+    //	this.insertStarterGroups();
     	this.insertStarterNetwork();
     	 	
     }
@@ -169,7 +168,7 @@ public class CreateStarterDatabase
             e.printStackTrace();
         }
     }
-*/   
+   
    
     private void insertStarterGroups()
     {
@@ -205,7 +204,7 @@ public class CreateStarterDatabase
         }
     }
     
-   
+*/   
     private void insertStarterNetwork()
     {
         final NetworkService networkService = new NetworkService(_mockRequest);

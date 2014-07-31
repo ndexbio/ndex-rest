@@ -66,7 +66,7 @@ public class NetworkAService extends NdexService {
 	}
 	
 	@GET
-	@Path("/{networkId}/edge/{skipBlocks}/{blockSize}")
+	@Path("/{networkId}/edge/asNetwork/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("Returns a network based on a set of edges selected from the network "
 			+ "specified by networkId. The returned network is fully poplulated and "
@@ -80,7 +80,12 @@ public class NetworkAService extends NdexService {
 	
 			throws IllegalArgumentException, NdexException {
 		
-		return null ; //dao.queryForSubnetwork(this.getLoggedInUser(), networkId, queryParameters, skipBlocks, blockSize);
+		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		NetworkDAO dao = new NetworkDAO(db);
+ 		Network n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
+ 		//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
+		db.close();
+        return n;		
 	}
 
 
@@ -122,7 +127,13 @@ public class NetworkAService extends NdexService {
 	
 			throws IllegalArgumentException, NdexException {
 		
-		return dao.queryForSubnetwork(this.getLoggedInUser(), networkId, queryParameters, skipBlocks, blockSize);
+		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		NetworkDAO dao = new NetworkDAO(db);
+ 		Network n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
+ 		//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
+		db.close();
+        return n;		
+	
 	}
 
 	

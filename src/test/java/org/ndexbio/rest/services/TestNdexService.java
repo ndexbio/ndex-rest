@@ -18,7 +18,6 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
-import org.ndexbio.common.models.data.*;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.orientdb.NdexSchemaManager;
 
