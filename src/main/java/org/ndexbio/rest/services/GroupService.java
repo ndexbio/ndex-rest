@@ -27,32 +27,18 @@ import org.ndexbio.common.helpers.Validation;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Group;
-import org.ndexbio.model.object.Membership;
-import org.ndexbio.model.object.SearchParameters;
-import org.ndexbio.model.object.User;
-import org.ndexbio.rest.CommonValues;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.id.ORID;
-import com.orientechnologies.orient.core.metadata.schema.OType;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.impls.orient.OrientElement;
+import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 
 @Path("/group")
 public class GroupService extends NdexService {
-	private static final Logger _logger = LoggerFactory
-			.getLogger(GroupService.class);
-
+	
 	private static GroupDAO dao;
 	private static NdexDatabase database;
 	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
+	private static OrientGraph graph;
 	
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -89,39 +75,24 @@ public class GroupService extends NdexService {
 	public Group createGroup(final Group newGroup)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
-       	
-		final Group group;
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new GroupDAO(localConnection);
+		_openDatabase();
 		
 		try {
 
-			group = dao.createNewGroup(newGroup);
+			final Group group = dao.createNewGroup(newGroup, null); // fix
 			localConnection.commit();
-
+			return group;
+			
 		} catch (IllegalArgumentException e) {
-
 			throw e;
-
 		} catch (DuplicateObjectException e) {
-
 			throw e;
-
 		} catch (Exception e) {
-
 			throw new NdexException(e.getMessage());
-
 		} finally {
-
-			localConnection.close();
-			database.close();
-
+			_closeDatabase();
 		}
-		
-		return group;
 	}
 
 /*	private void addGroupMembers(final Group newGroup, final IUser groupOwner,
@@ -178,29 +149,17 @@ public class GroupService extends NdexService {
 	public void deleteGroup(@PathParam("groupId") final String groupId)
 			throws ObjectNotFoundException, NdexException {
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new GroupDAO(localConnection);
+		_openDatabase();
 		
 		try {
-
 			dao.deleteGroupById(UUID.fromString(groupId));
 			localConnection.commit();
-
 		} catch (ObjectNotFoundException e) {
-
 			throw e;
-
 		} catch (Exception e) {
-
 			throw new NdexException(e.getMessage());
-
 		} finally {
-
-			localConnection.close();
-			database.close();
-
+			_closeDatabase();
 		}
 	}
 
@@ -290,29 +249,17 @@ public class GroupService extends NdexService {
 			@PathParam("blockSize") final int top)
 			throws IllegalArgumentException, NdexException {
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new GroupDAO(localConnection);
+		_openDatabase();
 		
 		try {
-
 			final List<Group> groups = dao.findGroups(simpleQuery, skip, top);
 			return groups;
-
 		} catch (IllegalArgumentException e) {
-
 			throw e;
-
 		} catch (Exception e) {
-
 			throw new NdexException(e.getMessage());
-
 		} finally {
-
-			localConnection.close();
-			database.close();
-
+			_closeDatabase();
 		}
 	}
 
@@ -335,33 +282,19 @@ public class GroupService extends NdexService {
 	public Group getGroup(@PathParam("groupId") final String groupId)
 			throws IllegalArgumentException,ObjectNotFoundException, NdexException {
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new GroupDAO(localConnection);
+		_openDatabase();
 		
 		try {
-
 			final Group group = dao.getGroupById(UUID.fromString(groupId));
 			return group;
-
 		} catch (ObjectNotFoundException e) {
-			
 			throw e;
-
 		} catch (IllegalArgumentException e) {
-
 			throw e;
-
 		} catch (Exception e) {
-
 			throw new NdexException(e.getMessage());
-
 		} finally  {
-
-			localConnection.close();
-			database.close();
-
+			_closeDatabase();
 		}
 	}
 
@@ -470,10 +403,7 @@ public class GroupService extends NdexService {
 							@PathParam("groupId") final String id)
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new GroupDAO(localConnection);
+		_openDatabase();
 
 		try {
 			
@@ -489,8 +419,7 @@ public class GroupService extends NdexService {
 		} catch (Exception e) {
 			throw new NdexException(e.getMessage());
 		} finally {
-			localConnection.close();
-			database.close();
+			_closeDatabase();
 		}
 		
 	}
@@ -609,6 +538,7 @@ public class GroupService extends NdexService {
 	 * @param targetGroup
 	 *            The group to test for permissions.
 	 * @return True if the member has permission, false otherwise.
+	 * @throws NdexException 
 	 **************************************************************************/
 /*	private boolean hasPermission(Group targetGroup,
 			Permissions requiredPermissions) {
@@ -622,5 +552,15 @@ public class GroupService extends NdexService {
 		return false;
 	}
 */
-	
+	private void _openDatabase() throws NdexException {
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		graph = new OrientGraph(localConnection);
+		dao = new GroupDAO(localConnection, graph);
+	}
+	private void _closeDatabase() {
+		graph.shutdown();
+		localConnection.close();
+		database.close();
+	}
 }
