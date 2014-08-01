@@ -22,7 +22,7 @@ import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import org.easymock.EasyMock;
 import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.Network;
-import org.ndexbio.common.models.dao.orientdb.UserOrientdbDAO;
+import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.services.*;
 import org.slf4j.Logger;
@@ -272,7 +272,7 @@ public class CreateStarterDatabase
     {
         final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + username + "'"));
         if (!matchingUsers.isEmpty())
-            return UserOrientdbDAO.getUserFromDocument(matchingUsers.get(0));
+            return UserDAO.getUserFromDocument(matchingUsers.get(0));
         else
             return null;
     }

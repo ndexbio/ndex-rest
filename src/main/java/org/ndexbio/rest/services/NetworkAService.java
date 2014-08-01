@@ -4,39 +4,35 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
-import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
-import org.ndexbio.common.exceptions.DuplicateObjectException;
 import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
+import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
+import org.ndexbio.common.models.object.NetworkQueryParameters;
+import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.PropertyGraphNetwork;
-import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
-import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
-import org.ndexbio.common.models.object.NetworkQueryParameters;
-import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.iterator.ORecordIteratorClass;
-import com.orientechnologies.orient.core.record.impl.ODocument;
 
 @Path("/network")
 public class NetworkAService extends NdexService {
@@ -164,6 +160,7 @@ public class NetworkAService extends NdexService {
 	
 
 	@POST
+	@PermitAll
 	@Path("/search/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of NetworkSummaries based on POSTed NetworkQuery.  The allowed NetworkQuery subtypes "+
@@ -181,7 +178,7 @@ public class NetworkAService extends NdexService {
         
         try {
 			
-			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser().getAccountName());
+			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
 			
 			return result;
 		
