@@ -19,14 +19,11 @@ import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
-<<<<<<< HEAD
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
-=======
 import org.ndexbio.model.object.Permissions;
->>>>>>> FETCH_HEAD
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.SimplePathQuery;
@@ -40,6 +37,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.record.impl.ODocument;
 
 @Path("/network")
 public class NetworkAService extends NdexService {
