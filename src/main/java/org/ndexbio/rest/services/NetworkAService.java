@@ -1,5 +1,6 @@
 package org.ndexbio.rest.services;
 
+import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -11,18 +12,24 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
+<<<<<<< HEAD
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
+=======
+import org.ndexbio.model.object.Permissions;
+>>>>>>> FETCH_HEAD
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.SimpleNetworkQuery;
+import org.ndexbio.model.object.SimplePathQuery;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -43,7 +50,7 @@ public class NetworkAService extends NdexService {
 	public NetworkAService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
-	
+/*	
 	@GET
 	@Path("/{networkId}/term/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
@@ -60,6 +67,38 @@ public class NetworkAService extends NdexService {
 		return dao.getTerms(this.getLoggedInUser(), networkId, skipBlocks, blockSize);
 		
 	}
+*/	
+
+		
+	@GET
+	@Path("/{networkId}")
+	@Produces("application/json")
+	@ApiDoc("Returns a NetworkSummary network specified by networkUUID. Errors if the network is not found"
+			+ " or if the authenticated user does not have read permission for the network.")
+	public NetworkSummary getNetworkSummary(
+			@PathParam("networkId") final String networkId)
+			
+			throws IllegalArgumentException, NdexException {
+		
+		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		NetworkDAO networkDao = new NetworkDAO(db);
+		
+		boolean hasPrivilege=networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
+				networkId, Permissions.READ);
+		if ( hasPrivilege) {
+			ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
+			NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
+			db.close();
+			return summary;		
+			//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
+		}
+
+		db.close();
+        throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+		
+	}
+	
+	
 	
 	@GET
 	@Path("/{networkId}/edge/asNetwork/{skipBlocks}/{blockSize}")
@@ -110,28 +149,68 @@ public class NetworkAService extends NdexService {
 	
 	
 	@POST
-	@Path("/{networkId}/query/{skipBlocks}/{blockSize}")
+	@Path("/{networkId}/asNetwork/query")
 	@Produces("application/json")
 	@ApiDoc("Returns a network based on a block of edges retrieved by the POSTed queryParameters "
 			+ "from the network specified by networkId. The returned network is fully poplulated and "
 			+ "'self-sufficient', including all nodes, terms, supports, citations, and namespaces.")
 	public Network queryNetwork(
 			@PathParam("networkId") final String networkId,
-			final NetworkQueryParameters queryParameters,
-			@PathParam("skipBlocks") final int skipBlocks, 
-			@PathParam("blockSize") final int blockSize)
+			final SimplePathQuery queryParameters
+//			@PathParam("skipBlocks") final int skipBlocks, 
+//			@PathParam("blockSize") final int blockSize
+			)
 	
 			throws IllegalArgumentException, NdexException {
 		
 		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		NetworkDAO dao = new NetworkDAO(db);
- 		Network n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
- 		//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
+		NetworkDAO networkDao = new NetworkDAO(db);
+		
+		boolean hasPrivilege=networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
+				networkId, Permissions.READ);
 		db.close();
-        return n;		
-	
+		if ( hasPrivilege) {
+			NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
+		
+			Network n = dao.queryForSubnetwork(networkId, queryParameters);
+			return n;		
+			//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
+		}
+        	
+        throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 	}
 
+	@POST
+	@Path("/{networkId}/asPropertyGraph/query")
+	@Produces("application/json")
+	@ApiDoc("Returns a network based on a block of edges retrieved by the POSTed queryParameters "
+			+ "from the network specified by networkId. The returned network is fully poplulated and "
+			+ "'self-sufficient', including all nodes, terms, supports, citations, and namespaces.")
+	public PropertyGraphNetwork queryNetworkAsPropertyGraph(
+			@PathParam("networkId") final String networkId,
+			final SimplePathQuery queryParameters
+//			@PathParam("skipBlocks") final int skipBlocks, 
+//			@PathParam("blockSize") final int blockSize
+			)
+	
+			throws IllegalArgumentException, NdexException {
+		
+		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		NetworkDAO networkDao = new NetworkDAO(db);
+		
+		boolean hasPrivilege=networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
+				networkId, Permissions.READ);
+		db.close();
+		if ( hasPrivilege) {
+			NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
+		
+			PropertyGraphNetwork n = dao.queryForSubPropertyGraphNetwork(networkId, queryParameters);
+			return n;		
+			//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
+		}
+        	
+        throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+	}
 	
 	
 	
