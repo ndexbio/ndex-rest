@@ -14,8 +14,6 @@ import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.Network;
-import org.ndexbio.orientdb.gremlin.RepresentationCriteria;
-import org.ndexbio.orientdb.gremlin.SearchType;
 import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.UserService;
 

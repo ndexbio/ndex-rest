@@ -22,7 +22,6 @@ import org.ndexbio.common.models.dao.orientdb.GroupDAO;
 import org.junit.Assert;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.*;
-import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.helpers.Validation;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.model.object.Permissions;

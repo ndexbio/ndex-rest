@@ -14,8 +14,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.exceptions.*;
-import org.ndexbio.common.helpers.IdConverter;
-import org.ndexbio.common.models.object.Request;
+import org.ndexbio.model.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,21 +66,22 @@ public class RequestService extends NdexService
         if (newRequest == null)
             throw new IllegalArgumentException("The request to create is empty.");
         
-        final ORID fromRid = IdConverter.toRid(newRequest.getFromId());
+   /*     final ORID fromRid = IdConverter.toRid(newRequest.getFromId());
         final ORID toRid = IdConverter.toRid(newRequest.getToId());
         
         if (fromRid.equals(toRid))
             throw new IllegalArgumentException("The 'from' and 'to' accounts of the request cannot be the same.");
-        
+     */   
         try
         {
             setupDatabase();
             
-            final List<ODocument> existingRequests = _ndexDatabase.query(new OSQLSynchQuery<Integer>("SELECT COUNT(@RID) FROM Request WHERE out_fromUser = " + fromRid.toString() + " AND (out_toNetwork = " + toRid.toString() + " OR out_toGroup = " + toRid.toString() + ")"));
+    /*        final List<ODocument> existingRequests = _ndexDatabase.query(new OSQLSynchQuery<Integer>(
+            		"SELECT COUNT(@RID) FROM Request WHERE out_fromUser = " + fromRid.toString() + " AND (out_toNetwork = " + toRid.toString() + " OR out_toGroup = " + toRid.toString() + ")"));
             if (existingRequests == null || existingRequests.isEmpty())
                 throw new NdexException("Unable to get request count.");
             else if ((long)existingRequests.get(0).field("COUNT") > 0)
-                throw new DuplicateObjectException("You have already made that request and cannot make another.");
+                throw new DuplicateObjectException("You have already made that request and cannot make another."); */
      /*       
             if (newRequest.getRequestType().equals("Group Invitation"))
                 createGroupInvitationRequest(fromRid, toRid, newRequest);
@@ -131,7 +131,7 @@ public class RequestService extends NdexService
         if (requestId == null || requestId.isEmpty())
             throw new IllegalArgumentException("No request ID was specified.");
         
-        final ORID requestRid = IdConverter.toRid(requestId);
+        //final ORID requestRid = IdConverter.toRid(requestId);
 
         try
         {
@@ -183,7 +183,7 @@ public class RequestService extends NdexService
         if (requestId == null || requestId.isEmpty())
             throw new IllegalArgumentException("No request ID was specified.");
         
-        final ORID requestRid = IdConverter.toRid(requestId);
+   //     final ORID requestRid = IdConverter.toRid(requestId);
 
         try
         {

@@ -5,7 +5,6 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 
 import com.orientechnologies.orient.core.id.ORID;

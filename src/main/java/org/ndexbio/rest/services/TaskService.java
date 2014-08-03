@@ -16,7 +16,6 @@ import javax.ws.rs.core.Context;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
-import org.ndexbio.common.helpers.IdConverter;
 
 import org.ndexbio.common.models.object.Status;
 import org.ndexbio.common.models.object.TaskType;

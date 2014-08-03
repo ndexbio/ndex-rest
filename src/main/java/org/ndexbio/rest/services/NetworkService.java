@@ -51,7 +51,6 @@ import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.helpers.Configuration;
-import org.ndexbio.common.helpers.IdConverter;
 import org.ndexbio.common.models.object.*;
 import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;

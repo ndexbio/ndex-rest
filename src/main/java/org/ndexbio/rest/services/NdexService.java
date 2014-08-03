@@ -17,7 +17,7 @@ import javax.ws.rs.Produces;
 
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
-import org.ndexbio.common.models.object.RestResource;
+import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -100,7 +100,7 @@ public abstract class NdexService
                 	ApiDoc apiDocAnnotation = (ApiDoc)annotation;
                 	resource.setApiDoc(apiDocAnnotation.value());
                 } else if (annotation instanceof PermitAll){
-                	resource.setAuthentication("PermitAll");
+                	resource.setAuthentication(false);
                 } else {
                 	// annotation class not handled
                 	System.out.println(annotation.toString() + " not handled");
