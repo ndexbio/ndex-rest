@@ -14,12 +14,15 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
+import org.ndexbio.model.object.Membership;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.access.NdexDatabase;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.SimpleUserQuery;
@@ -38,6 +41,7 @@ public class UserService extends NdexService {
 	private static UserDAO dao;
 	private static NdexDatabase database;
 	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
+	private static OrientGraphNoTx graph;
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -79,11 +83,10 @@ public class UserService extends NdexService {
 		
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new UserDAO(localConnection);
+		dao = new UserDAO(localConnection, graph);
 		
 		try {
-
+			localConnection.begin();
 			user = dao.createNewUser(newUser);
 			localConnection.commit();
 
@@ -130,8 +133,7 @@ public class UserService extends NdexService {
 		
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new UserDAO(localConnection);
+		dao = new UserDAO(localConnection, graph);
 		
 		try {
 
@@ -172,6 +174,91 @@ public class UserService extends NdexService {
 		
 	}
 		
+	/**************************************************************************
+	 * Retrieves array of network membership objects
+	 * 
+	 * @param userId
+	 *            The user ID.
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws ObjectNotFoundException
+	 *             The group doesn't exist.
+	 * @throws NdexException
+	 *             Failed to query the database.
+	 **************************************************************************/
+	
+	@GET
+	@PermitAll
+	@Path("/{userId}/network/{permission}/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("")
+	public List<Membership> getUserNetworkMemberships(@PathParam("userId") final String groupId,
+			@PathParam("permission") final String permissions ,
+			@PathParam("skipBlocks") int skipBlocks,
+			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
+		
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		dao = new UserDAO(localConnection, graph);
+		
+		try {
+			
+			return dao.getUserNetworkMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
+			
+		} catch (ObjectNotFoundException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new NdexException(e.getMessage());
+		} finally {
+			localConnection.close();
+			database.close();
+		}
+	}
+	
+	/**************************************************************************
+	 * Retrieves array of group membership objects
+	 * 
+	 * @param userId
+	 *            The user ID.
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws ObjectNotFoundException
+	 *             The group doesn't exist.
+	 * @throws NdexException
+	 *             Failed to query the database.
+	 **************************************************************************/
+	
+	@GET
+	@PermitAll
+	@Path("/{userId}/group/{permission}/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("")
+	public List<Membership> getUserGroupMemberships(@PathParam("userId") final String groupId,
+			@PathParam("permission") final String permissions ,
+			@PathParam("skipBlocks") int skipBlocks,
+			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
+		
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		dao = new UserDAO(localConnection, graph);
+		
+		try {
+			
+			return dao.getUserGroupMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
+			
+		} catch (ObjectNotFoundException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new NdexException(e.getMessage());
+		} finally {
+			localConnection.close();
+			database.close();
+		}
+	}
 
 	/**************************************************************************
 	 * Adds a network to the user's Work Surface.
@@ -271,8 +358,7 @@ public class UserService extends NdexService {
 		
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new UserDAO(localConnection);
+		dao = new UserDAO(localConnection, graph);
 
 		try {
 			
@@ -320,11 +406,11 @@ public class UserService extends NdexService {
 
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new UserDAO(localConnection);
+		dao = new UserDAO(localConnection, graph);
 		
 		try {
 
+			localConnection.begin();
 			dao.changePassword(password, getLoggedInUser().getExternalId());
 			localConnection.commit();
 
@@ -494,11 +580,11 @@ public class UserService extends NdexService {
 
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new UserDAO(localConnection);
+		dao = new UserDAO(localConnection, graph);
 		
 		try {
 
+			localConnection.begin();
 			dao.deleteUserById(getLoggedInUser().getExternalId());
 			localConnection.commit();
 
@@ -547,11 +633,11 @@ public class UserService extends NdexService {
 		
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new UserDAO(localConnection);
+		dao = new UserDAO(localConnection, graph);
 		
 		try {
 
+			localConnection.begin();
 			final Response res = dao.emailNewPassword(username);
 			localConnection.commit();
 			return res;
@@ -593,8 +679,7 @@ public class UserService extends NdexService {
 		
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new UserDAO(localConnection);
+		dao = new UserDAO(localConnection, graph);
 		
 		try {
 
@@ -691,11 +776,11 @@ public class UserService extends NdexService {
 		
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		localConnection.begin();
-		dao = new UserDAO(localConnection);
+		dao = new UserDAO(localConnection, graph);
 
 		try {
-			
+
+			localConnection.begin();
 			final User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			localConnection.commit();
 			

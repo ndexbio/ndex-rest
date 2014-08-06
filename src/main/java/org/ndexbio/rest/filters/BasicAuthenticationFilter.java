@@ -13,7 +13,6 @@ import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.access.NdexDatabase;
-
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
@@ -21,6 +20,9 @@ import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.object.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 /*
  * class represents a RestEasy request filter that will validate
@@ -50,7 +52,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         try
         {
         	database = new NdexDatabase();
-        	final UserDAO dao = new UserDAO(database.getTransactionConnection());
+        	ODatabaseDocumentTx localConnection = database.getTransactionConnection();
+        	OrientGraphNoTx graph = new OrientGraphNoTx(localConnection);
+        	final UserDAO dao = new UserDAO(localConnection, graph);
         	
             authInfo = parseCredentials(requestContext);
             authUser = dao.authenticateUser(authInfo[0],authInfo[1]);

@@ -28,6 +28,7 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
+import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 public abstract class TestNdexService
 {
@@ -94,7 +95,7 @@ public abstract class TestNdexService
     	final NdexDatabase database = new NdexDatabase();
     	final ODatabaseDocumentTx  localConnection = database.getAConnection();  
     	localConnection.begin();
-    	final UserDAO dao = new UserDAO(localConnection);
+    	final UserDAO dao = new UserDAO(localConnection, new OrientGraphNoTx(localConnection));
     	final User loggedInUser;
     	
     	final SimpleUserQuery search = new SimpleUserQuery();
