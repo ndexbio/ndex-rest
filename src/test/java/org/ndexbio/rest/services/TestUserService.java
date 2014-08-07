@@ -326,7 +326,7 @@ public class TestUserService extends TestNdexService {
         {
         	final User updatedUser = new User();
             updatedUser.setDescription("change");
-            _userService.updateUser(updatedUser);
+            _userService.updateUser(null, updatedUser);
             Assert.assertEquals(_userService.getUser("dexterpratt").getDescription(), updatedUser.getDescription());
             Assert.assertEquals(_userService.getUser("dexterpratt").getWebsite(), "www.triptychjs.com"); // hardwired names should be replaced by a get logged in user method
         }
@@ -340,7 +340,7 @@ public class TestUserService extends TestNdexService {
     @Test(expected = IllegalArgumentException.class)
     public void updateUserInvalid() throws IllegalArgumentException, SecurityException, NdexException
     {
-        _userService.updateUser(null);
+        _userService.updateUser(null, null);
     }
     
     

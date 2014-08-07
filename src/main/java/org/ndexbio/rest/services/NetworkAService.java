@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -37,6 +38,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.record.OIdentifiable;
+import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
 @Path("/network")
@@ -297,5 +300,32 @@ public class NetworkAService extends NdexService {
 			}
 		
 	}
+	
+	
+	@DELETE
+	@Path("/test/{UUID}")
+	@Produces("application/json")
+	@ApiDoc("Absent from API spec. This method will temporarily be used for mocha testing. Networks should not have any nodes or edges.")
+	public void deleteTestNetwork(final @PathParam("UUID") String id)
+			throws 	Exception {
+			
+
+			NdexDatabase db = new NdexDatabase();
+			try {
+				ODatabaseDocumentTx database = db.getTransactionConnection();
+				OIndex<?> Idx = database.getMetadata().getIndexManager().getIndex("network.UUID");
+				OIdentifiable network = (OIdentifiable) Idx.get(id);
+				
+				if(network == null)
+					throw new NdexException("Network does not exist");
+				
+				network.getRecord().delete();
+				
+			} finally {
+				db.close();
+			}
+		
+	}
+	
 
 }

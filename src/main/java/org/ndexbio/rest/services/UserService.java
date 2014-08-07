@@ -27,16 +27,12 @@ import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 @Path("/user")
 public class UserService extends NdexService {
-	private static final Logger _logger = LoggerFactory
-			.getLogger(UserService.class);
 	
 	private static UserDAO dao;
 	private static NdexDatabase database;
@@ -63,7 +59,7 @@ public class UserService extends NdexService {
 	 * @throws IllegalArgumentException
 	 *             Bad input.
 	 * @throws DuplicateObjectException
-	 *             A user with the same username/email address already exists.
+	 *             A user with the same accountName/email address already exists.
 	 * @throws NdexException
 	 *             Failed to create the user in the database.
 	 * @return The new user's profile.
@@ -81,31 +77,14 @@ public class UserService extends NdexService {
 		
 		final User user;
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 		
 		try {
 			localConnection.begin();
 			user = dao.createNewUser(newUser);
 			localConnection.commit();
-
-		} catch (IllegalArgumentException e) {
-
-			throw e;
-
-		} catch (DuplicateObjectException e) {
-
-			throw e;
-
-		} catch (Exception e) {
-
-			throw new NdexException(e.getMessage());
-
 		} finally {
-
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 
 		}
 		
@@ -131,9 +110,7 @@ public class UserService extends NdexService {
 	public User getUser(@PathParam("userId") final String userId)
 			throws IllegalArgumentException, NdexException {
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 		
 		try {
 
@@ -141,34 +118,12 @@ public class UserService extends NdexService {
 			return user;
 
 		} catch (ObjectNotFoundException e) {
-
-			try {
-
-				final User user = dao.getUserById(UUID.fromString(userId));
-				return user;
-
-			} catch (ObjectNotFoundException ee) {
-
-				throw ee;
-
-			} catch (Exception ee) {
-
-				throw new NdexException(ee.getMessage());
-
-			}
-
-		} catch (IllegalArgumentException e) {
-
-			throw e;
-
-		} catch (Exception e) {
-
-			throw new NdexException(e.getMessage());
-
+			
+			final User user = dao.getUserById(UUID.fromString(userId));
+			return user;
+				
 		} finally  {
-
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 
 		}
 		
@@ -192,28 +147,21 @@ public class UserService extends NdexService {
 	@Path("/{userId}/network/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public List<Membership> getUserNetworkMemberships(@PathParam("userId") final String groupId,
+	public List<Membership> getUserNetworkMemberships(@PathParam("userId") final String userId,
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 		
 		try {
 			
-			return dao.getUserNetworkMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
-			
-		} catch (ObjectNotFoundException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
+			return dao.getUserNetworkMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
+	
 		} finally {
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 		}
 	}
 	
@@ -242,21 +190,14 @@ public class UserService extends NdexService {
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 		
 		try {
 			
 			return dao.getUserGroupMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
-			
-		} catch (ObjectNotFoundException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
+
 		} finally {
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 		}
 	}
 
@@ -356,27 +297,14 @@ public class UserService extends NdexService {
 			@PathParam("password") final String password)
 			throws SecurityException, NdexException {
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 
 		try {
 			
 			return dao.authenticateUser(accountName, password);
-			
-		} catch (SecurityException se) {
-			
-			throw se;
-			
-		} catch (Exception e) {
-			
-			_logger.error("Can't authenticate users.", e);
-			throw new NdexException("There's a problem with the authentication server. Please try again later.");
-			
+
 		} finally {
-			
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 			
 		}
 		
@@ -404,9 +332,7 @@ public class UserService extends NdexService {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
 				"A password is required");
 
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 		
 		try {
 
@@ -414,18 +340,8 @@ public class UserService extends NdexService {
 			dao.changePassword(password, getLoggedInUser().getExternalId());
 			localConnection.commit();
 
-		} catch (IllegalArgumentException e) {
-
-			throw e;
-
-		} catch (Exception e) {
-
-			throw new NdexException(e.getMessage());
-
 		} finally {
-
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 
 		}
 	}
@@ -578,9 +494,7 @@ public class UserService extends NdexService {
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user.")
 	public void deleteUser() throws NdexException, ObjectNotFoundException {
 
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 		
 		try {
 
@@ -588,18 +502,8 @@ public class UserService extends NdexService {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
 			localConnection.commit();
 
-		} catch (ObjectNotFoundException e) {
-
-			throw e;
-
-		} catch (Exception e) {
-
-			throw new NdexException(e.getMessage());
-
 		} finally {
-
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 
 		}
 		
@@ -631,9 +535,7 @@ public class UserService extends NdexService {
 		// now anyone can change anyone else's password to a randomly generated
 		// password
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 		
 		try {
 
@@ -642,18 +544,8 @@ public class UserService extends NdexService {
 			localConnection.commit();
 			return res;
 
-		} catch (IllegalArgumentException e) {
-
-			throw e;
-
-		} catch (Exception e) {
-
-			throw new NdexException(e.getMessage());
-
 		} finally {
-
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 
 		}
 	}
@@ -677,27 +569,15 @@ public class UserService extends NdexService {
 	public List<User> findUsers(SimpleUserQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 		
 		try {
 
 			final List<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
 			return users;
 
-		} catch (IllegalArgumentException e) {
-
-			throw e;
-
-		} catch (Exception e) {
-
-			throw new NdexException(e.getMessage());
-
 		} finally {
-
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 
 		}
 		
@@ -763,10 +643,10 @@ public class UserService extends NdexService {
 	 *             Failed to update the user in the database.
 	 **************************************************************************/
 	@POST
-	@Path("/{userIdentifer}")
+	@Path("/{userIdentifier}")
 	@Produces("application/json")
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. Errors if the user object references a different user.")
-	public User updateUser(final User updatedUser)
+	public User updateUser(@PathParam("userIdentifier") final String userId, final User updatedUser)
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
@@ -774,9 +654,7 @@ public class UserService extends NdexService {
 		// Currently not using path param. We can already retrieve the id from the authentication
 		// However, this depends on the authentication method staying consistent?
 		
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		dao = new UserDAO(localConnection, graph);
+		this.openDatabase();
 
 		try {
 
@@ -785,19 +663,24 @@ public class UserService extends NdexService {
 			localConnection.commit();
 			
 			return user;
-			
-		} catch (IllegalArgumentException e) {
-			throw e;
-		} catch (ObjectNotFoundException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
+
 		} finally {
-			localConnection.close();
-			database.close();
+			this.closeDatabase();
 		}
 	}
 
+	private void openDatabase() throws NdexException {
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		graph = new OrientGraphNoTx(localConnection);
+		dao = new UserDAO(localConnection, graph);
+	}
+	private void closeDatabase() {
+		graph.shutdown();
+		localConnection.close();
+		database.close();
+	}
+	
 	/**************************************************************************
 	 * Resizes the source image to the specified dimensions.
 	 * 

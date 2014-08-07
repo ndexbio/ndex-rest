@@ -78,13 +78,7 @@ public class GroupService extends NdexService {
 			final Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId()); 
 			localConnection.commit();
 			return group;
-			
-		} catch (IllegalArgumentException e) {
-			throw e;
-		} catch (DuplicateObjectException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
+	
 		} finally {
 			this.closeDatabase();
 		}
@@ -150,10 +144,7 @@ public class GroupService extends NdexService {
 			localConnection.begin();
 			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
 			localConnection.commit();
-		} catch (ObjectNotFoundException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
+
 		} finally {
 			this.closeDatabase();
 		}
@@ -250,10 +241,7 @@ public class GroupService extends NdexService {
 		try {
 			final List<Group> groups = dao.findGroups(simpleQuery, skip, top);
 			return groups;
-		} catch (IllegalArgumentException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
+
 		} finally {
 			this.closeDatabase();
 		}
@@ -283,12 +271,7 @@ public class GroupService extends NdexService {
 		try {
 			final Group group = dao.getGroupById(UUID.fromString(groupId));
 			return group;
-		} catch (ObjectNotFoundException e) {
-			throw e;
-		} catch (IllegalArgumentException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
+
 		} finally  {
 			this.closeDatabase();
 		}
@@ -407,12 +390,6 @@ public class GroupService extends NdexService {
 			localConnection.commit();
 			return group;
 			
-		} catch (IllegalArgumentException e) {
-			throw e;
-		} catch (ObjectNotFoundException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
 		} finally {
 			this.closeDatabase();
 		}
@@ -452,15 +429,51 @@ public class GroupService extends NdexService {
 			localConnection.begin();
 			dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
 			localConnection.commit();
-		} catch (ObjectNotFoundException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
+
 		} finally {
 			this.closeDatabase();
 		}
 	}
 
+	/**************************************************************************
+	 * Remove member from group
+	 * 
+	 * @param groupId
+	 *            The group UUID.
+	 * @param memberId
+	 *            The member UUID
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws ObjectNotFoundException
+	 *             The network or member doesn't exist.
+	 * @throws NdexException
+	 *             Failed to query the database.
+	 **************************************************************************/
+	/*
+	 * refactored to accommodate non-transactional database interactions
+	 */
+	@DELETE
+	@Path("/{groupId}/member/{memberId}")
+	@Produces("application/json")
+	@ApiDoc("Removes the member specified by userUUID from the group specified by groupUUID. "
+			+ "Errors if the group or the user is not found. "
+			+ "Also errors if the authenticated user is not authorized to edit the group "
+			+ "or if removing the member would leave the group with no Admin member.")
+	public void removeMember(@PathParam("groupId") final String groupId,
+			@PathParam("memberId") final String memberId) throws IllegalArgumentException,
+			ObjectNotFoundException, NdexException {
+
+		this.openDatabase();
+		try {
+			localConnection.begin();
+			dao.removeMember(UUID.fromString(memberId), UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
+			localConnection.commit();
+
+		} finally {
+			this.closeDatabase();
+		}
+	}
+	
 	/**************************************************************************
 	 * Retrieves array of network membership objects
 	 * 
@@ -491,10 +504,6 @@ public class GroupService extends NdexService {
 			
 			return dao.getGroupNetworkMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
 			
-		} catch (ObjectNotFoundException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
 		} finally {
 			this.closeDatabase();
 		}
@@ -529,11 +538,7 @@ public class GroupService extends NdexService {
 		try {
 			
 			return dao.getGroupUserMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
-			
-		} catch (ObjectNotFoundException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
+
 		} finally {
 			this.closeDatabase();
 		}
