@@ -23,6 +23,7 @@ import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
+import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.model.object.Permissions;
 //import org.ndexbio.model.object.SearchParameters;
@@ -300,6 +301,39 @@ public class NetworkAService extends NdexService {
 			}
 		
 	}
+	
+
+	@POST
+	@Path("/asNetwork")
+	@Produces("application/json")
+	@ApiDoc("Creates a new network based on posted Network object. Errors if the posted network is not provided "
+			+ "or if that Network does not specify a name. Errors if the posted network is larger than server-set maximum for"
+			+ " network creation (though this is better to check locally in client before request)")
+	public NetworkSummary createNetwork(final Network newNetwork)
+			throws 	Exception {
+			Preconditions
+				.checkArgument(null != newNetwork, "A network is required");
+			Preconditions.checkArgument(
+				!Strings.isNullOrEmpty(newNetwork.getName()),
+				"A network name is required");
+			
+			NdexDatabase db = new NdexDatabase();
+			NdexNetworkCloneService service = null;
+			try {
+				service = new NdexNetworkCloneService(db, newNetwork, 
+						getLoggedInUser().getAccountName());
+				
+				return service.cloneNetwork();
+				
+			} finally {
+				if ( service !=null)
+					service.close();
+				if ( db != null) 
+					db.close();
+			}
+		
+	}
+	
 	
 	
 	@DELETE
