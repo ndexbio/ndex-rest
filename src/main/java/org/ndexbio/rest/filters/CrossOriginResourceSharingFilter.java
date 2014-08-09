@@ -1,4 +1,4 @@
-package org.ndexbio.rest.filters;
+/*package org.ndexbio.rest.filters;
 
 import java.io.IOException;
 import javax.servlet.Filter;
@@ -33,4 +33,29 @@ public class CrossOriginResourceSharingFilter implements Filter
     public void init(FilterConfig config) throws ServletException
     {
     }
+}*/
+package org.ndexbio.rest.filters;
+
+import java.io.IOException;
+
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.container.ContainerResponseContext;
+import javax.ws.rs.container.ContainerResponseFilter;
+import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.ext.Provider;
+
+@Provider
+public class CrossOriginResourceSharingFilter implements ContainerResponseFilter
+{
+	@Override
+	public void filter(ContainerRequestContext arg0,
+			ContainerResponseContext responseContext) throws IOException {
+
+		MultivaluedMap<String, Object> headers = responseContext.getHeaders();
+		headers.putSingle("Access-Control-Allow-Origin", "*");
+		headers.putSingle("Access-Control-Allow-Methods", "DELETE,GET,OPTIONS,POST,PUT");
+		headers.putSingle("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
+		headers.putSingle("Access_Control_Allow_Credentials", true);
+	}
 }
+
