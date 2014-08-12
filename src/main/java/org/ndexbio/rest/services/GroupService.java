@@ -25,6 +25,7 @@ import org.ndexbio.model.object.Group;
 import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 @Path("/group")
@@ -33,7 +34,7 @@ public class GroupService extends NdexService {
 	private static GroupDAO dao;
 	private static NdexDatabase database;
 	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
-	private static OrientGraphNoTx graph;
+	private static OrientBaseGraph graph;
 	
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -586,7 +587,7 @@ public class GroupService extends NdexService {
 		dao = new GroupDAO(localConnection, graph);
 	}
 	private void closeDatabase() {
-		graph.shutdown();
+		//graph.shutdown();
 		localConnection.close();
 		database.close();
 	}

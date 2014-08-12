@@ -57,7 +57,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         	final UserDAO dao = new UserDAO(localConnection, graph);
         	
             authInfo = parseCredentials(requestContext);
-            authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
+            if(authInfo != null)
+            	authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
             if (authUser != null)
                 requestContext.setProperty("User", authUser);
         }
