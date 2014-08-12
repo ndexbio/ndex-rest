@@ -139,7 +139,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 	
-			throws IllegalArgumentException, JsonProcessingException {
+			throws IllegalArgumentException, JsonProcessingException, NdexException {
 		
 		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
 		NetworkDAO dao = new NetworkDAO(db);
