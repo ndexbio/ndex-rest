@@ -9,6 +9,9 @@
         <dependent-module archiveName="ndex-common-0.0.1-SNAPSHOT.jar" deploy-path="/WEB-INF/lib" handle="module:/resource/ndex-common/ndex-common">
             <dependency-type>uses</dependency-type>
         </dependent-module>
+        <dependent-module archiveName="ndex-object-model-1.0.0-SNAPSHOT.jar" deploy-path="/WEB-INF/lib" handle="module:/resource/ndex-object-model/ndex-object-model">
+            <dependency-type>uses</dependency-type>
+        </dependent-module>
         <property name="context-root" value="ndexbio-rest"/>
         <property name="java-output-path" value="/ndexbio-rest/target/classes"/>
     </wb-module>
