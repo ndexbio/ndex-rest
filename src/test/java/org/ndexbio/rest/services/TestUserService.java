@@ -31,8 +31,8 @@ public class TestUserService extends TestNdexService {
     private static User testUser;
     private static User testUser2;
     
-    @Before
-    public void setUpBeforeClass() throws Exception {
+    @BeforeClass
+    public static void setUpBeforeClass() throws Exception {
     	NewUser newUser = new NewUser();
         newUser.setEmailAddress("testUser@ndexbio.org");
         newUser.setPassword("testUser");
@@ -43,8 +43,8 @@ public class TestUserService extends TestNdexService {
 	
     }
   
-    @After
-	public void tearDownAfterClass() throws Exception {
+    @AfterClass
+	public static void tearDownAfterClass() throws Exception {
     	
     	final NdexDatabase database = new NdexDatabase();
     	final ODatabaseDocumentTx  localConnection = database.getAConnection();  //all DML will be in this connection, in one transaction.

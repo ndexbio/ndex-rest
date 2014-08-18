@@ -334,7 +334,20 @@ public class NetworkAService extends NdexService {
 		
 	}
 	
-	
+	@DELETE 
+	@Path("/{UUID}")
+	@Produces("application/json")
+	@ApiDoc("")
+	public void deleteNetowrk(final @PathParam("UUID") String id) {
+
+		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		NetworkDAO networkDao = new NetworkDAO(db);
+		try{
+			networkDao.deleteNetwork(id);
+		} finally {
+			db.close();
+		}
+	}
 	
 	@DELETE
 	@Path("/test/{UUID}")

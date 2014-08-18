@@ -103,7 +103,7 @@ public abstract class TestNdexService
     	
     	final List<User> users = dao.findUsers(search, 0, 5);
     	
-    	if(users.isEmpty()) {
+    	if(!users.get(0).getAccountName().equals("dexterpratt")) {
    
 	    	final NewUser newUser = new NewUser();
 	    	newUser.setEmailAddress("dexterpratt@ndexbio.org");

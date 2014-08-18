@@ -22,7 +22,7 @@ import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.access.NdexDatabase;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
+import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.SimpleUserQuery;
@@ -37,7 +37,7 @@ public class UserService extends NdexService {
 	private static UserDAO dao;
 	private static NdexDatabase database;
 	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
-	private static OrientGraphNoTx graph;
+	private static OrientGraph graph;
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -672,11 +672,11 @@ public class UserService extends NdexService {
 	private void openDatabase() throws NdexException {
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		graph = new OrientGraphNoTx(localConnection);
+		graph = new OrientGraph(localConnection);
 		dao = new UserDAO(localConnection, graph);
 	}
 	private void closeDatabase() {
-		graph.shutdown();
+		//graph.shutdown();
 		localConnection.close();
 		database.close();
 	}
