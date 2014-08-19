@@ -16,6 +16,7 @@ import javax.ws.rs.core.Response;
 
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
@@ -679,6 +680,47 @@ public class UserService extends NdexService {
 		//graph.shutdown();
 		localConnection.close();
 		database.close();
+	}
+	
+	
+	//TODO both requests methods ignore UUID in url. Should at least verify it is the same as logged in UUID for consistency
+	
+	@GET
+	@Path("/{userId}/request/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("")
+	public List<Request> getSentRequest(@PathParam("userId") final String groupId,
+			@PathParam("skipBlocks") int skipBlocks,
+			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		this.openDatabase();
+		
+		try {
+			
+			return dao.getSentRequest(this.getLoggedInUser(),skipBlocks, blockSize);
+
+		} finally {
+			this.closeDatabase();
+		}
+	}
+	
+	@GET
+	@Path("/{userId}/request/pending/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("")
+	public List<Request> getPendingRequest(@PathParam("userId") final String groupId,
+			@PathParam("skipBlocks") int skipBlocks,
+			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		this.openDatabase();
+		
+		try {
+			
+			return dao.getPendingRequest(this.getLoggedInUser(),skipBlocks, blockSize);
+
+		} finally {
+			this.closeDatabase();
+		}
 	}
 	
 	/**************************************************************************
