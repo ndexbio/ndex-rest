@@ -1,6 +1,7 @@
 package org.ndexbio.rest.services;
 
 import java.util.Date;
+import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
@@ -16,9 +17,9 @@ import javax.ws.rs.core.Context;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
-
-import org.ndexbio.common.models.object.Status;
-import org.ndexbio.common.models.object.TaskType;
+import org.ndexbio.common.models.dao.orientdb.TaskDAO;
+import org.ndexbio.model.object.Status;
+import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
@@ -28,7 +29,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.id.ORID;
 
-@Path("/tasks")
+@Path("/task")
 public class TaskService extends NdexService
 {
     private static final Logger _logger = LoggerFactory.getLogger(TaskService.class);
@@ -61,38 +62,27 @@ public class TaskService extends NdexService
     /*
      * refactored for non-transactional database operation
      */
-/*    @PUT
+    @POST
     @Produces("application/json")
 	@ApiDoc("Create a new task owned by the authenticated user based on the supplied JSON task object.")
-    public Task createTask(final Task newTask) throws IllegalArgumentException, NdexException
+    public UUID createTask(final Task newTask) throws IllegalArgumentException, NdexException
     {
     	Preconditions.checkArgument(null != newTask, 
     			" A task object is required");
         
         
-        final ORID userRid = IdConverter.toRid(this.getLoggedInUser().getId());
+        final String userAccount = this.getLoggedInUser().getAccountName();
 
         try
         {
             setupDatabase();
+            TaskDAO dao = new TaskDAO(this._ndexDatabase);
             
-            final IUser taskOwner = _orientDbGraph.getVertex(userRid, IUser.class);
-            
-            final ITask task = _orientDbGraph.addVertex("class:task", ITask.class);
-            task.setDescription(newTask.getDescription());
-            task.setOwner(taskOwner);
-            task.setPriority(newTask.getPriority());
-            task.setProgress(newTask.getProgress());
-            task.setResource(newTask.getResource());
-            task.setStatus(newTask.getStatus());
-            task.setStartTime(newTask.getCreatedDate());
-            task.setType(newTask.getType());
-            newTask.setId(IdConverter.toJid((ORID) task.asVertex().getId()));
-            return newTask;
+            return dao.createTask(userAccount, newTask);
         }
         catch (Exception e)
         {
-            _logger.error("Error creating task for: " + this.getLoggedInUser().getUsername() + ".", e);
+            _logger.error("Error creating task for: " + userAccount + ".", e);
             throw new NdexException("Error creating a task.");
         }
         finally
@@ -100,7 +90,7 @@ public class TaskService extends NdexService
             teardownDatabase();
         }
     }
-*/
+
     /**************************************************************************
     * Deletes a task. 
     * 

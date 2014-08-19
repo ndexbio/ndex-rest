@@ -1,12 +1,17 @@
 package org.ndexbio.rest.services;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -16,19 +21,27 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 
+import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
+import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
+import org.ndexbio.model.object.Status;
+import org.ndexbio.model.object.TaskType;
+import org.ndexbio.common.models.object.UploadedFile;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.Priority;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.SimplePathQuery;
+import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -374,5 +387,102 @@ public class NetworkAService extends NdexService {
 		
 	}
 	
+	
+	/**************************************************************************
+	 * Saves an uploaded network file. Determines the type of file uploaded,
+	 * saves the file, and creates a task.
+	 * 
+	 * @param uploadedNetwork
+	 *            The uploaded network file.
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws NdexException
+	 *             Failed to parse the file, or create the network in the
+	 *             database.
+	 **************************************************************************/
+	/*
+	 * refactored to support non-transactional database operations
+	 */
+	@POST
+	@Path("/upload")
+	@Consumes("multipart/form-data")
+	@Produces("application/json")
+	@ApiDoc("Saves an uploaded file to a temporary directory and creates a task that specifies the file for parsing and import into the database. "
+			+ "A background process running on the NDEx server processes file import tasks. "
+			+ "Errors if the network is missing or if it has no filename or no file data.")
+	public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork)
+			throws IllegalArgumentException, SecurityException, NdexException {
+
+		try {
+			Preconditions
+					.checkNotNull(uploadedNetwork, "A network is required");
+			Preconditions.checkState(
+					!Strings.isNullOrEmpty(uploadedNetwork.getFilename()),
+					"A file name containg the network data is required");
+			Preconditions.checkNotNull(uploadedNetwork.getFileData(),
+					"Network file data is required");
+			Preconditions.checkState(uploadedNetwork.getFileData().length > 0,
+					"The file data is empty");
+		} catch (Exception e1) {
+			throw new IllegalArgumentException(e1);
+		}
+
+		final File uploadedNetworkPath = new File(Configuration.getInstance()
+				.getProperty("Uploaded-Networks-Path"));
+		if (!uploadedNetworkPath.exists())
+			uploadedNetworkPath.mkdir();
+
+		final File uploadedNetworkFile = new File(
+				uploadedNetworkPath.getAbsolutePath() + "/"
+						+ uploadedNetwork.getFilename());
+
+		try {
+			if (!uploadedNetworkFile.exists())
+				uploadedNetworkFile.createNewFile();
+
+			final FileOutputStream saveNetworkFile = new FileOutputStream(
+					uploadedNetworkFile);
+			saveNetworkFile.write(uploadedNetwork.getFileData());
+			saveNetworkFile.flush();
+			saveNetworkFile.close();
+
+			setupDatabase();
+
+			final String fn = uploadedNetwork.getFilename().toLowerCase();
+
+			if (fn.endsWith(".sif") || fn.endsWith(".xbel")
+					|| fn.endsWith(".xgmml") || fn.endsWith(".xls")
+					|| fn.endsWith(".xlsx")) {
+
+				final String userAccount = this.getLoggedInUser().getAccountName();
+
+				Task processNetworkTask = new Task();
+				processNetworkTask.setDescription("Process uploaded network");
+				processNetworkTask.setTaskType(TaskType.PROCESS_UPLOADED_NETWORK);
+				processNetworkTask.setPriority(Priority.LOW);
+				processNetworkTask.setProgress(0);
+				processNetworkTask.setResource(uploadedNetworkFile
+						.getAbsolutePath());
+				processNetworkTask.setStatus(Status.QUEUED);
+
+				TaskDAO dao = new TaskDAO(this._ndexDatabase);
+				dao.createTask(userAccount, processNetworkTask);
+			    this._ndexDatabase.commit();
+			    
+			} else {
+				uploadedNetworkFile.delete();
+				throw new IllegalArgumentException(
+						"The uploaded file type is not supported; must be Excel, XGMML, SIF, OR XBEL.");
+			}
+		} catch (IllegalArgumentException iae) {
+			throw iae;
+		} catch (Exception e) {
+			Logger.getLogger(this.getClass().getName()).severe("Failed to process uploaded network: "
+					+ uploadedNetwork.getFilename() + ". " + e.getMessage());
+
+			throw new NdexException(e.getMessage());
+		}
+	}
+
 
 }
