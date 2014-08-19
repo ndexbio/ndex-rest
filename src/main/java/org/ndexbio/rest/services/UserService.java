@@ -659,9 +659,9 @@ public class UserService extends NdexService {
 
 		try {
 
-			localConnection.begin();
+			//localConnection.begin();
 			final User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
-			localConnection.commit();
+			graph.commit();
 			
 			return user;
 
@@ -669,19 +669,6 @@ public class UserService extends NdexService {
 			this.closeDatabase();
 		}
 	}
-
-	private void openDatabase() throws NdexException {
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		graph = new OrientGraph(localConnection);
-		dao = new UserDAO(localConnection, graph);
-	}
-	private void closeDatabase() {
-		//graph.shutdown();
-		localConnection.close();
-		database.close();
-	}
-	
 	
 	//TODO both requests methods ignore UUID in url. Should at least verify it is the same as logged in UUID for consistency
 	
@@ -723,6 +710,21 @@ public class UserService extends NdexService {
 		}
 	}
 	
+
+	private void openDatabase() throws NdexException {
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		graph = new OrientGraph(localConnection);
+		dao = new UserDAO(localConnection, graph);
+	}
+	private void closeDatabase() {
+		//graph.shutdown();
+		localConnection.close();
+		database.close();
+	}
+	
+	
+
 	/**************************************************************************
 	 * Resizes the source image to the specified dimensions.
 	 * 

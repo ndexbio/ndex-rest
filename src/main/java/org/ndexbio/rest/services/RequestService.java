@@ -83,9 +83,9 @@ public class RequestService extends NdexService
     	this.openDatabase();
 		
 		try {
-			localConnection.begin();
+			//localConnection.begin();
 			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
-			localConnection.commit();
+			graph.commit();
 		} finally {
 			this.closeDatabase();
 
@@ -139,9 +139,9 @@ public class RequestService extends NdexService
     	this.openDatabase();
 		
 		try {
-			localConnection.begin();
+			//localConnection.begin();
 			dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
-			localConnection.commit();
+			graph.commit();
 		} finally {
 			this.closeDatabase();
 
