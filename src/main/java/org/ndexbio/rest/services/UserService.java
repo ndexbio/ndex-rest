@@ -670,13 +670,33 @@ public class UserService extends NdexService {
 		}
 	}
 	
+	@GET
+	@PermitAll
+	@Path("/{accountId}/membership/{resourceId}")
+	@Produces("application/json")
+	@ApiDoc("")
+	public Membership getMembership(@PathParam("accountId") final String accountId, @PathParam("resourceId") final String resourceId) 
+			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
+		
+		this.openDatabase();
+		
+		try {
+			
+			return dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId));
+
+		} finally {
+			this.closeDatabase();
+		}
+	}
+	
+	
 	//TODO both requests methods ignore UUID in url. Should at least verify it is the same as logged in UUID for consistency
 	
 	@GET
 	@Path("/{userId}/request/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public List<Request> getSentRequest(@PathParam("userId") final String groupId,
+	public List<Request> getSentRequest(@PathParam("userId") final String userId,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
@@ -695,7 +715,7 @@ public class UserService extends NdexService {
 	@Path("/{userId}/request/pending/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public List<Request> getPendingRequest(@PathParam("userId") final String groupId,
+	public List<Request> getPendingRequest(@PathParam("userId") final String userId,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		

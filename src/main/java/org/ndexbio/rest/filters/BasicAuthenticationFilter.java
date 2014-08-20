@@ -59,8 +59,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             authInfo = parseCredentials(requestContext);
             if(authInfo != null)
             	authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
+            	// TODO use alternate method that does not return user object, instead returns ORID/Identifier
             if (authUser != null)
                 requestContext.setProperty("User", authUser);
+            	// TODO set an ORID/Identifier property? speed up retrieval times
         }
         catch (Exception e)
         {
