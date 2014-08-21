@@ -140,6 +140,56 @@ public class NetworkAService extends NdexService {
 
 
 	@GET
+	@Path("/{networkId}/asNetwork")
+	@Produces("application/json")
+	@ApiDoc("Returns a network based on a set of edges selected from the network "
+			+ "specified by networkId. The returned network is fully poplulated and "
+			+ "'self-sufficient', including all nodes, terms, supports, citations, "
+			+ "and namespaces. The query selects a number of edges specified by the "
+			+ "'blockSize' parameter, starting at an offset specified by the 'skipBlocks' parameter.")
+	public Network getCompleteNetwork(
+			@PathParam("networkId") final String networkId)
+	
+			throws IllegalArgumentException, NdexException {
+		
+		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		NetworkDAO daoNew = new NetworkDAO(db);
+		//TODO: Preverify the requirment.
+		
+		
+		Network n = daoNew.getNetworkById(UUID.fromString(networkId));
+		db.close();
+        return n;		
+	}
+	
+	@GET
+	@Path("/{networkId}/asPropertyGraph")
+	@Produces("application/json")
+	@ApiDoc("Returns a network based on a set of edges selected from the network "
+			+ "specified by networkId. The returned network is fully poplulated and "
+			+ "'self-sufficient', including all nodes, terms, supports, citations, "
+			+ "and namespaces. The query selects a number of edges specified by the "
+			+ "'blockSize' parameter, starting at an offset specified by the 'skipBlocks' parameter.")
+	public PropertyGraphNetwork getCompleteNetworkAsPropertyGraph(
+			@PathParam("networkId") final String networkId)
+	
+			throws IllegalArgumentException, NdexException, JsonProcessingException {
+		ODatabaseDocumentTx db =null;
+		try { 
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			NetworkDAO daoNew = new NetworkDAO(db);
+			//TODO: Preverify the requirment.
+		
+		
+			PropertyGraphNetwork n = daoNew.getProperytGraphNetworkById(UUID.fromString(networkId));
+			return n;
+		} finally {
+			if (db !=null ) db.close();
+		}
+	}
+
+	
+	@GET
 	@Path("/{networkId}/edge/asPropertyGraph/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("Returns a network based on a set of edges selected from the network "
