@@ -507,7 +507,7 @@ public class NetworkAService extends NdexService {
 				final String userAccount = this.getLoggedInUser().getAccountName();
 
 				Task processNetworkTask = new Task();
-				processNetworkTask.setDescription("Process uploaded network");
+				processNetworkTask.setDescription("Loading " + uploadedNetwork.getFilename());
 				processNetworkTask.setTaskType(TaskType.PROCESS_UPLOADED_NETWORK);
 				processNetworkTask.setPriority(Priority.LOW);
 				processNetworkTask.setProgress(0);

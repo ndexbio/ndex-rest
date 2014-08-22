@@ -15,9 +15,12 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
+import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
+import org.ndexbio.common.models.dao.orientdb.RequestDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
+import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.Task;
@@ -27,13 +30,18 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORID;
+import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 
 @Path("/task")
 public class TaskService extends NdexService
 {
     private static final Logger _logger = LoggerFactory.getLogger(TaskService.class);
-    
+	private static TaskDAO dao;
+	private static NdexDatabase database;
+	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
+	private static OrientGraph graph;
     
     
     /**************************************************************************
@@ -75,8 +83,8 @@ public class TaskService extends NdexService
 
         try
         {
-            setupDatabase();
-            TaskDAO dao = new TaskDAO(this._ndexDatabase);
+        	this.openDatabase();
+            //TaskDAO dao = new TaskDAO(this._ndexDatabase);
             
             return dao.createTask(userAccount, newTask);
         }
@@ -87,9 +95,66 @@ public class TaskService extends NdexService
         }
         finally
         {
-            teardownDatabase();
+        	this.closeDatabase();
         }
     }
+    
+
+    
+	@PUT
+	@Path("/{taskId}/status/{status}")
+	@Produces("application/json")
+	@ApiDoc("Sets the status of the task, throws exception if status is not recognized.")
+	public Task updateTaskStatus(@PathParam("status") final String status,
+			@PathParam("taskId") final String taskId) throws NdexException {
+		
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId),
+				"A task ID is required");
+
+		this.openDatabase();
+		
+		try {
+			
+			if (!isValidTaskStatus(status))
+				throw new IllegalArgumentException(status + " is not a known TaskStatus");
+			Status s = Status.valueOf(status);
+
+			return dao.updateTaskStatus(s,taskId, this.getLoggedInUser());
+
+			
+		} catch (Exception e) {
+			_logger.error("Error changing task status for: "
+					+ this.getLoggedInUser().getAccountName() + ".", e);
+			throw new NdexException("Error changing task status.");
+			
+		} finally {
+			this.closeDatabase();
+
+		}
+
+	}
+
+	private boolean isValidTaskStatus(String status) {
+		for (Status value : Status.values()) {
+			if (value.name().equals(status)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+	
+    private void openDatabase() throws NdexException {
+		database = new NdexDatabase();
+		localConnection = database.getAConnection();
+		graph = new OrientGraph(localConnection);
+		dao = new TaskDAO(localConnection);
+	}
+	private void closeDatabase() {
+		//graph.shutdown();
+		localConnection.close();
+		database.close();
+	}
 
     /**************************************************************************
     * Deletes a task. 
@@ -266,53 +331,7 @@ public class TaskService extends NdexService
         }
     }
     
-	@PUT
-	@Path("/{taskId}/status/{status}")
-	@Produces("application/json")
-	@ApiDoc("Sets the status of the task, throws exception if status is not recognized.")
-	public Task setTaskStatus(@PathParam("taskId") final String taskId,
-			@PathParam("status") final String status) throws NdexException {
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId),
-				"A task ID is required");
 
-		setupDatabase();
-		try {
-			ORID taskRid = IdConverter.toRid(taskId);
-			final ITask taskToUpdate = _orientDbGraph.getVertex(taskRid,
-					ITask.class);
-			if (taskToUpdate == null)
-				throw new ObjectNotFoundException("Task", taskId);
-			else if (!taskToUpdate.getOwner().getUsername()
-					.equals(this.getLoggedInUser().getUsername()))
-				throw new SecurityException("Access denied.");
-
-			if (!isValidTaskStatus(status))
-				throw new IllegalArgumentException(status
-						+ " is not a known TaskStatus");
-
-			Status s = Status.valueOf(status);
-
-			taskToUpdate.setStatus(s);
-			Task updatedTask = new Task(taskToUpdate);
-			return updatedTask;
-		} catch (Exception e) {
-			_logger.error("Error changing task status for: "
-					+ this.getLoggedInUser().getUsername() + ".", e);
-			throw new NdexException("Error changing task status.");
-		} finally {
-			teardownDatabase();
-		}
-	}
-
-	private boolean isValidTaskStatus(String status) {
-		for (Status value : Status.values()) {
-			if (value.name().equals(status)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
 	
   */  
     
