@@ -233,7 +233,7 @@ public class NetworkAService extends NdexService {
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			UserDAO userDao = new UserDAO ( db);
-			User user = userDao.getUserById(UUID.fromString(getLoggedInUser().getAccountName()));
+			User user = userDao.getUserByAccountName(getLoggedInUser().getAccountName());
 			NetworkDAO networkDao = new NetworkDAO(db);
 
 			if (!Helper.isAdminOfNetwork(db, networkId, user.getExternalId().toString())) {
@@ -265,15 +265,17 @@ public class NetworkAService extends NdexService {
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			UserDAO userDao = new UserDAO ( db);
-			User user = userDao.getUserById(UUID.fromString(getLoggedInUser().getAccountName()));
+			
+			User user = userDao.getUserByAccountName(getLoggedInUser().getAccountName());
 			NetworkDAO networkDao = new NetworkDAO(db);
 
 			if (!Helper.isAdminOfNetwork(db, networkId, user.getExternalId().toString())) {
 				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 			}
         
-	
-			return networkDao.grantPrivilege(networkId, membership.getMemberUUID().toString(), membership.getPermissions());
+	        int count = networkDao.grantPrivilege(networkId, membership.getMemberUUID().toString(), membership.getPermissions());
+			db.commit();
+	        return count;
 		} finally {
 			if (db != null) db.close();
 		}
