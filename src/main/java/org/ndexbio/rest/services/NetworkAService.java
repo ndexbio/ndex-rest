@@ -27,21 +27,25 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
+import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
+import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.common.models.object.UploadedFile;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
+import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.SimplePathQuery;
 import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -211,6 +215,70 @@ public class NetworkAService extends NdexService {
         return n;		
 	}
 	
+
+	
+	@DELETE
+	@Path("/{networkId}/member/{userUUID}")
+	@Produces("application/json")
+	@ApiDoc("Removes a member specified by userUUID from the network specified by networkUUID. Errors "
+			+ "if the authenticated user does not have sufficient permissions or if "
+			+ "the network or user is not found. Removal is also denied if it would leave the network "
+			+ "without any Admin member.")
+	public int deleteNetworkMembership(
+			@PathParam("networkId") final String networkId,
+			@PathParam("userUUID") final String  userUUID
+			)
+			throws IllegalArgumentException, NdexException {
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			UserDAO userDao = new UserDAO ( db);
+			User user = userDao.getUserById(UUID.fromString(getLoggedInUser().getAccountName()));
+			NetworkDAO networkDao = new NetworkDAO(db);
+
+			if (!Helper.isAdminOfNetwork(db, networkId, user.getExternalId().toString())) {
+				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+			}
+	
+			int count = networkDao.revokePrivilege(networkId, userUUID);
+            db.commit();
+            return count;
+		} finally {
+			if (db != null) db.close();
+		}
+	}
+
+	
+	@POST
+	@Path("/{networkId}/member")
+	@Produces("application/json")
+	@ApiDoc("Updates the permission of a member specified by userUUID for the network specified by "
+			+ "networkUUID to the POSTed permission. Errors if the authenticated user does not have sufficient "
+			+ "permissions or if the network or user is not found. "
+			+ "Change is also denied if it would leave the network without any Admin member.")
+	public int updateNetworkMembership(
+			@PathParam("networkId") final String networkId,
+			final Membership membership
+			)
+			throws IllegalArgumentException, NdexException {
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			UserDAO userDao = new UserDAO ( db);
+			User user = userDao.getUserById(UUID.fromString(getLoggedInUser().getAccountName()));
+			NetworkDAO networkDao = new NetworkDAO(db);
+
+			if (!Helper.isAdminOfNetwork(db, networkId, user.getExternalId().toString())) {
+				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+			}
+        
+	
+			return networkDao.grantPrivilege(networkId, membership.getMemberUUID().toString(), membership.getPermissions());
+		} finally {
+			if (db != null) db.close();
+		}
+	}
+
 	
 	
 	@POST
