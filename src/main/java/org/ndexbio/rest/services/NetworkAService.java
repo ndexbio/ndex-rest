@@ -63,31 +63,27 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 @Path("/network")
 public class NetworkAService extends NdexService {
 	
-	
-	private NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
-	
 	public NetworkAService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
-/*	
+	
 	@GET
-	@Path("/{networkId}/term/{skipBlocks}/{blockSize}")
+	@Path("/{networkId}/baseTerm/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("Returns a block of terms from the network specified by networkId as a list. "
+	@ApiDoc("Returns a block of base terms from the network specified by networkId as a list. "
 			+ "'blockSize' specifies the maximum number of terms to retrieve in the block, "
 			+ "'skipBlocks' specifies the number of blocks to skip.")
-	public List<BaseTerm> getTerms(
+	public List<BaseTerm> getBaseTerms(
 			@PathParam("networkId") final String networkId,
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 			
 			throws IllegalArgumentException, NdexException {
-		
-		return dao.getTerms(this.getLoggedInUser(), networkId, skipBlocks, blockSize);
+		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		NetworkDAO daoNew = new NetworkDAO(db);
+		return (List<BaseTerm>) daoNew.getBaseTerms(networkId);
 		
 	}
-*/	
-
 		
 	@GET
 	@Path("/{networkId}")
@@ -471,7 +467,7 @@ public class NetworkAService extends NdexService {
 	@Path("/{UUID}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public void deleteNetowrk(final @PathParam("UUID") String id) {
+	public void deleteNetwork(final @PathParam("UUID") String id) {
 
 		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
 		NetworkDAO networkDao = new NetworkDAO(db);

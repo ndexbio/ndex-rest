@@ -1,6 +1,5 @@
 package org.ndexbio.rest.services;
 
-import java.util.List;
 import java.util.Map;
 
 import javax.annotation.security.PermitAll;
@@ -14,9 +13,6 @@ import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 @Path("/admin")
 public class AdminService extends NdexService {
 	private static final Logger logger = LoggerFactory.getLogger(AdminService.class);

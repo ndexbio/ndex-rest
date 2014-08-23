@@ -115,8 +115,6 @@ public class TaskService extends NdexService
 		
 		try {
 			
-			if (!isValidTaskStatus(status))
-				throw new IllegalArgumentException(status + " is not a known TaskStatus");
 			Status s = Status.valueOf(status);
 
 			return dao.updateTaskStatus(s,taskId, this.getLoggedInUser());
@@ -125,23 +123,13 @@ public class TaskService extends NdexService
 		} catch (Exception e) {
 			_logger.error("Error changing task status for: "
 					+ this.getLoggedInUser().getAccountName() + ".", e);
-			throw new NdexException("Error changing task status.");
+			throw new NdexException("Error changing task status." + e.getMessage());
 			
 		} finally {
 			this.closeDatabase();
 
 		}
 
-	}
-
-	private boolean isValidTaskStatus(String status) {
-		for (Status value : Status.values()) {
-			if (value.name().equals(status)) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 	
     private void openDatabase() throws NdexException {
@@ -151,7 +139,6 @@ public class TaskService extends NdexService
 		dao = new TaskDAO(localConnection);
 	}
 	private void closeDatabase() {
-		//graph.shutdown();
 		localConnection.close();
 		database.close();
 	}
