@@ -57,9 +57,8 @@ public class RequestService extends NdexService
 		this.openDatabase();
 		
 		try {
-			localConnection.begin();
 			final Request request = dao.createRequest(newRequest, this.getLoggedInUser());
-			localConnection.commit();
+			graph.commit();
 			return request;
 		} finally {
 			this.closeDatabase();
@@ -158,7 +157,7 @@ public class RequestService extends NdexService
 	}
 	private void closeDatabase() {
 		//graph.shutdown();
-		localConnection.close();
+		graph.shutdown();//.close();
 		database.close();
 	}
     

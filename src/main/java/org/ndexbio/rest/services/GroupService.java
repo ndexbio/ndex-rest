@@ -75,9 +75,9 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 		
 		try {
-			localConnection.begin();
+			//localConnection.begin();
 			final Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId()); 
-			localConnection.commit();
+			graph.commit();//localConnection.commit();
 			return group;
 	
 		} finally {
@@ -142,9 +142,9 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 		
 		try {
-			localConnection.begin();
+			//localConnection.begin();
 			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
-			localConnection.commit();
+			graph.commit();
 
 		} finally {
 			this.closeDatabase();
@@ -386,9 +386,9 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 
 		try {
-			localConnection.begin();
+			//localConnection.begin();
 			final Group group = dao.updateGroup(updatedGroup, UUID.fromString(id), this.getLoggedInUser().getExternalId());
-			localConnection.commit();
+			graph.commit();//localConnection.commit();
 			return group;
 			
 		} finally {
@@ -427,9 +427,9 @@ public class GroupService extends NdexService {
 
 		this.openDatabase();
 		try {
-			localConnection.begin();
+			//localConnection.begin();
 			dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
-			localConnection.commit();
+			graph.commit();//localConnection.commit();
 
 		} finally {
 			this.closeDatabase();
@@ -466,9 +466,9 @@ public class GroupService extends NdexService {
 
 		this.openDatabase();
 		try {
-			localConnection.begin();
+			//localConnection.begin();
 			dao.removeMember(UUID.fromString(memberId), UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
-			localConnection.commit();
+			graph.commit();//localConnection.commit();
 
 		} finally {
 			this.closeDatabase();
@@ -587,8 +587,8 @@ public class GroupService extends NdexService {
 		dao = new GroupDAO(localConnection, graph);
 	}
 	private void closeDatabase() {
-		//graph.shutdown();
-		localConnection.close();
+		graph.shutdown();
+		//localConnection.close();
 		database.close();
 	}
 }

@@ -83,9 +83,9 @@ public class UserService extends NdexService {
 		this.openDatabase();
 		
 		try {
-			localConnection.begin();
+			//localConnection.begin();
 			user = dao.createNewUser(newUser);
-			localConnection.commit();
+			graph.commit();//localConnection.commit();
 		} finally {
 			this.closeDatabase();
 
@@ -266,9 +266,9 @@ public class UserService extends NdexService {
 		
 		try {
 
-			localConnection.begin();
+			//localConnection.begin();
 			dao.changePassword(password, getLoggedInUser().getExternalId());
-			localConnection.commit();
+			graph.commit();//localConnection.commit();
 
 		} finally {
 			this.closeDatabase();
@@ -292,9 +292,9 @@ public class UserService extends NdexService {
 		
 		try {
 
-			localConnection.begin();
+			//localConnection.begin();
 			dao.deleteUserById(getLoggedInUser().getExternalId());
-			localConnection.commit();
+			graph.commit();//localConnection.commit();
 
 		} finally {
 			this.closeDatabase();
@@ -333,9 +333,9 @@ public class UserService extends NdexService {
 		
 		try {
 
-			localConnection.begin();
+			//localConnection.begin();
 			final Response res = dao.emailNewPassword(username);
-			localConnection.commit();
+			graph.commit();//localConnection.commit();
 			return res;
 
 		} finally {
@@ -506,8 +506,8 @@ public class UserService extends NdexService {
 		dao = new UserDAO(localConnection, graph);
 	}
 	private void closeDatabase() {
-		//graph.shutdown();
-		localConnection.close();
+		graph.shutdown();
+		//localConnection.close();
 		database.close();
 	}
 	
