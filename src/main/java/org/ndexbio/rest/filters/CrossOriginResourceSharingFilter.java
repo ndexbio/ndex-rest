@@ -64,8 +64,8 @@ public class CrossOriginResourceSharingFilter implements ContainerResponseFilter
 
 		MultivaluedMap<String, Object> headers = responseContext.getHeaders();
 		headers.putSingle("Access-Control-Allow-Origin", "*");
-		headers.putSingle("Access-Control-Allow-Methods", "DELETE,GET,OPTIONS,POST,PUT");
-		headers.putSingle("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
+		headers.putSingle("Access-Control-Allow-Methods", "HEAD, DELETE,GET,OPTIONS,POST,PUT");
+		headers.putSingle("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization, Content-Length, X-Requested-With");
 		headers.putSingle("Access_Control_Allow_Credentials", true);
 	}
 	
@@ -80,7 +80,7 @@ public class CrossOriginResourceSharingFilter implements ContainerResponseFilter
     {
         HttpServletResponse httpResponse = (HttpServletResponse)response;
         httpResponse.addHeader("Access-Control-Allow-Origin", "*");
-        httpResponse.addHeader("Access-Control-Allow-Methods", "DELETE,GET,OPTIONS,POST,PUT");
+        httpResponse.addHeader("Access-Control-Allow-Methods", "HEAD, DELETE,GET,OPTIONS,POST,PUT");
         httpResponse.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
         
         chain.doFilter(request, response);

@@ -416,7 +416,6 @@ public class GroupService extends NdexService {
 	 */
 	@POST
 	@Path("/{groupId}/member")
-	@Produces("application/json")
 	@ApiDoc("Updates the membership corresponding to the POSTed GroupMembership JSON structure in the group specified by groupId " +
 			"Errors if GroupMembership is or groupId is not provided. " + 
 			"Errors if the authenticated user does not have admin permissions for the group. " + 

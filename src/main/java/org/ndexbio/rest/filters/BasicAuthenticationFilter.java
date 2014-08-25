@@ -22,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
+import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 
 /*
  * class represents a RestEasy request filter that will validate
@@ -46,14 +46,16 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)requestContext.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
         final Method method = methodInvoker.getMethod();
         NdexDatabase database = null; //not best coding practice? done to avoid compilation errors
-
+        OrientGraph graph = null;
+        ODatabaseDocumentTx localConnection = null;
+        
         String[] authInfo = null;
         User authUser = null;
         try
         {
         	database = new NdexDatabase();
-        	ODatabaseDocumentTx localConnection = database.getTransactionConnection();
-        	OrientGraphNoTx graph = new OrientGraphNoTx(localConnection);
+        	localConnection = database.getAConnection();
+        	graph = new OrientGraph(localConnection);
         	final UserDAO dao = new UserDAO(localConnection, graph);
         	
             authInfo = parseCredentials(requestContext);
@@ -72,7 +74,12 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                 _logger.error("Failed to authenticate a user; credential information unknown.");
         } finally 
         {
-        	database.close();
+        	if(localConnection != null)
+        		localConnection.close();
+        	if(graph!= null)
+        		graph.shutdown();
+        	if(database != null)
+        		database.close();
         }
         
         if (!method.isAnnotationPresent(PermitAll.class))
