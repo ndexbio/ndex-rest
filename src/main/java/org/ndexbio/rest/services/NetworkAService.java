@@ -106,9 +106,19 @@ public class NetworkAService extends NdexService {
 			@PathParam("networkId") final String networkId)
 			
 			throws IllegalArgumentException, NdexException {
-		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		NetworkDAO daoNew = new NetworkDAO(db);
-		return (Provenance) daoNew.getProvenance(networkId);
+		ODatabaseDocumentTx db = null;
+		try {
+			
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			NetworkDAO daoNew = new NetworkDAO(db);
+			return (Provenance) daoNew.getProvenance(networkId);
+			
+		} finally {
+		
+			if (null != db) db.close();
+		}
+		
+		
 		
 	}
 	
@@ -123,14 +133,22 @@ public class NetworkAService extends NdexService {
     public void setProvenance(@PathParam("networkId")final String networkId, final Provenance provenance)
     		throws IllegalArgumentException, NdexException {
     	
-    	ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+    	ODatabaseDocumentTx db = null;
+    	NetworkDAO daoNew = null;
 		
 		try {
-			
-			NetworkDAO daoNew = new NetworkDAO(db);
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			daoNew = new NetworkDAO(db);
 			daoNew.setProvenance(networkId, provenance);
+			daoNew.commit();
+			
+		} catch (Exception e) {
+			if (null != daoNew) daoNew.rollback();
+			throw e;
+			
 		} finally {
-			db.close();
+		
+			if (null != db) db.close();
 		}
     }
 	
