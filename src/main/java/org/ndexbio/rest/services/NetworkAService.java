@@ -15,6 +15,7 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -41,6 +42,7 @@ import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
+import org.ndexbio.model.object.Request;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.SimplePathQuery;
@@ -50,6 +52,7 @@ import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.PropertyGraphNetwork;
+import org.ndexbio.model.object.network.Provenance;
 import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -66,6 +69,12 @@ public class NetworkAService extends NdexService {
 	public NetworkAService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
+	
+	/*
+	 * 
+	 * Operations returning or setting Network Elements
+	 * 
+	 */
 	
 	@GET
 	@Path("/{networkId}/baseTerm/{skipBlocks}/{blockSize}")
@@ -84,6 +93,52 @@ public class NetworkAService extends NdexService {
 		return (List<BaseTerm>) daoNew.getBaseTerms(networkId);
 		
 	}
+	
+    /**************************************************************************
+    * Returns network provenance.
+    * 
+    **************************************************************************/	
+	@GET
+	@Path("/{networkId}/provenance")
+	@Produces("application/json")
+	@ApiDoc("Returns the provenance structure for the network")
+	public Provenance getProvenance(
+			@PathParam("networkId") final String networkId)
+			
+			throws IllegalArgumentException, NdexException {
+		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		NetworkDAO daoNew = new NetworkDAO(db);
+		return (Provenance) daoNew.getProvenance(networkId);
+		
+	}
+	
+    /**************************************************************************
+    * Updates network provenance.
+    * 
+    **************************************************************************/
+    @PUT
+	@Path("/{networkId}/provenance")
+	@Produces("application/json")
+	@ApiDoc("Updates the network provenance structure")
+    public void setProvenance(@PathParam("networkId")final String networkId, final Provenance provenance)
+    		throws IllegalArgumentException, NdexException {
+    	
+    	ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		
+		try {
+			
+			NetworkDAO daoNew = new NetworkDAO(db);
+			daoNew.setProvenance(networkId, provenance);
+		} finally {
+			db.close();
+		}
+    }
+	
+	/*
+	 * 
+	 * Operations returning Networks 
+	 * 
+	 */
 		
 	@GET
 	@Path("/{networkId}")
@@ -245,6 +300,12 @@ public class NetworkAService extends NdexService {
 	}
 
 	
+	/*
+	 * 
+	 * Operations on Network permissions
+	 * 
+	 */
+	
 	@POST
 	@Path("/{networkId}/member")
 	@Produces("application/json")
@@ -367,7 +428,11 @@ public class NetworkAService extends NdexService {
         return n;		
 	}
 	
-	
+	/*
+	 * 
+	 * Network Search
+	 * 
+	 */
 
 	@POST
 	@PermitAll
