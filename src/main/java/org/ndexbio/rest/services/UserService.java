@@ -22,10 +22,9 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
-import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.SimpleUserQuery;
@@ -38,9 +37,7 @@ import com.google.common.base.Strings;
 public class UserService extends NdexService {
 	
 	private static UserDAO dao;
-	private static NdexDatabase database;
-	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
-	private static OrientGraph graph;
+	private static ODatabaseDocumentTx  localConnection;  
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -78,17 +75,17 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
 		
-		final User user;
+		User user = null;
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
-			//localConnection.begin();
+			
 			user = dao.createNewUser(newUser);
-			graph.commit();//localConnection.commit();
+			dao.commit();
 		} finally {
-			this.closeDatabase();
-
+			dao.close();
 		}
 		
 		return user;
@@ -113,7 +110,8 @@ public class UserService extends NdexService {
 	public User getUser(@PathParam("userId") final String userId)
 			throws IllegalArgumentException, NdexException {
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
 
@@ -126,7 +124,7 @@ public class UserService extends NdexService {
 			return user;
 				
 		} finally  {
-			this.closeDatabase();
+			dao.close();
 
 		}
 		
@@ -157,14 +155,13 @@ public class UserService extends NdexService {
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
-			
 			return dao.getUserNetworkMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
-	
 		} finally {
-			this.closeDatabase();
+			dao.close();
 		}
 	}
 	
@@ -193,14 +190,13 @@ public class UserService extends NdexService {
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
-			
 			return dao.getUserGroupMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
-
 		} finally {
-			this.closeDatabase();
+			dao.close();
 		}
 	}
 
@@ -227,15 +223,13 @@ public class UserService extends NdexService {
 			@PathParam("password") final String password)
 			throws SecurityException, NdexException {
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 
 		try {
-			
 			return dao.authenticateUser(accountName, password);
-
 		} finally {
-			this.closeDatabase();
-			
+			dao.close();
 		}
 		
 	}
@@ -262,17 +256,16 @@ public class UserService extends NdexService {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
 				"A password is required");
 
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
-
-			//localConnection.begin();
+			
 			dao.changePassword(password, getLoggedInUser().getExternalId());
-			graph.commit();//localConnection.commit();
+			dao.commit();
 
 		} finally {
-			this.closeDatabase();
-
+			dao.close();
 		}
 	}
 
@@ -288,17 +281,16 @@ public class UserService extends NdexService {
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user.")
 	public void deleteUser() throws NdexException, ObjectNotFoundException {
 
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
-
-			//localConnection.begin();
+			
 			dao.deleteUserById(getLoggedInUser().getExternalId());
-			graph.commit();//localConnection.commit();
+			dao.commit();
 
 		} finally {
-			this.closeDatabase();
-
+			dao.close();
 		}
 		
 	}
@@ -329,18 +321,17 @@ public class UserService extends NdexService {
 		// now anyone can change anyone else's password to a randomly generated
 		// password
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
-
-			//localConnection.begin();
+			
 			final Response res = dao.emailNewPassword(username);
-			graph.commit();//localConnection.commit();
+			dao.commit();
 			return res;
 
 		} finally {
-			this.closeDatabase();
-
+			dao.close();
 		}
 	}
 
@@ -363,7 +354,8 @@ public class UserService extends NdexService {
 	public List<User> findUsers(SimpleUserQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
 
@@ -371,8 +363,7 @@ public class UserService extends NdexService {
 			return users;
 
 		} finally {
-			this.closeDatabase();
-
+			dao.close();
 		}
 		
 	}
@@ -402,18 +393,19 @@ public class UserService extends NdexService {
 		// Currently not using path param. We can already retrieve the id from the authentication
 		// However, this depends on the authentication method staying consistent?
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 
 		try {
 
-			//localConnection.begin();
+			
 			final User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
-			graph.commit();
+			dao.commit();
 			
 			return user;
 
 		} finally {
-			this.closeDatabase();
+			dao.close();
 		}
 	}
 	
@@ -425,14 +417,16 @@ public class UserService extends NdexService {
 	public Membership getMembership(@PathParam("accountId") final String accountId, @PathParam("resourceId") final String resourceId) 
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
-		this.openDatabase();
+		
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
 			
 			return dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId));
 
 		} finally {
-			this.closeDatabase();
+			dao.close();
 		}
 	}
 	
@@ -447,14 +441,15 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
 			
 			return dao.getSentRequest(this.getLoggedInUser(),skipBlocks, blockSize);
 
 		} finally {
-			this.closeDatabase();
+			dao.close();
 		}
 	}
 	
@@ -466,14 +461,15 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
 			
 			return dao.getPendingRequest(this.getLoggedInUser(),skipBlocks, blockSize);
 
 		} finally {
-			this.closeDatabase();
+			dao.close();
 		}
 	}
 	
@@ -487,30 +483,16 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		this.openDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new UserDAO(localConnection, true);
 		
 		try {
 			Status taskStatus = Status.valueOf(status);
 			return dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
 
 		} finally {
-			this.closeDatabase();
+			dao.close();
 		}
 	}
 	
-
-	private void openDatabase() throws NdexException {
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		graph = new OrientGraph(localConnection);
-		dao = new UserDAO(localConnection, graph);
-	}
-	private void closeDatabase() {
-		graph.shutdown();
-		//localConnection.close();
-		database.close();
-	}
-	
-	
-
 }

@@ -95,7 +95,7 @@ public abstract class TestNdexService
     	final NdexDatabase database = new NdexDatabase();
     	final ODatabaseDocumentTx  localConnection = database.getAConnection();  
     	localConnection.begin();
-    	final UserDAO dao = new UserDAO(localConnection, new OrientGraphNoTx(localConnection));
+    	final UserDAO dao = new UserDAO(localConnection, new OrientGraph(localConnection));
     	final User loggedInUser;
     	
     	final SimpleUserQuery search = new SimpleUserQuery();

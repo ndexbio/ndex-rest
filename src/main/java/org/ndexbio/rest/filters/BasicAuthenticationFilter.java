@@ -12,7 +12,7 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
-import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
@@ -22,7 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 
 /*
  * class represents a RestEasy request filter that will validate
@@ -45,18 +44,15 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     {
         final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)requestContext.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
         final Method method = methodInvoker.getMethod();
-        NdexDatabase database = null; //not best coding practice? done to avoid compilation errors
-        OrientGraph graph = null;
         ODatabaseDocumentTx localConnection = null;
+        UserDAO dao = null;
         
         String[] authInfo = null;
         User authUser = null;
         try
         {
-        	database = new NdexDatabase();
-        	localConnection = database.getAConnection();
-        	graph = new OrientGraph(localConnection);
-        	final UserDAO dao = new UserDAO(localConnection, graph);
+        	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+        	dao = new UserDAO(localConnection);
         	
             authInfo = parseCredentials(requestContext);
             if(authInfo != null)
@@ -72,14 +68,11 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                 _logger.error("Failed to authenticate a user: " + authInfo[0] + "/" + authInfo[1] + ".", e);
             else
                 _logger.error("Failed to authenticate a user; credential information unknown.");
-        } finally 
+        } 
+        finally 
         {
-        	if(localConnection != null)
-        		localConnection.close();
-        	if(graph!= null)
-        		graph.shutdown();
-        	if(database != null)
-        		database.close();
+        	if(dao != null)
+        		dao.close();
         }
         
         if (!method.isAnnotationPresent(PermitAll.class))

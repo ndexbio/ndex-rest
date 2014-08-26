@@ -11,22 +11,19 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
-import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.models.dao.orientdb.RequestDAO;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 
 @Path("/request")
 public class RequestService extends NdexService
 {
 	private static RequestDAO dao;
-	private static NdexDatabase database;
-	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
-	private static OrientGraph graph;
+	private static ODatabaseDocumentTx  localConnection; 
     
     
     /**************************************************************************
@@ -58,7 +55,7 @@ public class RequestService extends NdexService
 		
 		try {
 			final Request request = dao.createRequest(newRequest, this.getLoggedInUser());
-			graph.commit();
+			dao.commit();
 			return request;
 		} finally {
 			this.closeDatabase();
@@ -84,7 +81,7 @@ public class RequestService extends NdexService
 		try {
 			//localConnection.begin();
 			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
-			graph.commit();
+			dao.commit();
 		} finally {
 			this.closeDatabase();
 
@@ -140,7 +137,7 @@ public class RequestService extends NdexService
 		try {
 			//localConnection.begin();
 			dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
-			graph.commit();
+			dao.commit();
 		} finally {
 			this.closeDatabase();
 
@@ -150,15 +147,11 @@ public class RequestService extends NdexService
   
     
     private void openDatabase() throws NdexException {
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		graph = new OrientGraph(localConnection);
-		dao = new RequestDAO(localConnection, graph);
+    	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new RequestDAO(localConnection, true);
 	}
 	private void closeDatabase() {
-		//graph.shutdown();
-		graph.shutdown();//.close();
-		database.close();
+		dao.close();
 	}
     
     

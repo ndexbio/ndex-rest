@@ -4,6 +4,7 @@ import java.util.Collection;
 
 
 
+
 //import org.easymock.EasyMock;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
@@ -22,6 +23,7 @@ import org.ndexbio.model.object.NewUser;
 import org.ndexbio.rest.services.UserService;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
@@ -48,7 +50,7 @@ public class TestUserService extends TestNdexService {
     	
     	final NdexDatabase database = new NdexDatabase();
     	final ODatabaseDocumentTx  localConnection = database.getAConnection();  //all DML will be in this connection, in one transaction.
-    	final UserDAO dao = new UserDAO(localConnection, new OrientGraphNoTx(localConnection));
+    	final UserDAO dao = new UserDAO(localConnection, new OrientGraph(localConnection));
     	
     	dao.deleteUserById(testUser.getExternalId());
     	localConnection.commit();

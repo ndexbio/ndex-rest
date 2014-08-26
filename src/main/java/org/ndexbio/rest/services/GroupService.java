@@ -17,7 +17,7 @@ import java.util.UUID;
 
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.common.models.dao.orientdb.GroupDAO;
-import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
@@ -25,16 +25,12 @@ import org.ndexbio.model.object.Group;
 import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 @Path("/group")
 public class GroupService extends NdexService {
 	
 	private static GroupDAO dao;
-	private static NdexDatabase database;
-	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
-	private static OrientBaseGraph graph;
+	private static ODatabaseDocumentTx  localConnection;
 	
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -77,7 +73,7 @@ public class GroupService extends NdexService {
 		try {
 			//localConnection.begin();
 			final Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId()); 
-			graph.commit();//localConnection.commit();
+			dao.commit();//localConnection.commit();
 			return group;
 	
 		} finally {
@@ -144,7 +140,7 @@ public class GroupService extends NdexService {
 		try {
 			//localConnection.begin();
 			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
-			graph.commit();
+			dao.commit();
 
 		} finally {
 			this.closeDatabase();
@@ -388,7 +384,7 @@ public class GroupService extends NdexService {
 		try {
 			//localConnection.begin();
 			final Group group = dao.updateGroup(updatedGroup, UUID.fromString(id), this.getLoggedInUser().getExternalId());
-			graph.commit();//localConnection.commit();
+			dao.commit();//localConnection.commit();
 			return group;
 			
 		} finally {
@@ -428,7 +424,7 @@ public class GroupService extends NdexService {
 		try {
 			//localConnection.begin();
 			dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
-			graph.commit();//localConnection.commit();
+			dao.commit();//localConnection.commit();
 
 		} finally {
 			this.closeDatabase();
@@ -467,7 +463,7 @@ public class GroupService extends NdexService {
 		try {
 			//localConnection.begin();
 			dao.removeMember(UUID.fromString(memberId), UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
-			graph.commit();//localConnection.commit();
+			dao.commit();//localConnection.commit();
 
 		} finally {
 			this.closeDatabase();
@@ -580,14 +576,10 @@ public class GroupService extends NdexService {
 	}
 */
 	private void openDatabase() throws NdexException {
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
-		graph = new OrientGraphNoTx(localConnection);
-		dao = new GroupDAO(localConnection, graph);
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new GroupDAO(localConnection, true);
 	}
 	private void closeDatabase() {
-		graph.shutdown();
-		//localConnection.close();
-		database.close();
+		dao.close();
 	}
 }
