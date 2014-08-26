@@ -78,10 +78,10 @@ public class UserService extends NdexService {
 		User user = null;
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
-			
+			dao.begin();
 			user = dao.createNewUser(newUser);
 			dao.commit();
 		} finally {
@@ -111,7 +111,7 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
 
@@ -156,7 +156,7 @@ public class UserService extends NdexService {
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
 			return dao.getUserNetworkMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
@@ -191,7 +191,7 @@ public class UserService extends NdexService {
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
 			return dao.getUserGroupMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
@@ -224,7 +224,7 @@ public class UserService extends NdexService {
 			throws SecurityException, NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 
 		try {
 			return dao.authenticateUser(accountName, password);
@@ -257,10 +257,10 @@ public class UserService extends NdexService {
 				"A password is required");
 
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
-			
+			dao.begin();
 			dao.changePassword(password, getLoggedInUser().getExternalId());
 			dao.commit();
 
@@ -282,10 +282,10 @@ public class UserService extends NdexService {
 	public void deleteUser() throws NdexException, ObjectNotFoundException {
 
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
-			
+			dao.begin();
 			dao.deleteUserById(getLoggedInUser().getExternalId());
 			dao.commit();
 
@@ -322,10 +322,10 @@ public class UserService extends NdexService {
 		// password
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
-			
+			dao.begin();
 			final Response res = dao.emailNewPassword(username);
 			dao.commit();
 			return res;
@@ -355,7 +355,7 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
 
@@ -394,11 +394,11 @@ public class UserService extends NdexService {
 		// However, this depends on the authentication method staying consistent?
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 
 		try {
 
-			
+			dao.begin();
 			final User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			dao.commit();
 			
@@ -419,7 +419,7 @@ public class UserService extends NdexService {
 		
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
 			
@@ -442,7 +442,7 @@ public class UserService extends NdexService {
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
 			
@@ -462,7 +462,7 @@ public class UserService extends NdexService {
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
 			
@@ -484,7 +484,7 @@ public class UserService extends NdexService {
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection, false);
 		
 		try {
 			Status taskStatus = Status.valueOf(status);

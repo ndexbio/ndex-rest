@@ -71,7 +71,7 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 		
 		try {
-			//localConnection.begin();
+			dao.begin();
 			final Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId()); 
 			dao.commit();//localConnection.commit();
 			return group;
@@ -138,7 +138,7 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 		
 		try {
-			//localConnection.begin();
+			dao.begin();
 			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
 			dao.commit();
 
@@ -382,7 +382,7 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 
 		try {
-			//localConnection.begin();
+			dao.begin();
 			final Group group = dao.updateGroup(updatedGroup, UUID.fromString(id), this.getLoggedInUser().getExternalId());
 			dao.commit();//localConnection.commit();
 			return group;
@@ -422,7 +422,7 @@ public class GroupService extends NdexService {
 
 		this.openDatabase();
 		try {
-			//localConnection.begin();
+			dao.begin();
 			dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
 			dao.commit();//localConnection.commit();
 
@@ -461,7 +461,7 @@ public class GroupService extends NdexService {
 
 		this.openDatabase();
 		try {
-			//localConnection.begin();
+			dao.begin();
 			dao.removeMember(UUID.fromString(memberId), UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
 			dao.commit();//localConnection.commit();
 
@@ -577,7 +577,7 @@ public class GroupService extends NdexService {
 */
 	private void openDatabase() throws NdexException {
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new GroupDAO(localConnection, true);
+		dao = new GroupDAO(localConnection, false);
 	}
 	private void closeDatabase() {
 		dao.close();

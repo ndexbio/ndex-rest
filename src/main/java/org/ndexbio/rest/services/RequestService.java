@@ -54,6 +54,7 @@ public class RequestService extends NdexService
 		this.openDatabase();
 		
 		try {
+			dao.begin();
 			final Request request = dao.createRequest(newRequest, this.getLoggedInUser());
 			dao.commit();
 			return request;
@@ -79,7 +80,7 @@ public class RequestService extends NdexService
     	this.openDatabase();
 		
 		try {
-			//localConnection.begin();
+			dao.begin();
 			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
 			dao.commit();
 		} finally {
@@ -135,7 +136,7 @@ public class RequestService extends NdexService
     	this.openDatabase();
 		
 		try {
-			//localConnection.begin();
+			dao.begin();
 			dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
 			dao.commit();
 		} finally {
@@ -148,7 +149,7 @@ public class RequestService extends NdexService
     
     private void openDatabase() throws NdexException {
     	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new RequestDAO(localConnection, true);
+		dao = new RequestDAO(localConnection, false);
 	}
 	private void closeDatabase() {
 		dao.close();
