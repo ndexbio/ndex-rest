@@ -2,6 +2,7 @@ package org.ndexbio.rest.services;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.Date;
@@ -42,6 +43,7 @@ import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
+import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.Request;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.SimpleNetworkQuery;
@@ -52,10 +54,11 @@ import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.PropertyGraphNetwork;
-import org.ndexbio.model.object.network.Provenance;
 import org.ndexbio.rest.annotations.ApiDoc;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -96,22 +99,25 @@ public class NetworkAService extends NdexService {
 	
     /**************************************************************************
     * Returns network provenance.
+     * @throws IOException 
+     * @throws JsonMappingException 
+     * @throws JsonParseException 
     * 
     **************************************************************************/	
 	@GET
 	@Path("/{networkId}/provenance")
 	@Produces("application/json")
 	@ApiDoc("Returns the provenance structure for the network")
-	public Provenance getProvenance(
+	public ProvenanceEntity getProvenance(
 			@PathParam("networkId") final String networkId)
 			
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, IOException {
 		ODatabaseDocumentTx db = null;
 		try {
 			
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			NetworkDAO daoNew = new NetworkDAO(db);
-			return (Provenance) daoNew.getProvenance(networkId);
+			return (ProvenanceEntity) daoNew.getProvenance(UUID.fromString(networkId));
 			
 		} finally {
 		
@@ -124,14 +130,15 @@ public class NetworkAService extends NdexService {
 	
     /**************************************************************************
     * Updates network provenance.
+     * @throws Exception 
     * 
     **************************************************************************/
     @PUT
 	@Path("/{networkId}/provenance")
 	@Produces("application/json")
 	@ApiDoc("Updates the network provenance structure")
-    public void setProvenance(@PathParam("networkId")final String networkId, final Provenance provenance)
-    		throws IllegalArgumentException, NdexException {
+    public void setProvenance(@PathParam("networkId")final String networkId, final ProvenanceEntity provenance)
+    		throws Exception {
     	
     	ODatabaseDocumentTx db = null;
     	NetworkDAO daoNew = null;
@@ -139,7 +146,7 @@ public class NetworkAService extends NdexService {
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			daoNew = new NetworkDAO(db);
-			daoNew.setProvenance(networkId, provenance);
+			daoNew.setProvenance(UUID.fromString(networkId), provenance);
 			daoNew.commit();
 			
 		} catch (Exception e) {
