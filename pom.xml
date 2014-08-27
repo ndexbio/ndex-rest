@@ -118,12 +118,14 @@
       <configuration>
         <archive>
           <manifest>
-            <mainClass>fully.qualified.MainClass</mainClass>
+            <mainClass>org.ndexbio.rest.server.StandaloneServer</mainClass>
           </manifest>
         </archive>
         <descriptorRefs>
           <descriptorRef>jar-with-dependencies</descriptorRef>
         </descriptorRefs>
+        <finalName>ndexbio-rest</finalName>
+        <appendAssemblyId>false</appendAssemblyId>
       </configuration>
     </plugin>
 		</plugins>
