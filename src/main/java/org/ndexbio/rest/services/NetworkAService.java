@@ -54,6 +54,7 @@ import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.PropertyGraphNetwork;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -78,7 +79,7 @@ public class NetworkAService extends NdexService {
 	 * Operations returning or setting Network Elements
 	 * 
 	 */
-	
+	@PermitAll
 	@GET
 	@Path("/{networkId}/baseTerm/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
@@ -104,6 +105,7 @@ public class NetworkAService extends NdexService {
      * @throws JsonParseException 
     * 
     **************************************************************************/	
+	@PermitAll
 	@GET
 	@Path("/{networkId}/provenance")
 	@Produces("application/json")
@@ -165,6 +167,7 @@ public class NetworkAService extends NdexService {
 	 * 
 	 */
 		
+	@PermitAll
 	@GET
 	@Path("/{networkId}")
 	@Produces("application/json")
@@ -178,8 +181,13 @@ public class NetworkAService extends NdexService {
 		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
 		NetworkDAO networkDao = new NetworkDAO(db);
 		
-		boolean hasPrivilege=networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
+		VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
+		boolean hasPrivilege = (vt == VisibilityType.PUBLIC || vt== VisibilityType.DISCOVERABLE);
+        
+		if ( !hasPrivilege && getLoggedInUser() != null) {
+			hasPrivilege = networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
 				networkId, Permissions.READ);
+		}
 		if ( hasPrivilege) {
 			ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
 			NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
@@ -194,7 +202,7 @@ public class NetworkAService extends NdexService {
 	}
 	
 	
-	
+	@PermitAll
 	@GET
 	@Path("/{networkId}/edge/asNetwork/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
@@ -218,7 +226,7 @@ public class NetworkAService extends NdexService {
         return n;		
 	}
 
-
+	@PermitAll
 	@GET
 	@Path("/{networkId}/asNetwork")
 	@Produces("application/json")
@@ -242,6 +250,7 @@ public class NetworkAService extends NdexService {
         return n;		
 	}
 	
+	@PermitAll
 	@GET
 	@Path("/{networkId}/asPropertyGraph")
 	@Produces("application/json")
@@ -268,7 +277,7 @@ public class NetworkAService extends NdexService {
 		}
 	}
 
-	
+	@PermitAll
 	@GET
 	@Path("/{networkId}/edge/asPropertyGraph/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
@@ -364,7 +373,7 @@ public class NetworkAService extends NdexService {
 	}
 
 	
-	
+	@PermitAll
 	@POST
 	@Path("/{networkId}/asNetwork/query")
 	@Produces("application/json")
@@ -380,23 +389,37 @@ public class NetworkAService extends NdexService {
 	
 			throws IllegalArgumentException, NdexException {
 		
-		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		NetworkDAO networkDao = new NetworkDAO(db);
+		ODatabaseDocumentTx db = null;
 		
-		boolean hasPrivilege=networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
-				networkId, Permissions.READ);
-		db.close();
-		if ( hasPrivilege) {
-			NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
+		try {
+		   db =	NdexAOrientDBConnectionPool.getInstance().acquire();
 		
-			Network n = dao.queryForSubnetwork(networkId, queryParameters);
-			return n;		
-			//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
-		}
+		   NetworkDAO networkDao = new NetworkDAO(db);
+		
+		   VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
+		   boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
+        
+		   if ( !hasPrivilege && getLoggedInUser() != null) {
+			   hasPrivilege = networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
+					   networkId, Permissions.READ);
+		   }
+		
+		   db.close();
+		   if ( hasPrivilege) {
+			   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
+		
+			   Network n = dao.queryForSubnetwork(networkId, queryParameters);
+			   return n;		
+			   //getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
+		   }
         	
-        throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+		   throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+		} finally {
+			if ( db != null) db.close();
+		}
 	}
 
+	@PermitAll
 	@POST
 	@Path("/{networkId}/asPropertyGraph/query")
 	@Produces("application/json")
@@ -431,7 +454,7 @@ public class NetworkAService extends NdexService {
 	
 	
 	
-	
+	@PermitAll
 	@POST
 	@Path("/{networkId}/asPropertyGraph/query/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
