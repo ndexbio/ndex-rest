@@ -20,10 +20,10 @@ public class StandaloneServer {
 		context.addServlet(h, "/*");
 		server.setHandler(context);
 		try {
-		server.start();
-		server.join();
+			server.start();
+			server.join();
 		} catch (Exception e) {
-		e.printStackTrace();
+			e.printStackTrace();
 		}
 	}
 	
