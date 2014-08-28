@@ -24,7 +24,9 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.rest.annotations.ApiDoc;
 
+import com.orientechnologies.common.concur.ONeedRetryException;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.exception.OTransactionException;
 
 @Path("/group")
 public class GroupService extends NdexService {
@@ -71,9 +73,18 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 		
 		try {
-			dao.begin();
-			final Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId()); 
-			dao.commit();//localConnection.commit();
+			Group group = null;
+			for(int ii=0; ii< maxRetry; ii++) {
+				try {
+					group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId());
+					dao.commit();
+					break;
+				} catch (ONeedRetryException e) {
+					dao.rollback();
+				} catch (OTransactionException e) {
+					dao.rollback();
+				}
+			}
 			return group;
 	
 		} finally {
@@ -138,10 +149,17 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 		
 		try {
-			dao.begin();
-			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
-			dao.commit();
-
+			for(int ii=0; ii< maxRetry; ii++) {
+				try {
+					dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
+					dao.commit();
+					break;
+				} catch (ONeedRetryException e) {
+					dao.rollback();
+				} catch (OTransactionException e) {
+					dao.rollback();
+				}
+			}
 		} finally {
 			this.closeDatabase();
 		}
@@ -240,6 +258,7 @@ public class GroupService extends NdexService {
 			return groups;
 
 		} finally {
+			dao.rollback();
 			this.closeDatabase();
 		}
 	}
@@ -270,6 +289,7 @@ public class GroupService extends NdexService {
 			return group;
 
 		} finally  {
+			dao.rollback();
 			this.closeDatabase();
 		}
 	}
@@ -382,9 +402,18 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 
 		try {
-			dao.begin();
-			final Group group = dao.updateGroup(updatedGroup, UUID.fromString(id), this.getLoggedInUser().getExternalId());
-			dao.commit();//localConnection.commit();
+			Group group = null;
+			for(int ii=0; ii< maxRetry; ii++) {
+				try {
+					group = dao.updateGroup(updatedGroup, UUID.fromString(id), this.getLoggedInUser().getExternalId());
+					dao.commit();
+					break;
+				} catch (ONeedRetryException e) {
+					dao.rollback();
+				} catch (OTransactionException e) {
+					dao.rollback();
+				}
+			}
 			return group;
 			
 		} finally {
@@ -422,10 +451,17 @@ public class GroupService extends NdexService {
 
 		this.openDatabase();
 		try {
-			dao.begin();
-			dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
-			dao.commit();//localConnection.commit();
-
+			for(int ii=0; ii< maxRetry; ii++) {
+				try {
+					dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
+					dao.commit();
+					break;
+				} catch (ONeedRetryException e) {
+					dao.rollback();
+				} catch (OTransactionException e) {
+					dao.rollback();
+				}
+			}
 		} finally {
 			this.closeDatabase();
 		}
@@ -461,10 +497,17 @@ public class GroupService extends NdexService {
 
 		this.openDatabase();
 		try {
-			dao.begin();
-			dao.removeMember(UUID.fromString(memberId), UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
-			dao.commit();//localConnection.commit();
-
+			for(int ii=0; ii< maxRetry; ii++) {
+				try {
+					dao.removeMember(UUID.fromString(memberId), UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
+					dao.commit();
+					break;
+				} catch (ONeedRetryException e) {
+					dao.rollback();
+				} catch (OTransactionException e) {
+					dao.rollback();
+				}
+			}
 		} finally {
 			this.closeDatabase();
 		}
@@ -501,6 +544,7 @@ public class GroupService extends NdexService {
 			return dao.getGroupNetworkMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
 			
 		} finally {
+			dao.rollback();
 			this.closeDatabase();
 		}
 	}
@@ -536,6 +580,7 @@ public class GroupService extends NdexService {
 			return dao.getGroupUserMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
 
 		} finally {
+			dao.rollback();
 			this.closeDatabase();
 		}
 	}
@@ -577,7 +622,7 @@ public class GroupService extends NdexService {
 */
 	private void openDatabase() throws NdexException {
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new GroupDAO(localConnection, false);
+		dao = new GroupDAO(localConnection, true);
 	}
 	private void closeDatabase() {
 		dao.close();

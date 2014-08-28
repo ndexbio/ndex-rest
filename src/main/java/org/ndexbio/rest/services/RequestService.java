@@ -17,14 +17,15 @@ import org.ndexbio.common.models.dao.orientdb.RequestDAO;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
 
+import com.orientechnologies.common.concur.ONeedRetryException;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.exception.OTransactionException;
 
 @Path("/request")
 public class RequestService extends NdexService
 {
 	private static RequestDAO dao;
 	private static ODatabaseDocumentTx  localConnection; 
-    
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -33,12 +34,10 @@ public class RequestService extends NdexService
     * @param httpRequest
     *            The HTTP request injected by RESTEasy's context.
     **************************************************************************/
-    public RequestService(@Context HttpServletRequest httpRequest)
-    {
+    public RequestService(@Context HttpServletRequest httpRequest) {
         super(httpRequest);
+        maxRetry = 10;
     }
-    
-    
     
     /**************************************************************************
     * Creates a request. 
@@ -54,9 +53,18 @@ public class RequestService extends NdexService
 		this.openDatabase();
 		
 		try {
-			dao.begin();
-			final Request request = dao.createRequest(newRequest, this.getLoggedInUser());
-			dao.commit();
+			Request request = null;
+			for(int ii=0; ii< maxRetry; ii++) {
+				try {
+					request = dao.createRequest(newRequest, this.getLoggedInUser());
+					dao.commit();
+					break;
+				} catch (ONeedRetryException e) {
+					dao.rollback();
+				} catch (OTransactionException e) {
+					dao.rollback();
+				}
+			}
 			return request;
 		} finally {
 			this.closeDatabase();
@@ -80,9 +88,17 @@ public class RequestService extends NdexService
     	this.openDatabase();
 		
 		try {
-			dao.begin();
-			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
-			dao.commit();
+			for(int ii=0; ii< maxRetry; ii++) {
+				try {
+					dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
+					dao.commit();
+					break;
+				} catch (ONeedRetryException e) {
+					dao.rollback();
+				} catch (OTransactionException e) {
+					dao.rollback();
+				}
+			}
 		} finally {
 			this.closeDatabase();
 
@@ -114,6 +130,7 @@ public class RequestService extends NdexService
 			final Request request = dao.getRequest(UUID.fromString(requestId), this.getLoggedInUser());
 			return request;
 		} finally {
+			dao.rollback();
 			this.closeDatabase();
 
 		}
@@ -136,9 +153,17 @@ public class RequestService extends NdexService
     	this.openDatabase();
 		
 		try {
-			dao.begin();
-			dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
-			dao.commit();
+			for(int ii=0; ii< maxRetry; ii++) {
+				try {
+					dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
+					dao.commit();
+					break;
+				} catch (ONeedRetryException e) {
+					dao.rollback();
+				} catch (OTransactionException e) {
+					dao.rollback();
+				}
+			}
 		} finally {
 			this.closeDatabase();
 
@@ -149,7 +174,7 @@ public class RequestService extends NdexService
     
     private void openDatabase() throws NdexException {
     	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new RequestDAO(localConnection, false);
+		dao = new RequestDAO(localConnection, true);
 	}
 	private void closeDatabase() {
 		dao.close();

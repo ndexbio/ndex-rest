@@ -24,13 +24,11 @@ import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 public abstract class NdexService
 {
     private HttpServletRequest _httpRequest;
+    protected static int maxRetry;
     
 //    protected FramedGraphFactory _graphFactory = null;
     protected ODatabaseDocumentTx _ndexDatabase = null;
@@ -44,12 +42,10 @@ public abstract class NdexService
     * 
     * @param httpRequest The HTTP request injected by RESTEasy's context.
     **************************************************************************/
-    public NdexService(HttpServletRequest httpRequest)
-    {
+    public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
+        maxRetry = 10;
     }
-    
-
     
     /**************************************************************************
     * Gets API information for the service.
