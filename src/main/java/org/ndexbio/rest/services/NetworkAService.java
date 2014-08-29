@@ -388,8 +388,8 @@ public class NetworkAService extends NdexService {
 			User user = getLoggedInUser();
 			NetworkDAO networkDao = new NetworkDAO(db);
 
-			Permissions p = Helper.getNetworkPermissionByAccout(db, networkId, user.getExternalId().toString());
-			if (p == null || p == Permissions.READ) {
+			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
+					Permissions.WRITE)) {
 				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 			}
         
