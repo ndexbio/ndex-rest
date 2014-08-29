@@ -15,6 +15,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
+import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
@@ -160,28 +161,30 @@ public class TaskService extends NdexService
     /*
      * refactored for non-transactional database operations
      */
-/*    @DELETE
+    @DELETE
     @Path("/{taskId}")
     @Produces("application/json")
 	@ApiDoc("Delete the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public void deleteTask(@PathParam("taskId")final String taskId) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    public void deleteTask(@PathParam("taskId")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
-    	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId), 
+    	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskUUID), 
     			"A task id is required");
        
-        final ORID taskRid = IdConverter.toRid(taskId);
-
-        try
-        {
-            setupDatabase();
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
             
-            final ITask taskToDelete = _orientDbGraph.getVertex(taskRid, ITask.class);
+			TaskDAO tdao= new TaskDAO(db);
+            final Task taskToDelete = tdao.getTaskByUUID(taskUUID);
+            
             if (taskToDelete == null)
-                throw new ObjectNotFoundException("Task", taskId);
-            else if (!taskToDelete.getOwner().getUsername().equals(this.getLoggedInUser().getUsername()))
+                throw new ObjectNotFoundException("Task", taskUUID);
+            else if (!taskToDelete.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId()))
                 throw new SecurityException("You cannot delete a task you don't own.");
     
-            _orientDbGraph.removeVertex(taskToDelete.asVertex());
+            tdao.deleteTask(taskToDelete.getExternalId());
+            
+            db.commit();
            
         }
         catch (SecurityException | ObjectNotFoundException onfe)
@@ -191,19 +194,19 @@ public class TaskService extends NdexService
         catch (Exception e)
         {
             if (e.getMessage().indexOf("cluster: null") > -1){
-                throw new ObjectNotFoundException("Task", taskId);
+                throw new ObjectNotFoundException("Task", taskUUID);
             }
             
-            _logger.error("Failed to delete task: " + taskId + ".", e);
+            _logger.error("Failed to delete task: " + taskUUID + ".", e);
         
             throw new NdexException("Failed to delete a task.");
         }
         finally
         {
-            teardownDatabase();
+        	if ( db!=null) db.close();
         }
     }
-*/
+
     /**************************************************************************
     * Gets a task by ID.
     * 

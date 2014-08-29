@@ -31,6 +31,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
@@ -47,7 +48,10 @@ import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 
 
 
+
+
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
+import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.helpers.Configuration;
@@ -116,7 +120,7 @@ public class NetworkService extends NdexService {
 			return null;
 
 		try {
-			setupDatabase();
+//			setupDatabase();
 
 	//		final INetwork network = _orientDbGraph.getVertex(
 	//				IdConverter.toRid(networkId), INetwork.class);
@@ -145,7 +149,7 @@ public class NetworkService extends NdexService {
 					"Failed to retrieve auto-suggest data for: " + partialTerm
 							+ ".");
 		} finally {
-			teardownDatabase();
+//			teardownDatabase();
 		}
 	}
 
@@ -506,11 +510,12 @@ public class NetworkService extends NdexService {
 		final List<Network> foundNetworks = new ArrayList<Network>();
 		final String query = buildSearchQuery(searchParameters, searchOperator);
 
+		ODatabaseDocumentTx db = null;
 		try {
-			setupDatabase();
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 
-			final List<ODocument> networks = _ndexDatabase
-					.query(new OSQLSynchQuery<ODocument>(query));
+
+			final List<ODocument> networks = db.query(new OSQLSynchQuery<ODocument>(query));
 		//	for (final ODocument network : networks)
 		//		foundNetworks.add(new Network(_orientDbGraph.getVertex(network,
 		//				INetwork.class)));
@@ -520,7 +525,7 @@ public class NetworkService extends NdexService {
 			_logger.error("Failed to search networks.", e);
 			throw new NdexException("Failed to search networks.");
 		} finally {
-			teardownDatabase();
+			if ( db != null) db.close();
 		}
 	}
 
@@ -546,8 +551,9 @@ public class NetworkService extends NdexService {
 		if (networkId == null || networkId.isEmpty())
 			throw new IllegalArgumentException("No network ID was specified.");
 
+		ODatabaseDocumentTx db = null;
 		try {
-			setupDatabase();
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 
 /*			final INetwork network = _orientDbGraph.getVertex(
 					IdConverter.toRid(networkId), INetwork.class);
@@ -566,7 +572,7 @@ public class NetworkService extends NdexService {
 				return new Network(network); */
 			return new Network();
 		} finally {
-			teardownDatabase();
+			if ( db!=null) db.close();
 		}
 	}
 
@@ -600,7 +606,7 @@ public class NetworkService extends NdexService {
 					"Number of results to return is less than 1.");
 
 		try {
-			setupDatabase();
+//			setupDatabase();
 
 		/*	final INetwork network = _orientDbGraph.getVertex(
 					IdConverter.toRid(networkId), INetwork.class);
@@ -621,13 +627,11 @@ public class NetworkService extends NdexService {
 			}
 */
 			return null ; //getNetworkBasedOnFoundEdges(foundIEdges, network);
-		} catch (ObjectNotFoundException onfe) {
-			throw onfe;
 		} catch (Exception e) {
 			_logger.error("Failed to query network: " + networkId + ".", e);
 			throw new NdexException(e.getMessage());
 		} finally {
-			teardownDatabase();
+	//		teardownDatabase();
 		}
 	}
 
@@ -1729,14 +1733,20 @@ public class NetworkService extends NdexService {
 	 * Count the number of administrative members in the network.
 	 **************************************************************************/
 	private long countAdminMembers(final ORID networkRid) throws NdexException {
-		final List<ODocument> adminCount = _ndexDatabase
-				.query(new OSQLSynchQuery<Integer>(
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+
+		final List<ODocument> adminCount = db.query(new OSQLSynchQuery<Integer>(
 						"SELECT COUNT(@RID) FROM NetworkMembership WHERE in_userNetworks = "
 								+ networkRid + " AND permissions = 'ADMIN'"));
 		if (adminCount == null || adminCount.isEmpty())
 			throw new NdexException("Unable to count ADMIN members.");
 
 		return (long) adminCount.get(0).field("COUNT");
+		} finally {
+			if ( db!=null) db.close();
+		}
 	}
 
 	/**************************************************************************

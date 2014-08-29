@@ -5,7 +5,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -33,7 +32,6 @@ import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
-import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.TaskType;
@@ -113,7 +111,7 @@ public class NetworkAService extends NdexService {
 	public ProvenanceEntity getProvenance(
 			@PathParam("networkId") final String networkId)
 			
-			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, IOException {
+			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException {
 		ODatabaseDocumentTx db = null;
 		try {
 			
@@ -317,8 +315,7 @@ public class NetworkAService extends NdexService {
 		ODatabaseDocumentTx db = null;
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
-			UserDAO userDao = new UserDAO ( db);
-			User user = userDao.getUserByAccountName(getLoggedInUser().getAccountName());
+			User user = getLoggedInUser();
 			NetworkDAO networkDao = new NetworkDAO(db);
 
 			if (!Helper.isAdminOfNetwork(db, networkId, user.getExternalId().toString())) {
@@ -355,9 +352,8 @@ public class NetworkAService extends NdexService {
 		ODatabaseDocumentTx db = null;
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
-			UserDAO userDao = new UserDAO ( db);
-			
-			User user = userDao.getUserByAccountName(getLoggedInUser().getAccountName());
+		
+			User user = getLoggedInUser();
 			NetworkDAO networkDao = new NetworkDAO(db);
 
 			if (!Helper.isAdminOfNetwork(db, networkId, user.getExternalId().toString())) {
@@ -665,6 +661,7 @@ public class NetworkAService extends NdexService {
 				uploadedNetworkPath.getAbsolutePath() + "/"
 						+ uploadedNetwork.getFilename());
 
+		ODatabaseDocumentTx db = null;
 		try {
 			if (!uploadedNetworkFile.exists())
 				uploadedNetworkFile.createNewFile();
@@ -675,7 +672,7 @@ public class NetworkAService extends NdexService {
 			saveNetworkFile.flush();
 			saveNetworkFile.close();
 
-			setupDatabase();
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 
 			final String fn = uploadedNetwork.getFilename().toLowerCase();
 
@@ -694,10 +691,9 @@ public class NetworkAService extends NdexService {
 						.getAbsolutePath());
 				processNetworkTask.setStatus(Status.QUEUED);
 
-				TaskDAO dao = new TaskDAO(this._ndexDatabase);
+				TaskDAO dao = new TaskDAO(db);
 				dao.createTask(userAccount, processNetworkTask);
-			    this._ndexDatabase.commit();
-			    
+			    db.commit();
 			} else {
 				uploadedNetworkFile.delete();
 				throw new IllegalArgumentException(
@@ -710,6 +706,9 @@ public class NetworkAService extends NdexService {
 					+ uploadedNetwork.getFilename() + ". " + e.getMessage());
 
 			throw new NdexException(e.getMessage());
+		} finally {
+			if ( db!=null) 	db.close();
+			
 		}
 	}
 

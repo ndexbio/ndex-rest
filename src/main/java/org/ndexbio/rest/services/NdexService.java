@@ -24,16 +24,14 @@ import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 public abstract class NdexService
 {
     private HttpServletRequest _httpRequest;
+    protected static int maxRetry;
     
 //    protected FramedGraphFactory _graphFactory = null;
-    protected ODatabaseDocumentTx _ndexDatabase = null;
+    private ODatabaseDocumentTx _ndexDatabase = null;
  //   protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
     
     
@@ -44,12 +42,10 @@ public abstract class NdexService
     * 
     * @param httpRequest The HTTP request injected by RESTEasy's context.
     **************************************************************************/
-    public NdexService(HttpServletRequest httpRequest)
-    {
+    public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
+        maxRetry = 10;
     }
-    
-
     
     /**************************************************************************
     * Gets API information for the service.
@@ -136,7 +132,7 @@ public abstract class NdexService
     * Opens a connection to OrientDB and initializes the OrientDB Graph ORM.
      * @throws NdexException 
     **************************************************************************/
-    protected void setupDatabase() throws NdexException
+    private void setupDatabase() throws NdexException
     {
         //When starting up this application, tell OrientDB's global
         //configuration to close the storage; this is required here otherwise
@@ -174,7 +170,7 @@ public abstract class NdexService
     * Cleans up the OrientDB resources. These steps are all necessary or
     * OrientDB connections won't be released from the pool.
     **************************************************************************/
-    protected void teardownDatabase()
+    private void teardownDatabase()
     {
       /*  if (_graphFactory != null)
             _graphFactory = null;
