@@ -31,8 +31,8 @@ import com.orientechnologies.orient.core.exception.OTransactionException;
 @Path("/group")
 public class GroupService extends NdexService {
 	
-	private static GroupDAO dao;
-	private static ODatabaseDocumentTx  localConnection;
+	private GroupDAO dao;
+	private ODatabaseDocumentTx  localConnection;
 	
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -399,7 +399,10 @@ public class GroupService extends NdexService {
 							@PathParam("groupId") final String id)
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
-		this.openDatabase();
+//		this.openDatabase();
+
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		dao = new GroupDAO(localConnection, true);
 
 		try {
 			Group group = null;

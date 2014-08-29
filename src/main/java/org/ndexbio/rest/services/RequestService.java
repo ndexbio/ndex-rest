@@ -24,8 +24,8 @@ import com.orientechnologies.orient.core.exception.OTransactionException;
 @Path("/request")
 public class RequestService extends NdexService
 {
-	private static RequestDAO dao;
-	private static ODatabaseDocumentTx  localConnection; 
+	private RequestDAO dao;
+	private ODatabaseDocumentTx  localConnection; 
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by

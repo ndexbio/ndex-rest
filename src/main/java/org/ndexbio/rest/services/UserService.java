@@ -38,8 +38,8 @@ import com.google.common.base.Strings;
 @Path("/user")
 public class UserService extends NdexService {
 	
-	private static UserDAO dao;
-	private static ODatabaseDocumentTx  localConnection; 
+	private UserDAO dao;
+	private ODatabaseDocumentTx  localConnection; 
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
