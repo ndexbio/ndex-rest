@@ -39,10 +39,10 @@ import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 public class TaskService extends NdexService
 {
     private static final Logger _logger = LoggerFactory.getLogger(TaskService.class);
-	private static TaskDAO dao;
-	private static NdexDatabase database;
-	private static ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
-	private static OrientGraph graph;
+	private  TaskDAO dao;
+	private  NdexDatabase database;
+	private  ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
+	private  OrientGraph graph;
     
     
     /**************************************************************************
