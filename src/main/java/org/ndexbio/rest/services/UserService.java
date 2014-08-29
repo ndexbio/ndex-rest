@@ -396,10 +396,10 @@ public class UserService extends NdexService {
 	
 	@GET
 	@PermitAll
-	@Path("/{accountId}/membership/{resourceId}")
+	@Path("/{accountId}/membership/{resourceId}/{depth}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public Membership getMembership(@PathParam("accountId") final String accountId, @PathParam("resourceId") final String resourceId) 
+	public Membership getMembership(@PathParam("accountId") final String accountId, @PathParam("resourceId") final String resourceId, @PathParam("depth") final int depth) 
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
 		
@@ -407,7 +407,7 @@ public class UserService extends NdexService {
 		dao = new UserDAO(localConnection);
 		
 		try {
-			return dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId));
+			return dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId), depth);
 		} finally {
 			dao.close();
 		}

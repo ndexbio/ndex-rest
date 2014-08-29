@@ -172,6 +172,7 @@ public class TaskService extends NdexService
        
 		ODatabaseDocumentTx db = null;
 		try {
+			_logger.info("Starting delete for task " + taskUUID);
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
             
 			TaskDAO tdao= new TaskDAO(db);
@@ -185,6 +186,7 @@ public class TaskService extends NdexService
             tdao.deleteTask(taskToDelete.getExternalId());
             
             db.commit();
+            _logger.info("Completed commit of delete for task " + taskUUID);
            
         }
         catch (SecurityException | ObjectNotFoundException onfe)
