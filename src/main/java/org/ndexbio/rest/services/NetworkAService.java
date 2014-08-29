@@ -368,6 +368,39 @@ public class NetworkAService extends NdexService {
 		}
 	}
 
+	@POST
+	@Path("/{networkId}/summary")
+	@Produces("application/json")
+	@ApiDoc("Updates the permission of a member specified by userUUID for the network specified by "
+			+ "networkUUID to the POSTed permission. Errors if the authenticated user does not have sufficient "
+			+ "permissions or if the network or user is not found. "
+			+ "Change is also denied if it would leave the network without any Admin member.")
+	public void updateNetworkProfile(
+			@PathParam("networkId") final String networkId,
+			final NetworkSummary summary
+			)
+			throws IllegalArgumentException {
+		
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		
+			User user = getLoggedInUser();
+			NetworkDAO networkDao = new NetworkDAO(db);
+
+			Permissions p = Helper.getNetworkPermissionByAccout(db, networkId, user.getExternalId().toString());
+			if (p == null || p == Permissions.READ) {
+				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+			}
+        
+	        networkDao.updateNetworkProfile(UUID.fromString(networkId), summary);
+			db.commit();
+		} finally {
+			if (db != null) db.close();
+		}
+	}
+
+	
 	
 	@PermitAll
 	@POST
