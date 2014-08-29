@@ -52,7 +52,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         try
         {
         	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-        	dao = new UserDAO(localConnection);
+        	dao = new UserDAO(localConnection, true);
         	
             authInfo = parseCredentials(requestContext);
             if(authInfo != null)
@@ -71,8 +71,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         } 
         finally 
         {
-        	if(dao != null)
+        	if(dao != null) {
+        		dao.rollback();
         		dao.close();
+        	}
         }
         
         if (!method.isAnnotationPresent(PermitAll.class))
