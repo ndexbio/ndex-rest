@@ -45,14 +45,13 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)requestContext.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
         final Method method = methodInvoker.getMethod();
         ODatabaseDocumentTx localConnection = null;
-        UserDAO dao = null;
         
         String[] authInfo = null;
         User authUser = null;
         try
         {
         	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-        	dao = new UserDAO(localConnection, true);
+        	 UserDAO dao = new UserDAO(localConnection);
         	
             authInfo = parseCredentials(requestContext);
             if(authInfo != null)
@@ -71,9 +70,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         } 
         finally 
         {
-        	if(dao != null) {
-        		dao.rollback();
-        		dao.close();
+        	if(localConnection != null) {
+        		localConnection.close();
         	}
         }
         

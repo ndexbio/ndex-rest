@@ -24,9 +24,7 @@ import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 
-import com.orientechnologies.common.concur.ONeedRetryException;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.exception.OTransactionException;
 
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.SimpleUserQuery;
@@ -77,25 +75,18 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
 		
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
-		
+		ODatabaseDocumentTx db = null;
 		try {
-			User user = null;
-			for(int ii=0; ii< maxRetry; ii++) {
-				try {
-					user = dao.createNewUser(newUser);
-					dao.commit();
-					break;
-				} catch (ONeedRetryException e) {
-					dao.rollback();
-				} catch (OTransactionException e) {
-					dao.rollback();
-				}
-			}
+
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			UserDAO userdao = new UserDAO(db);
+
+			User user = userdao.createNewUser(newUser);
+			userdao.commit();
 			return user;
 		} finally {
-			dao.close();
+			if ( db != null ) 
+				db.close();
 		}
 	}
 	
@@ -118,7 +109,7 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
 			final User user = dao.getUserByAccountName(userId);
@@ -127,7 +118,6 @@ public class UserService extends NdexService {
 			final User user = dao.getUserById(UUID.fromString(userId));
 			return user;	
 		} finally  {
-			dao.rollback();
 			dao.close();
 		}
 		
@@ -159,12 +149,11 @@ public class UserService extends NdexService {
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
 			return dao.getUserNetworkMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
 		} finally {
-			dao.rollback();
 			dao.close();
 		}
 	}
@@ -195,12 +184,11 @@ public class UserService extends NdexService {
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
 			return dao.getUserGroupMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
 		} finally {
-			dao.rollback();
 			dao.close();
 		}
 	}
@@ -229,12 +217,11 @@ public class UserService extends NdexService {
 			throws SecurityException, NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 
 		try {
 			return dao.authenticateUser(accountName, password);
 		} finally {
-			dao.rollback();
 			dao.close();
 		}
 		
@@ -263,22 +250,14 @@ public class UserService extends NdexService {
 				"A password is required");
 
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
-			for(int ii=0; ii< maxRetry; ii++) {
-				try {
-					dao.changePassword(password, getLoggedInUser().getExternalId());
-					dao.commit();
-					break;
-				} catch (ONeedRetryException e) {
-					dao.rollback();
-				} catch (OTransactionException e) {
-					dao.rollback();
-				}
-			}
+			dao.changePassword(password, getLoggedInUser().getExternalId());
+			dao.commit();
 		} finally {
 			dao.close();
+			dao = null;
 		}
 	}
 
@@ -295,22 +274,14 @@ public class UserService extends NdexService {
 	public void deleteUser() throws NdexException, ObjectNotFoundException {
 
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
-			for(int ii=0; ii< maxRetry; ii++) {
-				try {
-					dao.deleteUserById(getLoggedInUser().getExternalId());
-					dao.commit();
-					break;
-				} catch (ONeedRetryException e) {
-					dao.rollback();
-				} catch (OTransactionException e) {
-					dao.rollback();
-				}
-			}
+			dao.deleteUserById(getLoggedInUser().getExternalId());
+			dao.commit();
 		} finally {
 			dao.close();
+			dao = null;
 		}
 		
 	}
@@ -342,23 +313,12 @@ public class UserService extends NdexService {
 		// password
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
-			Response res = null;
-			for(int ii=0; ii< maxRetry; ii++) {
-				try {
-					res = dao.emailNewPassword(username);
-					dao.commit();
-					break;
-				} catch (ONeedRetryException e) {
-					dao.rollback();
-				} catch (OTransactionException e) {
-					dao.rollback();
-				}
-			}
+			Response res = dao.emailNewPassword(username);
+			dao.commit();
 			return res;
-
 		} finally {
 			dao.close();
 		}
@@ -384,7 +344,7 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
 
@@ -392,7 +352,6 @@ public class UserService extends NdexService {
 			return users;
 
 		} finally {
-			dao.rollback();
 			dao.close();
 		}
 		
@@ -424,23 +383,12 @@ public class UserService extends NdexService {
 		// However, this depends on the authentication method staying consistent?
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 
 		try {
-			User user = null;
-			for(int ii=0; ii< maxRetry; ii++) {
-				try {
-					user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
-					dao.commit();
-					break;
-				} catch (ONeedRetryException e) {
-					dao.rollback();
-				} catch (OTransactionException e) {
-					dao.rollback();
-				}
-			}
+			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
+			dao.commit();
 			return user;
-
 		} finally {
 			dao.close();
 		}
@@ -456,12 +404,11 @@ public class UserService extends NdexService {
 		
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
 			return dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId));
 		} finally {
-			dao.rollback();
 			dao.close();
 		}
 	}
@@ -478,12 +425,11 @@ public class UserService extends NdexService {
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
 			return dao.getSentRequest(this.getLoggedInUser(),skipBlocks, blockSize);
 		} finally {
-			dao.rollback();
 			dao.close();
 		}
 	}
@@ -497,12 +443,11 @@ public class UserService extends NdexService {
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
 			return dao.getPendingRequest(this.getLoggedInUser(),skipBlocks, blockSize);
 		} finally {
-			dao.rollback();
 			dao.close();
 		}
 	}
@@ -518,13 +463,12 @@ public class UserService extends NdexService {
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection, true);
+		dao = new UserDAO(localConnection);
 		
 		try {
 			Status taskStatus = Status.valueOf(status);
 			return dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
 		} finally {
-			dao.rollback();
 			dao.close();
 		}
 	}

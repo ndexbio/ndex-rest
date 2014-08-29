@@ -28,7 +28,7 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 public abstract class NdexService
 {
     private HttpServletRequest _httpRequest;
-    protected static int maxRetry;
+//    protected static int maxRetry;
     
 //    protected FramedGraphFactory _graphFactory = null;
     private ODatabaseDocumentTx _ndexDatabase = null;
@@ -44,7 +44,7 @@ public abstract class NdexService
     **************************************************************************/
     public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
-        maxRetry = 10;
+//        maxRetry = 10;
     }
     
     /**************************************************************************

@@ -17,9 +17,7 @@ import org.ndexbio.common.models.dao.orientdb.RequestDAO;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
 
-import com.orientechnologies.common.concur.ONeedRetryException;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.exception.OTransactionException;
 
 @Path("/request")
 public class RequestService extends NdexService
@@ -36,7 +34,6 @@ public class RequestService extends NdexService
     **************************************************************************/
     public RequestService(@Context HttpServletRequest httpRequest) {
         super(httpRequest);
-        maxRetry = 10;
     }
     
     /**************************************************************************
@@ -53,18 +50,8 @@ public class RequestService extends NdexService
 		this.openDatabase();
 		
 		try {
-			Request request = null;
-			for(int ii=0; ii< maxRetry; ii++) {
-				try {
-					request = dao.createRequest(newRequest, this.getLoggedInUser());
-					dao.commit();
-					break;
-				} catch (ONeedRetryException e) {
-					dao.rollback();
-				} catch (OTransactionException e) {
-					dao.rollback();
-				}
-			}
+			Request request = dao.createRequest(newRequest, this.getLoggedInUser());
+			dao.commit();
 			return request;
 		} finally {
 			this.closeDatabase();
@@ -88,17 +75,8 @@ public class RequestService extends NdexService
     	this.openDatabase();
 		
 		try {
-			for(int ii=0; ii< maxRetry; ii++) {
-				try {
-					dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
-					dao.commit();
-					break;
-				} catch (ONeedRetryException e) {
-					dao.rollback();
-				} catch (OTransactionException e) {
-					dao.rollback();
-				}
-			}
+			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
+			dao.commit();
 		} finally {
 			this.closeDatabase();
 
@@ -153,17 +131,8 @@ public class RequestService extends NdexService
     	this.openDatabase();
 		
 		try {
-			for(int ii=0; ii< maxRetry; ii++) {
-				try {
-					dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
-					dao.commit();
-					break;
-				} catch (ONeedRetryException e) {
-					dao.rollback();
-				} catch (OTransactionException e) {
-					dao.rollback();
-				}
-			}
+			dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
+			dao.commit();
 		} finally {
 			this.closeDatabase();
 
@@ -172,7 +141,7 @@ public class RequestService extends NdexService
     
   
     
-    private void openDatabase() throws NdexException {
+    private void openDatabase() {
     	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		dao = new RequestDAO(localConnection, true);
 	}
