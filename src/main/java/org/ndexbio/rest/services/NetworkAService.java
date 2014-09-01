@@ -137,7 +137,7 @@ public class NetworkAService extends NdexService {
 	@Path("/{networkId}/provenance")
 	@Produces("application/json")
 	@ApiDoc("Updates the network provenance structure")
-    public void setProvenance(@PathParam("networkId")final String networkId, final ProvenanceEntity provenance)
+    public ProvenanceEntity setProvenance(@PathParam("networkId")final String networkId, final ProvenanceEntity provenance)
     		throws Exception {
     	
     	ODatabaseDocumentTx db = null;
@@ -146,8 +146,10 @@ public class NetworkAService extends NdexService {
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			daoNew = new NetworkDAO(db);
-			daoNew.setProvenance(UUID.fromString(networkId), provenance);
+			UUID networkUUID = UUID.fromString(networkId);
+			daoNew.setProvenance(networkUUID, provenance);
 			daoNew.commit();
+			return daoNew.getProvenance(networkUUID);
 			
 		} catch (Exception e) {
 			if (null != daoNew) daoNew.rollback();
