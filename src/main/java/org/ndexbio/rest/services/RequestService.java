@@ -55,7 +55,6 @@ public class RequestService extends NdexService
 			return request;
 		} finally {
 			this.closeDatabase();
-
 		}
     	
     }
@@ -108,7 +107,6 @@ public class RequestService extends NdexService
 			final Request request = dao.getRequest(UUID.fromString(requestId), this.getLoggedInUser());
 			return request;
 		} finally {
-			dao.rollback();
 			this.closeDatabase();
 
 		}

@@ -243,7 +243,6 @@ public class GroupService extends NdexService {
 			return groups;
 
 		} finally {
-			dao.rollback();
 			this.closeDatabase();
 		}
 	}
@@ -274,7 +273,6 @@ public class GroupService extends NdexService {
 			return group;
 
 		} finally  {
-			dao.rollback();
 			this.closeDatabase();
 		}
 	}
@@ -505,7 +503,6 @@ public class GroupService extends NdexService {
 			return dao.getGroupNetworkMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
 			
 		} finally {
-			dao.rollback();
 			this.closeDatabase();
 		}
 	}
@@ -541,7 +538,6 @@ public class GroupService extends NdexService {
 			return dao.getGroupUserMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
 
 		} finally {
-			dao.rollback();
 			this.closeDatabase();
 		}
 	}

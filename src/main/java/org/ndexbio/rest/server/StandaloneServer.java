@@ -12,6 +12,8 @@ public class StandaloneServer {
 
 	
 	public static void main(String[] args) {
+		System.out.println("Log file location:" + StandaloneServer.class.getClassLoader().getResource("logging.properties"));
+
 		Server server = new Server(8080);
 		ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
 		context.setContextPath("/ndexbio-rest");

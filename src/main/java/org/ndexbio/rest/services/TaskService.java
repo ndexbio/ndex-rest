@@ -42,7 +42,7 @@ public class TaskService extends NdexService
 	private  TaskDAO dao;
 	private  NdexDatabase database;
 	private  ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
-	private  OrientGraph graph;
+//	private  OrientGraph graph;
     
     
     /**************************************************************************
@@ -136,7 +136,7 @@ public class TaskService extends NdexService
     private void openDatabase() throws NdexException {
 		database = new NdexDatabase();
 		localConnection = database.getAConnection();
-		graph = new OrientGraph(localConnection);
+//		graph = new OrientGraph(localConnection);
 		dao = new TaskDAO(localConnection);
 	}
 	private void closeDatabase() {
@@ -262,134 +262,5 @@ public class TaskService extends NdexService
         return null;
     }
 */
-    /**************************************************************************
-    * Updates a task.
-    * 
-    * @param updatedTask
-    *            The updated request.
-    * @throws IllegalArgumentException
-    *            Bad input.
-    * @throws ObjectNotFoundException
-    *            The task doesn't exist.
-    * @throws SecurityException
-    *            The user doesn't own the task.
-    * @throws NdexException
-    *            Failed to update the task in the database.
-    **************************************************************************/
-/*    @POST
-    @Produces("application/json")
-	@ApiDoc("Updates the task specified by taskId in the POSTed task JSON structure. Properties of the task are changed to match the properties in the JSON structure. Errors if no task found or if authenticated user does not own task.")
-    public void updateTask(final Task updatedTask) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
-    {
-       Preconditions.checkArgument(null != updatedTask, 
-    		   "A task is required");
-    	
-        ORID taskRid = IdConverter.toRid(updatedTask.getId());
-
-        try
-        {
-            setupDatabase();
-            
-            final ITask taskToUpdate = _orientDbGraph.getVertex(taskRid, ITask.class);
-            if (taskToUpdate == null)
-                throw new ObjectNotFoundException("Task", updatedTask.getId());
-            else if (!taskToUpdate.getOwner().getUsername().equals(this.getLoggedInUser().getUsername()))
-                throw new SecurityException("Access denied.");
-
-            taskToUpdate.setDescription(updatedTask.getDescription());
-            taskToUpdate.setPriority(updatedTask.getPriority());
-            taskToUpdate.setProgress(updatedTask.getProgress());
-            taskToUpdate.setStatus(updatedTask.getStatus());
-            taskToUpdate.setType(updatedTask.getType());
-
-        }
-        catch (SecurityException | ObjectNotFoundException onfe)
-        {
-            throw onfe;
-        }
-        catch (Exception e)
-        {
-            if (e.getMessage().indexOf("cluster: null") > -1){
-                throw new ObjectNotFoundException("Task", updatedTask.getId());
-            }
-            
-            _logger.error("Failed to update task: " + updatedTask.getId() + ".", e);
-           
-            throw new NdexException("Failed to update task: " + updatedTask.getId() + ".");
-        }
-        finally
-        {
-            teardownDatabase();
-        }
-    }
     
-
-	
-  */  
-    
-	/**************************************************************************
-	 * Exports a network to an xbel-formatted file. Creates a network upload task
-	 * 
-	 * @param networkId
-	 *            The id of the network to export
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to create a network export task
-	 **************************************************************************/
-   /* @PUT
-    @Path("/exportNetwork/xbel/{networkId}")
-    @Produces("application/json")
-	@ApiDoc("Creates a queued task  for asynchronous exporting of a NDEx network to an external "
-			+ "XML file meeting the XBEL validation rules. An Exception is thrown if an invalid "
-			+ "network id is specified")
-	public Task createXBELExportNetworkTask(@PathParam("networkId")final String networkId)
-			throws IllegalArgumentException, SecurityException, NdexException {
-
-		
-			Preconditions
-					.checkArgument(!Strings.isNullOrEmpty(networkId), "A network ID is required");
-		
-			setupDatabase();
-
-
-
-
-				try {
-					final IUser taskOwner = _orientDbGraph.getVertex(
-							IdConverter.toRid(this.getLoggedInUser().getId()),
-							IUser.class);
-					
-					final INetwork network = _orientDbGraph.getVertex(
-							IdConverter.toRid(networkId), INetwork.class);
-					if (network == null)
-						throw new ObjectNotFoundException("Network", networkId);
-					
-					
-					ITask processNetworkTask = _orientDbGraph.addVertex(
-							"class:task", ITask.class);
-					processNetworkTask.setDescription(network.getName() + ".xbel");
-					processNetworkTask.setType(TaskType.EXPORT_NETWORK_TO_FILE);
-					processNetworkTask.setOwner(taskOwner);
-					processNetworkTask.setPriority(Priority.LOW);
-					processNetworkTask.setProgress(0);
-					processNetworkTask.setResource(networkId);
-					processNetworkTask.setStartTime(new Date());
-					processNetworkTask.setStatus(Status.QUEUED);
-					// retain commit statement for planned return to transaction-based operation
-					_orientDbGraph.getBaseGraph().commit();
-					Task newTask = new Task(processNetworkTask);
-					return newTask;
-				} 
-				catch (Exception e)
-		        {
-		            _logger.error("Error creating task for: " + this.getLoggedInUser().getUsername() + ".", e);
-		            throw new NdexException("Error creating a task.");
-		        } 
-				finally {
-					teardownDatabase();
-				}
-			
-		
-	}  */
 }

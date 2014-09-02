@@ -207,7 +207,7 @@ public class CreateStarterDatabase
 */   
     private void insertStarterNetwork()
     {
-        final NetworkService networkService = new NetworkService(_mockRequest);
+   /*     final NetworkService networkService = new NetworkService(_mockRequest);
         final String networkFilenames[] =
         {
             "NCI_NATURE.FoxO family signaling.517135.jdex"
@@ -236,7 +236,7 @@ public class CreateStarterDatabase
     			log.error(e.getMessage()); 
                 e.printStackTrace();
             }
-        }
+        } */
     }
     
   
