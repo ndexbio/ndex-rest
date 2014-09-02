@@ -155,10 +155,6 @@ public class NetworkAService extends NdexService {
 			daoNew.setProvenance(networkUUID, provenance);
 			daoNew.commit();
 			return daoNew.getProvenance(networkUUID);
-<<<<<<< HEAD
-=======
-			
->>>>>>> branch '1.0-snapshot' of https://github.com/cytoscape/ndex-rest.git
 		} catch (Exception e) {
 			if (null != daoNew) daoNew.rollback();
 			throw e;
