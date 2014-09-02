@@ -22,7 +22,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.ndexbio.common.models.object.*;
 import org.ndexbio.orientdb.NdexSchemaManager;
-import org.ndexbio.rest.services.NetworkService;
 
 public class NetworkFromExcelTest
 {
@@ -32,7 +31,7 @@ public class NetworkFromExcelTest
     private static Integer _jdexId = 0;
 
     private static final HttpServletRequest _mockRequest = EasyMock.createMock(HttpServletRequest.class);
-    private static final NetworkService _networkService = new NetworkService(_mockRequest);
+  //  private static final NetworkService _networkService = new NetworkService(_mockRequest);
     private static final Properties _testProperties = new Properties();
 
     

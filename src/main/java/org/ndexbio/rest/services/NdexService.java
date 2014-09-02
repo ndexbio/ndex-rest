@@ -15,6 +15,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 
+import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.model.object.RestResource;
@@ -28,13 +29,6 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 public abstract class NdexService
 {
     private HttpServletRequest _httpRequest;
-//    protected static int maxRetry;
-    
-//    protected FramedGraphFactory _graphFactory = null;
-    private ODatabaseDocumentTx _ndexDatabase = null;
- //   protected FramedGraph<OrientBaseGraph> _orientDbGraph = null;
-    
-    
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -44,7 +38,6 @@ public abstract class NdexService
     **************************************************************************/
     public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
-//        maxRetry = 10;
     }
     
     /**************************************************************************
@@ -128,63 +121,4 @@ public abstract class NdexService
         return null;
     }
 
-    /**************************************************************************
-    * Opens a connection to OrientDB and initializes the OrientDB Graph ORM.
-     * @throws NdexException 
-    **************************************************************************/
-    private void setupDatabase() throws NdexException
-    {
-        //When starting up this application, tell OrientDB's global
-        //configuration to close the storage; this is required here otherwise
-        //OrientDB connection pooling doesn't work as expected
-        //OGlobalConfiguration.STORAGE_KEEP_OPEN.setValue(false);
-
-   /*     _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
-            new TypedGraphModuleBuilder()
-                .withClass(IGroup.class)
-                .withClass(IUser.class)
-                .withClass(IGroupMembership.class)
-                .withClass(INetworkMembership.class)
-                .withClass(IGroupInvitationRequest.class)
-                .withClass(IJoinGroupRequest.class)
-                .withClass(INetworkAccessRequest.class)
-                .withClass(IBaseTerm.class)
-                .withClass(IReifiedEdgeTerm.class)
-                .withClass(IFunctionTerm.class).build());
-*/
-        _ndexDatabase = ODatabaseDocumentPool.global().acquire(
-            Configuration.getInstance().getProperty("OrientDB-URL"),
-            Configuration.getInstance().getProperty("OrientDB-Username"),
-            Configuration.getInstance().getProperty("OrientDB-Password"));
-        
-  /*      if (Boolean.parseBoolean(Configuration.getInstance().getProperty("OrientDB-Use-Transactions")))
-            _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
-        else
-            _orientDbGraph = _graphFactory.create((OrientBaseGraph) new OrientGraphNoTx(_ndexDatabase));
-
-    */    
-        NdexSchemaManager.INSTANCE.init(_ndexDatabase);
-    }
-    
-    /**************************************************************************
-    * Cleans up the OrientDB resources. These steps are all necessary or
-    * OrientDB connections won't be released from the pool.
-    **************************************************************************/
-    private void teardownDatabase()
-    {
-      /*  if (_graphFactory != null)
-            _graphFactory = null;
-        
-        if (_ndexDatabase != null)
-        {
-            _ndexDatabase.close();
-            _ndexDatabase = null;
-        }
-        
-        if (_orientDbGraph != null)
-        {
-            _orientDbGraph.shutdown();
-            _orientDbGraph = null;
-        } */
-    }
 }

@@ -14,7 +14,6 @@ import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.Network;
-import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.UserService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,7 +24,6 @@ public class NetworkQueryTest {
     private static User requestingUser = new User();
     private static HttpServletRequest mockRequest = EasyMock.createMock(HttpServletRequest.class);
 	private static final String jdexFile = "/resources/reactome-test.jdex";
-	private static NetworkService networkService = new NetworkService(mockRequest);
 	private static UserService userService = new UserService(mockRequest);
 	private static User queryTester;
 	private static Network queryNetwork;

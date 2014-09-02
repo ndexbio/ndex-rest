@@ -184,9 +184,9 @@ public class UserService extends NdexService {
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection);
 		
 		try {
+			dao = new UserDAO(localConnection);
 			return dao.getUserGroupMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
 		} finally {
 			dao.close();
@@ -217,9 +217,9 @@ public class UserService extends NdexService {
 			throws SecurityException, NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection);
 
 		try {
+			dao = new UserDAO(localConnection);
 			return dao.authenticateUser(accountName, password);
 		} finally {
 			dao.close();
@@ -250,9 +250,9 @@ public class UserService extends NdexService {
 				"A password is required");
 
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection);
 		
 		try {
+			dao = new UserDAO(localConnection);
 			dao.changePassword(password, getLoggedInUser().getExternalId());
 			dao.commit();
 		} finally {
@@ -313,9 +313,9 @@ public class UserService extends NdexService {
 		// password
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection);
 		
 		try {
+			dao = new UserDAO(localConnection);
 			Response res = dao.emailNewPassword(username);
 			dao.commit();
 			return res;
@@ -344,13 +344,11 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection);
 		
 		try {
-
+			dao = new UserDAO(localConnection);
 			final List<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
 			return users;
-
 		} finally {
 			dao.close();
 		}
@@ -383,9 +381,9 @@ public class UserService extends NdexService {
 		// However, this depends on the authentication method staying consistent?
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection);
 
 		try {
+			dao = new UserDAO(localConnection);
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			dao.commit();
 			return user;
@@ -404,9 +402,9 @@ public class UserService extends NdexService {
 		
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection);
 		
 		try {
+			dao = new UserDAO(localConnection);
 			return dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId), depth);
 		} finally {
 			dao.close();
@@ -463,9 +461,9 @@ public class UserService extends NdexService {
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new UserDAO(localConnection);
 		
 		try {
+			dao = new UserDAO(localConnection);
 			Status taskStatus = Status.valueOf(status);
 			return dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
 		} finally {

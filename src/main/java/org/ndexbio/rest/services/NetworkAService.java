@@ -90,9 +90,14 @@ public class NetworkAService extends NdexService {
 			@PathParam("blockSize") final int blockSize)
 			
 			throws IllegalArgumentException, NdexException {
-		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		NetworkDAO daoNew = new NetworkDAO(db);
-		return (List<BaseTerm>) daoNew.getBaseTerms(networkId);
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			NetworkDAO daoNew = new NetworkDAO(db);
+			return (List<BaseTerm>) daoNew.getBaseTerms(networkId);
+		} finally {
+			if ( db != null) db.close();
+		}
 		
 	}
 	
@@ -117,7 +122,7 @@ public class NetworkAService extends NdexService {
 			
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			NetworkDAO daoNew = new NetworkDAO(db);
-			return (ProvenanceEntity) daoNew.getProvenance(UUID.fromString(networkId));
+			return daoNew.getProvenance(UUID.fromString(networkId));
 			
 		} finally {
 		
@@ -137,7 +142,7 @@ public class NetworkAService extends NdexService {
 	@Path("/{networkId}/provenance")
 	@Produces("application/json")
 	@ApiDoc("Updates the network provenance structure")
-    public void setProvenance(@PathParam("networkId")final String networkId, final ProvenanceEntity provenance)
+    public ProvenanceEntity setProvenance(@PathParam("networkId")final String networkId, final ProvenanceEntity provenance)
     		throws Exception {
     	
     	ODatabaseDocumentTx db = null;
@@ -146,15 +151,14 @@ public class NetworkAService extends NdexService {
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			daoNew = new NetworkDAO(db);
-			daoNew.setProvenance(UUID.fromString(networkId), provenance);
+			UUID networkUUID = UUID.fromString(networkId);
+			daoNew.setProvenance(networkUUID, provenance);
 			daoNew.commit();
-			
+			return daoNew.getProvenance(networkUUID);
 		} catch (Exception e) {
 			if (null != daoNew) daoNew.rollback();
 			throw e;
-			
 		} finally {
-		
 			if (null != db) db.close();
 		}
     }
@@ -176,25 +180,29 @@ public class NetworkAService extends NdexService {
 			
 			throws IllegalArgumentException, NdexException {
 		
-		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		NetworkDAO networkDao = new NetworkDAO(db);
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 		
-		VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
-		boolean hasPrivilege = (vt == VisibilityType.PUBLIC || vt== VisibilityType.DISCOVERABLE);
+			NetworkDAO networkDao = new NetworkDAO(db);
+		
+			VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
+			boolean hasPrivilege = (vt == VisibilityType.PUBLIC || vt== VisibilityType.DISCOVERABLE);
         
-		if ( !hasPrivilege && getLoggedInUser() != null) {
-			hasPrivilege = networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
-				networkId, Permissions.READ);
+			if ( !hasPrivilege && getLoggedInUser() != null) {
+				hasPrivilege = networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
+						networkId, Permissions.READ);
+			}
+			if ( hasPrivilege) {
+				ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
+				NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
+				db.close();
+				return summary;		
+				
+			}
+		} finally {	
+			if (db != null) db.close();
 		}
-		if ( hasPrivilege) {
-			ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
-			NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
-			db.close();
-			return summary;		
-			//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
-		}
-
-		db.close();
         throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 		
 	}
@@ -216,12 +224,15 @@ public class NetworkAService extends NdexService {
 	
 			throws IllegalArgumentException, NdexException {
 		
-		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		NetworkDAO dao = new NetworkDAO(db);
- 		Network n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
- 		//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
-		db.close();
-        return n;		
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			NetworkDAO dao = new NetworkDAO(db);
+	 		Network n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
+	        return n;		
+		} finally {
+			if ( db !=null) db.close();
+		}		
 	}
 
 	@PermitAll
@@ -265,7 +276,7 @@ public class NetworkAService extends NdexService {
 		try { 
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			NetworkDAO daoNew = new NetworkDAO(db);
-			//TODO: Preverify the requirment.
+			//TODO: Verify the permissions.
 		
 		
 			PropertyGraphNetwork n = daoNew.getProperytGraphNetworkById(UUID.fromString(networkId));
@@ -434,6 +445,7 @@ public class NetworkAService extends NdexService {
 		   }
 		
 		   db.close();
+		   db = null;
 		   if ( hasPrivilege) {
 			   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 		
@@ -464,21 +476,31 @@ public class NetworkAService extends NdexService {
 	
 			throws IllegalArgumentException, NdexException {
 		
-		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		NetworkDAO networkDao = new NetworkDAO(db);
 		
-		boolean hasPrivilege=networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
-				networkId, Permissions.READ);
-		db.close();
-		if ( hasPrivilege) {
-			NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
+		ODatabaseDocumentTx db = null;
 		
-			PropertyGraphNetwork n = dao.queryForSubPropertyGraphNetwork(networkId, queryParameters);
-			return n;		
-			//getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		
+			NetworkDAO networkDao = new NetworkDAO(db);
+		
+			boolean hasPrivilege=networkDao.checkPrivilege(getLoggedInUser().getAccountName(), 
+					networkId, Permissions.READ);
+			
+			db.close();
+			db = null;
+			if ( hasPrivilege) {
+				NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
+		
+				PropertyGraphNetwork n = dao.queryForSubPropertyGraphNetwork(networkId, queryParameters);
+				return n;		
+			
+			}
+		} finally {
+			if ( db !=null) db.close();
 		}
         	
-        throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+		throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 	}
 	
 	
@@ -524,22 +546,20 @@ public class NetworkAService extends NdexService {
 			@PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 		
-        List<NetworkSummary> result = new ArrayList <NetworkSummary> ();
-        ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-        NetworkSearchDAO dao = new NetworkSearchDAO(db);
+        ODatabaseDocumentTx db = null;
         
         try {
-			
+        	db = NdexAOrientDBConnectionPool.getInstance().acquire();
+            NetworkSearchDAO dao = new NetworkSearchDAO(db);
+            List<NetworkSummary> result = new ArrayList <NetworkSummary> ();
+            
 			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
 			
 			return result;
 		
         } catch (Exception e) {
-        	
         	throw new NdexException(e.getMessage());
-        	
         } finally {
-        	
         	db.close();
         }
 		
@@ -602,7 +622,6 @@ public class NetworkAService extends NdexService {
 				if ( db != null) 
 					db.close();
 			}
-		
 	}
 	
 	@DELETE 
@@ -611,12 +630,13 @@ public class NetworkAService extends NdexService {
 	@ApiDoc("")
 	public void deleteNetwork(final @PathParam("UUID") String id) {
 
-		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		NetworkDAO networkDao = new NetworkDAO(db);
+		ODatabaseDocumentTx db = null;
 		try{
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			NetworkDAO networkDao = new NetworkDAO(db);
 			networkDao.deleteNetwork(id);
 		} finally {
-			db.close();
+			if ( db != null) db.close();
 		}
 	}
 	
@@ -638,6 +658,7 @@ public class NetworkAService extends NdexService {
 					throw new NdexException("Network does not exist");
 				
 				network.getRecord().delete();
+				database.close();
 				
 			} finally {
 				db.close();
