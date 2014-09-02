@@ -531,7 +531,8 @@ public class NetworkAService extends NdexService {
         NetworkSearchDAO dao = new NetworkSearchDAO(db);
         
         try {
-			
+        	if(query.getAccountName() != null)
+        		query.setAccountName(query.getAccountName().toLowerCase());
 			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
 			
 			return result;

@@ -73,6 +73,7 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 		
 		try {
+			newGroup.setAccountName(newGroup.getAccountName().toLowerCase());
 			Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId());
 			dao.commit();
 				
@@ -236,6 +237,8 @@ public class GroupService extends NdexService {
 		this.openDatabase();
 		
 		try {
+			if(simpleQuery.getAccountName() != null)
+				simpleQuery.setAccountName(simpleQuery.getAccountName().toLowerCase());
 			final List<Group> groups = dao.findGroups(simpleQuery, skip, top);
 			return groups;
 
@@ -423,6 +426,9 @@ public class GroupService extends NdexService {
 
 		this.openDatabase();
 		try {
+			if(groupMember.getMemberAccountName() != null)
+				groupMember.setMemberAccountName(groupMember.getMemberAccountName().toLowerCase());
+			//check for resource name? but it can be a network. Not really important, the code uses external id's
 			dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
 			dao.commit();
 		} finally {
