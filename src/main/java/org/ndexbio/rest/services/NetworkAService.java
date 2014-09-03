@@ -39,6 +39,7 @@ import org.ndexbio.common.models.object.UploadedFile;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.model.object.Membership;
+import org.ndexbio.model.object.NdexProperty;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
 import org.ndexbio.model.object.ProvenanceEntity;
@@ -162,7 +163,61 @@ public class NetworkAService extends NdexService {
 			if (null != db) db.close();
 		}
     }
-	
+
+    
+    
+    /**************************************************************************
+    * Sets network properties.
+     * @throws Exception 
+    * 
+    **************************************************************************/
+    @PUT
+	@Path("/{networkId}/properties")
+	@Produces("application/json")
+	@ApiDoc("Updates network properties")
+    public int setNetworkProperties(
+    		@PathParam("networkId")final String networkId, 
+    		final List<NdexProperty> properties)
+    		throws Exception {
+    	
+    	return setNetworkProperties(networkId, properties, false);
+    }
+    
+    @PUT
+	@Path("/{networkId}/presentationProperties")
+	@Produces("application/json")
+	@ApiDoc("Updates network properties")
+    public int setNetworkPresentationProperties(
+    		@PathParam("networkId")final String networkId, 
+    		final List<NdexProperty> properties)
+    		throws Exception {
+    	
+    	return setNetworkProperties(networkId, properties, true);
+    }
+    
+    private int setNetworkProperties( String networkId, 
+    		final List<NdexProperty> properties,
+    		boolean isPresentationProperty) throws Exception {
+
+    	ODatabaseDocumentTx db = null;
+    	NetworkDAO daoNew = null;
+		
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			daoNew = new NetworkDAO(db);
+			UUID networkUUID = UUID.fromString(networkId);
+			int i = daoNew.setNetworkProperties(networkUUID, properties, isPresentationProperty);
+			daoNew.commit();
+			return i;
+		} catch (Exception e) {
+			if (null != daoNew) daoNew.rollback();
+			throw e;
+		} finally {
+			if (null != db) db.close();
+		}
+
+    }
+    
 	/*
 	 * 
 	 * Operations returning Networks 
