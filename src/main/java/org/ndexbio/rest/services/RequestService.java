@@ -141,7 +141,7 @@ public class RequestService extends NdexService
     
     private void openDatabase() {
     	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new RequestDAO(localConnection, true);
+		dao = new RequestDAO(localConnection);
 	}
 	private void closeDatabase() {
 		dao.close();

@@ -43,7 +43,6 @@ import org.ndexbio.model.object.NdexProperty;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
 import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.Request;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.SimplePathQuery;
@@ -62,8 +61,6 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
 @Path("/network")
@@ -90,7 +87,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 			
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException {
 		ODatabaseDocumentTx db = null;
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
