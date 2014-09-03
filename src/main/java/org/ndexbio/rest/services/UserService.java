@@ -77,6 +77,7 @@ public class UserService extends NdexService {
 		
 		ODatabaseDocumentTx db = null;
 		try {
+			newUser.setAccountName(newUser.getAccountName().toLowerCase());
 
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			UserDAO userdao = new UserDAO(db);
@@ -112,7 +113,7 @@ public class UserService extends NdexService {
 		dao = new UserDAO(localConnection);
 		
 		try {
-			final User user = dao.getUserByAccountName(userId);
+			final User user = dao.getUserByAccountName(userId.toLowerCase());
 			return user;
 		} catch (ObjectNotFoundException e) {
 			final User user = dao.getUserById(UUID.fromString(userId));
@@ -220,7 +221,7 @@ public class UserService extends NdexService {
 
 		try {
 			dao = new UserDAO(localConnection);
-			return dao.authenticateUser(accountName, password);
+			return dao.authenticateUser(accountName.toLowerCase(), password);
 		} finally {
 			dao.close();
 		}
@@ -299,15 +300,15 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@GET
 	@PermitAll
-	@Path("/{username}/forgot-password")
+	@Path("/{accountName}/forgot-password")
 	@Produces("application/json")
 	@ApiDoc("Causes a new password to be generated for the authenticated user and then emailed to the users emailAddress")
 	public Response emailNewPassword(
-			@PathParam("username") final String username)
+			@PathParam("accountName") final String accountName)
 			throws IllegalArgumentException, NdexException {
 		
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(username), 
-				"A username is required");
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(accountName), 
+				"A accountName is required");
 		// TODO: In the future security questions should be implemented - right
 		// now anyone can change anyone else's password to a randomly generated
 		// password
@@ -315,8 +316,10 @@ public class UserService extends NdexService {
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		
 		try {
+
 			dao = new UserDAO(localConnection);
-			Response res = dao.emailNewPassword(username);
+			Response res = dao.emailNewPassword(accountName.toLowerCase());
+
 			dao.commit();
 			return res;
 		} finally {
@@ -346,6 +349,10 @@ public class UserService extends NdexService {
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		
 		try {
+
+			if(simpleUserQuery.getAccountName() != null)
+				simpleUserQuery.setAccountName(simpleUserQuery.getAccountName().toLowerCase());
+			
 			dao = new UserDAO(localConnection);
 			final List<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
 			return users;
