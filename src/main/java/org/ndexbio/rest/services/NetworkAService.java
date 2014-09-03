@@ -549,10 +549,14 @@ public class NetworkAService extends NdexService {
         ODatabaseDocumentTx db = null;
         
         try {
+
+        	if(query.getAccountName() != null)
+        		query.setAccountName(query.getAccountName().toLowerCase());
+
         	db = NdexAOrientDBConnectionPool.getInstance().acquire();
             NetworkSearchDAO dao = new NetworkSearchDAO(db);
             List<NetworkSummary> result = new ArrayList <NetworkSummary> ();
-            
+
 			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
 			
 			return result;
@@ -583,11 +587,13 @@ public class NetworkAService extends NdexService {
 				"A network name is required");
 
 			NdexDatabase db = new NdexDatabase();
+			PropertyGraphLoader pgl = null;
 			try {
-				PropertyGraphLoader pgl = new PropertyGraphLoader(db);
+				pgl = new PropertyGraphLoader(db);
 		
 				return pgl.insertNetwork(newNetwork, getLoggedInUser().getAccountName());
 			} finally {
+				
 				db.close();
 			}
 		
@@ -640,6 +646,7 @@ public class NetworkAService extends NdexService {
 		}
 	}
 	
+/*	
 	@DELETE
 	@Path("/test/{UUID}")
 	@Produces("application/json")
@@ -665,7 +672,7 @@ public class NetworkAService extends NdexService {
 			}
 		
 	}
-	
+*/	
 	
 	/**************************************************************************
 	 * Saves an uploaded network file. Determines the type of file uploaded,
