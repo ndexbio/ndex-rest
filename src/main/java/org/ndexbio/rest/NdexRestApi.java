@@ -2,10 +2,23 @@ package org.ndexbio.rest;
 
 import java.util.HashSet;
 import java.util.Set;
+
 import javax.ws.rs.core.Application;
-import org.ndexbio.rest.exceptions.mappers.*;
-import org.ndexbio.rest.filters.*;
-import org.ndexbio.rest.services.*;
+
+import org.ndexbio.rest.exceptions.mappers.DuplicateObjectExceptionMapper;
+import org.ndexbio.rest.exceptions.mappers.IllegalArgumentExceptionMapper;
+import org.ndexbio.rest.exceptions.mappers.NdexExceptionMapper;
+import org.ndexbio.rest.exceptions.mappers.ObjectNotFoundExceptionMapper;
+import org.ndexbio.rest.exceptions.mappers.SecurityExceptionMapper;
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
+import org.ndexbio.rest.filters.CrossOriginResourceSharingFilter;
+import org.ndexbio.rest.services.AdminService;
+import org.ndexbio.rest.services.GroupService;
+import org.ndexbio.rest.services.NetworkAService;
+import org.ndexbio.rest.services.RequestService;
+import org.ndexbio.rest.services.TaskService;
+import org.ndexbio.rest.services.UserService;
+
 
 public class NdexRestApi extends Application
 {
