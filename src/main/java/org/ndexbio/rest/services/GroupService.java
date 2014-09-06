@@ -24,9 +24,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.rest.annotations.ApiDoc;
 
-import com.orientechnologies.common.concur.ONeedRetryException;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.exception.OTransactionException;
 
 @Path("/group")
 public class GroupService extends NdexService {
