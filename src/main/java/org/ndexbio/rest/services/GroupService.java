@@ -540,6 +540,24 @@ public class GroupService extends NdexService {
 		}
 	}
 	
+	@GET
+	@PermitAll
+	@Path("/{groupId}/membership/{networkId}")
+	@Produces("application/json")
+	@ApiDoc("")
+	public Membership getNetworkMembership(@PathParam("groupId") final String groupId,
+			@PathParam("networkId") final String networkId) throws NdexException {
+		
+		this.openDatabase();
+		try {
+			
+			return dao.getMembershipToNetwork(UUID.fromString(groupId), UUID.fromString(networkId));
+
+		} finally {
+			this.closeDatabase();
+		}
+	}
+	
 	
 	/**************************************************************************
 	 * Counter the number of administrative members in the network.
