@@ -27,6 +27,7 @@ import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
@@ -369,7 +370,43 @@ public class NetworkAService extends NdexService {
         return n;		
 	}
 	
+	/**************************************************************************
+	 * Retrieves array of user membership objects
+	 * 
+	 * @param networkId
+	 *            The network ID.
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws ObjectNotFoundException
+	 *             The group doesn't exist.
+	 * @throws NdexException
+	 *             Failed to query the database.
+	 **************************************************************************/
+	
+	@GET
+	@PermitAll
+	@Path("/{networkId}/user/{permission}/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("")
+	public List<Membership> getNetworkUserMemberships(@PathParam("networkId") final String networkId,
+			@PathParam("permission") final String permissions ,
+			@PathParam("skipBlocks") int skipBlocks,
+			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
+		
+		ODatabaseDocumentTx db = null;
+		try {
+			
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			NetworkDAO networkDao = new NetworkDAO(db);
+			
+			return networkDao.getNetworkUserMemberships(UUID.fromString(networkId), permission, skipBlocks, blockSize);
 
+		} finally {
+			if (db != null) db.close();
+		}
+	}
 	
 	@DELETE
 	@Path("/{networkId}/member/{userUUID}")
