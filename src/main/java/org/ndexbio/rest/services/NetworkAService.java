@@ -51,6 +51,7 @@ import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.BaseTerm;
+import org.ndexbio.model.object.network.Namespace;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.PropertyGraphNetwork;
@@ -99,6 +100,59 @@ public class NetworkAService extends NdexService {
 			if ( db != null) db.close();
 		}
 		
+	}
+	
+	@PermitAll
+	@GET
+	@Path("/{networkId}/namespace/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("Returns a block of namespaces from the network specified by networkId as a list. "
+			+ "'blockSize' specifies the maximum number of namespaces to retrieve in the block, "
+			+ "'skipBlocks' specifies the number of blocks to skip.")
+	public List<Namespace> getNamespaces(
+			@PathParam("networkId") final String networkId,
+			@PathParam("skipBlocks") final int skipBlocks, 
+			@PathParam("blockSize") final int blockSize)
+			
+			throws IllegalArgumentException {
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			NetworkDAO daoNew = new NetworkDAO(db);
+			return (List<Namespace>) daoNew.getNamespaces(networkId);
+		} finally {
+			if ( db != null) db.close();
+		}
+		
+	}
+	
+	@POST
+	@Path("/{networkId}/namespace")
+	@Produces("application/json")
+	@ApiDoc("adds a namespace to the network")
+	public void addNamespace(
+			@PathParam("networkId") final String networkId,
+			final Namespace namespace
+			)
+			throws IllegalArgumentException, NdexException {
+		
+		ODatabaseDocumentTx db = null;
+		try {
+			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		
+			User user = getLoggedInUser();
+			NetworkDAO networkDao = new NetworkDAO(db);
+
+			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
+					Permissions.WRITE)) {
+				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+			}
+        
+	        networkDao.addNetworkNamespace(UUID.fromString(networkId), namespace);
+			db.commit();
+		} finally {
+			if (db != null) db.close();
+		}
 	}
 	
     /**************************************************************************
