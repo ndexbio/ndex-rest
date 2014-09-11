@@ -788,6 +788,7 @@ public class NetworkAService extends NdexService {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			NetworkDAO networkDao = new NetworkDAO(db);
 			networkDao.deleteNetwork(id);
+			db.commit();
 		} finally {
 			if ( db != null) db.close();
 		}
