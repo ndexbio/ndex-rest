@@ -37,7 +37,9 @@ import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.common.models.object.UploadedFile;
+import org.ndexbio.common.models.object.network.RawNamespace;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
+import org.ndexbio.common.persistence.orientdb.NdexPersistenceService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
@@ -135,23 +137,17 @@ public class NetworkAService extends NdexService {
 			final Namespace namespace
 			)
 			throws IllegalArgumentException, NdexException {
-		
-		ODatabaseDocumentTx db = null;
-		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		
-			User user = getLoggedInUser();
-			NetworkDAO networkDao = new NetworkDAO(db);
 
-			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
-					Permissions.WRITE)) {
-				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
-			}
-        
-	        networkDao.addNetworkNamespace(UUID.fromString(networkId), namespace);
-			db.commit();
+		NdexPersistenceService networkService = null;
+		try {
+			networkService = new NdexPersistenceService(new NdexDatabase(), UUID.fromString(networkId));
+			
+			networkService.getNamespace(new RawNamespace(namespace.getPrefix(), namespace.getUri()));
+			
+			networkService.commit();
+			networkService.close();
 		} finally {
-			if (db != null) db.close();
+			if (networkService != null) networkService.close();
 		}
 	}
 	
