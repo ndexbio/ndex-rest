@@ -139,7 +139,7 @@ public class RequestService extends NdexService
     
   
     
-    private void openDatabase() {
+    private void openDatabase() throws NdexException {
     	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		dao = new RequestDAO(localConnection);
 	}

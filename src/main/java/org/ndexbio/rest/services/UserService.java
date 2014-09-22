@@ -1,9 +1,16 @@
 package org.ndexbio.rest.services;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 import javax.annotation.security.PermitAll;
+import javax.mail.MessagingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -22,11 +29,13 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 import org.ndexbio.common.exceptions.*;
+import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
 
@@ -35,6 +44,8 @@ import com.google.common.base.Strings;
 
 @Path("/user")
 public class UserService extends NdexService {
+	
+	static Logger logger = Logger.getLogger(UserService.class.getName());
 	
 	private UserDAO dao;
 	private ODatabaseDocumentTx  localConnection; 
@@ -297,6 +308,8 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to change the password in the database, or failed to
 	 *             send the email.
+	 * @throws IOException 
+	 * @throws MessagingException 
 	 **************************************************************************/
 	@GET
 	@PermitAll
@@ -305,7 +318,7 @@ public class UserService extends NdexService {
 	@ApiDoc("Causes a new password to be generated for the authenticated user and then emailed to the users emailAddress")
 	public Response emailNewPassword(
 			@PathParam("accountName") final String accountName)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, IOException, MessagingException {
 		
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(accountName), 
 				"A accountName is required");
@@ -315,15 +328,46 @@ public class UserService extends NdexService {
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		
+		BufferedReader fileReader = null;
 		try {
 
 			dao = new UserDAO(localConnection);
-			Response res = dao.emailNewPassword(accountName.toLowerCase());
+			User authUser = dao.getUserByAccountName(accountName);
+			String newPasswd = dao.setNewPassword(accountName.toLowerCase());
 
 			dao.commit();
-			return res;
+			
+			final File forgotPasswordFile = new File(Configuration
+					.getInstance().getProperty("Forgot-Password-File"));
+
+			if (!forgotPasswordFile.exists()) {
+				logger.severe("Could not retrieve forgot password file");
+				throw new java.io.FileNotFoundException(
+						"File containing forgot password email content doesn't exist.");
+			}
+
+			fileReader = Files.newBufferedReader(
+					forgotPasswordFile.toPath(), Charset.forName("US-ASCII"));
+
+			final StringBuilder forgotPasswordText = new StringBuilder();
+
+			String lineOfText = null;
+			while ((lineOfText = fileReader.readLine()) != null)
+				forgotPasswordText.append(lineOfText.replace("{password}",	newPasswd));
+
+			Email.sendEmail(
+					Configuration.getInstance().getProperty(
+							"Forgot-Password-Email"),
+					authUser.getEmailAddress(), "Password Recovery",
+					forgotPasswordText.toString());
+
+			logger.info("Sent password recovery email to user " + accountName);
+
+			return Response.ok().build();
+			
 		} finally {
 			dao.close();
+			if ( fileReader !=null ) fileReader.close();
 		}
 	}
 

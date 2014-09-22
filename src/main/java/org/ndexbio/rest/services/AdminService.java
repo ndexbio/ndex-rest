@@ -1,5 +1,7 @@
 package org.ndexbio.rest.services;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 
@@ -10,14 +12,18 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
+import org.ndexbio.model.object.Status;
+import org.ndexbio.task.NdexQueuedTaskProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 @Path("/admin")
 public class AdminService extends NdexService {
@@ -31,13 +37,14 @@ public class AdminService extends NdexService {
 	/**************************************************************************
 	 * 
 	 * Gets status for the service.
+	 * @throws NdexException 
 	 **************************************************************************/
 
 	@GET
 	@PermitAll
 	@Path("/status")
 	@Produces("application/json")
-	public NdexStatus getStatus()	{
+	public NdexStatus getStatus() throws NdexException	{
 
 		ODatabaseDocumentTx db = null;
 		try {
@@ -72,5 +79,87 @@ public class AdminService extends NdexService {
 		return classCount;
 
 	} 
+	
+	
+	@GET
+	@Path("/processqueue")
+	@Produces("application/json")
+	public void processTasks()	{
+		Thread t = new Thread(new Runnable() {
+	         @Override
+			public void run()
+	         {
+	     		try {
+					NdexQueuedTaskProcessor.processAll();
+				} catch (NdexException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					logger.error("Failed to process queued task.  " + e.getMessage()) ;
+				}
+	         }
+		});
+		t.start();
+	}
+	
+	@GET
+	@Path("/backupdb")
+	@Produces("application/json")
+	public void backupDB() throws NdexException	{
+		Thread t = new Thread(new Runnable() {
+	         @Override
+			public void run()
+	         {
+	        	 ODatabaseDocumentTx db = null;
+	        	 try {
+			
+	        		 String ndexRoot = "/opt/ndex"; //TODO: remove the hard coded names/
+	        		 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+	        		 String strDate = sdf.format(Calendar.getInstance().getTime());
+			
+	        		 db = NdexAOrientDBConnectionPool.getInstance().acquire();
+	        		 db.command( new OCommandSQL("export database " + ndexRoot + 
+	        				 "/dbbackups/db_"+ strDate + ".export")).execute();
+	        	 } catch (NdexException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					logger.error("Failed to backup database.  " + e.getMessage()) ;
+	        	 } finally {
+	        		 if ( db!=null) db.close();
+
+	        	 }
+	         }
+		});
+		t.start();
+	}
+
+	@GET
+	@Path("/initdb")
+	@Produces("application/json")
+	public void initDB()	{
+		Thread t = new Thread(new Runnable() {
+	         @Override
+			public void run()
+	         {
+	        	 ODatabaseDocumentTx db = null;
+	        	 try {
+			
+	        		 String ndexRoot = "/opt/ndex"; //TODO: remove the hard coded names/
+	        		 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+	        		 String strDate = sdf.format(Calendar.getInstance().getTime());
+			
+	        		 db = NdexAOrientDBConnectionPool.getInstance().acquire();
+	        		 db.command( new OCommandSQL("export database " + ndexRoot + 
+	        				 "/dbbackups/db_"+ strDate + ".export")).execute();
+	        	 } catch (NdexException e) {
+					e.printStackTrace();
+					logger.error("Failed to backup database.  " + e.getMessage()) ;
+	        	 } finally {
+	        		 if ( db!=null) db.close();
+
+	        	 }
+	         }
+		});
+		t.start();
+	}
 
 }

@@ -1,6 +1,7 @@
 package org.ndexbio.rest.helpers;
 
 import java.util.Properties;
+
 import javax.mail.Message;
 import javax.mail.MessagingException;
 import javax.mail.PasswordAuthentication;
@@ -8,6 +9,8 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+
+import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.helpers.Configuration;
 
 public class Email
@@ -25,8 +28,9 @@ public class Email
     *            The email content.
     * @throws MessagingException
     *            Failed to send the email.
+     * @throws NdexException 
     **************************************************************************/
-    public static void sendEmail(final String senderAddress, final String recipientAddress, final String subject, final String emailText) throws MessagingException
+    public static void sendEmail(final String senderAddress, final String recipientAddress, final String subject, final String emailText) throws MessagingException, NdexException
     {
         sendEmail(senderAddress, new String[] { recipientAddress }, subject, emailText);
     }
@@ -44,8 +48,9 @@ public class Email
     *            The email content.
     * @throws MessagingException
     *            Failed to send the email.
+     * @throws NdexException 
     **************************************************************************/
-    public static void sendEmail(final String senderAddress, final String recipientAddresses[], final String subject, final String emailText) throws MessagingException
+    public static void sendEmail(final String senderAddress, final String recipientAddresses[], final String subject, final String emailText) throws MessagingException, NdexException
     {
         //Dreamhost information can be found at: http://wiki.dreamhost.com/E-mail_Client_Configuration
         //Java headers can be found at: https://javamail.java.net/nonav/docs/api/com/sun/mail/smtp/package-summary.html

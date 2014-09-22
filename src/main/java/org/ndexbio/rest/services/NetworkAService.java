@@ -36,7 +36,6 @@ import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.TaskType;
-import org.ndexbio.common.models.object.UploadedFile;
 import org.ndexbio.common.models.object.network.RawNamespace;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.NdexPersistenceService;
@@ -59,6 +58,7 @@ import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.rest.helpers.UploadedFile;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -92,7 +92,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 			
-			throws IllegalArgumentException {
+			throws IllegalArgumentException, NdexException {
 		ODatabaseDocumentTx db = null;
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
@@ -116,7 +116,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("skipBlocks") final int skipBlocks, 
 			@PathParam("blockSize") final int blockSize)
 			
-			throws IllegalArgumentException {
+			throws IllegalArgumentException, NdexException {
 		ODatabaseDocumentTx db = null;
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
@@ -156,6 +156,7 @@ public class NetworkAService extends NdexService {
      * @throws IOException 
      * @throws JsonMappingException 
      * @throws JsonParseException 
+     * @throws NdexException 
     * 
     **************************************************************************/	
 	@PermitAll
@@ -166,7 +167,7 @@ public class NetworkAService extends NdexService {
 	public ProvenanceEntity getProvenance(
 			@PathParam("networkId") final String networkId)
 			
-			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException {
+			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException, NdexException {
 		ODatabaseDocumentTx db = null;
 		try {
 			
@@ -537,7 +538,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("networkId") final String networkId,
 			final NetworkSummary summary
 			)
-			throws IllegalArgumentException {
+			throws IllegalArgumentException, NdexException {
 		
 		ODatabaseDocumentTx db = null;
 		try {
@@ -781,7 +782,7 @@ public class NetworkAService extends NdexService {
 	@Path("/{UUID}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public void deleteNetwork(final @PathParam("UUID") String id) {
+	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException {
 
 		ODatabaseDocumentTx db = null;
 		try{
