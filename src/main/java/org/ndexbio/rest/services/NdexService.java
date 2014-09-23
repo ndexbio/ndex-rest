@@ -17,11 +17,11 @@ import javax.ws.rs.Produces;
 
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.task.Configuration;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;

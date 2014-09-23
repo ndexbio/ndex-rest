@@ -14,9 +14,11 @@ import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
+import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
 import org.ndexbio.model.object.Status;
+import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexQueuedTaskProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,7 +92,9 @@ public class AdminService extends NdexService {
 			public void run()
 	         {
 	     		try {
-					NdexQueuedTaskProcessor.processAll();
+	     			NdexQueuedTaskProcessor processor = new NdexQueuedTaskProcessor(
+	     				new NdexDatabase(Configuration.getInstance().getHostURI()));
+					processor.processAll();
 				} catch (NdexException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();

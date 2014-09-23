@@ -11,7 +11,7 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.helpers.Configuration;
+import org.ndexbio.task.Configuration;
 
 public class Email
 {

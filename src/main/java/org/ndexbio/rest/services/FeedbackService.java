@@ -7,9 +7,10 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+
 import org.ndexbio.common.exceptions.NdexException;
-import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.rest.helpers.Email;
+import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

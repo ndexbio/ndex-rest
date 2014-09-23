@@ -91,7 +91,7 @@ public abstract class TestNdexService
 
     @Before
     public void setLoggedInUser() throws NdexException {
-    	
+  /*  	
     	final NdexDatabase database = new NdexDatabase();
     	final ODatabaseDocumentTx  localConnection = database.getAConnection();  
     	localConnection.begin();
@@ -130,9 +130,9 @@ public abstract class TestNdexService
         localConnection.commit();
         localConnection.close();
         database.close();
-        
+        */
     }
-    
+ /*   
     @Test
     public void connectionPool() throws NdexException {
     	
@@ -158,7 +158,7 @@ public abstract class TestNdexService
     	}
     	
     }
-    
+    */
     
     /**************************************************************************
     * Gets the record ID of an object by its name from the database.

@@ -28,7 +28,6 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
-import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
@@ -59,6 +58,7 @@ import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.helpers.UploadedFile;
+import org.ndexbio.task.Configuration;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -140,7 +140,9 @@ public class NetworkAService extends NdexService {
 
 		NdexPersistenceService networkService = null;
 		try {
-			networkService = new NdexPersistenceService(new NdexDatabase(), UUID.fromString(networkId));
+			networkService = new NdexPersistenceService(
+					new NdexDatabase(Configuration.getInstance().getHostURI()), 
+					UUID.fromString(networkId));
 			
 			networkService.getNamespace(new RawNamespace(namespace.getPrefix(), namespace.getUri()));
 			
@@ -734,7 +736,7 @@ public class NetworkAService extends NdexService {
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
 
-			NdexDatabase db = new NdexDatabase();
+			NdexDatabase db = new NdexDatabase(Configuration.getInstance().getHostURI());
 			PropertyGraphLoader pgl = null;
 			try {
 				pgl = new PropertyGraphLoader(db);
@@ -762,7 +764,7 @@ public class NetworkAService extends NdexService {
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
 			
-			NdexDatabase db = new NdexDatabase();
+			NdexDatabase db = new NdexDatabase(Configuration.getInstance().getHostURI());
 			NdexNetworkCloneService service = null;
 			try {
 				service = new NdexNetworkCloneService(db, newNetwork, 

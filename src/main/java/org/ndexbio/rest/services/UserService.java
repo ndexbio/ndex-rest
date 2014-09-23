@@ -35,9 +35,9 @@ import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 import org.ndexbio.common.exceptions.*;
-import org.ndexbio.common.helpers.Configuration;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.task.Configuration;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;

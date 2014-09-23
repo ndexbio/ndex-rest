@@ -40,7 +40,7 @@ public class TaskService extends NdexService
 {
     private static final Logger _logger = LoggerFactory.getLogger(TaskService.class);
 	private  TaskDAO dao;
-	private  NdexDatabase database;
+//	private  NdexDatabase database;
 	private  ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
 //	private  OrientGraph graph;
     
@@ -134,14 +134,14 @@ public class TaskService extends NdexService
 	}
 	
     private void openDatabase() throws NdexException {
-		database = new NdexDatabase();
-		localConnection = database.getAConnection();
+//		database = new NdexDatabase();
+		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 //		graph = new OrientGraph(localConnection);
 		dao = new TaskDAO(localConnection);
 	}
 	private void closeDatabase() {
 		localConnection.close();
-		database.close();
+//		database.close();
 	}
 
     /**************************************************************************

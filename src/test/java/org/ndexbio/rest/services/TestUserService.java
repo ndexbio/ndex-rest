@@ -48,7 +48,7 @@ public class TestUserService extends TestNdexService {
     @AfterClass
 	public static void tearDownAfterClass() throws Exception {
     	
-    	final NdexDatabase database = new NdexDatabase();
+    /*	final NdexDatabase database = new NdexDatabase();
     	final ODatabaseDocumentTx  localConnection = database.getAConnection();  //all DML will be in this connection, in one transaction.
     	final UserDAO dao = new UserDAO(localConnection, new OrientGraph(localConnection));
     	
@@ -62,7 +62,7 @@ public class TestUserService extends TestNdexService {
 		
     	
     	localConnection.close();
-    	database.close();
+    	database.close(); */
 	}
     
     @Test
