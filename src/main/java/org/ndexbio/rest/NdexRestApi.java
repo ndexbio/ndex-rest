@@ -8,6 +8,8 @@ import javax.ws.rs.core.Application;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.model.object.User;
 import org.ndexbio.rest.exceptions.mappers.DuplicateObjectExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.IllegalArgumentExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.NdexExceptionMapper;
@@ -22,6 +24,9 @@ import org.ndexbio.rest.services.RequestService;
 import org.ndexbio.rest.services.TaskService;
 import org.ndexbio.rest.services.UserService;
 import org.ndexbio.task.Configuration;
+import org.ndexbio.task.utility.DatabaseInitializer;
+
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 
 public class NdexRestApi extends Application
@@ -46,7 +51,14 @@ public class NdexRestApi extends Application
     	
     	System.out.println("Db created for " + db.getURIPrefix());
     	
+    	ODatabaseDocumentTx conn = db.getAConnection();
+    	UserDAO dao = new UserDAO(conn);
+    	
+    	DatabaseInitializer.createUserIfnotExist(dao, configuration.getSystmUserName(), "support@ndexbio.org", 
+    				configuration.getSystemUserPassword());
+    	conn.close();
     	db.close();
+    	
     	_resources.add(GroupService.class); 
         _resources.add(UserService.class); 
         _resources.add(RequestService.class);

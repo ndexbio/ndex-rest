@@ -864,8 +864,8 @@ public class NetworkAService extends NdexService {
 			throw new IllegalArgumentException(e1);
 		}
 
-		final File uploadedNetworkPath = new File(Configuration.getInstance()
-				.getProperty("Uploaded-Networks-Path"));
+		final File uploadedNetworkPath = new File(Configuration.getInstance().getNdexRoot() + 
+				"/uploaded-networks");
 		if (!uploadedNetworkPath.exists())
 			uploadedNetworkPath.mkdir();
 

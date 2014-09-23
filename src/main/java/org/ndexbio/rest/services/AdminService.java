@@ -1,5 +1,6 @@
 package org.ndexbio.rest.services;
 
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.List;
@@ -23,7 +24,9 @@ import org.ndexbio.task.NdexQueuedTaskProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.orientechnologies.orient.core.command.OCommandOutputListener;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.tool.ODatabaseExport;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
@@ -86,7 +89,9 @@ public class AdminService extends NdexService {
 	@GET
 	@Path("/processqueue")
 	@Produces("application/json")
-	public void processTasks()	{
+	public void processTasks() throws NdexException	{
+		if ( !isSystemUser())
+			throw new NdexException ("Only Sysetm users are allowed to call task runner from API.");
 		Thread t = new Thread(new Runnable() {
 	         @Override
 			public void run()
@@ -109,6 +114,8 @@ public class AdminService extends NdexService {
 	@Path("/backupdb")
 	@Produces("application/json")
 	public void backupDB() throws NdexException	{
+		if ( !isSystemUser())
+			throw new NdexException ("Only Sysetm users are allowed to backup database from API.");
 		Thread t = new Thread(new Runnable() {
 	         @Override
 			public void run()
@@ -116,13 +123,35 @@ public class AdminService extends NdexService {
 	        	 ODatabaseDocumentTx db = null;
 	        	 try {
 			
-	        		 String ndexRoot = "/opt/ndex"; //TODO: remove the hard coded names/
+	        		 String ndexRoot = Configuration.getInstance().getNdexRoot();
 	        		 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
 	        		 String strDate = sdf.format(Calendar.getInstance().getTime());
 			
 	        		 db = NdexAOrientDBConnectionPool.getInstance().acquire();
-	        		 db.command( new OCommandSQL("export database " + ndexRoot + 
-	        				 "/dbbackups/db_"+ strDate + ".export")).execute();
+	        		 String exportFile = ndexRoot + "/dbbackups/db_"+ strDate + ".export";
+
+	        		 logger.info("Backing up database to " + exportFile);
+	        		 
+	        		 try{
+	        			  OCommandOutputListener listener = new OCommandOutputListener() {
+	        			    @Override
+	        			    public void onMessage(String iText) {
+	        			      System.out.print(iText);
+	        			      logger.info(iText);
+	        			    }
+	        			  };
+
+	        			  ODatabaseExport export = new ODatabaseExport(db, exportFile, listener);
+	        			  export.exportDatabase();
+	        			  export.close();
+	        			} catch (IOException e) {
+							e.printStackTrace();
+							logger.error("IO exception when backing up database. " + e.getMessage());
+						} finally {
+	        			  db.close();
+	        			}
+	        		 logger.info("Database back up fininished succefully.");
+
 	        	 } catch (NdexException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -136,34 +165,9 @@ public class AdminService extends NdexService {
 		t.start();
 	}
 
-	@GET
-	@Path("/initdb")
-	@Produces("application/json")
-	public void initDB()	{
-		Thread t = new Thread(new Runnable() {
-	         @Override
-			public void run()
-	         {
-	        	 ODatabaseDocumentTx db = null;
-	        	 try {
-			
-	        		 String ndexRoot = "/opt/ndex"; //TODO: remove the hard coded names/
-	        		 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-	        		 String strDate = sdf.format(Calendar.getInstance().getTime());
-			
-	        		 db = NdexAOrientDBConnectionPool.getInstance().acquire();
-	        		 db.command( new OCommandSQL("export database " + ndexRoot + 
-	        				 "/dbbackups/db_"+ strDate + ".export")).execute();
-	        	 } catch (NdexException e) {
-					e.printStackTrace();
-					logger.error("Failed to backup database.  " + e.getMessage()) ;
-	        	 } finally {
-	        		 if ( db!=null) db.close();
-
-	        	 }
-	         }
-		});
-		t.start();
+	
+	private boolean isSystemUser() throws NdexException {
+	  return getLoggedInUser().getAccountName().equals(Configuration.getInstance().getSystmUserName()) ;
 	}
 
 }
