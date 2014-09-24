@@ -13,12 +13,10 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
-import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
-import org.ndexbio.model.object.Status;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexQueuedTaskProcessor;
 import org.slf4j.Logger;
@@ -28,8 +26,8 @@ import com.orientechnologies.orient.core.command.OCommandOutputListener;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.db.tool.ODatabaseExport;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+
 @Path("/admin")
 public class AdminService extends NdexService {
 	private static final Logger logger = LoggerFactory.getLogger(AdminService.class);
@@ -98,6 +96,7 @@ public class AdminService extends NdexService {
 	         {
 	        	NdexDatabase db = null;
 	     		try {
+	     			LoggerFactory.getLogger(AdminService.class).info("Task processor started.") ;
 	     		    db = new NdexDatabase(Configuration.getInstance().getHostURI());
 	     			NdexQueuedTaskProcessor processor = new NdexQueuedTaskProcessor(
 	     				db );
@@ -105,9 +104,10 @@ public class AdminService extends NdexService {
 				} catch (NdexException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
-					logger.error("Failed to process queued task.  " + e.getMessage()) ;
+					LoggerFactory.getLogger(AdminService.class).error("Failed to process queued task.  " + e.getMessage()) ;
 				} finally {
 					if ( db != null) db.close();
+					LoggerFactory.getLogger(AdminService.class).info("Task processor finished. Db connection closed.") ;
 				}
 	         }
 		});
