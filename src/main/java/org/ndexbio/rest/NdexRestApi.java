@@ -73,6 +73,8 @@ public class NdexRestApi extends Application
         _providers.add(new NdexExceptionMapper());
         _providers.add(new ObjectNotFoundExceptionMapper());
         _providers.add(new SecurityExceptionMapper());
+        
+        Runtime.getRuntime().addShutdownHook(new MyShutdown());
     }
     
     
@@ -88,4 +90,19 @@ public class NdexRestApi extends Application
     {
         return _providers;
     }
+    
+    class MyShutdown extends Thread {
+
+    	public void run() {
+            System.out.println("Database clean up Thread started");
+            try {
+            	NdexAOrientDBConnectionPool.close();
+            	System.out.println ("Database has been closed.");
+            } catch (Exception ee) {
+                ee.printStackTrace();
+            }
+        }
+    }
+ 
+    
 }
