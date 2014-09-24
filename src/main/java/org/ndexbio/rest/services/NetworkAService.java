@@ -714,7 +714,7 @@ public class NetworkAService extends NdexService {
         } catch (Exception e) {
         	throw new NdexException(e.getMessage());
         } finally {
-        	db.close();
+        	if ( db!= null)    	db.close();
         }
 		
 		//throw new NdexException ("Feature not implemented yet.") ;

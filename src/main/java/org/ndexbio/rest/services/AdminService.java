@@ -96,14 +96,18 @@ public class AdminService extends NdexService {
 	         @Override
 			public void run()
 	         {
+	        	NdexDatabase db = null;
 	     		try {
+	     		    db = new NdexDatabase(Configuration.getInstance().getHostURI());
 	     			NdexQueuedTaskProcessor processor = new NdexQueuedTaskProcessor(
-	     				new NdexDatabase(Configuration.getInstance().getHostURI()));
+	     				db );
 					processor.processAll();
 				} catch (NdexException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 					logger.error("Failed to process queued task.  " + e.getMessage()) ;
+				} finally {
+					if ( db != null) db.close();
 				}
 	         }
 		});
