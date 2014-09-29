@@ -36,7 +36,7 @@ public class ObjectModelTools {
 	        
 	        
 	        
-	        Set<String> termIdsFromNodesAndEdges = new HashSet<String>();
+	        Set<String> termIdsFromNodesAndEdges = new HashSet<>();
 	        for (Long entryId : network.getNodes().keySet()){
 	        	
 	        	//System.out.println("Node " + nodeId);

@@ -1,14 +1,9 @@
 package org.ndexbio.rest.util;
 
-import java.io.File;
-import java.io.IOException;
-import java.net.URL;
-import java.util.Iterator;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orientechnologies.orient.client.remote.OServerAdmin;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
@@ -16,15 +11,11 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 
 import org.easymock.EasyMock;
 import org.ndexbio.model.object.*;
-import org.ndexbio.model.object.network.Network;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.orientdb.NdexSchemaManager;
-import org.ndexbio.rest.services.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,19 +39,12 @@ public class CreateStarterDatabase
 
     
     public static void main (String...args){
-    	try {
-			CreateStarterDatabase csd = new CreateStarterDatabase();
-			csd.exec();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			log.error("IOException opeing ndex.properties file:");
-			log.error(e.getMessage());
-			e.printStackTrace();
-		}
+    	CreateStarterDatabase csd = new CreateStarterDatabase();
+		csd.exec();
 	
     }
    
-    public CreateStarterDatabase() throws IOException {
+    public CreateStarterDatabase() {
     	this._mockRequest = EasyMock.createMock(HttpServletRequest.class);
 
      

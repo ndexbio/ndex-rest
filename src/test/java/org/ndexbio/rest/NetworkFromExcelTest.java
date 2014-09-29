@@ -69,8 +69,10 @@ public class NetworkFromExcelTest
         {
             Assert.fail("Failed to initialize database. Cause: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+        	propertiesStream.close();
         }
-    }
+    } 
 
 
 /*

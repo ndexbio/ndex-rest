@@ -9,7 +9,6 @@ import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
-import org.ndexbio.model.object.User;
 import org.ndexbio.rest.exceptions.mappers.DuplicateObjectExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.IllegalArgumentExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.NdexExceptionMapper;
@@ -31,8 +30,8 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 public class NdexRestApi extends Application
 {
-    private final Set<Object> _providers = new HashSet<Object>();
-    private final Set<Class<?>> _resources = new HashSet<Class<?>>();
+    private final Set<Object> _providers = new HashSet<>();
+    private final Set<Class<?>> _resources = new HashSet<>();
     
 	    
     
@@ -93,7 +92,8 @@ public class NdexRestApi extends Application
     
     class MyShutdown extends Thread {
 
-    	public void run() {
+    	@Override
+		public void run() {
             System.out.println("Database clean up Thread started");
             try {
             	NdexAOrientDBConnectionPool.close();
