@@ -47,7 +47,7 @@ public abstract class NdexService
     @PermitAll
     @Path("/api")
     @Produces("application/json")
-    @ApiDoc("Retrieves the REST API documentation for the service as an array of RestResources")
+    @ApiDoc("Retrieves the REST API documentation for network related operations as a list of RestResource objects.")
     public Collection<RestResource> getApi()
     {
         final Collection<RestResource> resourceList = new ArrayList<RestResource>();
