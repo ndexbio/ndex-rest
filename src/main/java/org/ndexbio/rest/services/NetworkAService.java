@@ -786,6 +786,61 @@ public class NetworkAService extends NdexService {
 
 	}
 
+    @PUT
+    @Path("/asPropertyGraph")
+    @Produces("application/json")
+    @ApiDoc("Update a network based on the NetworkPropertyGraph object sent in by PUT. This method errors if the " +
+            "NetworkPropertyGraph object is not provided or if it does not specify a name. It also errors if the " +
+            "NetworkPropertyGraph object is larger than a maximum size for network creation set in the NDEx server " +
+            "configuration. A NetworkSummary object for the updated network is returned.")
+    public NetworkSummary updateNetwork(final PropertyGraphNetwork newNetwork)
+            throws Exception
+    {
+        Preconditions
+                .checkArgument(null != newNetwork, "A network is required");
+        Preconditions.checkArgument(
+                !Strings.isNullOrEmpty(newNetwork.getName()),
+                "A network name is required");
+
+        NdexDatabase db = new NdexDatabase(Configuration.getInstance().getHostURI());
+        PropertyGraphLoader pgl = null;
+        ODatabaseDocumentTx conn = null;
+        try
+        {
+            conn = db.getAConnection();
+            User user = getLoggedInUser();
+
+            String uuidStr = null;
+            
+        	for ( NdexPropertyValuePair p : newNetwork.getProperties()) {
+				if ( p.getPredicateString().equals ( PropertyGraphNetwork.uuid) ) {
+					uuidStr = p.getValue();
+					break;
+				}
+			}
+        	
+        	if ( uuidStr == null) throw new NdexException ("updateNetwork: UUID not found in PropertyGraph.");
+            
+            if (!Helper.checkPermissionOnNetworkByAccountName(conn, 
+         		   uuidStr, user.getAccountName(),
+         		   Permissions.WRITE))
+            {
+         	   throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+            }
+            pgl = new PropertyGraphLoader(db);
+            return pgl.updateNetwork(newNetwork);
+        }
+        finally
+        {
+
+          if (db!=null)
+        	  db.close();
+          if( conn!=null) conn.close();
+        }
+
+    }
+    
+    	
 
 	@POST
 	@Path("/asNetwork")
@@ -817,6 +872,56 @@ public class NetworkAService extends NdexService {
 			}
 	}
 
+    @PUT
+    @Path("/asNetwork")
+    @Produces("application/json")
+    @ApiDoc("Update a network using the network object in the PUT call. This method errors if the Network object is not " +
+            "provided or if it does not have a valid UUID on the server. It also errors if the Network object is larger than a maximum" +
+            " size for network creation set in the NDEx server configuration. A NetworkSummary object is returned.")
+    public NetworkSummary updateNetwork(final Network newNetwork)
+            throws Exception
+    {
+        Preconditions
+                .checkArgument(null != newNetwork, "A network is required");
+        Preconditions.checkArgument(
+                !Strings.isNullOrEmpty(newNetwork.getName()),
+                "A network name is required");
+
+        NdexDatabase db = null;
+        NdexNetworkCloneService service = null;
+        ODatabaseDocumentTx conn = null;
+        
+        try
+        {
+           db = new NdexDatabase(Configuration.getInstance().getHostURI());
+           conn = db.getAConnection();
+           
+           User user = getLoggedInUser();
+
+           if (!Helper.checkPermissionOnNetworkByAccountName(conn, 
+        		   newNetwork.getExternalId().toString(), user.getAccountName(),
+        		   Permissions.WRITE))
+           {
+        	   throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+           }
+
+           service = new NdexNetworkCloneService(db, newNetwork,
+                    getLoggedInUser().getAccountName());
+
+           return service.updateNetwork();
+
+        }
+        finally
+        {
+            if (service != null)
+                service.close();
+            if (db != null)
+                db.close();
+            if ( conn!= null) conn.close(); 
+        }
+    }
+	
+	
 	@DELETE
 	@Path("/{UUID}")
 	@Produces("application/json")
