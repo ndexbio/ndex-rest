@@ -789,10 +789,12 @@ public class NetworkAService extends NdexService {
     @PUT
     @Path("/asPropertyGraph")
     @Produces("application/json")
-    @ApiDoc("Update a network based on the NetworkPropertyGraph object sent in by PUT. This method errors if the " +
-            "NetworkPropertyGraph object is not provided or if it does not specify a name. It also errors if the " +
-            "NetworkPropertyGraph object is larger than a maximum size for network creation set in the NDEx server " +
-            "configuration. A NetworkSummary object for the updated network is returned.")
+    @ApiDoc("Updates an existing network using a PUT call using a NetworkPropertyGraph object. The NetworkPropertyGraph object must contain a " +
+            "UUID (this would normally be the case for a NetworkPropertyGraph object retrieved from NDEx, " +
+            "so no additional work is required in the most common case) and the user must have permission to modify " +
+            "this network. This method errors if the NetworkPropertyGraph object is not provided or if it does not have a valid " +
+            "UUID on the server. It also errors if the NetworkPropertyGraph object is larger than a maximum size for network " +
+            "creation set in the NDEx server configuration. A NetworkSummary object is returned.")
     public NetworkSummary updateNetwork(final PropertyGraphNetwork newNetwork)
             throws Exception
     {
@@ -875,9 +877,12 @@ public class NetworkAService extends NdexService {
     @PUT
     @Path("/asNetwork")
     @Produces("application/json")
-    @ApiDoc("Update a network using the network object in the PUT call. This method errors if the Network object is not " +
-            "provided or if it does not have a valid UUID on the server. It also errors if the Network object is larger than a maximum" +
-            " size for network creation set in the NDEx server configuration. A NetworkSummary object is returned.")
+    @ApiDoc("Updates an existing network using a PUT call using a Network object. The Network object must contain a " +
+            "UUID (this would normally be the case for a Network object retrieved from NDEx, " +
+            "so no additional work is required in the most common case) and the user must have permission to modify " +
+            "this network. This method errors if the Network object is not provided or if it does not have a valid " +
+            "UUID on the server. It also errors if the Network object is larger than a maximum size for network " +
+            "creation set in the NDEx server configuration. A NetworkSummary object is returned.")
     public NetworkSummary updateNetwork(final Network newNetwork)
             throws Exception
     {
