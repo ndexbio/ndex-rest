@@ -87,7 +87,10 @@ public class TaskService extends NdexService
         	this.openDatabase();
             //TaskDAO dao = new TaskDAO(this._ndexDatabase);
             
-            return dao.createTask(userAccount, newTask);
+            UUID taskId = dao.createTask(userAccount, newTask);
+            
+            this.localConnection.commit();
+            return taskId;
         }
         catch (Exception e)
         {
@@ -118,8 +121,10 @@ public class TaskService extends NdexService
 			
 			Status s = Status.valueOf(status);
 
-			return dao.updateTaskStatus(s,taskId, this.getLoggedInUser());
-
+			Task t= dao.updateTaskStatus(s,taskId, this.getLoggedInUser());
+			
+			this.localConnection.commit();
+			return t;
 			
 		} catch (Exception e) {
 			_logger.error("Error changing task status for: "
@@ -195,7 +200,8 @@ public class TaskService extends NdexService
         }
         catch (Exception e)
         {
-            if (e.getMessage().indexOf("cluster: null") > -1){
+        	e.printStackTrace(System.out);
+        	if (e.getMessage().indexOf("cluster: null") > -1){
                 throw new ObjectNotFoundException("Task", taskUUID);
             }
             
