@@ -690,7 +690,7 @@ public class NetworkAService extends NdexService {
 
 
 
-	@PermitAll
+/*	@PermitAll
 	@POST
 	@Path("/{networkId}/asPropertyGraph/query/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
@@ -718,6 +718,7 @@ public class NetworkAService extends NdexService {
 		db.close();
         return n;
 	}
+*/
 	
 	/*
 	 * 
