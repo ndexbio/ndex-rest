@@ -612,7 +612,8 @@ public class NetworkAService extends NdexService {
 		   boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
 
 		   if ( !hasPrivilege && getLoggedInUser() != null) {
-			   hasPrivilege = networkDao.checkPrivilege(getLoggedInUser().getAccountName(),
+			   hasPrivilege = networkDao.checkPrivilege(
+					   (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName()),
 					   networkId, Permissions.READ);
 		   }
 
@@ -661,11 +662,18 @@ public class NetworkAService extends NdexService {
 
 			NetworkDAO networkDao = new NetworkDAO(db);
 
-			boolean hasPrivilege=networkDao.checkPrivilege(getLoggedInUser().getAccountName(),
-					networkId, Permissions.READ);
+   		    VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
+			boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
+
+			if ( !hasPrivilege && getLoggedInUser() != null) {
+				   hasPrivilege = networkDao.checkPrivilege(
+						   (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName()),
+						   networkId, Permissions.READ);
+			}
 
 			db.close();
 			db = null;
+			
 			if ( hasPrivilege) {
 				NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 

@@ -90,10 +90,10 @@ public class AdminService extends NdexService {
 	public void processTasks() throws NdexException	{
 		if ( !isSystemUser())
 			throw new NdexException ("Only Sysetm users are allowed to call task runner from API.");
-		Thread t = new Thread(new Runnable() {
+/*		Thread t = new Thread(new Runnable() {
 	         @Override
 			public void run()
-	         {
+	         {*/
 	        	NdexDatabase db = null;
 	     		try {
 	     			LoggerFactory.getLogger(AdminService.class).info("Task processor started.") ;
@@ -109,9 +109,9 @@ public class AdminService extends NdexService {
 					if ( db != null) db.close();
 					LoggerFactory.getLogger(AdminService.class).info("Task processor finished. Db connection closed.") ;
 				}
-	         }
+	       /*  }
 		});
-		t.start();
+		t.start(); */
 	}
 	
 	@GET

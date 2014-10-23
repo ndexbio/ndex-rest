@@ -25,6 +25,7 @@ import org.ndexbio.rest.services.UserService;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.utility.DatabaseInitializer;
 
+import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 
@@ -38,7 +39,7 @@ public class NdexRestApi extends Application
     public NdexRestApi() throws NdexException
     {
     	// read configuration
-    	Configuration configuration = Configuration.getInstance();
+/*    	Configuration configuration = Configuration.getInstance();
     	
     	//and initialize the db connections
     	NdexAOrientDBConnectionPool.createOrientDBConnectionPool(
@@ -57,7 +58,7 @@ public class NdexRestApi extends Application
     				configuration.getSystemUserPassword());
     	conn.close();
     	db.close();
-    	
+*/    	
     	_resources.add(GroupService.class); 
         _resources.add(UserService.class); 
         _resources.add(RequestService.class);
@@ -73,7 +74,7 @@ public class NdexRestApi extends Application
         _providers.add(new ObjectNotFoundExceptionMapper());
         _providers.add(new SecurityExceptionMapper());
         
-        Runtime.getRuntime().addShutdownHook(new MyShutdown());
+ //       Runtime.getRuntime().addShutdownHook(new MyShutdown());
     }
     
     
@@ -89,20 +90,21 @@ public class NdexRestApi extends Application
     {
         return _providers;
     }
-    
+  /*  
     class MyShutdown extends Thread {
 
     	@Override
 		public void run() {
             System.out.println("Database clean up Thread started");
             try {
-            	NdexAOrientDBConnectionPool.close();
+            	//NdexAOrientDBConnectionPool.close();
+            	Orient.instance().shutdown();
             	System.out.println ("Database has been closed.");
             } catch (Exception ee) {
                 ee.printStackTrace();
             }
         }
     }
- 
+ */
     
 }

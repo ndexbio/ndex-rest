@@ -9,7 +9,8 @@
 
     <servlet>
         <servlet-name>Resteasy</servlet-name>
-        <servlet-class>org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher</servlet-class>
+<!--          <servlet-class>org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher</servlet-class> -->
+        <servlet-class>org.ndexbio.rest.NdexHttpServletDispatcher</servlet-class>
         <init-param>
         	<param-name>javax.ws.rs.Application</param-name>
         	<param-value>org.ndexbio.rest.NdexRestApi</param-value>
