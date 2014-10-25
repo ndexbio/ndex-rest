@@ -42,7 +42,9 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
     				configuration.getSystemUserPassword());
 			conn.commit();
 			conn.close();
-			db.close();		
+			conn = null;
+			db.close();	
+			db = null;
 		} catch (NdexException e) {
 			e.printStackTrace();
 			throw new javax.servlet.ServletException(e.getMessage());
