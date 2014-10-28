@@ -7,6 +7,7 @@ import org.junit.runners.MethodSorters;
 import org.ndexbio.common.exceptions.DuplicateObjectException;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.SearchParameters;
 import com.orientechnologies.orient.core.id.ORID;
 
@@ -14,8 +15,6 @@ import com.orientechnologies.orient.core.id.ORID;
 public class TestGroupService extends TestNdexService
 {
     private static final GroupService _groupService = new GroupService(_mockRequest);
-
-    
     
  /*   @Test
     public void createGroup()
@@ -305,7 +304,7 @@ public class TestGroupService extends TestNdexService
         {
             final Group createdGroup = _groupService.createGroup(newGroup);
             Assert.assertNotNull(createdGroup);
-            
+
             return true;
         }
         catch (DuplicateObjectException doe)
@@ -317,7 +316,7 @@ public class TestGroupService extends TestNdexService
             Assert.fail(e.getMessage());
             e.printStackTrace();
         }
-        
+
         return false;
     }
     
