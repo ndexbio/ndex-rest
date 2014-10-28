@@ -109,7 +109,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     *            Decoding the Authorization header failed.
     * @return a String array containing the username and password.
     **************************************************************************/
-    public static String[] parseCredentials(ContainerRequestContext requestContext) throws IOException
+    private static String[] parseCredentials(ContainerRequestContext requestContext) throws IOException
     {
         final MultivaluedMap<String, String> headers = requestContext.getHeaders();
         final List<String> authHeader = headers.get("Authorization");
@@ -124,4 +124,14 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     }
     
 
+    private boolean authenticate (String authenticationString) throws IOException {
+    	if (authenticationString.startsWith("Basic ")) {
+    		
+    	} else if ( authenticationString.startsWith("SAML ")) {
+    		String encodedAuthInfo = authenticationString.replaceFirst("SAML " + " ", "");
+    		String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+    	}
+    	return true;
+    }
+    
 }
