@@ -92,13 +92,13 @@
     	<artifactId>jetty-servlets</artifactId>
     	<version>9.2.2.v20140723</version>
 	</dependency>
-<!-- 
-		<dependency>
-			<groupId>org.ndexbio</groupId>
-			<artifactId>ndex-common</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
-		</dependency>
- -->
+<!-- 	
+	<dependency>
+		<groupId>org.opensaml</groupId>
+		<artifactId>opensaml</artifactId>
+		<version>2.6.1</version>
+	</dependency>
+ -->	
 		<dependency>
 			<groupId>org.ndexbio</groupId>
 			<artifactId>ndex-task</artifactId>

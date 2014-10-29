@@ -8,6 +8,7 @@ import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.utility.DatabaseInitializer;
 
@@ -22,14 +23,14 @@ public class StandaloneServer {
 	public static void main(String[] args) throws NdexException {
 		System.out.println("Log file location:" + StandaloneServer.class.getClassLoader().getResource("logging.properties"));
 		
-		Configuration configuration = null;
+/*		Configuration configuration = null;
 		try {
 			configuration = Configuration.getInstance();
 			//and initialize the db connections
 			NdexAOrientDBConnectionPool.createOrientDBConnectionPool(
     			configuration.getDBURL(),
     			configuration.getDBUser(),
-    			configuration.getDBPasswd());
+    			configuration.getDBPasswd(),40);
     	
 			NdexDatabase db = new NdexDatabase (configuration.getHostURI());
     	
@@ -47,12 +48,12 @@ public class StandaloneServer {
 			e.printStackTrace();
 			throw e;
 		}
-    	
+ */   	
 
 		Server server = new Server(8080);
 		ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
 		context.setContextPath("/ndexbio-rest");
-		ServletHolder h = new ServletHolder(new HttpServletDispatcher());
+		ServletHolder h = new ServletHolder(new NdexHttpServletDispatcher());
 		h.setInitParameter("javax.ws.rs.Application", "org.ndexbio.rest.NdexRestApi");
 		context.addServlet(h, "/*");
 		server.setHandler(context);

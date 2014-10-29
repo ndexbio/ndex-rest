@@ -1,6 +1,7 @@
 package org.ndexbio.rest;
 
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
+import org.ndexbio.common.NdexServerProperties;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
@@ -12,6 +13,8 @@ import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 public class NdexHttpServletDispatcher extends HttpServletDispatcher {
+	
+	private static final int defaultPoolSize = 50;
 	
 	public NdexHttpServletDispatcher() {
 		super();
@@ -25,11 +28,20 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 		Configuration configuration = null;
 		try {
 			configuration = Configuration.getInstance();
+			
+			String poolSize = configuration.getProperty(NdexServerProperties.NDEX_DBCONNECTION_POOL_SIZE);
+			Integer size = null;
+			try {
+				size = Integer.valueOf(poolSize);
+			} catch (NumberFormatException e) {
+				size = defaultPoolSize;
+			}
+			
 			//and initialize the db connections
 			NdexAOrientDBConnectionPool.createOrientDBConnectionPool(
     			configuration.getDBURL(),
     			configuration.getDBUser(),
-    			configuration.getDBPasswd());
+    			configuration.getDBPasswd(), size.intValue());
     	
 			NdexDatabase db = new NdexDatabase (configuration.getHostURI());
     	

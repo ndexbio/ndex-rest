@@ -130,6 +130,15 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     	} else if ( authenticationString.startsWith("SAML ")) {
     		String encodedAuthInfo = authenticationString.replaceFirst("SAML " + " ", "");
     		String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+    		
+    		/*
+    		SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();
+    		 
+    		profileValidator.validate(entityDescriptor.getSignature());
+    		 
+    		SignatureValidator sigValidator = new SignatureValidator(cred);
+    		 
+    		sigValidator.validate(entityDescriptor.getSignature()); */
     	}
     	return true;
     }
