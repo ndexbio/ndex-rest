@@ -41,124 +41,124 @@ public abstract class TestNdexService
 
     
     
-    @BeforeClass
-    public static void initializeTests() throws Exception
-    {
-        final InputStream propertiesStream = Thread.currentThread().getContextClassLoader().getResourceAsStream("ndex.properties");
-        _testProperties.load(propertiesStream);
+//    @BeforeClass
+//    public static void initializeTests() throws Exception
+//    {
+//        final InputStream propertiesStream = Thread.currentThread().getContextClassLoader().getResourceAsStream("ndex.properties");
+//        _testProperties.load(propertiesStream);
+//
+//        try
+//        {
+//   /*         _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
+//                new TypedGraphModuleBuilder()
+//                    .withClass(IGroup.class)
+//                    .withClass(IUser.class)
+//                    .withClass(IGroupMembership.class)
+//                    .withClass(INetworkMembership.class)
+//                    .withClass(IGroupInvitationRequest.class)
+//                    .withClass(IJoinGroupRequest.class)
+//                    .withClass(INetworkAccessRequest.class)
+//                    .withClass(IBaseTerm.class)
+//                    .withClass(IFunctionTerm.class)
+//                    .build());
+//    */
+//            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
+// //           _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
+//            NdexSchemaManager.INSTANCE.init(_ndexDatabase);
+//        }
+//        catch (Exception e)
+//        {
+//            Assert.fail("Failed to initialize database. Cause: " + e.getMessage());
+//            e.printStackTrace();
+//        }
+//    }
+//
+//    @AfterClass
+//    public static void cleanUp()
+//    {
+// //       _graphFactory = null;
+//        _ndexDatabase.close();
+//  //      _orientDbGraph = null;
+//    }
 
-        try
-        {
-   /*         _graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
-                new TypedGraphModuleBuilder()
-                    .withClass(IGroup.class)
-                    .withClass(IUser.class)
-                    .withClass(IGroupMembership.class)
-                    .withClass(INetworkMembership.class)
-                    .withClass(IGroupInvitationRequest.class)
-                    .withClass(IJoinGroupRequest.class)
-                    .withClass(INetworkAccessRequest.class)
-                    .withClass(IBaseTerm.class)
-                    .withClass(IFunctionTerm.class)
-                    .build());
-    */        
-            _ndexDatabase = ODatabaseDocumentPool.global().acquire("remote:localhost/ndex", "admin", "admin");
- //           _orientDbGraph = _graphFactory.create((OrientBaseGraph)new OrientGraph(_ndexDatabase));
-            NdexSchemaManager.INSTANCE.init(_ndexDatabase);
-        }
-        catch (Exception e)
-        {
-            Assert.fail("Failed to initialize database. Cause: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
     
-    @AfterClass
-    public static void cleanUp()
-    {
- //       _graphFactory = null;
-        _ndexDatabase.close();
-  //      _orientDbGraph = null;
-    }
-
     
-    
-    @After
-    public void resetLoggedInUser()
-    {
-        EasyMock.reset(_mockRequest);
-    }
-
-    @Before
-    public void setLoggedInUser() throws NdexException {
-  /*  	
-    	final NdexDatabase database = new NdexDatabase();
-    	final ODatabaseDocumentTx  localConnection = database.getAConnection();  
-    	localConnection.begin();
-    	final UserDAO dao = new UserDAO(localConnection, new OrientGraph(localConnection));
-    	final User loggedInUser;
-    	
-    	final SimpleUserQuery search = new SimpleUserQuery();
-    	search.setSearchString("dexter");
-    	
-    	final List<User> users = dao.findUsers(search, 0, 5);
-    	
-    	if(!users.get(0).getAccountName().equals("dexterpratt")) {
-   
-	    	final NewUser newUser = new NewUser();
-	    	newUser.setEmailAddress("dexterpratt@ndexbio.org");
-	        newUser.setPassword("insecure");
-	        newUser.setAccountName("dexterpratt");
-	        newUser.setFirstName("Dexter");
-	        newUser.setLastName("Pratt");
-	        newUser.setDescription("Apart from my work at the Cytoscape Consortium building NDEx, I collect networks around some of my favorite biomolecules, such as FOX03, RBL2, and MUC1");
-	        newUser.setWebsite("www.triptychjs.com");
-	        newUser.setImage("http://i.imgur.com/09oVvZg.jpg");
-	        loggedInUser = dao.createNewUser(newUser);
-        
-    	} else {
-    		
-    		loggedInUser = users.get(0);
-    		
-    	}
-        
-        EasyMock.expect(_mockRequest.getAttribute("User")).andReturn(loggedInUser)
-            .anyTimes();
-
-        EasyMock.replay(_mockRequest); 
-        
-        localConnection.commit();
-        localConnection.close();
-        database.close();
-        */
-    }
- /*   
-    @Test
-    public void connectionPool() throws NdexException {
-    	
-    	NdexDatabase database = new NdexDatabase();
-    	final ODatabaseDocumentTx[]  localConnection = new ODatabaseDocumentTx[10]; //= database.getAConnection();  //all DML will be in this connection, in one transaction.
-    	
-    	try {
-	    	for(int jj=0; jj<10; jj++) {
-	    		database = new NdexDatabase();
-		    	for(int ii=0; ii<10; ii++) {
-		    		localConnection[ii] = database.getAConnection();
-		    	}
-		    	
-		    	for(int ii=0; ii<10; ii++) {
-		    		localConnection[ii].close();
-		    	}
-		    	database.close();
-	    	}
-	    	
-	    	
-    	} catch (Throwable e) {
-    		Assert.fail(e.getMessage());
-    	}
-    	
-    }
-    */
+//    @After
+//    public void resetLoggedInUser()
+//    {
+//        EasyMock.reset(_mockRequest);
+//    }
+//
+//    @Before
+//    public void setLoggedInUser() throws NdexException {
+//  /*
+//    	final NdexDatabase database = new NdexDatabase();
+//    	final ODatabaseDocumentTx  localConnection = database.getAConnection();
+//    	localConnection.begin();
+//    	final UserDAO dao = new UserDAO(localConnection, new OrientGraph(localConnection));
+//    	final User loggedInUser;
+//
+//    	final SimpleUserQuery search = new SimpleUserQuery();
+//    	search.setSearchString("dexter");
+//
+//    	final List<User> users = dao.findUsers(search, 0, 5);
+//
+//    	if(!users.get(0).getAccountName().equals("dexterpratt")) {
+//
+//	    	final NewUser newUser = new NewUser();
+//	    	newUser.setEmailAddress("dexterpratt@ndexbio.org");
+//	        newUser.setPassword("insecure");
+//	        newUser.setAccountName("dexterpratt");
+//	        newUser.setFirstName("Dexter");
+//	        newUser.setLastName("Pratt");
+//	        newUser.setDescription("Apart from my work at the Cytoscape Consortium building NDEx, I collect networks around some of my favorite biomolecules, such as FOX03, RBL2, and MUC1");
+//	        newUser.setWebsite("www.triptychjs.com");
+//	        newUser.setImage("http://i.imgur.com/09oVvZg.jpg");
+//	        loggedInUser = dao.createNewUser(newUser);
+//
+//    	} else {
+//
+//    		loggedInUser = users.get(0);
+//
+//    	}
+//
+//        EasyMock.expect(_mockRequest.getAttribute("User")).andReturn(loggedInUser)
+//            .anyTimes();
+//
+//        EasyMock.replay(_mockRequest);
+//
+//        localConnection.commit();
+//        localConnection.close();
+//        database.close();
+//        */
+//    }
+// /*
+//    @Test
+//    public void connectionPool() throws NdexException {
+//
+//    	NdexDatabase database = new NdexDatabase();
+//    	final ODatabaseDocumentTx[]  localConnection = new ODatabaseDocumentTx[10]; //= database.getAConnection();  //all DML will be in this connection, in one transaction.
+//
+//    	try {
+//	    	for(int jj=0; jj<10; jj++) {
+//	    		database = new NdexDatabase();
+//		    	for(int ii=0; ii<10; ii++) {
+//		    		localConnection[ii] = database.getAConnection();
+//		    	}
+//
+//		    	for(int ii=0; ii<10; ii++) {
+//		    		localConnection[ii].close();
+//		    	}
+//		    	database.close();
+//	    	}
+//
+//
+//    	} catch (Throwable e) {
+//    		Assert.fail(e.getMessage());
+//    	}
+//
+//    }
+//    */
     
     /**************************************************************************
     * Gets the record ID of an object by its name from the database.

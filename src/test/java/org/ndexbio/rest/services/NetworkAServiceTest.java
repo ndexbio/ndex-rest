@@ -14,18 +14,18 @@ public class NetworkAServiceTest  extends TestNdexService{
 
     private static final NetworkAService _networkService = new NetworkAService(_mockRequest);
 
-	@Test
-	public void test() throws IllegalArgumentException, NdexException {
-		SimpleNetworkQuery s = new SimpleNetworkQuery();
-		s.setSearchString("ca");
-		s.setAccountName("");
-		try {
-			assertTrue(_networkService.searchNetwork(s, 0, 1).size() == 1);
-		} catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
-		
-	}
+//	@Test
+//	public void test() throws IllegalArgumentException, NdexException {
+//		SimpleNetworkQuery s = new SimpleNetworkQuery();
+//		s.setSearchString("ca");
+//		s.setAccountName("");
+//		try {
+//			assertTrue(_networkService.searchNetwork(s, 0, 1).size() == 1);
+//		} catch (Exception e) {
+//			e.printStackTrace();
+//			fail(e.getMessage());
+//		}
+//
+//	}
 
 }
