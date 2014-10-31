@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -735,34 +736,26 @@ public class NetworkAService extends NdexService {
             "constrains the search to networks administered by a user or group. The maximum number of NetworkSummary " +
             "objects to retrieve in the query is set by 'blockSize'  (which may be any number chosen by the user)  " +
             "while  'skipBlocks' specifies number of blocks that have already been read.")
-	public List<NetworkSummary> searchNetwork(
+	public Collection<NetworkSummary> searchNetwork(
 			final SimpleNetworkQuery query,
 			@PathParam("skipBlocks") final int skipBlocks,
 			@PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 
-        ODatabaseDocumentTx db = null;
-
-        try {
-
-        	if(query.getAccountName() != null)
-        		query.setAccountName(query.getAccountName().toLowerCase());
-
-        	db = NdexAOrientDBConnectionPool.getInstance().acquire();
+    	if(query.getAccountName() != null)
+    		query.setAccountName(query.getAccountName().toLowerCase());
+        
+    	try (ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire()) {
             NetworkSearchDAO dao = new NetworkSearchDAO(db);
-            List<NetworkSummary> result = new ArrayList <NetworkSummary> ();
+            Collection<NetworkSummary> result = new ArrayList <> ();
 
 			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
-
 			return result;
 
         } catch (Exception e) {
         	throw new NdexException(e.getMessage());
-        } finally {
-        	if ( db!= null)    	db.close();
-        }
+        } 
 
-		//throw new NdexException ("Feature not implemented yet.") ;
 	}
 
 
