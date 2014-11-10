@@ -1022,18 +1022,14 @@ public class NetworkAService extends NdexService {
 				uploadedNetworkPath.getAbsolutePath() + "/"
 						+ uploadedNetwork.getFilename());
 
-		ODatabaseDocumentTx db = null;
-		try {
+		try (TaskDAO dao = new TaskDAO(NdexAOrientDBConnectionPool.getInstance().acquire())){
 			if (!uploadedNetworkFile.exists())
 				uploadedNetworkFile.createNewFile();
 
-			final FileOutputStream saveNetworkFile = new FileOutputStream(
-					uploadedNetworkFile);
-			saveNetworkFile.write(uploadedNetwork.getFileData());
-			saveNetworkFile.flush();
-			saveNetworkFile.close();
-
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			try ( FileOutputStream saveNetworkFile = new FileOutputStream(uploadedNetworkFile)) {
+				saveNetworkFile.write(uploadedNetwork.getFileData());
+				saveNetworkFile.flush();
+			} 
 
 			final String fn = uploadedNetwork.getFilename().toLowerCase();
 
@@ -1052,9 +1048,8 @@ public class NetworkAService extends NdexService {
 						.getAbsolutePath());
 				processNetworkTask.setStatus(Status.QUEUED);
 
-				TaskDAO dao = new TaskDAO(db);
 				dao.createTask(userAccount, processNetworkTask);
-			    db.commit();
+			    dao.commit();
 			} else {
 				uploadedNetworkFile.delete();
 				throw new IllegalArgumentException(
@@ -1067,10 +1062,7 @@ public class NetworkAService extends NdexService {
 					+ uploadedNetwork.getFilename() + ". " + e.getMessage());
 
 			throw new NdexException(e.getMessage());
-		} finally {
-			if ( db!=null) 	db.close();
-
-		}
+		} 
 	}
 
 

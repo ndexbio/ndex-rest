@@ -1,29 +1,19 @@
 package org.ndexbio.rest.services;
 
-import java.util.Date;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
 import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
-import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
-import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
-import org.ndexbio.common.models.dao.orientdb.RequestDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
-import org.ndexbio.model.object.Request;
-import org.ndexbio.model.object.Status;
-import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
@@ -31,18 +21,13 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.id.ORID;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 
 @Path("/task")
 public class TaskService extends NdexService
 {
     private static final Logger _logger = LoggerFactory.getLogger(TaskService.class);
-	private  TaskDAO dao;
-//	private  NdexDatabase database;
-	private  ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
-//	private  OrientGraph graph;
+//	private  TaskDAO dao;
+//	private  ODatabaseDocumentTx  localConnection;  //all DML will be in this connection, in one transaction.
     
     
     /**************************************************************************
@@ -82,14 +67,11 @@ public class TaskService extends NdexService
         
         final String userAccount = this.getLoggedInUser().getAccountName();
 
-        try
-        {
-        	this.openDatabase();
-            //TaskDAO dao = new TaskDAO(this._ndexDatabase);
-            
+        try (TaskDAO dao = new TaskDAO(NdexAOrientDBConnectionPool.getInstance().acquire()))    {
             UUID taskId = dao.createTask(userAccount, newTask);
             
-            this.localConnection.commit();
+            dao.commit();
+            _logger.info("task " + taskId + " created for " + newTask.getType());
             return taskId;
         }
         catch (Exception e)
@@ -97,14 +79,10 @@ public class TaskService extends NdexService
             _logger.error("Error creating task for: " + userAccount + ".", e);
             throw new NdexException("Error creating a task.");
         }
-        finally
-        {
-        	this.closeDatabase();
-        }
     }
     
 
-    
+/*    
 	@PUT
 	@Path("/{taskId}/status/{status}")
 	@Produces("application/json")
@@ -115,15 +93,14 @@ public class TaskService extends NdexService
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId),
 				"A task ID is required");
 
-		this.openDatabase();
 		
-		try {
+		try (TaskDAO dao = new TaskDAO(NdexAOrientDBConnectionPool.getInstance().acquire())){
 			
 			Status s = Status.valueOf(status);
 
 			Task t= dao.updateTaskStatus(s,taskId, this.getLoggedInUser());
 			
-			this.localConnection.commit();
+			dao.commit();
 			return t;
 			
 		} catch (Exception e) {
@@ -131,13 +108,10 @@ public class TaskService extends NdexService
 					+ this.getLoggedInUser().getAccountName() + ".", e);
 			throw new NdexException("Error changing task status." + e.getMessage());
 			
-		} finally {
-			this.closeDatabase();
-
-		}
-
+		} 
 	}
-	
+*/	
+/*	
     private void openDatabase() throws NdexException {
 //		database = new NdexDatabase();
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
@@ -148,7 +122,7 @@ public class TaskService extends NdexService
 		localConnection.close();
 //		database.close();
 	}
-
+*/
     /**************************************************************************
     * Deletes a task. 
     * 
@@ -175,12 +149,10 @@ public class TaskService extends NdexService
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskUUID), 
     			"A task id is required");
        
-		ODatabaseDocumentTx db = null;
-		try {
-			_logger.info("Starting delete for task " + taskUUID);
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+    	
+    	try (TaskDAO tdao= new TaskDAO(NdexAOrientDBConnectionPool.getInstance().acquire())) {
+//			_logger.info("Starting delete for task " + taskUUID);
             
-			TaskDAO tdao= new TaskDAO(db);
             final Task taskToDelete = tdao.getTaskByUUID(taskUUID);
             
             if (taskToDelete == null)
@@ -190,9 +162,8 @@ public class TaskService extends NdexService
     
             tdao.deleteTask(taskToDelete.getExternalId());
             
-            db.commit();
-            _logger.info("Completed commit of delete for task " + taskUUID);
-           
+            tdao.commit();
+            _logger.info("Task " + taskUUID + " is deleted by user " + this.getLoggedInUser().getAccountName());
         }
         catch (SecurityException | ObjectNotFoundException onfe)
         {
@@ -208,10 +179,6 @@ public class TaskService extends NdexService
             _logger.error("Failed to delete task: " + taskUUID + ".", e);
         
             throw new NdexException("Failed to delete a task.");
-        }
-        finally
-        {
-        	if ( db!=null) db.close();
         }
     }
 
