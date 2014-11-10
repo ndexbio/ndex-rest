@@ -1,6 +1,7 @@
 package org.ndexbio.rest.services;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -23,6 +24,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 
+import org.apache.commons.io.FilenameUtils;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
@@ -40,6 +42,7 @@ import org.ndexbio.common.models.object.network.RawNamespace;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.NdexPersistenceService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
+import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
@@ -946,33 +949,6 @@ public class NetworkAService extends NdexService {
 		}
 	}
 	
-/*	
-	@DELETE
-	@Path("/test/{UUID}")
-	@Produces("application/json")
-	@ApiDoc("Absent from API spec. This method will temporarily be used for mocha testing. Networks should not have any nodes or edges.")
-	public void deleteTestNetwork(final @PathParam("UUID") String id)
-			throws 	Exception {
-			
-
-			NdexDatabase db = new NdexDatabase();
-			try {
-				ODatabaseDocumentTx database = db.getTransactionConnection();
-				OIndex<?> Idx = database.getMetadata().getIndexManager().getIndex("network.UUID");
-				OIdentifiable network = (OIdentifiable) Idx.get(id);
-				
-				if(network == null)
-					throw new NdexException("Network does not exist");
-				
-				network.getRecord().delete();
-				database.close();
-				
-			} finally {
-				db.close();
-			}
-		
-	}
-*/
 
 	/**************************************************************************
 	 * Saves an uploaded network file. Determines the type of file uploaded,
@@ -1013,48 +989,56 @@ public class NetworkAService extends NdexService {
 			throw new IllegalArgumentException(e1);
 		}
 
+		String ext = FilenameUtils.getExtension(uploadedNetwork.getFilename()).toLowerCase();
+
+		if ( !ext.equals("sif") && !ext.equals("xbel") && !ext.equals("xgmml") 
+				&& !ext.equals("xls") && ! ext.equals("xlsx")) {
+			throw new IllegalArgumentException(
+					"The uploaded file type is not supported; must be Excel, XGMML, SIF, or XBEL.");
+		}
+		
+		UUID taskId = NdexUUIDFactory.INSTANCE.getNDExUUID();
+
 		final File uploadedNetworkPath = new File(Configuration.getInstance().getNdexRoot() +
 				"/uploaded-networks");
 		if (!uploadedNetworkPath.exists())
 			uploadedNetworkPath.mkdir();
 
-		final File uploadedNetworkFile = new File(
-				uploadedNetworkPath.getAbsolutePath() + "/"
-						+ uploadedNetwork.getFilename());
+		String fileFullPath = uploadedNetworkPath.getAbsolutePath() + "/" + taskId + "." + ext;
+		final File uploadedNetworkFile = new File(fileFullPath);
+
+		if (!uploadedNetworkFile.exists())
+			try {
+				uploadedNetworkFile.createNewFile();
+			} catch (IOException e1) {
+				e1.printStackTrace();
+				throw new NdexException ("Failed to create file " + fileFullPath + " on server when uploading " + 
+						uploadedNetwork.getFilename() + ": " + e1.getMessage());
+			}
+
+		try ( FileOutputStream saveNetworkFile = new FileOutputStream(uploadedNetworkFile)) {
+			saveNetworkFile.write(uploadedNetwork.getFileData());
+			saveNetworkFile.flush();
+		} catch (IOException e1) {
+			e1.printStackTrace();
+			throw new NdexException ("Failed to write conent to file " + fileFullPath + " on server when uploading " + 
+					uploadedNetwork.getFilename() + ": " + e1.getMessage());
+		} 
+
+		final String userAccount = this.getLoggedInUser().getAccountName();
+
+		Task processNetworkTask = new Task();
+		processNetworkTask.setExternalId(taskId);
+		processNetworkTask.setDescription("Loading " + uploadedNetwork.getFilename());
+		processNetworkTask.setTaskType(TaskType.PROCESS_UPLOADED_NETWORK);
+		processNetworkTask.setPriority(Priority.LOW);
+		processNetworkTask.setProgress(0);
+		processNetworkTask.setResource(fileFullPath);
+		processNetworkTask.setStatus(Status.QUEUED);
 
 		try (TaskDAO dao = new TaskDAO(NdexAOrientDBConnectionPool.getInstance().acquire())){
-			if (!uploadedNetworkFile.exists())
-				uploadedNetworkFile.createNewFile();
-
-			try ( FileOutputStream saveNetworkFile = new FileOutputStream(uploadedNetworkFile)) {
-				saveNetworkFile.write(uploadedNetwork.getFileData());
-				saveNetworkFile.flush();
-			} 
-
-			final String fn = uploadedNetwork.getFilename().toLowerCase();
-
-			if (fn.endsWith(".sif") || fn.endsWith(".xbel")
-					|| fn.endsWith(".xgmml") || fn.endsWith(".xls")
-					|| fn.endsWith(".xlsx")) {
-
-				final String userAccount = this.getLoggedInUser().getAccountName();
-
-				Task processNetworkTask = new Task();
-				processNetworkTask.setDescription("Loading " + uploadedNetwork.getFilename());
-				processNetworkTask.setTaskType(TaskType.PROCESS_UPLOADED_NETWORK);
-				processNetworkTask.setPriority(Priority.LOW);
-				processNetworkTask.setProgress(0);
-				processNetworkTask.setResource(uploadedNetworkFile
-						.getAbsolutePath());
-				processNetworkTask.setStatus(Status.QUEUED);
-
-				dao.createTask(userAccount, processNetworkTask);
-			    dao.commit();
-			} else {
-				uploadedNetworkFile.delete();
-				throw new IllegalArgumentException(
-						"The uploaded file type is not supported; must be Excel, XGMML, SIF, OR XBEL.");
-			}
+			dao.createTask(userAccount, processNetworkTask);
+			dao.commit();
 		} catch (IllegalArgumentException iae) {
 			throw iae;
 		} catch (Exception e) {
