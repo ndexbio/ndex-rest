@@ -1,7 +1,6 @@
 package org.ndexbio.rest.services;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -35,7 +34,6 @@ import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
-import org.ndexbio.common.models.object.NetworkQueryParameters;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.common.models.object.network.RawNamespace;
@@ -941,6 +939,13 @@ public class NetworkAService extends NdexService {
 		ODatabaseDocumentTx db = null;
 		try{
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+
+            if (!Helper.checkPermissionOnNetworkByAccountName(db, 
+	        		   id, getLoggedInUser().getAccountName(), Permissions.ADMIN))
+	        {
+	           throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+	        }
+
 			NetworkDAO networkDao = new NetworkDAO(db);
 			networkDao.deleteNetwork(id);
 			db.commit();
