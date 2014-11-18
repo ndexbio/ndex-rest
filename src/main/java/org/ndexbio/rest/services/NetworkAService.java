@@ -1037,7 +1037,7 @@ public class NetworkAService extends NdexService {
 
 		Task processNetworkTask = new Task();
 		processNetworkTask.setExternalId(taskId);
-		processNetworkTask.setDescription("Loading " + uploadedNetwork.getFilename());
+		processNetworkTask.setDescription(uploadedNetwork.getFilename());
 		processNetworkTask.setTaskType(TaskType.PROCESS_UPLOADED_NETWORK);
 		processNetworkTask.setPriority(Priority.LOW);
 		processNetworkTask.setProgress(0);
