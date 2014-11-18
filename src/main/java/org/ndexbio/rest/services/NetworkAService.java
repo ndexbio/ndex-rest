@@ -789,6 +789,8 @@ public class NetworkAService extends NdexService {
 
 	}
 
+/* comment out this function for now, until we can make this function thread safe.
+ *  	
     @PUT
     @Path("/asPropertyGraph")
     @Produces("application/json")
@@ -844,7 +846,7 @@ public class NetworkAService extends NdexService {
         }
 
     }
-    
+*/    
     	
 
 	@POST
@@ -877,6 +879,7 @@ public class NetworkAService extends NdexService {
 			}
 	}
 
+/*	comment out this function for now, until we can make this function thread safe.
     @PUT
     @Path("/asNetwork")
     @Produces("application/json")
@@ -928,7 +931,7 @@ public class NetworkAService extends NdexService {
             if ( conn!= null) conn.close(); 
         }
     }
-	
+*/	
 	
 	@DELETE
 	@Path("/{UUID}")
