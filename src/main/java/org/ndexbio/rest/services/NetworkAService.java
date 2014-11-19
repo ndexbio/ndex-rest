@@ -211,6 +211,14 @@ public class NetworkAService extends NdexService {
 
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			
+			User user = getLoggedInUser();
+
+			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
+					Permissions.WRITE)) {
+				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+			}
+
 			daoNew = new NetworkDAO(db);
 			UUID networkUUID = UUID.fromString(networkId);
 			daoNew.setProvenance(networkUUID, provenance);
@@ -246,6 +254,14 @@ public class NetworkAService extends NdexService {
 
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			
+			User user = getLoggedInUser();
+
+			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
+					Permissions.WRITE)) {
+				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+			}
+
 			daoNew = new NetworkDAO(db);
 			UUID networkUUID = UUID.fromString(networkId);
 			int i = daoNew.setNetworkProperties(networkUUID, properties);
@@ -274,6 +290,13 @@ public class NetworkAService extends NdexService {
 
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			User user = getLoggedInUser();
+
+			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
+					Permissions.WRITE)) {
+				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+			}
+
 			daoNew = new NetworkDAO(db);
 			UUID networkUUID = UUID.fromString(networkId);
 			int i = daoNew.setNetworkPresentationProperties(networkUUID, properties);
