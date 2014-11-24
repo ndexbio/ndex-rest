@@ -50,7 +50,8 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			try {
 				if ( poolSize != null ) {
 					size = Integer.valueOf(poolSize);
-				}
+				} else 
+					size = defaultPoolSize;
 			} catch (NumberFormatException e) {
 				size = defaultPoolSize;
 			}
