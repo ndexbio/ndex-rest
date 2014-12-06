@@ -18,6 +18,10 @@ import com.orientechnologies.orient.server.OServerMain;
 
 public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
 	private static final int defaultPoolSize = 50;
 	private OServer orientDBServer;
 	
@@ -75,7 +79,9 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			ODatabaseDocumentTx conn = db.getAConnection();
 			UserDAO dao = new UserDAO(conn);
     	
-			DatabaseInitializer.createUserIfnotExist(dao, configuration.getSystmUserName(), "support@ndexbio.org", 
+			String sysUserEmail = configuration.getProperty("NdexSystemUserEmail");
+			DatabaseInitializer.createUserIfnotExist(dao, configuration.getSystmUserName(),
+					(sysUserEmail == null? "support@ndexbio.org" : sysUserEmail), 
     				configuration.getSystemUserPassword());
 			conn.commit();
 			conn.close();
