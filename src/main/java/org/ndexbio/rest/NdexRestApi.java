@@ -7,8 +7,8 @@ import javax.ws.rs.core.Application;
 
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.mappers.DuplicateObjectExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.IllegalArgumentExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.NdexExceptionMapper;

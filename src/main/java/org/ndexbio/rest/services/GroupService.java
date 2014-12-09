@@ -15,6 +15,7 @@ import javax.ws.rs.core.Context;
 
 import java.util.UUID;
 
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.common.models.dao.orientdb.GroupDAO;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;

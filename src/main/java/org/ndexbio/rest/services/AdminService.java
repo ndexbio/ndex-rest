@@ -15,7 +15,7 @@ import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexQueuedTaskProcessor;

@@ -14,6 +14,7 @@ import javax.ws.rs.core.Context;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.models.dao.orientdb.RequestDAO;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
 

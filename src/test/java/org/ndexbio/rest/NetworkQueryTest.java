@@ -9,8 +9,8 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.easymock.EasyMock;
 import org.junit.Assert;
-import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.object.NetworkQueryParameters;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.Network;

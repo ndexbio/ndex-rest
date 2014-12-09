@@ -2,7 +2,7 @@ package org.ndexbio.rest.equivalence;
 
 import java.util.Map;
 
-import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.model.exceptions.NdexException;
 
 
 public interface EquivalenceFinder {

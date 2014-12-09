@@ -5,10 +5,11 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.common.exceptions.DuplicateObjectException;
-import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.SearchParameters;
+
 import com.orientechnologies.orient.core.id.ORID;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)

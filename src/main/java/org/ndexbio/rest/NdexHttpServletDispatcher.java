@@ -6,8 +6,8 @@ import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.NdexServerProperties;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.utility.DatabaseInitializer;
 

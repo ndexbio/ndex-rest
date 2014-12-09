@@ -21,6 +21,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;

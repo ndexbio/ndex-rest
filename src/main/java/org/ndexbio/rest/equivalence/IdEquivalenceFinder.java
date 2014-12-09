@@ -3,7 +3,7 @@ package org.ndexbio.rest.equivalence;
 import java.util.List;
 import java.util.Map;
 
-import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.network.Network;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
