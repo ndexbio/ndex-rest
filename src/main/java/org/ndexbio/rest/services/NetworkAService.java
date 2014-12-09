@@ -395,14 +395,18 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
-		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
-		NetworkDAO daoNew = new NetworkDAO(db);
-		//TODO: Preverify the requirment.
+		if ( isSearchable(networkId) ) {
+		
+			ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			NetworkDAO daoNew = new NetworkDAO(db);
 
+			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
+			db.close();
+			return n;
+		}
+		else
+			throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 
-		Network n = daoNew.getNetworkById(UUID.fromString(networkId));
-		db.close();
-        return n;
 	}
 
 	@PermitAll
@@ -417,18 +421,21 @@ public class NetworkAService extends NdexService {
 			@PathParam("networkId") final String networkId)
 
 			throws IllegalArgumentException, NdexException, JsonProcessingException {
-		ODatabaseDocumentTx db =null;
-		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
-			NetworkDAO daoNew = new NetworkDAO(db);
-			//TODO: Verify the permissions.
 
-
-			PropertyGraphNetwork n = daoNew.getProperytGraphNetworkById(UUID.fromString(networkId));
-			return n;
-		} finally {
-			if (db !=null ) db.close();
+		if ( isSearchable(networkId) ) {
+		
+			ODatabaseDocumentTx db =null;
+			try {
+				db = NdexAOrientDBConnectionPool.getInstance().acquire();
+				NetworkDAO daoNew = new NetworkDAO(db);
+				PropertyGraphNetwork n = daoNew.getProperytGraphNetworkById(UUID.fromString(networkId));
+				return n;
+			} finally {
+				if (db !=null ) db.close();
+			}
 		}
+		else 
+			throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 	}
 
 	@PermitAll
@@ -656,6 +663,25 @@ public class NetworkAService extends NdexService {
 		} finally {
 			if ( db != null) db.close();
 		}
+	}
+	
+	private boolean isSearchable(String networkId) 
+				throws ObjectNotFoundException, NdexException {
+		   ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		   NetworkDAO networkDao = new NetworkDAO(db);
+
+		   VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
+		   boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
+
+		   if ( !hasPrivilege && getLoggedInUser() != null) {
+			   hasPrivilege = networkDao.checkPrivilege(
+					   (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName()),
+					   networkId, Permissions.READ);
+		   }
+		
+		   db.close();
+		   db = null;
+		   return hasPrivilege;
 	}
 
 	@PermitAll
