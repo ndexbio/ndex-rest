@@ -596,7 +596,7 @@ public class GroupService extends NdexService {
 */
 	private void openDatabase() throws NdexException {
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-		dao = new GroupDAO(localConnection, true);
+		dao = new GroupDAO(localConnection, false);
 	}
 	private void closeDatabase() {
 		dao.close();
