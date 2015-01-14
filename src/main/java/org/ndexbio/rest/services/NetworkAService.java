@@ -1000,19 +1000,22 @@ public class NetworkAService extends NdexService {
     @ApiDoc("Deletes the network specified by 'UUID'.")
 	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException {
 
+		String userAcc = getLoggedInUser().getAccountName();
+		logger.info("User:"+userAcc+ " request deleting network  " + id);
 		ODatabaseDocumentTx db = null;
 		try{
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 
-            if (!Helper.checkPermissionOnNetworkByAccountName(db, 
-	        		   id, getLoggedInUser().getAccountName(), Permissions.ADMIN))
+            if (!Helper.checkPermissionOnNetworkByAccountName(db, id, userAcc, Permissions.ADMIN))
 	        {
 	           throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 	        }
 
 			NetworkDAO networkDao = new NetworkDAO(db);
+			logger.info("Start deleting network " + id);
 			networkDao.deleteNetwork(id);
 			db.commit();
+			logger.info("Network " + id + "deleted.");
 		} finally {
 			if ( db != null) db.close();
 		}
