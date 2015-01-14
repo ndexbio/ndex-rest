@@ -72,6 +72,9 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 
 @Path("/network")
 public class NetworkAService extends NdexService {
+	
+	static Logger logger = Logger.getLogger(NetworkAService.class.getName());
+
 
 	public NetworkAService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
@@ -249,6 +252,7 @@ public class NetworkAService extends NdexService {
     		final List<NdexPropertyValuePair> properties)
     		throws Exception {
 
+		logger.severe("Update properties of network " + networkId);
     	ODatabaseDocumentTx db = null;
     	NetworkDAO daoNew = null;
 
@@ -266,10 +270,13 @@ public class NetworkAService extends NdexService {
 			UUID networkUUID = UUID.fromString(networkId);
 			int i = daoNew.setNetworkProperties(networkUUID, properties);
 			daoNew.commit();
+			logger.severe("Finished updating properties of network " + networkId);
 			return i;
 		} catch (Exception e) {
+			logger.severe("Error occurred when update network properties: " + e.getMessage());
+			e.printStackTrace();
 			if (null != daoNew) daoNew.rollback();
-			throw e;
+			throw new NdexException(e.getMessage());
 		} finally {
 			if (null != db) db.close();
 		}
@@ -303,7 +310,11 @@ public class NetworkAService extends NdexService {
 			daoNew.commit();
 			return i;
 		} catch (Exception e) {
-			if (null != daoNew) daoNew.rollback();
+			if (null != daoNew) {
+				daoNew.rollback();
+				daoNew = null;
+			}
+			
 			throw e;
 		} finally {
 			if (null != db) db.close();

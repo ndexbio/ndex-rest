@@ -89,6 +89,7 @@ public class UserService extends NdexService {
 		
 		ODatabaseDocumentTx db = null;
 		try {
+			logger.info("Request CreateUser "+ newUser.getAccountName() +" received.");
 			newUser.setAccountName(newUser.getAccountName().toLowerCase());
 
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
@@ -96,6 +97,7 @@ public class UserService extends NdexService {
 
 			User user = userdao.createNewUser(newUser);
 			userdao.commit();
+			logger.info("User " + newUser.getAccountName() + "created with UUID " + user.getExternalId());
 			return user;
 		} finally {
 			if ( db != null ) 
