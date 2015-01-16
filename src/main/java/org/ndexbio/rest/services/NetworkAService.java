@@ -1001,7 +1001,7 @@ public class NetworkAService extends NdexService {
 	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException {
 
 		String userAcc = getLoggedInUser().getAccountName();
-		logger.info("User "+userAcc+ " requests deleting network  " + id);
+		logInfo(logger, "Deleting network  " + id);
 		ODatabaseDocumentTx db = null;
 		try{
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();

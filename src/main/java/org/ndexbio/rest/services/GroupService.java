@@ -14,6 +14,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import java.util.UUID;
+import java.util.logging.Logger;
 
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.SimpleUserQuery;
@@ -32,6 +33,9 @@ public class GroupService extends NdexService {
 	
 	private GroupDAO dao;
 	private ODatabaseDocumentTx  localConnection;
+	
+	static Logger logger = Logger.getLogger(GroupService.class.getName());
+
 	
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -69,6 +73,8 @@ public class GroupService extends NdexService {
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
 		
+		logInfo(logger,"Creating group " + newGroup.getAccountName() + ".");
+		
 		this.openDatabase();
 		
 		try {
@@ -76,6 +82,7 @@ public class GroupService extends NdexService {
 			Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId());
 			dao.commit();
 				
+			logger.info("Group " + group.getAccountName() + " (" + group.getExternalId() + ") created.");
 			return group;
 	
 		} finally {
@@ -137,11 +144,14 @@ public class GroupService extends NdexService {
 	public void deleteGroup(@PathParam("groupId") final String groupId)
 			throws ObjectNotFoundException, NdexException {
 		
+		logInfo(logger,"Deleting group " + groupId + "." );
+		
 		this.openDatabase();
 		
 		try {
 			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
 			dao.commit();
+			logger.info("Group " + groupId + " deleted.");
 		} finally {
 			this.closeDatabase();
 		}
@@ -233,6 +243,7 @@ public class GroupService extends NdexService {
 			@PathParam("blockSize") final int top)
 			throws IllegalArgumentException, NdexException {
 		
+		logInfo(logger, "Search group: \"" + simpleQuery.getSearchString() + "\"");
 		this.openDatabase();
 		
 		try {
@@ -265,6 +276,7 @@ public class GroupService extends NdexService {
 	public Group getGroup(@PathParam("groupId") final String groupId)
 			throws IllegalArgumentException,ObjectNotFoundException, NdexException {
 		
+		logInfo(logger, "Getting group " + groupId);
 		this.openDatabase();
 		
 		try {
@@ -381,6 +393,8 @@ public class GroupService extends NdexService {
 							@PathParam("groupId") final String id)
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
+		logInfo( logger, "Updating group " + id);
+		
 		this.openDatabase();
 
 		try {
@@ -421,6 +435,7 @@ public class GroupService extends NdexService {
 			final Membership groupMember) throws IllegalArgumentException,
 			ObjectNotFoundException, NdexException {
 
+		logInfo(logger, "Updating members of Group " + groupId + ".");
 		this.openDatabase();
 		try {
 			if(groupMember.getMemberAccountName() != null)
@@ -428,6 +443,8 @@ public class GroupService extends NdexService {
 			//check for resource name? but it can be a network. Not really important, the code uses external id's
 			dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
 			dao.commit();
+			logInfo(logger,"Member " + groupMember.getMemberAccountName()
+					+ "(" + groupMember.getMembershipType()+ ") updated for group " + groupId);
 		} finally {
 			this.closeDatabase();
 		}
@@ -461,11 +478,13 @@ public class GroupService extends NdexService {
 			@PathParam("memberId") final String memberId) throws IllegalArgumentException,
 			ObjectNotFoundException, NdexException {
 
+		logInfo (logger, "Removing member " + memberId + " from group " + groupId);
 		this.openDatabase();
 		try {
 			
 			dao.removeMember(UUID.fromString(memberId), UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
 			dao.commit();
+			logInfo (logger, "Member " + memberId + " removed from group " + groupId);
 		} finally {
 			this.closeDatabase();
 		}
@@ -493,6 +512,8 @@ public class GroupService extends NdexService {
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		logInfo(logger, "Getting "+ permissions + " networks of group " + groupId);
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
@@ -528,6 +549,8 @@ public class GroupService extends NdexService {
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		logInfo(logger, "Getting "+ permissions + " users in group " + groupId);
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		

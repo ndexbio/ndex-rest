@@ -89,7 +89,7 @@ public class UserService extends NdexService {
 		
 		ODatabaseDocumentTx db = null;
 		try {
-			logger.info("Request CreateUser "+ newUser.getAccountName() +" received.");
+			logInfo(logger, "Creating User "+ newUser.getAccountName());
 			newUser.setAccountName(newUser.getAccountName().toLowerCase());
 
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
@@ -97,7 +97,7 @@ public class UserService extends NdexService {
 
 			User user = userdao.createNewUser(newUser);
 			userdao.commit();
-			logger.info("User " + newUser.getAccountName() + "created with UUID " + user.getExternalId());
+			logInfo(logger, "User " + newUser.getAccountName() + " created with UUID " + user.getExternalId());
 			return user;
 		} finally {
 			if ( db != null ) 
@@ -123,14 +123,17 @@ public class UserService extends NdexService {
 	public User getUser(@PathParam("userId") final String userId)
 			throws IllegalArgumentException, NdexException {
 		
+		logInfo( logger, "Getting user " + userId);
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		dao = new UserDAO(localConnection);
 		
 		try {
 			final User user = dao.getUserByAccountName(userId.toLowerCase());
+			logInfo(logger, "User object returned for user account " + userId );
 			return user;
 		} catch (ObjectNotFoundException e) {
 			final User user = dao.getUserById(UUID.fromString(userId));
+			logInfo(logger, "User object returned for user id " + userId );
 			return user;	
 		} finally  {
 			dao.close();
@@ -161,13 +164,17 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
+		logInfo(logger, "Getting " + permissions + " networks of user " + userId);
+		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		dao = new UserDAO(localConnection);
 		
 		try {
-			return dao.getUserNetworkMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
+			List<Membership> members= dao.getUserNetworkMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
+			logInfo (logger, "Returned " + members.size() + " members for user " + userId);
+			return members;
 		} finally {
 			dao.close();
 		}
@@ -191,10 +198,12 @@ public class UserService extends NdexService {
 	@Path("/{userId}/group/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public List<Membership> getUserGroupMemberships(@PathParam("userId") final String groupId,
+	public List<Membership> getUserGroupMemberships(@PathParam("userId") final String userId,
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		logInfo( logger, "Getting " + permissions + " groups for user " + userId);
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
@@ -202,7 +211,7 @@ public class UserService extends NdexService {
 		
 		try {
 			dao = new UserDAO(localConnection);
-			return dao.getUserGroupMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
+			return dao.getUserGroupMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
 		} finally {
 			dao.close();
 		}
@@ -231,6 +240,7 @@ public class UserService extends NdexService {
 			@PathParam("password") final String password)
 			throws SecurityException, NdexException {
 		
+		logInfo(logger, "Authentiate user " + accountName);
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 
 		try {
@@ -261,15 +271,19 @@ public class UserService extends NdexService {
 	@ApiDoc("Changes the authenticated user's password to the new password in the POST data.")
 	public void changePassword(String password)
 			throws IllegalArgumentException, NdexException {
+
+		logInfo( logger, "Changing password.");
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
 				"A password is required");
 
+		logger.info("Changing password for user " + getLoggedInUser().getAccountName());
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		
 		try {
 			dao = new UserDAO(localConnection);
 			dao.changePassword(password, getLoggedInUser().getExternalId());
 			dao.commit();
+			logger.info("Password changed for user " + getLoggedInUser().getAccountName());
 		} finally {
 			dao.close();
 			dao = null;
@@ -288,12 +302,14 @@ public class UserService extends NdexService {
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user.")
 	public void deleteUser() throws NdexException, ObjectNotFoundException {
 
+		logInfo(logger, "Deleting user (self).");
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		dao = new UserDAO(localConnection);
 		
 		try {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
 			dao.commit();
+			logger.info("User " + getLoggedInUser().getAccountName() + " deleted.");
 		} finally {
 			dao.close();
 			dao = null;
@@ -322,6 +338,8 @@ public class UserService extends NdexService {
 	public Response emailNewPassword(
 			@PathParam("accountName") final String accountName)
 			throws IllegalArgumentException, NdexException, IOException, MessagingException {
+		
+		logInfo( logger, "Email new password for " + accountName);
 		
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(accountName), 
 				"A accountName is required");
@@ -393,6 +411,7 @@ public class UserService extends NdexService {
 	public List<User> findUsers(SimpleUserQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 		
+		logInfo (logger, "Searching user \"" + simpleUserQuery.getSearchString() + "\"");
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		
 		try {
@@ -402,6 +421,7 @@ public class UserService extends NdexService {
 			
 			dao = new UserDAO(localConnection);
 			final List<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
+			logInfo ( logger, "Returning " + users.size() + " users from search.");
 			return users;
 		} finally {
 			dao.close();
@@ -433,13 +453,15 @@ public class UserService extends NdexService {
 		
 		// Currently not using path param. We can already retrieve the id from the authentication
 		// However, this depends on the authentication method staying consistent?
-		
+
+		logInfo(logger, "Updating user " + updatedUser.getAccountName() );
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 
 		try {
 			dao = new UserDAO(localConnection);
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			dao.commit();
+			logger.info("User " + user.getAccountName() + " updated.");
 			return user;
 		} finally {
 			dao.close();
@@ -451,15 +473,24 @@ public class UserService extends NdexService {
 	@Path("/{accountId}/membership/{resourceId}/{depth}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public Membership getMembership(@PathParam("accountId") final String accountId, @PathParam("resourceId") final String resourceId, @PathParam("depth") final int depth) 
+	public Membership getMembership(@PathParam("accountId") final String accountId, 
+				@PathParam("resourceId") final String resourceId, 
+				@PathParam("depth") final int depth) 
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
-		
+		logInfo( logger, "Getting membership of account " + accountId );
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		
 		try {
 			dao = new UserDAO(localConnection);
-			return dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId), depth);
+			Membership m = dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId), depth);
+			if ( m==null)
+				logInfo(logger, "No membership found for account " + accountId + 
+						" on resource " + resourceId);
+			else 
+				logInfo(logger, "Membership " + m.getPermissions().name() + " found for account " + accountId + 
+					" on resource " + resourceId);
+			return m;
 		} finally {
 			dao.close();
 		}
@@ -476,11 +507,15 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
+		logInfo (logger, "Getting requests sent by user " + userId);
+		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		dao = new UserDAO(localConnection);
 		
 		try {
-			return dao.getSentRequest(this.getLoggedInUser(),skipBlocks, blockSize);
+			List<Request> reqs= dao.getSentRequest(this.getLoggedInUser(),skipBlocks, blockSize);
+			logInfo( logger, "Returning " + reqs.size() + " requests sent by user " + userId);
+			return reqs;
 		} finally {
 			dao.close();
 		}
@@ -494,11 +529,15 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
+		logInfo (logger, "Getting pending request for user");
+		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		dao = new UserDAO(localConnection);
 		
 		try {
-			return dao.getPendingRequest(this.getLoggedInUser(),skipBlocks, blockSize);
+			List<Request> reqs= dao.getPendingRequest(this.getLoggedInUser(),skipBlocks, blockSize);
+			logInfo ( logger, "Returning " + reqs.size() + " pending request under user " + userId);
+			return reqs;
 		} finally {
 			dao.close();
 		}
@@ -514,12 +553,16 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
+		logInfo( logger, "Getting users tasks.");
+		
 		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
 		
 		try {
 			dao = new UserDAO(localConnection);
 			Status taskStatus = Status.valueOf(status);
-			return dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
+			List<Task> tasks= dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
+			logInfo(logger, "Returned " + tasks.size() + " tasks under user " + userId);
+			return tasks;
 		} finally {
 			dao.close();
 		}
