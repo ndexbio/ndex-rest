@@ -252,7 +252,7 @@ public class NetworkAService extends NdexService {
     		final List<NdexPropertyValuePair> properties)
     		throws Exception {
 
-		logger.severe("Update properties of network " + networkId);
+		logInfo(logger, "Update properties of network " + networkId);
     	ODatabaseDocumentTx db = null;
     	NetworkDAO daoNew = null;
 
@@ -270,7 +270,7 @@ public class NetworkAService extends NdexService {
 			UUID networkUUID = UUID.fromString(networkId);
 			int i = daoNew.setNetworkProperties(networkUUID, properties);
 			daoNew.commit();
-			logger.severe("Finished updating properties of network " + networkId);
+			logInfo(logger, "Finished updating properties of network " + networkId);
 			return i;
 		} catch (Exception e) {
 			logger.severe("Error occurred when update network properties: " + e.getMessage());
@@ -339,6 +339,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
+		logInfo(logger, "Getting networkSummary of " + networkId);
 		ODatabaseDocumentTx db = null;
 		try {
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
@@ -356,6 +357,8 @@ public class NetworkAService extends NdexService {
 				ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
 				NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
 				db.close();
+				db = null;
+				logInfo(logger, "NetworkSummary of " + networkId + " returned.");
 				return summary;
 
 			}
@@ -501,6 +504,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 
+		logInfo( logger, "Get all " + permissions + " accounts on network " + networkId);
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 
 		ODatabaseDocumentTx db = null;
@@ -508,8 +512,11 @@ public class NetworkAService extends NdexService {
 
 			db = NdexAOrientDBConnectionPool.getInstance().acquire();
 			NetworkDAO networkDao = new NetworkDAO(db);
-
-			return networkDao.getNetworkUserMemberships(UUID.fromString(networkId), permission, skipBlocks, blockSize);
+            
+			List<Membership> results = networkDao.getNetworkUserMemberships(
+					UUID.fromString(networkId), permission, skipBlocks, blockSize);
+			logInfo(logger, results.size() + " members returned for network " + networkId);
+			return results;
 
 		} finally {
 			if (db != null) db.close();
@@ -644,6 +651,8 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
+		logInfo (logger, "Neighborhood search on " + networkId + " with phrase \"" + queryParameters.getSearchString() + "\"");
+		
 		ODatabaseDocumentTx db = null;
 
 		try {
@@ -666,6 +675,7 @@ public class NetworkAService extends NdexService {
 			   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
 			   Network n = dao.queryForSubnetwork(networkId, queryParameters);
+			   logInfo(logger, "Subnetwork from query returned." );
 			   return n;
 			   //getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
 		   }
@@ -803,6 +813,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 
+		logInfo ( logger, "Search networks: \"" + query.getSearchString() + "\"");
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
         
@@ -811,6 +822,7 @@ public class NetworkAService extends NdexService {
             Collection<NetworkSummary> result = new ArrayList <> ();
 
 			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
+			logInfo ( logger, result.size() + " networks returned from search.");
 			return result;
 
         } catch (Exception e) {
