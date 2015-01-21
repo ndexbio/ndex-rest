@@ -20,7 +20,7 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 public class StandaloneServer {
 
 	
-	public static void main(String[] args) throws NdexException {
+	public static void main(String[] args) {
 		System.out.println("Log file location:" + StandaloneServer.class.getClassLoader().getResource("logging.properties"));
 		
 /*		Configuration configuration = null;
