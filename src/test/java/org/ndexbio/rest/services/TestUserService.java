@@ -5,6 +5,8 @@ import java.util.Collection;
 
 
 
+
+
 //import org.easymock.EasyMock;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
@@ -15,8 +17,8 @@ import org.junit.BeforeClass;
 import org.junit.Before;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.SimpleUserQuery;
-import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;

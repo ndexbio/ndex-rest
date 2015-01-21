@@ -6,7 +6,7 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.junit.AfterClass;
 import org.junit.Test;
-import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.easymock.EasyMock;
 

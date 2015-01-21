@@ -5,5 +5,5 @@
 .project
 *~
 /bin
-/.settings
+.settings/
 *.iml

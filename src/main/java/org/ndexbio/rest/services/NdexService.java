@@ -16,7 +16,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
-import org.ndexbio.common.exceptions.NdexException;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.orientdb.NdexSchemaManager;
@@ -25,6 +25,7 @@ import org.ndexbio.task.Configuration;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import java.util.logging.Logger;
 
 public abstract class NdexService
 {
@@ -121,4 +122,13 @@ public abstract class NdexService
         return null;
     }
 
+    protected void logInfo (Logger logger, String message) {
+    	final Object user = _httpRequest.getAttribute("User");
+    	
+    	String userPrefix = (user != null) ?
+            "[USER:"+ ((org.ndexbio.model.object.User)user).getAccountName()+ "]\t": 
+            	"[ANONYMOUS-USER]\t";
+    	
+    	logger.info(userPrefix + message);
+    }
 }

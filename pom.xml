@@ -78,19 +78,19 @@
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-server</artifactId>
-      <version>9.2.2.v20140723</version>
+      <version>9.2.5.v20141112</version>
     </dependency>
 
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-servlet</artifactId>
-      <version>9.2.2.v20140723</version>
+      <version>9.2.5.v20141112</version>
     </dependency>
 
 	<dependency>
     	<groupId>org.eclipse.jetty</groupId>
     	<artifactId>jetty-servlets</artifactId>
-    	<version>9.2.2.v20140723</version>
+    	<version>9.2.5.v20141112</version>
 	</dependency>
 <!-- 	
 	<dependency>
@@ -209,12 +209,12 @@
     		<plugin>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-maven-plugin</artifactId>
-                <version>9.2.2-SNAPSHOT</version>
+                <version>9.2.5.v20141112</version>
             </plugin>
     
 		</plugins>
 	</build>
 	<properties>
-		<jettyVersion>9.2.2.v20140723</jettyVersion>
+		<jettyVersion>9.2.5.v20141112</jettyVersion>
 	</properties>
 </project>

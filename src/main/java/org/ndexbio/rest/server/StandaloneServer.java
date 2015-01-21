@@ -6,8 +6,8 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.exceptions.NdexException;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.utility.DatabaseInitializer;
@@ -20,7 +20,7 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 public class StandaloneServer {
 
 	
-	public static void main(String[] args) throws NdexException {
+	public static void main(String[] args) {
 		System.out.println("Log file location:" + StandaloneServer.class.getClassLoader().getResource("logging.properties"));
 		
 /*		Configuration configuration = null;
