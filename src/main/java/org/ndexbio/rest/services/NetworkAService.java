@@ -143,10 +143,12 @@ public class NetworkAService extends NdexService {
 			)
 			throws IllegalArgumentException, NdexException {
 
+		NdexDatabase db = null; 
 		NdexPersistenceService networkService = null;
 		try {
+			db = new NdexDatabase(Configuration.getInstance().getHostURI());
 			networkService = new NdexPersistenceService(
-					new NdexDatabase(Configuration.getInstance().getHostURI()),
+					db,
 					UUID.fromString(networkId));
 
 			networkService.getNamespace(new RawNamespace(namespace.getPrefix(), namespace.getUri()));
@@ -154,6 +156,7 @@ public class NetworkAService extends NdexService {
 			networkService.commit();
 			networkService.close();
 		} finally {
+			
 			if (networkService != null) networkService.close();
 		}
 	}
