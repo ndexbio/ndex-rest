@@ -12,6 +12,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
+import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
@@ -20,6 +21,7 @@ import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 @Path("/task")
 public class TaskService extends NdexService
@@ -65,13 +67,13 @@ public class TaskService extends NdexService
         Preconditions.checkArgument(null != newTask, 
     			" A task object is required");
         
-        
-
-        try (TaskDAO dao = new TaskDAO(NdexAOrientDBConnectionPool.getInstance().acquire()))    {
-            UUID taskId = dao.createTask(userAccount, newTask);
+        try (TaskDAO dao = new TaskDAO(NdexDatabase.getInstance().getAConnection()))    {
+        	
+        	UUID taskId = dao.createTask(userAccount, newTask);
             
             dao.commit();
             logger.info("task " + taskId + " created for " + newTask.getType());
+            
             return taskId;
         }
         catch (Exception e)
@@ -154,7 +156,7 @@ public class TaskService extends NdexService
     			"A task id is required");
        
     	
-    	try (TaskDAO tdao= new TaskDAO(NdexAOrientDBConnectionPool.getInstance().acquire())) {
+    	try (TaskDAO tdao= new TaskDAO(NdexDatabase.getInstance().getAConnection())) {
             
             final Task taskToDelete = tdao.getTaskByUUID(taskUUID);
             

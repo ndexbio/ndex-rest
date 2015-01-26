@@ -52,7 +52,7 @@ public class AdminService extends NdexService {
 		ODatabaseDocumentTx db = null;
 		try {
 			
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 
 			NdexStatus status = new NdexStatus();
 			status.setNetworkCount(this.getClassCount(db,"network"));
@@ -97,7 +97,7 @@ public class AdminService extends NdexService {
 	        	NdexDatabase db = null;
 	     		try {
 	     			LoggerFactory.getLogger(AdminService.class).info("Task processor started.") ;
-	     		    db = new NdexDatabase(Configuration.getInstance().getHostURI());
+	     		    db = NdexDatabase.getInstance();
 	     			NdexQueuedTaskProcessor processor = new NdexQueuedTaskProcessor(
 	     				db );
 					processor.processAll();
@@ -131,7 +131,7 @@ public class AdminService extends NdexService {
 	        		 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
 	        		 String strDate = sdf.format(Calendar.getInstance().getTime());
 			
-	        		 db = NdexAOrientDBConnectionPool.getInstance().acquire();
+	        		 db = NdexDatabase.getInstance().getAConnection();
 	        		 String exportFile = ndexRoot + "/dbbackups/db_"+ strDate + ".export";
 
 	        		 logger.info("Backing up database to " + exportFile);

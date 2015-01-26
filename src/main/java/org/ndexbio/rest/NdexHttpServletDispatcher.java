@@ -67,12 +67,11 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			}
 			
 			//and initialize the db connections
-			NdexAOrientDBConnectionPool.createOrientDBConnectionPool(
-    			configuration.getDBURL(),
-    			configuration.getDBUser(),
-    			configuration.getDBPasswd(), size.intValue());
     	
-			NdexDatabase db = new NdexDatabase (configuration.getHostURI());
+			NdexDatabase db = NdexDatabase.createNdexDatabase(configuration.getHostURI(),
+					configuration.getDBURL(),
+	    			configuration.getDBUser(),
+	    			configuration.getDBPasswd(), size.intValue());
     	
 			System.out.println("Db created for " + NdexDatabase.getURIPrefix());
     	
@@ -86,8 +85,6 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			conn.commit();
 			conn.close();
 			conn = null;
-			db.close();	
-			db = null;
 		} catch (NdexException e) {
 			e.printStackTrace();
 			throw new javax.servlet.ServletException(e.getMessage());
@@ -101,7 +98,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 		
         System.out.println("Database clean up started");
         try {
-        	NdexAOrientDBConnectionPool.close();
+        	NdexDatabase.close();
         	Orient.instance().shutdown();
 		    orientDBServer.shutdown();			
         	System.out.println ("Database has been closed.");

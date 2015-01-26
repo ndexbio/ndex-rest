@@ -32,6 +32,7 @@ import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
+import org.ndexbio.common.access.NdexDatabase;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
@@ -92,7 +93,7 @@ public class UserService extends NdexService {
 			logInfo(logger, "Creating User "+ newUser.getAccountName());
 			newUser.setAccountName(newUser.getAccountName().toLowerCase());
 
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			UserDAO userdao = new UserDAO(db);
 
 			User user = userdao.createNewUser(newUser);
@@ -124,7 +125,7 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		
 		logInfo( logger, "Getting user " + userId);
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		dao = new UserDAO(localConnection);
 		
 		try {
@@ -168,7 +169,7 @@ public class UserService extends NdexService {
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		dao = new UserDAO(localConnection);
 		
 		try {
@@ -207,7 +208,7 @@ public class UserService extends NdexService {
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		
 		try {
 			dao = new UserDAO(localConnection);
@@ -241,7 +242,7 @@ public class UserService extends NdexService {
 			throws SecurityException, NdexException {
 		
 		logInfo(logger, "Authentiate user " + accountName);
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 
 		try {
 			dao = new UserDAO(localConnection);
@@ -277,7 +278,7 @@ public class UserService extends NdexService {
 				"A password is required");
 
 		logger.info("Changing password for user " + getLoggedInUser().getAccountName());
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		
 		try {
 			dao = new UserDAO(localConnection);
@@ -303,7 +304,7 @@ public class UserService extends NdexService {
 	public void deleteUser() throws NdexException, ObjectNotFoundException {
 
 		logInfo(logger, "Deleting user (self).");
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		dao = new UserDAO(localConnection);
 		
 		try {
@@ -347,7 +348,7 @@ public class UserService extends NdexService {
 		// now anyone can change anyone else's password to a randomly generated
 		// password
 		
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		
 		BufferedReader fileReader = null;
 		try {
@@ -412,7 +413,7 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		
 		logInfo (logger, "Searching user \"" + simpleUserQuery.getSearchString() + "\"");
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		
 		try {
 
@@ -455,7 +456,7 @@ public class UserService extends NdexService {
 		// However, this depends on the authentication method staying consistent?
 
 		logInfo(logger, "Updating user " + updatedUser.getAccountName() );
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 
 		try {
 			dao = new UserDAO(localConnection);
@@ -479,7 +480,7 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
 		logInfo( logger, "Getting membership of account " + accountId );
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		
 		try {
 			dao = new UserDAO(localConnection);
@@ -509,7 +510,7 @@ public class UserService extends NdexService {
 		
 		logInfo (logger, "Getting requests sent by user " + userId);
 		
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		dao = new UserDAO(localConnection);
 		
 		try {
@@ -531,7 +532,7 @@ public class UserService extends NdexService {
 		
 		logInfo (logger, "Getting pending request for user");
 		
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		dao = new UserDAO(localConnection);
 		
 		try {
@@ -555,7 +556,7 @@ public class UserService extends NdexService {
 		
 		logInfo( logger, "Getting users tasks.");
 		
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		
 		try {
 			dao = new UserDAO(localConnection);

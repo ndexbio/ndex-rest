@@ -20,6 +20,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.common.models.dao.orientdb.GroupDAO;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
+import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
@@ -618,7 +619,7 @@ public class GroupService extends NdexService {
 	}
 */
 	private void openDatabase() throws NdexException {
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+		localConnection = NdexDatabase.getInstance().getAConnection();
 		dao = new GroupDAO(localConnection, false);
 	}
 	private void closeDatabase() {

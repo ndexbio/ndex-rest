@@ -13,6 +13,7 @@ import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
+import org.ndexbio.common.access.NdexDatabase;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
@@ -50,7 +51,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         User authUser = null;
         try
         {
-        	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+        	localConnection = NdexDatabase.getInstance().getAConnection();
         	 UserDAO dao = new UserDAO(localConnection);
         	
             authInfo = parseCredentials(requestContext);

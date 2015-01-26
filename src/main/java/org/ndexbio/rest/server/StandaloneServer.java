@@ -13,7 +13,7 @@ import org.ndexbio.task.Configuration;
 import org.ndexbio.task.utility.DatabaseInitializer;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-
+import org.apache.log4j.PropertyConfigurator;
 /*
  * This class is just for testing purpose at the moment.
  */
@@ -21,7 +21,8 @@ public class StandaloneServer {
 
 	
 	public static void main(String[] args) {
-		System.out.println("Log file location:" + StandaloneServer.class.getClassLoader().getResource("logging.properties"));
+		
+		//System.out.println("Log file location:" + StandaloneServer.class.getClassLoader().getResource("logging.properties"));
 		
 /*		Configuration configuration = null;
 		try {
@@ -64,7 +65,7 @@ public class StandaloneServer {
 			e.printStackTrace();
 		}
 		System.out.println("Shutting down server");
-		NdexAOrientDBConnectionPool.close();
+		NdexDatabase.close();
 	}
 	
 

@@ -13,6 +13,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
+import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.common.models.dao.orientdb.RequestDAO;
 import org.ndexbio.model.exceptions.NdexException;
@@ -154,7 +155,7 @@ public class RequestService extends NdexService
   
     
     private void openDatabase() throws NdexException {
-    	localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
+    	localConnection = NdexDatabase.getInstance().getAConnection();
 		dao = new RequestDAO(localConnection);
 	}
 	private void closeDatabase() {

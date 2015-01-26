@@ -100,7 +100,7 @@ public class NetworkAService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		ODatabaseDocumentTx db = null;
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO daoNew = new NetworkDAO(db);
 			return (List<BaseTerm>) daoNew.getBaseTerms(networkId);
 		} finally {
@@ -124,7 +124,7 @@ public class NetworkAService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		ODatabaseDocumentTx db = null;
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO daoNew = new NetworkDAO(db);
 			return (List<Namespace>) daoNew.getNamespaces(networkId);
 		} finally {
@@ -146,7 +146,7 @@ public class NetworkAService extends NdexService {
 		NdexDatabase db = null; 
 		NdexPersistenceService networkService = null;
 		try {
-			db = new NdexDatabase(Configuration.getInstance().getHostURI());
+			db = NdexDatabase.getInstance();
 			networkService = new NdexPersistenceService(
 					db,
 					UUID.fromString(networkId));
@@ -184,7 +184,7 @@ public class NetworkAService extends NdexService {
 		ODatabaseDocumentTx db = null;
 		try {
 
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO daoNew = new NetworkDAO(db);
 			return daoNew.getProvenance(UUID.fromString(networkId));
 
@@ -216,7 +216,7 @@ public class NetworkAService extends NdexService {
     	NetworkDAO daoNew = null;
 
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			
 			User user = getLoggedInUser();
 
@@ -260,7 +260,7 @@ public class NetworkAService extends NdexService {
     	NetworkDAO daoNew = null;
 
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			
 			User user = getLoggedInUser();
 
@@ -299,7 +299,7 @@ public class NetworkAService extends NdexService {
     	NetworkDAO daoNew = null;
 
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			User user = getLoggedInUser();
 
 			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
@@ -345,7 +345,7 @@ public class NetworkAService extends NdexService {
 		logInfo(logger, "Getting networkSummary of " + networkId);
 		ODatabaseDocumentTx db = null;
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 
 			NetworkDAO networkDao = new NetworkDAO(db);
 
@@ -392,7 +392,7 @@ public class NetworkAService extends NdexService {
 
 		ODatabaseDocumentTx db = null;
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO dao = new NetworkDAO(db);
 	 		Network n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
 	        return n;
@@ -414,7 +414,7 @@ public class NetworkAService extends NdexService {
 
 		if ( isSearchable(networkId) ) {
 		
-			ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO daoNew = new NetworkDAO(db);
 
 			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
@@ -443,7 +443,7 @@ public class NetworkAService extends NdexService {
 		
 			ODatabaseDocumentTx db =null;
 			try {
-				db = NdexAOrientDBConnectionPool.getInstance().acquire();
+				db = NdexDatabase.getInstance().getAConnection();
 				NetworkDAO daoNew = new NetworkDAO(db);
 				PropertyGraphNetwork n = daoNew.getProperytGraphNetworkById(UUID.fromString(networkId));
 				return n;
@@ -472,7 +472,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
-		ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
 		NetworkDAO dao = new NetworkDAO(db);
  		PropertyGraphNetwork n = dao.getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
 		db.close();
@@ -513,7 +513,7 @@ public class NetworkAService extends NdexService {
 		ODatabaseDocumentTx db = null;
 		try {
 
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO networkDao = new NetworkDAO(db);
             
 			List<Membership> results = networkDao.getNetworkUserMemberships(
@@ -542,7 +542,7 @@ public class NetworkAService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		ODatabaseDocumentTx db = null;
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 			User user = getLoggedInUser();
 			NetworkDAO networkDao = new NetworkDAO(db);
 
@@ -582,7 +582,7 @@ public class NetworkAService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		ODatabaseDocumentTx db = null;
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 
 			User user = getLoggedInUser();
 			NetworkDAO networkDao = new NetworkDAO(db);
@@ -613,7 +613,7 @@ public class NetworkAService extends NdexService {
 
 		ODatabaseDocumentTx db = null;
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 
 			User user = getLoggedInUser();
 			NetworkDAO networkDao = new NetworkDAO(db);
@@ -659,7 +659,7 @@ public class NetworkAService extends NdexService {
 		ODatabaseDocumentTx db = null;
 
 		try {
-		   db =	NdexAOrientDBConnectionPool.getInstance().acquire();
+		   db =	NdexDatabase.getInstance().getAConnection();
 
 		   NetworkDAO networkDao = new NetworkDAO(db);
 
@@ -691,7 +691,7 @@ public class NetworkAService extends NdexService {
 	
 	private boolean isSearchable(String networkId) 
 				throws ObjectNotFoundException, NdexException {
-		   ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire();
+		   ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
 		   NetworkDAO networkDao = new NetworkDAO(db);
 
 		   VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
@@ -733,7 +733,7 @@ public class NetworkAService extends NdexService {
 		ODatabaseDocumentTx db = null;
 
 		try {
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 
 			NetworkDAO networkDao = new NetworkDAO(db);
 
@@ -820,7 +820,7 @@ public class NetworkAService extends NdexService {
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
         
-    	try (ODatabaseDocumentTx db = NdexAOrientDBConnectionPool.getInstance().acquire()) {
+    	try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()) {
             NetworkSearchDAO dao = new NetworkSearchDAO(db);
             Collection<NetworkSummary> result = new ArrayList <> ();
 
@@ -852,7 +852,7 @@ public class NetworkAService extends NdexService {
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
 
-			NdexDatabase db = new NdexDatabase(Configuration.getInstance().getHostURI());
+			NdexDatabase db = NdexDatabase.getInstance();
 			PropertyGraphLoader pgl = null;
 			try {
 				pgl = new PropertyGraphLoader(db);
@@ -939,7 +939,7 @@ public class NetworkAService extends NdexService {
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
 
-			NdexDatabase db = new NdexDatabase(Configuration.getInstance().getHostURI());
+			NdexDatabase db = NdexDatabase.getInstance();
 			NdexNetworkCloneService service = null;
 			try {
 				service = new NdexNetworkCloneService(db, newNetwork,
@@ -1019,7 +1019,7 @@ public class NetworkAService extends NdexService {
 		logInfo(logger, "Deleting network  " + id);
 		ODatabaseDocumentTx db = null;
 		try{
-			db = NdexAOrientDBConnectionPool.getInstance().acquire();
+			db = NdexDatabase.getInstance().getAConnection();
 
             if (!Helper.checkPermissionOnNetworkByAccountName(db, id, userAcc, Permissions.ADMIN))
 	        {
@@ -1123,7 +1123,7 @@ public class NetworkAService extends NdexService {
 		processNetworkTask.setResource(fileFullPath);
 		processNetworkTask.setStatus(Status.QUEUED);
 
-		try (TaskDAO dao = new TaskDAO(NdexAOrientDBConnectionPool.getInstance().acquire())){
+		try (TaskDAO dao = new TaskDAO(NdexDatabase.getInstance().getAConnection())){
 			dao.createTask(userAccount, processNetworkTask);
 			dao.commit();
 		} catch (IllegalArgumentException iae) {
