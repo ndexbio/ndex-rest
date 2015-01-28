@@ -854,14 +854,9 @@ public class NetworkAService extends NdexService {
 
 			NdexDatabase db = NdexDatabase.getInstance();
 			PropertyGraphLoader pgl = null;
-			try {
-				pgl = new PropertyGraphLoader(db);
+			pgl = new PropertyGraphLoader(db);
 
-				return pgl.insertNetwork(newNetwork, getLoggedInUser().getAccountName());
-			} finally {
-
-				db.close();
-			}
+			return pgl.insertNetwork(newNetwork, getLoggedInUser().getAccountName());
 
 	}
 
@@ -950,8 +945,6 @@ public class NetworkAService extends NdexService {
 			} finally {
 				if ( service !=null)
 					service.close();
-				if ( db != null)
-					db.close();
 			}
 	}
 
@@ -1028,6 +1021,8 @@ public class NetworkAService extends NdexService {
 
 			NetworkDAO networkDao = new NetworkDAO(db);
 			logger.info("Start deleting network " + id);
+			networkDao.logicalDeleteNetwork(id);
+			db.commit();
 			networkDao.deleteNetwork(id);
 			db.commit();
 			logger.info("Network " + id + " deleted.");

@@ -106,7 +106,7 @@ public class AdminService extends NdexService {
 					e.printStackTrace();
 					LoggerFactory.getLogger(AdminService.class).error("Failed to process queued task.  " + e.getMessage()) ;
 				} finally {
-					if ( db != null) db.close();
+//					if ( db != null) db.close();
 					LoggerFactory.getLogger(AdminService.class).info("Task processor finished. Db connection closed.") ;
 				}
 	       /*  }
@@ -151,9 +151,9 @@ public class AdminService extends NdexService {
 	        			} catch (IOException e) {
 							e.printStackTrace();
 							logger.error("IO exception when backing up database. " + e.getMessage());
-						} finally {
+						}  finally {
 	        			  db.close();
-	        			}
+	        			} 
 	        		 logger.info("Database back up fininished succefully.");
 
 	        	 } catch (NdexException e) {

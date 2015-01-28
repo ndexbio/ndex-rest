@@ -19,7 +19,7 @@
 		<smtpHost>mail.ndexbio.org</smtpHost>
 		<smtpPort>587</smtpPort>
 		<to>dexterpratt.bio@gmail.com</to>
-		<to>fjcriscuolo@ucsd.edu</to>
+		<to>jic002@ucsd.edu</to>
 		<from>exceptions@ndexbio.org</from>
 		<subject>Exception: %m</subject>
 		<username>support@ndexbio.org</username>
