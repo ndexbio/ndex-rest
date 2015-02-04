@@ -15,6 +15,7 @@ import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
+import org.ndexbio.common.models.dao.orientdb.TaskDocDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -156,7 +157,7 @@ public class TaskService extends NdexService
     			"A task id is required");
        
     	
-    	try (TaskDAO tdao= new TaskDAO(NdexDatabase.getInstance().getAConnection())) {
+    	try (TaskDocDAO tdao= new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
             
             final Task taskToDelete = tdao.getTaskByUUID(taskUUID);
             
@@ -164,14 +165,20 @@ public class TaskService extends NdexService
                 throw new ObjectNotFoundException("Task", taskUUID);
             else if (!taskToDelete.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId()))
                 throw new SecurityException("You cannot delete a task you don't own.");
-    
-            tdao.deleteTask(taskToDelete.getExternalId());
+        	    logger.info("Task " + taskUUID + " is already deleted.");
+            if ( taskToDelete.getIsDeleted()) {
             
-            tdao.commit();
-            logger.info("Task " + taskUUID + " is deleted by user " + this.getLoggedInUser().getAccountName());
+            } else {
+            	tdao.deleteTask(taskToDelete.getExternalId());
+            
+            	tdao.commit();
+            	logger.info("Task " + taskUUID + " is deleted by user " + this.getLoggedInUser().getAccountName());
+            }
         }
         catch (SecurityException | ObjectNotFoundException onfe)
         {
+            logger.severe("Failed to delete task " + taskUUID + ". Cause:" + onfe.getMessage());
+        	onfe.printStackTrace();
             throw onfe;
         }
         catch (Exception e)

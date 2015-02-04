@@ -30,6 +30,7 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
@@ -49,8 +50,8 @@ public class UserService extends NdexService {
 	
 	static Logger logger = Logger.getLogger(UserService.class.getName());
 	
-	private UserDAO dao;
-	private ODatabaseDocumentTx  localConnection; 
+//	private UserDAO dao;
+//	private ODatabaseDocumentTx  localConnection; 
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -88,21 +89,16 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
 		
-		ODatabaseDocumentTx db = null;
-		try {
-			logInfo(logger, "Creating User "+ newUser.getAccountName());
-			newUser.setAccountName(newUser.getAccountName().toLowerCase());
+		logInfo(logger, "Creating User "+ newUser.getAccountName());
 
-			db = NdexDatabase.getInstance().getAConnection();
-			UserDAO userdao = new UserDAO(db);
+		try (UserDocDAO userdao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
+
+			newUser.setAccountName(newUser.getAccountName().toLowerCase());
 
 			User user = userdao.createNewUser(newUser);
 			userdao.commit();
 			logInfo(logger, "User " + newUser.getAccountName() + " created with UUID " + user.getExternalId());
 			return user;
-		} finally {
-			if ( db != null ) 
-				db.close();
 		}
 	}
 	
@@ -125,9 +121,7 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		
 		logInfo( logger, "Getting user " + userId);
-		localConnection = NdexDatabase.getInstance().getAConnection();
-		dao = new UserDAO(localConnection);
-		
+		UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection());
 		try {
 			final User user = dao.getUserByAccountName(userId.toLowerCase());
 			logInfo(logger, "User object returned for user account " + userId );
@@ -137,7 +131,8 @@ public class UserService extends NdexService {
 			logInfo(logger, "User object returned for user id " + userId );
 			return user;	
 		} finally  {
-			dao.close();
+			if ( dao !=null)
+				dao.close();
 		}
 		
 	}
@@ -169,16 +164,11 @@ public class UserService extends NdexService {
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		localConnection = NdexDatabase.getInstance().getAConnection();
-		dao = new UserDAO(localConnection);
-		
-		try {
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
 			List<Membership> members= dao.getUserNetworkMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
 			logInfo (logger, "Returned " + members.size() + " members for user " + userId);
 			return members;
-		} finally {
-			dao.close();
-		}
+		} 
 	}
 	
 	/**************************************************************************
@@ -208,14 +198,12 @@ public class UserService extends NdexService {
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		localConnection = NdexDatabase.getInstance().getAConnection();
-		
-		try {
-			dao = new UserDAO(localConnection);
-			return dao.getUserGroupMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
-		} finally {
-			dao.close();
-		}
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
+			List<Membership> result =
+					dao.getUserGroupMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
+			logInfo(logger, "Got " + result.size() + " grp membership for user " + userId);
+			return result;
+		} 
 	}
 
 
@@ -242,14 +230,11 @@ public class UserService extends NdexService {
 			throws SecurityException, NdexException {
 		
 		logInfo(logger, "Authentiate user " + accountName);
-		localConnection = NdexDatabase.getInstance().getAConnection();
 
-		try {
-			dao = new UserDAO(localConnection);
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
+			
 			return dao.authenticateUser(accountName.toLowerCase(), password);
-		} finally {
-			dao.close();
-		}
+		} 
 		
 	}
 
@@ -278,16 +263,11 @@ public class UserService extends NdexService {
 				"A password is required");
 
 		logger.info("Changing password for user " + getLoggedInUser().getAccountName());
-		localConnection = NdexDatabase.getInstance().getAConnection();
 		
-		try {
-			dao = new UserDAO(localConnection);
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
 			dao.changePassword(password, getLoggedInUser().getExternalId());
 			dao.commit();
 			logger.info("Password changed for user " + getLoggedInUser().getAccountName());
-		} finally {
-			dao.close();
-			dao = null;
 		}
 	}
 
@@ -304,18 +284,12 @@ public class UserService extends NdexService {
 	public void deleteUser() throws NdexException, ObjectNotFoundException {
 
 		logInfo(logger, "Deleting user (self).");
-		localConnection = NdexDatabase.getInstance().getAConnection();
-		dao = new UserDAO(localConnection);
 		
-		try {
+		try (UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection())) {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
 			dao.commit();
 			logger.info("User " + getLoggedInUser().getAccountName() + " deleted.");
-		} finally {
-			dao.close();
-			dao = null;
-		}
-		
+		} 
 	}
 
 	/**************************************************************************
@@ -348,12 +322,9 @@ public class UserService extends NdexService {
 		// now anyone can change anyone else's password to a randomly generated
 		// password
 		
-		localConnection = NdexDatabase.getInstance().getAConnection();
-		
 		BufferedReader fileReader = null;
-		try {
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 
-			dao = new UserDAO(localConnection);
 			User authUser = dao.getUserByAccountName(accountName);
 			String newPasswd = dao.setNewPassword(accountName.toLowerCase());
 
@@ -388,7 +359,6 @@ public class UserService extends NdexService {
 			return Response.ok().build();
 			
 		} finally {
-			dao.close();
 			if ( fileReader !=null ) fileReader.close();
 		}
 	}
@@ -413,20 +383,16 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 		
 		logInfo (logger, "Searching user \"" + simpleUserQuery.getSearchString() + "\"");
-		localConnection = NdexDatabase.getInstance().getAConnection();
 		
-		try {
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 
 			if(simpleUserQuery.getAccountName() != null)
 				simpleUserQuery.setAccountName(simpleUserQuery.getAccountName().toLowerCase());
 			
-			dao = new UserDAO(localConnection);
 			final List<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
 			logInfo ( logger, "Returning " + users.size() + " users from search.");
 			return users;
-		} finally {
-			dao.close();
-		}
+		} 
 		
 	}
 
@@ -456,17 +422,13 @@ public class UserService extends NdexService {
 		// However, this depends on the authentication method staying consistent?
 
 		logInfo(logger, "Updating user " + updatedUser.getAccountName() );
-		localConnection = NdexDatabase.getInstance().getAConnection();
 
-		try {
-			dao = new UserDAO(localConnection);
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			dao.commit();
 			logger.info("User " + user.getAccountName() + " updated.");
 			return user;
-		} finally {
-			dao.close();
-		}
+		} 
 	}
 	
 	@GET
@@ -480,10 +442,8 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
 		logInfo( logger, "Getting membership of account " + accountId );
-		localConnection = NdexDatabase.getInstance().getAConnection();
 		
-		try {
-			dao = new UserDAO(localConnection);
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			Membership m = dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId), depth);
 			if ( m==null)
 				logInfo(logger, "No membership found for account " + accountId + 
@@ -492,9 +452,7 @@ public class UserService extends NdexService {
 				logInfo(logger, "Membership " + m.getPermissions().name() + " found for account " + accountId + 
 					" on resource " + resourceId);
 			return m;
-		} finally {
-			dao.close();
-		}
+		} 
 	}
 	
 	
@@ -510,15 +468,10 @@ public class UserService extends NdexService {
 		
 		logInfo (logger, "Getting requests sent by user " + userId);
 		
-		localConnection = NdexDatabase.getInstance().getAConnection();
-		dao = new UserDAO(localConnection);
-		
-		try {
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			List<Request> reqs= dao.getSentRequest(this.getLoggedInUser(),skipBlocks, blockSize);
 			logInfo( logger, "Returning " + reqs.size() + " requests sent by user " + userId);
 			return reqs;
-		} finally {
-			dao.close();
 		}
 	}
 	
@@ -532,16 +485,11 @@ public class UserService extends NdexService {
 		
 		logInfo (logger, "Getting pending request for user");
 		
-		localConnection = NdexDatabase.getInstance().getAConnection();
-		dao = new UserDAO(localConnection);
-		
-		try {
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			List<Request> reqs= dao.getPendingRequest(this.getLoggedInUser(),skipBlocks, blockSize);
 			logInfo ( logger, "Returning " + reqs.size() + " pending request under user " + userId);
 			return reqs;
-		} finally {
-			dao.close();
-		}
+		} 
 	}
 	
 	@GET
@@ -556,17 +504,12 @@ public class UserService extends NdexService {
 		
 		logInfo( logger, "Getting users tasks.");
 		
-		localConnection = NdexDatabase.getInstance().getAConnection();
-		
-		try {
-			dao = new UserDAO(localConnection);
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			Status taskStatus = Status.valueOf(status);
 			List<Task> tasks= dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
 			logInfo(logger, "Returned " + tasks.size() + " tasks under user " + userId);
 			return tasks;
-		} finally {
-			dao.close();
-		}
+		} 
 	}
 	
 }
