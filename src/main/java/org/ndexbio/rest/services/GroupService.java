@@ -620,7 +620,7 @@ public class GroupService extends NdexService {
 */
 	private void openDatabase() throws NdexException {
 		localConnection = NdexDatabase.getInstance().getAConnection();
-		dao = new GroupDAO(localConnection, false);
+		dao = new GroupDAO(localConnection);
 	}
 	private void closeDatabase() {
 		dao.close();
