@@ -61,6 +61,7 @@ import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.helpers.UploadedFile;
 import org.ndexbio.task.Configuration;
+import org.ndexbio.task.NdexServerQueue;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -1019,12 +1020,23 @@ public class NetworkAService extends NdexService {
 	           throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 	        }
 
-			NetworkDAO networkDao = new NetworkDAO(db);
-			logger.info("Start deleting network " + id);
-			networkDao.logicalDeleteNetwork(id);
-			db.commit();
-			networkDao.deleteNetwork(id);
-			db.commit();
+			try (NetworkDAO networkDao = new NetworkDAO(db)) {
+				logger.info("Start deleting network " + id);
+				networkDao.logicalDeleteNetwork(id);
+				networkDao.commit();
+//				networkDao.deleteNetwork(id);
+//				db.commit();
+				Task task = new Task();
+				task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
+				task.setResource(id);
+				try {
+					NdexServerQueue.INSTANCE.addSystemTask(task);
+				} catch (InterruptedException e) {
+					logger.severe("Interrupted when deleting network " + e.getMessage());
+					e.printStackTrace();
+				}
+			}
+			db = null;
 			logger.info("Network " + id + " deleted.");
 		} finally {
 			if ( db != null) db.close();

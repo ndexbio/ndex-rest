@@ -1,18 +1,25 @@
 package org.ndexbio.rest;
 
 import java.io.File;
+import java.util.List;
 
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.NdexServerProperties;
-import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.TaskType;
 import org.ndexbio.task.Configuration;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SystemTaskProcessor;
 import org.ndexbio.task.utility.DatabaseInitializer;
 
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.orientechnologies.orient.server.OServer;
 import com.orientechnologies.orient.server.OServerMain;
 
@@ -75,16 +82,22 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
     	
 			System.out.println("Db created for " + NdexDatabase.getURIPrefix());
     	
-			ODatabaseDocumentTx conn = db.getAConnection();
-			UserDAO dao = new UserDAO(conn);
+			try (UserDocDAO dao = new UserDocDAO(db.getAConnection())) {
     	
-			String sysUserEmail = configuration.getProperty("NdexSystemUserEmail");
-			DatabaseInitializer.createUserIfnotExist(dao, configuration.getSystmUserName(),
+				String sysUserEmail = configuration.getProperty("NdexSystemUserEmail");
+				DatabaseInitializer.createUserIfnotExist(dao, configuration.getSystmUserName(),
 					(sysUserEmail == null? "support@ndexbio.org" : sysUserEmail), 
     				configuration.getSystemUserPassword());
-			conn.commit();
-			conn.close();
-			conn = null;
+			}
+			
+			// find tasks that needs to be processed in system queue
+			populateSystemQueue();
+			
+			System.out.print("Starting system task executor...");
+			new Thread(new SystemTaskProcessor()).start();
+			System.out.println("Done.");
+
+			
 		} catch (NdexException e) {
 			e.printStackTrace();
 			throw new javax.servlet.ServletException(e.getMessage());
@@ -108,6 +121,24 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
         }
         
 		super.destroy();
+	}
+	
+	
+	private static void populateSystemQueue() throws NdexException {
+		try ( ODatabaseDocumentTx odb = NdexDatabase.getInstance().getAConnection()) {
+			OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
+		  			"SELECT FROM network where isDeleted = true");
+			List<ODocument> records = odb.command(query).execute();
+			for ( ODocument doc : records ) {
+				String networkId = doc.field(NdexClasses.ExternalObj_ID);
+				Task t = new Task();
+				t.setResource(networkId);
+				t.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
+				NdexServerQueue.INSTANCE.addSystemTask(t);
+			}
+			System.out.println (records.size() + " deleted network found, adding to system task queue.");
+		} catch (InterruptedException e) {
+		}
 	}
 	
 }
