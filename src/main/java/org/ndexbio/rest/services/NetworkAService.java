@@ -1133,6 +1133,7 @@ public class NetworkAService extends NdexService {
 		try (TaskDAO dao = new TaskDAO(NdexDatabase.getInstance().getAConnection())){
 			dao.createTask(userAccount, processNetworkTask);
 			dao.commit();
+			
 		} catch (IllegalArgumentException iae) {
 			throw iae;
 		} catch (Exception e) {

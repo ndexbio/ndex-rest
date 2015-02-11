@@ -1,16 +1,19 @@
 package org.ndexbio.rest;
 
 import java.io.File;
+import java.util.Collection;
 import java.util.List;
 
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.NdexServerProperties;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.orientdb.TaskDocDAO;
 import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
+import org.ndexbio.task.ClientTaskProcessor;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SystemTaskProcessor;
@@ -92,9 +95,13 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			
 			// find tasks that needs to be processed in system queue
 			populateSystemQueue();
+			populateUserQueue();
 			
 			System.out.print("Starting system task executor...");
 			new Thread(new SystemTaskProcessor()).start();
+			System.out.println("Done.");
+			System.out.print("Starting client task executor...");
+			new Thread(new ClientTaskProcessor()).start();
 			System.out.println("Done.");
 
 			
@@ -140,5 +147,17 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 		} catch (InterruptedException e) {
 		}
 	}
+
 	
+	private static void populateUserQueue() throws NdexException {
+		try ( TaskDocDAO taskDAO = new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
+			Collection<Task> list =taskDAO.getUnfinishedTasks(); 
+			for ( Task t : list) {
+				NdexServerQueue.INSTANCE.addUserTask(t);
+			}
+			System.out.println (list.size() + " unfinished user tasks found, adding to user task queue.");
+		} catch (InterruptedException e) {
+		}
+	}
+
 }
