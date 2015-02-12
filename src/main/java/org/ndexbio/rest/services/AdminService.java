@@ -13,12 +13,10 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
-import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
 import org.ndexbio.task.Configuration;
-import org.ndexbio.task.NdexQueuedTaskProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,30 +45,23 @@ public class AdminService extends NdexService {
 	@PermitAll
 	@Path("/status")
 	@Produces("application/json")
-	public NdexStatus getStatus() throws NdexException	{
+	public static NdexStatus getStatus() throws NdexException	{
 
-		ODatabaseDocumentTx db = null;
-		try {
+		try (ODatabaseDocumentTx db =NdexDatabase.getInstance().getAConnection()){
 			
-			db = NdexDatabase.getInstance().getAConnection();
-
 			NdexStatus status = new NdexStatus();
-			status.setNetworkCount(this.getClassCount(db,"network"));
-			status.setUserCount(this.getClassCount(db,"user"));
-			status.setGroupCount(this.getClassCount(db,"group")); 
+			status.setNetworkCount(AdminService.getClassCount(db,"network"));
+			status.setUserCount(AdminService.getClassCount(db,"user"));
+			status.setGroupCount(AdminService.getClassCount(db,"group")); 
 		    
 			Map<String,String> props = status.getProperties();
 			props.put("ServerResultLimit", "10000");
 			status.setProperties(props);
 			return status;
-		} finally {
-			if ( db!=null) db.close();
-
-		}
-
+		} 
 	}
 
-	private Integer getClassCount(ODatabaseDocumentTx db, String className) {
+	private static Integer getClassCount(ODatabaseDocumentTx db, String className) {
 
 		final List<ODocument> classCountResult = db.query(new OSQLSynchQuery<ODocument>(
 						"SELECT COUNT(*) as count FROM " + className));
@@ -83,17 +74,13 @@ public class AdminService extends NdexService {
 
 	} 
 	
-	
+/*	
 	@GET
 	@Path("/processqueue")
 	@Produces("application/json")
 	public void processTasks() throws NdexException	{
 		if ( !isSystemUser())
 			throw new NdexException ("Only Sysetm users are allowed to call task runner from API.");
-/*		Thread t = new Thread(new Runnable() {
-	         @Override
-			public void run()
-	         {*/
 	        	NdexDatabase db = null;
 	     		try {
 	     			LoggerFactory.getLogger(AdminService.class).info("Task processor started.") ;
@@ -106,14 +93,11 @@ public class AdminService extends NdexService {
 					e.printStackTrace();
 					LoggerFactory.getLogger(AdminService.class).error("Failed to process queued task.  " + e.getMessage()) ;
 				} finally {
-//					if ( db != null) db.close();
 					LoggerFactory.getLogger(AdminService.class).info("Task processor finished. Db connection closed.") ;
 				}
-	       /*  }
-		});
-		t.start(); */
 	}
-	
+*/	
+/*
 	@GET
 	@Path("/backupdb")
 	@Produces("application/json")
@@ -146,6 +130,7 @@ public class AdminService extends NdexService {
 	        			  };
 
 	        			  ODatabaseExport export = new ODatabaseExport(db, exportFile, listener);
+	        			  export.setIncludeIndexDefinitions(false);
 	        			  export.exportDatabase();
 	        			  export.close();
 	        			} catch (IOException e) {
@@ -168,10 +153,10 @@ public class AdminService extends NdexService {
 		});
 		t.start();
 	}
-
+*/
 	
-	private boolean isSystemUser() throws NdexException {
+/*	private boolean isSystemUser() throws NdexException {
 	  return getLoggedInUser().getAccountName().equals(Configuration.getInstance().getSystmUserName()) ;
 	}
-
+*/
 }

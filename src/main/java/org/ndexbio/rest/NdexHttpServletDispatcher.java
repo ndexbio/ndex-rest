@@ -3,6 +3,7 @@ package org.ndexbio.rest;
 import java.io.File;
 import java.util.Collection;
 import java.util.List;
+import java.util.Timer;
 
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.NdexClasses;
@@ -104,6 +105,11 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			new Thread(new ClientTaskProcessor()).start();
 			System.out.println("Done.");
 
+			// setup the automatic backup
+			 Timer timer = new Timer();
+			 timer.scheduleAtFixedRate(new DatabaseBackupTask(), 
+					 DatabaseBackupTask.getTomorrowBackupTime(), 
+					 DatabaseBackupTask.fONCE_PER_DAY);
 			
 		} catch (NdexException e) {
 			e.printStackTrace();
@@ -144,7 +150,6 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 				NdexServerQueue.INSTANCE.addSystemTask(t);
 			}
 			System.out.println (records.size() + " deleted network found, adding to system task queue.");
-		} catch (InterruptedException e) {
 		}
 	}
 
@@ -156,8 +161,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 				NdexServerQueue.INSTANCE.addUserTask(t);
 			}
 			System.out.println (list.size() + " unfinished user tasks found, adding to user task queue.");
-		} catch (InterruptedException e) {
-		}
+		} 
 	}
 
 }

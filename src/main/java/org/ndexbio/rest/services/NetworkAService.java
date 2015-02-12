@@ -1029,12 +1029,7 @@ public class NetworkAService extends NdexService {
 				Task task = new Task();
 				task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
 				task.setResource(id);
-				try {
-					NdexServerQueue.INSTANCE.addSystemTask(task);
-				} catch (InterruptedException e) {
-					logger.severe("Interrupted when deleting network " + e.getMessage());
-					e.printStackTrace();
-				}
+				NdexServerQueue.INSTANCE.addSystemTask(task);
 			}
 			db = null;
 			logger.info("Network " + id + " deleted.");
