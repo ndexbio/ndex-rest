@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.Collection;
 import java.util.List;
 import java.util.Timer;
+import java.util.logging.Logger;
 
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.NdexClasses;
@@ -28,6 +29,8 @@ import com.orientechnologies.orient.server.OServer;
 import com.orientechnologies.orient.server.OServerMain;
 
 public class NdexHttpServletDispatcher extends HttpServletDispatcher {
+	
+    private static Logger logger = Logger.getLogger(NdexHttpServletDispatcher.class.getSimpleName());
 	
 	/**
 	 * 
@@ -88,7 +91,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	    			configuration.getDBUser(),
 	    			configuration.getDBPasswd(), size.intValue());
     	
-			System.out.println("Db created for " + NdexDatabase.getURIPrefix());
+			logger.info("Db created for " + NdexDatabase.getURIPrefix());
     	
 			try (UserDocDAO dao = new UserDocDAO(db.getAConnection())) {
     	
@@ -104,14 +107,12 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 
 			systemTaskProcessor = new SystemTaskProcessor();
 			clientTaskProcessor = new ClientTaskProcessor();
-			System.out.print("Starting system task executor...");
 			systemTaskProcessorThread = new Thread(systemTaskProcessor);
 			systemTaskProcessorThread.start();
-			System.out.println("Done.");
-			System.out.print("Starting client task executor...");
+			logger.info("System task executor started.");
 			clientTaskProcessorThread = new Thread(clientTaskProcessor);
 			clientTaskProcessorThread.start();
-			System.out.println("Done.");
+			logger.info("Client task executor started.");
 
 			// setup the automatic backup
 			 Timer timer = new Timer();
@@ -130,30 +131,30 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	@Override
 	public void destroy() {
 		
-        System.out.println("Database clean up started");
+		logger.info("Shutting down ndex rest server.");
         try {
         	
         	//signal the task queues and wait for them to finish.
         	clientTaskProcessor.shutdown();
         	systemTaskProcessor.shutdown();
+
+        	NdexServerQueue.INSTANCE.shutdown();
         	
-        	systemTaskProcessorThread.interrupt();
-        	clientTaskProcessorThread.interrupt();
-        	
-        	System.out.println("Waiting task processors to stop.");
+        	logger.info("Waiting task processors to stop.");
         	
         	systemTaskProcessorThread.join();
+        	logger.info("System task processor stopped.");
         	clientTaskProcessorThread.join();
-        	System.out.println("Task processors stopped.");
-        //	NdexServerQueue.INSTANCE.getSystemTaskQueue().
+        	
+        	logger.info("Client task processors stopped. Closing database");
         	
         	NdexDatabase.close();
         	Orient.instance().shutdown();
 		    orientDBServer.shutdown();			
-        	System.out.println ("Database has been closed.");
+		    logger.info ("Database has been closed.");
         } catch (Exception ee) {
             ee.printStackTrace();
-            System.out.println("Error occured when shutting down Orient db.");
+            logger.info("Error occured when shutting down Orient db.");
         }
         
 		super.destroy();
@@ -172,7 +173,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 				t.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
 				NdexServerQueue.INSTANCE.addSystemTask(t);
 			}
-			System.out.println (records.size() + " deleted network found, adding to system task queue.");
+			logger.info (records.size() + " deleted network found, adding to system task queue.");
 		}
 	}
 
@@ -183,7 +184,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			for ( Task t : list) {
 				NdexServerQueue.INSTANCE.addUserTask(t);
 			}
-			System.out.println (list.size() + " unfinished user tasks found, adding to user task queue.");
+			logger.info (list.size() + " unfinished user tasks found, adding to user task queue.");
 		} 
 	}
 
