@@ -35,6 +35,10 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	private static final long serialVersionUID = 1L;
 	private static final int defaultPoolSize = 50;
 	private OServer orientDBServer;
+	private Thread  systemTaskProcessorThread;
+	private Thread  clientTaskProcessorThread;
+	private SystemTaskProcessor systemTaskProcessor;
+	private ClientTaskProcessor clientTaskProcessor;
 	
 	public NdexHttpServletDispatcher() {
 		super();
@@ -97,12 +101,16 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			// find tasks that needs to be processed in system queue
 			populateSystemQueue();
 			populateUserQueue();
-			
+
+			systemTaskProcessor = new SystemTaskProcessor();
+			clientTaskProcessor = new ClientTaskProcessor();
 			System.out.print("Starting system task executor...");
-			new Thread(new SystemTaskProcessor()).start();
+			systemTaskProcessorThread = new Thread(systemTaskProcessor);
+			systemTaskProcessorThread.start();
 			System.out.println("Done.");
 			System.out.print("Starting client task executor...");
-			new Thread(new ClientTaskProcessor()).start();
+			clientTaskProcessorThread = new Thread(clientTaskProcessor);
+			clientTaskProcessorThread.start();
 			System.out.println("Done.");
 
 			// setup the automatic backup
@@ -124,6 +132,21 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 		
         System.out.println("Database clean up started");
         try {
+        	
+        	//signal the task queues and wait for them to finish.
+        	clientTaskProcessor.shutdown();
+        	systemTaskProcessor.shutdown();
+        	
+        	systemTaskProcessorThread.interrupt();
+        	clientTaskProcessorThread.interrupt();
+        	
+        	System.out.println("Waiting task processors to stop.");
+        	
+        	systemTaskProcessorThread.join();
+        	clientTaskProcessorThread.join();
+        	System.out.println("Task processors stopped.");
+        //	NdexServerQueue.INSTANCE.getSystemTaskQueue().
+        	
         	NdexDatabase.close();
         	Orient.instance().shutdown();
 		    orientDBServer.shutdown();			
