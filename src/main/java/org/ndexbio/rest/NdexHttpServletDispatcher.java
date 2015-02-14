@@ -173,7 +173,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 				t.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
 				NdexServerQueue.INSTANCE.addSystemTask(t);
 			}
-			logger.info (records.size() + " deleted network found, adding to system task queue.");
+			logger.info (records.size() + " deleted network found for system task queue.");
 		}
 	}
 
@@ -184,7 +184,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			for ( Task t : list) {
 				NdexServerQueue.INSTANCE.addUserTask(t);
 			}
-			logger.info (list.size() + " unfinished user tasks found, adding to user task queue.");
+			logger.info (list.size() + " unfinished user tasks found for user task queue.");
 		} 
 	}
 
