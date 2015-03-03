@@ -6,23 +6,24 @@ import java.util.List;
 
 import javax.annotation.security.DenyAll;
 import javax.annotation.security.PermitAll;
+import javax.naming.NamingException;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
-import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.util.Base64;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.User;
+import org.ndexbio.security.LDAPAuthenticator;
+import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 /*
  * class represents a RestEasy request filter that will validate
@@ -37,45 +38,58 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
     private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<Object>());
     private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<Object>());
-
+    private static LDAPAuthenticator ADAuthenticator = null;
     
+    public BasicAuthenticationFilter() throws NdexException, NamingException {
+    	super();
+    	
+    	if ( Configuration.getInstance().getUseADAuthentication() && ADAuthenticator == null) {
+    		ADAuthenticator = new LDAPAuthenticator(Configuration.getInstance());
+    	}
+    }
+    
+    public static LDAPAuthenticator getLDAPAuthenticator() {
+    	return ADAuthenticator;
+    }
     
     @Override
     public void filter(ContainerRequestContext requestContext)
     {
         final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)requestContext.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
         final Method method = methodInvoker.getMethod();
-        ODatabaseDocumentTx localConnection = null;
+//        ODatabaseDocumentTx localConnection = null;
         
         String[] authInfo = null;
         User authUser = null;
         try
         {
-        	localConnection = NdexDatabase.getInstance().getAConnection();
-        	 UserDAO dao = new UserDAO(localConnection);
         	
             authInfo = parseCredentials(requestContext);
             if(authInfo != null)
-            	authInfo[0] = authInfo[0].toLowerCase();
-            	authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
-            	// TODO use alternate method that does not return user object, instead returns ORID/Identifier
+            	if (ADAuthenticator !=null ) {
+            		if ( ADAuthenticator.authenticateUser(authInfo[0], authInfo[1]) ) {
+            			_logger.info("User " + authInfo[0] + "authenticated by AD.");
+                		try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
+                   		 authUser = dao.getUserByAccountName(authInfo[0]);
+                   		}
+            		}
+            	} else {
+            		authInfo[0] = authInfo[0].toLowerCase();
+  //          		localConnection = NdexDatabase.getInstance().getAConnection();
+            		try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
+            		 authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
+            		}
+            	}	
             if (authUser != null)
                 requestContext.setProperty("User", authUser);
-            	// TODO set an ORID/Identifier property? speed up retrieval times
         }
         catch (Exception e)
         {
             if (authInfo != null && authInfo.length >= 2)
-                _logger.error("Failed to authenticate a user: " + authInfo[0] + "/" + authInfo[1] + ".", e);
+                _logger.error("Failed to authenticate a user: " + authInfo[0] , e);
             else
                 _logger.error("Failed to authenticate a user; credential information unknown.");
         } 
-        finally 
-        {
-        	if(localConnection != null) {
-        		localConnection.close();
-        	}
-        }
         
         if (!method.isAnnotationPresent(PermitAll.class))
         {

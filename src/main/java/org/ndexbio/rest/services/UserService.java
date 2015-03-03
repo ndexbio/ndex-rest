@@ -21,7 +21,9 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
+import org.apache.commons.lang.RandomStringUtils;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.UnautherizedOperationException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
@@ -31,6 +33,7 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
@@ -40,6 +43,7 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.task.Configuration;
 
 import com.google.common.base.Preconditions;
@@ -90,6 +94,16 @@ public class UserService extends NdexService {
 			NdexException {
 		
 		logInfo(logger, "Creating User "+ newUser.getAccountName());
+		
+		//verify against AD if AD authentication is defined in the configure file
+		if( Configuration.getInstance().getUseADAuthentication()) {
+			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
+			if (!authenticator.authenticateUser(newUser.getAccountName(), newUser.getPassword()) ) {
+				throw new UnautherizedOperationException("Only valid AD users can have an account in NDEx.");
+			}
+			newUser.setPassword(RandomStringUtils.random(25));
+			logInfo(logger, "User is a authenticated by AD.");
+		}
 
 		try (UserDocDAO userdao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
 
@@ -231,8 +245,19 @@ public class UserService extends NdexService {
 		
 		logInfo(logger, "Authentiate user " + accountName);
 
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
+		if ( Configuration.getInstance().getUseADAuthentication()) {
+			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
+			if ( !authenticator.authenticateUser(accountName, password))
+				throw new SecurityException("Invalid accountName or password in AD.");
 			
+			try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
+				logInfo(logger, "User " + accountName + " authenticated.");
+				return dao.getUserByAccountName(accountName);
+			}	
+		}
+		
+		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
+			logInfo(logger, "User " + accountName + " authenticated.");
 			return dao.authenticateUser(accountName.toLowerCase(), password);
 		} 
 		

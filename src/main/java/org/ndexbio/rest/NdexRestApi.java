@@ -3,6 +3,7 @@ package org.ndexbio.rest;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.naming.NamingException;
 import javax.ws.rs.core.Application;
 
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
@@ -33,32 +34,9 @@ public class NdexRestApi extends Application
 {
     private final Set<Object> _providers = new HashSet<>();
     private final Set<Class<?>> _resources = new HashSet<>();
-    
-	    
-    
-    public NdexRestApi() throws NdexException
+        
+    public NdexRestApi() throws NdexException, NamingException
     {
-    	// read configuration
-/*    	Configuration configuration = Configuration.getInstance();
-    	
-    	//and initialize the db connections
-    	NdexAOrientDBConnectionPool.createOrientDBConnectionPool(
-    			configuration.getDBURL(),
-    			configuration.getDBUser(),
-    			configuration.getDBPasswd());
-    	
-    	NdexDatabase db = new NdexDatabase (configuration.getHostURI());
-    	
-    	System.out.println("Db created for " + db.getURIPrefix());
-    	
-    	ODatabaseDocumentTx conn = db.getAConnection();
-    	UserDAO dao = new UserDAO(conn);
-    	
-    	DatabaseInitializer.createUserIfnotExist(dao, configuration.getSystmUserName(), "support@ndexbio.org", 
-    				configuration.getSystemUserPassword());
-    	conn.close();
-    	db.close();
-*/    	
     	_resources.add(GroupService.class); 
         _resources.add(UserService.class); 
         _resources.add(RequestService.class);
@@ -74,7 +52,6 @@ public class NdexRestApi extends Application
         _providers.add(new ObjectNotFoundExceptionMapper());
         _providers.add(new SecurityExceptionMapper());
         
- //       Runtime.getRuntime().addShutdownHook(new MyShutdown());
     }
     
     
@@ -90,21 +67,5 @@ public class NdexRestApi extends Application
     {
         return _providers;
     }
-  /*  
-    class MyShutdown extends Thread {
-
-    	@Override
-		public void run() {
-            System.out.println("Database clean up Thread started");
-            try {
-            	//NdexAOrientDBConnectionPool.close();
-            	Orient.instance().shutdown();
-            	System.out.println ("Database has been closed.");
-            } catch (Exception ee) {
-                ee.printStackTrace();
-            }
-        }
-    }
- */
     
 }
