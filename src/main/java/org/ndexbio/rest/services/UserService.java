@@ -448,6 +448,13 @@ public class UserService extends NdexService {
 
 		logInfo(logger, "Updating user " + updatedUser.getAccountName() );
 
+		if ( Configuration.getInstance().getUseADAuthentication()) {
+			if ( !updatedUser.getAccountName().equals(getLoggedInUser().getAccountName())) {
+				throw new UnautherizedOperationException(
+						"Updating accountName is not allow when NDEx server is running on AD authentication.");
+			}
+		}
+		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			dao.commit();
