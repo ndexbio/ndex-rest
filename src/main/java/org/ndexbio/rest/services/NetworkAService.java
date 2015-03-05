@@ -657,10 +657,8 @@ public class NetworkAService extends NdexService {
 
 		logInfo (logger, "Neighborhood search on " + networkId + " with phrase \"" + queryParameters.getSearchString() + "\"");
 		
-		ODatabaseDocumentTx db = null;
 
-		try {
-		   db =	NdexDatabase.getInstance().getAConnection();
+		try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()) {
 
 		   NetworkDAO networkDao = new NetworkDAO(db);
 
@@ -673,8 +671,6 @@ public class NetworkAService extends NdexService {
 					   networkId, Permissions.READ);
 		   }
 
-		   db.close();
-		   db = null;
 		   if ( hasPrivilege) {
 			   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
@@ -685,9 +681,7 @@ public class NetworkAService extends NdexService {
 		   }
 
 		   throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
-		} finally {
-			if ( db != null) db.close();
-		}
+		} 
 	}
 	
 	private boolean isSearchable(String networkId) 
