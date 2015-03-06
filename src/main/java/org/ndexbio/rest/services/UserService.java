@@ -90,7 +90,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
 	public User createUser(final NewUser newUser)
-			throws IllegalArgumentException, DuplicateObjectException,
+			throws IllegalArgumentException, DuplicateObjectException,UnautherizedOperationException,
 			NdexException {
 		
 		logInfo(logger, "Creating User "+ newUser.getAccountName());
@@ -241,7 +241,7 @@ public class UserService extends NdexService {
 	@ApiDoc("Authenticates the combination of accountName and password supplied in the route parameters, returns the authenticated user if successful.")
 	public User authenticateUser(@PathParam("accountName") final String accountName,
 			@PathParam("password") final String password)
-			throws SecurityException, NdexException {
+			throws SecurityException, UnautherizedOperationException, NdexException {
 		
 		logInfo(logger, "Authentiate user " + accountName);
 
@@ -439,7 +439,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. Errors if the user object references a different user.")
 	public User updateUser(@PathParam("userIdentifier") final String userId, final User updatedUser)
-			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
+			throws IllegalArgumentException, ObjectNotFoundException, UnautherizedOperationException, NdexException {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
 		
