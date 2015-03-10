@@ -359,6 +359,8 @@ public class NetworkAService extends NdexService {
 			}
 			if ( hasPrivilege) {
 				ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
+				if (doc == null)
+					throw new ObjectNotFoundException("Network", networkId);
 				NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
 				db.close();
 				db = null;
