@@ -932,6 +932,7 @@ public class NetworkAService extends NdexService {
 			NdexDatabase db = NdexDatabase.getInstance();
 			NdexNetworkCloneService service = null;
 			try {
+				newNetwork.setVisibility(VisibilityType.PRIVATE);
 				service = new NdexNetworkCloneService(db, newNetwork,
 						getLoggedInUser().getAccountName());
 
