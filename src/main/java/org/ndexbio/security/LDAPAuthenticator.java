@@ -20,7 +20,7 @@ import javax.naming.ldap.InitialLdapContext;
 import javax.naming.ldap.LdapContext;
 
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.UnautherizedOperationException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.task.Configuration;
 
 import com.google.common.cache.CacheBuilder;
@@ -80,14 +80,14 @@ public class LDAPAuthenticator {
                    		   userCredentials.put(new AbstractMap.SimpleImmutableEntry<String,String>(userName, pswd), Boolean.TRUE);	
                    		   return Boolean.TRUE;
                    	   }
-                   	   throw new UnautherizedOperationException("User " + userName + " is not in the required group." );
+                   	   throw new UnauthorizedOperationException("User " + userName + " is not in the required group." );
 				   }
 			    });;
        
 	}
 
 	
-	private Boolean userIsInNdexGroup (String username, String password) throws UnautherizedOperationException  {
+	private Boolean userIsInNdexGroup (String username, String password) throws UnauthorizedOperationException  {
       env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
       env.put(Context.SECURITY_CREDENTIALS, password);
       try {
@@ -123,16 +123,16 @@ public class LDAPAuthenticator {
 		}
 		return Boolean.FALSE;
       } catch (NamingException e) {
-    	  throw new UnautherizedOperationException(e.getMessage());
+    	  throw new UnauthorizedOperationException(e.getMessage());
       }
 	}
 	
-	public boolean authenticateUser(String username, String password) throws UnautherizedOperationException {
+	public boolean authenticateUser(String username, String password) throws UnauthorizedOperationException {
 		Boolean result;
 		try {
 			result = userCredentials.get(new AbstractMap.SimpleImmutableEntry<String,String>(username, password));
 		} catch (ExecutionException e) {
-			throw new UnautherizedOperationException(e.getMessage());
+			throw new UnauthorizedOperationException(e.getMessage());
 		}
 		return result.booleanValue() ;
 	}

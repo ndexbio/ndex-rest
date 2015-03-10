@@ -4,12 +4,12 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.ExceptionMapper;
 
-import org.ndexbio.model.exceptions.UnautherizedOperationException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 
-public class UnautherizedOperationExceptionMapper implements ExceptionMapper<UnautherizedOperationException>
+public class UnauthorizedOperationExceptionMapper implements ExceptionMapper<UnauthorizedOperationException>
 {
     @Override
-    public Response toResponse(UnautherizedOperationException exception)
+    public Response toResponse(UnauthorizedOperationException exception)
     {
         return Response
             .status(Status.UNAUTHORIZED)

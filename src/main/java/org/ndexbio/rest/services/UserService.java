@@ -23,7 +23,7 @@ import javax.ws.rs.core.Response;
 
 import org.apache.commons.lang.RandomStringUtils;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.UnautherizedOperationException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
@@ -90,7 +90,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
 	public User createUser(final NewUser newUser)
-			throws IllegalArgumentException, DuplicateObjectException,UnautherizedOperationException,
+			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
 			NdexException {
 		
 		logInfo(logger, "Creating User "+ newUser.getAccountName());
@@ -99,7 +99,7 @@ public class UserService extends NdexService {
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
 			if (!authenticator.authenticateUser(newUser.getAccountName(), newUser.getPassword()) ) {
-				throw new UnautherizedOperationException("Only valid AD users can have an account in NDEx.");
+				throw new UnauthorizedOperationException("Only valid AD users can have an account in NDEx.");
 			}
 			newUser.setPassword(RandomStringUtils.random(25));
 			logInfo(logger, "User is a authenticated by AD.");
@@ -241,7 +241,7 @@ public class UserService extends NdexService {
 	@ApiDoc("Authenticates the combination of accountName and password supplied in the route parameters, returns the authenticated user if successful.")
 	public User authenticateUser(@PathParam("accountName") final String accountName,
 			@PathParam("password") final String password)
-			throws SecurityException, UnautherizedOperationException, NdexException {
+			throws SecurityException, UnauthorizedOperationException, NdexException {
 		
 		logInfo(logger, "Authentiate user " + accountName);
 
@@ -439,7 +439,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. Errors if the user object references a different user.")
 	public User updateUser(@PathParam("userIdentifier") final String userId, final User updatedUser)
-			throws IllegalArgumentException, ObjectNotFoundException, UnautherizedOperationException, NdexException {
+			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
 		
@@ -450,7 +450,7 @@ public class UserService extends NdexService {
 
 		if ( Configuration.getInstance().getUseADAuthentication()) {
 			if ( !updatedUser.getAccountName().equals(getLoggedInUser().getAccountName())) {
-				throw new UnautherizedOperationException(
+				throw new UnauthorizedOperationException(
 						"Updating accountName is not allow when NDEx server is running on AD authentication.");
 			}
 		}
