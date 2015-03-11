@@ -35,11 +35,14 @@ public class LDAPAuthenticator {
 	private final static String PROP_LDAP_URL = "PROP_LDAP_URL";
 	private final static String AD_SEARCH_BASE= "AD_SEARCH_BASE";
 	private final static String AD_NDEX_GROUP_NAME="AD_NDEX";
+	private final static String AD_AUTH_USE_CACHE="AD_AUTH_USE_CACHE";
+	
 	private String ldapAdServer;
 	private String ldapSearchBase;
 	private String ldapNDExGroup;
 	private Hashtable <String,Object> env ;
 	private Pattern pattern ;
+	private boolean useCache;
 	
 	//key is the combination of 
 	protected LoadingCache<java.util.Map.Entry<String,String>, Boolean>  userCredentials;
@@ -67,7 +70,10 @@ public class LDAPAuthenticator {
        
 	   pattern = Pattern.compile("^CN=(.*?[^\\\\]),");
 
-       userCredentials = CacheBuilder
+	   String useCacheStr = config.getProperty(AD_AUTH_USE_CACHE);
+       if (useCacheStr != null && Boolean.parseBoolean(useCacheStr)) {
+       	 useCache = true;
+       	 userCredentials = CacheBuilder
 				.newBuilder().maximumSize(CACHE_SIZE)
 				.expireAfterAccess(240L, TimeUnit.MINUTES)
 				.build(new CacheLoader<java.util.Map.Entry<String,String>, Boolean>() {
@@ -82,8 +88,10 @@ public class LDAPAuthenticator {
                    	   }
                    	   throw new UnauthorizedOperationException("User " + userName + " is not in the required group." );
 				   }
-			    });;
-       
+			    });
+       } else {
+    	   useCache = false;
+       }
 	}
 
 	
@@ -128,6 +136,10 @@ public class LDAPAuthenticator {
 	}
 	
 	public boolean authenticateUser(String username, String password) throws UnauthorizedOperationException {
+		if ( !useCache) {
+			return userIsInNdexGroup(username,password).booleanValue();
+		}
+		
 		Boolean result;
 		try {
 			result = userCredentials.get(new AbstractMap.SimpleImmutableEntry<String,String>(username, password));
