@@ -74,7 +74,7 @@ public class LDAPAuthenticator {
        
 	   String valueStr = config.getProperty(AD_TRACE_MODE);
        if ( valueStr != null && Boolean.parseBoolean(valueStr)) {
-           env.put("com.sun.jndi.ldap.trace.ber", System.err);
+    //       env.put("com.sun.jndi.ldap.trace.ber", System.err);
        }
        
 	   pattern = Pattern.compile("^CN=(.*?[^\\\\]),");
@@ -110,8 +110,9 @@ public class LDAPAuthenticator {
     	   System.setProperty("javax.net.ssl.trustStore", keystore);
         
     	   String keystorePasswd = config.getProperty(JAVA_KEYSTORE_PASSWD);
-    	   if (keystorePasswd ==null )
-    		   throw new NdexException ("Requried property " + JAVA_KEYSTORE_PASSWD + " is not defined in ndex.properties file.");
+    //	   if (keystorePasswd ==null )
+    //		   throw new NdexException ("Requried property " + JAVA_KEYSTORE_PASSWD + " is not defined in ndex.properties file.");
+    	   if ( keystorePasswd != null )
     	   System.setProperty("javax.net.ssl.trustStorePassword", keystorePasswd);
     //	   System.setProperty("javax.net.debug", "INFO");
     	   
