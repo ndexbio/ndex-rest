@@ -39,6 +39,8 @@ public class LDAPAuthenticator {
 	private final static String AD_AUTH_USE_CACHE="AD_AUTH_USE_CACHE";
 	private final static String JAVA_KEYSTORE="KEYSTORE_PATH";
 	private final static String AD_USE_SSL="AD_USE_SSL";
+	private final static String AD_TRACE_MODE="AD_TRACE_MODE";
+	private final static String JAVA_KEYSTORE_PASSWD= "JAVA_KEYSTORE_PASSWD";
 	
 	private String ldapAdServer;
 	private String ldapSearchBase;
@@ -69,7 +71,11 @@ public class LDAPAuthenticator {
        env.put(Context.PROVIDER_URL, ldapAdServer);
        
        env.put("java.naming.ldap.attributes.binary", "objectSID");
-       env.put("com.sun.jndi.ldap.trace.ber", System.err);
+       
+	   String valueStr = config.getProperty(AD_TRACE_MODE);
+       if ( valueStr != null && Boolean.parseBoolean(valueStr)) {
+           env.put("com.sun.jndi.ldap.trace.ber", System.err);
+       }
        
 	   pattern = Pattern.compile("^CN=(.*?[^\\\\]),");
 
@@ -102,9 +108,15 @@ public class LDAPAuthenticator {
     	   if ( keystore == null)
     		   throw new NdexException("Requried property " + JAVA_KEYSTORE + " is not defined in ndex.properties file.");
     	   System.setProperty("javax.net.ssl.trustStore", keystore);
+        
+    	   String keystorePasswd = config.getProperty(JAVA_KEYSTORE_PASSWD);
+    	   if (keystorePasswd ==null )
+    		   throw new NdexException ("Requried property " + JAVA_KEYSTORE_PASSWD + " is not defined in ndex.properties file.");
+    	   System.setProperty("javax.net.ssl.trustStorePassword", keystorePasswd);
+    //	   System.setProperty("javax.net.debug", "INFO");
     	   
            env.put(Context.SECURITY_PROTOCOL, "ssl");
-           logger.info("Server using ssl with keystore "+ keystore);
+           logger.info("Server AD authentication using ssl with keystore "+ keystore);
        }
 
 	}
