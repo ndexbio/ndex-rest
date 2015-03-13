@@ -165,10 +165,11 @@ public class NetworkAService extends NdexService {
             Helper.populateProvenanceEntity(newProv, networkService.getCurrentNetwork());
 
             Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
+            networkService.getCurrentNetwork().setModificationTime(now);
             ProvenanceEvent event = new ProvenanceEvent("Add Namespace", now);
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
             Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
-            String namespaceString = namespace.getPrefix() + ":" + namespace.getUri();
+            String namespaceString = namespace.getPrefix() + " : " + namespace.getUri();
             eventProperties.add( new SimplePropertyValuePair("namespace", namespaceString));
             event.setProperties(eventProperties);
             List<ProvenanceEntity> oldProvList = new ArrayList<>();
@@ -306,10 +307,10 @@ public class NetworkAService extends NdexService {
             ProvenanceEntity newProv = new ProvenanceEntity();
             newProv.setUri( oldProv.getUri() );
 
-            Helper.populateProvenanceEntity(newProv, daoNew, networkId);
 
-            Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
-            ProvenanceEvent event = new ProvenanceEvent("Set Network Properties", now);
+            NetworkSummary summary = daoNew.getNetworkSummary(daoNew.getRecordByUUIDStr(networkId, null));
+            Helper.populateProvenanceEntity(newProv, summary);
+            ProvenanceEvent event = new ProvenanceEvent("Set Network Properties", summary.getModificationTime());
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
             Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
             for( NdexPropertyValuePair vp : properties )
@@ -369,10 +370,9 @@ public class NetworkAService extends NdexService {
             ProvenanceEntity newProv = new ProvenanceEntity();
             newProv.setUri( oldProv.getUri() );
 
-            Helper.populateProvenanceEntity(newProv, daoNew, networkId);
-
-            Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
-            ProvenanceEvent event = new ProvenanceEvent("Set Network Presentation Properties", now);
+            NetworkSummary summary = daoNew.getNetworkSummary(daoNew.getRecordByUUIDStr(networkId, null));
+            Helper.populateProvenanceEntity(newProv, summary);
+            ProvenanceEvent event = new ProvenanceEvent("Set Network Presentation Properties", summary.getModificationTime());
 
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
             Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
@@ -710,39 +710,59 @@ public class NetworkAService extends NdexService {
 	        networkDao.updateNetworkProfile(networkUUID, summary);
 
             //DW: Handle provenance
+            //Special Logic. Test whether we should record provenance at all.
+            //If the only thing that has changed is the visibility, we should not add a provenance
+            //event.
             ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
-            ProvenanceEntity newProv = new ProvenanceEntity();
-            newProv.setUri( oldProv.getUri() );
+            String oldName = "", oldDescription = "", oldVersion ="";
+            for( SimplePropertyValuePair oldProperty : oldProv.getProperties() )
+            {
+                if( oldProperty.getName() == null )
+                    continue;
+                if( oldProperty.getName().equals("dc:title") )
+                    oldName = oldProperty.getValue().trim();
+                else if( oldProperty.getName().equals("description") )
+                    oldDescription = oldProperty.getValue().trim();
+                else if( oldProperty.getName().equals("version") )
+                    oldVersion = oldProperty.getValue().trim();
+            }
 
-            Helper.populateProvenanceEntity(newProv, networkDao, networkId);
-
-            Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
-            ProvenanceEvent event = new ProvenanceEvent("Update Network Profile", now);
-
-            List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
-
-            if ( summary.getName() != null)
-                eventProperties.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
-
-            if ( summary.getDescription() != null)
-                eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
-
-            if ( summary.getVersion()!=null )
-                eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
-
-            if ( summary.getVisibility()!=null )
-                eventProperties.add(new SimplePropertyValuePair("visibility", summary.getVisibility().toString()));
+            //Treat all summary values that are null like ""
+            String summaryName = summary.getName() == null ? "" : summary.getName().trim();
+            String summaryDescription = summary.getDescription() == null ? "" : summary.getDescription().trim();
+            String summaryVersion = summary.getVersion() == null ? "" : summary.getVersion().trim();
 
 
-            event.setProperties(eventProperties);
-            List<ProvenanceEntity> oldProvList = new ArrayList<>();
-            oldProvList.add(oldProv);
-            event.setInputs(oldProvList);
 
-            newProv.setCreationEvent(event);
-            networkDao.setProvenance(networkUUID, newProv);
+            if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
+            {
+                ProvenanceEntity newProv = new ProvenanceEntity();
+                newProv.setUri(oldProv.getUri());
 
+                Helper.populateProvenanceEntity(newProv, networkDao, networkId);
+
+                ProvenanceEvent event = new ProvenanceEvent("Update Network Profile", summary.getModificationTime());
+
+                List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+                Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
+
+                if (summary.getName() != null)
+                    eventProperties.add(new SimplePropertyValuePair("dc:title", summary.getName()));
+
+                if (summary.getDescription() != null)
+                    eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
+
+                if (summary.getVersion() != null)
+                    eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
+
+                event.setProperties(eventProperties);
+                List<ProvenanceEntity> oldProvList = new ArrayList<>();
+                oldProvList.add(oldProv);
+                event.setInputs(oldProvList);
+
+                newProv.setCreationEvent(event);
+                networkDao.setProvenance(networkUUID, newProv);
+            }
 			db.commit();
 		} finally {
 			if (db != null) db.close();
@@ -1060,10 +1080,10 @@ public class NetworkAService extends NdexService {
                 ProvenanceEntity entity = new ProvenanceEntity();
                 entity.setUri(summary.getURI());
 
-                Helper.populateProvenanceEntity(entity, summary );
+                Helper.populateProvenanceEntity(entity, summary);
 
-                Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
-                ProvenanceEvent event = new ProvenanceEvent("Program Upload", now);
+
+                ProvenanceEvent event = new ProvenanceEvent("Program Upload", summary.getModificationTime());
 
                 List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
                 Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
