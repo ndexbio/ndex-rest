@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 @Path("/feedback")
 public class FeedbackService extends NdexService
 {
-    private static final Logger _logger = LoggerFactory.getLogger(FeedbackService.class);
+    //private static final Logger _logger = LoggerFactory.getLogger(FeedbackService.class);
     
     
     
@@ -76,7 +76,7 @@ public class FeedbackService extends NdexService
         }
         catch (MessagingException e)
         {
-            _logger.error("Failed to send feedback email.", e);
+            //_logger.error("Failed to send feedback email.", e);
             throw new NdexException("Sorry, we couldn't submit your feedback.");
         }
     }

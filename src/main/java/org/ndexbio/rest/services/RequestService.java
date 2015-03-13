@@ -28,7 +28,7 @@ public class RequestService extends NdexService
 	private RequestDAO dao;
 	private ODatabaseDocumentTx  localConnection; 
 	
-	private Logger logger = Logger.getLogger(RequestService.class.getName());
+	//private Logger logger = Logger.getLogger(RequestService.class.getName());
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -52,14 +52,14 @@ public class RequestService extends NdexService
     public Request createRequest(final Request newRequest) 
     		throws IllegalArgumentException, DuplicateObjectException, NdexException {
        
-    	logInfo ( logger, "Creating " + newRequest.getType() + " request for " + newRequest.getDestinationName());
+    	//logInfo ( logger, "Creating " + newRequest.getType() + " request for " + newRequest.getDestinationName());
     	
 		this.openDatabase();
 		
 		try {
 			Request request = dao.createRequest(newRequest, this.getLoggedInUser());
 			dao.commit();
-			logInfo ( logger, "Request " + request.getExternalId() +" created.");
+			//logInfo ( logger, "Request " + request.getExternalId() +" created.");
 			return request;
 		} finally {
 			this.closeDatabase();
@@ -80,13 +80,13 @@ public class RequestService extends NdexService
     		throws IllegalArgumentException, ObjectNotFoundException, NdexException {
         
     	
-    	logInfo ( logger, "Deleting request " + requestId );
+    	//logInfo ( logger, "Deleting request " + requestId );
     	this.openDatabase();
 		
 		try {
 			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
 			dao.commit();
-			logInfo ( logger, "Request " + requestId + " deleted");
+			//logInfo ( logger, "Request " + requestId + " deleted");
 		} finally {
 			this.closeDatabase();
 
@@ -112,12 +112,12 @@ public class RequestService extends NdexService
     public Request getRequest(@PathParam("requestId")final String requestId) 
     		throws IllegalArgumentException, NdexException {
        
-    	logInfo ( logger, "Getting request " + requestId );
+    	//logInfo ( logger, "Getting request " + requestId );
     	this.openDatabase();
 		
 		try {
 			final Request request = dao.getRequest(UUID.fromString(requestId), this.getLoggedInUser());
-			logInfo ( logger, "Request object for id " + requestId + " returned.");
+			//logInfo ( logger, "Request object for id " + requestId + " returned.");
 			return request;
 		} finally {
 			this.closeDatabase();
@@ -139,13 +139,13 @@ public class RequestService extends NdexService
     public void updateRequest(@PathParam("requestId")final String requestId, final Request updatedRequest)
     		throws IllegalArgumentException, NdexException {
     	
-    	logInfo( logger, "Updating request " + requestId);
+    	//logInfo( logger, "Updating request " + requestId);
     	this.openDatabase();
 		
 		try {
 			dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
 			dao.commit();
-			logInfo ( logger, "Request " + requestId + " updated.");
+			//logInfo ( logger, "Request " + requestId + " updated.");
 		} finally {
 			this.closeDatabase();
 

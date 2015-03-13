@@ -25,7 +25,9 @@ import org.ndexbio.task.Configuration;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import java.util.logging.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.MDC;
 
 public abstract class NdexService
 {
@@ -122,6 +124,11 @@ public abstract class NdexService
         return null;
     }
 
+    protected String userNameForLog () {
+    	final Object user = _httpRequest.getAttribute("User");
+    	return (user != null) ? ("[" + ((org.ndexbio.model.object.User)user).getAccountName() + "]\t") : "[anonymous]\t" ;
+    }  
+    
     protected void logInfo (Logger logger, String message) {
     	final Object user = _httpRequest.getAttribute("User");
     	

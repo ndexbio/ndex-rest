@@ -7,7 +7,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.UUID;
-import java.util.logging.Logger;
+
 
 import javax.annotation.security.PermitAll;
 import javax.mail.MessagingException;
@@ -45,14 +45,19 @@ import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.task.Configuration;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
+import org.slf4j.Logger;
+
+
 @Path("/user")
 public class UserService extends NdexService {
 	
-	static Logger logger = Logger.getLogger(UserService.class.getName());
+	//static Logger logger = Logger.getLogger(UserService.class.getName());
+	static Logger logger = LoggerFactory.getLogger(Configuration.class);
 	
 //	private UserDAO dao;
 //	private ODatabaseDocumentTx  localConnection; 
@@ -66,7 +71,6 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	public UserService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
-		
 	}
 	
 	/**************************************************************************
@@ -93,7 +97,7 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
 			NdexException {
 		
-		logInfo(logger, "Creating User "+ newUser.getAccountName());
+		logger.info(userNameForLog() + "[start: Creating User "+ newUser.getAccountName() + "]");
 		
 		//verify against AD if AD authentication is defined in the configure file
 		if( Configuration.getInstance().getUseADAuthentication()) {
@@ -102,7 +106,7 @@ public class UserService extends NdexService {
 				throw new UnauthorizedOperationException("Only valid AD users can have an account in NDEx.");
 			}
 			newUser.setPassword(RandomStringUtils.random(25));
-			logInfo(logger, "User is a authenticated by AD.");
+			logger.info(userNameForLog() + "[User is a authenticated by AD." + "]");
 		}
 
 		try (UserDocDAO userdao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
@@ -111,7 +115,7 @@ public class UserService extends NdexService {
 
 			User user = userdao.createNewUser(newUser);
 			userdao.commit();
-			logInfo(logger, "User " + newUser.getAccountName() + " created with UUID " + user.getExternalId());
+			logger.info(userNameForLog() + "[end: User " + newUser.getAccountName() + " created with UUID " + user.getExternalId() + "]");
 			return user;
 		}
 	}
@@ -134,15 +138,15 @@ public class UserService extends NdexService {
 	public User getUser(@PathParam("userId") final String userId)
 			throws IllegalArgumentException, NdexException {
 		
-		logInfo( logger, "Getting user " + userId);
+		logger.info(userNameForLog() + "[start: Getting user " + userId + "]");
 		UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection());
 		try {
 			final User user = dao.getUserByAccountName(userId.toLowerCase());
-			logInfo(logger, "User object returned for user account " + userId );
+			logger.info(userNameForLog() + "[end: User object returned for user account " + userId  + "]");
 			return user;
 		} catch (ObjectNotFoundException e) {
 			final User user = dao.getUserById(UUID.fromString(userId));
-			logInfo(logger, "User object returned for user id " + userId );
+			logger.info(userNameForLog() + "[end: User object returned for user id " + userId  + "]");
 			return user;	
 		} finally  {
 			if ( dao !=null)
@@ -174,13 +178,13 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		logInfo(logger, "Getting " + permissions + " networks of user " + userId);
+		logger.info(userNameForLog() + "[start: Getting " + permissions + " networks of user " + userId + "]");
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
 			List<Membership> members= dao.getUserNetworkMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
-			logInfo (logger, "Returned " + members.size() + " members for user " + userId);
+			logger.info(userNameForLog() + "[end: Returned " + members.size() + " members for user " + userId + "]");
 			return members;
 		} 
 	}
@@ -208,14 +212,14 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		logInfo( logger, "Getting " + permissions + " groups for user " + userId);
+		logger.info(userNameForLog() + "[start: Getting " + permissions + " groups for user " + userId + "]");
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
 			List<Membership> result =
 					dao.getUserGroupMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
-			logInfo(logger, "Got " + result.size() + " grp membership for user " + userId);
+			logger.info(userNameForLog() +  "[end: Got " + result.size() + " grp membership for user " + userId + "]");
 			return result;
 		} 
 	}
@@ -243,24 +247,25 @@ public class UserService extends NdexService {
 			@PathParam("password") final String password)
 			throws SecurityException, UnauthorizedOperationException, NdexException {
 		
-		logInfo(logger, "Authentiate user " + accountName);
+		logger.info(userNameForLog() + "[start: Authenticate user " + accountName + "]");
 
 		if ( Configuration.getInstance().getUseADAuthentication()) {
 			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
-			if ( !authenticator.authenticateUser(accountName, password))
+			if ( !authenticator.authenticateUser(accountName, password)) {
+			    logger.error(userNameForLog() + "[end: Invalid accountName or password in AD. " + "]");
 				throw new SecurityException("Invalid accountName or password in AD.");
+			}
 			
 			try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
-				logInfo(logger, "User " + accountName + " authenticated.");
+				logger.info(userNameForLog() + "[end: User " + accountName + " authenticated." + "]");
 				return dao.getUserByAccountName(accountName);
 			}	
 		}
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
-			logInfo(logger, "User " + accountName + " authenticated.");
+			logger.info(userNameForLog() + "[end: User " + accountName + " authenticated." + "]");		
 			return dao.authenticateUser(accountName.toLowerCase(), password);
-		} 
-		
+		}
 	}
 
 	/**************************************************************************
@@ -283,16 +288,16 @@ public class UserService extends NdexService {
 	public void changePassword(String password)
 			throws IllegalArgumentException, NdexException {
 
-		logInfo( logger, "Changing password.");
+		logger.info(userNameForLog() + "[start: Changing password." + "]");
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
 				"A password is required");
 
-		logger.info("Changing password for user " + getLoggedInUser().getAccountName());
+		logger.info(userNameForLog() + "[Changing password for user " + getLoggedInUser().getAccountName() + "]");
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
 			dao.changePassword(password, getLoggedInUser().getExternalId());
 			dao.commit();
-			logger.info("Password changed for user " + getLoggedInUser().getAccountName());
+			logger.info(userNameForLog() + "[end: Password changed for user " + getLoggedInUser().getAccountName() + "]");
 		}
 	}
 
@@ -308,12 +313,12 @@ public class UserService extends NdexService {
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user.")
 	public void deleteUser() throws NdexException, ObjectNotFoundException {
 
-		logInfo(logger, "Deleting user (self).");
+		logger.info(userNameForLog() + "[start: Deleting user (self)." + "]");
 		
 		try (UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection())) {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
 			dao.commit();
-			logger.info("User " + getLoggedInUser().getAccountName() + " deleted.");
+			logger.info(userNameForLog() + "[end: User " + getLoggedInUser().getAccountName() + " deleted." + "]");
 		} 
 	}
 
@@ -339,7 +344,7 @@ public class UserService extends NdexService {
 			@PathParam("accountName") final String accountName)
 			throws IllegalArgumentException, NdexException, IOException, MessagingException {
 		
-		logInfo( logger, "Email new password for " + accountName);
+		logger.info(userNameForLog() + "[start: Email new password for " + accountName + "]");
 		
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(accountName), 
 				"A accountName is required");
@@ -359,7 +364,7 @@ public class UserService extends NdexService {
 					.getInstance().getProperty("Forgot-Password-File"));
 
 			if (!forgotPasswordFile.exists()) {
-				logger.severe("Could not retrieve forgot password file");
+				logger.error(userNameForLog() + "[end: Could not retrieve forgot password file" + "]");
 				throw new java.io.FileNotFoundException(
 						"File containing forgot password email content doesn't exist.");
 			}
@@ -379,7 +384,7 @@ public class UserService extends NdexService {
 					authUser.getEmailAddress(), "Password Recovery",
 					forgotPasswordText.toString());
 
-			logger.info("Sent password recovery email to user " + accountName);
+			logger.info(userNameForLog() + "[end: Sent password recovery email to user " + accountName  + "]");
 
 			return Response.ok().build();
 			
@@ -407,7 +412,7 @@ public class UserService extends NdexService {
 	public List<User> findUsers(SimpleUserQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 		
-		logInfo (logger, "Searching user \"" + simpleUserQuery.getSearchString() + "\"");
+		logger.info(userNameForLog() + "[start: Searching user \"" + simpleUserQuery.getSearchString() + "\"" + "]");
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 
@@ -415,7 +420,7 @@ public class UserService extends NdexService {
 				simpleUserQuery.setAccountName(simpleUserQuery.getAccountName().toLowerCase());
 			
 			final List<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
-			logInfo ( logger, "Returning " + users.size() + " users from search.");
+			logger.info(userNameForLog() + "[end: Returning " + users.size() + " users from search." + "]");
 			return users;
 		} 
 		
@@ -446,19 +451,20 @@ public class UserService extends NdexService {
 		// Currently not using path param. We can already retrieve the id from the authentication
 		// However, this depends on the authentication method staying consistent?
 
-		logInfo(logger, "Updating user " + updatedUser.getAccountName() );
+		logger.info(userNameForLog() + "[start: Updating user " + updatedUser.getAccountName()  + "]");
 
 		if ( Configuration.getInstance().getUseADAuthentication()) {
 			if ( !updatedUser.getAccountName().equals(getLoggedInUser().getAccountName())) {
+				logger.error(userNameForLog() + "[end: Updating accountName is not allowed when NDEx server is running on AD authentication." + "]");
 				throw new UnauthorizedOperationException(
-						"Updating accountName is not allow when NDEx server is running on AD authentication.");
+						"Updating accountName is not allowed when NDEx server is running on AD authentication.");
 			}
 		}
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			dao.commit();
-			logger.info("User " + user.getAccountName() + " updated.");
+			logger.info(userNameForLog() + "[end: User " + user.getAccountName() + " updated."  + "]");
 			return user;
 		} 
 	}
@@ -473,16 +479,16 @@ public class UserService extends NdexService {
 				@PathParam("depth") final int depth) 
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
-		logInfo( logger, "Getting membership of account " + accountId );
+		logger.info(userNameForLog() + "[start: Getting membership of account " + accountId  + "]");
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			Membership m = dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId), depth);
 			if ( m==null)
-				logInfo(logger, "No membership found for account " + accountId + 
-						" on resource " + resourceId);
+				logger.info(userNameForLog() + "[end: No membership found for account " + accountId + 
+						" on resource " + resourceId + "]");
 			else 
-				logInfo(logger, "Membership " + m.getPermissions().name() + " found for account " + accountId + 
-					" on resource " + resourceId);
+				logger.info(userNameForLog() + "[end: Membership " + m.getPermissions().name() + " found for account " + accountId + 
+					" on resource " + resourceId + "]");
 			return m;
 		} 
 	}
@@ -498,11 +504,11 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		logInfo (logger, "Getting requests sent by user " + userId);
+		logger.info(userNameForLog() + "[start: Getting requests sent by user " + userId + "]");
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			List<Request> reqs= dao.getSentRequest(this.getLoggedInUser(),skipBlocks, blockSize);
-			logInfo( logger, "Returning " + reqs.size() + " requests sent by user " + userId);
+			logger.info(userNameForLog() + "[end: Returning " + reqs.size() + " requests sent by user " + userId  + "]");
 			return reqs;
 		}
 	}
@@ -515,11 +521,11 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		logInfo (logger, "Getting pending request for user");
+		logger.info(userNameForLog() + "[start: Getting pending request for user" + "]");
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			List<Request> reqs= dao.getPendingRequest(this.getLoggedInUser(),skipBlocks, blockSize);
-			logInfo ( logger, "Returning " + reqs.size() + " pending request under user " + userId);
+			logger.info(userNameForLog() + "[end: Returning " + reqs.size() + " pending request under user " + userId + "]");
 			return reqs;
 		} 
 	}
@@ -534,12 +540,12 @@ public class UserService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		logInfo( logger, "Getting users tasks.");
+		logger.info(userNameForLog() + "[start: Getting users tasks."  + "]");
 		
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			Status taskStatus = Status.valueOf(status);
 			List<Task> tasks= dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
-			logInfo(logger, "Returned " + tasks.size() + " tasks under user " + userId);
+			logger.info(userNameForLog() + "[end: Returned " + tasks.size() + " tasks under user " + userId  + "]");
 			return tasks;
 		} 
 	}

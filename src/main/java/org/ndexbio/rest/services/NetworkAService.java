@@ -74,7 +74,7 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 @Path("/network")
 public class NetworkAService extends NdexService {
 	
-	static Logger logger = Logger.getLogger(NetworkAService.class.getName());
+	//static Logger logger = Logger.getLogger(NetworkAService.class.getName());
 
 
 	public NetworkAService(@Context HttpServletRequest httpRequest) {
@@ -256,7 +256,7 @@ public class NetworkAService extends NdexService {
     		final List<NdexPropertyValuePair> properties)
     		throws Exception {
 
-		logInfo(logger, "Update properties of network " + networkId);
+		//logInfo(logger, "Update properties of network " + networkId);
     	ODatabaseDocumentTx db = null;
     	NetworkDAO daoNew = null;
 
@@ -274,10 +274,10 @@ public class NetworkAService extends NdexService {
 			UUID networkUUID = UUID.fromString(networkId);
 			int i = daoNew.setNetworkProperties(networkUUID, properties);
 			daoNew.commit();
-			logInfo(logger, "Finished updating properties of network " + networkId);
+			//logInfo(logger, "Finished updating properties of network " + networkId);
 			return i;
 		} catch (Exception e) {
-			logger.severe("Error occurred when update network properties: " + e.getMessage());
+			//logger.severe("Error occurred when update network properties: " + e.getMessage());
 			e.printStackTrace();
 			if (null != daoNew) daoNew.rollback();
 			throw new NdexException(e.getMessage());
@@ -343,7 +343,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
-		logInfo(logger, "Getting networkSummary of " + networkId);
+		//logInfo(logger, "Getting networkSummary of " + networkId);
 		ODatabaseDocumentTx db = null;
 		try {
 			db = NdexDatabase.getInstance().getAConnection();
@@ -362,7 +362,7 @@ public class NetworkAService extends NdexService {
 				NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
 				db.close();
 				db = null;
-				logInfo(logger, "NetworkSummary of " + networkId + " returned.");
+				//logInfo(logger, "NetworkSummary of " + networkId + " returned.");
 				return summary;
 
 			}
@@ -508,7 +508,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 
-		logInfo( logger, "Get all " + permissions + " accounts on network " + networkId);
+		//logInfo( logger, "Get all " + permissions + " accounts on network " + networkId);
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 
 		ODatabaseDocumentTx db = null;
@@ -519,7 +519,7 @@ public class NetworkAService extends NdexService {
             
 			List<Membership> results = networkDao.getNetworkUserMemberships(
 					UUID.fromString(networkId), permission, skipBlocks, blockSize);
-			logInfo(logger, results.size() + " members returned for network " + networkId);
+			//logInfo(logger, results.size() + " members returned for network " + networkId);
 			return results;
 
 		} finally {
@@ -655,7 +655,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
-		logInfo (logger, "Neighborhood search on " + networkId + " with phrase \"" + queryParameters.getSearchString() + "\"");
+		//logInfo (logger, "Neighborhood search on " + networkId + " with phrase \"" + queryParameters.getSearchString() + "\"");
 		
 
 		try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()) {
@@ -675,7 +675,7 @@ public class NetworkAService extends NdexService {
 			   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
 			   Network n = dao.queryForSubnetwork(networkId, queryParameters);
-			   logInfo(logger, "Subnetwork from query returned." );
+			   //logInfo(logger, "Subnetwork from query returned." );
 			   return n;
 			   //getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
 		   }
@@ -811,7 +811,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 
-		logInfo ( logger, "Search networks: \"" + query.getSearchString() + "\"");
+		//logInfo ( logger, "Search networks: \"" + query.getSearchString() + "\"");
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
         
@@ -820,7 +820,7 @@ public class NetworkAService extends NdexService {
             Collection<NetworkSummary> result = new ArrayList <> ();
 
 			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
-			logInfo ( logger, result.size() + " networks returned from search.");
+			//logInfo ( logger, result.size() + " networks returned from search.");
 			return result;
 
         } catch (Exception e) {
@@ -1004,7 +1004,7 @@ public class NetworkAService extends NdexService {
 	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException {
 
 		String userAcc = getLoggedInUser().getAccountName();
-		logInfo(logger, "Deleting network  " + id);
+		//logInfo(logger, "Deleting network  " + id);
 		ODatabaseDocumentTx db = null;
 		try{
 			db = NdexDatabase.getInstance().getAConnection();
@@ -1015,7 +1015,7 @@ public class NetworkAService extends NdexService {
 	        }
 
 			try (NetworkDAO networkDao = new NetworkDAO(db)) {
-				logger.info("Start deleting network " + id);
+				//logger.info("Start deleting network " + id);
 				networkDao.logicalDeleteNetwork(id);
 				networkDao.commit();
 //				networkDao.deleteNetwork(id);
@@ -1026,7 +1026,7 @@ public class NetworkAService extends NdexService {
 				NdexServerQueue.INSTANCE.addSystemTask(task);
 			}
 			db = null;
-			logger.info("Network " + id + " deleted.");
+			//logger.info("Network " + id + " deleted.");
 		} finally {
 			if ( db != null) db.close();
 		}

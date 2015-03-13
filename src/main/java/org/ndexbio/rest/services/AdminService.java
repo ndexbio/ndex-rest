@@ -28,7 +28,7 @@ import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
 @Path("/admin")
 public class AdminService extends NdexService {
-	private static final Logger logger = LoggerFactory.getLogger(AdminService.class);
+	//private static final Logger logger = LoggerFactory.getLogger(AdminService.class);
 
 	public AdminService(@Context HttpServletRequest httpRequest)
     {

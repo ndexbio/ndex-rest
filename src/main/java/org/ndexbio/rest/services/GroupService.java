@@ -31,7 +31,7 @@ import org.ndexbio.rest.annotations.ApiDoc;
 public class GroupService extends NdexService {
 	
 	
-	static Logger logger = Logger.getLogger(GroupService.class.getName());
+	//static Logger logger = Logger.getLogger(GroupService.class.getName());
 
 	
 	/**************************************************************************
@@ -70,14 +70,14 @@ public class GroupService extends NdexService {
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException {
 		
-		logInfo(logger,"Creating group " + newGroup.getAccountName() + ".");
+		//logInfo(logger,"Creating group " + newGroup.getAccountName() + ".");
 		
 		try (GroupDAO dao = getGroupDAO()){
 			newGroup.setAccountName(newGroup.getAccountName().toLowerCase());
 			Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId());
 			dao.commit();
 				
-			logger.info("Group " + group.getAccountName() + " (" + group.getExternalId() + ") created.");
+			//logger.info("Group " + group.getAccountName() + " (" + group.getExternalId() + ") created.");
 			return group;
 	
 		} 
@@ -137,13 +137,13 @@ public class GroupService extends NdexService {
 	public void deleteGroup(@PathParam("groupId") final String groupId)
 			throws ObjectNotFoundException, NdexException {
 		
-		logInfo(logger,"Deleting group " + groupId + "." );
+		//logInfo(logger,"Deleting group " + groupId + "." );
 		
 		
 		try (GroupDAO dao = getGroupDAO()){
 			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
 			dao.commit();
-			logger.info("Group " + groupId + " deleted.");
+			//logger.info("Group " + groupId + " deleted.");
 		} 
 	}
 
@@ -233,7 +233,7 @@ public class GroupService extends NdexService {
 			@PathParam("blockSize") final int top)
 			throws IllegalArgumentException, NdexException {
 		
-		logInfo(logger, "Search group: \"" + simpleQuery.getSearchString() + "\"");
+		//logInfo(logger, "Search group: \"" + simpleQuery.getSearchString() + "\"");
 		
 		try (GroupDocDAO dao = getGroupDocDAO()) {
 			if(simpleQuery.getAccountName() != null)
@@ -263,7 +263,7 @@ public class GroupService extends NdexService {
 	public Group getGroup(@PathParam("groupId") final String groupId)
 			throws IllegalArgumentException,ObjectNotFoundException, NdexException {
 		
-		logInfo(logger, "Getting group " + groupId);
+		//logInfo(logger, "Getting group " + groupId);
 		
 		try (GroupDocDAO dao = getGroupDocDAO()) {
 			final Group group = dao.getGroupById(UUID.fromString(groupId));
@@ -377,7 +377,7 @@ public class GroupService extends NdexService {
 							@PathParam("groupId") final String id)
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
-		logInfo( logger, "Updating group " + id);
+		//logInfo( logger, "Updating group " + id);
 		
 
 		try (GroupDAO dao = getGroupDAO()){
@@ -413,15 +413,15 @@ public class GroupService extends NdexService {
 			final Membership groupMember) throws IllegalArgumentException,
 			ObjectNotFoundException, NdexException {
 
-		logInfo(logger, "Updating members of Group " + groupId + ".");
+		//logInfo(logger, "Updating members of Group " + groupId + ".");
 		try (GroupDAO dao = getGroupDAO()) {
 			if(groupMember.getMemberAccountName() != null)
 				groupMember.setMemberAccountName(groupMember.getMemberAccountName().toLowerCase());
 			//check for resource name? but it can be a network. Not really important, the code uses external id's
 			dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
 			dao.commit();
-			logInfo(logger,"Member " + groupMember.getMemberAccountName()
-					+ "(" + groupMember.getMembershipType()+ ") updated for group " + groupId);
+			//logInfo(logger,"Member " + groupMember.getMemberAccountName()
+			//		+ "(" + groupMember.getMembershipType()+ ") updated for group " + groupId);
 		} 
 	}
 
@@ -453,13 +453,13 @@ public class GroupService extends NdexService {
 			@PathParam("memberId") final String memberId) throws IllegalArgumentException,
 			ObjectNotFoundException, NdexException {
 
-		logInfo (logger, "Removing member " + memberId + " from group " + groupId);
+		//logInfo (logger, "Removing member " + memberId + " from group " + groupId);
 
 		try (GroupDAO dao = getGroupDAO()){
 			
 			dao.removeMember(UUID.fromString(memberId), UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
 			dao.commit();
-			logInfo (logger, "Member " + memberId + " removed from group " + groupId);
+			//logInfo (logger, "Member " + memberId + " removed from group " + groupId);
 		} 
 	}
 	
@@ -486,7 +486,7 @@ public class GroupService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		logInfo(logger, "Getting "+ permissions + " networks of group " + groupId);
+		//logInfo(logger, "Getting "+ permissions + " networks of group " + groupId);
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
@@ -520,7 +520,7 @@ public class GroupService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		logInfo(logger, "Getting "+ permissions + " users in group " + groupId);
+		//logInfo(logger, "Getting "+ permissions + " users in group " + groupId);
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
