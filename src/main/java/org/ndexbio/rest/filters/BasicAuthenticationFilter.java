@@ -39,12 +39,20 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<Object>());
     private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<Object>());
     private static LDAPAuthenticator ADAuthenticator = null;
+    private boolean authenticatedUserOnly = false;
+    private static final String AUTHENTICATED_USER_ONLY="AUTHENTICATED_USER_ONLY";
     
     public BasicAuthenticationFilter() throws NdexException, NamingException {
     	super();
     	
-    	if ( Configuration.getInstance().getUseADAuthentication() && ADAuthenticator == null) {
+    	Configuration config = Configuration.getInstance();
+    	
+    	if ( config.getUseADAuthentication() && ADAuthenticator == null) {
     		ADAuthenticator = new LDAPAuthenticator(Configuration.getInstance());
+    	}
+    	String value = config.getProperty(AUTHENTICATED_USER_ONLY);
+    	if ( value !=null && Boolean.getBoolean(value)) {
+    		authenticatedUserOnly = true;
     	}
     }
     

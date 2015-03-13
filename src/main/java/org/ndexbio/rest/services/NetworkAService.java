@@ -5,7 +5,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.sql.Timestamp;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
 import java.util.logging.Logger;
 
 import javax.annotation.security.PermitAll;
@@ -31,7 +35,19 @@ import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.*;
+import org.ndexbio.model.object.Membership;
+import org.ndexbio.model.object.NdexPropertyValuePair;
+import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.Priority;
+import org.ndexbio.model.object.ProvenanceEntity;
+import org.ndexbio.model.object.ProvenanceEvent;
+import org.ndexbio.model.object.SimpleNetworkQuery;
+import org.ndexbio.model.object.SimplePathQuery;
+import org.ndexbio.model.object.SimplePropertyValuePair;
+import org.ndexbio.model.object.Status;
+import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.TaskType;
+import org.ndexbio.model.object.User;
 import org.ndexbio.common.models.object.network.RawNamespace;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.NdexPersistenceService;
@@ -146,7 +162,7 @@ public class NetworkAService extends NdexService {
             ProvenanceEntity newProv = new ProvenanceEntity();
             newProv.setUri( oldProv.getUri() );
 
-            Helper.populateProvenanceEntity(newProv, networkService.getCurrentNetwork(), networkId);
+            Helper.populateProvenanceEntity(newProv, networkService.getCurrentNetwork());
 
             Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
             ProvenanceEvent event = new ProvenanceEvent("Add Namespace", now);
@@ -953,7 +969,7 @@ public class NetworkAService extends NdexService {
 			PropertyGraphLoader pgl = null;
 			pgl = new PropertyGraphLoader(db);
 
-			return pgl.insertNetwork(newNetwork, getLoggedInUser().getAccountName(), getLoggedInUser());
+			return pgl.insertNetwork(newNetwork, getLoggedInUser());
 
 	}
 
@@ -1031,9 +1047,6 @@ public class NetworkAService extends NdexService {
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
 
-
-
-
 			NdexDatabase db = NdexDatabase.getInstance();
 			NdexNetworkCloneService service = null;
 			try {
@@ -1047,7 +1060,7 @@ public class NetworkAService extends NdexService {
                 ProvenanceEntity entity = new ProvenanceEntity();
                 entity.setUri(summary.getURI());
 
-                Helper.populateProvenanceEntity(entity, summary, summary.getURI().toString() );
+                Helper.populateProvenanceEntity(entity, summary );
 
                 Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
                 ProvenanceEvent event = new ProvenanceEvent("Program Upload", now);
