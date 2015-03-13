@@ -4,10 +4,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
+import java.sql.Timestamp;
+import java.util.*;
 import java.util.logging.Logger;
 
 import javax.annotation.security.PermitAll;
@@ -25,7 +23,6 @@ import javax.ws.rs.core.Context;
 
 import org.apache.commons.io.FilenameUtils;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
-import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
@@ -34,24 +31,13 @@ import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.Status;
-import org.ndexbio.model.object.TaskType;
+import org.ndexbio.model.object.*;
 import org.ndexbio.common.models.object.network.RawNamespace;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.NdexPersistenceService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.model.object.Membership;
-import org.ndexbio.model.object.NdexPropertyValuePair;
-import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.Priority;
-import org.ndexbio.model.object.ProvenanceEntity;
 //import org.ndexbio.model.object.SearchParameters;
-import org.ndexbio.model.object.SimpleNetworkQuery;
-import org.ndexbio.model.object.SimplePathQuery;
-import org.ndexbio.model.object.SimplePropertyValuePair;
-import org.ndexbio.model.object.Task;
-import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.Namespace;
 import org.ndexbio.model.object.network.Network;
@@ -142,7 +128,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("networkId") final String networkId,
 			final Namespace namespace
 			)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, IOException {
 
 		NdexDatabase db = null; 
 		NdexPersistenceService networkService = null;
@@ -152,7 +138,29 @@ public class NetworkAService extends NdexService {
 					db,
 					UUID.fromString(networkId));
 
+            //networkService.get
 			networkService.getNamespace(new RawNamespace(namespace.getPrefix(), namespace.getUri()));
+
+            //DW: Handle provenance
+            ProvenanceEntity oldProv = networkService.getNetworkProvenance();
+            ProvenanceEntity newProv = new ProvenanceEntity();
+            newProv.setUri( oldProv.getUri() );
+
+            Helper.populateProvenanceEntity(newProv, networkService.getCurrentNetwork(), networkId);
+
+            Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
+            ProvenanceEvent event = new ProvenanceEvent("Add Namespace", now);
+            List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+            Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+            String namespaceString = namespace.getPrefix() + ":" + namespace.getUri();
+            eventProperties.add( new SimplePropertyValuePair("namespace", namespaceString));
+            event.setProperties(eventProperties);
+            List<ProvenanceEntity> oldProvList = new ArrayList<>();
+            oldProvList.add(oldProv);
+            event.setInputs(oldProvList);
+
+            newProv.setCreationEvent(event);
+            networkService.setNetworkProvenance(newProv);
 
 			networkService.commit();
 			networkService.close();
@@ -273,6 +281,34 @@ public class NetworkAService extends NdexService {
 			daoNew = new NetworkDAO(db);
 			UUID networkUUID = UUID.fromString(networkId);
 			int i = daoNew.setNetworkProperties(networkUUID, properties);
+
+            //DW: Handle provenance
+
+
+
+            ProvenanceEntity oldProv = daoNew.getProvenance(networkUUID);
+            ProvenanceEntity newProv = new ProvenanceEntity();
+            newProv.setUri( oldProv.getUri() );
+
+            Helper.populateProvenanceEntity(newProv, daoNew, networkId);
+
+            Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
+            ProvenanceEvent event = new ProvenanceEvent("Set Network Properties", now);
+            List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
+            for( NdexPropertyValuePair vp : properties )
+            {
+                SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getPredicateString(), vp.getValue());
+                eventProperties.add(svp);
+            }
+            event.setProperties(eventProperties);
+            List<ProvenanceEntity> oldProvList = new ArrayList<>();
+            oldProvList.add(oldProv);
+            event.setInputs(oldProvList);
+
+            newProv.setCreationEvent(event);
+            daoNew.setProvenance(networkUUID, newProv);
+
 			daoNew.commit();
 			//logInfo(logger, "Finished updating properties of network " + networkId);
 			return i;
@@ -311,6 +347,33 @@ public class NetworkAService extends NdexService {
 			daoNew = new NetworkDAO(db);
 			UUID networkUUID = UUID.fromString(networkId);
 			int i = daoNew.setNetworkPresentationProperties(networkUUID, properties);
+
+            //DW: Handle provenance
+            ProvenanceEntity oldProv = daoNew.getProvenance(networkUUID);
+            ProvenanceEntity newProv = new ProvenanceEntity();
+            newProv.setUri( oldProv.getUri() );
+
+            Helper.populateProvenanceEntity(newProv, daoNew, networkId);
+
+            Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
+            ProvenanceEvent event = new ProvenanceEvent("Set Network Presentation Properties", now);
+
+            List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
+            for( SimplePropertyValuePair vp : properties )
+            {
+                SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getName(), vp.getValue());
+                eventProperties.add(svp);
+            }
+            event.setProperties(eventProperties);
+            List<ProvenanceEntity> oldProvList = new ArrayList<>();
+            oldProvList.add(oldProv);
+            event.setInputs(oldProvList);
+
+            newProv.setCreationEvent(event);
+            daoNew.setProvenance(networkUUID, newProv);
+
+
 			daoNew.commit();
 			return i;
 		} catch (Exception e) {
@@ -359,6 +422,8 @@ public class NetworkAService extends NdexService {
 			}
 			if ( hasPrivilege) {
 				ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
+				if (doc == null)
+					throw new ObjectNotFoundException("Network", networkId);
 				NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
 				db.close();
 				db = null;
@@ -603,14 +668,15 @@ public class NetworkAService extends NdexService {
 	@POST
 	@Path("/{networkId}/summary")
 	@Produces("application/json")
-    @ApiDoc("POSTs a NetworkSummary object to update the profile information of the network specified by networkUUID." +
+    @ApiDoc("POSTs a NetworkSummary object to update the pro information of the network specified by networkUUID." +
             " The NetworkSummary POSTed may be only partially populated. The only fields that will be acted on are: " +
             "'name', 'description','version', and 'visibility' if they are present.")
 	public void updateNetworkProfile(
 			@PathParam("networkId") final String networkId,
 			final NetworkSummary summary
 			)
-			throws IllegalArgumentException, NdexException {
+            throws IllegalArgumentException, NdexException, IOException
+    {
 
 		ODatabaseDocumentTx db = null;
 		try {
@@ -624,7 +690,43 @@ public class NetworkAService extends NdexService {
 				throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 			}
 
-	        networkDao.updateNetworkProfile(UUID.fromString(networkId), summary);
+            UUID networkUUID = UUID.fromString(networkId);
+	        networkDao.updateNetworkProfile(networkUUID, summary);
+
+            //DW: Handle provenance
+            ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
+            ProvenanceEntity newProv = new ProvenanceEntity();
+            newProv.setUri( oldProv.getUri() );
+
+            Helper.populateProvenanceEntity(newProv, networkDao, networkId);
+
+            Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
+            ProvenanceEvent event = new ProvenanceEvent("Update Network Profile", now);
+
+            List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
+
+            if ( summary.getName() != null)
+                eventProperties.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
+
+            if ( summary.getDescription() != null)
+                eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
+
+            if ( summary.getVersion()!=null )
+                eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
+
+            if ( summary.getVisibility()!=null )
+                eventProperties.add(new SimplePropertyValuePair("visibility", summary.getVisibility().toString()));
+
+
+            event.setProperties(eventProperties);
+            List<ProvenanceEntity> oldProvList = new ArrayList<>();
+            oldProvList.add(oldProv);
+            event.setInputs(oldProvList);
+
+            newProv.setCreationEvent(event);
+            networkDao.setProvenance(networkUUID, newProv);
+
 			db.commit();
 		} finally {
 			if (db != null) db.close();
@@ -851,7 +953,7 @@ public class NetworkAService extends NdexService {
 			PropertyGraphLoader pgl = null;
 			pgl = new PropertyGraphLoader(db);
 
-			return pgl.insertNetwork(newNetwork, getLoggedInUser().getAccountName());
+			return pgl.insertNetwork(newNetwork, getLoggedInUser().getAccountName(), getLoggedInUser());
 
 	}
 
@@ -929,13 +1031,39 @@ public class NetworkAService extends NdexService {
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
 
+
+
+
 			NdexDatabase db = NdexDatabase.getInstance();
 			NdexNetworkCloneService service = null;
 			try {
+				newNetwork.setVisibility(VisibilityType.PRIVATE);
 				service = new NdexNetworkCloneService(db, newNetwork,
 						getLoggedInUser().getAccountName());
 
-				return service.cloneNetwork();
+                NetworkSummary summary = service.cloneNetwork();
+                //DW: Provenance
+
+                ProvenanceEntity entity = new ProvenanceEntity();
+                entity.setUri(summary.getURI());
+
+                Helper.populateProvenanceEntity(entity, summary, summary.getURI().toString() );
+
+                Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
+                ProvenanceEvent event = new ProvenanceEvent("Program Upload", now);
+
+                List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+                Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+                event.setProperties(eventProperties);
+
+                entity.setCreationEvent(event);
+
+                service.setNetworkProvenance(entity);
+
+				return summary;
+
+
+
 
 			} finally {
 				if ( service !=null)
@@ -1018,8 +1146,6 @@ public class NetworkAService extends NdexService {
 				//logger.info("Start deleting network " + id);
 				networkDao.logicalDeleteNetwork(id);
 				networkDao.commit();
-//				networkDao.deleteNetwork(id);
-//				db.commit();
 				Task task = new Task();
 				task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
 				task.setResource(id);
@@ -1132,6 +1258,8 @@ public class NetworkAService extends NdexService {
 			throw new NdexException(e.getMessage());
 		} 
 	}
+
+
 
 
 }
