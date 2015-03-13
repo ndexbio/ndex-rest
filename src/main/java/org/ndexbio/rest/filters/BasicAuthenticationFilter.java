@@ -89,6 +89,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                 _logger.error("Failed to authenticate a user: " + authInfo[0] , e);
             else
                 _logger.error("Failed to authenticate a user; credential information unknown.");
+            
+        //   requestContext.abortWith(ACCESS_DENIED);
+        //   return ;
         } 
         
         if (!method.isAnnotationPresent(PermitAll.class))
@@ -112,6 +115,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                 requestContext.abortWith(ACCESS_DENIED);
             }
         }
+        
+     // method.
     }
     
     /**************************************************************************
@@ -157,5 +162,6 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     	}
     	return true;
     }
+    
     
 }

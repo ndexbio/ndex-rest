@@ -2,10 +2,9 @@ package org.ndexbio.security;
 
 import java.util.AbstractMap;
 import java.util.Hashtable;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,21 +20,27 @@ import javax.naming.ldap.LdapContext;
 
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.rest.services.TaskService;
 import org.ndexbio.task.Configuration;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.orientechnologies.orient.core.record.impl.ODocument;
 
 public class LDAPAuthenticator {
 	
-	private final static int CACHE_SIZE = 500;
+	static Logger logger = Logger.getLogger(LDAPAuthenticator.class.getName());
+	
+	private final static int CACHE_SIZE = 100;
 	
 	private final static String PROP_LDAP_URL = "PROP_LDAP_URL";
 	private final static String AD_SEARCH_BASE= "AD_SEARCH_BASE";
 	private final static String AD_NDEX_GROUP_NAME="AD_NDEX";
 	private final static String AD_AUTH_USE_CACHE="AD_AUTH_USE_CACHE";
+	private final static String JAVA_KEYSTORE="KEYSTORE_PATH";
+	private final static String AD_USE_SSL="AD_USE_SSL";
+	private final static String AD_TRACE_MODE="AD_TRACE_MODE";
+	private final static String JAVA_KEYSTORE_PASSWD= "JAVA_KEYSTORE_PASSWD";
 	
 	private String ldapAdServer;
 	private String ldapSearchBase;
@@ -66,7 +71,11 @@ public class LDAPAuthenticator {
        env.put(Context.PROVIDER_URL, ldapAdServer);
        
        env.put("java.naming.ldap.attributes.binary", "objectSID");
-       env.put("com.sun.jndi.ldap.trace.ber", System.err);
+       
+	   String valueStr = config.getProperty(AD_TRACE_MODE);
+       if ( valueStr != null && Boolean.parseBoolean(valueStr)) {
+    //       env.put("com.sun.jndi.ldap.trace.ber", System.err);
+       }
        
 	   pattern = Pattern.compile("^CN=(.*?[^\\\\]),");
 
@@ -75,7 +84,7 @@ public class LDAPAuthenticator {
        	 useCache = true;
        	 userCredentials = CacheBuilder
 				.newBuilder().maximumSize(CACHE_SIZE)
-				.expireAfterAccess(240L, TimeUnit.MINUTES)
+				.expireAfterAccess(10L, TimeUnit.MINUTES)
 				.build(new CacheLoader<java.util.Map.Entry<String,String>, Boolean>() {
 				   @Override
 				   public Boolean load(java.util.Map.Entry<String,String> entry) throws NdexException, ExecutionException {
@@ -92,6 +101,25 @@ public class LDAPAuthenticator {
        } else {
     	   useCache = false;
        }
+       
+	   String configValue = config.getProperty(AD_USE_SSL);
+       if (configValue != null && Boolean.parseBoolean(configValue)){
+    	   String keystore = config.getProperty(JAVA_KEYSTORE);
+    	   if ( keystore == null)
+    		   throw new NdexException("Requried property " + JAVA_KEYSTORE + " is not defined in ndex.properties file.");
+    	   System.setProperty("javax.net.ssl.trustStore", keystore);
+        
+    	   String keystorePasswd = config.getProperty(JAVA_KEYSTORE_PASSWD);
+    //	   if (keystorePasswd ==null )
+    //		   throw new NdexException ("Requried property " + JAVA_KEYSTORE_PASSWD + " is not defined in ndex.properties file.");
+    	   if ( keystorePasswd != null )
+    	   System.setProperty("javax.net.ssl.trustStorePassword", keystorePasswd);
+    //	   System.setProperty("javax.net.debug", "INFO");
+    	   
+           env.put(Context.SECURITY_PROTOCOL, "ssl");
+           logger.info("Server AD authentication using ssl with keystore "+ keystore);
+       }
+
 	}
 
 	
