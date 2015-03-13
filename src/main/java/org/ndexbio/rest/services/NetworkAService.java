@@ -151,6 +151,7 @@ public class NetworkAService extends NdexService {
             Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
             ProvenanceEvent event = new ProvenanceEvent("Add Namespace", now);
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+            Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
             String namespaceString = namespace.getPrefix() + ":" + namespace.getUri();
             eventProperties.add( new SimplePropertyValuePair("namespace", namespaceString));
             event.setProperties(eventProperties);
@@ -282,6 +283,9 @@ public class NetworkAService extends NdexService {
 			int i = daoNew.setNetworkProperties(networkUUID, properties);
 
             //DW: Handle provenance
+
+
+
             ProvenanceEntity oldProv = daoNew.getProvenance(networkUUID);
             ProvenanceEntity newProv = new ProvenanceEntity();
             newProv.setUri( oldProv.getUri() );
@@ -291,6 +295,7 @@ public class NetworkAService extends NdexService {
             Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
             ProvenanceEvent event = new ProvenanceEvent("Set Network Properties", now);
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
             for( NdexPropertyValuePair vp : properties )
             {
                 SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getPredicateString(), vp.getValue());
@@ -352,7 +357,9 @@ public class NetworkAService extends NdexService {
 
             Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
             ProvenanceEvent event = new ProvenanceEvent("Set Network Presentation Properties", now);
+
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
             for( SimplePropertyValuePair vp : properties )
             {
                 SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getName(), vp.getValue());
@@ -695,7 +702,9 @@ public class NetworkAService extends NdexService {
 
             Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
             ProvenanceEvent event = new ProvenanceEvent("Update Network Profile", now);
+
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
 
             if ( summary.getName() != null)
                 eventProperties.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
@@ -944,7 +953,7 @@ public class NetworkAService extends NdexService {
 			PropertyGraphLoader pgl = null;
 			pgl = new PropertyGraphLoader(db);
 
-			return pgl.insertNetwork(newNetwork, getLoggedInUser().getAccountName());
+			return pgl.insertNetwork(newNetwork, getLoggedInUser().getAccountName(), getLoggedInUser());
 
 	}
 
@@ -1043,6 +1052,10 @@ public class NetworkAService extends NdexService {
                 Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
                 ProvenanceEvent event = new ProvenanceEvent("REST Network Upload", now);
 
+                List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+                Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+                event.setProperties(eventProperties);
+
                 entity.setCreationEvent(event);
 
                 service.setNetworkProvenance(entity);
@@ -1133,8 +1146,6 @@ public class NetworkAService extends NdexService {
 				logger.info("Start deleting network " + id);
 				networkDao.logicalDeleteNetwork(id);
 				networkDao.commit();
-//				networkDao.deleteNetwork(id);
-//				db.commit();
 				Task task = new Task();
 				task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
 				task.setResource(id);
