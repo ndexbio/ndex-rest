@@ -165,7 +165,6 @@ public class NetworkAService extends NdexService {
             Helper.populateProvenanceEntity(newProv, networkService.getCurrentNetwork());
 
             Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
-            networkService.getCurrentNetwork().setModificationTime(now);
             ProvenanceEvent event = new ProvenanceEvent("Add Namespace", now);
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
             Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
@@ -307,6 +306,7 @@ public class NetworkAService extends NdexService {
             ProvenanceEntity newProv = new ProvenanceEntity();
             newProv.setUri( oldProv.getUri() );
 
+            Helper.populateProvenanceEntity(newProv, daoNew, networkId);
 
             NetworkSummary summary = daoNew.getNetworkSummary(daoNew.getRecordByUUIDStr(networkId, null));
             Helper.populateProvenanceEntity(newProv, summary);
@@ -1081,7 +1081,6 @@ public class NetworkAService extends NdexService {
                 entity.setUri(summary.getURI());
 
                 Helper.populateProvenanceEntity(entity, summary);
-
 
                 ProvenanceEvent event = new ProvenanceEvent("Program Upload", summary.getModificationTime());
 
