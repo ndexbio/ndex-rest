@@ -1,6 +1,7 @@
 package org.ndexbio.rest.filters;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.List;
 
