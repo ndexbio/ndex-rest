@@ -20,6 +20,7 @@ import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.services.NdexOpenFunction;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
@@ -51,7 +52,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     		ADAuthenticator = new LDAPAuthenticator(Configuration.getInstance());
     	}
     	String value = config.getProperty(AUTHENTICATED_USER_ONLY);
-    	if ( value !=null && Boolean.getBoolean(value)) {
+		_logger.info("authenticatedUserOnly setting is " + value);
+
+    	if ( value !=null && Boolean.parseBoolean(value)) {
+    		_logger.info("Server running in authenticatedUserOnly mode.");
     		authenticatedUserOnly = true;
     	}
     }
@@ -102,8 +106,12 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         //   return ;
         } 
         
-        if (!method.isAnnotationPresent(PermitAll.class))
-        {
+        if ( authenticatedUserOnly) {
+        	if ( !method.isAnnotationPresent(NdexOpenFunction.class) ) {
+                _logger.warn(" attempted to access a resource for which requires authentication.");
+                requestContext.abortWith(ACCESS_DENIED);
+        	}
+        } else if (!method.isAnnotationPresent(PermitAll.class)) {
             if (method.isAnnotationPresent(DenyAll.class))
             {
                 requestContext.abortWith(FORBIDDEN);
@@ -124,7 +132,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             }
         }
         
-     // method.
+      
     }
     
     /**************************************************************************
