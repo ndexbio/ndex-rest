@@ -253,6 +253,7 @@ public class NetworkAService extends NdexService {
 			daoNew = new NetworkDAO(db);
 			UUID networkUUID = UUID.fromString(networkId);
 			daoNew.setProvenance(networkUUID, provenance);
+
 			daoNew.commit();
 			return daoNew.getProvenance(networkUUID);
 		} catch (Exception e) {
