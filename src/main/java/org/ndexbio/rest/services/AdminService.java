@@ -28,7 +28,7 @@ import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
 @Path("/admin")
 public class AdminService extends NdexService {
-	//private static final Logger logger = LoggerFactory.getLogger(AdminService.class);
+	static Logger logger = LoggerFactory.getLogger(AdminService.class);
 
 	public AdminService(@Context HttpServletRequest httpRequest)
     {
@@ -45,8 +45,10 @@ public class AdminService extends NdexService {
 	@PermitAll
 	@Path("/status")
 	@Produces("application/json")
-	public static NdexStatus getStatus() throws NdexException	{
-
+	public NdexStatus getStatus() throws NdexException	{
+		
+		logger.info(userNameForLog() + "[start: Getting status]");
+		
 		try (ODatabaseDocumentTx db =NdexDatabase.getInstance().getAConnection()){
 			
 			NdexStatus status = new NdexStatus();
@@ -57,6 +59,7 @@ public class AdminService extends NdexService {
 			Map<String,String> props = status.getProperties();
 			props.put("ServerResultLimit", "10000");
 			status.setProperties(props);
+			logger.info(userNameForLog() + "[end: Got status]");
 			return status;
 		} 
 	}
