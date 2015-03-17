@@ -89,6 +89,7 @@ public class UserService extends NdexService {
 	 */
 	@POST
 	@PermitAll
+	@NdexOpenFunction
 	@Produces("application/json")
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
 	public User createUser(final NewUser newUser)
@@ -239,6 +240,7 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@GET
 	@PermitAll
+	@NdexOpenFunction
 	@Path("/authenticate/{accountName}/{password}")
 	@Produces("application/json")
 	@ApiDoc("Authenticates the combination of accountName and password supplied in the route parameters, returns the authenticated user if successful.")

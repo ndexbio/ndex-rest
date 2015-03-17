@@ -1,6 +1,7 @@
 package org.ndexbio.rest.filters;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.List;
 
@@ -20,6 +21,7 @@ import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.services.NdexOpenFunction;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
@@ -39,12 +41,23 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<Object>());
     private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<Object>());
     private static LDAPAuthenticator ADAuthenticator = null;
+    private boolean authenticatedUserOnly = false;
+    private static final String AUTHENTICATED_USER_ONLY="AUTHENTICATED_USER_ONLY";
     
     public BasicAuthenticationFilter() throws NdexException, NamingException {
     	super();
     	
-    	if ( Configuration.getInstance().getUseADAuthentication() && ADAuthenticator == null) {
+    	Configuration config = Configuration.getInstance();
+    	
+    	if ( config.getUseADAuthentication() && ADAuthenticator == null) {
     		ADAuthenticator = new LDAPAuthenticator(Configuration.getInstance());
+    	}
+    	String value = config.getProperty(AUTHENTICATED_USER_ONLY);
+		_logger.info("authenticatedUserOnly setting is " + value);
+
+    	if ( value !=null && Boolean.parseBoolean(value)) {
+    		_logger.info("Server running in authenticatedUserOnly mode.");
+    		authenticatedUserOnly = true;
     	}
     }
     
@@ -94,8 +107,12 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         //   return ;
         } 
         
-        if (!method.isAnnotationPresent(PermitAll.class))
-        {
+        if ( authenticatedUserOnly) {
+        	if ( !method.isAnnotationPresent(NdexOpenFunction.class) ) {
+                _logger.warn(" attempted to access a resource for which requires authentication.");
+                requestContext.abortWith(ACCESS_DENIED);
+        	}
+        } else if (!method.isAnnotationPresent(PermitAll.class)) {
             if (method.isAnnotationPresent(DenyAll.class))
             {
                 requestContext.abortWith(FORBIDDEN);
@@ -116,7 +133,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             }
         }
         
-     // method.
+      
     }
     
     /**************************************************************************

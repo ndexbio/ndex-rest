@@ -16,13 +16,11 @@ import javax.ws.rs.core.Context;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
-import org.ndexbio.task.Configuration;
+//import org.ndexbio.rest.services.NdexOpenFunction.NdexService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.orientechnologies.orient.core.command.OCommandOutputListener;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.db.tool.ODatabaseExport;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
@@ -43,6 +41,7 @@ public class AdminService extends NdexService {
 
 	@GET
 	@PermitAll
+	@NdexOpenFunction
 	@Path("/status")
 	@Produces("application/json")
 	public NdexStatus getStatus() throws NdexException	{
@@ -67,7 +66,7 @@ public class AdminService extends NdexService {
 	private static Integer getClassCount(ODatabaseDocumentTx db, String className) {
 
 		final List<ODocument> classCountResult = db.query(new OSQLSynchQuery<ODocument>(
-						"SELECT COUNT(*) as count FROM " + className));
+						"SELECT COUNT(*) as count FROM " + className + " where not isDeleted"));
 
 		final Long count = classCountResult.get(0).field("count");
 
