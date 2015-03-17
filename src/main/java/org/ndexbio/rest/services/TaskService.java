@@ -1,7 +1,6 @@
 package org.ndexbio.rest.services;
 
 import java.util.UUID;
-import java.util.logging.Logger;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
@@ -19,16 +18,18 @@ import org.ndexbio.common.models.dao.orientdb.TaskDocDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
+import org.slf4j.Logger;
+
 @Path("/task")
 public class TaskService extends NdexService
 {
-	//static Logger logger = Logger.getLogger(TaskService.class.getName());
-    
+	static Logger logger = LoggerFactory.getLogger(TaskService.class);
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -62,9 +63,9 @@ public class TaskService extends NdexService
     public UUID createTask(final Task newTask) throws IllegalArgumentException, NdexException
     {
         final String userAccount = this.getLoggedInUser().getAccountName();
-
-        //logger.info("Creating " + newTask.getType() + " task for user " + userAccount);
-
+       
+		logger.info(userNameForLog() + "[start: Creating " + newTask.getType() + " task for user " + userAccount + "]");
+		
         Preconditions.checkArgument(null != newTask, 
     			" A task object is required");
         
@@ -73,14 +74,16 @@ public class TaskService extends NdexService
         	UUID taskId = dao.createTask(userAccount, newTask);
             
             dao.commit();
-           // logger.info("task " + taskId + " created for " + newTask.getType());
+            
+            logger.info(userNameForLog() + "[start: task " + taskId + " created for " + newTask.getType() + "]");
             
             return taskId;
         }
         catch (Exception e)
         {
             //logger.severe("Error creating task for: " + userAccount + ". Cause: " + e.getMessage());
-            e.printStackTrace();
+            //e.printStackTrace();
+        	logger.error(userNameForLog() + "[end: Exception caught creating a task: " + e + ".  Throwing NdexException]");
             throw new NdexException("Error creating a task: " + e.getMessage());
         }
     }
@@ -150,8 +153,9 @@ public class TaskService extends NdexService
 	@ApiDoc("Delete the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
     public void deleteTask(@PathParam("taskId")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
     {
+    	
+		logger.info(userNameForLog() + "[start: Start deleting task " + taskUUID + "]");
 
-		//logger.info("Start deleting task " + taskUUID);
 
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskUUID), 
     			"A task id is required");
@@ -161,35 +165,45 @@ public class TaskService extends NdexService
             
             final Task taskToDelete = tdao.getTaskByUUID(taskUUID);
             
-            if (taskToDelete == null)
+            if (taskToDelete == null) {
+        		logger.info(userNameForLog() + "[end: Task " + taskUUID + " not found. Throwing ObjectNotFoundException.]");
                 throw new ObjectNotFoundException("Task", taskUUID);
-            else if (!taskToDelete.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId()))
+            }    
+            else if (!taskToDelete.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
+        		logger.info(userNameForLog() + "[end: You cannot delete task " + taskUUID + 
+        				" becasue you don't own it. Throwing SecurityException.]");            	
                 throw new SecurityException("You cannot delete a task you don't own.");
         	    //logger.info("Task " + taskUUID + " is already deleted.");
+            }
             if ( taskToDelete.getIsDeleted()) {
             
             } else {
             	tdao.deleteTask(taskToDelete.getExternalId());
             
             	tdao.commit();
-            	//logger.info("Task " + taskUUID + " is deleted by user " + this.getLoggedInUser().getAccountName());
+            	logger.info(userNameForLog() + "[end: Task " + taskUUID + " is deleted by user " + 
+            	   this.getLoggedInUser().getAccountName() + "]");
             }
         }
         catch (SecurityException | ObjectNotFoundException onfe)
         {
             //logger.severe("Failed to delete task " + taskUUID + ". Cause:" + onfe.getMessage());
-        	onfe.printStackTrace();
+        	//onfe.printStackTrace();
+        	logger.info(userNameForLog() + "[end: Failed to delete task " + taskUUID + ". Cause:" + onfe + ".  Throwing exception.]");   	
             throw onfe;
         }
         catch (Exception e)
         {
             //logger.severe("Failed to delete task " + taskUUID + ". Cause:" + e.getMessage());
-        	e.printStackTrace();
+        	//e.printStackTrace();
         	if (e.getMessage().indexOf("cluster: null") > -1){
+        		logger.info(userNameForLog() + "[end: Failed to delete task " + taskUUID + 
+        				". Cause:" + e + ".  Throwing ObjectNotFoundException.]");   	
                 throw new ObjectNotFoundException("Task", taskUUID);
             }
             
-        
+        	logger.info(userNameForLog() + "[end: Failed to delete task " + taskUUID + 
+        			". Cause:" + e + ".  Throwing ObjectNotFoundException.]");   	        
             throw new NdexException("Failed to delete task " + taskUUID);
         }
     }

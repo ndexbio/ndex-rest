@@ -47,7 +47,7 @@ public class LDAPAuthenticator {
 	private String ldapNDExGroup;
 	private Hashtable <String,Object> env ;
 	private Pattern pattern ;
-	private boolean useCache;
+	private boolean useCache = false;
 	
 	//key is the combination of 
 	protected LoadingCache<java.util.Map.Entry<String,String>, Boolean>  userCredentials;
@@ -82,6 +82,7 @@ public class LDAPAuthenticator {
 	   String useCacheStr = config.getProperty(AD_AUTH_USE_CACHE);
        if (useCacheStr != null && Boolean.parseBoolean(useCacheStr)) {
        	 useCache = true;
+       	 logger.info("Server AD Authentication cache turned on.");
        	 userCredentials = CacheBuilder
 				.newBuilder().maximumSize(CACHE_SIZE)
 				.expireAfterAccess(10L, TimeUnit.MINUTES)
