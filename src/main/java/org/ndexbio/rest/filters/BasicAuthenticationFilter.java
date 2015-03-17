@@ -1,7 +1,6 @@
 package org.ndexbio.rest.filters;
 
 import java.io.IOException;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.List;
 
@@ -20,6 +19,7 @@ import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.services.NdexOpenFunction;
 import org.ndexbio.security.LDAPAuthenticator;
@@ -78,7 +78,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         {
         	
             authInfo = parseCredentials(requestContext);
-            if(authInfo != null)
+            if(authInfo != null) {  // server need to authenticate the user.
             	if (ADAuthenticator !=null ) {
             		if ( ADAuthenticator.authenticateUser(authInfo[0], authInfo[1]) ) {
             			_logger.info("User " + authInfo[0] + "authenticated by AD.");
@@ -92,19 +92,29 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             		try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
             		 authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
             		}
-            	}	
-            if (authUser != null)
-                requestContext.setProperty("User", authUser);
-        }
-        catch (Exception e)
+            	}
+            
+            	if (authUser != null)
+            		requestContext.setProperty("User", authUser);
+            	else { 
+            		_logger.error("Can't get user object in authentication. URL:" + requestContext.getUriInfo().getPath());
+                    requestContext.abortWith(ACCESS_DENIED);
+            	}
+                return ;
+            }
+        } catch (SecurityException | UnauthorizedOperationException e2 ) {
+            _logger.info("Failed to authenticate a user: " + authInfo[0], e2);
+             requestContext.abortWith(ACCESS_DENIED);
+             return;
+        } catch (Exception e)
         {
             if (authInfo != null && authInfo.length >= 2)
                 _logger.error("Failed to authenticate a user: " + authInfo[0] , e);
             else
                 _logger.error("Failed to authenticate a user; credential information unknown.");
             
-        //   requestContext.abortWith(ACCESS_DENIED);
-        //   return ;
+           requestContext.abortWith(ACCESS_DENIED);
+           return ;
         } 
         
         if ( authenticatedUserOnly) {

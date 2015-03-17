@@ -24,6 +24,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.Response;
 
 import org.apache.commons.io.FilenameUtils;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
@@ -35,6 +36,7 @@ import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
@@ -507,7 +509,25 @@ public class NetworkAService extends NdexService {
 		else
 			throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 
-	}
+	} 
+	// new Implmentation to handle cached network 
+/*	public Response getCompleteNetworkv2(	@PathParam("networkId") final String networkId)
+			throws IllegalArgumentException, NdexException {
+
+		if ( isSearchable(networkId) ) {
+			
+			ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
+			NetworkDAO daoNew = new NetworkDAO(db);
+
+		
+			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
+			db.close();
+			return n;
+		}
+		else
+			throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
+
+	} */ 
 
 	@PermitAll
 	@GET
@@ -1293,6 +1313,36 @@ public class NetworkAService extends NdexService {
 	}
 
 
+
+	@GET
+	@Path("/{networkId}/setFlag/{parameter}={value}")
+	@Produces("application/json")
+    @ApiDoc("Set the certain Ndex system flag onnetwork. Supported parameters are:"+
+	        "readOnly")
+	public String setNetworkFlag(
+			@PathParam("networkId") final String networkId,
+			@PathParam("parameter") final String parameter,
+			@PathParam("value")     final String value)
+
+			throws IllegalArgumentException, NdexException {
+
+			try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()){
+				if (Helper.isAdminOfNetwork(db, networkId, getLoggedInUser().getExternalId().toString())) {
+				 
+				  NetworkDAO daoNew = new NetworkDAO(db);
+				  try { 
+					  String result = daoNew.setFlag (networkId, parameter,value);
+					  daoNew.commit();
+					  return result;
+				  } catch (IOException e) {
+					  e.printStackTrace();
+					  throw new NdexException ("Ndex server internal IOException: " + e.getMessage());
+				  }
+			
+				}
+				throw new UnauthorizedOperationException("Only an administrator can set a network flag.");
+			}
+	}
 
 
 }
