@@ -279,7 +279,7 @@ public class NetworkAService extends NdexService {
 			return daoNew.getProvenance(networkUUID);
 		} catch (Exception e) {
 			if (null != daoNew) daoNew.rollback();
-			logger.error(userNameForLog() + "[end: Updating provenance of network " + networkId + "  Exception caught: ",  e + "]");			
+			logger.error(userNameForLog() + "[end: Updating provenance of network " + networkId + ". Exception caught:]",  e);			
 			throw e;
 		} finally {
 			if (null != db) db.close();
@@ -360,7 +360,7 @@ public class NetworkAService extends NdexService {
 			//logger.severe("Error occurred when update network properties: " + e.getMessage());
 			//e.printStackTrace();
 			if (null != daoNew) daoNew.rollback();
-			logger.error(userNameForLog() + "[end: Updating properties of network " + networkId + "  Exception caught: " + e + "]");	
+			logger.error(userNameForLog() + "[end: Updating properties of network " + networkId + ". Exception caught:]", e);	
 			throw new NdexException(e.getMessage());
 		} finally {
 			if (null != db) db.close();
@@ -430,7 +430,7 @@ public class NetworkAService extends NdexService {
 				daoNew.rollback();
 				daoNew = null;
 			}
-			logger.error(userNameForLog() + "[end: Updating presentationProperties field of network " + networkId + "  Exception caught: " + e + "]");	
+			logger.error(userNameForLog() + "[end: Updating presentationProperties field of network " + networkId + ". Exception caught:]", e);	
 			throw e;
 		} finally {
 			if (null != db) db.close();
@@ -1068,7 +1068,7 @@ public class NetworkAService extends NdexService {
         	//e.printStackTrace();
 			//logger.error(userNameForLog() + "[end: Updating properties of network " + networkId + "  Exception caught: " + e + "]");
 			logger.error(userNameForLog() + "[end: Retrieving NetworkSummary objects using query \"" + 
-			    query.getSearchString() + "\".  Exception caught: " + e +  "]");			
+			    query.getSearchString() + "\". Exception caught:]", e);			
         	throw new NdexException(e.getMessage());
         } 
 
@@ -1345,7 +1345,7 @@ public class NetworkAService extends NdexService {
 			Preconditions.checkState(uploadedNetwork.getFileData().length > 0,
 					"The file data is empty");
 		} catch (Exception e1) {
-			logger.error(userNameForLog() + "[end: Uploading network file.  Caught Exception: " + e1 + "]");
+			logger.error(userNameForLog() + "[end: Uploading network file. Exception caught:]", e1 );
 			throw new IllegalArgumentException(e1);
 		}
 
@@ -1374,7 +1374,7 @@ public class NetworkAService extends NdexService {
 			} catch (IOException e1) {
 				//e1.printStackTrace();
 				logger.error(userNameForLog() + "[end: Failed to create file " + fileFullPath + " on server when uploading " + 
-						uploadedNetwork.getFilename() + ". Throwing  NdexException...]");
+						uploadedNetwork.getFilename() + ". Exception caught:]", e1);
 				throw new NdexException ("Failed to create file " + fileFullPath + " on server when uploading " + 
 						uploadedNetwork.getFilename() + ": " + e1.getMessage());
 			}
@@ -1385,7 +1385,7 @@ public class NetworkAService extends NdexService {
 		} catch (IOException e1) {
 			//e1.printStackTrace();
 			logger.error(userNameForLog() + "[end: Failed to write content to file " + fileFullPath + " on server when uploading " + 
-					uploadedNetwork.getFilename() + ".  Throwing NdexException...]" );
+					uploadedNetwork.getFilename() + ". Exception caught:]", e1 );
 			throw new NdexException ("Failed to write content to file " + fileFullPath + " on server when uploading " + 
 					uploadedNetwork.getFilename() + ": " + e1.getMessage());
 		} 
@@ -1406,12 +1406,12 @@ public class NetworkAService extends NdexService {
 			dao.commit();
 			
 		} catch (IllegalArgumentException iae) {
-			logger.error(userNameForLog() + "[end: Caught IllegalArgumentException: " + iae + "]");
+			logger.error(userNameForLog() + "[end: Exception caught:]", iae);
 			throw iae;
 		} catch (Exception e) {
 			//Logger.getLogger(this.getClass().getName()).severe("Failed to process uploaded network: "
 			//		+ uploadedNetwork.getFilename() + ". " + e.getMessage());
-			logger.error(userNameForLog() + "[end: Caught Exception: " + e + "]");
+			logger.error(userNameForLog() + "[end: Exception caught:]",  e);
 			throw new NdexException(e.getMessage());
 		} 
 	}
@@ -1429,7 +1429,9 @@ public class NetworkAService extends NdexService {
 			@PathParam("value")     final String value)
 
 			throws IllegalArgumentException, NdexException {
-
+		
+		    logger.info(userNameForLog() + "[start: Setting flag " + parameter + " with value " + value + " for network " + networkId + "]");
+		
 			try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()){
 				if (Helper.isAdminOfNetwork(db, networkId, getLoggedInUser().getExternalId().toString())) {
 				 
@@ -1437,9 +1439,11 @@ public class NetworkAService extends NdexService {
 				  try { 
 					  String result = daoNew.setFlag (networkId, parameter,value);
 					  daoNew.commit();
+					  logger.info(userNameForLog() + "[end: Done setting flag " + parameter + " with value " + value + " for network " + networkId + "]");
 					  return result;
 				  } catch (IOException e) {
-					  e.printStackTrace();
+					  //e.printStackTrace();
+					  logger.error(userNameForLog() + "[end: Ndex server internal IOException. Exception caught:]",  e);
 					  throw new NdexException ("Ndex server internal IOException: " + e.getMessage());
 				  }
 			

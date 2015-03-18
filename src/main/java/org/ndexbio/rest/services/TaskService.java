@@ -81,9 +81,7 @@ public class TaskService extends NdexService
         }
         catch (Exception e)
         {
-            //logger.severe("Error creating task for: " + userAccount + ". Cause: " + e.getMessage());
-            //e.printStackTrace();
-        	logger.error(userNameForLog() + "[end: Exception caught creating a task: " + e + ".  Throwing NdexException]");
+        	logger.error(userNameForLog() + "[end: Unable to create a task. Exception caught:]", e);
             throw new NdexException("Error creating a task: " + e.getMessage());
         }
     }
@@ -187,23 +185,17 @@ public class TaskService extends NdexService
         }
         catch (SecurityException | ObjectNotFoundException onfe)
         {
-            //logger.severe("Failed to delete task " + taskUUID + ". Cause:" + onfe.getMessage());
-        	//onfe.printStackTrace();
-        	logger.info(userNameForLog() + "[end: Failed to delete task " + taskUUID + ". Cause:" + onfe + ".  Throwing exception.]");   	
+        	logger.error(userNameForLog() + "[end: Failed to delete task " + taskUUID + ". Exception caught:]", onfe);   	
             throw onfe;
         }
         catch (Exception e)
         {
-            //logger.severe("Failed to delete task " + taskUUID + ". Cause:" + e.getMessage());
-        	//e.printStackTrace();
-        	if (e.getMessage().indexOf("cluster: null") > -1){
-        		logger.info(userNameForLog() + "[end: Failed to delete task " + taskUUID + 
-        				". Cause:" + e + ".  Throwing ObjectNotFoundException.]");   	
+        	logger.error(userNameForLog() + "[end: Failed to delete task " + taskUUID + ". Exception caught:]", e);  
+        	
+        	if (e.getMessage().indexOf("cluster: null") > -1){	
                 throw new ObjectNotFoundException("Task", taskUUID);
             }
-            
-        	logger.info(userNameForLog() + "[end: Failed to delete task " + taskUUID + 
-        			". Cause:" + e + ".  Throwing ObjectNotFoundException.]");   	        
+	        
             throw new NdexException("Failed to delete task " + taskUUID);
         }
     }
