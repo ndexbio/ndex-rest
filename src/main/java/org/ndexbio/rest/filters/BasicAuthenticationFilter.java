@@ -14,6 +14,7 @@ import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
@@ -74,6 +75,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         
         String[] authInfo = null;
         User authUser = null;
+        boolean authenticated = false;
         try
         {
         	
@@ -81,7 +83,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             if(authInfo != null) {  // server need to authenticate the user.
             	if (ADAuthenticator !=null ) {
             		if ( ADAuthenticator.authenticateUser(authInfo[0], authInfo[1]) ) {
-            			_logger.info("User " + authInfo[0] + "authenticated by AD.");
+            			authenticated = true;
+            			_logger.info("User " + authInfo[0] + " authenticated by AD.");
                 		try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
                    		 authUser = dao.getUserByAccountName(authInfo[0]);
                    		}
@@ -94,22 +97,26 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             		}
             	}
             
-            	if (authUser != null)
+            	if (authUser != null) {
             		requestContext.setProperty("User", authUser);
-            	else { 
+            		return;
+            	}
+    /*        	else { 
             		_logger.error("Can't get user object in authentication. URL:" + requestContext.getUriInfo().getPath());
                     requestContext.abortWith(ACCESS_DENIED);
             	}
-                return ;
+                return ; */
             }
         } catch (SecurityException | UnauthorizedOperationException e2 ) {
-            _logger.info("Failed to authenticate a user: " + authInfo[0], e2);
+            _logger.info("Failed to authenticate a user: " + authInfo[0] + " Path:" +
+            		requestContext.getUriInfo().getPath(), e2);
              requestContext.abortWith(ACCESS_DENIED);
              return;
-        } catch (Exception e)
-        {
-            if (authInfo != null && authInfo.length >= 2)
-                _logger.error("Failed to authenticate a user: " + authInfo[0] , e);
+        } catch (ObjectNotFoundException e0) {
+            _logger.info("User: " + authInfo[0] +" not found in Ndex db." /*requestContext.getUriInfo().getPath()*/);
+        } catch (Exception e) {
+            if (authInfo != null && authInfo.length >= 2 && (! authenticated))
+                _logger.error("Failed to authenticate a user: " + authInfo[0] /*+ " Path:"+ requestContext.getUriInfo().getPath() */, e);
             else
                 _logger.error("Failed to authenticate a user; credential information unknown.");
             
