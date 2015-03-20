@@ -1,6 +1,7 @@
 package org.ndexbio.rest.services;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -23,6 +24,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.apache.commons.io.FilenameUtils;
@@ -526,50 +528,44 @@ public class NetworkAService extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkId}/asNetwork")
-	@Produces("application/json")
+//	@Produces("application/json")
     @ApiDoc("Retrieve an entire network specified by 'networkId' as a Network object.  (Compare this method to " +
             "getCompleteNetworkAsPropertyGraph).")
-	public Network getCompleteNetwork(
-			@PathParam("networkId") final String networkId)
-
-			throws IllegalArgumentException, NdexException {
-		
-		logger.info(userNameForLog() + "[start: Retrieving an entire network " + networkId + "]");
-		
-		if ( isSearchable(networkId) ) {
-		
-			ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
-			NetworkDAO daoNew = new NetworkDAO(db);
-
-			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
-			db.close();
-			logger.info(userNameForLog() + "[end: Retrieved an entire network " + networkId + "]");
-			return n;
-		}
-		else {
-			logger.error(userNameForLog() + "[end: Retrieving an entire network " + networkId + "  Throwing WebApplicationException exception ...]");	
-			throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
-		}	
-
-	} 
 	// new Implmentation to handle cached network 
-/*	public Response getCompleteNetworkv2(	@PathParam("networkId") final String networkId)
+	public Response getCompleteNetwork(	@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, NdexException {
 
 		if ( isSearchable(networkId) ) {
 			
 			ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO daoNew = new NetworkDAO(db);
+			
+			NetworkSummary sum = daoNew.getNetworkSummaryById(networkId);
+			if ( sum.getIsReadOnly()) {
+				daoNew.close();
+				try {
+					FileInputStream in = new FileInputStream(
+				
+						Configuration.getInstance().getNdexRoot() + "/" + NetworkDAO.workspaceDir + "/" 
+						+ sum.getOwner() + "/" + sum.getExternalId() + ".json")  ;
+				
+					setZipFlag();
+					logger.info("returning cached network.");
+					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+				} catch (IOException e) {
+					throw new NdexException ("Ndex server can't find file: " + e.getMessage());
+				}
+			} 	
 
-		
 			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
-			db.close();
-			return n;
+			daoNew.close();
+			logger.info("returning network from query.");
+			return Response.ok(n,MediaType.APPLICATION_JSON_TYPE).build();
 		}
 		else
 			throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 
-	} */ 
+	}  
 
 	@PermitAll
 	@GET

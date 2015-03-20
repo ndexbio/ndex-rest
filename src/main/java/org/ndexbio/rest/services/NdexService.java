@@ -23,6 +23,8 @@ import org.slf4j.Logger;
 
 public abstract class NdexService
 {
+	public static final String NdexZipFlag = "NdexZipped";
+	
     private HttpServletRequest _httpRequest;
     
     /**************************************************************************
@@ -114,6 +116,10 @@ public abstract class NdexService
             return (org.ndexbio.model.object.User)user;
         
         return null;
+    }
+    
+    protected void setZipFlag() {
+    	_httpRequest.setAttribute(NdexZipFlag, Boolean.TRUE);
     }
 
     protected String userNameForLog () {

@@ -42,7 +42,6 @@ import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerResponseContext;
 import javax.ws.rs.container.ContainerResponseFilter;
 import javax.ws.rs.core.MultivaluedMap;
-
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
@@ -50,8 +49,9 @@ import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletResponse;
-
 import javax.ws.rs.ext.Provider;
+
+import org.ndexbio.rest.services.NdexService;
 
 @Provider
 public class CrossOriginResourceSharingFilter implements ContainerResponseFilter, Filter
@@ -66,6 +66,7 @@ public class CrossOriginResourceSharingFilter implements ContainerResponseFilter
 		headers.putSingle("Access-Control-Allow-Methods", "HEAD, DELETE,GET,OPTIONS,POST,PUT");
 		headers.putSingle("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization, Content-Length, X-Requested-With");
 		headers.putSingle("Access_Control_Allow_Credentials", true);
+	
 	}
 	
 	//Filter Implementation
@@ -81,6 +82,8 @@ public class CrossOriginResourceSharingFilter implements ContainerResponseFilter
         httpResponse.addHeader("Access-Control-Allow-Origin", "*");
         httpResponse.addHeader("Access-Control-Allow-Methods", "HEAD, DELETE,GET,OPTIONS,POST,PUT");
         httpResponse.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
+        
+        
         
         chain.doFilter(request, response);
     }
