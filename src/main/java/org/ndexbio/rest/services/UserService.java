@@ -252,11 +252,15 @@ public class UserService extends NdexService {
 
 		if ( Configuration.getInstance().getUseADAuthentication()) {
 			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
-			if ( !authenticator.authenticateUser(accountName, password)) {
-			    logger.error(userNameForLog() + "[end: Invalid accountName or password in AD.  Throwing SecurityException.]");
+			try { 
+			 if ( !authenticator.authenticateUser(accountName, password)) {
+			    logger.info(userNameForLog() + "[end: Invalid accountName or password in AD.  Throwing SecurityException.]");
 				throw new SecurityException("Invalid accountName or password in AD.");
+			 }
+			} catch (UnauthorizedOperationException e) {
+			    logger.info(userNameForLog() + "[end: User "+ accountName + " not authenticated. "+ e.getMessage() + "]");
+				throw e;
 			}
-			
 			try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
 				logger.info(userNameForLog() + "[end: User " + accountName + " authenticated.]");
 				return dao.getUserByAccountName(accountName);

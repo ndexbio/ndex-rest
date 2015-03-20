@@ -83,7 +83,7 @@ public class FeedbackService extends NdexService
         {
             //_logger.error("Failed to send feedback email.", e);
 
-			logger.info(userNameForLog() + "[end: Failed to send feedback email: " + e + "]");            
+			logger.error(userNameForLog() + "[end: Failed to send feedback email. Exception caught:]", e);            
             throw new NdexException("Sorry, we couldn't submit your feedback.");
         }
     }
