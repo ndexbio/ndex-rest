@@ -541,7 +541,7 @@ public class NetworkAService extends NdexService {
 			NetworkDAO daoNew = new NetworkDAO(db);
 			
 			NetworkSummary sum = daoNew.getNetworkSummaryById(networkId);
-			if ( sum.getIsReadOnly()) {
+/*			if ( sum.getIsReadOnly()) {
 				daoNew.close();
 				try {
 					FileInputStream in = new FileInputStream(
@@ -555,7 +555,7 @@ public class NetworkAService extends NdexService {
 				} catch (IOException e) {
 					throw new NdexException ("Ndex server can't find file: " + e.getMessage());
 				}
-			} 	
+			}  */ 	
 
 			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
 			daoNew.close();
