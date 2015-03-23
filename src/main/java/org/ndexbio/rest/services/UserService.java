@@ -270,6 +270,8 @@ public class UserService extends NdexService {
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
 			logger.info(userNameForLog() + "[end: User " + accountName + " authenticated.]");		
 			return dao.authenticateUser(accountName.toLowerCase(), password);
+		} catch ( ObjectNotFoundException e) {
+			throw new SecurityException("User not found.");
 		}
 	}
 

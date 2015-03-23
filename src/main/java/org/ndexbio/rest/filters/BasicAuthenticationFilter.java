@@ -40,6 +40,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 {
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
     private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<>());
+    private static final ServerResponse ACCESS_DENIED_USER_NOT_FOUND = 
+    		new ServerResponse("User not found.", 401, new Headers<>());
     private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<>());
     private static LDAPAuthenticator ADAuthenticator = null;
     private boolean authenticatedUserOnly = false;
@@ -114,6 +116,11 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
              return;
         } catch (ObjectNotFoundException e0) {
             _logger.info("User: " + authInfo[0] +" not found in Ndex db." /*requestContext.getUriInfo().getPath()*/);
+            String mName = method.getName();
+            if ( !mName.equals("createUser")) {
+                requestContext.abortWith(ACCESS_DENIED_USER_NOT_FOUND);
+                return;
+            }
         } catch (Exception e) {
             if (authInfo != null && authInfo.length >= 2 && (! authenticated))
                 _logger.error("Failed to authenticate a user: " + authInfo[0] /*+ " Path:"+ requestContext.getUriInfo().getPath() */, e);
