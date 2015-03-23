@@ -41,18 +41,24 @@ public class LDAPAuthenticator {
 	private final static String AD_USE_SSL="AD_USE_SSL";
 	private final static String AD_TRACE_MODE="AD_TRACE_MODE";
 	private final static String JAVA_KEYSTORE_PASSWD= "JAVA_KEYSTORE_PASSWD";
-	
+    private final static String AD_CTX_PRINCIPLE = "AD_CTX_PRINCIPLE"; 
+    private final static String AD_SEARCH_FILTER = "AD_SEARCH_FILTER";
+    private final static String userNamePattern = "%%USER_NAME%%";
+    
 	private String ldapAdServer;
 	private String ldapSearchBase;
 	private String ldapNDExGroup;
 	private Hashtable <String,Object> env ;
 	private Pattern pattern ;
 	private boolean useCache = false;
+	private String ctxPrinciplePattern ;
+	private String searchFilterPattern ;
+	
 	
 	//key is the combination of 
 	protected LoadingCache<java.util.Map.Entry<String,String>, Boolean>  userCredentials;
 	
-	public LDAPAuthenticator (Configuration config) throws NdexException, NamingException {
+	public LDAPAuthenticator (Configuration config) throws NdexException {
 		
 		ldapAdServer = config.getProperty(PROP_LDAP_URL);
 		if ( ldapAdServer == null )
@@ -64,11 +70,28 @@ public class LDAPAuthenticator {
 		
 		ldapNDExGroup = config.getProperty(AD_NDEX_GROUP_NAME);
        
+		ctxPrinciplePattern = config.getProperty(AD_CTX_PRINCIPLE);
+
+		if ( ctxPrinciplePattern == null)
+			throw new NdexException ("Property " + AD_CTX_PRINCIPLE + " not found in configuration.");
+
+		if ( ctxPrinciplePattern.indexOf(userNamePattern) == -1) 
+			throw new NdexException ("Pattern "+ userNamePattern + " not found in configuration property "
+					+ AD_CTX_PRINCIPLE + ".");
+	    
+		searchFilterPattern = config.getProperty(AD_SEARCH_FILTER);
+		if ( searchFilterPattern == null)
+			throw new NdexException ("Property " + AD_SEARCH_FILTER + " not found in configuration.");
+
+		if ( searchFilterPattern.indexOf(userNamePattern) == -1) 
+			throw new NdexException ("Pattern "+ userNamePattern + " not found in configuration property "
+					+ AD_SEARCH_FILTER + ".");
+
         env = new Hashtable<>();
 
 		env.put(Context.SECURITY_AUTHENTICATION, "simple");
-       env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-       env.put(Context.PROVIDER_URL, ldapAdServer);
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        env.put(Context.PROVIDER_URL, ldapAdServer);
        
        env.put("java.naming.ldap.attributes.binary", "objectSID");
        
@@ -125,13 +148,18 @@ public class LDAPAuthenticator {
 
 	
 	private Boolean userIsInNdexGroup (String username, String password) throws UnauthorizedOperationException  {
-      env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
+      
+ 	  //env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
+	
+		env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));	
       env.put(Context.SECURITY_CREDENTIALS, password);
       try {
     	  LdapContext ctx = new InitialLdapContext(env,null);
       
 
-	  String searchFilter = "(&(SAMAccountName="+ username + ")(objectClass=user)(objectCategory=person))";
+	 // String searchFilter = "(&(SAMAccountName="+ username + ")(objectClass=user)(objectCategory=person))";
+	  String searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
+	  
 	  SearchControls searchControls = new SearchControls();
 	  searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
 	  NamingEnumeration<SearchResult> results = ctx.search(ldapSearchBase, searchFilter, searchControls);

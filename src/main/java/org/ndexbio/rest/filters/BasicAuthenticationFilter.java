@@ -39,8 +39,8 @@ import org.slf4j.LoggerFactory;
 public class BasicAuthenticationFilter implements ContainerRequestFilter
 {
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
-    private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<Object>());
-    private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<Object>());
+    private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<>());
+    private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<>());
     private static LDAPAuthenticator ADAuthenticator = null;
     private boolean authenticatedUserOnly = false;
     private static final String AUTHENTICATED_USER_ONLY="AUTHENTICATED_USER_ONLY";

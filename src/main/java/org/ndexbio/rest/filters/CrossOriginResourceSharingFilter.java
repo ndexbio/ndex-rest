@@ -51,8 +51,6 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.ext.Provider;
 
-import org.ndexbio.rest.services.NdexService;
-
 @Provider
 public class CrossOriginResourceSharingFilter implements ContainerResponseFilter, Filter
 {
