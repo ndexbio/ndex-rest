@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-	<appender name="LOGGING" level="debug" class="ch.qos.logback.core.rolling.RollingFileAppender">
+	<appender name="LOGGING" class="ch.qos.logback.core.rolling.RollingFileAppender">
 		<file>../logs/ndex.log</file>
 		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
 			<!-- Roll-over daily -->
@@ -13,8 +13,9 @@
 		<layout>
 			<!--   <pattern>%date %level %logger - %msg%n</pattern>   -->
 
-            <!-- the &#9; below is code for tabulation  -->
-            <pattern>[%date]&#9;[%level]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
+            <!-- the &#9; below is code for tabulation;  ThreadId is set in NdexService.java/NdexService().  -->
+            <pattern>[%date]&#9;[%level]&#9;[%X{ThreadId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
+            <!--  <pattern>[%date]&#9;[%level]&#9;%msg&#9;[%C{0}.%method]%n</pattern> -->
         </layout>			
 	</appender>
 
@@ -25,8 +26,6 @@
 		<to>jic002@ucsd.edu</to>
 		<from>exceptions@ndexbio.org</from>
 		<subject>Exception: %m</subject>
-		<username>support@ndexbio.org</username>
-		<password>ZrdF!nP8</password>
 		<encoder>
 			<pattern>%date %level %logger - %msg%n</pattern>
 		</encoder>
@@ -42,7 +41,9 @@
 		<pattern>%date %level %logger - %msg%n</pattern>
 	</encoder>
 	
-	<root level="debug">
+	<!-- the log level All below gets over-written by the value of Log-Level config parameter from /opt/ndex/conf/ndex.properties.
+	This config file gets processed by /ndex-common/src/main/java/org/ndexbio/task/Confgiguration.java. -->
+	<root level="all">
 	  <appender-ref ref="LOGGING" />
 	</root>
 </configuration>

@@ -18,14 +18,15 @@ import javax.ws.rs.Produces;
 import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.annotations.ApiDoc;
-
 import org.slf4j.Logger;
+import org.slf4j.MDC;
 
 public abstract class NdexService
 {
 	public static final String NdexZipFlag = "NdexZipped";
 	
     private HttpServletRequest _httpRequest;
+    private String threadId;
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -35,6 +36,15 @@ public abstract class NdexService
     **************************************************************************/
     public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
+        
+        // we need to log thread id.  
+        // The parameter ThreadId can be accessed in <pattern> element from logback.xml like this: %X{ThreadId} 
+        // The MDC manages contextual information on a per thread basis.  Typically, while starting to service a new client request, 
+        // the developer will insert pertinent contextual information, such as the client id, client's IP address, request parameters etc. into the MDC. 
+        // Logback components, if appropriately configured, will automatically include this information in each log entry.
+        // See http://logback.qos.ch/manual/mdc.html for more info.
+        this.threadId =  String.valueOf(Thread.currentThread().getId());
+        MDC.put("ThreadId", this.threadId);
     }
     
     /**************************************************************************
@@ -135,5 +145,9 @@ public abstract class NdexService
             	"[ANONYMOUS-USER]\t";
     	
     	logger.info(userPrefix + message);
+    }
+   
+    protected String getTrheadId() {
+    	return this.threadId;
     }
 }
