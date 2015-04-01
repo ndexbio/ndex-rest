@@ -1,5 +1,6 @@
 package org.ndexbio.rest.services;
 
+
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
@@ -10,7 +11,6 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
-import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
@@ -22,7 +22,6 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 import org.slf4j.Logger;
 
@@ -57,6 +56,7 @@ public class TaskService extends NdexService
     /*
      * refactored for non-transactional database operation
      */
+
     @POST
     @Produces("application/json")
 	@ApiDoc("Create a new task owned by the authenticated user based on the supplied JSON task object.")
@@ -87,47 +87,7 @@ public class TaskService extends NdexService
     }
     
 
-/*    
-	@PUT
-	@Path("/{taskId}/status/{status}")
-	@Produces("application/json")
-	@ApiDoc("Sets the status of the task, throws exception if status is not recognized.")
-	public Task updateTaskStatus(@PathParam("status") final String status,
-			@PathParam("taskId") final String taskId) throws NdexException {
-		
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId),
-				"A task ID is required");
 
-		
-		try (TaskDAO dao = new TaskDAO(NdexAOrientDBConnectionPool.getInstance().acquire())){
-			
-			Status s = Status.valueOf(status);
-
-			Task t= dao.updateTaskStatus(s,taskId, this.getLoggedInUser());
-			
-			dao.commit();
-			return t;
-			
-		} catch (Exception e) {
-			_logger.error("Error changing task status for: "
-					+ this.getLoggedInUser().getAccountName() + ".", e);
-			throw new NdexException("Error changing task status." + e.getMessage());
-			
-		} 
-	}
-*/	
-/*	
-    private void openDatabase() throws NdexException {
-//		database = new NdexDatabase();
-		localConnection = NdexAOrientDBConnectionPool.getInstance().acquire();
-//		graph = new OrientGraph(localConnection);
-		dao = new TaskDAO(localConnection);
-	}
-	private void closeDatabase() {
-		localConnection.close();
-//		database.close();
-	}
-*/
     /**************************************************************************
     * Deletes a task. 
     * 

@@ -83,6 +83,8 @@ import org.slf4j.Logger;
 public class NetworkAService extends NdexService {
 	
 	static Logger logger = LoggerFactory.getLogger(NetworkAService.class);
+	
+	static private final String readOnlyParameter = "readOnly";
 
 	public NetworkAService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
@@ -1431,18 +1433,22 @@ public class NetworkAService extends NdexService {
 			try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()){
 				if (Helper.isAdminOfNetwork(db, networkId, getLoggedInUser().getExternalId().toString())) {
 				 
-				  NetworkDAO daoNew = new NetworkDAO(db);
-				  try { 
-					  String result = daoNew.setFlag (networkId, parameter,value);
-					  daoNew.commit();
-					  logger.info(userNameForLog() + "[end: Done setting flag " + parameter + " with value " + value + " for network " + networkId + "]");
-					  return result;
-				  } catch (IOException e) {
-					  //e.printStackTrace();
-					  logger.error(userNameForLog() + "[end: Ndex server internal IOException. Exception caught:]",  e);
-					  throw new NdexException ("Ndex server internal IOException: " + e.getMessage());
+				  if ( parameter.equals(readOnlyParameter)) {
+					  boolean bv = Boolean.parseBoolean(value);
+
+					  NetworkDAO daoNew = new NetworkDAO(db);
+					 // try { 
+						  long oldId = daoNew.setReadOnlyFlag(networkId, bv, getLoggedInUser().getAccountName());
+						  if( ( (oldId <0 && bv) || oldId >0 && bv == false))
+								 daoNew.commit();
+						  logger.info(userNameForLog() + "[end: Done setting flag " + parameter + " with value " + value + " for network " + networkId + "]");
+						  return Long.toString(oldId);
+					 /* } catch (IOException e) {
+						  //e.printStackTrace();
+						  logger.error(userNameForLog() + "[end: Ndex server internal IOException. Exception caught:]",  e);
+						  throw new NdexException ("Ndex server internal IOException: " + e.getMessage());
+					  } */
 				  }
-			
 				}
 				throw new UnauthorizedOperationException("Only an administrator can set a network flag.");
 			}
