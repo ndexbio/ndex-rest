@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -172,46 +173,36 @@ public class TaskService extends NdexService
     * @throws NdexException
     *            Failed to query the database.
     **************************************************************************/
-/*    @GET
+    @GET
     @Path("/{taskId}")
     @Produces("application/json")
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public Task getTask(@PathParam("taskId")final String taskId) throws IllegalArgumentException, SecurityException, NdexException
+    public Task getTask(@PathParam("taskId")final String taskId) throws  SecurityException, NdexException
     {
-        if (taskId == null || taskId.isEmpty())
-            throw new IllegalArgumentException("No task ID was specified.");
-
-        try
-        {
-            final ORID taskRid = IdConverter.toRid(taskId);
+    	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId), "A task id is required");
+       
+    	logger.info(userNameForLog() + "[start:  get task " + taskId + "]");
+    	
+    	try (TaskDocDAO tdao= new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
             
-            setupDatabase();
+            final Task task = tdao.getTaskByUUID(taskId);
             
-            final ITask task = _orientDbGraph.getVertex(taskRid, ITask.class);
-            if (task != null)
-            {
-                if (!task.getOwner().getUsername().equals(this.getLoggedInUser().getUsername()))
-                    throw new SecurityException("Access denied.");
-                else
-                    return new Task(task);
+            if (task == null || task.getIsDeleted()) {
+        		logger.info(userNameForLog() + "[end: Task " + taskId + " not found]");
+                throw new ObjectNotFoundException("Task", taskId);
+            }    
+            
+            else if (!task.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
+        		logger.info(userNameForLog() + "[end: User " + getLoggedInUser().getExternalId() + " is unauthorized to query task " + taskId + "]");            	
+                throw new SecurityException("Can't find task " + taskId + " for user " + this.getLoggedInUser().getAccountName());
+        	    //logger.info("Task " + taskUUID + " is already deleted.");
             }
+            
+        	logger.info(userNameForLog() + "[end: Return task " + taskId + " to user.]");
+        	return task;
+        	
         }
-        catch (SecurityException se)
-        {
-            throw se;
-        }
-        catch (Exception e)
-        {
-            _logger.error("Failed to get task: " + taskId + ".", e);
-            throw new NdexException("Failed to retrieve the task.");
-        }
-        finally
-        {
-            teardownDatabase();
-        }
-        
-        return null;
     }
-*/
+
     
 }

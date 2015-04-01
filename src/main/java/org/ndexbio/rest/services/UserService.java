@@ -538,21 +538,35 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/{userId}/task/{status}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("Returns an array of Task objects with the specified status")
-	public List<Task> getTasks(
+	@ApiDoc("The function is deperated. Please user the other get user tasks function without the user UUID parameter. Returns an array of Task objects with the specified status")
+	public List<Task> getTasks_aux(
 			@PathParam("userId") final String userId,
 			@PathParam("status") final String status,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		logger.info(userNameForLog() + "[start: Getting tasks for user " + userId + "]");
+		return getTasks ( status,skipBlocks, blockSize);
 		
+	}
+
+	
+	@GET
+	@Path("/task/{status}/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("Returns an array of Task objects with the specified status")
+	public List<Task> getTasks(
+
+			@PathParam("status") final String status,
+			@PathParam("skipBlocks") int skipBlocks,
+			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		logger.info(userNameForLog() + "[start: Getting tasks for user " + getLoggedInUser().getAccountName() + "]");
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			Status taskStatus = Status.valueOf(status);
 			List<Task> tasks= dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
-			logger.info(userNameForLog() + "[end: Returned " + tasks.size() + " tasks under user " + userId  + "]");
+			logger.info(userNameForLog() + "[end: Returned " + tasks.size() + " tasks under user " + getLoggedInUser().getAccountName()  + "]");
 			return tasks;
 		} 
 	}
-	
+
 }
