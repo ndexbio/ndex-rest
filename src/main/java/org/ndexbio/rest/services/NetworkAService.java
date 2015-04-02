@@ -547,21 +547,20 @@ public class NetworkAService extends NdexService {
 			NetworkDAO daoNew = new NetworkDAO(db);
 			
 			NetworkSummary sum = daoNew.getNetworkSummaryById(networkId);
-/*			if ( sum.getIsReadOnly()) {
+			long commitId = sum.getReadOnlyCommitId();
+			if ( commitId > 0 && commitId == sum.getReadOnlyCacheId()) {
 				daoNew.close();
 				try {
 					FileInputStream in = new FileInputStream(
-				
-						Configuration.getInstance().getNdexRoot() + "/" + NetworkDAO.workspaceDir + "/" 
-						+ sum.getOwner() + "/" + sum.getExternalId() + ".json")  ;
+							Configuration.getInstance().getNdexNetworkCachePath() + commitId +".gz")  ;
 				
 					setZipFlag();
-					logger.info("returning cached network.");
+					logger.info(userNameForLog() + "[end: retrun cached network " + networkId + "]");
 					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 				} catch (IOException e) {
 					throw new NdexException ("Ndex server can't find file: " + e.getMessage());
 				}
-			}  */ 	
+			}   	
 
 			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
 			daoNew.close();
@@ -1473,7 +1472,7 @@ public class NetworkAService extends NdexService {
 	@Path("/{networkId}/setFlag/{parameter}={value}")
 	@Produces("application/json")
     @ApiDoc("Set the certain Ndex system flag onnetwork. Supported parameters are:"+
-	        "readOnly")
+	        "readOnly={true|false}")
 	public String setNetworkFlag(
 			@PathParam("networkId") final String networkId,
 			@PathParam("parameter") final String parameter,
