@@ -13,7 +13,7 @@ public class NdexExceptionMapper implements ExceptionMapper<NdexException>
     {
         return Response
             .status(Status.INTERNAL_SERVER_ERROR)
-            .entity(exception.getMessage())
+            .entity(exception.getNdexExceptionInJason())
             .build();
     }
 }

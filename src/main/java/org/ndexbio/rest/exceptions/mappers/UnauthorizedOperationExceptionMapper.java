@@ -13,7 +13,7 @@ public class UnauthorizedOperationExceptionMapper implements ExceptionMapper<Una
     {
         return Response
             .status(Status.UNAUTHORIZED)
-            .entity(exception.getMessage())
+            .entity(exception.getNdexExceptionInJason())
             .build();
     }
 }

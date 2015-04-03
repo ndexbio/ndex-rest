@@ -31,6 +31,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
+import org.ndexbio.common.exceptions.DuplicateObjectException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
@@ -83,6 +84,8 @@ import org.slf4j.Logger;
 public class NetworkAService extends NdexService {
 	
 	static Logger logger = LoggerFactory.getLogger(NetworkAService.class);
+	
+	static private final String readOnlyParameter = "readOnly";
 
 	public NetworkAService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
@@ -476,7 +479,7 @@ public class NetworkAService extends NdexService {
 			if ( hasPrivilege) {
 				ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
 				if (doc == null)
-					throw new ObjectNotFoundException("Network", networkId);
+					throw new ObjectNotFoundException("Network with ID: " + networkId + " doesn't exist.");
 				NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
 				db.close();
 				db = null;
@@ -1066,7 +1069,7 @@ public class NetworkAService extends NdexService {
 			logger.error(userNameForLog() + "[end: Retrieving NetworkSummary objects using query \"" + 
 			    query.getSearchString() + "\". Exception caught:]", e);			
         	throw new NdexException(e.getMessage());
-        } 
+        }
 
 	}
 
@@ -1342,7 +1345,7 @@ public class NetworkAService extends NdexService {
 					"The file data is empty");
 		} catch (Exception e1) {
 			logger.error(userNameForLog() + "[end: Uploading network file. Exception caught:]", e1 );
-			throw new IllegalArgumentException(e1);
+			throw new NdexException(e1.getMessage());
 		}
 
 		String ext = FilenameUtils.getExtension(uploadedNetwork.getFilename()).toLowerCase();
@@ -1350,7 +1353,7 @@ public class NetworkAService extends NdexService {
 		if ( !ext.equals("sif") && !ext.equals("xbel") && !ext.equals("xgmml") && !ext.equals("owl") 
 				&& !ext.equals("xls") && ! ext.equals("xlsx")) {
 			logger.error(userNameForLog() + "[end: The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.  Throwing  IllegalArgumentException...]");
-			throw new IllegalArgumentException(
+			throw new NdexException(
 					"The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.");
 		}
 		
@@ -1431,18 +1434,22 @@ public class NetworkAService extends NdexService {
 			try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()){
 				if (Helper.isAdminOfNetwork(db, networkId, getLoggedInUser().getExternalId().toString())) {
 				 
-				  NetworkDAO daoNew = new NetworkDAO(db);
-				  try { 
-					  String result = daoNew.setFlag (networkId, parameter,value);
-					  daoNew.commit();
-					  logger.info(userNameForLog() + "[end: Done setting flag " + parameter + " with value " + value + " for network " + networkId + "]");
-					  return result;
-				  } catch (IOException e) {
-					  //e.printStackTrace();
-					  logger.error(userNameForLog() + "[end: Ndex server internal IOException. Exception caught:]",  e);
-					  throw new NdexException ("Ndex server internal IOException: " + e.getMessage());
+				  if ( parameter.equals(readOnlyParameter)) {
+					  boolean bv = Boolean.parseBoolean(value);
+
+					  NetworkDAO daoNew = new NetworkDAO(db);
+					 // try { 
+						  long oldId = daoNew.setReadOnlyFlag(networkId, bv, getLoggedInUser().getAccountName());
+						  if( ( (oldId <0 && bv) || oldId >0 && bv == false))
+								 daoNew.commit();
+						  logger.info(userNameForLog() + "[end: Done setting flag " + parameter + " with value " + value + " for network " + networkId + "]");
+						  return Long.toString(oldId);
+					 /* } catch (IOException e) {
+						  //e.printStackTrace();
+						  logger.error(userNameForLog() + "[end: Ndex server internal IOException. Exception caught:]",  e);
+						  throw new NdexException ("Ndex server internal IOException: " + e.getMessage());
+					  } */
 				  }
-			
 				}
 				throw new UnauthorizedOperationException("Only an administrator can set a network flag.");
 			}

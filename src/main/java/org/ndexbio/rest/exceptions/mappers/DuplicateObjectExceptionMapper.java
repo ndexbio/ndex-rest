@@ -11,8 +11,8 @@ public class DuplicateObjectExceptionMapper implements ExceptionMapper<Duplicate
     public Response toResponse(DuplicateObjectException exception)
     {
         return Response
-            .status(Status.CONFLICT)
-            .entity(exception.getMessage())
-            .build();
+                .status(Status.CONFLICT)
+                .entity(exception.getNdexExceptionInJason())
+                .build();
     }
 }

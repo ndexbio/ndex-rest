@@ -147,7 +147,7 @@ public abstract class NdexService
     	logger.info(userPrefix + message);
     }
    
-    protected String getTrheadId() {
+    protected String getThreadId() {
     	return this.threadId;
     }
 }
