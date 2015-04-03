@@ -6,11 +6,16 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Properties;
 import java.util.UUID;
 
-
 import javax.annotation.security.PermitAll;
+import javax.mail.Message;
 import javax.mail.MessagingException;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -337,6 +342,12 @@ public class UserService extends NdexService {
 			throws IllegalArgumentException, NdexException {
 
 		logger.info(userNameForLog() + "[start: Changing password for user " + getLoggedInUser().getAccountName() + "]");
+	
+		if( Configuration.getInstance().getUseADAuthentication()) {
+			logger.warn(userNameForLog() + "[end: Changing password not allowed for AD authentication method]");
+			throw new UnauthorizedOperationException("Emailing new password is not allowed when using AD authentication method");
+		}
+		
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
 				"A password is required");
 		
@@ -383,6 +394,7 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@GET
 	@PermitAll
+	@NdexOpenFunction
 	@Path("/{accountName}/forgot-password")
 	@Produces("application/json")
 	@ApiDoc("Causes a new password to be generated for the authenticated user and then emailed to the users emailAddress")
@@ -392,13 +404,19 @@ public class UserService extends NdexService {
 		
 		logger.info(userNameForLog() + "[start: Email new password for " + accountName + "]");
 		
+		if( Configuration.getInstance().getUseADAuthentication()) {
+			logger.warn(userNameForLog() + "[end: Emailing new password is not allowed for AD authentication method]");
+			throw new UnauthorizedOperationException("Emailing new password is not allowed when using AD authentication method");
+		}
+		
+		
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(accountName), 
 				"A accountName is required");
 		// TODO: In the future security questions should be implemented - right
 		// now anyone can change anyone else's password to a randomly generated
 		// password
 		
-		BufferedReader fileReader = null;
+	//	BufferedReader fileReader = null;
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 
 			User authUser = dao.getUserByAccountName(accountName);
@@ -406,36 +424,41 @@ public class UserService extends NdexService {
 
 			dao.commit();
 			
-			final File forgotPasswordFile = new File(Configuration
-					.getInstance().getProperty("Forgot-Password-File"));
+		    // Get system properties
+  	        Properties properties = System.getProperties();
 
-			if (!forgotPasswordFile.exists()) {
-				logger.error(userNameForLog() + "[end: File containing forgot password email content doesn't exist.  Throwing FileNotFoundException.]");
-				throw new java.io.FileNotFoundException(
-						"File containing forgot password email content doesn't exist.");
-			}
+		    // Setup mail server
+		    properties.setProperty("mail.smtp.host", "localhost");
+		    
+		    // Get the default Session object.
+		      Session session = Session.getDefaultInstance(properties);
+		    
+		    try{
+		          // Create a default MimeMessage object.
+		          MimeMessage message = new MimeMessage(session);
 
-			fileReader = Files.newBufferedReader(
-					forgotPasswordFile.toPath(), Charset.forName("US-ASCII"));
+		          // Set From: header field of the header.
+		          message.setFrom(new InternetAddress(Configuration.getInstance().getProperty("Forgot-Password-Email")));
 
-			final StringBuilder forgotPasswordText = new StringBuilder();
+		          // Set To: header field of the header.
+		          message.addRecipient(Message.RecipientType.TO,
+		                                   new InternetAddress(authUser.getEmailAddress()));
 
-			String lineOfText = null;
-			while ((lineOfText = fileReader.readLine()) != null)
-				forgotPasswordText.append(lineOfText.replace("{password}",	newPasswd));
+		          // Set Subject: header field
+		          message.setSubject("Your NDEx Password Has Been Reset");
 
-			Email.sendEmail(
-					Configuration.getInstance().getProperty(
-							"Forgot-Password-Email"),
-					authUser.getEmailAddress(), "Password Recovery",
-					forgotPasswordText.toString());
+		          // Now set the actual message
+		          message.setText("Your new password is:" + newPasswd);
 
-			logger.info(userNameForLog() + "[end: Sent password recovery email to user " + accountName  + "]");
-
-			return Response.ok().build();
+		          // Send message
+		          Transport.send(message);
+		          System.out.println("Sent message successfully....");
+		    }catch (MessagingException mex) {
+		    	logger.error(userNameForLog() + "[end: Failed to email new password. Cause:" + mex.getMessage() );
+		        throw new NdexException ("Failed to email new password. Cause:" + mex.getMessage());
+		    }
 			
-		} finally {
-			if ( fileReader !=null ) fileReader.close();
+			return Response.ok().build();
 		}
 	}
 
