@@ -14,12 +14,12 @@ import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.services.NdexOpenFunction;

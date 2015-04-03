@@ -15,17 +15,17 @@ import javax.ws.rs.core.Context;
 
 import java.util.UUID;
 
+import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.common.models.dao.orientdb.GroupDAO;
 import org.ndexbio.common.models.dao.orientdb.GroupDocDAO;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.ndexbio.task.Configuration;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
@@ -152,7 +152,7 @@ public class GroupService extends NdexService {
 		if (groupToDelete == null)
 			throw new ObjectNotFoundException("Group", groupId);
 		else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
-			throw new SecurityException(
+			throw new UnauthorizedOperationException(
 					"Insufficient privileges to delete the group.");
 
 		final List<ODocument> adminCount = _ndexDatabase
@@ -316,7 +316,7 @@ public class GroupService extends NdexService {
 			if (group == null)
 				throw new ObjectNotFoundException("Group", groupId);
 			else if (!hasPermission(new Group(group), Permissions.ADMIN))
-				throw new SecurityException("Access denied.");
+				throw new UnauthorizedOperationException("Access denied.");
 
 			final IUser user = _orientDbGraph.getVertex(
 					IdConverter.toRid(userId), IUser.class);
@@ -328,7 +328,7 @@ public class GroupService extends NdexService {
 						.getMember().asVertex().getId());
 				if (memberId.equals(userId)) {
 					if (countAdminMembers(groupRid) < 2)
-						throw new SecurityException(
+						throw new UnauthorizedOperationException(
 								"Cannot remove the only ADMIN member.");
 
 					group.removeMember(groupMember);
