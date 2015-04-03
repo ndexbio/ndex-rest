@@ -47,7 +47,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     private boolean authenticatedUserOnly = false;
     private static final String AUTHENTICATED_USER_ONLY="AUTHENTICATED_USER_ONLY";
     
-    public BasicAuthenticationFilter() throws NdexException, NamingException {
+    public BasicAuthenticationFilter() throws NdexException {
     	super();
     	
     	Configuration config = Configuration.getInstance();
@@ -181,7 +181,12 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         final String encodedAuthInfo = authHeader.get(0).replaceFirst("Basic" + " ", "");
         final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
         
-        return decodedAuthInfo.split(":");
+        String[] result = new String[2];
+        
+        int idx = decodedAuthInfo.indexOf(":");
+        result[0] = decodedAuthInfo.substring(0, idx);
+        result[1] = decodedAuthInfo.substring(idx+1);
+        return result; //decodedAuthInfo.split(":");
     }
     
 

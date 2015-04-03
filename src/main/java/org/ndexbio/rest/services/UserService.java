@@ -98,6 +98,11 @@ public class UserService extends NdexService {
 		
 		logger.info(userNameForLog() + "[start: Creating User "+ newUser.getAccountName() + "]");
 		
+		if ( newUser.getAccountName().indexOf(":")>=0) {
+			logger.warn(userNameForLog() + "[end: Failed to create user, account name can't contain \":\" in it]");
+			throw new NdexException("User account name can't have \":\" in it.");
+		}
+		
 		//verify against AD if AD authentication is defined in the configure file
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
@@ -275,6 +280,42 @@ public class UserService extends NdexService {
 		}
 	}
 
+	
+	/**************************************************************************
+	 * Authenticates a user trying to login.
+	 * 
+	 * @param username
+	 *            The AccountName.
+	 * @param password
+	 *            The password.
+	 * @throws SecurityException
+	 *             Invalid accountName or password.
+	 * @throws NdexException
+	 *             Can't authenticate users against the database.
+	 * @return The authenticated user's information.
+	 **************************************************************************/
+	@GET
+	@PermitAll
+	@NdexOpenFunction
+	@Path("/authenticate")
+	@Produces("application/json")
+	@ApiDoc("Authenticates the combination of accountName and password supplied in the Auth header, returns the authenticated user if successful.")
+	public User authenticateUserNoOp()
+			throws UnauthorizedOperationException {
+		
+		logger.info( "[]\t[start: Authenticate user from Auth header]");
+       
+		User u = this.getLoggedInUser(); 
+		if ( u == null ) {
+			throw new UnauthorizedOperationException("Un authorized user.");
+		}	
+		
+		logger.info(userNameForLog() + "[end: user autenticated from Auth header]");
+		return this.getLoggedInUser();
+	}
+	
+	
+	
 	/**************************************************************************
 	 * Changes a user's password.
 	 * 
@@ -538,21 +579,35 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/{userId}/task/{status}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("Returns an array of Task objects with the specified status")
-	public List<Task> getTasks(
+	@ApiDoc("The function is deperated. Please user the other get user tasks function without the user UUID parameter. Returns an array of Task objects with the specified status")
+	public List<Task> getTasks_aux(
 			@PathParam("userId") final String userId,
 			@PathParam("status") final String status,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 		
-		logger.info(userNameForLog() + "[start: Getting tasks for user " + userId + "]");
+		return getTasks ( status,skipBlocks, blockSize);
 		
+	}
+
+	
+	@GET
+	@Path("/task/{status}/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("Returns an array of Task objects with the specified status")
+	public List<Task> getTasks(
+
+			@PathParam("status") final String status,
+			@PathParam("skipBlocks") int skipBlocks,
+			@PathParam("blockSize") int blockSize) throws NdexException {
+		
+		logger.info(userNameForLog() + "[start: Getting tasks for user " + getLoggedInUser().getAccountName() + "]");
 		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
 			Status taskStatus = Status.valueOf(status);
 			List<Task> tasks= dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
-			logger.info(userNameForLog() + "[end: Returned " + tasks.size() + " tasks under user " + userId  + "]");
+			logger.info(userNameForLog() + "[end: Returned " + tasks.size() + " tasks under user " + getLoggedInUser().getAccountName()  + "]");
 			return tasks;
 		} 
 	}
-	
+
 }

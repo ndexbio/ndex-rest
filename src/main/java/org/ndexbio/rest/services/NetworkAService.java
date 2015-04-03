@@ -50,6 +50,7 @@ import org.ndexbio.model.object.SimplePathQuery;
 import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.TaskAttribute;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.common.models.object.network.RawNamespace;
@@ -59,6 +60,7 @@ import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;
+import org.ndexbio.model.object.network.FileFormat;
 import org.ndexbio.model.object.network.Namespace;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -538,31 +540,32 @@ public class NetworkAService extends NdexService {
 	public Response getCompleteNetwork(	@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, NdexException {
 
+    	logger.info(userNameForLog() + "[start: Getting complete network " + networkId + "]");
+
 		if ( isSearchable(networkId) ) {
 			
 			ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO daoNew = new NetworkDAO(db);
 			
 			NetworkSummary sum = daoNew.getNetworkSummaryById(networkId);
-/*			if ( sum.getIsReadOnly()) {
+			long commitId = sum.getReadOnlyCommitId();
+			if ( commitId > 0 && commitId == sum.getReadOnlyCacheId()) {
 				daoNew.close();
 				try {
 					FileInputStream in = new FileInputStream(
-				
-						Configuration.getInstance().getNdexRoot() + "/" + NetworkDAO.workspaceDir + "/" 
-						+ sum.getOwner() + "/" + sum.getExternalId() + ".json")  ;
+							Configuration.getInstance().getNdexNetworkCachePath() + commitId +".gz")  ;
 				
 					setZipFlag();
-					logger.info("returning cached network.");
+					logger.info(userNameForLog() + "[end: retrun cached network " + networkId + "]");
 					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 				} catch (IOException e) {
 					throw new NdexException ("Ndex server can't find file: " + e.getMessage());
 				}
-			}  */ 	
+			}   	
 
 			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
 			daoNew.close();
-			logger.info("returning network from query.");
+			logger.info(userNameForLog() + "[end: retrun complete network " + networkId + "]");
 			return Response.ok(n,MediaType.APPLICATION_JSON_TYPE).build();
 		}
 		else
@@ -570,6 +573,55 @@ public class NetworkAService extends NdexService {
 
 	}  
 
+	@PermitAll
+	@GET
+	@Path("/export/{networkId}/{format}")
+	@Produces("application/json")
+    @ApiDoc("Retrieve an entire network specified by 'networkId' as a Network object.  (Compare this method to " +
+            "getCompleteNetworkAsPropertyGraph).")
+	public String exportNetwork(	@PathParam("networkId") final String networkId,
+			@PathParam("format") final String format)
+			throws  NdexException {
+
+		logger.info(userNameForLog() + "[start: request to export network " + networkId + "]");
+		
+		if ( isSearchable(networkId) ) {
+			
+			String networkName =null;
+			try (NetworkDAO networkdao = new NetworkDAO(NdexDatabase.getInstance().getAConnection())){
+				networkName = networkdao.getNetworkSummaryById(networkId).getName();
+			}
+			
+			Task exportNetworkTask = new Task();
+			exportNetworkTask.setTaskType(TaskType.EXPORT_NETWORK_TO_FILE);
+			exportNetworkTask.setPriority(Priority.LOW);
+			exportNetworkTask.setResource(networkId); 
+			exportNetworkTask.setStatus(Status.QUEUED);
+			exportNetworkTask.setDescription("Export network \""+ networkName + "\" in " + format + " format");
+			
+			try {
+				exportNetworkTask.setFormat(FileFormat.valueOf(format));
+			} catch ( Exception e) {
+				throw new NdexException ("Invalid network format for network export.");
+			}
+			
+			try (TaskDAO taskDAO = new TaskDAO(NdexDatabase.getInstance().getAConnection()) ){ 
+				UUID taskId = taskDAO.createTask(getLoggedInUser().getAccountName(),exportNetworkTask);
+				taskDAO.commit();
+				logger.info(userNameForLog() + "[end: task created to export network " + networkId + "]");
+				return taskId.toString();
+			}  catch (Exception e) {
+				logger.error(userNameForLog() + "[end: Exception caught:]",  e);
+				throw new NdexException(e.getMessage());
+			} 
+		}
+		
+		throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+
+	}  
+	
+	
+	
 	@PermitAll
 	@GET
 	@Path("/{networkId}/asPropertyGraph")
@@ -1421,7 +1473,7 @@ public class NetworkAService extends NdexService {
 	@Path("/{networkId}/setFlag/{parameter}={value}")
 	@Produces("application/json")
     @ApiDoc("Set the certain Ndex system flag onnetwork. Supported parameters are:"+
-	        "readOnly")
+	        "readOnly={true|false}")
 	public String setNetworkFlag(
 			@PathParam("networkId") final String networkId,
 			@PathParam("parameter") final String parameter,

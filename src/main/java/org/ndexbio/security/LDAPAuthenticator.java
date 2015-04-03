@@ -151,7 +151,7 @@ public class LDAPAuthenticator {
       
  	  //env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
 	
-		env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));	
+	  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));	
       env.put(Context.SECURITY_CREDENTIALS, password);
       try {
     	  LdapContext ctx = new InitialLdapContext(env,null);
