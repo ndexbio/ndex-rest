@@ -118,7 +118,7 @@ public class TaskService extends NdexService
 
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskUUID), 
     			"A task id is required");
-       
+  
     	
     	try (TaskDocDAO tdao= new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
             
@@ -126,7 +126,7 @@ public class TaskService extends NdexService
             
             if (taskToDelete == null) {
         		logger.info(userNameForLog() + "[end: Task " + taskUUID + " not found. Throwing ObjectNotFoundException.]");
-                throw new ObjectNotFoundException("Task", taskUUID);
+                throw new ObjectNotFoundException("Task with ID: " + taskUUID + " doesn't exist.");
             }    
             else if (!taskToDelete.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
         		logger.info(userNameForLog() + "[end: You cannot delete task " + taskUUID + 
@@ -154,7 +154,7 @@ public class TaskService extends NdexService
         	logger.error(userNameForLog() + "[end: Failed to delete task " + taskUUID + ". Exception caught:]", e);  
         	
         	if (e.getMessage().indexOf("cluster: null") > -1){	
-                throw new ObjectNotFoundException("Task", taskUUID);
+        		throw new ObjectNotFoundException("Task with ID: " + taskUUID + " doesn't exist.");
             }
 	        
             throw new NdexException("Failed to delete task " + taskUUID);
@@ -179,10 +179,10 @@ public class TaskService extends NdexService
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
     public Task getTask(@PathParam("taskId")final String taskId) throws  SecurityException, NdexException
     {
-    	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId), "A task id is required");
-       
     	logger.info(userNameForLog() + "[start:  get task " + taskId + "]");
     	
+    	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId), "A task id is required");
+
     	try (TaskDocDAO tdao= new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
             
             final Task task = tdao.getTaskByUUID(taskId);

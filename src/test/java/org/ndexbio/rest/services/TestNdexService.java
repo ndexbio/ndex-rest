@@ -167,7 +167,7 @@ public abstract class TestNdexService
     *            The name of the object.
     * @return An ORID object containing the record ID.
     **************************************************************************/
-    protected ORID getRid(String objectName) throws IllegalArgumentException
+    protected ORID getRid(String objectName) throws NdexException
     {
         objectName = objectName.replace("'", "\\'");
         
@@ -191,7 +191,7 @@ public abstract class TestNdexService
         if (!matchingTasks.isEmpty())
             return (ORID)_orientDbGraph.getVertex(matchingTasks.get(0)).getId();
       */  
-        throw new IllegalArgumentException(objectName + " is not a user, group, network, request, or task.");
+        throw new NdexException(objectName + " is not a user, group, network, request, or task.");
     }
 
     

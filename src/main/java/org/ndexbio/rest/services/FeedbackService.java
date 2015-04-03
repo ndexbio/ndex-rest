@@ -40,25 +40,23 @@ public class FeedbackService extends NdexService
     *            The type of feedback being given.
     * @param feedbackText
     *            The feedback.
-    * @throws IllegalArgumentException
-    *            Bad input.
     * @throws NdexException
     *            Failed to send the email. 
     **************************************************************************/
     @POST
     @Path("/{type}")
     @Produces("application/json")
-    public void emailFeedback(@PathParam("type")final String feedbackType, final String feedbackText) throws IllegalArgumentException, NdexException
+    public void emailFeedback(@PathParam("type")final String feedbackType, final String feedbackText) throws NdexException
     {
     	logger.info(userNameForLog() + "[start: email feedback]");   
     	
         if (feedbackType == null || feedbackType.isEmpty()) {
-        	logger.error(userNameForLog() + "[end: Feedback type wasn't specified. Throwing IllegalArgumentException.]"); 
-        	throw new IllegalArgumentException("Feedback type wasn't specified.");
+        	logger.error(userNameForLog() + "[end: Feedback type wasn't specified. Throwing NdexException.]"); 
+        	throw new NdexException("Feedback type wasn't specified.");
         }
         else if (feedbackText == null || feedbackText.isEmpty()) {
-        	logger.error(userNameForLog() + "[end: No feedback was supplied. Throwing IllegalArgumentException.]"); 
-        	throw new IllegalArgumentException("No feedback was supplied.");
+        	logger.error(userNameForLog() + "[end: No feedback was supplied. Throwing NdexException.]"); 
+        	throw new NdexException("No feedback was supplied.");
         }
         try
         {

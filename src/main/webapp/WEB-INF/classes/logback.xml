@@ -38,7 +38,8 @@
 	</appender>
 	
 	<encoder>
-		<pattern>%date %level %logger - %msg%n</pattern>
+		<!--  <pattern>%date %level %logger - %msg%n</pattern> -->
+		<pattern>[%date]&#9;[%level]&#9;[%X{ThreadId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
 	</encoder>
 	
 	<!-- the log level All below gets over-written by the value of Log-Level config parameter from /opt/ndex/conf/ndex.properties.

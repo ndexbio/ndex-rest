@@ -31,6 +31,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
+import org.ndexbio.common.exceptions.DuplicateObjectException;
 import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
@@ -480,7 +481,7 @@ public class NetworkAService extends NdexService {
 			if ( hasPrivilege) {
 				ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
 				if (doc == null)
-					throw new ObjectNotFoundException("Network", networkId);
+					throw new ObjectNotFoundException("Network with ID: " + networkId + " doesn't exist.");
 				NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
 				db.close();
 				db = null;
@@ -1120,7 +1121,7 @@ public class NetworkAService extends NdexService {
 			logger.error(userNameForLog() + "[end: Retrieving NetworkSummary objects using query \"" + 
 			    query.getSearchString() + "\". Exception caught:]", e);			
         	throw new NdexException(e.getMessage());
-        } 
+        }
 
 	}
 
@@ -1396,7 +1397,7 @@ public class NetworkAService extends NdexService {
 					"The file data is empty");
 		} catch (Exception e1) {
 			logger.error(userNameForLog() + "[end: Uploading network file. Exception caught:]", e1 );
-			throw new IllegalArgumentException(e1);
+			throw new NdexException(e1.getMessage());
 		}
 
 		String ext = FilenameUtils.getExtension(uploadedNetwork.getFilename()).toLowerCase();
@@ -1404,7 +1405,7 @@ public class NetworkAService extends NdexService {
 		if ( !ext.equals("sif") && !ext.equals("xbel") && !ext.equals("xgmml") && !ext.equals("owl") 
 				&& !ext.equals("xls") && ! ext.equals("xlsx")) {
 			logger.error(userNameForLog() + "[end: The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.  Throwing  IllegalArgumentException...]");
-			throw new IllegalArgumentException(
+			throw new NdexException(
 					"The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.");
 		}
 		

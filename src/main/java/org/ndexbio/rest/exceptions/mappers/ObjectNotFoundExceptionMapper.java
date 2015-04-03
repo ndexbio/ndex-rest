@@ -12,7 +12,7 @@ public class ObjectNotFoundExceptionMapper implements ExceptionMapper<ObjectNotF
     {
         return Response
             .status(Status.NOT_FOUND)
-            .entity(exception.getMessage())
+            .entity(exception.getNdexExceptionInJason())
             .build();
     }
 }
