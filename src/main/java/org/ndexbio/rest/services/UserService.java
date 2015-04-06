@@ -27,7 +27,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
 import org.apache.commons.lang.RandomStringUtils;
-import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.*;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
@@ -45,7 +45,6 @@ import org.ndexbio.common.access.NdexDatabase;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
-import org.ndexbio.common.exceptions.*;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.security.LDAPAuthenticator;
@@ -242,7 +241,7 @@ public class UserService extends NdexService {
 	 *            The AccountName.
 	 * @param password
 	 *            The password.
-	 * @throws SecurityException
+	 * @throws UnauthorizedOperationException
 	 *             Invalid accountName or password.
 	 * @throws NdexException
 	 *             Can't authenticate users against the database.
@@ -264,8 +263,8 @@ public class UserService extends NdexService {
 			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
 			try { 
 			 if ( !authenticator.authenticateUser(accountName, password)) {
-			    logger.info(userNameForLog() + "[end: Invalid accountName or password in AD.  Throwing SecurityException.]");
-				throw new SecurityException("Invalid accountName or password in AD.");
+			    logger.info(userNameForLog() + "[end: Invalid accountName or password in AD.  Throwing UnauthorizedOperationException.]");
+				throw new UnauthorizedOperationException("Invalid accountName or password in AD.");
 			 }
 			} catch (UnauthorizedOperationException e) {
 			    logger.info(userNameForLog() + "[end: User "+ accountName + " not authenticated. "+ e.getMessage() + "]");
@@ -281,7 +280,7 @@ public class UserService extends NdexService {
 			logger.info(userNameForLog() + "[end: User " + accountName + " authenticated.]");		
 			return dao.authenticateUser(accountName.toLowerCase(), password);
 		} catch ( ObjectNotFoundException e) {
-			throw new SecurityException("User not found.");
+			throw new UnauthorizedOperationException("User not found.");
 		}
 	}
 

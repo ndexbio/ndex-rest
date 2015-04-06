@@ -13,10 +13,11 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.exceptions.ObjectNotFoundException;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDocDAO;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.LoggerFactory;
@@ -110,7 +111,7 @@ public class TaskService extends NdexService
     @Path("/{taskId}")
     @Produces("application/json")
 	@ApiDoc("Delete the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public void deleteTask(@PathParam("taskId")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, SecurityException, NdexException
+    public void deleteTask(@PathParam("taskId")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException
     {
     	
 		logger.info(userNameForLog() + "[start: Start deleting task " + taskUUID + "]");
@@ -131,7 +132,7 @@ public class TaskService extends NdexService
             else if (!taskToDelete.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
         		logger.info(userNameForLog() + "[end: You cannot delete task " + taskUUID + 
         				" becasue you don't own it. Throwing SecurityException.]");            	
-                throw new SecurityException("You cannot delete a task you don't own.");
+                throw new UnauthorizedOperationException("You cannot delete a task you don't own.");
         	    //logger.info("Task " + taskUUID + " is already deleted.");
             }
             if ( taskToDelete.getIsDeleted()) {
@@ -144,7 +145,7 @@ public class TaskService extends NdexService
             	   this.getLoggedInUser().getAccountName() + "]");
             }
         }
-        catch (SecurityException | ObjectNotFoundException onfe)
+        catch (UnauthorizedOperationException | ObjectNotFoundException onfe)
         {
         	logger.error(userNameForLog() + "[end: Failed to delete task " + taskUUID + ". Exception caught:]", onfe);   	
             throw onfe;
@@ -177,7 +178,7 @@ public class TaskService extends NdexService
     @Path("/{taskId}")
     @Produces("application/json")
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public Task getTask(@PathParam("taskId")final String taskId) throws  SecurityException, NdexException
+    public Task getTask(@PathParam("taskId")final String taskId) throws  UnauthorizedOperationException, NdexException
     {
     	logger.info(userNameForLog() + "[start:  get task " + taskId + "]");
     	
@@ -194,7 +195,7 @@ public class TaskService extends NdexService
             
             else if (!task.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
         		logger.info(userNameForLog() + "[end: User " + getLoggedInUser().getExternalId() + " is unauthorized to query task " + taskId + "]");            	
-                throw new SecurityException("Can't find task " + taskId + " for user " + this.getLoggedInUser().getAccountName());
+                throw new UnauthorizedOperationException("Can't find task " + taskId + " for user " + this.getLoggedInUser().getAccountName());
         	    //logger.info("Task " + taskUUID + " is already deleted.");
             }
             
