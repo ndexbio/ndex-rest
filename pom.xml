@@ -217,7 +217,7 @@
 		</plugins>
 	</build>
 	<properties>
-		<jettyVersion>9.2.7.v20150116</jettyVersion>
+		<jettyVersion>9.2.10.v20150310</jettyVersion>
 		<resteasyVersion>3.0.9.Final</resteasyVersion>
 	</properties>
 </project>

@@ -33,6 +33,7 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
+import org.ndexbio.common.models.dao.orientdb.NetworkDAOTx;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
@@ -1479,7 +1480,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 		
-		    logger.info(userNameForLog() + "[start: Setting flag " + parameter + " with value " + value + " for network " + networkId + "]");
+		    logger.info(userNameForLog() + "[start: Setting " + parameter + "=" + value + " for network " + networkId + "]");
 		
 			try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()){
 				if (Helper.isAdminOfNetwork(db, networkId, getLoggedInUser().getExternalId().toString())) {
@@ -1487,18 +1488,11 @@ public class NetworkAService extends NdexService {
 				  if ( parameter.equals(readOnlyParameter)) {
 					  boolean bv = Boolean.parseBoolean(value);
 
-					  NetworkDAO daoNew = new NetworkDAO(db);
-					 // try { 
+					  try (NetworkDAOTx daoNew = new NetworkDAOTx()) {
 						  long oldId = daoNew.setReadOnlyFlag(networkId, bv, getLoggedInUser().getAccountName());
-						  if( ( (oldId <0 && bv) || oldId >0 && bv == false))
-								 daoNew.commit();
-						  logger.info(userNameForLog() + "[end: Done setting flag " + parameter + " with value " + value + " for network " + networkId + "]");
+						  logger.info(userNameForLog() + "[end: setting " + parameter + "=" + value + " for network " + networkId + "]");
 						  return Long.toString(oldId);
-					 /* } catch (IOException e) {
-						  //e.printStackTrace();
-						  logger.error(userNameForLog() + "[end: Ndex server internal IOException. Exception caught:]",  e);
-						  throw new NdexException ("Ndex server internal IOException: " + e.getMessage());
-					  } */
+					  } 
 				  }
 				}
 				throw new UnauthorizedOperationException("Only an administrator can set a network flag.");
