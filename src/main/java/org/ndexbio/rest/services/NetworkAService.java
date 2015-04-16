@@ -38,6 +38,7 @@ import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.network.query.EdgeCollectionQuery;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
@@ -963,6 +964,41 @@ public class NetworkAService extends NdexService {
 		   throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 		} 
 	}
+
+	
+	@PermitAll
+	@POST
+	@Path("/{networkId}/asNetwork/prototypeNetworkQuery")
+	@Produces("application/json")
+    @ApiDoc("Retrieves a 'neighborhood' subnetwork of a network based on identifiers specified in a POSTed " +
+            "SimplePathQuery object based on a parameter set by the user. The network to be queried is specified by " +
+            "networkId. In the first step of the query, a set of base terms exactly matching identifiers found in the" +
+            " 'searchString' field of the SimplePathQuery is selected. In the second step, " +
+            "nodes are selected that reference the base terms identified in the network.  Finally, " +
+            "a set of edges is selected by traversing outwards from each of these selected nodes, " +
+            "up to the limit specified by the 'searchDepth' field of the SimplePathQuery.  The subnetwork is returned" +
+            " as a Network object containing the selected Edge objects along with any other network elements relevant" +
+            " to the edges.")
+	public Network queryNetworkByEdgeFilter(
+			@PathParam("networkId") final String networkId,
+			final EdgeCollectionQuery queryParameters
+			)
+
+			throws IllegalArgumentException, NdexException {
+
+		logger.info(userNameForLog() + "[start: filter query on network " + networkId + "\"]");
+
+		if ( !isSearchable(networkId ) ) {
+			throw new UnauthorizedOperationException("Network is not readable to this user.");
+		}
+		
+		
+		
+		return null;
+	}
+	
+	
+	
 	
 	private boolean isSearchable(String networkId) 
 				throws ObjectNotFoundException, NdexException {
