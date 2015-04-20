@@ -34,6 +34,7 @@ import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAOTx;
+import org.ndexbio.common.models.dao.orientdb.NetworkDocDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
@@ -469,20 +470,20 @@ public class NetworkAService extends NdexService {
 		try {
 			db = NdexDatabase.getInstance().getAConnection();
 
-			NetworkDAO networkDao = new NetworkDAO(db);
+			NetworkDocDAO networkDocDao = new NetworkDocDAO(db);
 
 			VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
 			boolean hasPrivilege = (vt == VisibilityType.PUBLIC || vt== VisibilityType.DISCOVERABLE);
 
 			if ( !hasPrivilege && getLoggedInUser() != null) {
-				hasPrivilege = networkDao.checkPrivilege(getLoggedInUser().getAccountName(),
+				hasPrivilege = networkDocDao.checkPrivilege(getLoggedInUser().getAccountName(),
 						networkId, Permissions.READ);
 			}
 			if ( hasPrivilege) {
-				ODocument doc =  networkDao.getNetworkDocByUUIDString(networkId);
+				ODocument doc =  networkDocDao.getNetworkDocByUUIDString(networkId);
 				if (doc == null)
 					throw new ObjectNotFoundException("Network with ID: " + networkId + " doesn't exist.");
-				NetworkSummary summary = NetworkDAO.getNetworkSummary(doc);
+				NetworkSummary summary = NetworkDocDAO.getNetworkSummary(doc);
 				db.close();
 				db = null;
 				//logInfo(logger, "NetworkSummary of " + networkId + " returned.");
