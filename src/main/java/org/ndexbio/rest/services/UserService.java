@@ -18,6 +18,7 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.Encoded;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -28,7 +29,6 @@ import javax.ws.rs.core.Response;
 
 import org.apache.commons.lang.RandomStringUtils;
 import org.ndexbio.model.exceptions.*;
-import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
@@ -144,7 +144,7 @@ public class UserService extends NdexService {
 	@Path("/{userId}")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
-	public User getUser(@PathParam("userId") final String userId)
+	public User getUser(@PathParam("userId") @Encoded final String userId)
 			throws IllegalArgumentException, NdexException {
 		
 		logger.info(userNameForLog() + "[start: Getting user " + userId + "]");
@@ -253,7 +253,7 @@ public class UserService extends NdexService {
 	@Path("/authenticate/{accountName}/{password}")
 	@Produces("application/json")
 	@ApiDoc("Authenticates the combination of accountName and password supplied in the route parameters, returns the authenticated user if successful.")
-	public User authenticateUser(@PathParam("accountName") final String accountName,
+	public User authenticateUser(@PathParam("accountName") @Encoded final String accountName,
 			@PathParam("password") final String password)
 			throws SecurityException, UnauthorizedOperationException, NdexException {
 		
@@ -398,7 +398,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Causes a new password to be generated for the authenticated user and then emailed to the users emailAddress")
 	public Response emailNewPassword(
-			@PathParam("accountName") final String accountName)
+			@PathParam("accountName") @Encoded final String accountName)
 			throws IllegalArgumentException, NdexException, IOException, MessagingException {
 		
 		logger.info(userNameForLog() + "[start: Email new password for " + accountName + "]");
