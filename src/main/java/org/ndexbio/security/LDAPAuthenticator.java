@@ -60,28 +60,19 @@ public class LDAPAuthenticator {
 	
 	public LDAPAuthenticator (Configuration config) throws NdexException {
 		
-		ldapAdServer = config.getProperty(PROP_LDAP_URL);
-		if ( ldapAdServer == null )
-			throw new NdexException("Property " + PROP_LDAP_URL + " have to be defined in configuration file.");
+		ldapAdServer = config.getRequiredProperty(PROP_LDAP_URL);
 		
-		ldapSearchBase=config.getProperty(AD_SEARCH_BASE);
-		if ( ldapSearchBase == null) 
-			throw new NdexException ("Property " + AD_SEARCH_BASE + " have to be defined in configuration file.");
+		ldapSearchBase=config.getRequiredProperty(AD_SEARCH_BASE);
 		
 		ldapNDExGroup = config.getProperty(AD_NDEX_GROUP_NAME);
        
-		ctxPrinciplePattern = config.getProperty(AD_CTX_PRINCIPLE);
-
-		if ( ctxPrinciplePattern == null)
-			throw new NdexException ("Property " + AD_CTX_PRINCIPLE + " not found in configuration.");
+		ctxPrinciplePattern = config.getRequiredProperty(AD_CTX_PRINCIPLE);
 
 		if ( ctxPrinciplePattern.indexOf(userNamePattern) == -1) 
 			throw new NdexException ("Pattern "+ userNamePattern + " not found in configuration property "
 					+ AD_CTX_PRINCIPLE + ".");
 	    
-		searchFilterPattern = config.getProperty(AD_SEARCH_FILTER);
-		if ( searchFilterPattern == null)
-			throw new NdexException ("Property " + AD_SEARCH_FILTER + " not found in configuration.");
+		searchFilterPattern = config.getRequiredProperty(AD_SEARCH_FILTER);
 
 		if ( searchFilterPattern.indexOf(userNamePattern) == -1) 
 			throw new NdexException ("Pattern "+ userNamePattern + " not found in configuration property "
@@ -205,5 +196,7 @@ public class LDAPAuthenticator {
 		}
 		return result.booleanValue() ;
 	}
+	
+	
 }
  
