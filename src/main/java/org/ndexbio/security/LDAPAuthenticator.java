@@ -20,7 +20,6 @@ import javax.naming.ldap.LdapContext;
 
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.rest.services.TaskService;
 import org.ndexbio.task.Configuration;
 
 import com.google.common.cache.CacheBuilder;
@@ -42,18 +41,26 @@ public class LDAPAuthenticator {
 	private final static String AD_TRACE_MODE="AD_TRACE_MODE";
 	private final static String JAVA_KEYSTORE_PASSWD= "JAVA_KEYSTORE_PASSWD";
     private final static String AD_CTX_PRINCIPLE = "AD_CTX_PRINCIPLE"; 
-    private final static String AD_SEARCH_FILTER = "AD_SEARCH_FILTER";
-    private final static String userNamePattern = "%%USER_NAME%%";
+    protected final static String AD_SEARCH_FILTER = "AD_SEARCH_FILTER";
+    protected final static String userNamePattern = "%%USER_NAME%%";
     
 	private String ldapAdServer;
-	private String ldapSearchBase;
+	protected String ldapSearchBase;
 	private String ldapNDExGroup;
-	private Hashtable <String,Object> env ;
+	protected Hashtable <String,Object> env ;
 	private Pattern pattern ;
 	private boolean useCache = false;
-	private String ctxPrinciplePattern ;
-	private String searchFilterPattern ;
+	protected String ctxPrinciplePattern ;
+	protected String searchFilterPattern ;
 	
+	
+	public static final String AD_DELEGATED_ACCOUNT="AD_DELEGATED_ACCOUNT";
+	private static final String AD_DELEGATED_ACCOUNT_PASSWORD="AD_DELEGATED_ACCOUNT_PASSWORD";
+//	private static final String AD_DELEGATED_ACCOUNT_USER_NAME_PATTERN="AD_DELEGATED_ACCOUNT_USER_NAME_PATTERN";
+	
+	private String delegatedUserName ;
+	private String delegatedUserPassword;
+
 	
 	//key is the combination of 
 	protected LoadingCache<java.util.Map.Entry<String,String>, Boolean>  userCredentials;
@@ -77,6 +84,10 @@ public class LDAPAuthenticator {
 		if ( searchFilterPattern.indexOf(userNamePattern) == -1) 
 			throw new NdexException ("Pattern "+ userNamePattern + " not found in configuration property "
 					+ AD_SEARCH_FILTER + ".");
+
+		delegatedUserName = config.getProperty(AD_DELEGATED_ACCOUNT);
+		if ( delegatedUserName !=null)
+  		   delegatedUserPassword = config.getRequiredProperty(AD_DELEGATED_ACCOUNT_PASSWORD);
 
         env = new Hashtable<>();
 
@@ -138,7 +149,7 @@ public class LDAPAuthenticator {
 	}
 
 	
-	private Boolean userIsInNdexGroup (String username, String password) throws UnauthorizedOperationException  {
+	protected Boolean userIsInNdexGroup (String username, String password) throws UnauthorizedOperationException  {
       
  	  //env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
 	
@@ -185,6 +196,9 @@ public class LDAPAuthenticator {
 	
 	public boolean authenticateUser(String username, String password) throws UnauthorizedOperationException {
 		if ( !useCache) {
+			if ( delegatedUserName !=null) {  
+				return userIsInNdexGroup(getFullyQualifiedNameByUserId(username),password).booleanValue();
+			}
 			return userIsInNdexGroup(username,password).booleanValue();
 		}
 		
@@ -195,6 +209,32 @@ public class LDAPAuthenticator {
 			throw new UnauthorizedOperationException(e.getMessage());
 		}
 		return result.booleanValue() ;
+	}
+	
+	
+	private String getFullyQualifiedNameByUserId(String userId) throws UnauthorizedOperationException {
+		
+		  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, delegatedUserName));	
+	      env.put(Context.SECURITY_CREDENTIALS, delegatedUserPassword);
+	      try {
+	    	  LdapContext ctx = new InitialLdapContext(env,null);
+		
+	    	  String searchFilter = searchFilterPattern.replaceAll(userNamePattern, userId);
+
+	    	  SearchControls searchControls = new SearchControls();
+	    	  searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+	    	  NamingEnumeration<SearchResult> results = ctx.search(ldapSearchBase,
+	    			  searchFilter, searchControls);
+
+	    	  SearchResult searchResult = null;
+	    	  if (results.hasMoreElements()) {
+	    		  searchResult = results.nextElement();
+	    		  return searchResult.getName();
+	    	  }
+	    	  return null;
+	      } catch (NamingException e) {
+	    	  throw new UnauthorizedOperationException(e.getMessage());
+	      }
 	}
 	
 	

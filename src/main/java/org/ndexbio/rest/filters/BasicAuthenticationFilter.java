@@ -22,6 +22,7 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.services.NdexOpenFunction;
+import org.ndexbio.security.DelegatedLDAPAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
@@ -52,7 +53,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     	Configuration config = Configuration.getInstance();
     	
     	if ( config.getUseADAuthentication() && ADAuthenticator == null) {
-    		ADAuthenticator = new LDAPAuthenticator(Configuration.getInstance());
+    		    ADAuthenticator = new LDAPAuthenticator(config);
     	}
     	String value = config.getProperty(AUTHENTICATED_USER_ONLY);
 		_logger.info("authenticatedUserOnly setting is " + value);
