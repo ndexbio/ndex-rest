@@ -247,7 +247,43 @@
                 <artifactId>jetty-maven-plugin</artifactId>
                 <version>9.2.5.v20141112</version>
             </plugin>
-    
+              
+            <!-- the "maven-war-plugin" below generates the "ndexbio-rest-{project.artifactId}-${project.version}.jar" 
+                 in the ~/git/ndex-rest/target/ndexbio-rest/WEB-INF/lib direcotry.  This jar will be used by 
+                 JUnit tests in ndex-java-client project.
+              -->  
+            <plugin>
+               <groupId>org.apache.maven.plugins</groupId>
+               <artifactId>maven-war-plugin</artifactId>
+               <version>2.6</version>
+               <configuration>
+                      <archiveClasses>true</archiveClasses>
+               </configuration>
+           </plugin>
+           
+              <!-- the "maven-install-plugin" copies the  "ndexbio-rest-{project.artifactId}-${project.version}.jar" file from
+                   ~/git/ndex-rest/target/ndexbio-rest/WEB-INF/lib to ~/.m2/repository/org/ndexbio/ndexbio-rest/{project.artifactId}-${project.version}. 
+                -->          
+           <plugin>
+               <groupId>org.apache.maven.plugins</groupId>
+               <artifactId>maven-install-plugin</artifactId>
+               <executions>
+                   <execution>
+                       <phase>install</phase>
+                       <goals>
+                           <goal>install-file</goal>
+                       </goals>
+                       <configuration>
+                           <packaging>jar</packaging>
+                           <artifactId>${project.artifactId}</artifactId>
+                           <groupId>${project.groupId}</groupId>
+                           <version>${project.version}</version>
+                           <file>${project.build.directory}/ndexbio-rest/WEB-INF/lib/${project.artifactId}-${project.version}.jar</file>
+                       </configuration>
+                   </execution>
+               </executions>
+           </plugin>
+
 		</plugins>
 	</build>
 	<properties>
