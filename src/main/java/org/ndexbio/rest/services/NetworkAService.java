@@ -58,6 +58,8 @@ import org.ndexbio.common.models.object.network.RawNamespace;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.NdexPersistenceService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
+import org.ndexbio.common.query.NetworkFilterQueryExecutor;
+import org.ndexbio.common.query.NetworkFilterQueryExecutorFactory;
 import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;
@@ -983,7 +985,7 @@ public class NetworkAService extends NdexService {
             " to the edges.")
 	public Network queryNetworkByEdgeFilter(
 			@PathParam("networkId") final String networkId,
-			final EdgeCollectionQuery queryParameters
+			final EdgeCollectionQuery query
 			)
 
 			throws IllegalArgumentException, NdexException {
@@ -994,9 +996,10 @@ public class NetworkAService extends NdexService {
 			throw new UnauthorizedOperationException("Network is not readable to this user.");
 		}
 		
+		NetworkFilterQueryExecutor queryExecutor = NetworkFilterQueryExecutorFactory.createODBExecutor(networkId, query);
 		
-		
-		return null;
+		return queryExecutor.evaluate();
+
 	}
 	
 	
@@ -1004,21 +1007,19 @@ public class NetworkAService extends NdexService {
 	
 	private boolean isSearchable(String networkId) 
 				throws ObjectNotFoundException, NdexException {
-		   ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
-		   NetworkDAO networkDao = new NetworkDAO(db);
+		   try ( NetworkDocDAO networkDao = new NetworkDocDAO() ) {
 
-		   VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
-		   boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
+		       VisibilityType vt = Helper.getNetworkVisibility(networkDao.getDBConnection(), networkId);
+		       boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
 
-		   if ( !hasPrivilege && getLoggedInUser() != null) {
-			   hasPrivilege = networkDao.checkPrivilege(
+		       if ( !hasPrivilege && getLoggedInUser() != null) {
+			     hasPrivilege = networkDao.checkPrivilege(
 					   (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName()),
 					   networkId, Permissions.READ);
+		       }
+
+		       return hasPrivilege;
 		   }
-		
-		   db.close();
-		   db = null;
-		   return hasPrivilege;
 	}
 
 	@PermitAll
