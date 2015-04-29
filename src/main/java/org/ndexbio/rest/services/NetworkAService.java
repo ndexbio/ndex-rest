@@ -233,16 +233,14 @@ public class NetworkAService extends NdexService {
 		
 		logger.info(userNameForLog() + "[start: Getting provenance of network " + networkId + "]");
 
-		ODatabaseDocumentTx db = null;
-		try {
+		if (  ! isSearchable(networkId) )
+			throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
+		
+		try (NetworkDocDAO daoNew = new NetworkDocDAO()) {
 
-			db = NdexDatabase.getInstance().getAConnection();
-			NetworkDAO daoNew = new NetworkDAO(db);
 			return daoNew.getProvenance(UUID.fromString(networkId));
 
 		} finally {
-
-			if (null != db) db.close();
 			logger.info(userNameForLog() + "[end: Got provenance of network " + networkId + "]");
 		}
 
@@ -998,8 +996,9 @@ public class NetworkAService extends NdexService {
 		
 		NetworkFilterQueryExecutor queryExecutor = NetworkFilterQueryExecutorFactory.createODBExecutor(networkId, query);
 		
-		return queryExecutor.evaluate();
-
+		Network result =  queryExecutor.evaluate();
+		logger.info(userNameForLog() + "[end: filter query on network " + networkId + "\"]");
+        return result;
 	}
 	
 	
