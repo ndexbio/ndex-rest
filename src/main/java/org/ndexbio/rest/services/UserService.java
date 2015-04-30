@@ -391,14 +391,13 @@ public class UserService extends NdexService {
 	 * @throws IOException 
 	 * @throws MessagingException 
 	 **************************************************************************/
-	@GET
+	@POST
 	@PermitAll
 	@NdexOpenFunction
-	@Path("/{accountName}/forgot-password")
+	@Path("/forgot-password")
 	@Produces("application/json")
-	@ApiDoc("Causes a new password to be generated for the authenticated user and then emailed to the users emailAddress")
-	public Response emailNewPassword(
-			@PathParam("accountName") @Encoded final String accountName)
+	@ApiDoc("Causes a new password to be generated for the given user account and then emailed to the user's emailAddress")
+	public Response emailNewPassword( final String accountName)
 			throws IllegalArgumentException, NdexException, IOException, MessagingException {
 		
 		logger.info(userNameForLog() + "[start: Email new password for " + accountName + "]");
