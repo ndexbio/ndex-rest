@@ -281,6 +281,13 @@ public class NetworkAService extends NdexService {
 			}
 
 			daoNew = new NetworkDAO(db);
+			
+			if(daoNew.networkIsReadOnly(networkId)) {
+				daoNew.close();
+				logger.info(userNameForLog() + "[end: Can't delete readonly network " + networkId + "]");
+				throw new NdexException ("Can't update readonly network.");
+			}
+
 			UUID networkUUID = UUID.fromString(networkId);
 			daoNew.setProvenance(networkUUID, provenance);
 			daoNew.commit();
@@ -330,6 +337,13 @@ public class NetworkAService extends NdexService {
 			}
 
 			daoNew = new NetworkDAO(db);
+			
+			if(daoNew.networkIsReadOnly(networkId)) {
+				daoNew.close();
+				logger.info(userNameForLog() + "[end: Can't delete readonly network " + networkId + "]");
+				throw new NdexException ("Can't update readonly network.");
+			}
+			
 			UUID networkUUID = UUID.fromString(networkId);
 			int i = daoNew.setNetworkProperties(networkUUID, properties);
 
@@ -404,6 +418,14 @@ public class NetworkAService extends NdexService {
 
 			daoNew = new NetworkDAO(db);
 			UUID networkUUID = UUID.fromString(networkId);
+			
+			if(daoNew.networkIsReadOnly(networkId)) {
+				daoNew.close();
+				logger.info(userNameForLog() + "[end: Can't delete readonly network " + networkId + "]");
+				throw new NdexException ("Can't update readonly network.");
+			}
+
+			
 			int i = daoNew.setNetworkPresentationProperties(networkUUID, properties);
 
             //DW: Handle provenance
@@ -837,6 +859,13 @@ public class NetworkAService extends NdexService {
 
 			User user = getLoggedInUser();
 			NetworkDAO networkDao = new NetworkDAO(db);
+			
+			if(networkDao.networkIsReadOnly(networkId)) {
+				networkDao.close();
+				logger.info(userNameForLog() + "[end: Can't delete readonly network " + networkId + "]");
+				throw new NdexException ("Can't update readonly network.");
+			}
+
 
 			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
 					Permissions.WRITE)) {
@@ -1375,8 +1404,14 @@ public class NetworkAService extends NdexService {
 	        {
 	           throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
 	        }
-
+            
 			try (NetworkDAO networkDao = new NetworkDAO(db)) {
+				
+				if(networkDao.networkIsReadOnly(id)) {
+					logger.info(userNameForLog() + "[end: Can't delete readonly network " + id + "]");
+					throw new NdexException ("Can't delete readonly network.");
+				}
+				  
 				//logger.info("Start deleting network " + id);
 				networkDao.logicalDeleteNetwork(id);
 				networkDao.commit();

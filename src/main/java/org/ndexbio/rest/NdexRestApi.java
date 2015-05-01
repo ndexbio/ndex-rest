@@ -3,7 +3,6 @@ package org.ndexbio.rest;
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.naming.NamingException;
 import javax.ws.rs.core.Application;
 
 import org.ndexbio.model.exceptions.NdexException;
@@ -26,7 +25,7 @@ public class NdexRestApi extends Application
     private final Set<Object> _providers = new HashSet<>();
     private final Set<Class<?>> _resources = new HashSet<>();
         
-    public NdexRestApi() throws NdexException, NamingException
+    public NdexRestApi() throws NdexException
     {
     	_resources.add(GroupService.class); 
         _resources.add(UserService.class); 

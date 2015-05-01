@@ -53,11 +53,12 @@ public abstract class NdexService
     @GET
     @PermitAll
     @Path("/api")
+	@NdexOpenFunction
     @Produces("application/json")
     @ApiDoc("Retrieves the REST API documentation for network related operations as a list of RestResource objects.")
     public Collection<RestResource> getApi()
     {
-        final Collection<RestResource> resourceList = new ArrayList<RestResource>();
+        final Collection<RestResource> resourceList = new ArrayList<>();
         Path serviceClassPathAnnotation = this.getClass().getAnnotation(Path.class);
         for (Method method : this.getClass().getMethods())
         {

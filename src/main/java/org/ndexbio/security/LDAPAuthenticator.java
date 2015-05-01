@@ -118,7 +118,7 @@ public class LDAPAuthenticator {
 					   String pswd = entry.getValue();
 					   Boolean userIsInGrp = userIsInNdexGroup(userName, pswd);
                    	   if ( userIsInGrp.booleanValue() ) {
-                   		   userCredentials.put(new AbstractMap.SimpleImmutableEntry<String,String>(userName, pswd), Boolean.TRUE);	
+                   		   userCredentials.put(new AbstractMap.SimpleImmutableEntry<>(userName, pswd), Boolean.TRUE);	
                    		   return Boolean.TRUE;
                    	   }
                    	   throw new UnauthorizedOperationException("User " + userName + " is not in the required group." );
@@ -204,7 +204,7 @@ public class LDAPAuthenticator {
 		
 		Boolean result;
 		try {
-			result = userCredentials.get(new AbstractMap.SimpleImmutableEntry<String,String>(username, password));
+			result = userCredentials.get(new AbstractMap.SimpleImmutableEntry<>(username, password));
 		} catch (ExecutionException e) {
 			throw new UnauthorizedOperationException(e.getMessage());
 		}
