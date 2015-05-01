@@ -579,7 +579,7 @@ public class NetworkAService extends NdexService {
 							Configuration.getInstance().getNdexNetworkCachePath() + commitId +".gz")  ;
 				
 					setZipFlag();
-					logger.info(userNameForLog() + "[end: retrun cached network " + networkId + "]");
+					logger.info(userNameForLog() + "[end: return cached network " + networkId + "]");
 					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 				} catch (IOException e) {
 					throw new NdexException ("Ndex server can't find file: " + e.getMessage());
@@ -588,7 +588,7 @@ public class NetworkAService extends NdexService {
 
 			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
 			daoNew.close();
-			logger.info(userNameForLog() + "[end: retrun complete network " + networkId + "]");
+			logger.info(userNameForLog() + "[end: return complete network " + networkId + "]");
 			return Response.ok(n,MediaType.APPLICATION_JSON_TYPE).build();
 		}
 		else
