@@ -284,7 +284,7 @@ public class NetworkAService extends NdexService {
 			
 			if(daoNew.networkIsReadOnly(networkId)) {
 				daoNew.close();
-				logger.info(userNameForLog() + "[end: Can't delete readonly network " + networkId + "]");
+				logger.info(userNameForLog() + "[end: Can't modify readonly network " + networkId + "]");
 				throw new NdexException ("Can't update readonly network.");
 			}
 
@@ -851,7 +851,7 @@ public class NetworkAService extends NdexService {
             throws IllegalArgumentException, NdexException, IOException
     {
 
-		logger.info(userNameForLog() + "[start: Updating the pro information for network " + networkId + "]");
+		logger.info(userNameForLog() + "[start: Updating profile information of network " + networkId + "]");
 		
 		ODatabaseDocumentTx db = null;
 		try {
@@ -862,7 +862,7 @@ public class NetworkAService extends NdexService {
 			
 			if(networkDao.networkIsReadOnly(networkId)) {
 				networkDao.close();
-				logger.info(userNameForLog() + "[end: Can't delete readonly network " + networkId + "]");
+				logger.info(userNameForLog() + "[end: Can't modify readonly network " + networkId + "]");
 				throw new NdexException ("Can't update readonly network.");
 			}
 
