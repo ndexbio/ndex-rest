@@ -1332,7 +1332,6 @@ public class NetworkAService extends NdexService {
 			}
 	}
 
-/*	comment out this function for now, until we can make this function thread safe.
     @PUT
     @Path("/asNetwork")
     @Produces("application/json")
@@ -1351,15 +1350,7 @@ public class NetworkAService extends NdexService {
                 !Strings.isNullOrEmpty(newNetwork.getName()),
                 "A network name is required");
 
-        NdexDatabase db = null;
-        NdexNetworkCloneService service = null;
-        ODatabaseDocumentTx conn = null;
-        
-        try
-        {
-           db = new NdexDatabase(Configuration.getInstance().getHostURI());
-           conn = db.getAConnection();
-           
+        try ( ODatabaseDocumentTx conn = NdexDatabase.getInstance().getAConnection() ) {
            User user = getLoggedInUser();
 
            if (!Helper.checkPermissionOnNetworkByAccountName(conn, 
@@ -1368,23 +1359,25 @@ public class NetworkAService extends NdexService {
            {
         	   throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
            }
+           
+			NetworkDocDAO daoNew = new NetworkDocDAO(conn);
+			
+			if(daoNew.networkIsReadOnly(newNetwork.getExternalId().toString())) {
+				daoNew.close();
+				logger.info(userNameForLog() + "[end: Can't update readonly network " + newNetwork.getExternalId().toString() + "]");
+				throw new NdexException ("Can't modify readonly network.");
+			}
 
-           service = new NdexNetworkCloneService(db, newNetwork,
-                    getLoggedInUser().getAccountName());
+        }   
+           
+        try ( NdexNetworkCloneService service = new NdexNetworkCloneService(NdexDatabase.getInstance(), 
+        		  newNetwork, getLoggedInUser().getAccountName()) ) {
 
            return service.updateNetwork();
 
         }
-        finally
-        {
-            if (service != null)
-                service.close();
-            if (db != null)
-                db.close();
-            if ( conn!= null) conn.close(); 
-        }
     }
-*/	
+	
 	
 	@DELETE
 	@Path("/{UUID}")
