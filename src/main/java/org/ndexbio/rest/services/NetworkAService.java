@@ -43,6 +43,7 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.EdgeCollectionQuery;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
+import org.ndexbio.model.object.NdexProvenanceEventType;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
 import org.ndexbio.model.object.ProvenanceEntity;
@@ -188,7 +189,7 @@ public class NetworkAService extends NdexService {
             Helper.populateProvenanceEntity(newProv, networkService.getCurrentNetwork());
 
             Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
-            ProvenanceEvent event = new ProvenanceEvent("Add Namespace", now);
+            ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.ADD_NAMESPACE, now);
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
             Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
             String namespaceString = namespace.getPrefix() + " : " + namespace.getUri();
@@ -359,7 +360,7 @@ public class NetworkAService extends NdexService {
 
             NetworkSummary summary = daoNew.getNetworkSummary(daoNew.getRecordByUUIDStr(networkId, null));
             Helper.populateProvenanceEntity(newProv, summary);
-            ProvenanceEvent event = new ProvenanceEvent("Set Network Properties", summary.getModificationTime());
+            ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_NETWORK_PROPERTIES, summary.getModificationTime());
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
             Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
             for( NdexPropertyValuePair vp : properties )
@@ -435,7 +436,7 @@ public class NetworkAService extends NdexService {
 
             NetworkSummary summary = daoNew.getNetworkSummary(daoNew.getRecordByUUIDStr(networkId, null));
             Helper.populateProvenanceEntity(newProv, summary);
-            ProvenanceEvent event = new ProvenanceEvent("Set Network Presentation Properties", summary.getModificationTime());
+            ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_PRESENTATION_PROPERTIES, summary.getModificationTime());
 
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
             Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
@@ -909,7 +910,7 @@ public class NetworkAService extends NdexService {
 
                 Helper.populateProvenanceEntity(newProv, networkDao, networkId);
 
-                ProvenanceEvent event = new ProvenanceEvent("Update Network Profile", summary.getModificationTime());
+                ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
 
                 List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
                 Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
@@ -1312,7 +1313,7 @@ public class NetworkAService extends NdexService {
 
                 Helper.populateProvenanceEntity(entity, summary);
 
-                ProvenanceEvent event = new ProvenanceEvent("Program Upload", summary.getModificationTime());
+                ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.PROGRAM_UPLOAD, summary.getModificationTime());
 
                 List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
                 Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
