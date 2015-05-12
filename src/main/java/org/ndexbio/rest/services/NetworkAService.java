@@ -983,7 +983,7 @@ public class NetworkAService extends NdexService {
 		   if ( hasPrivilege) {
 			   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
-			   Network n = dao.queryForSubnetwork(networkId, queryParameters);
+			   Network n = dao.queryForSubnetworkV2(networkId, queryParameters);
 			   //logInfo(logger, "Subnetwork from query returned." );
 			   logger.info(userNameForLog() + "[end: Subnetwork for network " + networkId +  
 						" with phrase \"" + queryParameters.getSearchString() + "\" retrieved]");			   
