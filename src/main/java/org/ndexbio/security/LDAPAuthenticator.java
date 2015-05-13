@@ -20,6 +20,7 @@ import javax.naming.ldap.LdapContext;
 
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.NewUser;
 import org.ndexbio.task.Configuration;
 
 import com.google.common.cache.CacheBuilder;
@@ -193,6 +194,59 @@ public class LDAPAuthenticator {
     	  throw new UnauthorizedOperationException(e.getMessage());
       }
 	}
+
+	
+	public NewUser getNewUser (String username, String password) throws UnauthorizedOperationException  {
+	      
+	 	  //env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
+		
+		  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));	
+	      env.put(Context.SECURITY_CREDENTIALS, password);
+	      try {
+	    	  LdapContext ctx = new InitialLdapContext(env,null);
+	      
+
+		 // String searchFilter = "(&(SAMAccountName="+ username + ")(objectClass=user)(objectCategory=person))";
+		  String searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
+		  
+		  SearchControls searchControls = new SearchControls();
+		  searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+		  NamingEnumeration<SearchResult> results = ctx.search(ldapSearchBase, searchFilter, searchControls);
+		  
+		  SearchResult searchResult = null;
+			if ( results.hasMoreElements()) {
+				searchResult = results.nextElement();
+				Attributes attrs = searchResult.getAttributes();
+//				Attribute uWWID = attrs.get("employeeID");
+                NewUser newUser = new NewUser();
+				
+                newUser.setAccountName(username);
+                
+                Attribute attr =attrs.get("givenName");
+                if ( attr.size()>0) {
+                	newUser.setFirstName(attr.get(0).toString());
+                }
+                
+                attr =attrs.get("sn");
+                if ( attr.size()>0) {
+                	newUser.setLastName(attr.get(0).toString());
+                }
+                
+                attr =attrs.get("email");
+                if ( attr.size()>0) {
+                	newUser.setEmailAddress(attr.get(0).toString());
+                }
+				
+                return newUser;
+				
+			}
+			return null;
+	      } catch (NamingException e) {
+	    	  throw new UnauthorizedOperationException(e.getMessage());
+	      }
+		}
+
+	
 	
 	public boolean authenticateUser(String username, String password) throws UnauthorizedOperationException {
 		if ( !useCache) {

@@ -20,6 +20,7 @@ import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.services.NdexOpenFunction;
 import org.ndexbio.security.DelegatedLDAPAuthenticator;
@@ -46,6 +47,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     private static LDAPAuthenticator ADAuthenticator = null;
     private boolean authenticatedUserOnly = false;
     private static final String AUTHENTICATED_USER_ONLY="AUTHENTICATED_USER_ONLY";
+    private static final String AD_CREATE_USER_AUTOMATICALLY="AD_CREATE_USER_AUTOMATICALLY";
     
     public BasicAuthenticationFilter() throws NdexException {
     	super();
@@ -88,8 +90,17 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             			authenticated = true;
             			_logger.info("User " + authInfo[0] + " authenticated by AD.");
                 		try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
-                   		 authUser = dao.getUserByAccountName(authInfo[0]);
-                   		}
+                   		  try {
+                			authUser = dao.getUserByAccountName(authInfo[0]);
+                   		  } catch (ObjectNotFoundException e) {
+                     			String autoCreateAccount = Configuration.getInstance().getProperty(AD_CREATE_USER_AUTOMATICALLY);
+                       			if ( autoCreateAccount !=null && Boolean.parseBoolean(autoCreateAccount)) {
+                       				NewUser newUser = ADAuthenticator.getNewUser(authInfo[0], authInfo[1]);
+                       				authUser = dao.createNewUser(newUser);
+                       			} else 
+                       				throw e;
+                       	  }	
+                   		} 
             		}
             	} else {
             		authInfo[0] = authInfo[0].toLowerCase();
