@@ -205,22 +205,22 @@ public class LDAPAuthenticator {
 	      try {
 	    	  LdapContext ctx = new InitialLdapContext(env,null);
 	      
-
-		 // String searchFilter = "(&(SAMAccountName="+ username + ")(objectClass=user)(objectCategory=person))";
-		  String searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
+	    	  // String searchFilter = "(&(SAMAccountName="+ username + ")(objectClass=user)(objectCategory=person))";
+	    	  String searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
 		  
-		  SearchControls searchControls = new SearchControls();
-		  searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-		  NamingEnumeration<SearchResult> results = ctx.search(ldapSearchBase, searchFilter, searchControls);
+	    	  SearchControls searchControls = new SearchControls();
+	    	  searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+	    	  NamingEnumeration<SearchResult> results = ctx.search(ldapSearchBase, searchFilter, searchControls);
 		  
-		  SearchResult searchResult = null;
-			if ( results.hasMoreElements()) {
+	    	  SearchResult searchResult = null;
+	    	  if ( results.hasMoreElements()) {
 				searchResult = results.nextElement();
 				Attributes attrs = searchResult.getAttributes();
 //				Attribute uWWID = attrs.get("employeeID");
                 NewUser newUser = new NewUser();
 				
                 newUser.setAccountName(username);
+                newUser.setPassword(password);
                 
                 Attribute attr =attrs.get("givenName");
                 if ( attr.size()>0) {
@@ -232,15 +232,15 @@ public class LDAPAuthenticator {
                 	newUser.setLastName(attr.get(0).toString());
                 }
                 
-                attr =attrs.get("email");
+                attr =attrs.get("mail");
                 if ( attr.size()>0) {
                 	newUser.setEmailAddress(attr.get(0).toString());
                 }
 				
                 return newUser;
 				
-			}
-			return null;
+	    	  }
+	    	  return null;
 	      } catch (NamingException e) {
 	    	  throw new UnauthorizedOperationException(e.getMessage());
 	      }
