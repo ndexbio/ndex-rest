@@ -41,6 +41,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.EdgeCollectionQuery;
+import org.ndexbio.model.network.query.NetworkPropertyFilter;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NdexProvenanceEventType;
@@ -61,6 +62,7 @@ import org.ndexbio.common.persistence.orientdb.NdexPersistenceService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.common.query.NetworkFilterQueryExecutor;
 import org.ndexbio.common.query.NetworkFilterQueryExecutorFactory;
+import org.ndexbio.common.query.SearchNetworkByPropertyExecutor;
 import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;
@@ -1192,6 +1194,29 @@ public class NetworkAService extends NdexService {
 	}
 
 
+	
+
+	@POST
+	@PermitAll
+	@Path("/searchByProperties")
+	@Produces("application/json")
+    @ApiDoc("Returns a list of NetworkSummary objects based on a POSTed NetworkPropertyFilter object.")
+	public Collection<NetworkSummary> searchNetworkByPropertyFilter(
+			final NetworkPropertyFilter query)
+			throws IllegalArgumentException, NdexException {
+
+		logger.info(userNameForLog() + "[start: Search network by properties]");
+
+		SearchNetworkByPropertyExecutor queryExecutor = new SearchNetworkByPropertyExecutor(query, this.getLoggedInUser().getAccountName());
+		
+		Collection<NetworkSummary> result =  queryExecutor.evaluate();
+		
+		logger.info(userNameForLog() + "[end: returning " + result.size() + " records from property search]");
+		return result;
+
+	}
+	
+	
 
 	@POST
 	@Path("/asPropertyGraph")
