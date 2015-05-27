@@ -252,7 +252,7 @@ public class UserService extends NdexService {
 	@NdexOpenFunction
 	@Path("/authenticate/{accountName}/{password}")
 	@Produces("application/json")
-	@ApiDoc("Authenticates the combination of accountName and password supplied in the route parameters, returns the authenticated user if successful.")
+	@ApiDoc("DEPRECATED. Authenticates the combination of accountName and password supplied in the route parameters, returns the authenticated user if successful.")
 	public User authenticateUser(@PathParam("accountName") @Encoded final String accountName,
 			@PathParam("password") final String password)
 			throws SecurityException, UnauthorizedOperationException, NdexException {
