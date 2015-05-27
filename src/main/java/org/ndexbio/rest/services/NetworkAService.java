@@ -727,7 +727,7 @@ public class NetworkAService extends NdexService {
 	@Produces("application/json")
     @ApiDoc("Retrieves a list of Membership objects which specify user permissions for the network specified by " +
             "'networkId'. The value of the 'permission' parameter constrains the type of the returned Membership " +
-            "objects and may take the following set of values: READ, WRITE, and ADMIN. Memberships of all types can " +
+            "objects and may take the following set of values: READ, WRITE, and ADMIN.  READ, WRITE, and ADMIN are mutually exclusive. Memberships of all types can " +
             "be retrieved by permission = 'ALL'.   The maximum number of Membership objects to retrieve in the query " +
             "is set by 'blockSize' (which may be any number chosen by the user) while  'skipBlocks' specifies the " +
             "number of blocks that have already been read.")
@@ -738,8 +738,12 @@ public class NetworkAService extends NdexService {
 
 		//logInfo( logger, "Get all " + permissions + " accounts on network " + networkId);
 		logger.info(userNameForLog() + "[start: Get all " + permissions + "accounts on network " + networkId + ", skipBlocks " + skipBlocks + " blockSize " + blockSize + "]");
-		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
-
+		
+		Permissions permission = null;
+		if ( ! permissions.toUpperCase().equals("ALL")) {
+			permission = Permissions.valueOf(permissions.toUpperCase());
+		}
+		
 		ODatabaseDocumentTx db = null;
 		try {
 

@@ -39,6 +39,8 @@ import org.slf4j.LoggerFactory;
 @Provider
 public class BasicAuthenticationFilter implements ContainerRequestFilter
 {
+	private static final String basicAuthPrefix = "Basic "; 
+	
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
     private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<>());
     private static final ServerResponse ACCESS_DENIED_USER_NOT_FOUND = 
@@ -121,7 +123,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                 return ; */
             }
         } catch (SecurityException | UnauthorizedOperationException e2 ) {
-            _logger.info("Failed to authenticate a user: " + authInfo[0] + " Path:" +
+            _logger.info("Failed to authenticate a user: " + (authInfo == null? "": authInfo[0]) + " Path:" +
             		requestContext.getUriInfo().getPath(), e2);
              requestContext.abortWith(ACCESS_DENIED);
              return;
@@ -135,9 +137,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         } catch (Exception e) {
             if (authInfo != null && authInfo.length >= 2 && (! authenticated))
                 _logger.error("Failed to authenticate a user: " + authInfo[0] /*+ " Path:"+ requestContext.getUriInfo().getPath() */, e);
-            else
-                _logger.error("Failed to authenticate a user; credential information unknown.");
-            
+            else {
+                _logger.error("Failed to authenticate a user; credential information unknown: " + e.getMessage() );
+                e.printStackTrace();
+            }
            requestContext.abortWith(ACCESS_DENIED);
            return ;
         } 
@@ -180,8 +183,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     * @throws IOException
     *            Decoding the Authorization header failed.
     * @return a String array containing the username and password.
+     * @throws UnauthorizedOperationException 
     **************************************************************************/
-    private static String[] parseCredentials(ContainerRequestContext requestContext) throws IOException
+    private static String[] parseCredentials(ContainerRequestContext requestContext) throws IOException, UnauthorizedOperationException
     {
         final MultivaluedMap<String, String> headers = requestContext.getHeaders();
         final List<String> authHeader = headers.get("Authorization");
@@ -189,12 +193,22 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         if (authHeader == null || authHeader.isEmpty())
             return null;
 
-        final String encodedAuthInfo = authHeader.get(0).replaceFirst("Basic" + " ", "");
+        if ( authHeader.get(0) == null )
+        	throw new UnauthorizedOperationException("Authorization value was null in HTTP request header.");
+        
+        if ( ! authHeader.get(0).startsWith(basicAuthPrefix))
+        	throw new UnauthorizedOperationException("Authorization is not using Basic auth.");
+        
+        final String encodedAuthInfo = authHeader.get(0).substring(basicAuthPrefix.length());
         final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
         
         String[] result = new String[2];
         
         int idx = decodedAuthInfo.indexOf(":");
+        
+        if ( idx == -1) 
+        	throw new UnauthorizedOperationException("Malformed authorization value in HTTP request header.");
+        
         result[0] = decodedAuthInfo.substring(0, idx);
         result[1] = decodedAuthInfo.substring(idx+1);
         return result; //decodedAuthInfo.split(":");
