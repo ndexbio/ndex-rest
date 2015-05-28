@@ -737,7 +737,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("blockSize") int blockSize) throws NdexException {
 
 		//logInfo( logger, "Get all " + permissions + " accounts on network " + networkId);
-		logger.info(userNameForLog() + "[start: Get all " + permissions + "accounts on network " + networkId + ", skipBlocks " + skipBlocks + " blockSize " + blockSize + "]");
+		logger.info(userNameForLog() + "[start: Get " + permissions + " accounts on network " + networkId + ", skipBlocks " + skipBlocks + " blockSize " + blockSize + "]");
 		
 		Permissions permission = null;
 		if ( ! permissions.toUpperCase().equals("ALL")) {
