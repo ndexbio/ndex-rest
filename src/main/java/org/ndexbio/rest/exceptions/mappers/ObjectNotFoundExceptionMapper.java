@@ -6,7 +6,6 @@ import javax.ws.rs.ext.ExceptionMapper;
 
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 
-
 public class ObjectNotFoundExceptionMapper implements ExceptionMapper<ObjectNotFoundException>
 {
     @Override
@@ -15,6 +14,7 @@ public class ObjectNotFoundExceptionMapper implements ExceptionMapper<ObjectNotF
         return Response
             .status(Status.NOT_FOUND)
             .entity(exception.getNdexExceptionInJason())
+            .type("application/json")
             .build();
     }
 }

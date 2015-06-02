@@ -6,7 +6,6 @@ import javax.ws.rs.ext.ExceptionMapper;
 
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 
-
 public class DuplicateObjectExceptionMapper implements ExceptionMapper<DuplicateObjectException>
 {
     @Override
@@ -15,6 +14,7 @@ public class DuplicateObjectExceptionMapper implements ExceptionMapper<Duplicate
         return Response
                 .status(Status.CONFLICT)
                 .entity(exception.getNdexExceptionInJason())
+                .type("application/json")
                 .build();
     }
 }
