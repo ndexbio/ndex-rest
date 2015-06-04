@@ -332,12 +332,11 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to change the password in the database.
 	 **************************************************************************/
-	
 	@POST
-	@Path("/password")
+	@Path("/password/{password}")
 	@Produces("application/json")
 	@ApiDoc("Changes the authenticated user's password to the new password in the POST data.")
-	public void changePassword(String password)
+	public void changePassword( @PathParam("password") final String password)
 			throws IllegalArgumentException, NdexException {
 
 		logger.info(userNameForLog() + "[start: Changing password for user " + getLoggedInUser().getAccountName() + "]");
