@@ -17,9 +17,7 @@ import org.slf4j.LoggerFactory;
 @Path("/feedback")
 public class FeedbackService extends NdexService
 {
-    private static final Logger _logger = LoggerFactory.getLogger(FeedbackService.class);
-    
-    
+	static Logger logger = LoggerFactory.getLogger(FeedbackService.class);
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -42,21 +40,24 @@ public class FeedbackService extends NdexService
     *            The type of feedback being given.
     * @param feedbackText
     *            The feedback.
-    * @throws IllegalArgumentException
-    *            Bad input.
     * @throws NdexException
     *            Failed to send the email. 
     **************************************************************************/
     @POST
     @Path("/{type}")
     @Produces("application/json")
-    public void emailFeedback(@PathParam("type")final String feedbackType, final String feedbackText) throws IllegalArgumentException, NdexException
+    public void emailFeedback(@PathParam("type")final String feedbackType, final String feedbackText) throws NdexException
     {
-        if (feedbackType == null || feedbackType.isEmpty())
-            throw new IllegalArgumentException("Feedback type wasn't specified.");
-        else if (feedbackText == null || feedbackText.isEmpty())
-            throw new IllegalArgumentException("No feedback was supplied.");
-        
+    	logger.info(userNameForLog() + "[start: email feedback]");   
+    	
+        if (feedbackType == null || feedbackType.isEmpty()) {
+        	logger.error(userNameForLog() + "[end: Feedback type wasn't specified. Throwing NdexException.]"); 
+        	throw new NdexException("Feedback type wasn't specified.");
+        }
+        else if (feedbackText == null || feedbackText.isEmpty()) {
+        	logger.error(userNameForLog() + "[end: No feedback was supplied. Throwing NdexException.]"); 
+        	throw new NdexException("No feedback was supplied.");
+        }
         try
         {
             if (this.getLoggedInUser() != null)
@@ -65,6 +66,7 @@ public class FeedbackService extends NdexService
                     Configuration.getInstance().getProperty("Feedback-Email"),
                     feedbackType,
                     feedbackText);
+                logger.info(userNameForLog() + "[end: email feedback sent for logged user.]"); 
             }
             else
             {
@@ -72,11 +74,14 @@ public class FeedbackService extends NdexService
                     Configuration.getInstance().getProperty("Feedback-Email"),
                     feedbackType,
                     feedbackText);
+                logger.info(userNameForLog() + "[end: email feedback sent for non-logged user.]");
             }
         }
         catch (MessagingException e)
         {
-            _logger.error("Failed to send feedback email.", e);
+            //_logger.error("Failed to send feedback email.", e);
+
+			logger.error(userNameForLog() + "[end: Failed to send feedback email. Exception caught:]", e);            
             throw new NdexException("Sorry, we couldn't submit your feedback.");
         }
     }

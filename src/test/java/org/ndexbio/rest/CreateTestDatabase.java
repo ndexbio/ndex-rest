@@ -47,6 +47,8 @@ public class CreateTestDatabase
     @BeforeClass
     public static void initializeTests() throws Exception
     {
+    	
+    	
         final InputStream propertiesStream = Thread.currentThread().getContextClassLoader().getResourceAsStream("ndex.properties");
         _testProperties.load(propertiesStream);
     }
@@ -296,7 +298,7 @@ public class CreateTestDatabase
         if (!matchingTasks.isEmpty())
             return (ORID)_orientDbGraph.getVertex(matchingTasks.get(0)).getId();
         
-        throw new IllegalArgumentException(objectName + " is not a user, group, network, request, or task.");
+        throw new NdexException(objectName + " is not a user, group, network, request, or task.");
     }
 
     private User getUser(final String username)

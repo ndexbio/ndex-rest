@@ -4,15 +4,15 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.ExceptionMapper;
 
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 
-public class ObjectNotFoundExceptionMapper implements ExceptionMapper<ObjectNotFoundException>
+public class UnauthorizedOperationExceptionMapper implements ExceptionMapper<UnauthorizedOperationException>
 {
     @Override
-    public Response toResponse(ObjectNotFoundException exception)
+    public Response toResponse(UnauthorizedOperationException exception)
     {
         return Response
-            .status(Status.NOT_FOUND)
+            .status(Status.UNAUTHORIZED)
             .entity(exception.getNdexExceptionInJason())
             .type("application/json")
             .build();

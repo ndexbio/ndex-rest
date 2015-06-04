@@ -6,7 +6,7 @@
 	<groupId>org.ndexbio</groupId>
 	<artifactId>ndexbio-rest</artifactId>
 	<packaging>war</packaging>
-	<version>1.0-SNAPSHOT</version>
+	<version>1.2-SNAPSHOT</version>
 	<name>ndexbio-rest</name>
 	<url>http://maven.apache.org</url>
 
@@ -26,41 +26,67 @@
 
 	<dependencies>
 
+<!--  
 		<dependency>
 			<groupId>javax.servlet</groupId>
 			<artifactId>javax.servlet-api</artifactId>
 			<version>3.1.0</version>
 			<scope>provided</scope>
 		</dependency>
-
 		<dependency>
 			<groupId>javax.servlet.jsp</groupId>
 			<artifactId>javax.servlet.jsp-api</artifactId>
 			<version>2.3.1</version>
 		</dependency>
+-->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>2.5.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.5.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>2.5.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.jaxrs</groupId>
+            <artifactId>jackson-jaxrs-json-provider</artifactId>
+            <version>2.5.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.jaxrs</groupId>
+            <artifactId>jackson-jaxrs-base</artifactId>
+            <version>2.5.2</version>
+        </dependency>
 
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-jaxrs</artifactId>
-			<version>3.0.9.Final</version>
+			<version>${resteasyVersion}</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-jaxb-provider</artifactId>
-			<version>3.0.9.Final</version>
+			<version>${resteasyVersion}</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-jackson2-provider</artifactId>
-			<version>3.0.9.Final</version>
+			<version>${resteasyVersion}</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-multipart-provider</artifactId>
-			<version>3.0.9.Final</version>
+			<version>${resteasyVersion}</version>
 		</dependency>
 		
 		<dependency>
@@ -78,19 +104,19 @@
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-server</artifactId>
-      <version>9.2.5.v20141112</version>
+      <version>${jettyVersion}</version>
     </dependency>
 
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-servlet</artifactId>
-      <version>9.2.5.v20141112</version>
+      <version>${jettyVersion}</version>
     </dependency>
 
 	<dependency>
     	<groupId>org.eclipse.jetty</groupId>
     	<artifactId>jetty-servlets</artifactId>
-    	<version>9.2.5.v20141112</version>
+    	<version>${jettyVersion}</version>
 	</dependency>
 <!-- 	
 	<dependency>
@@ -98,12 +124,13 @@
 		<artifactId>opensaml</artifactId>
 		<version>2.6.1</version>
 	</dependency>
- -->	
-		<dependency>
+-->	
+ 		<dependency>
 			<groupId>org.ndexbio</groupId>
-			<artifactId>ndex-task</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
+			<artifactId>ndex-common</artifactId>
+			<version>1.2-SNAPSHOT</version>
 		</dependency>
+	
 
 	</dependencies>
 
@@ -181,6 +208,15 @@
                     </manifest>
                 </archive>
             </configuration>
+            <executions>
+             <execution>
+				<id>make-a-jar</id>
+<phase>package</phase>
+<goals>
+<goal>jar</goal>
+</goals>
+</execution>
+</executions>
         </plugin>
 <!-- 			 <plugin>
       			<artifactId>maven-assembly-plugin</artifactId>
@@ -211,10 +247,47 @@
                 <artifactId>jetty-maven-plugin</artifactId>
                 <version>9.2.5.v20141112</version>
             </plugin>
-    
+              
+            <!-- the "maven-war-plugin" below generates the "ndexbio-rest-{project.artifactId}-${project.version}.jar" 
+                 in the ~/git/ndex-rest/target/ndexbio-rest/WEB-INF/lib direcotry.  This jar will be used by 
+                 JUnit tests in ndex-java-client project.
+              -->  
+            <plugin>
+               <groupId>org.apache.maven.plugins</groupId>
+               <artifactId>maven-war-plugin</artifactId>
+               <version>2.6</version>
+               <configuration>
+                      <archiveClasses>true</archiveClasses>
+               </configuration>
+           </plugin>
+           
+              <!-- the "maven-install-plugin" copies the  "ndexbio-rest-{project.artifactId}-${project.version}.jar" file from
+                   ~/git/ndex-rest/target/ndexbio-rest/WEB-INF/lib to ~/.m2/repository/org/ndexbio/ndexbio-rest/{project.artifactId}-${project.version}. 
+                -->          
+           <plugin>
+               <groupId>org.apache.maven.plugins</groupId>
+               <artifactId>maven-install-plugin</artifactId>
+               <executions>
+                   <execution>
+                       <phase>install</phase>
+                       <goals>
+                           <goal>install-file</goal>
+                       </goals>
+                       <configuration>
+                           <packaging>jar</packaging>
+                           <artifactId>${project.artifactId}</artifactId>
+                           <groupId>${project.groupId}</groupId>
+                           <version>${project.version}</version>
+                           <file>${project.build.directory}/ndexbio-rest/WEB-INF/lib/${project.artifactId}-${project.version}.jar</file>
+                       </configuration>
+                   </execution>
+               </executions>
+           </plugin>
+
 		</plugins>
 	</build>
 	<properties>
-		<jettyVersion>9.2.5.v20141112</jettyVersion>
+		<jettyVersion>9.2.10.v20150310</jettyVersion>
+		<resteasyVersion>3.0.9.Final</resteasyVersion>
 	</properties>
 </project>

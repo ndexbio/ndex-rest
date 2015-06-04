@@ -15,21 +15,18 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 
-import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
-import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
-import org.ndexbio.orientdb.NdexSchemaManager;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.ndexbio.task.Configuration;
-
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.MDC;
 
 public abstract class NdexService
 {
+	public static final String NdexZipFlag = "NdexZipped";
+	
     private HttpServletRequest _httpRequest;
+    private String threadId;
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -39,6 +36,15 @@ public abstract class NdexService
     **************************************************************************/
     public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
+        
+        // we need to log thread id.  
+        // The parameter ThreadId can be accessed in <pattern> element from logback.xml like this: %X{ThreadId} 
+        // The MDC manages contextual information on a per thread basis.  Typically, while starting to service a new client request, 
+        // the developer will insert pertinent contextual information, such as the client id, client's IP address, request parameters etc. into the MDC. 
+        // Logback components, if appropriately configured, will automatically include this information in each log entry.
+        // See http://logback.qos.ch/manual/mdc.html for more info.
+        this.threadId =  String.valueOf(Thread.currentThread().getId());
+        MDC.put("ThreadId", this.threadId);
     }
     
     /**************************************************************************
@@ -47,11 +53,12 @@ public abstract class NdexService
     @GET
     @PermitAll
     @Path("/api")
+	@NdexOpenFunction
     @Produces("application/json")
     @ApiDoc("Retrieves the REST API documentation for network related operations as a list of RestResource objects.")
     public Collection<RestResource> getApi()
     {
-        final Collection<RestResource> resourceList = new ArrayList<RestResource>();
+        final Collection<RestResource> resourceList = new ArrayList<>();
         Path serviceClassPathAnnotation = this.getClass().getAnnotation(Path.class);
         for (Method method : this.getClass().getMethods())
         {
@@ -121,7 +128,16 @@ public abstract class NdexService
         
         return null;
     }
+    
+    protected void setZipFlag() {
+    	_httpRequest.setAttribute(NdexZipFlag, Boolean.TRUE);
+    }
 
+    protected String userNameForLog () {
+    	final Object user = _httpRequest.getAttribute("User");
+    	return (user != null) ? ("[" + ((org.ndexbio.model.object.User)user).getAccountName() + "]\t") : "[anonymous]\t" ;
+    }  
+    
     protected void logInfo (Logger logger, String message) {
     	final Object user = _httpRequest.getAttribute("User");
     	
@@ -130,5 +146,9 @@ public abstract class NdexService
             	"[ANONYMOUS-USER]\t";
     	
     	logger.info(userPrefix + message);
+    }
+   
+    protected String getThreadId() {
+    	return this.threadId;
     }
 }
