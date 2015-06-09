@@ -1392,11 +1392,21 @@ public class NetworkAService extends NdexService {
            
 			NetworkDocDAO daoNew = new NetworkDocDAO(conn);
 			
-			if(daoNew.networkIsReadOnly(newNetwork.getExternalId().toString())) {
+			String networkIDStr = newNetwork.getExternalId().toString();
+			
+			if(daoNew.networkIsReadOnly(networkIDStr)) {
 				daoNew.close();
 				logger.info(userNameForLog() + "[end: Can't update readonly network " + newNetwork.getExternalId().toString() + "]");
 				throw new NdexException ("Can't modify readonly network.");
 			}
+			
+			if ( daoNew.networkIsLocked(networkIDStr)) {
+				daoNew.close();
+				logger.info(userNameForLog() + "[end: Can't update locked network " + newNetwork.getExternalId().toString() + "]");
+				throw new NdexException ("Can't modify locked network.");
+			} 
+			
+			daoNew.lockNetwork(networkIDStr);
 
         }   
            
