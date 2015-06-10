@@ -9,7 +9,7 @@
 	<version>1.2-SNAPSHOT</version>
 	<name>ndexbio-rest</name>
 	<url>http://maven.apache.org</url>
-
+    <inceptionYear>2013</inceptionYear>
 	<repositories>
 		<repository>
 			<id>oss.sonatype.org</id>
@@ -283,6 +283,27 @@
                    </execution>
                </executions>
            </plugin>
+      <plugin>
+   <groupId>com.mycila</groupId>
+   <artifactId>license-maven-plugin</artifactId>
+   <version>2.6</version>
+   <configuration>
+      <header>${basedir}/misc/license_header.txt</header>
+      <properties>
+         <inceptionYear>${project.inceptionYear}</inceptionYear>
+         <year>${year}</year>
+      </properties>
+      <includes>
+         <include>src/**/*.java</include>
+         <include>src/**/*.xml</include>
+      </includes>
+      <excludes>
+         <exclude>**/logback.xml</exclude>
+         <exclude>**/logback-test.xml</exclude>
+         <exclude>**/src/test/resources/**</exclude>
+      </excludes>
+   </configuration>
+</plugin>
 
 		</plugins>
 	</build>
