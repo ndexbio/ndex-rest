@@ -255,10 +255,11 @@ public class NetworkAService extends NdexService {
 	@GET
 	@Path("/{networkId}/provenance")
 	@Produces("application/json")
-    @ApiDoc("Retrieves the 'provenance' field of the network specified by 'networkId' as a ProvenanceEntity object, " +
-            "if it exists.  The ProvenanceEntity object is expected to represent the current state of the network and" +
-            " to contain a tree-structure of ProvenanceEvent and ProvenanceEntity objects that describe the networks " +
-            "provenance history.")
+	@ApiDoc("This method retrieves the 'provenance' attribute of the network specified by 'networkId', if it " +
+	        "exists. The returned value is a JSON ProvenanceEntity object which in turn contains a " +
+	        "tree-structure of ProvenanceEvent and ProvenanceEntity objects that describe the provenance " +
+	        "history of the network. See the document NDEx Provenance History for a detailed description of " +
+	        "this structure and best practices for its use.")	
 	public ProvenanceEntity getProvenance(
 			@PathParam("networkId") final String networkId)
 
@@ -289,10 +290,10 @@ public class NetworkAService extends NdexService {
     @PUT
 	@Path("/{networkId}/provenance")
 	@Produces("application/json")
-    @ApiDoc("Updates the 'provenance' field of the network specified by 'networkId' to be the ProvenanceEntity object" +
-            " in the PUT data.  The ProvenanceEntity object is expected to represent the current state of the network" +
-            " and to contain a tree-structure of ProvenanceEvent and ProvenanceEntity objects that describe the " +
-            "networks provenance history.")
+    @ApiDoc("Updates the 'provenance' field of the network specified by 'networkId' to be the " +
+            "ProvenanceEntity object in the PUT data. The ProvenanceEntity object is expected to represent " +
+            "the current state of the network and to contain a tree-structure of ProvenanceEvent and " +
+            "ProvenanceEntity objects that describe the networks provenance history.")
     public ProvenanceEntity setProvenance(@PathParam("networkId")final String networkId, final ProvenanceEntity provenance)
     		throws Exception {
 
@@ -511,9 +512,9 @@ public class NetworkAService extends NdexService {
 	@GET
 	@Path("/{networkId}")
 	@Produces("application/json")
-    @ApiDoc("Retrieves a NetworkSummary object based on the network specified by 'networkUUID'.  This method returns " +
-            "an error if the network is not found or if the authenticated user does not have READ permission for the " +
-            "network.")
+	@ApiDoc("Retrieves a NetworkSummary object based on the network specified by 'networkId'. This " +
+            "method returns an error if the network is not found or if the authenticated user does not have " +
+            "READ permission for the network.")
 	public NetworkSummary getNetworkSummary(
 			@PathParam("networkId") final String networkId)
 
@@ -559,12 +560,18 @@ public class NetworkAService extends NdexService {
 	@GET
 	@Path("/{networkId}/edge/asNetwork/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("Retrieves a subnetwork of a network based on a block (where a block is simply a contiguous set) of edges" +
-            ". The network is specified by 'networkId'  and the maximum number of edges to retrieve in the query is " +
-            "set by 'blockSize' (which may be any number chosen by the user)  while  'skipBlocks' specifies the " +
-            "number of blocks that have already been read. The subnetwork is returned as a Network object containing " +
-            "the Edge objects specified by the query along with all of the other network elements relevant to the " +
-            "edges. (Compare this method to getPropertyGraphEdges).\n")
+	@ApiDoc("This method retrieves a subnetwork of the network specified by 'networkId' based on a ‘block’ of " +
+	        "edges, where a ‘block’ is simply a set that is contiguous in the network as stored in the specific " +
+	        "NDEx Server. The maximum number of edges to retrieve in the query is set by 'blockSize' " +
+	        "(which may be any number chosen by the user) while 'skipBlocks' specifies the number of " +
+	        "blocks of edges in sequence to ignore before selecting the block to return. The subnetwork is " + 
+	        "returned as a Network object containing the edges specified by the query plus all of the other " +
+ 	        "network elements relevant to the edges." +
+            "<br /><br />" +
+	        "This method is used by the NDEx Web UI to sample a network, enabling the user to view some " +
+	        "of the content of a large network without attempting to retrieve and load the full network. It can " + 
+	        "also be used to obtain a network in ‘chunks’, but it is anticipated that this use will be superseded "  +
+	        "by upcoming API methods that will enable streaming transfers of network content.")
 	public Network getEdges(
 			@PathParam("networkId") final String networkId,
 			@PathParam("skipBlocks") final int skipBlocks,
@@ -590,8 +597,12 @@ public class NetworkAService extends NdexService {
 	@GET
 	@Path("/{networkId}/asNetwork")
 //	@Produces("application/json")
-    @ApiDoc("Retrieve an entire network specified by 'networkId' as a Network object.  (Compare this method to " +
-            "getCompleteNetworkAsPropertyGraph).")
+	@ApiDoc("The getCompleteNetwork method enables an application to obtain an entire network as a JSON " +
+	        "structure. This is performed as a monolithic operation, so care should be taken when requesting " +
+	        "very large networks. Applications can use the getNetworkSummary method to check the node " +
+	        "and edge counts for a network before attempting to use getCompleteNetwork. As an " +
+	        "optimization, networks that are designated read-only (see Make a Network Read-Only below) " +
+	        "are cached by NDEx for rapid access. ")
 	// new Implmentation to handle cached network 
 	public Response getCompleteNetwork(	@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, NdexException {
@@ -878,9 +889,11 @@ public class NetworkAService extends NdexService {
 	@POST
 	@Path("/{networkId}/summary")
 	@Produces("application/json")
-    @ApiDoc("POSTs a NetworkSummary object to update the pro information of the network specified by networkUUID." +
-            " The NetworkSummary POSTed may be only partially populated. The only fields that will be acted on are: " +
-            "'name', 'description','version', and 'visibility' if they are present.")
+	@ApiDoc("This method updates the profile information of the network specified by networkId based on a " +
+	        "POSTed JSON object specifying the attributes to update. Any profile attributes specified will be " + 
+	        "updated but attributes that are not specified will have no effect - omission of an attribute does " +
+	        "not mean deletion of that attribute. The network profile attributes that can be updated by this " +
+	        "method are: 'name', 'description', 'version', and 'visibility'.")
 	public void updateNetworkProfile(
 			@PathParam("networkId") final String networkId,
 			final NetworkSummary summary
@@ -981,15 +994,10 @@ public class NetworkAService extends NdexService {
 	@POST
 	@Path("/{networkId}/asNetwork/query")
 	@Produces("application/json")
-    @ApiDoc("Retrieves a 'neighborhood' subnetwork of a network based on identifiers specified in a POSTed " +
-            "SimplePathQuery object based on a parameter set by the user. The network to be queried is specified by " +
-            "networkId. In the first step of the query, a set of base terms exactly matching identifiers found in the" +
-            " 'searchString' field of the SimplePathQuery is selected. In the second step, " +
-            "nodes are selected that reference the base terms identified in the network.  Finally, " +
-            "a set of edges is selected by traversing outwards from each of these selected nodes, " +
-            "up to the limit specified by the 'searchDepth' field of the SimplePathQuery.  The subnetwork is returned" +
-            " as a Network object containing the selected Edge objects along with any other network elements relevant" +
-            " to the edges.")
+    @ApiDoc("Retrieves a 'neighborhood' subnetwork of the network specified by ‘networkId’. The query finds " +
+            "the subnetwork by a traversal of the network starting with nodes associated with identifiers " +
+            "specified in a POSTed JSON query object. " +
+            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#queryNetwork\">here</a>.")
 	public Network queryNetwork(
 			@PathParam("networkId") final String networkId,
 			final SimplePathQuery queryParameters
@@ -1038,15 +1046,11 @@ public class NetworkAService extends NdexService {
 	@POST
 	@Path("/{networkId}/asNetwork/prototypeNetworkQuery")
 	@Produces("application/json")
-    @ApiDoc("Retrieves a 'neighborhood' subnetwork of a network based on identifiers specified in a POSTed " +
-            "SimplePathQuery object based on a parameter set by the user. The network to be queried is specified by " +
-            "networkId. In the first step of the query, a set of base terms exactly matching identifiers found in the" +
-            " 'searchString' field of the SimplePathQuery is selected. In the second step, " +
-            "nodes are selected that reference the base terms identified in the network.  Finally, " +
-            "a set of edges is selected by traversing outwards from each of these selected nodes, " +
-            "up to the limit specified by the 'searchDepth' field of the SimplePathQuery.  The subnetwork is returned" +
-            " as a Network object containing the selected Edge objects along with any other network elements relevant" +
-            " to the edges.")
+    @ApiDoc("This method retrieves a filtered subnetwork of the network specified by ‘networkId’ based on a " +
+            "POSTed JSON query object.  The returned subnetwork contains edges which satisfy both the " +
+            "edgeFilter and the nodeFilter up to a specified limit. The subnetwork is returned as a Network " +
+            "object containing the selected edges plus all other network elements relevant to the edges. " +
+            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#queryNetworkByEdgeFilter\">here</a>.")
 	public Network queryNetworkByEdgeFilter(
 			@PathParam("networkId") final String networkId,
 			final EdgeCollectionQuery query
@@ -1190,11 +1194,10 @@ public class NetworkAService extends NdexService {
 	@PermitAll
 	@Path("/search/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-    @ApiDoc("Returns a list of NetworkSummary objects based on a POSTed NetworkQuery object. The NetworkQuery may be " +
-            "either a NetworkSimpleQuery specifying only a search string or a NetworkMembershipQuery that also " +
-            "constrains the search to networks administered by a user or group. The maximum number of NetworkSummary " +
-            "objects to retrieve in the query is set by 'blockSize'  (which may be any number chosen by the user)  " +
-            "while  'skipBlocks' specifies number of blocks that have already been read.")
+	@ApiDoc("This method returns a list of NetworkSummary objects based on a POSTed query JSON object. " +
+            "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
+            "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
+            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
 	public Collection<NetworkSummary> searchNetwork(
 			final SimpleNetworkQuery query,
 			@PathParam("skipBlocks") final int skipBlocks,
@@ -1234,7 +1237,9 @@ public class NetworkAService extends NdexService {
 	@PermitAll
 	@Path("/searchByProperties")
 	@Produces("application/json")
-    @ApiDoc("Returns a list of NetworkSummary objects based on a POSTed NetworkPropertyFilter object.")
+	@ApiDoc("This method returns a list of NetworkSummary objects in no particular order which have " +
+            "properties (metadata) that satisfy the constraints specified by a posted JSON query object. " +
+            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetworkByPropertyFilter\">here</a>.")
 	public Collection<NetworkSummary> searchNetworkByPropertyFilter(
 			final NetworkPropertyFilter query)
 			throws IllegalArgumentException, NdexException {
@@ -1343,9 +1348,12 @@ public class NetworkAService extends NdexService {
 	@POST
 	@Path("/asNetwork")
 	@Produces("application/json")
-    @ApiDoc("Creates a new network based on a POSTed Network object. This method errors if the Network object is not " +
-            "provided or if it does not specify a name. It also errors if the Network object is larger than a maximum" +
-            " size for network creation set in the NDEx server configuration. A NetworkSummary object is returned.")
+	@ApiDoc("This method creates a new network on the NDEx Server based on a POSTed Network object. " +
+	        "An error is returned if the Network object is not provided or if the POSTed Network does not " +
+	        "specify a name attribute. An error is also returned if the Network object is larger than a " +
+	        "maximum size for network creation set in the NDEx server configuration. A NetworkSummary " +
+	        "object for the new network is returned so that the caller can obtain the UUID assigned to the " +
+	        "network.")
 	public NetworkSummary createNetwork(final Network newNetwork)
 			throws 	Exception {
 			Preconditions
@@ -1395,12 +1403,14 @@ public class NetworkAService extends NdexService {
     @PUT
     @Path("/asNetwork")
     @Produces("application/json")
-    @ApiDoc("Updates an existing network using a PUT call using a Network object. The Network object must contain a " +
-            "UUID (this would normally be the case for a Network object retrieved from NDEx, " +
-            "so no additional work is required in the most common case) and the user must have permission to modify " +
-            "this network. This method errors if the Network object is not provided or if it does not have a valid " +
-            "UUID on the server. It also errors if the Network object is larger than a maximum size for network " +
-            "creation set in the NDEx server configuration. A NetworkSummary object is returned.")
+    @ApiDoc("This method updates an existing network with new content. The method takes a Network JSON " +
+            "object as the PUT data. The Network object must have its UUID property set in order to identify " +
+            "the network on the server to be updated.  This condition would already be satisfied in the case " +
+            "of a Network object retrieved from NDEx. This method errors if the Network object is not " +
+            "provided or if its UUID does not correspond to an existing network on the NDEx Server. It also " +
+            "errors if the Network object is larger than a maximum size for network creation set in the NDEx " +
+            "server configuration. A NetworkSummary JSON object corresponding to the updated network is " +
+            "returned.")
     public NetworkSummary updateNetwork(final Network newNetwork)
             throws Exception
     {
@@ -1452,7 +1462,8 @@ public class NetworkAService extends NdexService {
 	@DELETE
 	@Path("/{UUID}")
 	@Produces("application/json")
-    @ApiDoc("Deletes the network specified by 'UUID'.")
+    @ApiDoc("Deletes the network specified by networkId. There is no method to undo a deletion, so care " +
+	        "should be exercised. A user can only delete networks that they own.")
 	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException {
 
 		logger.info(userNameForLog() + "[start: Deleting network " + id + "]");
@@ -1588,7 +1599,7 @@ public class NetworkAService extends NdexService {
 
 		try (TaskDAO dao = new TaskDAO(NdexDatabase.getInstance().getAConnection())){
 			dao.createTask(userAccount, processNetworkTask);
-			dao.commit();
+			dao.commit();		
 			
 		} catch (IllegalArgumentException iae) {
 			logger.error(userNameForLog() + "[end: Exception caught:]", iae);
@@ -1598,7 +1609,9 @@ public class NetworkAService extends NdexService {
 			//		+ uploadedNetwork.getFilename() + ". " + e.getMessage());
 			logger.error(userNameForLog() + "[end: Exception caught:]",  e);
 			throw new NdexException(e.getMessage());
-		} 
+		}
+
+		logger.info(userNameForLog() + "[end: Uploading network file. Task for uploading network is created.]");	
 	}
 
 
@@ -1606,8 +1619,8 @@ public class NetworkAService extends NdexService {
 	@GET
 	@Path("/{networkId}/setFlag/{parameter}={value}")
 	@Produces("application/json")
-    @ApiDoc("Set the certain Ndex system flag onnetwork. Supported parameters are:"+
-	        "readOnly={true|false}")
+    @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
+	        "NDEx v1.2, the only supported parameter is readOnly={true|false}")
 	public String setNetworkFlag(
 			@PathParam("networkId") final String networkId,
 			@PathParam("parameter") final String parameter,
