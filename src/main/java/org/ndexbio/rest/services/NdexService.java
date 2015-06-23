@@ -45,6 +45,13 @@ public abstract class NdexService
         // See http://logback.qos.ch/manual/mdc.html for more info.
         this.threadId =  String.valueOf(Thread.currentThread().getId());
         MDC.put("ThreadId", this.threadId);
+        
+        // get IP address of the client
+        // the argument for httpRequest.getHeader() method is case insensitive
+        //MDC.put("ClientIP",
+        //    (null == httpRequest.getHeader("X-FORWARDED-FOR")) ? 
+        //        httpRequest.getRemoteAddr() :
+        //        httpRequest.getHeader("X-FORWARDED-FOR") );
     }
     
     /**************************************************************************
