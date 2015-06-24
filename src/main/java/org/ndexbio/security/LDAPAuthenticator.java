@@ -184,8 +184,13 @@ public class LDAPAuthenticator {
       
  	  //env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
 	
-	  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));	
-      env.put(Context.SECURITY_CREDENTIALS, password);
+	  if ( delegatedUserName != null) {
+		  env.put(Context.SECURITY_PRINCIPAL,username);
+	  } else {
+		  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));	
+	  }
+	  
+	  env.put(Context.SECURITY_CREDENTIALS, password);
       try {
     	  LdapContext ctx = new InitialLdapContext(env,null);
       
@@ -313,7 +318,7 @@ public class LDAPAuthenticator {
 	    	  SearchResult searchResult = null;
 	    	  if (results.hasMoreElements()) {
 	    		  searchResult = results.nextElement();
-	    		  return searchResult.getName();
+	    		  return searchResult.getNameInNamespace();
 	    	  }
 	    	  return null;
 	      } catch (NamingException e) {
