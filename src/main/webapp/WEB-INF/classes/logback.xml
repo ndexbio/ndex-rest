@@ -13,8 +13,9 @@
 		<layout>
 			<!--   <pattern>%date %level %logger - %msg%n</pattern>   -->
 
-            <!-- the &#9; below is code for tabulation;  ThreadId is set in NdexService.java/NdexService().  -->
-            <pattern>[%date]&#9;[%level]&#9;[%X{ThreadId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
+            <!-- the &#9; below is code for tabulation;  RequestsUniqueId is set in NdexService.java/NdexService().  -->
+            <!--  <pattern>[%date]&#9;[%level]&#9;[%X{RequestsUniqueId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern> -->
+            <pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
             <!--  <pattern>[%date]&#9;[%level]&#9;%msg&#9;[%C{0}.%method]%n</pattern> -->
         </layout>			
 	</appender>
@@ -33,13 +34,15 @@
 	  	
 	<appender name="STDOUT" level="debug" class="ch.qos.logback.core.ConsoleAppender">
 		<encoder>
-			<pattern>%date %level %logger - %msg%n</pattern>
+			<!--  <pattern>%date %level %logger - %msg%n</pattern> -->
+			<pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
 		</encoder>
 	</appender>
 	
 	<encoder>
 		<!--  <pattern>%date %level %logger - %msg%n</pattern> -->
-		<pattern>[%date]&#9;[%level]&#9;[%X{ThreadId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
+		<!--  -<pattern>[%date]&#9;[%level]&#9;[%X{RequestsUniqueId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>  -->
+        <pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
 	</encoder>
 	
 	<!-- the log level All below gets over-written by the value of Log-Level config parameter from /opt/ndex/conf/ndex.properties.

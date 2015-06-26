@@ -78,8 +78,8 @@ public class AdminService extends NdexService {
 	@Path("/status")
 	@Produces("application/json")
 	public NdexStatus getStatus() throws NdexException	{
-		
-		logger.info(userNameForLog() + "[start: Getting status]");
+
+		logger.info("{}[start: Getting status]", userNameForLog());
 		
 		try (ODatabaseDocumentTx db =NdexDatabase.getInstance().getAConnection()){
 			
@@ -96,7 +96,7 @@ public class AdminService extends NdexService {
 					int i = Integer.parseInt(edgeLimit);
 					props.put("ServerPostEdgeLimit", Integer.toString(i));
 				} catch( NumberFormatException e) {
-					logger.error(userNameForLog () + "[Invalid value in server property " + networkPostEdgeLimit + "]");
+					logger.error("{}[Invalid value in server property {}]", userNameForLog(), networkPostEdgeLimit);
 					props.put("ServerPostEdgeLimit", defaultPostEdgeLimit);
 				}
 			} else {
@@ -105,7 +105,7 @@ public class AdminService extends NdexService {
 		    
 			props.put("ServerResultLimit", "10000");
 			status.setProperties(props);
-			logger.info(userNameForLog() + "[end: Got status]");
+			logger.info("{}[end: Got status]", userNameForLog());
 			return status;
 		} 
 	}

@@ -82,20 +82,20 @@ public class RequestService extends NdexService
 	@ApiDoc("Create a new request based on a request JSON structure. Returns the JSON structure including the assigned database id.")
     public Request createRequest(final Request newRequest) 
     		throws IllegalArgumentException, DuplicateObjectException, NdexException {
-       
-    	//logInfo ( logger, "Creating " + newRequest.getType() + " request for " + newRequest.getDestinationName());
-    	
-		logger.info(userNameForLog() + "[start: Creating " + newRequest.getType() + " request for " + newRequest.getDestinationName() + "]");
+
+		logger.info("{}[start: Creating {} request for {}]", userNameForLog(), newRequest.getType(), newRequest.getDestinationName());
+		
 		this.openDatabase();
 		
+		Request request = null;
 		try {
-			Request request = dao.createRequest(newRequest, this.getLoggedInUser());
+			request = dao.createRequest(newRequest, this.getLoggedInUser());
 			dao.commit();
-			//logInfo ( logger, "Request " + request.getExternalId() +" created.");
-			logger.info(userNameForLog(), "[end: Request " + request.getExternalId() +" created.]");
 			return request;
 		} finally {
 			this.closeDatabase();
+			logger.info("{}[end: Request {} created]", 
+					userNameForLog(), (request != null) ? request.getExternalId() : "null");
 		}
     	
     }
@@ -111,20 +111,17 @@ public class RequestService extends NdexService
 	@ApiDoc("Deletes the request specified by requestId. Errors if requestId not specified or if request not found.")
     public void deleteRequest(@PathParam("requestId")final String requestId) 
     		throws IllegalArgumentException, ObjectNotFoundException, NdexException {
-        
-		logger.info(userNameForLog() + "[start: Deleting request " + requestId + "]");
-		
-    	//logInfo ( logger, "Deleting request " + requestId );
+
+		logger.info("{}[start: Deleting request {}]", userNameForLog(), requestId);
+
     	this.openDatabase();
 		
 		try {
 			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
 			dao.commit();
-			//logInfo ( logger, "Request " + requestId + " deleted");
-			logger.info(userNameForLog(), "[end: Request " + requestId + " deleted.]");
 		} finally {
 			this.closeDatabase();
-
+			logger.info("{}[end: Request {} deleted]", userNameForLog(), requestId);
 		}
     	
     }
@@ -146,20 +143,17 @@ public class RequestService extends NdexService
 	@ApiDoc("Returns the request JSON structure for the request specified by requestId. Errors if requestId not specified or if request not found.")
     public Request getRequest(@PathParam("requestId")final String requestId) 
     		throws IllegalArgumentException, NdexException {
-       
-    	//logInfo ( logger, "Getting request " + requestId );
-    	logger.info(userNameForLog() + "[start: Getting request " + requestId + "]");
  
+		logger.info("{}[start: Getting request {}]", userNameForLog(), requestId);
+		
     	this.openDatabase();
 		
 		try {
 			final Request request = dao.getRequest(UUID.fromString(requestId), this.getLoggedInUser());
-			//logInfo ( logger, "Request object for id " + requestId + " returned.");
-			logger.info(userNameForLog() + "[end: Got request " + requestId + "]");
 			return request;
 		} finally {
 			this.closeDatabase();
-
+			logger.info("{}[end: Got request {}]", userNameForLog(), requestId);
 		}
     }
 
@@ -176,21 +170,17 @@ public class RequestService extends NdexService
 			"If the response field of the request is updated such that the request is accepted, then the action associated with the request is performed.")
     public void updateRequest(@PathParam("requestId")final String requestId, final Request updatedRequest)
     		throws IllegalArgumentException, NdexException {
-    	
-    	//logInfo( logger, "Updating request " + requestId);
-   
-    	logger.info(userNameForLog() + "[start: Updating request " + requestId + "]");
+  
+		logger.info("{}[start: Updating request {}]", userNameForLog(), requestId);
     	
     	this.openDatabase();
 		
 		try {
 			dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
 			dao.commit();
-			//logInfo ( logger, "Request " + requestId + " updated.");
-			logger.info(userNameForLog() + "[end: Updated request " + requestId + "]");			
 		} finally {
 			this.closeDatabase();
-
+			logger.info("{}[end: Updated request {}]", userNameForLog(), requestId);
 		}
     }
     
