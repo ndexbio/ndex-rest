@@ -2,7 +2,10 @@ package org.ndexbio.rest.services;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 
 import javax.annotation.security.PermitAll;
@@ -19,6 +22,7 @@ import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 public abstract class NdexService
@@ -26,7 +30,10 @@ public abstract class NdexService
 	public static final String NdexZipFlag = "NdexZipped";
 	
     private HttpServletRequest _httpRequest;
-    private String threadId;
+    private String requestsUniqueId;
+    
+	static Logger logger = LoggerFactory.getLogger(NdexService.class);
+	static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS");
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -37,21 +44,23 @@ public abstract class NdexService
     public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
         
-        // we need to log thread id.  
-        // The parameter ThreadId can be accessed in <pattern> element from logback.xml like this: %X{ThreadId} 
+        // we need to log request id.  
+        // The parameter UniqueRequestId can be accessed in <pattern> element from logback.xml like this: %X{UniqueRequestId} 
         // The MDC manages contextual information on a per thread basis.  Typically, while starting to service a new client request, 
         // the developer will insert pertinent contextual information, such as the client id, client's IP address, request parameters etc. into the MDC. 
         // Logback components, if appropriately configured, will automatically include this information in each log entry.
         // See http://logback.qos.ch/manual/mdc.html for more info.
-        this.threadId =  String.valueOf(Thread.currentThread().getId());
-        MDC.put("ThreadId", this.threadId);
+        this.setRequestsUniqueId();
+        MDC.put("RequestsUniqueId", this.getRequestsUniqueId());
+        
+		logger.info("{}[start: httpRequest received; stamped with {}]", userNameForLog(), this.getRequestsUniqueId());
         
         // get IP address of the client
         // the argument for httpRequest.getHeader() method is case insensitive
-        //MDC.put("ClientIP",
-        //    (null == httpRequest.getHeader("X-FORWARDED-FOR")) ? 
-        //        httpRequest.getRemoteAddr() :
-        //        httpRequest.getHeader("X-FORWARDED-FOR") );
+        MDC.put("ClientIP",
+                (null == httpRequest.getHeader("X-FORWARDED-FOR")) ? 
+                    httpRequest.getRemoteAddr() :
+                    httpRequest.getHeader("X-FORWARDED-FOR"));      
     }
     
     /**************************************************************************
@@ -65,6 +74,8 @@ public abstract class NdexService
     @ApiDoc("Retrieves the REST API documentation for network related operations as a list of RestResource objects.")
     public Collection<RestResource> getApi()
     {
+		logger.info("{}[start: getApi()]", userNameForLog());
+		
         final Collection<RestResource> resourceList = new ArrayList<>();
         Path serviceClassPathAnnotation = this.getClass().getAnnotation(Path.class);
         for (Method method : this.getClass().getMethods())
@@ -118,7 +129,8 @@ public abstract class NdexService
             if (resource.getRequestType() != null)
                 resourceList.add(resource);
         }
-    
+ 
+		logger.info("{}[end: getApi()]", userNameForLog());
         return resourceList;
     }
 
@@ -155,7 +167,25 @@ public abstract class NdexService
     	logger.info(userPrefix + message);
     }
    
-    protected String getThreadId() {
-    	return this.threadId;
+    protected String getRequestsUniqueId() {
+    	return this.requestsUniqueId;
+    }
+
+    private void setRequestsUniqueId() {
+    	long currentSystemTimeInMs = System.currentTimeMillis();
+
+    	Calendar cal = Calendar.getInstance();
+    	cal.setTimeInMillis(currentSystemTimeInMs);
+    	
+    	//String s = dateFormat.format(cal.getTime());
+    	//System.out.println("s=" + s);
+    	
+    	// requests unique id is concatenation of (Timestamp + Thread Id);
+    	// the format of requests unique id is "yyyy-MM-dd-HH-mm-ss-SSS-thread_id", 
+    	// for example, 2015-06-25-12-21-436-30
+    	// This unique Id is the Id that will never be reused in future.
+    	this.requestsUniqueId = 
+    			dateFormat.format(cal.getTime()) + "-" + 
+    	        Thread.currentThread().getId();
     }
 }

@@ -47,15 +47,15 @@ public class FeedbackService extends NdexService
     @Path("/{type}")
     @Produces("application/json")
     public void emailFeedback(@PathParam("type")final String feedbackType, final String feedbackText) throws NdexException
-    {
-    	logger.info(userNameForLog() + "[start: email feedback]");   
+    { 
+    	logger.info("{}[start: email feedback]", userNameForLog());   
     	
         if (feedbackType == null || feedbackType.isEmpty()) {
-        	logger.error(userNameForLog() + "[end: Feedback type wasn't specified. Throwing NdexException.]"); 
+        	logger.error("{}[end: Feedback type wasn't specified. Throwing NdexException.]", userNameForLog());        	
         	throw new NdexException("Feedback type wasn't specified.");
         }
         else if (feedbackText == null || feedbackText.isEmpty()) {
-        	logger.error(userNameForLog() + "[end: No feedback was supplied. Throwing NdexException.]"); 
+        	logger.error("{}[end: No feedback was supplied. Throwing NdexException.]", userNameForLog()); 
         	throw new NdexException("No feedback was supplied.");
         }
         try
@@ -66,7 +66,7 @@ public class FeedbackService extends NdexService
                     Configuration.getInstance().getProperty("Feedback-Email"),
                     feedbackType,
                     feedbackText);
-                logger.info(userNameForLog() + "[end: email feedback sent for logged user.]"); 
+                logger.info("{}[end: email feedback sent for logged user]", userNameForLog());  
             }
             else
             {
@@ -74,14 +74,12 @@ public class FeedbackService extends NdexService
                     Configuration.getInstance().getProperty("Feedback-Email"),
                     feedbackType,
                     feedbackText);
-                logger.info(userNameForLog() + "[end: email feedback sent for non-logged user.]");
+                logger.info("{}[end: email feedback sent for non-logged user]", userNameForLog());
             }
         }
         catch (MessagingException e)
         {
-            //_logger.error("Failed to send feedback email.", e);
-
-			logger.error(userNameForLog() + "[end: Failed to send feedback email. Exception caught:]", e);            
+			logger.error("{}[end: Failed to send feedback email. Exception caught:]{}", userNameForLog(), e);            
             throw new NdexException("Sorry, we couldn't submit your feedback.");
         }
     }
