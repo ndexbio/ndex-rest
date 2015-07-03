@@ -183,48 +183,47 @@ public class LDAPAuthenticator {
 	protected Boolean userIsInNdexGroup (String username, String password) throws UnauthorizedOperationException  {
       
  	  //env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
-	
+	  String searchFilter = null;
+	  String searchBase = ldapSearchBase;
 	  if ( delegatedUserName != null) {
 		  env.put(Context.SECURITY_PRINCIPAL,username);
+		  searchBase = username;
+		  searchFilter = "(objectClass=user)";
 	  } else {
-		  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));	
+		  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));
+		  searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
 	  }
 	  
 	  env.put(Context.SECURITY_CREDENTIALS, password);
       try {
     	  LdapContext ctx = new InitialLdapContext(env,null);
-      
-
-	 // String searchFilter = "(&(SAMAccountName="+ username + ")(objectClass=user)(objectCategory=person))";
-	  String searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
-	  
-	  SearchControls searchControls = new SearchControls();
-	  searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-	  NamingEnumeration<SearchResult> results = ctx.search(ldapSearchBase, searchFilter, searchControls);
-	  
-	  SearchResult searchResult = null;
-		if ( results.hasMoreElements()) {
-			searchResult = results.nextElement();
-			Attributes attrs = searchResult.getAttributes();
-//			Attribute uWWID = attrs.get("employeeID");
-			if ( ldapNDExGroup != null ) {
-				Attribute grp = attrs.get("memberOf");
-				NamingEnumeration enu = grp.getAll();
-				while ( enu.hasMore()) {
-					String obj = (String)enu.next();
-					//	        	System.out.println(obj);
-					Matcher matcher = pattern.matcher(obj);
-					if (matcher.find())
-					{
-						if ( matcher.group(1).equals(ldapNDExGroup) ) 
-							return Boolean.TRUE;
+	   
+		  SearchControls searchControls = new SearchControls();
+		  searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+		  NamingEnumeration<SearchResult> results = ctx.search(searchBase, searchFilter, searchControls);
+		  SearchResult searchResult = null;
+			if (results.hasMoreElements()) {
+				searchResult = results.nextElement();
+				Attributes attrs = searchResult.getAttributes();
+			//			Attribute uWWID = attrs.get("employeeID");
+				if ( ldapNDExGroup != null ) {
+					Attribute grp = attrs.get("memberOf");
+					NamingEnumeration enu = grp.getAll();
+					while ( enu.hasMore()) {
+						String obj = (String)enu.next();
+						//	        	System.out.println(obj);
+						Matcher matcher = pattern.matcher(obj);
+						if (matcher.find())
+						{
+							if ( matcher.group(1).equals(ldapNDExGroup) ) 
+								return Boolean.TRUE;
+						}
 					}
-				}
-				return Boolean.FALSE;
-			}	
-			return Boolean.TRUE;
-		}
-		return Boolean.FALSE;
+					return Boolean.FALSE;
+				}	
+				return Boolean.TRUE;
+			}
+			return Boolean.FALSE;
       } catch (NamingException e) {
     	  throw new UnauthorizedOperationException(e.getMessage());
       }
@@ -234,18 +233,28 @@ public class LDAPAuthenticator {
 	public NewUser getNewUser (String username, String password) throws UnauthorizedOperationException  {
 	      
 	 	  //env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
-		
-		  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));	
+	      String searchFilter = null;
+		  String searchBase = ldapSearchBase;
+		  if (delegatedUserName != null) {
+			  String cn = getFullyQualifiedNameByUserId(username);
+			  env.put(Context.SECURITY_PRINCIPAL,cn);
+			  searchBase = cn;
+			  searchFilter = "(objectClass=user)";
+		  } else {
+			  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, username));
+			  searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
+		  }
+			
 	      env.put(Context.SECURITY_CREDENTIALS, password);
 	      try {
 	    	  LdapContext ctx = new InitialLdapContext(env,null);
 	      
 	    	  // String searchFilter = "(&(SAMAccountName="+ username + ")(objectClass=user)(objectCategory=person))";
-	    	  String searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
+	    	  //String searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
 		  
 	    	  SearchControls searchControls = new SearchControls();
 	    	  searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-	    	  NamingEnumeration<SearchResult> results = ctx.search(ldapSearchBase, searchFilter, searchControls);
+	    	  NamingEnumeration<SearchResult> results = ctx.search(searchBase, searchFilter, searchControls);
 		  
 	    	  SearchResult searchResult = null;
 	    	  if ( results.hasMoreElements()) {
