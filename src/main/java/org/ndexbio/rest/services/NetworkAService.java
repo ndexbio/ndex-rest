@@ -116,10 +116,9 @@ public class NetworkAService extends NdexService {
 			@PathParam("blockSize") final int blockSize)
 
 			throws IllegalArgumentException, NdexException {
-		
-		//logger.info(userNameForLog() + "[start: Getting BaseTerm objects from network " + networkId + ", skipBlocks " + skipBlocks + ", blockSize " + blockSize + "]");
-		logger.info("{}[start: Getting BaseTerm objects from network {}, skipBlocks {}, blockSize {}]",  
-				userNameForLog(), networkId, skipBlocks, blockSize);
+
+		logger.info("[start: Getting BaseTerm objects from network {}, skipBlocks {}, blockSize {}]",  
+				networkId, skipBlocks, blockSize);
 		
 		ODatabaseDocumentTx db = null;
 		try {
@@ -128,9 +127,8 @@ public class NetworkAService extends NdexService {
 			return (List<BaseTerm>) daoNew.getBaseTerms(networkId);
 		} finally {
 			if ( db != null) db.close();
-			//logger.info(userNameForLog() + "[end: Got BaseTerm objects from network " + networkId + ", skipBlocks " + skipBlocks + ", blockSize " + blockSize + "]");
-			logger.info("{}[end: Got BaseTerm objects from network {}, skipBlocks {}, blockSize {}]",  
-					userNameForLog(), networkId, skipBlocks, blockSize);
+			logger.info("[end: Got BaseTerm objects from network {}, skipBlocks {}, blockSize {}]",  
+					networkId, skipBlocks, blockSize);
 		}
 
 	}
@@ -148,10 +146,9 @@ public class NetworkAService extends NdexService {
 			@PathParam("blockSize") final int blockSize)
 
 			throws IllegalArgumentException, NdexException {
-		
-		//logger.info(userNameForLog() + "[start: Getting list of namespaces for network " + networkId + ", skipBlocks " + skipBlocks + ", blockSize " + blockSize + "]");
-		logger.info("{}[start: Getting list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
-				userNameForLog(), networkId, skipBlocks, blockSize);
+
+		logger.info("[start: Getting list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
+				networkId, skipBlocks, blockSize);
 		
 		ODatabaseDocumentTx db = null;
 		try {
@@ -160,9 +157,8 @@ public class NetworkAService extends NdexService {
 			return (List<Namespace>) daoNew.getNamespaces(networkId);
 		} finally {
 			if ( db != null) db.close();
-			//logger.info(userNameForLog() + "[end: Got list of namespaces for network " + networkId + ", skipBlocks " + skipBlocks + ", blockSize " + blockSize + "]");
-			logger.info("{}[end: Got list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
-					userNameForLog(), networkId, skipBlocks, blockSize);
+			logger.info("[end: Got list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
+					networkId, skipBlocks, blockSize);
 		}
 
 	}
@@ -177,7 +173,7 @@ public class NetworkAService extends NdexService {
 			)
 			throws IllegalArgumentException, NdexException, IOException {
 		
-		logger.info("{}[start: Adding namespace to the network {}]", userNameForLog(), networkId);
+		logger.info("[start: Adding namespace to the network {}]", networkId);
 
 		NdexDatabase db = null; 
 		NdexPersistenceService networkService = null;
@@ -216,7 +212,7 @@ public class NetworkAService extends NdexService {
 		} finally {
 			
 			if (networkService != null) networkService.close();
-			logger.info("{}[end: Added namespace to the network {}]", userNameForLog(), networkId);
+			logger.info("[end: Added namespace to the network {}]", networkId);
 		}
 	}
 
@@ -243,9 +239,9 @@ public class NetworkAService extends NdexService {
 			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException, NdexException {
 		
 
-		logger.info("{}[start: Getting provenance of network {}]", userNameForLog(), networkId);
+		logger.info("[start: Getting provenance of network {}]", networkId);
 		if (  ! isSearchable(networkId) ) {
-			logger.error("{}[end: Network {} not readable for this user]", userNameForLog(), networkId);
+			logger.error("[end: Network {} not readable for this user]", networkId);
 			throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
 		}
 		
@@ -254,7 +250,7 @@ public class NetworkAService extends NdexService {
 			return daoNew.getProvenance(UUID.fromString(networkId));
 
 		} finally {
-			logger.info("{}[end: Got provenance of network {}]", userNameForLog(), networkId);
+			logger.info("[end: Got provenance of network {}]", networkId);
 		}
 
 
@@ -276,7 +272,7 @@ public class NetworkAService extends NdexService {
     public ProvenanceEntity setProvenance(@PathParam("networkId")final String networkId, final ProvenanceEntity provenance)
     		throws Exception {
 
-    	logger.info("{}[start: Updating provenance of network {}]", userNameForLog(), networkId);
+    	logger.info("[start: Updating provenance of network {}]", networkId);
     	
     	ODatabaseDocumentTx db = null;
     	NetworkDAO daoNew = null;
@@ -288,8 +284,8 @@ public class NetworkAService extends NdexService {
 
 			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
 					Permissions.WRITE)) {
-				logger.error("{}[end: No write permissions for user account {} on network {}]", 
-						userNameForLog(), user.getAccountName(), networkId);
+				logger.error("[end: No write permissions for user account {} on network {}]", 
+						user.getAccountName(), networkId);
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			}
 
@@ -297,7 +293,7 @@ public class NetworkAService extends NdexService {
 			
 			if(daoNew.networkIsReadOnly(networkId)) {
 				daoNew.close();
-				logger.info("{}[end: Can't modify readonly network {}]", userNameForLog(), networkId);
+				logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");
 			}
 
@@ -307,11 +303,11 @@ public class NetworkAService extends NdexService {
 			return daoNew.getProvenance(networkUUID);
 		} catch (Exception e) {
 			if (null != daoNew) daoNew.rollback();
-			logger.error("{}[end: Updating provenance of network {}. Exception caught:]{}", userNameForLog(), networkId, e);	
+			logger.error("[end: Updating provenance of network {}. Exception caught:]{}", networkId, e);	
 			throw e;
 		} finally {
 			if (null != db) db.close();
-			logger.info("{}[end: Updated provenance of network {}]", userNameForLog(), networkId);
+			logger.info("[end: Updated provenance of network {}]", networkId);
 		}
     }
 
@@ -331,9 +327,8 @@ public class NetworkAService extends NdexService {
     		@PathParam("networkId")final String networkId,
     		final List<NdexPropertyValuePair> properties)
     		throws Exception {
-    	
-    	//logger.info(userNameForLog() + "[start: Updating properties of network " + networkId + "]");
-    	logger.info("{}[start: Updating properties of network {}]", userNameForLog(),  networkId);
+
+    	logger.info("[start: Updating properties of network {}]", networkId);
     	
     	ODatabaseDocumentTx db = null;
     	NetworkDAO daoNew = null;
@@ -345,8 +340,8 @@ public class NetworkAService extends NdexService {
 
 			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
 					Permissions.WRITE)) {
-				logger.error("{}[end: No write permissions for user account {} on network {}]",
-						userNameForLog(), user.getAccountName(), networkId);
+				logger.error("[end: No write permissions for user account {} on network {}]",
+						user.getAccountName(), networkId);
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			}
 
@@ -354,7 +349,7 @@ public class NetworkAService extends NdexService {
 			
 			if(daoNew.networkIsReadOnly(networkId)) {
 				daoNew.close();
-				logger.info("{}[end: Can't update readonly network {}]", userNameForLog(), networkId);
+				logger.info("[end: Can't update readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");
 			}
 			
@@ -396,12 +391,12 @@ public class NetworkAService extends NdexService {
 			//logger.severe("Error occurred when update network properties: " + e.getMessage());
 			//e.printStackTrace();
 			if (null != daoNew) daoNew.rollback();
-			logger.error("{}[end: Updating properties of network {}. Exception caught:]{}", userNameForLog(), networkId, e);
+			logger.error("[end: Updating properties of network {}. Exception caught:]{}", networkId, e);
 			
 			throw new NdexException(e.getMessage());
 		} finally {
 			if (null != db) db.close();
-			logger.info("{}[end: Updated properties of network {}]", userNameForLog(), networkId);
+			logger.info("[end: Updated properties of network {}]", networkId);
 		}
     }
 
@@ -416,7 +411,7 @@ public class NetworkAService extends NdexService {
     		throws Exception {
 
     	//logger.info(userNameForLog() + "[start: Updating presentationProperties field of network " + networkId + "]");
-    	logger.info("{}[start: Updating presentationProperties field of network {}]", userNameForLog(), networkId);
+    	logger.info("[start: Updating presentationProperties field of network {}]", networkId);
     	
     	ODatabaseDocumentTx db = null;
     	NetworkDAO daoNew = null;
@@ -427,8 +422,8 @@ public class NetworkAService extends NdexService {
 
 			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
 					Permissions.WRITE)) {
-				logger.error("{}[end: No write permissions for user account {} on network {}]",
-						userNameForLog(), user.getAccountName(), networkId);				
+				logger.error("[end: No write permissions for user account {} on network {}]",
+						user.getAccountName(), networkId);				
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			}
 
@@ -437,7 +432,7 @@ public class NetworkAService extends NdexService {
 			
 			if(daoNew.networkIsReadOnly(networkId)) {
 				daoNew.close();
-				logger.info("{}[end: Can't update readonly network {}]", userNameForLog(), networkId);
+				logger.info("[end: Can't update readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");
 			}
 
@@ -476,11 +471,11 @@ public class NetworkAService extends NdexService {
 				daoNew.rollback();
 				daoNew = null;
 			}
-			logger.error("{}[end: Updating presentationProperties field of network {}. Exception caught:]{}", userNameForLog(), networkId, e);
+			logger.error("[end: Updating presentationProperties field of network {}. Exception caught:]{}", networkId, e);
 			throw e;
 		} finally {
 			if (null != db) db.close();
-			logger.error("{}[end: Updating presentationProperties field of network {}]", userNameForLog(), networkId);
+			logger.error("[end: Updating presentationProperties field of network {}]", networkId);
 		}
     }
     
@@ -502,7 +497,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
-    	logger.info("{}[start: Getting networkSummary of network {}]", userNameForLog(), networkId);
+    	logger.info("[start: Getting networkSummary of network {}]", networkId);
 		
 		ODatabaseDocumentTx db = null;
 		try {
@@ -524,16 +519,15 @@ public class NetworkAService extends NdexService {
 				NetworkSummary summary = NetworkDocDAO.getNetworkSummary(doc);
 				db.close();
 				db = null;
-				//logInfo(logger, "NetworkSummary of " + networkId + " returned.");
 				return summary;
 
 			}
 		} finally {
 			if (db != null) db.close();
-			logger.info("{}[end: Got networkSummary of network {}]", userNameForLog(), networkId);
+			logger.info("[end: Got networkSummary of network {}]", networkId);
 		}
 		
-		logger.error("{}[end: Getting networkSummary of network {}. Throwing UnauthorizedOperationException ...]", userNameForLog(), networkId);	
+		logger.error("[end: Getting networkSummary of network {}. Throwing UnauthorizedOperationException ...]", networkId);	
         throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 	}
 
@@ -561,9 +555,9 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 	
-    	logger.info("{}[start: Getting edges of network {}, skipBlocks {}, blockSize {}]", 
-    			userNameForLog(), networkId, skipBlocks, blockSize);
-    	
+    	logger.info("[start: Getting edges of network {}, skipBlocks {}, blockSize {}]", 
+    			networkId, skipBlocks, blockSize);
+	    
 		ODatabaseDocumentTx db = null;
 		try {
 			db = NdexDatabase.getInstance().getAConnection();
@@ -572,8 +566,8 @@ public class NetworkAService extends NdexService {
 	        return n;
 		} finally {
 			if ( db !=null) db.close();
-	    	logger.info("{}[end: Got edges of network {}, skipBlocks {}, blockSize {}]", 
-	    			userNameForLog(), networkId, skipBlocks, blockSize);
+	    	logger.info("[end: Got edges of network {}, skipBlocks {}, blockSize {}]", 
+	    			networkId, skipBlocks, blockSize);
 		}
 	}
 
@@ -591,7 +585,7 @@ public class NetworkAService extends NdexService {
 	public Response getCompleteNetwork(	@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, NdexException {
 
-    	logger.info("{}[start: Getting complete network {}]", userNameForLog(), networkId);
+    	logger.info("[start: Getting complete network {}]", networkId);
 
 		if ( isSearchable(networkId) ) {
 			
@@ -607,17 +601,17 @@ public class NetworkAService extends NdexService {
 							Configuration.getInstance().getNdexNetworkCachePath() + commitId +".gz")  ;
 				
 					setZipFlag();
-					logger.info("{}[end: Return cached network {}]", userNameForLog(), networkId);
+					logger.info("[end: Return cached network {}]", networkId);
 					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 				} catch (IOException e) {
-					logger.error("{}[end: Ndex server can't find file: {}]", userNameForLog(), e.getMessage());
+					logger.error("[end: Ndex server can't find file: {}]", e.getMessage());
 					throw new NdexException ("Ndex server can't find file: " + e.getMessage());
 				}
 			}   	
 
 			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
 			daoNew.close();
-	    	logger.info("{}[end: Return complete network {}]", userNameForLog(), networkId);
+	    	logger.info("[end: Return complete network {}]", networkId);
 			return Response.ok(n,MediaType.APPLICATION_JSON_TYPE).build();
 		}
 		else
@@ -635,7 +629,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("format") final String format)
 			throws  NdexException {
 
-    	logger.info("{}[start: request to export network {}]", userNameForLog(), networkId);
+    	logger.info("[start: request to export network {}]", networkId);
 		
 		if ( isSearchable(networkId) ) {
 			
@@ -654,22 +648,22 @@ public class NetworkAService extends NdexService {
 			try {
 				exportNetworkTask.setFormat(FileFormat.valueOf(format));
 			} catch ( Exception e) {
-				logger.error("{}[end: Exception caught:]{}", userNameForLog(), e);
+				logger.error("[end: Exception caught:]{}", e);
 				throw new NdexException ("Invalid network format for network export.");
 			}
 			
 			try (TaskDAO taskDAO = new TaskDAO(NdexDatabase.getInstance().getAConnection()) ){ 
 				UUID taskId = taskDAO.createTask(getLoggedInUser().getAccountName(),exportNetworkTask);
 				taskDAO.commit();
-				logger.info("{}[start: task created to export network {}]", userNameForLog(), networkId);
+				logger.info("[start: task created to export network {}]", networkId);
 				return taskId.toString();
 			}  catch (Exception e) {
-				logger.error("{}[end: Exception caught:]{}", userNameForLog(), e);
+				logger.error("[end: Exception caught:]{}", e);
 				
 				throw new NdexException(e.getMessage());
 			} 
 		}
-		logger.error("{}[end: User doesn't have read access network {}. Throwing  UnauthorizedOperationException]", userNameForLog(), networkId);
+		logger.error("[end: User doesn't have read access network {}. Throwing  UnauthorizedOperationException]", networkId);
 		throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 	}  
 	
@@ -688,7 +682,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException, JsonProcessingException {
 		
-    	logger.info("{}[start: Retrieving an entire network {} as a PropertyGraphNetwork object]", userNameForLog(), networkId);
+    	logger.info("[start: Retrieving an entire network {} as a PropertyGraphNetwork object]", networkId);
 		
 		if ( isSearchable(networkId) ) {
 		
@@ -700,11 +694,11 @@ public class NetworkAService extends NdexService {
 				return n;
 			} finally {
 				if (db !=null ) db.close();
-		    	logger.info("{}[end: Retrieved an entire network {} as a PropertyGraphNetwork object]", userNameForLog(), networkId);
+		    	logger.info("[end: Retrieved an entire network {} as a PropertyGraphNetwork object]", networkId);
 			}
 		}
 		else {
-			logger.error("{}[end: User doesn't have read access network {}. Throwing  UnauthorizedOperationException]", userNameForLog(), networkId);
+			logger.error("[end: User doesn't have read access network {}. Throwing  UnauthorizedOperationException]", networkId);
 			throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 		}
 	}
@@ -726,14 +720,14 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
-    	logger.info("{}[start: Retrieving a subnetwork of network {}, skipBlocks {}, blockSize {}]", 
-    			userNameForLog(), networkId, skipBlocks, blockSize);
+    	logger.info("[start: Retrieving a subnetwork of network {}, skipBlocks {}, blockSize {}]", 
+    			networkId, skipBlocks, blockSize);
 		ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
 		NetworkDAO dao = new NetworkDAO(db);
  		PropertyGraphNetwork n = dao.getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
 		db.close();
-    	logger.info("{}[start: Retrieved a subnetwork of network {}, skipBlocks {}, blockSize {}]", 
-    			userNameForLog(), networkId, skipBlocks, blockSize);
+    	logger.info("[start: Retrieved a subnetwork of network {}, skipBlocks {}, blockSize {}]", 
+    			networkId, skipBlocks, blockSize);
         return n;
 	}
 
@@ -765,8 +759,8 @@ public class NetworkAService extends NdexService {
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException {
 
-		logger.info("{}[start: Get {} accounts on network {}, skipBlocks {},  blockSize {}]", 
-				userNameForLog(),  permissions, networkId, skipBlocks, blockSize);
+		logger.info("[start: Get {} accounts on network {}, skipBlocks {},  blockSize {}]", 
+				permissions, networkId, skipBlocks, blockSize);
 		
 		Permissions permission = null;
 		if ( ! permissions.toUpperCase().equals("ALL")) {
@@ -781,8 +775,8 @@ public class NetworkAService extends NdexService {
             
 			List<Membership> results = networkDao.getNetworkUserMemberships(
 					UUID.fromString(networkId), permission, skipBlocks, blockSize);
-			logger.info("{}[end: Got {} members returned for network {}]", 
-					userNameForLog(),  results.size(), networkId);
+			logger.info("[end: Got {} members returned for network {}]", 
+					results.size(), networkId);
 			return results;
 
 		} finally {
@@ -805,7 +799,7 @@ public class NetworkAService extends NdexService {
 			)
 			throws IllegalArgumentException, NdexException {
 		
-		logger.info("{}[start: Removing any permissions for network {} for user {}]", userNameForLog(),  networkId, userUUID);
+		logger.info("[start: Removing any permissions for network {} for user {}]", networkId, userUUID);
 		
 		ODatabaseDocumentTx db = null;
 		try {
@@ -814,14 +808,14 @@ public class NetworkAService extends NdexService {
 			NetworkDAO networkDao = new NetworkDAO(db);
 
 			if (!Helper.isAdminOfNetwork(db, networkId, user.getExternalId().toString())) {
-				logger.error("{}[end: User {} not an admin of network {}. Throwing  UnauthorizedOperationException ...]", 
-						userNameForLog(), userUUID, networkId); 
+				logger.error("[end: User {} not an admin of network {}. Throwing  UnauthorizedOperationException ...]", 
+						userUUID, networkId); 
 				throw new UnauthorizedOperationException("Unable to delete network membership: user is not an admin of this network.");
 			}
 
 			int count = networkDao.revokePrivilege(networkId, userUUID);
             db.commit();
-    		logger.info("{}[end: Removed any permissions for network {} for user {}]", userNameForLog(),  networkId, userUUID);
+    		logger.info("[end: Removed any permissions for network {} for user {}]", networkId, userUUID);
             return count;
 		} finally {
 			if (db != null) db.close();
@@ -850,7 +844,7 @@ public class NetworkAService extends NdexService {
 			)
 			throws IllegalArgumentException, NdexException {
 
-		logger.info("{}[start: Updating membership for network {}]", userNameForLog(), networkId);
+		logger.info("[start: Updating membership for network {}]", networkId);
 		
 		ODatabaseDocumentTx db = null;
 		try {
@@ -861,15 +855,15 @@ public class NetworkAService extends NdexService {
 
 			if (!Helper.isAdminOfNetwork(db, networkId, user.getExternalId().toString())) {
 
-				logger.error("{}[end: User {} not an admin of network {}. Throwing  UnauthorizedOperationException ...]", 
-						userNameForLog(), user.getExternalId().toString(), networkId);
+				logger.error("[end: User {} not an admin of network {}. Throwing  UnauthorizedOperationException ...]", 
+						user.getExternalId().toString(), networkId);
 				
 				throw new UnauthorizedOperationException("Unable to update network membership: user is not an admin of this network.");
 			}
 
 	        int count = networkDao.grantPrivilege(networkId, membership.getMemberUUID().toString(), membership.getPermissions());
 			db.commit();
-			logger.info("{}[end: Updated membership for network {}]", userNameForLog(), networkId);
+			logger.info("[end: Updated membership for network {}]", networkId);
 	        return count;
 		} finally {
 			if (db != null) db.close();
@@ -890,7 +884,7 @@ public class NetworkAService extends NdexService {
 			)
             throws IllegalArgumentException, NdexException, IOException
     {
-		logger.info("{}[start: Updating profile information of network {}]", userNameForLog(), networkId);
+		logger.info("[start: Updating profile information of network {}]", networkId);
 		
 		ODatabaseDocumentTx db = null;
 		try {
@@ -901,15 +895,15 @@ public class NetworkAService extends NdexService {
 			
 			if(networkDao.networkIsReadOnly(networkId)) {
 				networkDao.close();
-				logger.info("{}[end: Can't modify readonly network {}]", userNameForLog(), networkId);
+				logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
 			}
 
 
 			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
 					Permissions.WRITE)) {
-				logger.error("{}[end: No write permissions for user account {} on network {}]", 
-						userNameForLog(), user.getAccountName(), networkId);
+				logger.error("[end: No write permissions for user account {} on network {}]", 
+						user.getAccountName(), networkId);
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			}
 
@@ -973,7 +967,7 @@ public class NetworkAService extends NdexService {
 			db.commit();
 		} finally {
 			if (db != null) db.close();
-			logger.info("{}[end: Updated profile information of network {}]", userNameForLog(), networkId);
+			logger.info("[end: Updated profile information of network {}]", networkId);
 		}
 	}
 
@@ -995,12 +989,9 @@ public class NetworkAService extends NdexService {
 			)
 
 			throws IllegalArgumentException, NdexException {
-
-		//logger.info(userNameForLog() + "[start: Retrieving neighborhood subnetwork for network " + networkId +  
-		//		" with phrase \"" + queryParameters.getSearchString() + "\"]");
 		
-		logger.info("{}[start: Retrieving neighborhood subnetwork for network {} with phrase \"{}\"]", 
-				userNameForLog(), networkId, queryParameters.getSearchString());
+		logger.info("[start: Retrieving neighborhood subnetwork for network {} with phrase \"{}\"]", 
+				networkId, queryParameters.getSearchString());
 
 		try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()) {
 
@@ -1019,13 +1010,13 @@ public class NetworkAService extends NdexService {
 			   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
 			   Network n = dao.queryForSubnetworkV2(networkId, queryParameters);
-               logger.info("{}[end: Subnetwork for network {} with phrase \"{}\" retrieved]", 
-                       userNameForLog(), networkId, queryParameters.getSearchString());	
+               logger.info("[end: Subnetwork for network {} with phrase \"{}\" retrieved]", 
+                       networkId, queryParameters.getSearchString());	
 			   return n;
 		   }
 		   
-		   logger.error("{}[end: User doesn't have read permission to retrieve neighborhood subnetwork for network {} with phrase\"{}\"]",  
-				   userNameForLog(), networkId, queryParameters.getSearchString());
+		   logger.error("[end: User doesn't have read permission to retrieve neighborhood subnetwork for network {} with phrase\"{}\"]",  
+				   networkId, queryParameters.getSearchString());
 	       throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
 		} 
 	}
@@ -1047,18 +1038,18 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
-		logger.info("{}[start: filter query on network {}]", userNameForLog(), networkId);
+		logger.info("[start: filter query on network {}]", networkId);
 		
 
 		if ( !isSearchable(networkId ) ) {
-			logger.error("{}[end: Network {} not readable for this user]", userNameForLog(), networkId);
+			logger.error("[end: Network {} not readable for this user]", networkId);
 			throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
 		}
 		
 		NetworkFilterQueryExecutor queryExecutor = NetworkFilterQueryExecutorFactory.createODBExecutor(networkId, query);
 		
 		Network result =  queryExecutor.evaluate();
-		logger.info("{}[end: filter query on network {}]", userNameForLog(), networkId);
+		logger.info("[end: filter query on network {}]", networkId);
         return result;
 	}
 	
@@ -1103,8 +1094,8 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
-		logger.info("{}[start: Retrieving neighborhood subnetwork for network {} based on SimplePathQuery object]",
-				userNameForLog(), networkId);
+		logger.info("[start: Retrieving neighborhood subnetwork for network {} based on SimplePathQuery object]",
+				networkId);
 		
 		ODatabaseDocumentTx db = null;
 
@@ -1129,8 +1120,8 @@ public class NetworkAService extends NdexService {
 				NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
 				PropertyGraphNetwork n = dao.queryForSubPropertyGraphNetwork(networkId, queryParameters);
-				logger.info("{}[end: Retrieved neighborhood subnetwork for network {} based on SimplePathQuery object]",
-						userNameForLog(), networkId);				
+				logger.info("[end: Retrieved neighborhood subnetwork for network {} based on SimplePathQuery object]",
+						networkId);				
 				return n;
 
 			}
@@ -1138,8 +1129,8 @@ public class NetworkAService extends NdexService {
 			if ( db !=null) db.close();
 		}
 
-		logger.error("{}[end: Retrieving neighborhood subnetwork for network {} based on SimplePathQuery object. Throwing UnauthorizedOperationException ...]",
-				userNameForLog(), networkId);
+		logger.error("[end: Retrieving neighborhood subnetwork for network {} based on SimplePathQuery object. Throwing UnauthorizedOperationException ...]",
+				networkId);
 	    throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
 	}
 
@@ -1195,8 +1186,8 @@ public class NetworkAService extends NdexService {
 			@PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 		
-		logger.info("{}[start: Retrieving NetworkSummary objects using query \"{}\"]", 
-				userNameForLog(), query.getSearchString());		
+		logger.info("[start: Retrieving NetworkSummary objects using query \"{}\"]", 
+				query.getSearchString());		
 		
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
@@ -1206,12 +1197,12 @@ public class NetworkAService extends NdexService {
             Collection<NetworkSummary> result = new ArrayList <> ();
 
 			result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
-			logger.info("{}[end: Retrieved {} NetworkSummary objects]", userNameForLog(), result.size());		
+			logger.info("[end: Retrieved {} NetworkSummary objects]", result.size());		
 			return result;
 
         } catch (Exception e) {
-			logger.error("{}[end: Retrieving NetworkSummary objects using query \"{}\". Exception caught:]{}", 
-					userNameForLog(), query.getSearchString(), e);	
+			logger.error("[end: Retrieving NetworkSummary objects using query \"{}\". Exception caught:]{}", 
+					query.getSearchString(), e);	
         	throw new NdexException(e.getMessage());
         }
 	}
@@ -1230,13 +1221,13 @@ public class NetworkAService extends NdexService {
 			final NetworkPropertyFilter query)
 			throws IllegalArgumentException, NdexException {
 
-		logger.info("{}[start: Search network by properties]", userNameForLog());
+		logger.info("[start: Search network by properties]");
 
 		SearchNetworkByPropertyExecutor queryExecutor = new SearchNetworkByPropertyExecutor(query, this.getLoggedInUser().getAccountName());
 		
 		Collection<NetworkSummary> result =  queryExecutor.evaluate();
 		
-		logger.info("{}[end: returning {} records from property search]", userNameForLog(), result.size());
+		logger.info("[end: returning {} records from property search]", result.size());
 		return result;
 
 	}
@@ -1258,14 +1249,14 @@ public class NetworkAService extends NdexService {
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
 			
-			logger.info("{}[start: Creating a new network based on a POSTed NetworkPropertyGraph object]", userNameForLog());
+			logger.info("[start: Creating a new network based on a POSTed NetworkPropertyGraph object]");
 			
 			NdexDatabase db = NdexDatabase.getInstance();
 			PropertyGraphLoader pgl = null;
 			pgl = new PropertyGraphLoader(db);
 			NetworkSummary ns = pgl.insertNetwork(newNetwork, getLoggedInUser());
 			
-			logger.info("{}[end: Created a new network based on a POSTed NetworkPropertyGraph object]", userNameForLog());
+			logger.info("[end: Created a new network based on a POSTed NetworkPropertyGraph object]");
 			
 			return ns;
 
@@ -1348,7 +1339,7 @@ public class NetworkAService extends NdexService {
 				!Strings.isNullOrEmpty(newNetwork.getName()),
 				"A network name is required");
 
-			logger.info("{}[start: Creating a new network based on a POSTed Network object]", userNameForLog());
+			logger.info("[start: Creating a new network based on a POSTed Network object]");
 
 			NdexDatabase db = NdexDatabase.getInstance();
 			NdexNetworkCloneService service = null;
@@ -1375,7 +1366,7 @@ public class NetworkAService extends NdexService {
 
                 service.setNetworkProvenance(entity);
 
-    			logger.info("{}[end: Created a new network based on a POSTed Network object]", userNameForLog());
+    			logger.info("[end: Created a new network based on a POSTed Network object]");
  
 				return summary;
 
@@ -1405,7 +1396,7 @@ public class NetworkAService extends NdexService {
                 !Strings.isNullOrEmpty(newNetwork.getName()),
                 "A network name is required");
         
-		logger.info("{}[start: Updating network {}]", userNameForLog(), newNetwork.getExternalId().toString());
+		logger.info("[start: Updating network {}]", newNetwork.getExternalId().toString());
 
         try ( ODatabaseDocumentTx conn = NdexDatabase.getInstance().getAConnection() ) {
            User user = getLoggedInUser();
@@ -1414,8 +1405,8 @@ public class NetworkAService extends NdexService {
         		   newNetwork.getExternalId().toString(), user.getAccountName(),
         		   Permissions.WRITE))
            {
-				logger.error("{}[end: No write permissions for user account {} on network {}]", 
-						userNameForLog(), user.getAccountName(), newNetwork.getExternalId().toString());
+				logger.error("[end: No write permissions for user account {} on network {}]", 
+						user.getAccountName(), newNetwork.getExternalId().toString());
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
            }
            
@@ -1423,8 +1414,8 @@ public class NetworkAService extends NdexService {
 			
 			if(daoNew.networkIsReadOnly(newNetwork.getExternalId().toString())) {
 				daoNew.close();
-				logger.info("{}[end: Can't update readonly network {}]", 
-						userNameForLog(), newNetwork.getExternalId().toString());
+				logger.info("[end: Can't update readonly network {}]", 
+						newNetwork.getExternalId().toString());
 				throw new NdexException ("Can't update readonly network.");
 			}
 
@@ -1433,7 +1424,7 @@ public class NetworkAService extends NdexService {
         try ( NdexNetworkCloneService service = new NdexNetworkCloneService(NdexDatabase.getInstance(), 
         		  newNetwork, getLoggedInUser().getAccountName()) ) {
         	
-           logger.info("{}[end: Updating network {}]", userNameForLog(), newNetwork.getExternalId().toString());
+           logger.info("[end: Updating network {}]", newNetwork.getExternalId().toString());
            return service.updateNetwork();
 
         }
@@ -1447,7 +1438,7 @@ public class NetworkAService extends NdexService {
 	        "should be exercised. A user can only delete networks that they own.")
 	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException {
 
-		logger.info("{}[start: Deleting network {}]", userNameForLog(), id);
+		logger.info("[start: Deleting network {}]", id);
 		
 		String userAcc = getLoggedInUser().getAccountName();
 
@@ -1457,15 +1448,15 @@ public class NetworkAService extends NdexService {
 
             if (!Helper.checkPermissionOnNetworkByAccountName(db, id, userAcc, Permissions.ADMIN))
 	        {	        
-				logger.error("{}[end: Unable to delete. User {} not an admin of network {}. Throwing  UnauthorizedOperationException ...]", 
-						userNameForLog(), userAcc, id); 
+				logger.error("[end: Unable to delete. User {} not an admin of network {}. Throwing  UnauthorizedOperationException ...]", 
+						userAcc, id); 
 				throw new UnauthorizedOperationException("Unable to delete network membership: user is not an admin of this network.");		        
 	        }
             
 			try (NetworkDAO networkDao = new NetworkDAO(db)) {
 				
 				if(networkDao.networkIsReadOnly(id)) {
-					logger.info("{}[end: Can't delete readonly network {}]", userNameForLog(), id);					
+					logger.info("[end: Can't delete readonly network {}]", id);					
 					throw new NdexException ("Can't delete readonly network.");
 				}
 				  
@@ -1478,7 +1469,7 @@ public class NetworkAService extends NdexService {
 				NdexServerQueue.INSTANCE.addSystemTask(task);
 			}
 			db = null;
-			logger.info("{}[end: Deleted network {}]", userNameForLog(), id);
+			logger.info("[end: Deleted network {}]", id);
 		} finally {
 			if ( db != null) db.close();
 		}
@@ -1510,7 +1501,7 @@ public class NetworkAService extends NdexService {
 	public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork)
 			throws IllegalArgumentException, SecurityException, NdexException {
 
-		logger.info("{}[start: Uploading network file]", userNameForLog());
+		logger.info("[start: Uploading network file]");
 		
 		try {
 			Preconditions
@@ -1523,7 +1514,7 @@ public class NetworkAService extends NdexService {
 			Preconditions.checkState(uploadedNetwork.getFileData().length > 0,
 					"The file data is empty");
 		} catch (Exception e) {
-			logger.error("{}[end: Uploading network file. Exception caught:]{}", userNameForLog(), e);
+			logger.error("[end: Uploading network file. Exception caught:]{}", e);
 			throw new NdexException(e.getMessage());
 		}
 
@@ -1531,8 +1522,7 @@ public class NetworkAService extends NdexService {
 
 		if ( !ext.equals("sif") && !ext.equals("xbel") && !ext.equals("xgmml") && !ext.equals("owl") 
 				&& !ext.equals("xls") && ! ext.equals("xlsx")) {
-			logger.error("{}[end: The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.  Throwing  NdexException...]",
-					userNameForLog());
+			logger.error("[end: The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.  Throwing  NdexException...]");
 			throw new NdexException(
 					"The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.");
 		}
@@ -1551,8 +1541,8 @@ public class NetworkAService extends NdexService {
 			try {
 				uploadedNetworkFile.createNewFile();
 			} catch (IOException e1) {
-				logger.error("{}[end: Failed to create file {} on server when uploading {}. Exception caught:]{}",
-						userNameForLog(), fileFullPath, uploadedNetwork.getFilename(), e1);
+				logger.error("[end: Failed to create file {} on server when uploading {}. Exception caught:]{}",
+						fileFullPath, uploadedNetwork.getFilename(), e1);
 				throw new NdexException ("Failed to create file " + fileFullPath + " on server when uploading " + 
 						uploadedNetwork.getFilename() + ": " + e1.getMessage());				
 			}
@@ -1561,8 +1551,8 @@ public class NetworkAService extends NdexService {
 			saveNetworkFile.write(uploadedNetwork.getFileData());
 			saveNetworkFile.flush();
 		} catch (IOException e1) {
-			logger.error("{}[end: Failed to write content to file {} on server when uploading {}. Exception caught:]{}", 
-					userNameForLog(), fileFullPath, uploadedNetwork.getFilename(),  e1 );
+			logger.error("[end: Failed to write content to file {} on server when uploading {}. Exception caught:]{}", 
+					fileFullPath, uploadedNetwork.getFilename(),  e1 );
 			throw new NdexException ("Failed to write content to file " + fileFullPath + " on server when uploading " + 
 					uploadedNetwork.getFilename() + ": " + e1.getMessage());			
 		} 
@@ -1583,14 +1573,14 @@ public class NetworkAService extends NdexService {
 			dao.commit();		
 			
 		} catch (IllegalArgumentException iae) {
-			logger.error("{}[end: Exception caught:]{}", userNameForLog(), iae);
+			logger.error("[end: Exception caught:]{}", iae);
 			throw iae;
 		} catch (Exception e) {
-			logger.error("{}[end: Exception caught:]{}", userNameForLog(), e);
+			logger.error("[end: Exception caught:]{}", e);
 			throw new NdexException(e.getMessage());
 		}
 
-		logger.info("{}[end: Uploading network file. Task for uploading network is created.]", userNameForLog());
+		logger.info("[end: Uploading network file. Task for uploading network is created.]");
 	}
 
 
@@ -1607,7 +1597,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 		
-		    logger.info("{}[start: Setting {}={} for network {}]", userNameForLog(), parameter, value, networkId);
+		    logger.info("[start: Setting {}={} for network {}]", parameter, value, networkId);
 		    
 			try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()){
 				if (Helper.isAdminOfNetwork(db, networkId, getLoggedInUser().getExternalId().toString())) {
@@ -1617,13 +1607,13 @@ public class NetworkAService extends NdexService {
 
 					  try (NetworkDAOTx daoNew = new NetworkDAOTx()) {
 						  long oldId = daoNew.setReadOnlyFlag(networkId, bv, getLoggedInUser().getAccountName());
-						  logger.info("{}[end: Set {}={} for network {}]", userNameForLog(), parameter, value, networkId);
+						  logger.info("[end: Set {}={} for network {}]", parameter, value, networkId);
 						  return Long.toString(oldId);
 					  } 
 				  }
 				}
-				logger.error("{}[end: Unable to set {}={} for network {}. Only admin can set network flag.]", 
-						userNameForLog(), parameter, value, networkId);
+				logger.error("[end: Unable to set {}={} for network {}. Only admin can set network flag.]", 
+						parameter, value, networkId);
 				throw new UnauthorizedOperationException("Only an administrator can set a network flag.");
 			}
 	}

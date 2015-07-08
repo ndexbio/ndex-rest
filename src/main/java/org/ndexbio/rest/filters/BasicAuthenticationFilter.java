@@ -13,6 +13,7 @@ import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.access.NdexDatabase;
+import org.apache.log4j.MDC;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
@@ -84,13 +85,14 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         boolean authenticated = false;
         try
         {
-        	
             authInfo = parseCredentials(requestContext);
+            MDC.put("UserName", ((authInfo != null) ? authInfo[0] : ""));
+    		_logger.debug("[start: User={}]",  (authInfo != null) ? authInfo[0] : "");
             if(authInfo != null) {  // server need to authenticate the user.
             	if (ADAuthenticator !=null ) {
             		if ( ADAuthenticator.authenticateUser(authInfo[0], authInfo[1]) ) {
             			authenticated = true;
-            			_logger.info("User " + authInfo[0] + " authenticated by AD.");
+            			_logger.debug("User {} authenticated by AD.", authInfo[0]);
                 		try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
                    		  try {
                 			authUser = dao.getUserByAccountName(authInfo[0]);
@@ -114,6 +116,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             
             	if (authUser != null) {
             		requestContext.setProperty("User", authUser);
+            		_logger.debug("[end: User {} authenticated]", authInfo[0]);
             		return;
             	}
     /*        	else { 

@@ -3,17 +3,11 @@ package org.ndexbio.rest.server;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
-import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.orientdb.UserDAO;
-import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
-import org.ndexbio.task.Configuration;
-import org.ndexbio.task.utility.DatabaseInitializer;
 
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import org.apache.log4j.PropertyConfigurator;
+
+
 /*
  * This class is just for testing purpose at the moment.
  */
@@ -58,6 +52,36 @@ public class StandaloneServer {
 		h.setInitParameter("javax.ws.rs.Application", "org.ndexbio.rest.NdexRestApi");
 		context.addServlet(h, "/*");
 		server.setHandler(context);
+		
+		
+		// From http://logback.qos.ch/manual/configuration.html:
+		// Logback relies on a configuration library called Joran, part of logback-core. Logback's default configuration 
+		// mechanism invokes JoranConfigurator on the default configuration file it finds on the class path. If you wish 
+		// to override logback's default configuration mechanism for whatever reason, you can do so by invoking 
+		// JoranConfigurator directly.
+
+		// In this module (StandaloneServer.java), we are starting the embedded Jetty server and we need 
+		// to programatically initialize logback with configuration file located in the same directory as the source code.
+		// The code below is taken from http://logback.qos.ch/faq.html
+		/*
+		LoggerContext c = (LoggerContext) LoggerFactory.getILoggerFactory(); 
+		JoranConfigurator jc = new JoranConfigurator(); 
+		jc.setContext(c); 
+		c.reset(); 
+		 
+		LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+	    StatusPrinter.print(lc);
+		*/
+		// override default configuration 
+	    /*
+		try {
+            jc.doConfigure("src/main/java/org/ndexbio/rest/server/jetty-logback.xml");
+		} catch (JoranException e1) {
+            e1.printStackTrace();
+			System.exit(1);
+		} 
+		*/
+	    
 		try {
 			server.start();
 			server.join();

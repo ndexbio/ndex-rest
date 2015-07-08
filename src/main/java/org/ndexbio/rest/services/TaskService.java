@@ -66,7 +66,7 @@ public class TaskService extends NdexService
     {
         final String userAccount = this.getLoggedInUser().getAccountName();
 
-		logger.info("{}[start: Creating {} task for user {}]", userNameForLog(), newTask.getType(), userAccount);
+		logger.info("[start: Creating {} task for user {}]", newTask.getType(), userAccount);
 		
         Preconditions.checkArgument(null != newTask, 
     			" A task object is required");
@@ -77,14 +77,14 @@ public class TaskService extends NdexService
             
             dao.commit();
 
-            logger.info("{}[end: task {} with type {} created for {}]", 
-            		userNameForLog(), taskId, newTask.getType(), userAccount);
+            logger.info("[end: task {} with type {} created for {}]", 
+            		taskId, newTask.getType(), userAccount);
             
             return taskId;
         }
         catch (Exception e)
         {
-        	logger.error("{}[end: Unable to create a task. Exception caught:]{}", userNameForLog(), e);        	
+        	logger.error("[end: Unable to create a task. Exception caught:]{}", e);        	
             throw new NdexException("Error creating a task: " + e.getMessage());
         }
     }
@@ -114,7 +114,7 @@ public class TaskService extends NdexService
 	@ApiDoc("Delete the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
     public void deleteTask(@PathParam("taskId")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException
     {
-		logger.info("{}[start: Start deleting task {}]", userNameForLog(), taskUUID);
+		logger.info("[start: Start deleting task {}]", taskUUID);
 
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskUUID), 
     			"A task id is required");
@@ -125,37 +125,37 @@ public class TaskService extends NdexService
             final Task taskToDelete = tdao.getTaskByUUID(taskUUID);
             
             if (taskToDelete == null) {
-        		logger.info("{}[end: Task {} not found. Throwing ObjectNotFoundException.]", 
-        				userNameForLog(),  taskUUID);
+        		logger.info("[end: Task {} not found. Throwing ObjectNotFoundException.]", 
+        				taskUUID);
                 throw new ObjectNotFoundException("Task with ID: " + taskUUID + " doesn't exist.");
             }    
             else if (!taskToDelete.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
         		logger.info(
-        			"{}[end: You cannot delete task {} because you don't own it. Throwing UnauthorizedOperationException...]", 
-        			userNameForLog(), taskUUID);         		
+        			"[end: You cannot delete task {} because you don't own it. Throwing UnauthorizedOperationException...]", 
+        			taskUUID);         		
                 throw new UnauthorizedOperationException("You cannot delete a task you don't own.");
             }
             if ( taskToDelete.getIsDeleted()) {
-            	logger.info("{}[end: Task {} is already deleted by user {}]", 
-            			userNameForLog(), taskUUID,this.getLoggedInUser().getAccountName());            
+            	logger.info("[end: Task {} is already deleted by user {}]", 
+            			taskUUID,this.getLoggedInUser().getAccountName());            
             } else {
             	tdao.deleteTask(taskToDelete.getExternalId());
             
             	tdao.commit();
-            	logger.info("{}[end: Task {} is deleted by user {}]", 
-            			userNameForLog(), taskUUID,this.getLoggedInUser().getAccountName());
+            	logger.info("[end: Task {} is deleted by user {}]", 
+            			taskUUID,this.getLoggedInUser().getAccountName());
             }
         }
         catch (UnauthorizedOperationException | ObjectNotFoundException onfe)
         {
-        	logger.error("{}[end: Failed to delete task {}. Exception caught:]{}", 
-        			userNameForLog(), taskUUID , onfe);
+        	logger.error("[end: Failed to delete task {}. Exception caught:]{}", 
+        			taskUUID , onfe);
             throw onfe;
         }
         catch (Exception e)
         {
-        	logger.error("{}[end: Failed to delete task {}. Exception caught:]{}", 
-        			userNameForLog(), taskUUID , e);
+        	logger.error("[end: Failed to delete task {}. Exception caught:]{}", 
+        			taskUUID , e);
         	
         	if (e.getMessage().indexOf("cluster: null") > -1) {	
         		throw new ObjectNotFoundException("Task with ID: " + taskUUID + " doesn't exist.");
@@ -183,7 +183,7 @@ public class TaskService extends NdexService
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
     public Task getTask(@PathParam("taskId")final String taskId) throws  UnauthorizedOperationException, NdexException
     {
-    	logger.info("{}[start: get task {}] ", userNameForLog(),  taskId);
+    	logger.info("[start: get task {}] ", taskId);
     	
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId), "A task id is required");
 
@@ -192,18 +192,18 @@ public class TaskService extends NdexService
             final Task task = tdao.getTaskByUUID(taskId);
             
             if (task == null || task.getIsDeleted()) {
-        		logger.info("{}[end: Task {} not found]", userNameForLog(), taskId);
+        		logger.info("[end: Task {} not found]", taskId);
                 throw new ObjectNotFoundException("Task", taskId);
             }    
             
             else if (!task.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
-        		logger.info("{}[end: User {} is unauthorized to query task {}]", 
-        				userNameForLog(), getLoggedInUser().getExternalId(), taskId);            
+        		logger.info("[end: User {} is unauthorized to query task {}]", 
+        				getLoggedInUser().getExternalId(), taskId);            
                 throw new UnauthorizedOperationException("Can't query task " + taskId + 
                 		" for user " + this.getLoggedInUser().getAccountName());
             }
 
-        	logger.info("{}[end: Return task {} to user] ", userNameForLog(),  taskId);
+        	logger.info("[end: Return task {} to user] ", taskId);
         	return task;
         }
     }

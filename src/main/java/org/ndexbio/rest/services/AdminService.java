@@ -1,8 +1,5 @@
 package org.ndexbio.rest.services;
 
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 
@@ -49,7 +46,7 @@ public class AdminService extends NdexService {
 	@Produces("application/json")
 	public NdexStatus getStatus() throws NdexException	{
 
-		logger.info("{}[start: Getting status]", userNameForLog());
+		logger.info("[start: Getting status]");
 		
 		try (ODatabaseDocumentTx db =NdexDatabase.getInstance().getAConnection()){
 			
@@ -66,7 +63,7 @@ public class AdminService extends NdexService {
 					int i = Integer.parseInt(edgeLimit);
 					props.put("ServerPostEdgeLimit", Integer.toString(i));
 				} catch( NumberFormatException e) {
-					logger.error("{}[Invalid value in server property {}]", userNameForLog(), networkPostEdgeLimit);
+					logger.error("[Invalid value in server property {}]", networkPostEdgeLimit);
 					props.put("ServerPostEdgeLimit", defaultPostEdgeLimit);
 				}
 			} else {
@@ -75,7 +72,7 @@ public class AdminService extends NdexService {
 		    
 			props.put("ServerResultLimit", "10000");
 			status.setProperties(props);
-			logger.info("{}[end: Got status]", userNameForLog());
+			logger.info("[end: Got status]");
 			return status;
 		} 
 	}
