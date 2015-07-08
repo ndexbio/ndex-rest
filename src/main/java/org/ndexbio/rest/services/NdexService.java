@@ -30,6 +30,7 @@
  */
 package org.ndexbio.rest.services;
 
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.text.DateFormat;
@@ -48,6 +49,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 
+import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -64,6 +66,8 @@ public abstract class NdexService
     
 	static Logger logger = LoggerFactory.getLogger(NdexService.class);
 	static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS");
+	
+	private static final String basicAuthPrefix = "Basic ";
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -74,6 +78,7 @@ public abstract class NdexService
     public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
         
+        
         // we need to log request id.  
         // The parameter UniqueRequestId can be accessed in <pattern> element from logback.xml like this: %X{UniqueRequestId} 
         // The MDC manages contextual information on a per thread basis.  Typically, while starting to service a new client request, 
@@ -82,15 +87,16 @@ public abstract class NdexService
         // See http://logback.qos.ch/manual/mdc.html for more info.
         this.setRequestsUniqueId();
         MDC.put("RequestsUniqueId", this.getRequestsUniqueId());
-        
-		logger.info("{}[start: httpRequest received; stamped with {}]", userNameForLog(), this.getRequestsUniqueId());
+        MDC.put("UserName", parseCredentials());
         
         // get IP address of the client
         // the argument for httpRequest.getHeader() method is case insensitive
         MDC.put("ClientIP",
                 (null == httpRequest.getHeader("X-FORWARDED-FOR")) ? 
                     httpRequest.getRemoteAddr() :
-                    httpRequest.getHeader("X-FORWARDED-FOR"));      
+                    httpRequest.getHeader("X-FORWARDED-FOR"));
+
+        logger.info("[start: httpRequest received; stamped with {}]", this.getRequestsUniqueId());
     }
     
     /**************************************************************************
@@ -104,7 +110,7 @@ public abstract class NdexService
     @ApiDoc("Retrieves the REST API documentation for network related operations as a list of RestResource objects.")
     public Collection<RestResource> getApi()
     {
-		logger.info("{}[start: getApi()]", userNameForLog());
+		logger.info("[start: getApi()]");
 		
         final Collection<RestResource> resourceList = new ArrayList<>();
         Path serviceClassPathAnnotation = this.getClass().getAnnotation(Path.class);
@@ -160,7 +166,7 @@ public abstract class NdexService
                 resourceList.add(resource);
         }
  
-		logger.info("{}[end: getApi()]", userNameForLog());
+		logger.info("[end: getApi()]");
         return resourceList;
     }
 
@@ -182,11 +188,31 @@ public abstract class NdexService
     	_httpRequest.setAttribute(NdexZipFlag, Boolean.TRUE);
     }
 
-    protected String userNameForLog () {
-    	final Object user = _httpRequest.getAttribute("User");
-    	return (user != null) ? ("[" + ((org.ndexbio.model.object.User)user).getAccountName() + "]\t") : "[anonymous]\t" ;
-    }  
     
+    private String parseCredentials()
+    {	
+    	String authHeader = _httpRequest.getHeader("Authorization");
+    	if (null == authHeader) {
+    		return "anonymous";
+    	}
+
+    	String encodedAuthInfo = authHeader.substring(basicAuthPrefix.length());
+        String decodedAuthInfo;
+		try {
+			decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+		} catch (IOException e) {
+            return null;
+		}
+        
+        int idx = decodedAuthInfo.indexOf(":");
+        
+        if (idx == -1) {
+        	return null;
+        }
+        
+        return decodedAuthInfo.substring(0, idx);
+    }
+     
     protected void logInfo (Logger logger, String message) {
     	final Object user = _httpRequest.getAttribute("User");
     	

@@ -1,42 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Configuration file for Logback framework used by embedded Jetty Server -->
 <configuration>
 	<appender name="LOGGING" class="ch.qos.logback.core.rolling.RollingFileAppender">
-		<file>../logs/ndex.log</file>
+		<file>${user.dir}/logs/ndex.log</file>
 		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
 			<!-- Roll-over daily -->
-			<fileNamePattern>../logs/ndex-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+			<fileNamePattern>${user.dir}/logs/ndex-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
 			<!-- Or whenever the file size reaches 100MB -->
 			<timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
 				<maxFileSize>100MB</maxFileSize>
 			</timeBasedFileNamingAndTriggeringPolicy>
 		</rollingPolicy>
-		<layout>
-			<!--   <pattern>%date %level %logger - %msg%n</pattern>   -->
+		<encoder>
             <!-- the &#9; below is code for tabulation;  RequestsUniqueId is set in NdexService.java/NdexService().  -->
             <pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;[%X{UserName}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
-        </layout>			
-	</appender>
-
-	<appender name="SMTP" level="warn" class="ch.qos.logback.classic.net.SMTPAppender">
-		<smtpHost>mail.ndexbio.org</smtpHost>
-		<smtpPort>587</smtpPort>
-		<to>dexterpratt.bio@gmail.com</to>
-		<to>jic002@ucsd.edu</to>
-		<from>exceptions@ndexbio.org</from>
-		<subject>Exception: %m</subject>
-		<encoder>
-		    <pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;[%X{UserName}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
-		</encoder>
+        </encoder>			
 	</appender>
 	  	
 	<appender name="STDOUT" level="debug" class="ch.qos.logback.core.ConsoleAppender">
 		<encoder>
-		    <pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;[%X{UserName}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
+			<!--  <pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;%msg&#9;[%C{0}.%method]%n</pattern> -->
+            <pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;[%X{UserName}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
 		</encoder>
 	</appender>
 	
 	<encoder>
-		<pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;[%X{UserName}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
+            <pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;[%X{UserName}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
 	</encoder>
 	
 	<!-- the log level All below gets over-written by the value of Log-Level config parameter from /opt/ndex/conf/ndex.properties.
