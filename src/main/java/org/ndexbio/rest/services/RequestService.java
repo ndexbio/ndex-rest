@@ -83,7 +83,7 @@ public class RequestService extends NdexService
     public Request createRequest(final Request newRequest) 
     		throws IllegalArgumentException, DuplicateObjectException, NdexException {
 
-		logger.info("[start: Creating {} request for {}]", newRequest.getType(), newRequest.getDestinationName());
+		logger.info("[start: Creating request for {}]", newRequest.getDestinationName());
 		
 		this.openDatabase();
 		

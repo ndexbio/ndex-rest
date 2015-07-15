@@ -1453,7 +1453,7 @@ public class NetworkAService extends NdexService {
 			
 			if ( daoNew.networkIsLocked(networkIDStr)) {
 				daoNew.close();
-				logger.info(userNameForLog() + "[end: Can't update locked network " + newNetwork.getExternalId().toString() + "]");
+				logger.info("[end: Can't update locked network {}]", newNetwork.getExternalId().toString());
 				throw new NdexException ("Can't modify locked network.");
 			} 
 			

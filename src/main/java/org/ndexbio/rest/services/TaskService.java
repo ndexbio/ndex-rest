@@ -96,7 +96,7 @@ public class TaskService extends NdexService
     {
         final String userAccount = this.getLoggedInUser().getAccountName();
 
-		logger.info("[start: Creating {} task for user {}]", newTask.getType(), userAccount);
+		logger.info("[start: Creating {} task for user {}]", newTask.getTaskType(), userAccount);
 		
         Preconditions.checkArgument(null != newTask, 
     			" A task object is required");
@@ -108,7 +108,7 @@ public class TaskService extends NdexService
             dao.commit();
 
             logger.info("[end: task {} with type {} created for {}]", 
-            		taskId, newTask.getType(), userAccount);
+            		taskId, newTask.getTaskType(), userAccount);
             
             return taskId;
         }

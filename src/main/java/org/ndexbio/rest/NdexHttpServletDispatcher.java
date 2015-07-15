@@ -108,12 +108,12 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 				size = defaultPoolSize;
 			}
 			
-			// check if the db exists, if not create it.
+/*			// check if the db exists, if not create it.
 			try ( ODatabaseDocumentTx odb = new ODatabaseDocumentTx(configuration.getDBURL())) {
 				if ( !odb.exists() ) 
 					odb.create();
 			}
-			
+*/			
 			//and initialize the db connections
     	
 			NdexDatabase db = NdexDatabase.createNdexDatabase(configuration.getHostURI(),
