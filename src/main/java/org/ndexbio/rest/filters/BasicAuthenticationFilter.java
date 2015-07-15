@@ -39,6 +39,8 @@ import javax.annotation.security.PermitAll;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
@@ -48,6 +50,8 @@ import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.util.Base64;
+import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -73,10 +77,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 	private static final String basicAuthPrefix = "Basic "; 
 	
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
-    private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<>());
-    private static final ServerResponse ACCESS_DENIED_USER_NOT_FOUND = 
-    		new ServerResponse("User not found.", 401, new Headers<>());
-    private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<>());
+    //private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<>());
+    //private static final ServerResponse ACCESS_DENIED_USER_NOT_FOUND = 
+    //		new ServerResponse("User not found.", 401, new Headers<>());
+    //private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<>());
     private static LDAPAuthenticator ADAuthenticator = null;
     private boolean authenticatedUserOnly = false;
     private static final String AUTHENTICATED_USER_ONLY="AUTHENTICATED_USER_ONLY";
@@ -158,49 +162,105 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         } catch (SecurityException | UnauthorizedOperationException e2 ) {
             _logger.info("Failed to authenticate a user: " + (authInfo == null? "": authInfo[0]) + " Path:" +
             		requestContext.getUriInfo().getPath(), e2);
-             requestContext.abortWith(ACCESS_DENIED);
+        	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
+            UnauthorizedOperationException e = 
+        			new UnauthorizedOperationException("Invalid username or password.");
+        	requestContext.abortWith(
+        			Response
+                    .status(Status.UNAUTHORIZED)
+                    .entity(e.getNdexExceptionInJason())
+                    .type("application/json")
+                    .build());            
              return;
         } catch (ObjectNotFoundException e0) {
             _logger.info("User: " + authInfo[0] +" not found in Ndex db." /*requestContext.getUriInfo().getPath()*/);
             String mName = method.getName();
             if ( !mName.equals("createUser")) {
-                requestContext.abortWith(ACCESS_DENIED_USER_NOT_FOUND);
+            	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
+            	ObjectNotFoundException e = 
+            			new ObjectNotFoundException("User " + authInfo[0] + " not found.");
+            	requestContext.abortWith(
+            			Response
+                        .status(Status.NOT_FOUND)
+                        .entity(e.getNdexExceptionInJason())
+                        .type("application/json")
+                        .build());
+
                 return;
             }
         } catch (Exception e) {
-            if (authInfo != null && authInfo.length >= 2 && (! authenticated))
+        	UnauthorizedOperationException uoe = null;
+            if (authInfo != null && authInfo.length >= 2 && (! authenticated)) {
                 _logger.error("Failed to authenticate a user: " + authInfo[0] /*+ " Path:"+ requestContext.getUriInfo().getPath() */, e);
-            else {
+                uoe = new UnauthorizedOperationException("Failed to authenticate user " + authInfo[0] + " : " + e.getMessage());
+            } else {
                 _logger.error("Failed to authenticate a user; credential information unknown: " + e.getMessage() );
-                e.printStackTrace();
+                uoe = new UnauthorizedOperationException("Failed to authenticate user; credential information unknown: "
+                		 + e.getMessage() );
             }
-           requestContext.abortWith(ACCESS_DENIED);
-           return ;
+        	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
+       	    requestContext.abortWith(
+       			Response
+                   .status(Status.UNAUTHORIZED)
+                   .entity(uoe.getNdexExceptionInJason())
+                   .type("application/json")
+                   .build()); 
+            return ;
         } 
         
         if ( authenticatedUserOnly) {
         	if ( !method.isAnnotationPresent(NdexOpenFunction.class) ) {
-                _logger.warn(" attempted to access a resource for which requires authentication.");
-                requestContext.abortWith(ACCESS_DENIED);
+                _logger.warn("Attempted to access resource requiring authentication.");
+                
+                UnauthorizedOperationException e = new UnauthorizedOperationException(
+                		"Attempted to access resource requiring authentication.");
+           	    requestContext.abortWith(
+               			Response
+                           .status(Status.UNAUTHORIZED)
+                           .entity(e.getNdexExceptionInJason())
+                           .type("application/json")
+                           .build());     
         	}
         } else if (!method.isAnnotationPresent(PermitAll.class)) {
             if (method.isAnnotationPresent(DenyAll.class))
             {
-                requestContext.abortWith(FORBIDDEN);
+                //requestContext.abortWith(FORBIDDEN);
+                ForbiddenOperationException e = new ForbiddenOperationException("Forbidden");
+           	    requestContext.abortWith(
+               			Response
+                           .status(Status.FORBIDDEN)
+                           .entity(e.getNdexExceptionInJason())
+                           .type("application/json")
+                           .build()); 
                 return;
             }
             
             if (authInfo == null)
             {
                 _logger.warn("No credentials to authenticate.");
-                requestContext.abortWith(FORBIDDEN);
+                //requestContext.abortWith(FORBIDDEN);
+                ForbiddenOperationException e = new ForbiddenOperationException("No credentials to authenticate.");
+           	    requestContext.abortWith(
+               			Response
+                           .status(Status.FORBIDDEN)
+                           .entity(e.getNdexExceptionInJason())
+                           .type("application/json")
+                           .build()); 
                 return;
             }
             
             if (authUser == null)
             {
-                _logger.warn(authInfo[0] + " attempted to access a resource for which they were denied.");
-                requestContext.abortWith(ACCESS_DENIED);
+                _logger.warn(authInfo[0] + " denied access to a resource.");
+                
+                UnauthorizedOperationException e = new UnauthorizedOperationException(
+                		authInfo[0] + " denied access to a resource.");
+           	    requestContext.abortWith(
+               			Response
+                           .status(Status.UNAUTHORIZED)
+                           .entity(e.getNdexExceptionInJason())
+                           .type("application/json")
+                           .build());
             }
         }
         
