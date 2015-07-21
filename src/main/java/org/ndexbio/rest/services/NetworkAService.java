@@ -1149,7 +1149,7 @@ public class NetworkAService extends NdexService {
 			if ( hasPrivilege) {
 				NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
-				PropertyGraphNetwork n = dao.queryForSubPropertyGraphNetwork(networkId, queryParameters);
+				PropertyGraphNetwork n = dao.queryForSubPropertyGraphNetworkV2(networkId, queryParameters);
 				logger.info("[end: Retrieved neighborhood subnetwork for network {} based on SimplePathQuery object]",
 						networkId);				
 				return n;
