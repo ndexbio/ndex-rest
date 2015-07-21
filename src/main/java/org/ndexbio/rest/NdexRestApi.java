@@ -40,7 +40,7 @@ import org.ndexbio.rest.exceptions.mappers.DuplicateObjectExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.NdexExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.ObjectNotFoundExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
-import org.ndexbio.rest.exceptions.mappers.ForbiddenOperationExceptionMapper;
+//import org.ndexbio.rest.exceptions.mappers.ForbiddenOperationExceptionMapper;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.filters.CrossOriginResourceSharingFilter;
 import org.ndexbio.rest.filters.NdexPreZippedInterceptor;
@@ -71,7 +71,7 @@ public class NdexRestApi extends Application
         _providers.add(new NdexExceptionMapper());
         _providers.add(new ObjectNotFoundExceptionMapper());
         _providers.add(new UnauthorizedOperationExceptionMapper());
-        _providers.add(new ForbiddenOperationExceptionMapper());
+    //    _providers.add(new ForbiddenOperationExceptionMapper());
         _providers.add(new NdexPreZippedInterceptor());
     }
     

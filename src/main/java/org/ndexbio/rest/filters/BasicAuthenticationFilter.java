@@ -51,7 +51,7 @@ import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
-import org.ndexbio.model.exceptions.ForbiddenOperationException;
+//import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -225,7 +225,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             if (method.isAnnotationPresent(DenyAll.class))
             {
                 //requestContext.abortWith(FORBIDDEN);
-                ForbiddenOperationException e = new ForbiddenOperationException("Forbidden");
+                NdexException e = new NdexException("No credentials to authenticate.");
+//                ForbiddenOperationException e = new ForbiddenOperationException("Forbidden");
            	    requestContext.abortWith(
                			Response
                            .status(Status.FORBIDDEN)
@@ -239,8 +240,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             {
                 _logger.warn("No credentials to authenticate.");
                 //requestContext.abortWith(FORBIDDEN);
-                ForbiddenOperationException e = new ForbiddenOperationException("No credentials to authenticate.");
-           	    requestContext.abortWith(
+           //     ForbiddenOperationException e = new ForbiddenOperationException("No credentials to authenticate.");
+              NdexException e = new NdexException("No credentials to authenticate.");
+                requestContext.abortWith(
                			Response
                            .status(Status.FORBIDDEN)
                            .entity(e.getNdexExceptionInJason())
