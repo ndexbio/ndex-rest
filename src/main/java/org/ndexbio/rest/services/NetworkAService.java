@@ -546,7 +546,7 @@ public class NetworkAService extends NdexService {
 				ODocument doc =  networkDocDao.getNetworkDocByUUIDString(networkId);
 				if (doc == null)
 					throw new ObjectNotFoundException("Network with ID: " + networkId + " doesn't exist.");
-				NetworkSummary summary = NetworkDocDAO.getNetworkSummary(doc);
+				NetworkSummary summary = networkDocDao.getNetworkSummary(doc);
 				db.close();
 				db = null;
 				return summary;
