@@ -40,9 +40,12 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
+import org.ndexbio.rest.server.StandaloneServer;
 import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,6 +110,43 @@ public class AdminService extends NdexService {
 		} 
 	}
 
+	/*
+	 * Shut down the server.  Currently it only works for Jetty.  We need it for our performance benchmarking.
+	 * 
+	 * In future we have to 
+	 *    1) add support for Tomcat
+	 *    2) only allow privileged users to shut down Tomcat.
+	 */
+	@GET
+	@PermitAll
+	@NdexOpenFunction
+	@Path("/shutdown")
+	@Produces("application/json")
+	public void shutDown()	{
+		logger.info("[start: shutdown server]");
+		
+		Server jettyServer = StandaloneServer.getJettyServer();
+		if (null != jettyServer) {			
+			stopJettyServer(jettyServer);			
+			// the following log entry will not log since the server will be down; but let's still have it
+			logger.info("[end: shutdown server]");			
+			System.exit(0);
+		}
+	}
+	
+	private static void stopJettyServer(Server server) {
+		if (null != server) {
+	        try {
+	    		NdexDatabase.close();
+	        	server.stop();
+	        } catch (Exception e) {
+	    	    ;
+	        }
+		}
+		return;
+	}
+
+	
 	private static Integer getClassCount(ODatabaseDocumentTx db, String className) {
 
 		final List<ODocument> classCountResult = db.query(new OSQLSynchQuery<ODocument>(

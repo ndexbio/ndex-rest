@@ -103,9 +103,9 @@ import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.helpers.UploadedFile;
+import org.ndexbio.rest.util.MemoryUtilization;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexServerQueue;
-import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -116,6 +116,7 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Path("/network")
 public class NetworkAService extends NdexService {
@@ -1370,6 +1371,7 @@ public class NetworkAService extends NdexService {
 				"A network name is required");
 
 			logger.info("[start: Creating a new network based on a POSTed Network object]");
+			logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
 
 			NdexDatabase db = NdexDatabase.getInstance();
 			NdexNetworkCloneService service = null;
@@ -1383,7 +1385,7 @@ public class NetworkAService extends NdexService {
 
                 ProvenanceEntity entity = new ProvenanceEntity();
                 entity.setUri(summary.getURI());
-
+                
                 Helper.populateProvenanceEntity(entity, summary);
 
                 ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.PROGRAM_UPLOAD, summary.getModificationTime());
@@ -1395,14 +1397,14 @@ public class NetworkAService extends NdexService {
                 entity.setCreationEvent(event);
 
                 service.setNetworkProvenance(entity);
-
-    			logger.info("[end: Created a new network based on a POSTed Network object]");
  
 				return summary;
 
 			} finally {
-				if ( service !=null)
+				if (service != null)
 					service.close();
+				logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
+				logger.info("[end: Created a new network based on a POSTed Network object]");
 			}
 	}
 

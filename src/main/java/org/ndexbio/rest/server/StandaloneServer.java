@@ -43,6 +43,11 @@ import org.ndexbio.rest.NdexHttpServletDispatcher;
  */
 public class StandaloneServer {
 
+	private static Server server = null;
+	
+	public static Server getJettyServer() {
+		return server;
+	}
 	
 	public static void main(String[] args) {
 		
@@ -74,8 +79,7 @@ public class StandaloneServer {
 			throw e;
 		}
  */   	
-
-		Server server = new Server(8080);
+		server = new Server(8080);
 		ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
 		context.setContextPath("/ndexbio-rest");
 		ServletHolder h = new ServletHolder(new NdexHttpServletDispatcher());
@@ -84,6 +88,7 @@ public class StandaloneServer {
 		server.setHandler(context);
 		
 		
+
 		// From http://logback.qos.ch/manual/configuration.html:
 		// Logback relies on a configuration library called Joran, part of logback-core. Logback's default configuration 
 		// mechanism invokes JoranConfigurator on the default configuration file it finds on the class path. If you wish 
