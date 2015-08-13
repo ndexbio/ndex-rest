@@ -34,6 +34,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.net.HttpURLConnection;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -65,6 +68,7 @@ import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAOTx;
 import org.ndexbio.common.models.dao.orientdb.NetworkDocDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
+import org.ndexbio.common.models.dao.orientdb.SingleNetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -441,6 +445,8 @@ public class NetworkAService extends NdexService {
     		final List<SimplePropertyValuePair> properties)
     		throws Exception {
 
+    	throw new NdexException("This function is no longer supported.");
+    	/*
     	//logger.info(userNameForLog() + "[start: Updating presentationProperties field of network " + networkId + "]");
     	logger.info("[start: Updating presentationProperties field of network {}]", networkId);
     	
@@ -507,7 +513,7 @@ public class NetworkAService extends NdexService {
 		} finally {
 			if (null != db) db.close();
 			logger.error("[end: Updating presentationProperties field of network {}]", networkId);
-		}
+		}  */
     }
     
 	/*
@@ -650,6 +656,75 @@ public class NetworkAService extends NdexService {
 
 	}  
 
+	@PermitAll
+	@GET
+	@Path("/{networkId}/asCX")
+//	@Produces("application/json")
+	@ApiDoc("The getCompleteNetwork method enables an application to obtain an entire network as a CX " +
+	        "structure. This is performed as a monolithic operation, so care should be taken when requesting " +
+	        "very large networks. Applications can use the getNetworkSummary method to check the node " +
+	        "and edge counts for a network before attempting to use getCompleteNetwork. As an " +
+	        "optimization, networks that are designated read-only (see Make a Network Read-Only below) " +
+	        "are cached by NDEx for rapid access. ")
+	// new Implmentation to handle cached network 
+	public Response getCompleteNetworkAsCX(	@PathParam("networkId") final String networkId)
+			throws IllegalArgumentException, NdexException {
+
+    	logger.info("[start: Getting complete network {}]", networkId);
+
+		if ( isSearchable(networkId) ) {
+			
+			PipedInputStream in = new PipedInputStream();
+			PipedOutputStream out;
+			try {
+				out = new PipedOutputStream(in);
+			} catch (IOException e) {
+				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+			}
+			
+			new CXNetworkWriterThread(out,networkId).start();
+			//setZipFlag();
+			logger.info("[end: Return cached network {}]", networkId);
+			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+		}
+		else
+            throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+
+	}  
+	
+	
+	private class CXNetworkWriterThread extends Thread {
+		private OutputStream o;
+		private String networkid;
+		public CXNetworkWriterThread (OutputStream out, String networkId) {
+			o = out;
+			networkid = networkId;
+		}
+		
+		public void run() {
+			try (SingleNetworkDAO dao = new SingleNetworkDAO ( networkid) ) { 
+			    try {
+				    dao.writeNetworkInCX(o, true);
+				} catch (IOException e) {
+					logger.error("IOException in CXNetworkWriterThread: " + e.getMessage());
+				}
+			} catch (NdexException e1) {
+			     logger.error("Ndex error: " + e1.getMessage());
+			} catch (Exception e1) {
+				logger.error("Ndex excption: " + e1.getMessage());
+			} finally {
+				try {
+					o.close();
+				} catch (IOException e) {
+					logger.error("Failed to close outputstream in CXNetworkWriterThread");
+				}
+			}
+		}
+		
+	}
+	
+	
+	
 	@PermitAll
 	@GET
 	@Path("/export/{networkId}/{format}")

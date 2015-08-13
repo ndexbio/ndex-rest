@@ -150,7 +150,7 @@ public class AdminService extends NdexService {
 	private static Integer getClassCount(ODatabaseDocumentTx db, String className) {
 
 		final List<ODocument> classCountResult = db.query(new OSQLSynchQuery<ODocument>(
-						"SELECT COUNT(*) as count FROM " + className + " where not isDeleted"));
+						"SELECT COUNT(*) as count FROM " + className + " where isDeleted = false"));
 
 		final Long count = classCountResult.get(0).field("count");
 
