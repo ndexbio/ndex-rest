@@ -92,6 +92,7 @@ import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.common.query.NetworkFilterQueryExecutor;
 import org.ndexbio.common.query.NetworkFilterQueryExecutorFactory;
 import org.ndexbio.common.query.SearchNetworkByPropertyExecutor;
+import org.ndexbio.common.util.MemoryUtilization;
 import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;
@@ -103,7 +104,6 @@ import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.helpers.UploadedFile;
-import org.ndexbio.rest.util.MemoryUtilization;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexServerQueue;
 
@@ -117,6 +117,7 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 @Path("/network")
 public class NetworkAService extends NdexService {
@@ -616,7 +617,8 @@ public class NetworkAService extends NdexService {
 	public Response getCompleteNetwork(	@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, NdexException {
 
-    	logger.info("[start: Getting complete network {}]", networkId);
+    	logger.info("[start: Getting complete network UUID='{}']", networkId);
+		//logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
 
 		if ( isSearchable(networkId) ) {
 			
@@ -632,9 +634,12 @@ public class NetworkAService extends NdexService {
 							Configuration.getInstance().getNdexNetworkCachePath() + commitId +".gz")  ;
 				
 					setZipFlag();
-					logger.info("[end: Return cached network {}]", networkId);
-					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+					Response response = Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+					//logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
+					logger.info("[end: Return cached network UUID='{}']", networkId);
+					return 	response;
 				} catch (IOException e) {
+					//logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
 					logger.error("[end: Ndex server can't find file: {}]", e.getMessage());
 					throw new NdexException ("Ndex server can't find file: " + e.getMessage());
 				}
@@ -642,11 +647,15 @@ public class NetworkAService extends NdexService {
 
 			Network n = daoNew.getNetworkById(UUID.fromString(networkId));
 			daoNew.close();
-	    	logger.info("[end: Return complete network {}]", networkId);
-			return Response.ok(n,MediaType.APPLICATION_JSON_TYPE).build();
+	    	Response response = Response.ok(n,MediaType.APPLICATION_JSON_TYPE).build();
+			//logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
+	    	logger.info("[end: Return complete network UUID='{}']", networkId);	    	
+			return response;
 		}
-		else
+		else {
+			logger.info("[end: User doesn't have read access to network UUID='{}']", networkId);
             throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+		}
 
 	}  
 
@@ -1021,9 +1030,10 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 		
-		logger.info("[start: Retrieving neighborhood subnetwork for network {} with phrase \"{}\"]", 
-				networkId, queryParameters.getSearchString());
-
+		logger.info("[start: Retrieving neighborhood subnetwork for network UUID='{}' with phrase='{}' depth={}]", 
+				networkId, queryParameters.getSearchString(), queryParameters.getSearchDepth());
+		//logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
+		
 		try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()) {
 
 		   NetworkDAO networkDao = new NetworkDAO(db);
@@ -1041,12 +1051,14 @@ public class NetworkAService extends NdexService {
 			   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
 			   Network n = dao.queryForSubnetworkV2(networkId, queryParameters);
-               logger.info("[end: Subnetwork for network {} with phrase \"{}\" retrieved]", 
-                       networkId, queryParameters.getSearchString());	
+   			   //logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
+			   logger.info("[end: Subnetwork for network UUID='{}' with phrase='{}'; retrieved nodes={} edges={}]", 
+                       networkId, queryParameters.getSearchString(), n.getNodeCount(), n.getEdgeCount());	
 			   return n;
 		   }
 		   
-		   logger.error("[end: User doesn't have read permission to retrieve neighborhood subnetwork for network {} with phrase\"{}\"]",  
+           //logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
+		   logger.error("[end: User doesn't have read permission to retrieve neighborhood subnetwork for network UUID='{}' with phrase='{}']", 
 				   networkId, queryParameters.getSearchString());
 	       throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
 		} 
@@ -1371,7 +1383,7 @@ public class NetworkAService extends NdexService {
 				"A network name is required");
 
 			logger.info("[start: Creating a new network based on a POSTed Network object]");
-			logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
+			//logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
 
 			NdexDatabase db = NdexDatabase.getInstance();
 			NdexNetworkCloneService service = null;
@@ -1403,7 +1415,7 @@ public class NetworkAService extends NdexService {
 			} finally {
 				if (service != null)
 					service.close();
-				logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
+				//logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
 				logger.info("[end: Created a new network based on a POSTed Network object]");
 			}
 	}
@@ -1564,7 +1576,8 @@ public class NetworkAService extends NdexService {
 
 		if ( !ext.equals("sif") && !ext.equals("xbel") && !ext.equals("xgmml") && !ext.equals("owl") 
 				&& !ext.equals("xls") && ! ext.equals("xlsx")) {
-			logger.error("[end: The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.  Throwing  NdexException...]");
+			logger.error("[end: The uploaded file name={} type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.  Throwing  NdexException...]", 
+					uploadedNetwork.getFilename());
 			throw new NdexException(
 					"The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.");
 		}
@@ -1583,7 +1596,7 @@ public class NetworkAService extends NdexService {
 			try {
 				uploadedNetworkFile.createNewFile();
 			} catch (IOException e1) {
-				logger.error("[end: Failed to create file {} on server when uploading {}. Exception caught:]{}",
+				logger.error("[end: Failed to create file {} on server when uploading name='{}'. Exception caught:]{}",
 						fileFullPath, uploadedNetwork.getFilename(), e1);
 				throw new NdexException ("Failed to create file " + fileFullPath + " on server when uploading " + 
 						uploadedNetwork.getFilename() + ": " + e1.getMessage());				
@@ -1609,6 +1622,7 @@ public class NetworkAService extends NdexService {
 		processNetworkTask.setProgress(0);
 		processNetworkTask.setResource(fileFullPath);
 		processNetworkTask.setStatus(Status.QUEUED);
+		processNetworkTask.setAttribute("RequestsUniqueId", MDC.get("RequestsUniqueId"));
 
 		try (TaskDAO dao = new TaskDAO(NdexDatabase.getInstance().getAConnection())){
 			dao.createTask(userAccount, processNetworkTask);
@@ -1622,7 +1636,8 @@ public class NetworkAService extends NdexService {
 			throw new NdexException(e.getMessage());
 		}
 
-		logger.info("[end: Uploading network file. Task for uploading network is created.]");
+		logger.info("[end: Uploading network file. Task for uploading network name='{}' is created.]",
+				uploadedNetwork.getFilename());
 	}
 
 
@@ -1639,7 +1654,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 		
-		    logger.info("[start: Setting {}={} for network {}]", parameter, value, networkId);
+		    logger.info("[start: Setting {}='{}' for network UUID='{}']", parameter, value, networkId);
 		    
 			try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()){
 				if (Helper.isAdminOfNetwork(db, networkId, getLoggedInUser().getExternalId().toString())) {
@@ -1649,12 +1664,12 @@ public class NetworkAService extends NdexService {
 
 					  try (NetworkDAOTx daoNew = new NetworkDAOTx()) {
 						  long oldId = daoNew.setReadOnlyFlag(networkId, bv, getLoggedInUser().getAccountName());
-						  logger.info("[end: Set {}={} for network {}]", parameter, value, networkId);
+						  logger.info("[end: Set {}='{}' for network UUID='{}']", parameter, value, networkId);
 						  return Long.toString(oldId);
 					  } 
 				  }
 				}
-				logger.error("[end: Unable to set {}={} for network {}. Only admin can set network flag.]", 
+				logger.error("[end: Unable to set {}='{}' for network UUID='{}'. Only admin can set network flag.]", 
 						parameter, value, networkId);
 				throw new UnauthorizedOperationException("Only an administrator can set a network flag.");
 			}
