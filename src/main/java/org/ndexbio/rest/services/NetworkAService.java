@@ -1492,7 +1492,7 @@ public class NetworkAService extends NdexService {
 	        "should be exercised. A user can only delete networks that they own.")
 	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException {
 
-		logger.info("[start: Deleting network {}]", id);
+		logger.info("[start: Deleting network UUID='{}']", id);
 		
 		String userAcc = getLoggedInUser().getAccountName();
 
@@ -1502,7 +1502,7 @@ public class NetworkAService extends NdexService {
 
             if (!Helper.checkPermissionOnNetworkByAccountName(db, id, userAcc, Permissions.ADMIN))
 	        {	        
-				logger.error("[end: Unable to delete. User {} not an admin of network {}. Throwing  UnauthorizedOperationException ...]", 
+				logger.error("[end: Unable to delete. User name='{}' not an admin of network UUID='{}'. Throwing  UnauthorizedOperationException ...]", 
 						userAcc, id); 
 				throw new UnauthorizedOperationException("Unable to delete network membership: user is not an admin of this network.");		        
 	        }
@@ -1510,7 +1510,7 @@ public class NetworkAService extends NdexService {
 			try (NetworkDAO networkDao = new NetworkDAO(db)) {
 				
 				if(networkDao.networkIsReadOnly(id)) {
-					logger.info("[end: Can't delete readonly network {}]", id);					
+					logger.info("[end: Can't delete readonly network UUID='{}']", id);					
 					throw new NdexException ("Can't delete readonly network.");
 				}
 				  
@@ -1520,10 +1520,11 @@ public class NetworkAService extends NdexService {
 				Task task = new Task();
 				task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
 				task.setResource(id);
+				task.setAttribute("RequestsUniqueId", MDC.get("RequestsUniqueId"));
 				NdexServerQueue.INSTANCE.addSystemTask(task);
 			}
 			db = null;
-			logger.info("[end: Deleted network {}]", id);
+			logger.info("[end: Network UUID='{}' deleted]", id);
 		} finally {
 			if ( db != null) db.close();
 		}
