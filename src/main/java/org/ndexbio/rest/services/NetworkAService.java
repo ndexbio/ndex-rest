@@ -179,7 +179,7 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 
-		logger.info("[start: Getting list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
+		logger.info("[start: Getting list of namespaces for network UUID='{}', skipBlocks={}, blockSize={}]",  
 				networkId, skipBlocks, blockSize);
 		
 		ODatabaseDocumentTx db = null;
@@ -189,7 +189,7 @@ public class NetworkAService extends NdexService {
 			return (List<Namespace>) daoNew.getNamespaces(networkId);
 		} finally {
 			if ( db != null) db.close();
-			logger.info("[end: Got list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
+			logger.info("[end: Got list of namespaces for network UUID='{}', skipBlocks={}, blockSize={}]",  
 					networkId, skipBlocks, blockSize);
 		}
 
@@ -205,7 +205,7 @@ public class NetworkAService extends NdexService {
 			)
 			throws IllegalArgumentException, NdexException, IOException {
 		
-		logger.info("[start: Adding namespace to the network {}]", networkId);
+		logger.info("[start: Adding namespace to the network UUID='{}']", networkId);
 
 		NdexDatabase db = null; 
 		NdexPersistenceService networkService = null;
@@ -244,7 +244,7 @@ public class NetworkAService extends NdexService {
 		} finally {
 			
 			if (networkService != null) networkService.close();
-			logger.info("[end: Added namespace to the network {}]", networkId);
+			logger.info("[end: Added namespace to the network UUID='{}']", networkId);
 		}
 	}
 
