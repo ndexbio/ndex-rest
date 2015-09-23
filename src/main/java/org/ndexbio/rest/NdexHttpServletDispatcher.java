@@ -40,6 +40,7 @@ import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.NdexServerProperties;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.TaskDocDAO;
 import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.model.exceptions.NdexException;
@@ -49,7 +50,6 @@ import org.ndexbio.task.ClientTaskProcessor;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SystemTaskProcessor;
-import org.ndexbio.task.utility.DatabaseInitializer;
 
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -126,7 +126,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			try (UserDocDAO dao = new UserDocDAO(db.getAConnection())) {
     	
 				String sysUserEmail = configuration.getProperty("NdexSystemUserEmail");
-				DatabaseInitializer.createUserIfnotExist(dao, configuration.getSystmUserName(),
+				Helper.createUserIfnotExist(dao, configuration.getSystmUserName(),
 					(sysUserEmail == null? "support@ndexbio.org" : sysUserEmail), 
     				configuration.getSystemUserPassword());
 			}

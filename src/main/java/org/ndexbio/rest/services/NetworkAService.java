@@ -608,6 +608,9 @@ public class NetworkAService extends NdexService {
 		}
 	}
 
+	
+
+	
 	@PermitAll
 	@GET
 	@Path("/{networkId}/asNetwork")
@@ -707,11 +710,14 @@ public class NetworkAService extends NdexService {
 				    dao.writeNetworkInCX(o, true);
 				} catch (IOException e) {
 					logger.error("IOException in CXNetworkWriterThread: " + e.getMessage());
+					e.printStackTrace();
 				}
 			} catch (NdexException e1) {
 			     logger.error("Ndex error: " + e1.getMessage());
+			     e1.printStackTrace();
 			} catch (Exception e1) {
 				logger.error("Ndex excption: " + e1.getMessage());
+				e1.printStackTrace();
 			} finally {
 				try {
 					o.close();
@@ -1644,7 +1650,7 @@ public class NetworkAService extends NdexService {
 					"The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.");
 		}
 		
-		UUID taskId = NdexUUIDFactory.INSTANCE.getNDExUUID();
+		UUID taskId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
 		final File uploadedNetworkPath = new File(Configuration.getInstance().getNdexRoot() +
 				"/uploaded-networks");
