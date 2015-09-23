@@ -164,7 +164,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             		requestContext.getUriInfo().getPath(), e2);
         	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
             UnauthorizedOperationException e = 
-        			new UnauthorizedOperationException("Invalid username or password.");
+            		new UnauthorizedOperationException("Invalid password for user " + authInfo[0] + ".");
         	requestContext.abortWith(
         			Response
                     .status(Status.UNAUTHORIZED)
@@ -178,7 +178,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             if ( !mName.equals("createUser")) {
             	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
             	ObjectNotFoundException e = 
-            			new ObjectNotFoundException("User " + authInfo[0] + " not found.");
+            			new ObjectNotFoundException("User " + authInfo[0] + " is not known.");
             	requestContext.abortWith(
             			Response
                         .status(Status.NOT_FOUND)
