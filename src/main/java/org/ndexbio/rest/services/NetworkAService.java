@@ -1643,11 +1643,11 @@ public class NetworkAService extends NdexService {
 
 		String ext = FilenameUtils.getExtension(uploadedNetwork.getFilename()).toLowerCase();
 
-		if ( !ext.equals("sif") && !ext.equals("xbel") && !ext.equals("xgmml") && !ext.equals("owl") 
+		if ( !ext.equals("sif") && !ext.equals("xbel") && !ext.equals("xgmml") && !ext.equals("owl") && !ext.equals("cx")
 				&& !ext.equals("xls") && ! ext.equals("xlsx")) {
-			logger.error("[end: The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.  Throwing  NdexException...]");
+			logger.error("[end: The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX cx, or XBEL.  Throwing  NdexException...]");
 			throw new NdexException(
-					"The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX or XBEL.");
+					"The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX, cx or XBEL.");
 		}
 		
 		UUID taskId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
