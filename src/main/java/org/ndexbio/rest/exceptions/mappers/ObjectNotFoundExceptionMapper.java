@@ -36,13 +36,19 @@ import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Provider
 public class ObjectNotFoundExceptionMapper implements ExceptionMapper<ObjectNotFoundException>
 {
+	static Logger logger = LoggerFactory.getLogger(ObjectNotFoundExceptionMapper.class);
+
     @Override
     public Response toResponse(ObjectNotFoundException exception)
     {
+    	logger.error("SERVER ERROR:", exception);
+    	exception.printStackTrace();
         return Response
             .status(Status.NOT_FOUND)
             .entity(exception.getNdexExceptionInJason())

@@ -36,13 +36,19 @@ import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Provider
 public class UnauthorizedOperationExceptionMapper implements ExceptionMapper<UnauthorizedOperationException>
 {
+	static Logger logger = LoggerFactory.getLogger(UnauthorizedOperationExceptionMapper.class);
+
     @Override
     public Response toResponse(UnauthorizedOperationException exception)
     {
+    	logger.error("SERVER ERROR:", exception);
+    	exception.printStackTrace();
         return Response
             .status(Status.UNAUTHORIZED)
             .entity(exception.getNdexExceptionInJason())

@@ -36,18 +36,19 @@ import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.model.exceptions.NdexException;
-//import org.slf4j.Logger;
-//import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Provider
 public class NdexExceptionMapper implements ExceptionMapper<NdexException>
 {
-	//static Logger logger = LoggerFactory.getLogger(NdexExceptionMapper.class);
+	static Logger logger = LoggerFactory.getLogger(NdexExceptionMapper.class);
 
     @Override
     public Response toResponse(NdexException exception)
     {
-    	//logger.error("SERVER ERROR", exception);
+    	logger.error("SERVER ERROR:", exception);
+    	exception.printStackTrace();
         return Response
             .status(Status.INTERNAL_SERVER_ERROR)
             .entity(exception.getNdexExceptionInJason())

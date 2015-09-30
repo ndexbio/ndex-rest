@@ -36,13 +36,19 @@ import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Provider
 public class DuplicateObjectExceptionMapper implements ExceptionMapper<DuplicateObjectException>
 {
+	static Logger logger = LoggerFactory.getLogger(DuplicateObjectExceptionMapper.class);
+	
     @Override
     public Response toResponse(DuplicateObjectException exception)
     {
+    	logger.error("SERVER ERROR:", exception);
+    	exception.printStackTrace();
         return Response
                 .status(Status.CONFLICT)
                 .entity(exception.getNdexExceptionInJason())
