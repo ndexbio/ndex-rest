@@ -635,7 +635,7 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/{userId}/task/{status}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("The function is deperated. Please user the other get user tasks function without the user UUID parameter. Returns an array of Task objects with the specified status")
+	@ApiDoc("The function is deperated. Please use the other get user tasks function without the user UUID parameter. Returns an array of Task objects with the specified status")
 	public List<Task> getTasks_aux(
 			@PathParam("userId") final String userId,
 			@PathParam("status") final String status,

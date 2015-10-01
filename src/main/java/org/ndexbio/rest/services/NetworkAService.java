@@ -30,10 +30,12 @@
  */
 package org.ndexbio.rest.services;
 
+import org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
@@ -43,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -61,6 +64,8 @@ import javax.ws.rs.core.Response;
 
 import org.apache.commons.io.FilenameUtils;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
+import org.jboss.resteasy.plugins.providers.multipart.InputPart;
+import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.models.dao.orientdb.Helper;
@@ -90,6 +95,7 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.common.models.object.network.RawNamespace;
+import org.ndexbio.common.persistence.orientdb.CXNetworkLoader;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.NdexPersistenceService;
 import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
@@ -729,6 +735,51 @@ public class NetworkAService extends NdexService {
 		
 	}
 	
+	private class CXNetworkLoadThread extends Thread {
+		private OutputStream out;
+		private List<InputPart> inputParts;
+		public CXNetworkLoadThread (OutputStream o, List<InputPart> inputParts  ) {
+			this.out = o;
+			this.inputParts = inputParts;
+		}
+		
+		public void run() {
+		    for (InputPart inputPart : inputParts) {
+		           try
+		           {
+		               // convert the uploaded file to inputstream and write it to disk
+		        	   org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
+		        			   (org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
+		               InputStream inputStream = p.getBody();
+		               //InputStream.class, null);
+		              
+		               int read = 0;
+		               byte[] bytes = new byte[8192];
+		               while ((read = inputStream.read(bytes)) != -1) {
+		                  out.write(bytes, 0, read);
+		               }
+		               inputStream.close();
+		               
+		           }
+		           catch (Exception e)
+		           {
+		               e.printStackTrace();
+		           }
+		    }
+		    
+            try {
+				out.flush();
+	            out.close();
+			} catch (IOException e) {
+				System.out.println("can't close out stream in piped stream.");
+				e.printStackTrace();
+			}
+            System.out.println("ok");
+
+		}
+		
+	}
+
 	
 	
 	@PermitAll
@@ -1610,6 +1661,7 @@ public class NetworkAService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to parse the file, or create the network in the
 	 *             database.
+	 * @throws IOException 
 	 **************************************************************************/
 	/*
 	 * refactored to support non-transactional database operations
@@ -1621,27 +1673,27 @@ public class NetworkAService extends NdexService {
     @ApiDoc("Upload a network file into the current users NDEx account. This can take some time while background " +
             "processing converts the data from the file into the common NDEx format. This method errors if the " +
             "network is missing or if it has no filename or no file data.")
-	public void uploadNetwork(@MultipartForm UploadedFile uploadedNetwork)
-			throws IllegalArgumentException, SecurityException, NdexException {
+	public void uploadNetwork( MultipartFormDataInput input) 
+                  //@MultipartForm UploadedFile uploadedNetwork)
+			throws IllegalArgumentException, SecurityException, NdexException, IOException {
 
 		logger.info("[start: Uploading network file]");
-		
-		try {
-			Preconditions
-					.checkNotNull(uploadedNetwork, "A network is required");
-			Preconditions.checkState(
-					!Strings.isNullOrEmpty(uploadedNetwork.getFilename()),
-					"A file name containg the network data is required");
-			Preconditions.checkNotNull(uploadedNetwork.getFileData(),
-					"Network file data is required");
-			Preconditions.checkState(uploadedNetwork.getFileData().length > 0,
-					"The file data is empty");
-		} catch (Exception e) {
-			logger.error("[end: Uploading network file. Exception caught:]{}", e);
-			throw new NdexException(e.getMessage());
-		}
 
-		String ext = FilenameUtils.getExtension(uploadedNetwork.getFilename()).toLowerCase();
+		Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
+
+		List<InputPart> foo = uploadForm.get("filename");
+		
+		String fname = "";
+		for (InputPart inputPart : foo)
+	       {
+	               // convert the uploaded file to inputstream and write it to disk
+	               fname += inputPart.getBodyAsString();
+	      }
+
+		if (fname.length() <1) {
+			throw new NdexException ("");
+		}
+		String ext = FilenameUtils.getExtension(fname).toLowerCase();
 
 		if ( !ext.equals("sif") && !ext.equals("xbel") && !ext.equals("xgmml") && !ext.equals("owl") && !ext.equals("cx")
 				&& !ext.equals("xls") && ! ext.equals("xlsx")) {
@@ -1658,6 +1710,11 @@ public class NetworkAService extends NdexService {
 			uploadedNetworkPath.mkdir();
 
 		String fileFullPath = uploadedNetworkPath.getAbsolutePath() + "/" + taskId + "." + ext;
+
+	       //Get file data to save
+	    List<InputPart> inputParts = uploadForm.get("fileUpload");
+
+		
 		final File uploadedNetworkFile = new File(fileFullPath);
 
 		if (!uploadedNetworkFile.exists())
@@ -1665,26 +1722,35 @@ public class NetworkAService extends NdexService {
 				uploadedNetworkFile.createNewFile();
 			} catch (IOException e1) {
 				logger.error("[end: Failed to create file {} on server when uploading {}. Exception caught:]{}",
-						fileFullPath, uploadedNetwork.getFilename(), e1);
+						fileFullPath, fname, e1);
 				throw new NdexException ("Failed to create file " + fileFullPath + " on server when uploading " + 
-						uploadedNetwork.getFilename() + ": " + e1.getMessage());				
+						fname + ": " + e1.getMessage());				
 			}
 
-		try ( FileOutputStream saveNetworkFile = new FileOutputStream(uploadedNetworkFile)) {
-			saveNetworkFile.write(uploadedNetwork.getFileData());
-			saveNetworkFile.flush();
-		} catch (IOException e1) {
-			logger.error("[end: Failed to write content to file {} on server when uploading {}. Exception caught:]{}", 
-					fileFullPath, uploadedNetwork.getFilename(),  e1 );
-			throw new NdexException ("Failed to write content to file " + fileFullPath + " on server when uploading " + 
-					uploadedNetwork.getFilename() + ": " + e1.getMessage());			
-		} 
+		for (InputPart inputPart : inputParts)
+	       {
+	               
+	               // convert the uploaded file to inputstream and write it to disk
+	               InputStream inputStream = inputPart.getBody(InputStream.class, null);
+	              
+	               OutputStream out = new FileOutputStream(new File(fileFullPath));
+
+	               int read = 0;
+	               byte[] bytes = new byte[2048];
+	               while ((read = inputStream.read(bytes)) != -1) {
+	                  out.write(bytes, 0, read);
+	               }
+	               inputStream.close();
+	               out.flush();
+	               out.close();
+	 
+	      }	
 
 		final String userAccount = this.getLoggedInUser().getAccountName();
 
 		Task processNetworkTask = new Task();
 		processNetworkTask.setExternalId(taskId);
-		processNetworkTask.setDescription(uploadedNetwork.getFilename());
+		processNetworkTask.setDescription(fname); //uploadedNetwork.getFilename());
 		processNetworkTask.setTaskType(TaskType.PROCESS_UPLOADED_NETWORK);
 		processNetworkTask.setPriority(Priority.LOW);
 		processNetworkTask.setProgress(0);
@@ -1741,4 +1807,37 @@ public class NetworkAService extends NdexService {
 			}
 	}
 
+	
+
+	   @POST
+	//	@PermitAll
+
+	   @Path("/asCX")
+	   @Produces("application/json")
+	   @Consumes("multipart/form-data")
+	   public String createCXNetwork( MultipartFormDataInput input) throws Exception
+	   {
+	   
+	       Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
+
+	       //Get file data to save
+	       List<InputPart> inputParts = uploadForm.get("file1");
+
+			PipedInputStream in = new PipedInputStream();
+			PipedOutputStream out;
+			try {
+				out = new PipedOutputStream(in);
+			} catch (IOException e) {
+				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+			}
+	       
+	       CXNetworkLoadThread inputProcessor = new CXNetworkLoadThread(out, inputParts);
+	       inputProcessor.start();
+	  
+			try (CXNetworkLoader loader = new CXNetworkLoader(in, getLoggedInUser().getAccountName())) {
+				UUID networkId = loader.persistCXNetwork();
+				return networkId.toString();
+			}
+
+	   	}
 }
