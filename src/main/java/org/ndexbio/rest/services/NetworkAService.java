@@ -677,6 +677,7 @@ public class NetworkAService extends NdexService {
 	        "optimization, networks that are designated read-only (see Make a Network Read-Only below) " +
 	        "are cached by NDEx for rapid access. ")
 	// new Implmentation to handle cached network 
+	//TODO: handle cached network from hardDrive.
 	public Response getCompleteNetworkAsCX(	@PathParam("networkId") final String networkId)
 			throws IllegalArgumentException, NdexException {
 
@@ -745,6 +746,7 @@ public class NetworkAService extends NdexService {
 		}
 		
 		public void run() {
+            byte[] bytes = new byte[8192];
 		    for (InputPart inputPart : inputParts) {
 		           try
 		           {
@@ -755,7 +757,6 @@ public class NetworkAService extends NdexService {
 		               //InputStream.class, null);
 		              
 		               int read = 0;
-		               byte[] bytes = new byte[8192];
 		               while ((read = inputStream.read(bytes)) != -1) {
 		                  out.write(bytes, 0, read);
 		               }
@@ -1533,7 +1534,8 @@ public class NetworkAService extends NdexService {
  
 				return summary;
 
-			} finally {
+			}  finally {
+			
 				if (service != null)
 					service.close();
 				logger.info("[memory: {}]", MemoryUtilization.getMemoryUtiliztaion());
@@ -1728,6 +1730,7 @@ public class NetworkAService extends NdexService {
 						fname + ": " + e1.getMessage());				
 			}
 
+        byte[] bytes = new byte[2048];
 		for (InputPart inputPart : inputParts)
 	       {
 	               
@@ -1737,7 +1740,6 @@ public class NetworkAService extends NdexService {
 	               OutputStream out = new FileOutputStream(new File(fileFullPath));
 
 	               int read = 0;
-	               byte[] bytes = new byte[2048];
 	               while ((read = inputStream.read(bytes)) != -1) {
 	                  out.write(bytes, 0, read);
 	               }
@@ -1816,13 +1818,14 @@ public class NetworkAService extends NdexService {
 	   @Path("/asCX")
 	   @Produces("application/json")
 	   @Consumes("multipart/form-data")
+	   @ApiDoc("Create a network from the uploaded CX stream. The input cx data is expected to be in the CXNetworkStream field of posted multipart/form-data.")
 	   public String createCXNetwork( MultipartFormDataInput input) throws Exception
 	   {
 	   
 	       Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
 
 	       //Get file data to save
-	       List<InputPart> inputParts = uploadForm.get("file1");
+	       List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
 
 			PipedInputStream in = new PipedInputStream();
 			PipedOutputStream out;
