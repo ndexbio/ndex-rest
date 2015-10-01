@@ -598,19 +598,20 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, NdexException {
 	
-    	logger.info("[start: Getting edges of network {}, skipBlocks {}, blockSize {}]", 
+    	logger.info("[start: Getting edges of network UUID='{}', skipBlocks={}, blockSize={}]", 
     			networkId, skipBlocks, blockSize);
 	    
 		ODatabaseDocumentTx db = null;
+		Network n = null;
 		try {
 			db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO dao = new NetworkDAO(db);
-	 		Network n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
+			n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
 	        return n;
 		} finally {
 			if ( db !=null) db.close();
-	    	logger.info("[end: Got edges of network {}, skipBlocks {}, blockSize {}]", 
-	    			networkId, skipBlocks, blockSize);
+	    	logger.info("[end: Got edges of network UUID='{}', edgeCount={}]", 
+	    			networkId, ((null==n) ? 0 : n.getEdgeCount()));
 		}
 	}
 
