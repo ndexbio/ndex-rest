@@ -176,20 +176,18 @@ public class NetworkAService extends NdexService {
 
 	@PermitAll
 	@GET
-	@Path("/{networkId}/namespace/{skipBlocks}/{blockSize}")
+	@Path("/{networkId}/namespace")
 	@Produces("application/json")
     @ApiDoc("Retrieves a list of Namespace objects from the network specified by 'networkId'. The maximum number of " +
             "Namespace objects to retrieve in the query is set by 'blockSize' (which may be any number chosen by the " +
             "user) while  'skipBlocks' specifies the number of blocks that have already been read.")
 	public List<Namespace> getNamespaces(
-			@PathParam("networkId") final String networkId,
-			@PathParam("skipBlocks") final int skipBlocks,
-			@PathParam("blockSize") final int blockSize)
+			@PathParam("networkId") final String networkId)
 
 			throws IllegalArgumentException, NdexException {
 
 		logger.info("[start: Getting list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
-				networkId, skipBlocks, blockSize);
+				networkId);
 		
 		ODatabaseDocumentTx db = null;
 		try {
@@ -199,7 +197,7 @@ public class NetworkAService extends NdexService {
 		} finally {
 			if ( db != null) db.close();
 			logger.info("[end: Got list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
-					networkId, skipBlocks, blockSize);
+					networkId);
 		}
 
 	}
