@@ -68,6 +68,7 @@ import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
+import org.ndexbio.common.models.dao.orientdb.CXNetworkExporter;
 import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAOTx;
@@ -711,7 +712,7 @@ public class NetworkAService extends NdexService {
 		}
 		
 		public void run() {
-			try (SingleNetworkDAO dao = new SingleNetworkDAO ( networkid) ) { 
+			try (CXNetworkExporter dao = new CXNetworkExporter ( networkid) ) { 
 			    try {
 				    dao.writeNetworkInCX(o, true);
 				} catch (IOException e) {
