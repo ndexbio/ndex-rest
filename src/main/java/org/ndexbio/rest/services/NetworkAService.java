@@ -667,8 +667,43 @@ public class NetworkAService extends NdexService {
 
 	@PermitAll
 	@GET
+	@Path("/{networkId}/aspects/asCX")
+	@ApiDoc("The getCompleteNetwork method enables an application to obtain an entire network as a CX " +
+	        "structure. This is performed as a monolithic operation, so care should be taken when requesting " +
+	        "very large networks. Applications can use the getNetworkSummary method to check the node " +
+	        "and edge counts for a network before attempting to use getCompleteNetwork. As an " +
+	        "optimization, networks that are designated read-only (see Make a Network Read-Only below) " +
+	        "are cached by NDEx for rapid access. ")
+	// new Implmentation to handle cached network 
+	//TODO: handle cached network from hardDrive.
+	public Response getAspectsAsCX(	@PathParam("networkId") final String networkId)
+			throws IllegalArgumentException, NdexException {
+
+    	logger.info("[start: Getting complete network {}]", networkId);
+
+		if ( isSearchable(networkId) ) {
+			
+			PipedInputStream in = new PipedInputStream();
+			PipedOutputStream out;
+			try {
+				out = new PipedOutputStream(in);
+			} catch (IOException e) {
+				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+			}
+			
+			new CXNetworkWriterThread(out,networkId).start();
+			//setZipFlag();
+			logger.info("[end: Return cached network {}]", networkId);
+			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+		}
+		else
+            throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+
+	}  
+	
+	@PermitAll
+	@GET
 	@Path("/{networkId}/asCX")
-//	@Produces("application/json")
 	@ApiDoc("The getCompleteNetwork method enables an application to obtain an entire network as a CX " +
 	        "structure. This is performed as a monolithic operation, so care should be taken when requesting " +
 	        "very large networks. Applications can use the getNetworkSummary method to check the node " +
@@ -702,7 +737,6 @@ public class NetworkAService extends NdexService {
 
 	}  
 	
-	
 	private class CXNetworkWriterThread extends Thread {
 		private OutputStream o;
 		private String networkid;
@@ -727,6 +761,8 @@ public class NetworkAService extends NdexService {
 				e1.printStackTrace();
 			} finally {
 				try {
+					o.flush();
+				//	logger.info("output flushed.");
 					o.close();
 				} catch (IOException e) {
 					logger.error("Failed to close outputstream in CXNetworkWriterThread");
