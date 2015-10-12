@@ -345,7 +345,7 @@
 		</plugins>
 	</build>
 	<properties>
-		<jettyVersion>9.3.4.v20151007</jettyVersion>
+		<jettyVersion>9.3.3.v20150827</jettyVersion>
 		<resteasyVersion>3.0.12.Final</resteasyVersion>
 	</properties>
 </project>
