@@ -44,8 +44,10 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -398,8 +400,6 @@ public class NetworkAService extends NdexService {
 
             //DW: Handle provenance
 
-
-
             ProvenanceEntity oldProv = daoNew.getProvenance(networkUUID);
             ProvenanceEntity newProv = new ProvenanceEntity();
             newProv.setUri( oldProv.getUri() );
@@ -666,17 +666,48 @@ public class NetworkAService extends NdexService {
 	}  
 
 	@PermitAll
-	@GET
-	@Path("/{networkId}/aspects/asCX")
-	@ApiDoc("The getCompleteNetwork method enables an application to obtain an entire network as a CX " +
-	        "structure. This is performed as a monolithic operation, so care should be taken when requesting " +
-	        "very large networks. Applications can use the getNetworkSummary method to check the node " +
-	        "and edge counts for a network before attempting to use getCompleteNetwork. As an " +
-	        "optimization, networks that are designated read-only (see Make a Network Read-Only below) " +
-	        "are cached by NDEx for rapid access. ")
-	// new Implmentation to handle cached network 
+	@POST
+	@Path("/{networkId}/aspects")
+	@ApiDoc("The getAspectsAsCX method enables an application to obtain aspects of a given network as a CX " +
+	        "structure.")
 	//TODO: handle cached network from hardDrive.
-	public Response getAspectsAsCX(	@PathParam("networkId") final String networkId)
+	public Response getAspectsAsCX(	@PathParam("networkId") final String networkId,
+			final List<String> aspectNames)
+			throws IllegalArgumentException, NdexException {
+
+    	logger.info("[start: Getting aspects in network {}]", networkId);
+
+		if ( isSearchable(networkId) ) {
+			Set<String> asp = new HashSet<>(aspectNames.size());
+			for ( String s : aspectNames)
+				asp.add(s);
+			
+			PipedInputStream in = new PipedInputStream();
+			PipedOutputStream out;
+			try {
+				out = new PipedOutputStream(in);
+			} catch (IOException e) {
+				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+			}
+			
+			new CXNetworkAspectsWriterThread(out,networkId, asp).start();
+			//setZipFlag();
+			logger.info("[end: get aspects from network {}]", networkId);
+			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+		}
+		else
+            throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+
+	}  
+
+	@PermitAll
+	@GET
+	@Path("/{networkId}/aspect/{aspectName}/{limit}")
+	@ApiDoc("The getAspectElement method returns elements in the specified aspect up to the given limit.")
+	//TODO: handle cached network from hardDrive.
+	public Response getAspectElements(	@PathParam("networkId") final String networkId,
+			@PathParam("aspectName") final String aspectName,
+			@PathParam("limit") final int limit)
 			throws IllegalArgumentException, NdexException {
 
     	logger.info("[start: Getting complete network {}]", networkId);
@@ -690,16 +721,15 @@ public class NetworkAService extends NdexService {
 			} catch (IOException e) {
 				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
 			}
-			
-			new CXNetworkWriterThread(out,networkId).start();
+			new CXAspectElementsWriterThread(out,networkId, aspectName, limit).start();
 			//setZipFlag();
 			logger.info("[end: Return cached network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 		}
 		else
             throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-
 	}  
+	
 	
 	@PermitAll
 	@GET
@@ -729,7 +759,7 @@ public class NetworkAService extends NdexService {
 			
 			new CXNetworkWriterThread(out,networkId).start();
 			//setZipFlag();
-			logger.info("[end: Return cached network {}]", networkId);
+			logger.info("[end: Return cx network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 		}
 		else
@@ -771,7 +801,84 @@ public class NetworkAService extends NdexService {
 		}
 		
 	}
+
+	private class CXAspectElementsWriterThread extends Thread {
+		private OutputStream o;
+		private String networkid;
+		private String aspect;
+		private int limit;
+		public CXAspectElementsWriterThread (OutputStream out, String networkId, String aspectName, int limit) {
+			o = out;
+			networkid = networkId;
+			aspect = aspectName;
+			this.limit = limit;
+		}
+		
+		public void run() {
+			try (CXNetworkExporter dao = new CXNetworkExporter ( networkid) ) { 
+			    try {
+				    dao.writeOneAspectInCX(o, aspect, limit, true); 
+				} catch (IOException e) {
+					logger.error("IOException in CXAspectElementWriterThread: " + e.getMessage());
+					e.printStackTrace();
+				}
+			} catch (NdexException e1) {
+			     logger.error("Ndex error: " + e1.getMessage());
+			     e1.printStackTrace();
+			} catch (Exception e1) {
+				logger.error("Ndex excption: " + e1.getMessage());
+				e1.printStackTrace();
+			} finally {
+				try {
+					o.flush();
+				//	logger.info("output flushed.");
+					o.close();
+				} catch (IOException e) {
+					logger.error("Failed to close outputstream in CXElementWriterWriterThread");
+				}
+			}
+		}
+		
+	}
+
 	
+	private class CXNetworkAspectsWriterThread extends Thread {
+		private OutputStream o;
+		private String networkid;
+		private Set<String> aspects;
+		
+		public CXNetworkAspectsWriterThread (OutputStream out, String networkId, Set<String> aspectNames) {
+			o = out;
+			networkid = networkId;
+			this.aspects = aspectNames;
+		}
+		
+		public void run() {
+			try (CXNetworkExporter dao = new CXNetworkExporter ( networkid) ) { 
+			    try {
+				    dao.writeAspectsInCX(o, aspects, true);
+				} catch (IOException e) {
+					logger.error("IOException in CXNetworkAspectsWriterThread: " + e.getMessage());
+					e.printStackTrace();
+				}
+			} catch (NdexException e1) {
+			     logger.error("Ndex error: " + e1.getMessage());
+			     e1.printStackTrace();
+			} catch (Exception e1) {
+				logger.error("Ndex excption: " + e1.getMessage());
+				e1.printStackTrace();
+			} finally {
+				try {
+					o.flush();
+				//	logger.info("output flushed.");
+					o.close();
+				} catch (IOException e) {
+					logger.error("Failed to close outputstream in CXNetworkAspectsWriterThread");
+				}
+			}
+		}
+		
+	}
 	private class CXNetworkLoadThread extends Thread {
 		private OutputStream out;
 		private List<InputPart> inputParts;
