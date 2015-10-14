@@ -342,13 +342,13 @@ public class NetworkAService extends NdexService {
 			UUID networkUUID = UUID.fromString(networkId);
 			daoNew.setProvenance(networkUUID, provenance);
 			daoNew.commit();
-			return daoNew.getProvenance(networkUUID);
+			return  provenance; //  daoNew.getProvenance(networkUUID);
 		} catch (Exception e) {
 			if (null != daoNew) daoNew.rollback();
 			logger.error("[end: Updating provenance of network {}. Exception caught:]{}", networkId, e);	
 			throw e;
 		} finally {
-			if (null != db) db.close();
+			if (null != daoNew) daoNew.close();
 			logger.info("[end: Updated provenance of network {}]", networkId);
 		}
     }
@@ -373,7 +373,7 @@ public class NetworkAService extends NdexService {
     	logger.info("[start: Updating properties of network {}]", networkId);
     	
     	ODatabaseDocumentTx db = null;
-    	NetworkDAO daoNew = null;
+    	NetworkDocDAO daoNew = null;
 
 		try {
 			db = NdexDatabase.getInstance().getAConnection();
@@ -387,15 +387,16 @@ public class NetworkAService extends NdexService {
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			}
 
-			daoNew = new NetworkDAO(db);
+			daoNew = new NetworkDocDAO(db);
 			
 			if(daoNew.networkIsReadOnly(networkId)) {
-				daoNew.close();
 				logger.info("[end: Can't update readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");
 			}
 			
 			UUID networkUUID = UUID.fromString(networkId);
+			db.begin();
+
 			int i = daoNew.setNetworkProperties(networkUUID, properties);
 
             //DW: Handle provenance
@@ -404,9 +405,8 @@ public class NetworkAService extends NdexService {
             ProvenanceEntity newProv = new ProvenanceEntity();
             newProv.setUri( oldProv.getUri() );
 
-            Helper.populateProvenanceEntity(newProv, daoNew, networkId);
-
-            NetworkSummary summary = daoNew.getNetworkSummary(daoNew.getRecordByUUIDStr(networkId, null));
+            ODocument d = daoNew.getRecordByUUIDStr(networkId, null);
+            NetworkSummary summary = NetworkDocDAO.getNetworkSummary(d);
             Helper.populateProvenanceEntity(newProv, summary);
             ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_NETWORK_PROPERTIES, summary.getModificationTime());
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
@@ -422,9 +422,10 @@ public class NetworkAService extends NdexService {
             event.setInputs(oldProvList);
 
             newProv.setCreationEvent(event);
-            daoNew.setProvenance(networkUUID, newProv);
+            daoNew.setProvenance(networkUUID, newProv); 
 
 			daoNew.commit();
+			
 			//logInfo(logger, "Finished updating properties of network " + networkId);
 			return i;
 		} catch (Exception e) {
@@ -435,7 +436,7 @@ public class NetworkAService extends NdexService {
 			
 			throw new NdexException(e.getMessage());
 		} finally {
-			if (null != db) db.close();
+			if (null != daoNew) daoNew.close();
 			logger.info("[end: Updated properties of network {}]", networkId);
 		}
     }
@@ -542,10 +543,11 @@ public class NetworkAService extends NdexService {
     	logger.info("[start: Getting networkSummary of network {}]", networkId);
 		
 		ODatabaseDocumentTx db = null;
+		NetworkDocDAO networkDocDao = null;
 		try {
 			db = NdexDatabase.getInstance().getAConnection();
 
-			NetworkDocDAO networkDocDao = new NetworkDocDAO(db);
+			networkDocDao = new NetworkDocDAO(db);
 
 			VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
 			boolean hasPrivilege = (vt == VisibilityType.PUBLIC || vt== VisibilityType.DISCOVERABLE);
@@ -555,17 +557,16 @@ public class NetworkAService extends NdexService {
 						networkId, Permissions.READ);
 			}
 			if ( hasPrivilege) {
-				ODocument doc =  networkDocDao.getNetworkDocByUUIDString(networkId);
-				if (doc == null)
+				NetworkSummary summary = networkDocDao.getNetworkSummaryById(networkId);
+				if (summary == null)
 					throw new ObjectNotFoundException("Network with ID: " + networkId + " doesn't exist.");
-				NetworkSummary summary = networkDocDao.getNetworkSummary(doc);
-				db.close();
-				db = null;
+				networkDocDao.close();
+				networkDocDao = null;
 				return summary;
 
 			}
 		} finally {
-			if (db != null) db.close();
+			if (networkDocDao != null) networkDocDao.close();
 			logger.info("[end: Got networkSummary of network {}]", networkId);
 		}
 		
@@ -1211,6 +1212,7 @@ public class NetworkAService extends NdexService {
 					Permissions.WRITE)) {
 				logger.error("[end: No write permissions for user account {} on network {}]", 
 						user.getAccountName(), networkId);
+				networkDao.close();
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			}
 
@@ -1247,7 +1249,8 @@ public class NetworkAService extends NdexService {
                 ProvenanceEntity newProv = new ProvenanceEntity();
                 newProv.setUri(oldProv.getUri());
 
-                Helper.populateProvenanceEntity(newProv, networkDao, networkId);
+                Helper.populateProvenanceEntity(newProv, 
+                		NetworkDocDAO.getNetworkSummary(networkDao.getRecordByUUIDStr(networkId, null)));
 
                 ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
 
@@ -1510,6 +1513,7 @@ public class NetworkAService extends NdexService {
         } catch (Exception e) {
 			logger.error("[end: Retrieving NetworkSummary objects using query \"{}\". Exception caught:]{}", 
 					query.getSearchString(), e);	
+			e.printStackTrace();
         	throw new NdexException(e.getMessage());
         }
 	}
