@@ -1585,65 +1585,6 @@ public class NetworkAService extends NdexService {
 			return ns;
 
 	}
-
-/* comment out this function for now, until we can make this function thread safe.
- *  	
-    @PUT
-    @Path("/asPropertyGraph")
-    @Produces("application/json")
-    @ApiDoc("Updates an existing network using a PUT call using a NetworkPropertyGraph object. The NetworkPropertyGraph object must contain a " +
-            "UUID (this would normally be the case for a NetworkPropertyGraph object retrieved from NDEx, " +
-            "so no additional work is required in the most common case) and the user must have permission to modify " +
-            "this network. This method errors if the NetworkPropertyGraph object is not provided or if it does not have a valid " +
-            "UUID on the server. It also errors if the NetworkPropertyGraph object is larger than a maximum size for network " +
-            "creation set in the NDEx server configuration. A NetworkSummary object is returned.")
-    public NetworkSummary updateNetwork(final PropertyGraphNetwork newNetwork)
-            throws Exception
-    {
-        Preconditions
-                .checkArgument(null != newNetwork, "A network is required");
-        Preconditions.checkArgument(
-                !Strings.isNullOrEmpty(newNetwork.getName()),
-                "A network name is required");
-
-        NdexDatabase db = new NdexDatabase(Configuration.getInstance().getHostURI());
-        PropertyGraphLoader pgl = null;
-        ODatabaseDocumentTx conn = null;
-        try
-        {
-            conn = db.getAConnection();
-            User user = getLoggedInUser();
-
-            String uuidStr = null;
-            
-        	for ( NdexPropertyValuePair p : newNetwork.getProperties()) {
-				if ( p.getPredicateString().equals ( PropertyGraphNetwork.uuid) ) {
-					uuidStr = p.getValue();
-					break;
-				}
-			}
-        	
-        	if ( uuidStr == null) throw new NdexException ("updateNetwork: UUID not found in PropertyGraph.");
-            
-            if (!Helper.checkPermissionOnNetworkByAccountName(conn, 
-         		   uuidStr, user.getAccountName(),
-         		   Permissions.WRITE))
-            {
-         	   throw new WebApplicationException(HttpURLConnection.HTTP_UNAUTHORIZED);
-            }
-            pgl = new PropertyGraphLoader(db);
-            return pgl.updateNetwork(newNetwork);
-        }
-        finally
-        {
-
-          if (db!=null)
-        	  db.close();
-          if( conn!=null) conn.close();
-        }
-
-    }
-*/    
     	
 
 	@POST
@@ -1765,8 +1706,53 @@ public class NetworkAService extends NdexService {
 
         }
     }
+    
 	
-	
+    @PUT
+    @Path("/asCX/{networkId}")
+    @Consumes("multipart/form-data")
+    @Produces("application/json")
+    @ApiDoc("This method updates an existing network with new content. The method takes a Network JSON " +
+            "object as the PUT data. The Network object must have its UUID property set in order to identify " +
+            "the network on the server to be updated.  This condition would already be satisfied in the case " +
+            "of a Network object retrieved from NDEx. This method errors if the Network object is not " +
+            "provided or if its UUID does not correspond to an existing network on the NDEx Server. It also " +
+            "errors if the Network object is larger than a maximum size for network creation set in the NDEx " +
+            "server configuration. A NetworkSummary JSON object corresponding to the updated network is " +
+            "returned.")
+    public String updateCXNetwork(final @PathParam("networkId") String networkId,
+    		MultipartFormDataInput input)
+            throws Exception
+    {
+    	
+	       Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
+	       
+	   //    String OldUUID = uploadForm.
+
+	       //Get file data to save
+	       List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
+
+			PipedInputStream in = new PipedInputStream();
+			PipedOutputStream out;
+			try {
+				out = new PipedOutputStream(in);
+			} catch (IOException e) {
+				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+			}
+	       
+	       CXNetworkLoadThread inputProcessor = new CXNetworkLoadThread(out, inputParts);
+	       inputProcessor.start();
+	  
+			try (CXNetworkLoader loader = new CXNetworkLoader(in, getLoggedInUser().getAccountName())) {
+				UUID networkUUID = loader.updateNetwork(networkId);
+				return networkUUID.toString();
+			}
+
+
+    }
+
+    
+    
 	@DELETE
 	@Path("/{UUID}")
 	@Produces("application/json")
@@ -1999,6 +1985,26 @@ public class NetworkAService extends NdexService {
 	  
 			try (CXNetworkLoader loader = new CXNetworkLoader(in, getLoggedInUser().getAccountName())) {
 				UUID networkId = loader.persistCXNetwork();
+
+				// adding provenance.
+				try (NetworkDocDAO dao = new NetworkDocDAO()) { 
+					ProvenanceEntity entity = new ProvenanceEntity();
+					NetworkSummary summary = dao.getNetworkSummaryById(networkId.toString());
+					entity.setUri(summary.getURI());
+                
+					Helper.populateProvenanceEntity(entity, summary);
+
+					ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.PROGRAM_UPLOAD, summary.getModificationTime());
+
+					List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+					Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+					event.setProperties(eventProperties);
+
+					entity.setCreationEvent(event);
+
+					loader.setNetworkProvenance(entity);
+ 
+				} 
 				return networkId.toString();
 			}
 
