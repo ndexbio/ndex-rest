@@ -42,6 +42,7 @@ import java.io.PipedOutputStream;
 import java.net.HttpURLConnection;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashSet;
@@ -65,6 +66,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang.StringUtils;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
@@ -674,7 +676,7 @@ public class NetworkAService extends NdexService {
 	//TODO: handle cached network from hardDrive.
 	public Response getAspectsAsCX(	@PathParam("networkId") final String networkId,
 			final List<String> aspectNames)
-			throws IllegalArgumentException, NdexException {
+			throws Exception {
 
     	logger.info("[start: Getting aspects in network {}]", networkId);
 
@@ -682,6 +684,15 @@ public class NetworkAService extends NdexService {
 			Set<String> asp = new HashSet<>(aspectNames.size());
 			for ( String s : aspectNames)
 				asp.add(s);
+			
+			try (SingleNetworkDAO dao = new SingleNetworkDAO(networkId) ) {
+				Set<String> missingAspects = dao.findMissingAspect(asp);
+				if ( !missingAspects.isEmpty()) {
+					throw new NdexException ("Aspect(s) " +StringUtils.join(missingAspects, ", ")
+					 // missingAspects.toArray(new String[missingAspects.size()]) + 
+					+	" not found in network.");
+				}
+			}
 			
 			PipedInputStream in = new PipedInputStream();
 			PipedOutputStream out;
@@ -709,7 +720,7 @@ public class NetworkAService extends NdexService {
 	public Response getAspectElements(	@PathParam("networkId") final String networkId,
 			@PathParam("aspectName") final String aspectName,
 			@PathParam("limit") final int limit)
-			throws IllegalArgumentException, NdexException {
+			throws Exception {
 
     	logger.info("[start: Getting complete network {}]", networkId);
 
@@ -722,8 +733,16 @@ public class NetworkAService extends NdexService {
 			} catch (IOException e) {
 				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
 			}
+			
+			try (SingleNetworkDAO dao = new SingleNetworkDAO (networkId) ) {
+				Set<String> missingAspect = dao.findMissingAspect(new HashSet<String>(Arrays.asList(aspectName)));
+				if ( !missingAspect.isEmpty()) {
+					out.close();
+					throw new NdexException ("Aspect " + aspectName + " not found in network.");
+				}
+			};
+			
 			new CXAspectElementsWriterThread(out,networkId, aspectName, limit).start();
-			//setZipFlag();
 			logger.info("[end: Return cached network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 		}
@@ -770,20 +789,18 @@ public class NetworkAService extends NdexService {
 	
 	private class CXNetworkWriterThread extends Thread {
 		private OutputStream o;
-		private String networkid;
-		public CXNetworkWriterThread (OutputStream out, String networkId) {
+		private String networkId;
+		public CXNetworkWriterThread (OutputStream out, String  networkUUIDStr) {
 			o = out;
-			networkid = networkId;
+			networkId = networkUUIDStr;
 		}
 		
 		public void run() {
-			try (CXNetworkExporter dao = new CXNetworkExporter ( networkid) ) { 
-			    try {
+			try (CXNetworkExporter dao = new CXNetworkExporter (networkId) ) {
 				    dao.writeNetworkInCX(o, true);
-				} catch (IOException e) {
+			} catch (IOException e) {
 					logger.error("IOException in CXNetworkWriterThread: " + e.getMessage());
 					e.printStackTrace();
-				}
 			} catch (NdexException e1) {
 			     logger.error("Ndex error: " + e1.getMessage());
 			     e1.printStackTrace();
@@ -793,10 +810,10 @@ public class NetworkAService extends NdexService {
 			} finally {
 				try {
 					o.flush();
-				//	logger.info("output flushed.");
 					o.close();
 				} catch (IOException e) {
-					logger.error("Failed to close outputstream in CXNetworkWriterThread");
+					e.printStackTrace();
+					logger.error("Failed to close outputstream in CXNetworkWriterThread.");
 				}
 			}
 		}
@@ -805,37 +822,35 @@ public class NetworkAService extends NdexService {
 
 	private class CXAspectElementsWriterThread extends Thread {
 		private OutputStream o;
-		private String networkid;
+		private String networkId;
 		private String aspect;
 		private int limit;
 		public CXAspectElementsWriterThread (OutputStream out, String networkId, String aspectName, int limit) {
 			o = out;
-			networkid = networkId;
+			this.networkId = networkId;
 			aspect = aspectName;
 			this.limit = limit;
 		}
 		
 		public void run() {
-			try (CXNetworkExporter dao = new CXNetworkExporter ( networkid) ) { 
-			    try {
+			try (CXNetworkExporter dao = new CXNetworkExporter (networkId)) {
 				    dao.writeOneAspectInCX(o, aspect, limit, true); 
-				} catch (IOException e) {
+			} catch (IOException e) {
 					logger.error("IOException in CXAspectElementWriterThread: " + e.getMessage());
 					e.printStackTrace();
-				}
 			} catch (NdexException e1) {
 			     logger.error("Ndex error: " + e1.getMessage());
 			     e1.printStackTrace();
 			} catch (Exception e1) {
-				logger.error("Ndex excption: " + e1.getMessage());
+				logger.error("Ndex exception: " + e1.getMessage());
 				e1.printStackTrace();
 			} finally {
 				try {
 					o.flush();
-				//	logger.info("output flushed.");
 					o.close();
 				} catch (IOException e) {
 					logger.error("Failed to close outputstream in CXElementWriterWriterThread");
+					e.printStackTrace();
 				}
 			}
 		}
@@ -845,37 +860,35 @@ public class NetworkAService extends NdexService {
 	
 	private class CXNetworkAspectsWriterThread extends Thread {
 		private OutputStream o;
-		private String networkid;
+		private String networkId;
 		private Set<String> aspects;
 		
 		public CXNetworkAspectsWriterThread (OutputStream out, String networkId, Set<String> aspectNames) {
 			o = out;
-			networkid = networkId;
+			this.networkId = networkId;
 			this.aspects = aspectNames;
 		}
 		
 		public void run() {
-			try (CXNetworkExporter dao = new CXNetworkExporter ( networkid) ) { 
-			    try {
+			try (CXNetworkExporter dao = new CXNetworkExporter (networkId)) {
 				    dao.writeAspectsInCX(o, aspects, true);
-				} catch (IOException e) {
+			} catch (IOException e) {
 					logger.error("IOException in CXNetworkAspectsWriterThread: " + e.getMessage());
 					e.printStackTrace();
-				}
 			} catch (NdexException e1) {
 			     logger.error("Ndex error: " + e1.getMessage());
 			     e1.printStackTrace();
 			} catch (Exception e1) {
-				logger.error("Ndex excption: " + e1.getMessage());
+				logger.error("Ndex exception: " + e1.getMessage());
 				e1.printStackTrace();
 			} finally {
 				try {
 					o.flush();
-				//	logger.info("output flushed.");
 					o.close();
 				} catch (IOException e) {
-					logger.error("Failed to close outputstream in CXNetworkAspectsWriterThread");
-				}
+					e.printStackTrace();
+					logger.error("Failed to close outputstream in CXNetworkAspectsWriterThread. " + e.getMessage());
+				} 
 			}
 		}
 		
