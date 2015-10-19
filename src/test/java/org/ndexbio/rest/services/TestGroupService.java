@@ -36,7 +36,6 @@ import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Group;
-import org.ndexbio.model.object.SearchParameters;
 
 import com.orientechnologies.orient.core.id.ORID;
 

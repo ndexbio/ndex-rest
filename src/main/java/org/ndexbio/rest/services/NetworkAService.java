@@ -70,6 +70,7 @@ import org.apache.commons.lang.StringUtils;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.models.dao.orientdb.CXNetworkExporter;
@@ -125,6 +126,7 @@ import org.ndexbio.task.NdexServerQueue;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -902,7 +904,9 @@ public class NetworkAService extends NdexService {
 		}
 		
 		public void run() {
-            byte[] bytes = new byte[8192];
+            try {
+			byte[] bytes = new byte[8192];
+            
 		    for (InputPart inputPart : inputParts) {
 		           try
 		           {
@@ -925,19 +929,41 @@ public class NetworkAService extends NdexService {
 		           }
 		    }
 		    
-            try {
-				out.flush();
-	            out.close();
-			} catch (IOException e) {
-				System.out.println("can't close out stream in piped stream.");
-				e.printStackTrace();
-			}
-            System.out.println("ok");
+            } finally {
+	            try {
+					out.flush();
+					out.close();
+				}  catch (IOException e) {
+					System.out.println("can't close out stream in piped stream.");
+					e.printStackTrace(); 
+				}
+			} 
 
 		}
 		
 	}
 
+	
+	private ProvenanceEntity getProvenanceEntityFromMultiPart(Map<String, List<InputPart>> uploadForm) throws NdexException, IOException {
+		
+	       List<InputPart> parts = uploadForm.get("provenance");
+	       if (parts == null)
+	    	   return null;
+
+		  	StringBuffer sb = new StringBuffer();
+		    for (InputPart inputPart : parts) {
+		        	   org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
+		        			   (org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
+		        	   sb.append(p.getBodyAsString());
+		    }
+		    
+		    ObjectMapper mapper = new ObjectMapper();
+		    ProvenanceEntity entity = mapper.readValue(sb.toString(), ProvenanceEntity.class);		
+	    	
+		    if (entity == null || entity.getUri() == null)
+	    		   throw new NdexException ("Malformed provenance parameter found in posted form data.");  
+		   return entity;
+	}
 	
 	
 	@PermitAll
@@ -1712,26 +1738,56 @@ public class NetworkAService extends NdexService {
     @Path("/asCX/{networkId}")
     @Consumes("multipart/form-data")
     @Produces("application/json")
-    @ApiDoc("This method updates an existing network with new content. The method takes a Network JSON " +
-            "object as the PUT data. The Network object must have its UUID property set in order to identify " +
-            "the network on the server to be updated.  This condition would already be satisfied in the case " +
-            "of a Network object retrieved from NDEx. This method errors if the Network object is not " +
+    @ApiDoc("This method updates an existing network with new content. The method takes a Network CX " +
+            "document as the PUT data. The Network's UUID is specified in the URL if this function. " +
+            " This method errors if the Network object is not " +
             "provided or if its UUID does not correspond to an existing network on the NDEx Server. It also " +
             "errors if the Network object is larger than a maximum size for network creation set in the NDEx " +
-            "server configuration. A NetworkSummary JSON object corresponding to the updated network is " +
-            "returned.")
+            "server configuration. Network UUID is returned. This function also takes an optional 'provenance' field in the posted form."
+            + " See createCXNetwork function for more details of this parameter.")
     public String updateCXNetwork(final @PathParam("networkId") String networkId,
     		MultipartFormDataInput input)
             throws Exception
     {
     	
+		logger.info("[start: Updating network {} using CX data]", networkId);
+
+        try ( ODatabaseDocumentTx conn = NdexDatabase.getInstance().getAConnection() ) {
+           User user = getLoggedInUser();
+
+           if (!Helper.checkPermissionOnNetworkByAccountName(conn, 
+        		   networkId, user.getAccountName(), Permissions.WRITE))
+           {
+				logger.error("[end: No write permissions for user account {} on network {}]", 
+						user.getAccountName(), networkId);
+		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
+           }
+           
+			NetworkDocDAO daoNew = new NetworkDocDAO(conn);
+			
+			if(daoNew.networkIsReadOnly(networkId)) {
+				daoNew.close();
+				logger.info("[end: Can't update readonly network {}]", networkId);
+				throw new NdexException ("Can't update readonly network.");
+			}
+			
+			if ( daoNew.networkIsLocked(networkId)) {
+				daoNew.close();
+				logger.info("[end: Can't update locked network {}]", networkId);
+				throw new NdexException ("Can't modify locked network.");
+			} 
+			
+			daoNew.lockNetwork(networkId);
+        }  
+    	
 	       Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
 	       
-	   //    String OldUUID = uploadForm.
+	       ProvenanceEntity entity = this.getProvenanceEntityFromMultiPart(uploadForm);
 
 	       //Get file data to save
 	       List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
 
+	       
 			PipedInputStream in = new PipedInputStream();
 			PipedOutputStream out;
 			try {
@@ -1745,6 +1801,28 @@ public class NetworkAService extends NdexService {
 	  
 			try (CXNetworkLoader loader = new CXNetworkLoader(in, getLoggedInUser().getAccountName())) {
 				UUID networkUUID = loader.updateNetwork(networkId);
+				
+				// adding provenance.
+				if( entity == null) {
+					try (NetworkDocDAO dao = new NetworkDocDAO()) { 
+						entity = new ProvenanceEntity();
+						NetworkSummary summary = dao.getNetworkSummaryById(networkId.toString());
+						entity.setUri(summary.getURI());
+                
+						Helper.populateProvenanceEntity(entity, summary);
+
+						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE, summary.getModificationTime());
+
+						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+						Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+						event.setProperties(eventProperties);
+
+						entity.setCreationEvent(event);
+					} 
+				}
+					
+				loader.setNetworkProvenance(entity);
+				
 				return networkUUID.toString();
 			}
 
@@ -1963,12 +2041,17 @@ public class NetworkAService extends NdexService {
 	   @Path("/asCX")
 	   @Produces("application/json")
 	   @Consumes("multipart/form-data")
-	   @ApiDoc("Create a network from the uploaded CX stream. The input cx data is expected to be in the CXNetworkStream field of posted multipart/form-data.")
+	   @ApiDoc("Create a network from the uploaded CX stream. The input cx data is expected to be in the CXNetworkStream field of posted multipart/form-data. "
+	   		+ "There is an optional 'provenance' field in the form. Users can use this field to pass in a JSON string of ProvenanceEntity object. When a user pass"
+	   		+ " in this object, NDEx server will add this object to the provenance history of the CX network. Otherwise NDEx server will create a ProvenanceEntity "
+	   		+ "object and add it to the provenance history of the CX network.")
 	   public String createCXNetwork( MultipartFormDataInput input) throws Exception
 	   {
 	   
 	       Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
-
+	       
+	       ProvenanceEntity entity = this.getProvenanceEntityFromMultiPart(uploadForm);
+	       
 	       //Get file data to save
 	       List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
 
@@ -1987,24 +2070,26 @@ public class NetworkAService extends NdexService {
 				UUID networkId = loader.persistCXNetwork();
 
 				// adding provenance.
-				try (NetworkDocDAO dao = new NetworkDocDAO()) { 
-					ProvenanceEntity entity = new ProvenanceEntity();
-					NetworkSummary summary = dao.getNetworkSummaryById(networkId.toString());
-					entity.setUri(summary.getURI());
+				if( entity == null) {
+					try (NetworkDocDAO dao = new NetworkDocDAO()) { 
+						entity = new ProvenanceEntity();
+						NetworkSummary summary = dao.getNetworkSummaryById(networkId.toString());
+						entity.setUri(summary.getURI());
                 
-					Helper.populateProvenanceEntity(entity, summary);
+						Helper.populateProvenanceEntity(entity, summary);
 
-					ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.PROGRAM_UPLOAD, summary.getModificationTime());
+						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
 
-					List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-					Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
-					event.setProperties(eventProperties);
+						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+						Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+						event.setProperties(eventProperties);
 
-					entity.setCreationEvent(event);
-
-					loader.setNetworkProvenance(entity);
+						entity.setCreationEvent(event);
+					} 
+				}
+					
+				loader.setNetworkProvenance(entity);
  
-				} 
 				return networkId.toString();
 			}
 
