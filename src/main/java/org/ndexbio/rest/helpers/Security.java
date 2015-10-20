@@ -40,62 +40,6 @@ import org.jboss.resteasy.util.Base64;
 public class Security
 {
     /**************************************************************************
-    * Authenticates the user against the OrientDB database.
-    * 
-    * @param authInfo
-    *            A string array containing the username/password.
-    * @throws Exception
-    *            Accessing the database failed.
-    * @returns True if the user is authenticated, false otherwise.
-    **************************************************************************/
- /*   public static User authenticateUser(final String[] authInfo) throws Exception
-    {
-        final FramedGraphFactory graphFactory = new FramedGraphFactory(new GremlinGroovyModule(),
-            new TypedGraphModuleBuilder()
-                .withClass(IGroup.class)
-                .withClass(IUser.class)
-                .withClass(IGroupMembership.class)
-                .withClass(INetworkMembership.class)
-                .withClass(IGroupInvitationRequest.class)
-                .withClass(IJoinGroupRequest.class)
-                .withClass(INetworkAccessRequest.class)
-                .withClass(IBaseTerm.class)
-                .withClass(IReifiedEdgeTerm.class)
-                .withClass(IFunctionTerm.class)
-                .build());
-
-        ODatabaseDocumentTx ndexDatabase = null;
-        try
-        {
-            ndexDatabase = ODatabaseDocumentPool.global().acquire(
-                Configuration.getInstance().getProperty("OrientDB-URL"),
-                Configuration.getInstance().getProperty("OrientDB-Username"),
-                Configuration.getInstance().getProperty("OrientDB-Password"));
-
-            final FramedGraph<OrientBaseGraph> orientDbGraph = graphFactory.create((OrientBaseGraph)new OrientGraph(ndexDatabase));
-
-            Collection<ODocument> usersFound = ndexDatabase
-                .command(new OCommandSQL("select from User where username = ?"))
-                .execute(authInfo[0]);
-            
-            if (usersFound.size() < 1)
-                return null;
-
-            IUser authUser = orientDbGraph.getVertex(usersFound.toArray()[0], IUser.class);
-            String hashedPassword = Security.hashText(authInfo[1]);
-            if (!hashedPassword.equals(authUser.getPassword()))
-                return null;
-
-            return new User(authUser, true);
-        }
-        finally
-        {
-            if (ndexDatabase != null)
-                ndexDatabase.close();
-        }
-    }
-*/
-    /**************************************************************************
     * Converts bytes into hexadecimal text.
     * 
     * @param data
@@ -120,6 +64,28 @@ public class Security
     {
         return generatePassword(10);
     }
+
+    
+    public static String generateVerificationCode()
+    {
+        final String alphaCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        final String numericCharacters = "0123456789";
+        
+        StringBuilder randomPassword = new StringBuilder();
+        for (int passwordIndex = 0; passwordIndex < 10; passwordIndex++)
+        {
+            //Determine if the character will be alpha, numeric, or a symbol
+            final int charType = randomNumber(1, 2);
+            
+            if (charType == 1)
+                randomPassword.append(alphaCharacters.charAt(randomNumber(0, alphaCharacters.length() - 1)));
+            else if (charType == 2)
+                randomPassword.append(numericCharacters.charAt(randomNumber(0, numericCharacters.length() - 1)));
+        }
+        
+        return randomPassword.toString();
+    }
+
     
     /**************************************************************************
     * Generates a password of random characters.

@@ -70,6 +70,7 @@ import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.Email;
+import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
 
@@ -123,32 +124,32 @@ public class UserService extends NdexService {
 	 */
 	@GET
 	@PermitAll
+	@Path("/{userId}/verify/{verificationCode}")
 	@NdexOpenFunction
 	@Produces("application/json")
 	@ApiDoc("Verify the given user with UUID, account name and verificationCode")
-	public String verifyUser(@PathParam("userId") String userUUID,
-					@PathParam("accountName") String accountName, 
+	public User verifyUser(@PathParam("userId") String userUUID,
+//					@PathParam("accountName") String accountName, 
 					@PathParam("verificationCode") String verificationCode
 				
 			)
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
 			NdexException {
 
-		logger.info("[start: verifing User {}]", accountName);
+		logger.info("[start: verifing User {}]", userUUID);
 		
 		try (UserDocDAO userdao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
 			
-			userdao.verifyUser(userUUID, accountName, verificationCode);
+			userdao.verifyUser(userUUID, verificationCode);
 			userdao.commit();
-			logger.info("[end: User {} verified ]", accountName);
-			return "User " + accountName + " has been verified. You can now login to the Ndex web site.";
+			logger.info("[end: User {} verified ]", userUUID);
+			return userdao.getUserById(UUID.fromString(userUUID));
 		}
 	}
 
 	@POST
 	@PermitAll
 	@NdexOpenFunction
-	@Path("/{userId}/verify/{accountName}/{verificationCode}")
 	@Produces("application/json")
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
 	public User createUser(final NewUser newUser)
@@ -178,13 +179,17 @@ public class UserService extends NdexService {
 			
 			newUser.setAccountName(newUser.getAccountName().toLowerCase());
 
-			User user = userdao.createNewUser(newUser);
-			userdao.commit();
-			
-			
 			String needVerify = Configuration.getInstance().getProperty("VERIFY_NEWUSER_BY_EMAIL");
 
-/*			if ( needVerify !=null && needVerify.equalsIgnoreCase("true") ) {			
+			String verificationCode =  ( needVerify !=null && needVerify.equalsIgnoreCase("true"))?
+					Security.generateVerificationCode() : null;
+			
+			
+			User user = userdao.createNewUser(newUser, verificationCode);
+			userdao.commit();
+			
+
+			if ( verificationCode != null ) {  // need to email the verification code.			
 			
 				// Get system properties
 				Properties properties = System.getProperties();
@@ -207,10 +212,14 @@ public class UserService extends NdexService {
 		                                   new InternetAddress(newUser.getEmailAddress()));
 
 		          // Set Subject: header field
-		          message.setSubject("Please verify your Ndex account email address.");
+		          message.setSubject("Your New NDEx Account Verification Code");
 
 		          // Now set the actual message
-		          message.setText("Hi");
+		          message.setText("Dear " + user.getAccountName() + " account owner,\n\n" + 
+		               "Please go to NDEx web site and use this verification code to activate your new NDEx account. " + 
+		        		  "This verification code will be expire in 8 hours."
+		        		  + "\n\nVerification code: " + user.getExternalId().toString() + ":" + verificationCode + 
+		        		  "\n\nBest Regards,\nNDEx team");
 
 		          // Send message
 		          Transport.send(message);
@@ -219,7 +228,9 @@ public class UserService extends NdexService {
 					logger.error("[end: Failed to email new password. Cause: {}]", mex.getMessage());
 					throw new NdexException ("Failed to email new password. Cause:" + mex.getMessage());
 				}
-			}	*/
+				
+				user.setExternalId(null);
+			}	
 			logger.info("[end: User {} created with UUID {}]", 
 					newUser.getAccountName(), user.getExternalId());
 			return user;

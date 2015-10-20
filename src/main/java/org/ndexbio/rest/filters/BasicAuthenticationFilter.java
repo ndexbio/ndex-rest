@@ -134,7 +134,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                      			String autoCreateAccount = Configuration.getInstance().getProperty(AD_CREATE_USER_AUTOMATICALLY);
                        			if ( autoCreateAccount !=null && Boolean.parseBoolean(autoCreateAccount)) {
                        				NewUser newUser = ADAuthenticator.getNewUser(authInfo[0], authInfo[1]);
-                       				authUser = dao.createNewUser(newUser);
+                       				authUser = dao.createNewUser(newUser,null);
                        			} else 
                        				throw e;
                        	  }	
