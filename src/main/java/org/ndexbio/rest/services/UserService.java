@@ -121,9 +121,34 @@ public class UserService extends NdexService {
 	/*
 	 * refactored to accommodate non-transactional database operations
 	 */
+	@GET
+	@PermitAll
+	@NdexOpenFunction
+	@Produces("application/json")
+	@ApiDoc("Verify the given user with UUID, account name and verificationCode")
+	public String verifyUser(@PathParam("userId") String userUUID,
+					@PathParam("accountName") String accountName, 
+					@PathParam("verificationCode") String verificationCode
+				
+			)
+			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
+			NdexException {
+
+		logger.info("[start: verifing User {}]", accountName);
+		
+		try (UserDocDAO userdao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
+			
+			userdao.verifyUser(userUUID, accountName, verificationCode);
+			userdao.commit();
+			logger.info("[end: User {} verified ]", accountName);
+			return "User " + accountName + " has been verified. You can now login to the Ndex web site.";
+		}
+	}
+
 	@POST
 	@PermitAll
 	@NdexOpenFunction
+	@Path("/{userId}/verify/{accountName}/{verificationCode}")
 	@Produces("application/json")
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
 	public User createUser(final NewUser newUser)
@@ -150,16 +175,57 @@ public class UserService extends NdexService {
 		}
 
 		try (UserDocDAO userdao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
-
+			
 			newUser.setAccountName(newUser.getAccountName().toLowerCase());
 
 			User user = userdao.createNewUser(newUser);
 			userdao.commit();
+			
+			
+			String needVerify = Configuration.getInstance().getProperty("VERIFY_NEWUSER_BY_EMAIL");
+
+/*			if ( needVerify !=null && needVerify.equalsIgnoreCase("true") ) {			
+			
+				// Get system properties
+				Properties properties = System.getProperties();
+
+				// Setup mail server
+				properties.setProperty("mail.smtp.host", "localhost");
+		    
+				// Get the default Session object.
+				Session session = Session.getDefaultInstance(properties);
+		    
+				try{
+		          // Create a default MimeMessage object.
+		          MimeMessage message = new MimeMessage(session);
+
+		          // Set From: header field of the header.
+		          message.setFrom(new InternetAddress(Configuration.getInstance().getProperty("Feedback-Email")));
+
+		          // Set To: header field of the header.
+		          message.addRecipient(Message.RecipientType.TO,
+		                                   new InternetAddress(newUser.getEmailAddress()));
+
+		          // Set Subject: header field
+		          message.setSubject("Please verify your Ndex account email address.");
+
+		          // Now set the actual message
+		          message.setText("Hi");
+
+		          // Send message
+		          Transport.send(message);
+		          //System.out.println("Sent message successfully....");
+				}catch (MessagingException mex) {
+					logger.error("[end: Failed to email new password. Cause: {}]", mex.getMessage());
+					throw new NdexException ("Failed to email new password. Cause:" + mex.getMessage());
+				}
+			}	*/
 			logger.info("[end: User {} created with UUID {}]", 
 					newUser.getAccountName(), user.getExternalId());
 			return user;
 		}
 	}
+	
 	
 	/**************************************************************************
 	 * Gets a user by ID or accountName.(1.0 snapshot) 
