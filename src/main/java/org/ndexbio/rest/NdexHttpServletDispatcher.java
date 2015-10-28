@@ -52,6 +52,7 @@ import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SystemTaskProcessor;
 
 import com.orientechnologies.orient.core.Orient;
+import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
@@ -89,6 +90,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			try {
 				String configFile = configuration.getNdexRoot() + "/conf/orientdb-server-config.xml";
 				File cf = new File( configFile);
+//				OGlobalConfiguration.RID_BAG_SBTREEBONSAI_TO_EMBEDDED_THRESHOLD.setValue(-1);
 				orientDBServer = OServerMain.create();
 				orientDBServer.startup(cf);
 				orientDBServer.activate();

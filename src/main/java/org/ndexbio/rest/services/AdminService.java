@@ -41,7 +41,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
@@ -58,8 +57,10 @@ import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 public class AdminService extends NdexService {
 	static Logger logger = LoggerFactory.getLogger(AdminService.class);
 	
-	static final String networkPostEdgeLimit = "NETWORK_POST_EDGE_LIMIT";
-	static final String defaultPostEdgeLimit = "200000";
+	static final String networkPostEdgeLimit = "NETWORK_POST_ELEMENT_LIMIT";
+//	static final String defaultPostEdgeLimit = "800000";
+	
+	static final String postElementLimitProp = "ServerPostElementLimit";
 
 	public AdminService(@Context HttpServletRequest httpRequest)
     {
@@ -94,14 +95,14 @@ public class AdminService extends NdexService {
 			if ( edgeLimit != null ) {
 				try {
 					int i = Integer.parseInt(edgeLimit);
-					props.put("ServerPostEdgeLimit", Integer.toString(i));
+					props.put(postElementLimitProp, Integer.toString(i));
 				} catch( NumberFormatException e) {
 					logger.error("[Invalid value in server property {}]", networkPostEdgeLimit);
-					props.put("ServerPostEdgeLimit", defaultPostEdgeLimit);
+			//		props.put("ServerPostEdgeLimit", "-1");  //defaultPostEdgeLimit);
 				}
-			} else {
-				props.put("ServerPostEdgeLimit", defaultPostEdgeLimit);
-			}
+			} /* else {
+				props.put(postElementLimitProp, "-1"); // defaultPostEdgeLimit);
+			} */
 		    
 			props.put("ServerResultLimit", "10000");
 			status.setProperties(props);

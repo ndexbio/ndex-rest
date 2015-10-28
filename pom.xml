@@ -346,6 +346,6 @@
 	</build>
 	<properties>
 		<jettyVersion>9.3.3.v20150827</jettyVersion>
-		<resteasyVersion>3.0.12.Final</resteasyVersion>
+		<resteasyVersion>3.0.13.Final</resteasyVersion>
 	</properties>
 </project>
