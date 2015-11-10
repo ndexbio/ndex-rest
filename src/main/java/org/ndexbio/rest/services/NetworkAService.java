@@ -114,6 +114,7 @@ import org.ndexbio.model.object.network.BaseTerm;
 import org.ndexbio.model.object.network.FileFormat;
 import org.ndexbio.model.object.network.Namespace;
 import org.ndexbio.model.object.network.Network;
+import org.ndexbio.model.object.network.NetworkSourceFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -1217,6 +1218,61 @@ public class NetworkAService extends NdexService {
 		}
 	}
 
+	
+	@GET
+	@Path("/{networkId}/attachNamespacesFiles")
+	@Produces("application/json")
+	@ApiDoc("This method attach namespace files to the given XBEL network. if the network specified by networkId is not a XBEL network, a NdexException will be returned."
+			+ "")
+	public UUID attachNamespaceFiles(@PathParam("networkId") final String networkId) throws Exception {
+		logger.info("[start: creating task to attach namespace files to network {}]", networkId);
+		
+		try (NetworkDocDAO networkDao= new NetworkDocDAO(NdexDatabase.getInstance().getAConnection())) {
+
+			User user = getLoggedInUser();
+			
+			if(networkDao.networkIsReadOnly(networkId)) {
+				throw new NdexException ("Can't update readonly network.");				
+			}
+
+			if ( !Helper.checkPermissionOnNetworkByAccountName(networkDao.getDBConnection(), networkId, user.getAccountName(),
+					Permissions.WRITE)) {
+		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
+			}
+		} 
+		
+		try (SingleNetworkDAO dao = new SingleNetworkDAO(networkId) ) {
+			if ( dao.getSourceFormat() != NetworkSourceFormat.BEL)
+				throw new NdexException("Network " + networkId + " is not a BEL network.");
+			
+			Task processNetworkTask = new Task();
+			processNetworkTask.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
+			processNetworkTask.setTaskType(TaskType.DOWNLOAD_NAMESPACE_FILES);
+			processNetworkTask.setPriority(Priority.MEDIUM);
+			processNetworkTask.setProgress(0);
+			processNetworkTask.setResource(networkId);
+			processNetworkTask.setStatus(Status.QUEUED);
+
+			final String userAccount = this.getLoggedInUser().getAccountName();
+
+			try (TaskDAO taskDao = new TaskDAO(dao.getDbConnection())){
+				taskDao.createTask(userAccount, processNetworkTask);
+				taskDao.commit();		
+				
+			} catch (IllegalArgumentException iae) {
+				logger.error("[end: Exception caught:]{}", iae);
+				throw iae;
+			} catch (Exception e) {
+				logger.error("[end: Exception caught:]{}", e);
+				throw new NdexException(e.getMessage());
+			}
+
+			logger.info("[end: Uploading network file. Task for uploading network is created.]");		
+			return processNetworkTask.getExternalId();
+		}
+		
+    }
+
 	@POST
 	@Path("/{networkId}/summary")
 	@Produces("application/json")
@@ -1669,6 +1725,8 @@ public class NetworkAService extends NdexService {
 			}
 	}
 
+	
+	
     @PUT
     @Path("/asNetwork")
     @Produces("application/json")
@@ -1899,7 +1957,7 @@ public class NetworkAService extends NdexService {
     @ApiDoc("Upload a network file into the current users NDEx account. This can take some time while background " +
             "processing converts the data from the file into the common NDEx format. This method errors if the " +
             "network is missing or if it has no filename or no file data.")
-	public void uploadNetwork( MultipartFormDataInput input) 
+	public UUID uploadNetwork( MultipartFormDataInput input) 
                   //@MultipartForm UploadedFile uploadedNetwork)
 			throws IllegalArgumentException, SecurityException, NdexException, IOException {
 
@@ -1996,6 +2054,7 @@ public class NetworkAService extends NdexService {
 		}
 
 		logger.info("[end: Uploading network file. Task for uploading network is created.]");
+		return processNetworkTask.getExternalId();
 	}
 
 
@@ -2094,4 +2153,6 @@ public class NetworkAService extends NdexService {
 			}
 
 	   	}
+	   
+	   
 }
