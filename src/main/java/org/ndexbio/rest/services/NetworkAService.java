@@ -31,6 +31,8 @@
 package org.ndexbio.rest.services;
 
 import org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -67,6 +69,8 @@ import javax.ws.rs.core.Response;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.StringUtils;
+import org.cxio.metadata.MetaDataCollection;
+import org.cxio.util.JsonWriter;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
@@ -181,7 +185,31 @@ public class NetworkAService extends NdexService {
 		}
 
 	}
+	
+	@PermitAll
+	@GET
+	@Path("/{networkId}/namespaceFile/{prefix}")
+	@Produces("application/json")
+    @ApiDoc("Retrieves the archived namespace file if exists. Otherwise 404 will be returned.")
+	public String getNamespaceFile(
+			@PathParam("networkId") final String networkId,
+			@PathParam("prefix") final String prefix
+			) throws ObjectNotFoundException, UnauthorizedOperationException, NdexException, Exception {
+    	logger.info("[start: Getting namespace file for " + prefix + " in network {}]", networkId);
 
+		if ( isSearchable(networkId) ) { 
+			try ( SingleNetworkDAO dao = new SingleNetworkDAO (networkId) ) {
+				String s = dao.getNamespaceFile(prefix);
+				logger.info("[end: Return namespace file of {} ,in network {}]", networkId);
+				return s;
+			}
+		}
+		else
+            throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+	}
+
+	//TODO: need api function to remove namespace archives from a network.
+	
 	@PermitAll
 	@GET
 	@Path("/{networkId}/namespace")
@@ -717,6 +745,36 @@ public class NetworkAService extends NdexService {
 
 	@PermitAll
 	@GET
+	@Path("/{networkId}/metadata")
+	@ApiDoc("The getAspectElement method returns elements in the specified aspect up to the given limit.")
+	public Response getNetworkCXMetadataCollection(	@PathParam("networkId") final String networkId)
+			throws Exception {
+
+    	logger.info("[start: Getting CX metadata from network {}]", networkId);
+
+		if ( isSearchable(networkId) ) {
+
+			try (CXNetworkExporter dao = new CXNetworkExporter(networkId) ) {
+				MetaDataCollection md = 
+						dao.getMetaDataCollection();
+				logger.info("[end: Return cached network {}]", networkId);
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				JsonWriter wtr = JsonWriter.createInstance(baos,true);
+				md.toJson(wtr);
+				String s = baos.toString();//"java.nio.charset.StandardCharsets.UTF_8");
+				return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(s).build();
+			}
+			
+		}
+		else {
+			logger.info("[end: Return CX metadata from network {}]", networkId);
+            throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+		}
+	}  
+	
+	
+	@PermitAll
+	@GET
 	@Path("/{networkId}/aspect/{aspectName}/{limit}")
 	@ApiDoc("The getAspectElement method returns elements in the specified aspect up to the given limit.")
 	//TODO: handle cached network from hardDrive.
@@ -725,7 +783,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("limit") final int limit)
 			throws Exception {
 
-    	logger.info("[start: Getting complete network {}]", networkId);
+    	logger.info("[start: Getting one aspect in network {}]", networkId);
 
 		if ( isSearchable(networkId) ) {
 			
@@ -746,7 +804,7 @@ public class NetworkAService extends NdexService {
 			};
 			
 			new CXAspectElementsWriterThread(out,networkId, aspectName, limit).start();
-			logger.info("[end: Return cached network {}]", networkId);
+			logger.info("[end: Return get one aspect in network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 		}
 		else
@@ -1220,11 +1278,11 @@ public class NetworkAService extends NdexService {
 
 	
 	@GET
-	@Path("/{networkId}/attachNamespacesFiles")
+	@Path("/{networkId}/attachNamespaceFiles")
 	@Produces("application/json")
 	@ApiDoc("This method attach namespace files to the given XBEL network. if the network specified by networkId is not a XBEL network, a NdexException will be returned."
 			+ "")
-	public UUID attachNamespaceFiles(@PathParam("networkId") final String networkId) throws Exception {
+	public Task attachNamespaceFiles(@PathParam("networkId") final String networkId) throws Exception {
 		logger.info("[start: creating task to attach namespace files to network {}]", networkId);
 		
 		try (NetworkDocDAO networkDao= new NetworkDocDAO(NdexDatabase.getInstance().getAConnection())) {
@@ -1255,10 +1313,8 @@ public class NetworkAService extends NdexService {
 
 			final String userAccount = this.getLoggedInUser().getAccountName();
 
-			try (TaskDAO taskDao = new TaskDAO(dao.getDbConnection())){
+			try (TaskDAO taskDao = new TaskDAO(NdexDatabase.getInstance().getAConnection());) {
 				taskDao.createTask(userAccount, processNetworkTask);
-				taskDao.commit();		
-				
 			} catch (IllegalArgumentException iae) {
 				logger.error("[end: Exception caught:]{}", iae);
 				throw iae;
@@ -1268,7 +1324,7 @@ public class NetworkAService extends NdexService {
 			}
 
 			logger.info("[end: Uploading network file. Task for uploading network is created.]");		
-			return processNetworkTask.getExternalId();
+			return processNetworkTask;
 		}
 		
     }
@@ -1957,7 +2013,7 @@ public class NetworkAService extends NdexService {
     @ApiDoc("Upload a network file into the current users NDEx account. This can take some time while background " +
             "processing converts the data from the file into the common NDEx format. This method errors if the " +
             "network is missing or if it has no filename or no file data.")
-	public UUID uploadNetwork( MultipartFormDataInput input) 
+	public Task uploadNetwork( MultipartFormDataInput input) 
                   //@MultipartForm UploadedFile uploadedNetwork)
 			throws IllegalArgumentException, SecurityException, NdexException, IOException {
 
@@ -2054,7 +2110,7 @@ public class NetworkAService extends NdexService {
 		}
 
 		logger.info("[end: Uploading network file. Task for uploading network is created.]");
-		return processNetworkTask.getExternalId();
+		return processNetworkTask;
 	}
 
 
