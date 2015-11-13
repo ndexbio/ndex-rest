@@ -191,7 +191,7 @@ public class NetworkAService extends NdexService {
 	@Path("/{networkId}/namespaceFile/{prefix}")
 	@Produces("application/json")
     @ApiDoc("Retrieves the archived namespace file if exists. Otherwise 404 will be returned.")
-	public String getNamespaceFile(
+	public String getBELNamespaceFile(
 			@PathParam("networkId") final String networkId,
 			@PathParam("prefix") final String prefix
 			) throws ObjectNotFoundException, UnauthorizedOperationException, NdexException, Exception {
@@ -1277,7 +1277,7 @@ public class NetworkAService extends NdexService {
 	}
 
 	
-	@GET
+	@PUT
 	@Path("/{networkId}/attachNamespaceFiles")
 	@Produces("application/json")
 	@ApiDoc("This method attach namespace files to the given XBEL network. if the network specified by networkId is not a XBEL network, a NdexException will be returned."
