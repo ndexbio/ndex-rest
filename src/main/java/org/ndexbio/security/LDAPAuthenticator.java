@@ -72,6 +72,7 @@ public class LDAPAuthenticator {
 	private final static String AD_TRACE_MODE="AD_TRACE_MODE";
 	private final static String JAVA_KEYSTORE_PASSWD= "JAVA_KEYSTORE_PASSWD";
     private final static String AD_CTX_PRINCIPLE = "AD_CTX_PRINCIPLE"; 
+    private final static String AD_CTX_PRINCIPLE2 = "AD_CTX_PRINCIPLE2";
     protected final static String AD_SEARCH_FILTER = "AD_SEARCH_FILTER";
     protected final static String userNamePattern = "%%USER_NAME%%";
     
@@ -82,6 +83,7 @@ public class LDAPAuthenticator {
 	private Pattern pattern ;
 	private boolean useCache = false;
 	protected String ctxPrinciplePattern ;
+	protected String ctxPrinciplePattern2 ;
 	protected String searchFilterPattern ;
 	
 	
@@ -111,6 +113,12 @@ public class LDAPAuthenticator {
 					+ AD_CTX_PRINCIPLE + ".");
 	    
 		searchFilterPattern = config.getRequiredProperty(AD_SEARCH_FILTER);
+
+		ctxPrinciplePattern2 = config.getProperty(AD_CTX_PRINCIPLE2);
+
+		if ( ctxPrinciplePattern2 != null && ctxPrinciplePattern2.indexOf(userNamePattern) == -1)
+			throw new NdexException ("Pattern "+ userNamePattern + " not found in configuration property "
+					 + AD_CTX_PRINCIPLE2 + ".");
 
 		if ( searchFilterPattern.indexOf(userNamePattern) == -1) 
 			throw new NdexException ("Pattern "+ userNamePattern + " not found in configuration property "
@@ -196,7 +204,17 @@ public class LDAPAuthenticator {
 	  
 	  env.put(Context.SECURITY_CREDENTIALS, password);
       try {
-    	  LdapContext ctx = new InitialLdapContext(env,null);
+    	  LdapContext ctx;
+	  try {
+		  ctx = new InitialLdapContext(env,null);
+	  } catch (NamingException e) {
+		  if (ctxPrinciplePattern2 != null && delegatedUserName == null) {
+			env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern2.replaceAll(userNamePattern, username));
+			ctx = new InitialLdapContext(env,null);
+		  } else {
+			throw e;
+		  }
+	  }
 	   
 		  SearchControls searchControls = new SearchControls();
 		  searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
@@ -247,7 +265,17 @@ public class LDAPAuthenticator {
 			
 	      env.put(Context.SECURITY_CREDENTIALS, password);
 	      try {
-	    	  LdapContext ctx = new InitialLdapContext(env,null);
+	    	  LdapContext ctx;
+		  try {
+			  ctx = new InitialLdapContext(env,null);
+		  } catch (NamingException e) {
+			  if (ctxPrinciplePattern2 != null && delegatedUserName == null) {
+				env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern2.replaceAll(userNamePattern, username));
+				ctx = new InitialLdapContext(env,null);
+		  	  } else {
+				throw e;
+			  }
+		  }
 	      
 	    	  // String searchFilter = "(&(SAMAccountName="+ username + ")(objectClass=user)(objectCategory=person))";
 	    	  //String searchFilter = searchFilterPattern.replaceAll(userNamePattern, username);
