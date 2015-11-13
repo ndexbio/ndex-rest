@@ -1936,7 +1936,7 @@ public class NetworkAService extends NdexService {
 				}
 					
 				loader.setNetworkProvenance(entity);
-				
+				logger.info("[end: Updating network {} using CX data]", networkId);
 				return networkUUID.toString();
 			}
 
@@ -2162,6 +2162,8 @@ public class NetworkAService extends NdexService {
 	   		+ "object and add it to the provenance history of the CX network.")
 	   public String createCXNetwork( MultipartFormDataInput input) throws Exception
 	   {
+
+		   logger.info("[start: Creating a new network based on a POSTed CX stream.]");
 	   
 	       Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
 	       
@@ -2204,7 +2206,7 @@ public class NetworkAService extends NdexService {
 				}
 					
 				loader.setNetworkProvenance(entity);
- 
+				logger.info("[end: Created a new network based on a POSTed CX stream.]");
 				return networkId.toString();
 			}
 
