@@ -69,12 +69,12 @@ import javax.ws.rs.core.Response;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.util.JsonWriter;
-import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
-import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.access.NetworkAOrientDBDAO;
 import org.ndexbio.common.models.dao.orientdb.CXNetworkExporter;
@@ -112,6 +112,7 @@ import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.common.query.NetworkFilterQueryExecutor;
 import org.ndexbio.common.query.NetworkFilterQueryExecutorFactory;
 import org.ndexbio.common.query.SearchNetworkByPropertyExecutor;
+import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;
@@ -123,7 +124,6 @@ import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.ndexbio.rest.helpers.UploadedFile;
 import org.ndexbio.rest.util.MemoryUtilization;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexServerQueue;
@@ -1950,7 +1950,7 @@ public class NetworkAService extends NdexService {
 	@Produces("application/json")
     @ApiDoc("Deletes the network specified by networkId. There is no method to undo a deletion, so care " +
 	        "should be exercised. A user can only delete networks that they own.")
-	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException {
+	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException, IOException {
 
 		logger.info("[start: Deleting network {}]", id);
 		
@@ -1983,6 +1983,14 @@ public class NetworkAService extends NdexService {
 				NdexServerQueue.INSTANCE.addSystemTask(task);
 			}
 			db = null;
+			// remove the solr Index
+			SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id);
+			try {
+				idxManager.dropIndex();
+			} catch (SolrServerException | HttpSolrClient.RemoteSolrException se ) {
+				logger.warn("node term index for network "+ id +" not found in Solr. Ignore deleteing solr index for it: " + se.getMessage());
+			}
+			
 			logger.info("[end: Deleted network {}]", id);
 		} finally {
 			if ( db != null) db.close();
