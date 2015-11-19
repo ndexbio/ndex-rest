@@ -51,6 +51,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -71,6 +72,8 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.cxio.aspects.datamodels.EdgesElement;
+import org.cxio.aspects.datamodels.NodesElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.util.JsonWriter;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
@@ -90,6 +93,7 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.EdgeCollectionQuery;
 import org.ndexbio.model.network.query.NetworkPropertyFilter;
+import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NdexProvenanceEventType;
@@ -880,6 +884,43 @@ public class NetworkAService extends NdexService {
 		}
 		
 	}
+	
+	private class CXNetworkQueryWriterThread extends Thread {
+		private OutputStream o;
+		private String networkId;
+		private CXSimplePathQuery parameters;
+		
+		public CXNetworkQueryWriterThread (OutputStream out, String  networkUUIDStr, CXSimplePathQuery query) {
+			o = out;
+			networkId = networkUUIDStr;
+			this.parameters = query;
+		}
+		
+		public void run() {
+			try (CXNetworkExporter dao = new CXNetworkExporter (networkId) ) {
+				    dao.exportSubnetworkInCX(o, parameters,true);   
+			} catch (IOException e) {
+					logger.error("IOException in CXNetworkWriterThread: " + e.getMessage());
+					e.printStackTrace();
+			} catch (NdexException e1) {
+			     logger.error("Ndex error: " + e1.getMessage());
+			     e1.printStackTrace();
+			} catch (Exception e1) {
+				logger.error("Ndex excption: " + e1.getMessage());
+				e1.printStackTrace();
+			} finally {
+				try {
+					o.flush();
+					o.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+					logger.error("Failed to close outputstream in CXNetworkWriterThread.");
+				}
+			}
+		}
+		
+	}
+
 
 	private class CXAspectElementsWriterThread extends Thread {
 		private OutputStream o;
@@ -1482,6 +1523,58 @@ public class NetworkAService extends NdexService {
 		} 
 	}
 
+	@PermitAll
+	@POST
+	@Path("/{networkId}/asCX/query")
+	@Produces("application/json")
+    @ApiDoc("Retrieves a 'neighborhood' subnetwork of the network specified by ‘networkId’. The query finds " +
+            "the subnetwork by a traversal of the network starting with nodes associated with identifiers " +
+            "specified in a POSTed JSON query object. " +
+            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#queryNetwork\">here</a>.")
+	public Response queryNetworkAsCX(
+			@PathParam("networkId") final String networkId,
+			final CXSimplePathQuery queryParameters
+			)
+
+			throws Exception {
+		
+		logger.info("[start: Retrieving neighborhood subnetwork for network {} with phrase \"{}\"]", 
+				networkId, queryParameters.getSearchString());
+		
+		if ( !isSearchable(networkId)) {
+			 logger.error("[end: User doesn't have read permission to retrieve neighborhood subnetwork for network {} with phrase\"{}\"]",  
+					   networkId, queryParameters.getSearchString());
+		       throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
+		}
+
+		Set<String> aspects = queryParameters.getAspects();
+		if (aspects == null) {
+			aspects = new TreeSet<>();
+			queryParameters.setAspects(aspects);
+		}
+		if ( aspects.size() == 0) {
+			aspects.add(NodesElement.ASPECT_NAME);
+			aspects.add(EdgesElement.ASPECT_NAME);
+		}
+		
+		try (CXNetworkExporter cxexporter = new CXNetworkExporter(networkId);) {
+
+			PipedInputStream in = new PipedInputStream();
+			PipedOutputStream out;
+			try {
+				out = new PipedOutputStream(in);
+			} catch (IOException e) {
+				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+			}
+			
+			new CXNetworkQueryWriterThread(out,networkId,queryParameters).start();
+			//setZipFlag();
+			logger.info("[end: Return cx network {}]", networkId);
+			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+		} 
+	}
+	
+	
 	
 	@PermitAll
 	@POST
