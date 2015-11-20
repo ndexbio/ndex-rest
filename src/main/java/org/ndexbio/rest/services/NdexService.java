@@ -96,7 +96,7 @@ public abstract class NdexService
                     httpRequest.getRemoteAddr() :
                     httpRequest.getHeader("X-FORWARDED-FOR"));
 
-        logger.info("[start: httpRequest received; stamped with {}]", this.getRequestsUniqueId());
+  //      logger.info("[start: httpRequest received; stamped with {}]", this.getRequestsUniqueId());
     }
     
     /**************************************************************************

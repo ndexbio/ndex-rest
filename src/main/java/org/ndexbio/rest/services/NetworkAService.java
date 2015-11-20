@@ -2068,21 +2068,14 @@ public class NetworkAService extends NdexService {
 				}
 				  
 				//logger.info("Start deleting network " + id);
-				networkDao.logicalDeleteNetwork(id);
-				networkDao.commit();
+				networkDao.logicalDeleteNetwork(id); // this function committed the changes.
+			//	networkDao.commit();
 				Task task = new Task();
 				task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
 				task.setResource(id);
 				NdexServerQueue.INSTANCE.addSystemTask(task);
 			}
 			db = null;
-			// remove the solr Index
-			SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id);
-			try {
-				idxManager.dropIndex();
-			} catch (SolrServerException | HttpSolrClient.RemoteSolrException se ) {
-				logger.warn("node term index for network "+ id +" not found in Solr. Ignore deleteing solr index for it: " + se.getMessage());
-			}
 			
 			logger.info("[end: Deleted network {}]", id);
 		} finally {
