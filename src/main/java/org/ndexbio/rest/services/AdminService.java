@@ -55,12 +55,11 @@ import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
 @Path("/admin")
 public class AdminService extends NdexService {
-	static Logger logger = LoggerFactory.getLogger(AdminService.class);
+	private static Logger logger = LoggerFactory.getLogger(AdminService.class);
 	
-	static final String networkPostEdgeLimit = "NETWORK_POST_ELEMENT_LIMIT";
 //	static final String defaultPostEdgeLimit = "800000";
 	
-	static final String postElementLimitProp = "ServerPostElementLimit";
+	private static final String postElementLimitProp = "ServerPostElementLimit";
 
 	public AdminService(@Context HttpServletRequest httpRequest)
     {
@@ -91,13 +90,13 @@ public class AdminService extends NdexService {
 
 			Map<String,String> props = status.getProperties();
 			
-			String edgeLimit = Configuration.getInstance().getProperty(networkPostEdgeLimit);
+			String edgeLimit = Configuration.getInstance().getProperty(Configuration.networkPostEdgeLimit);
 			if ( edgeLimit != null ) {
 				try {
 					int i = Integer.parseInt(edgeLimit);
 					props.put(postElementLimitProp, Integer.toString(i));
 				} catch( NumberFormatException e) {
-					logger.error("[Invalid value in server property {}]", networkPostEdgeLimit);
+					logger.error("[Invalid value in server property {}]", Configuration.networkPostEdgeLimit);
 			//		props.put("ServerPostEdgeLimit", "-1");  //defaultPostEdgeLimit);
 				}
 			} /* else {
