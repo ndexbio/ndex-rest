@@ -599,16 +599,16 @@ public class NetworkAService extends NdexService {
 					throw new ObjectNotFoundException("Network with ID: " + networkId + " doesn't exist.");
 				networkDocDao.close();
 				networkDocDao = null;
+				logger.info("[end: Got networkSummary of network {}]", networkId);
 				return summary;
 
 			}
 		} finally {
 			if (networkDocDao != null) networkDocDao.close();
-			logger.info("[end: Got networkSummary of network {}]", networkId);
 		}
 		
 		logger.error("[end: Getting networkSummary of network {}. Throwing UnauthorizedOperationException ...]", networkId);	
-        throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+        throw new UnauthorizedOperationException("User " + getLoggedInUser().getAccountName() + " doesn't have read access to network " + networkId);
 	}
 
 
@@ -1470,6 +1470,12 @@ public class NetworkAService extends NdexService {
 		} finally {
 			if (db != null) db.close();
 			logger.info("[end: Updated profile information of network {}]", networkId);
+			try {
+				Thread.sleep(20000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 	}
 
