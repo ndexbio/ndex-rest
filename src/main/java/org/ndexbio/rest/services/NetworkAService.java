@@ -608,7 +608,12 @@ public class NetworkAService extends NdexService {
 		}
 		
 		logger.error("[end: Getting networkSummary of network {}. Throwing UnauthorizedOperationException ...]", networkId);	
-        throw new UnauthorizedOperationException("User " + getLoggedInUser().getAccountName() + " doesn't have read access to network " + networkId);
+		if ( getLoggedInUser() !=null)
+			throw new UnauthorizedOperationException("User " + 
+		         getLoggedInUser().getAccountName() + " doesn't have read access to network " + networkId);
+		else 
+			throw new UnauthorizedOperationException("Anonymous users don't have read access to network " + networkId);
+			
 	}
 
 
