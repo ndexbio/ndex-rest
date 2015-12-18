@@ -1475,12 +1475,6 @@ public class NetworkAService extends NdexService {
 		} finally {
 			if (db != null) db.close();
 			logger.info("[end: Updated profile information of network {}]", networkId);
-			try {
-				Thread.sleep(20000);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
 		}
 	}
 
