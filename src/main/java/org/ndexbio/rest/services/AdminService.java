@@ -30,20 +30,29 @@
  */
 package org.ndexbio.rest.services;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.eclipse.jetty.server.Server;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.orientdb.GroupDocDAO;
+import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.object.Account;
 import org.ndexbio.model.object.NdexStatus;
+import org.ndexbio.model.object.User;
 import org.ndexbio.rest.server.StandaloneServer;
 import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
@@ -160,29 +169,30 @@ public class AdminService extends NdexService {
 
 	} 
 	
-/*	
-	@GET
-	@Path("/processqueue")
+	
+	@POST
+	@PermitAll
+	@Path("/accounts")
 	@Produces("application/json")
-	public void processTasks() throws NdexException	{
-		if ( !isSystemUser())
-			throw new NdexException ("Only Sysetm users are allowed to call task runner from API.");
-	        	NdexDatabase db = null;
-	     		try {
-	     			LoggerFactory.getLogger(AdminService.class).info("Task processor started.") ;
-	     		    db = NdexDatabase.getInstance();
-	     			NdexQueuedTaskProcessor processor = new NdexQueuedTaskProcessor(
-	     				db );
-					processor.processAll();
-				} catch (NdexException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-					LoggerFactory.getLogger(AdminService.class).error("Failed to process queued task.  " + e.getMessage()) ;
-				} finally {
-					LoggerFactory.getLogger(AdminService.class).info("Task processor finished. Db connection closed.") ;
+	public List<Account> getAccountsByuuids(final Set<String> uuidStrs) throws NdexException	{
+		List<Account> accountList = new ArrayList<> (uuidStrs.size());
+		try ( UserDocDAO userdao = new UserDocDAO() ) {
+			GroupDocDAO groupdao = new GroupDocDAO(userdao.getDBConnection());
+			for ( String uuidStr : uuidStrs) {
+				UUID uuid = UUID.fromString(uuidStr);
+				try {
+					User u = userdao.getUserById(uuid);
+					accountList.add(u);
+				} catch ( ObjectNotFoundException e) {
+					accountList.add(groupdao.getGroupById(uuid));
 				}
+			
+			}
+		}
+		
+		return accountList;
 	}
-*/	
+	
 /*
 	@GET
 	@Path("/backupdb")

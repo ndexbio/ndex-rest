@@ -30,11 +30,7 @@
  */
 package org.ndexbio.rest.services;
 
-import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -72,10 +68,7 @@ import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.Security;
-import org.ndexbio.common.access.NdexAOrientDBConnectionPool;
 import org.ndexbio.common.access.NdexDatabase;
-
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
