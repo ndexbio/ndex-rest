@@ -123,9 +123,9 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/{userId}/verify/{verificationCode}")
 	@NdexOpenFunction
-	@Produces("application/json")
+//	@Produces("application/json")
 	@ApiDoc("Verify the given user with UUID, account name and verificationCode")
-	public User verifyUser(@PathParam("userId") String userUUID,
+	public String verifyUser(@PathParam("userId") String userUUID,
 //					@PathParam("accountName") String accountName, 
 					@PathParam("verificationCode") String verificationCode
 				
@@ -137,10 +137,11 @@ public class UserService extends NdexService {
 		
 		try (UserDocDAO userdao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
 			
-			userdao.verifyUser(userUUID, verificationCode);
+			String accountName = userdao.verifyUser(userUUID, verificationCode);
 			userdao.commit();
 			logger.info("[end: User {} verified ]", userUUID);
-			return userdao.getUserById(UUID.fromString(userUUID));
+			return // userdao.getUserById(UUID.fromString(userUUID));
+					"User account " + accountName + " has been activated."; 
 		}
 	}
 
@@ -187,6 +188,24 @@ public class UserService extends NdexService {
 			
 
 			if ( verificationCode != null ) {  // need to email the verification code.			
+				
+				// construct the URL for the verification rest service:
+				
+				String protocal = this._httpRequest.getHeader("x-forwarded-proto");
+				if ( protocal ==null)
+					protocal = this._httpRequest.getScheme();
+				
+				String forwardedHost = this._httpRequest.getHeader("x-forwarded-host");
+				if ( forwardedHost == null) {
+					forwardedHost = this._httpRequest.getServerName();
+					int port = this._httpRequest.getServerPort();
+					forwardedHost += port + "/ndexbio-rest/";
+				} else 
+					forwardedHost += "/rest/";
+				
+				String restURL = protocal + "://" + forwardedHost+ "user/" + user.getExternalId().toString() 
+						+ "/verify/" + verificationCode;
+						
 			
 				// Get system properties
 				Properties properties = System.getProperties();
@@ -212,11 +231,18 @@ public class UserService extends NdexService {
 		          message.setSubject("Your New NDEx Account Verification Code");
 
 		          // Now set the actual message
-		          message.setText("Dear " + user.getAccountName() + " account owner,\n\n" + 
-		               "Please go to NDEx web site and use this verification code to activate your new NDEx account. " + 
-		        		  "This verification code will be expire in 8 hours."
-		        		  + "\n\nVerification code: " + user.getExternalId().toString() + ":" + verificationCode + 
-		        		  "\n\nBest Regards,\nNDEx team");
+		          String userNameStr = (user.getFirstName()!=null ? user.getFirstName(): "") + " "+ 
+		        		  (user.getLastName() !=null ? user.getLastName() : "");
+		          String messageBody = "Dear " + userNameStr + ",\n" + 
+		        		  	"Thank you for registering an NDEx account.\n" + 
+		        		  	"Please click the link below to confirm your email address and start using NDEx now!\n" +
+		        		  	"You can also copy and paste the link in a new browser window. "+
+		        		  	"Please note that you have 24 hours to complete the registration process.\n\n" +
+
+							restURL + 
+							"\n\nThis is an automated message, please do not respond to this email. If you need help, please contact us by emailing: support@ndexbio.org\n\n" +
+							"Best Regards,\nNDEx team";
+		          message.setText(messageBody);
 
 		          // Send message
 		          Transport.send(message);
@@ -452,6 +478,12 @@ public class UserService extends NdexService {
 		}
 		
 		Map<String, String[]> paras = this._httpRequest.getParameterMap();
+		
+		String hostName = this._httpRequest.getLocalName();
+		String serverName = this._httpRequest.getServerName();
+		String fwdedhost = this._httpRequest.getHeader("x-forwarded-host");
+		System.out.println(hostName + ",serverName:" + serverName + ", forwarded: " + fwdedhost);
+		
 		
 		String[] foo = paras.get("id");
        
