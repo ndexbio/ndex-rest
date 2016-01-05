@@ -61,7 +61,7 @@ public abstract class NdexService
 {
 	public static final String NdexZipFlag = "NdexZipped";
 	
-    private HttpServletRequest _httpRequest;
+    protected HttpServletRequest _httpRequest;
     private String requestsUniqueId;
     
 	static Logger logger = LoggerFactory.getLogger(NdexService.class);

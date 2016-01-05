@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -89,6 +90,9 @@ import org.slf4j.Logger;
 
 @Path("/user")
 public class UserService extends NdexService {
+	
+	private static final String GOOGLE_OAUTH_FLAG = "USE_GOOGLE_AUTHENTICATION";
+	
 	
 	static Logger logger = LoggerFactory.getLogger(UserService.class);
 
@@ -428,6 +432,47 @@ public class UserService extends NdexService {
 		logger.info("[end: user {} autenticated from Auth header]",  u.getAccountName());
 		return this.getLoggedInUser();
 	}
+	
+
+
+	/**************************************************************************
+	 * Authenticates a user from Google OAuth openID Connect
+	 * 
+	 * @return JWT object to the client
+	 * @throws NdexException 
+	 **************************************************************************/
+	@GET
+	@PermitAll
+	@NdexOpenFunction
+	@Path("/google/authenticate")
+	@Produces("application/json")
+	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
+	public User authenticateFromGoogle()
+			throws NdexException {
+		
+		logger.info("[start: Authenticate user using Google oauth endpoint]");
+		
+		String useGoogle= Configuration.getInstance().getProperty(GOOGLE_OAUTH_FLAG);
+		if ( useGoogle == null || !useGoogle.trim().toLowerCase().equals("true")) {
+			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
+			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
+		}
+		
+		Map<String, String[]> paras = this._httpRequest.getParameterMap();
+		
+		String[] foo = paras.get("id");
+       
+		User u = this.getLoggedInUser(); 
+		if ( u == null ) {
+			logger.error("[end: Unauthorized user. Throwing UnauthorizedOperationException...]");
+			throw new UnauthorizedOperationException("Unauthorized user " + u.getAccountName());
+		}	
+		
+		logger.info("[end: user {} autenticated from Auth header]",  u.getAccountName());
+		return this.getLoggedInUser();
+	}
+	
+	
 	
 	
 	
