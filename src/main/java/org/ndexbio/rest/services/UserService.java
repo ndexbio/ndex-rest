@@ -31,10 +31,16 @@
 package org.ndexbio.rest.services;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.security.PermitAll;
 import javax.mail.Message;
@@ -55,6 +61,15 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
 import org.apache.commons.lang.RandomStringUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicNameValuePair;
 import org.ndexbio.model.exceptions.*;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
@@ -69,7 +84,6 @@ import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.common.access.NdexDatabase;
-
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.security.LDAPAuthenticator;
@@ -85,6 +99,7 @@ import org.slf4j.Logger;
 public class UserService extends NdexService {
 	
 	private static final String GOOGLE_OAUTH_FLAG = "USE_GOOGLE_AUTHENTICATION";
+	private static final String GOOGLE_OATH_KEY = "GOOGLE_OATH_KEY";
 	
 	
 	static Logger logger = LoggerFactory.getLogger(UserService.class);
@@ -459,6 +474,8 @@ public class UserService extends NdexService {
 	 * 
 	 * @return JWT object to the client
 	 * @throws NdexException 
+	 * @throws IOException 
+	 * @throws ClientProtocolException 
 	 **************************************************************************/
 	@GET
 	@PermitAll
@@ -467,7 +484,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
 	public User authenticateFromGoogle()
-			throws NdexException {
+			throws NdexException, ClientProtocolException, IOException {
 		
 		logger.info("[start: Authenticate user using Google oauth endpoint]");
 		
@@ -477,15 +494,64 @@ public class UserService extends NdexService {
 			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
 		}
 		
-		Map<String, String[]> paras = this._httpRequest.getParameterMap();
+		String apiState = Configuration.getInstance().getProperty(GOOGLE_OATH_KEY);
+		if ( apiState == null)
+			throw new NdexException("GOOGLE_OATH_KEY property is not defined in ndex.property file.");
+//		Map<String, String[]> paras = this._httpRequest.getParameterMap();
 		
-		String hostName = this._httpRequest.getLocalName();
-		String serverName = this._httpRequest.getServerName();
-		String fwdedhost = this._httpRequest.getHeader("x-forwarded-host");
-		System.out.println(hostName + ",serverName:" + serverName + ", forwarded: " + fwdedhost);
+//		String hostName = this._httpRequest.getLocalName();
+//		String serverName = this._httpRequest.getServerName();
+//		String fwdedhost = this._httpRequest.getHeader("x-forwarded-host");
+		String qStr = this._httpRequest.getQueryString();
+   	    System.out.println(qStr);
+
+//		state=111333222url%3Dhttp://ws1.ndexbio.org/rest/user/google/authenticate&code=4/ifDnoTR2n3MnYcUHGBDMadiqAtFwcMm0AB0lfnK4uFE&authuser=0
+		 Pattern p = Pattern.compile("state=(.*)url%3D(http://.*/user/google/authenticate)&code=(.*)&authuser=.*");
+		 Matcher m = p.matcher(qStr);
+		 boolean b = m.matches();
+		 String state = m.group(1);
+		 String redirectURI = m.group(2);
+		 String code = m.group(3);
+		 System.out.println(state + "," + redirectURI + "," + code);
+
+		 if ( state ==null || !state.equals(apiState))
+			 throw new NdexException("GOOGLE_OATH_KEY value mismatch between config and Google request");
+		 
+		 HttpClient httpclient = HttpClients.createDefault();
+		 HttpPost httppost = new HttpPost("https://www.googleapis.com/oauth2/v4/token");
+
+		 // Request parameters and other properties.
+		 List<NameValuePair> params = new ArrayList<>(5);
+		 params.add(new BasicNameValuePair("code", code));
+		 params.add(new BasicNameValuePair("client_id", "7378376161-vu7audi0s6fck7bbl9ojo31onjpedhs2.apps.googleusercontent.com"));
+		 params.add(new BasicNameValuePair("client_secret", "bReyi0bTMzvy9ayu97fYYZyx"));
+		 params.add(new BasicNameValuePair("redirect_uri", redirectURI ));
+		 params.add(new BasicNameValuePair("grant_type", "authorization_code" ));
+		 httppost.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
+
+		 //Execute and get the response.
+		 HttpResponse response = httpclient.execute(httppost);
+		 HttpEntity entity = response.getEntity();
+
+		 if (entity != null) {
+		     InputStream instream = entity.getContent();
+		     try {
+		         // do something useful
+		    	 java.util.Scanner s = new java.util.Scanner(instream).useDelimiter("\\A");
+		    	 String theString = s.hasNext() ? s.next() : "";
+		    	 System.out.println( theString);
+		     } finally {
+		         instream.close();
+		     }
+		 }
+		 
+//		String sPath = this._httpRequest.getServletPath();
+		
+//		System.out.println(hostName + ",serverName:" + serverName + ", forwarded: " + fwdedhost + 
+//				", queryString: " + qStr + ", servletPath:" + sPath);
 		
 		
-		String[] foo = paras.get("id");
+//		String[] foo = paras.get("id");
        
 		User u = this.getLoggedInUser(); 
 		if ( u == null ) {
