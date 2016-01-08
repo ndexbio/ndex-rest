@@ -2,6 +2,7 @@ package org.ndexbio.security;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -195,4 +196,50 @@ public class GoogleOpenIDAuthenticator {
 		
 		throw new NdexException ("Access token already expired.");
 	}
+	
+	public static void revokeAccessToken ( String accessToken) throws ClientProtocolException, IOException, NdexException {
+		 HttpClient httpclient = HttpClients.createDefault();
+		 HttpGet httpget = new HttpGet("https://accounts.google.com/o/oauth2/revoke?token="
+				 + accessToken);
+
+		 //Execute and get the response.
+		 HttpResponse response = httpclient.execute(httpget);
+		 if (response.getStatusLine().getStatusCode() != 200) 
+			 throw new NdexException ("Failed to revoke accessToken on Google.");
+		
+	}
+	
+	public String getNewAccessTokenByRefreshToken(String refreshToken) throws ClientProtocolException, IOException {
+		 HttpClient httpclient = HttpClients.createDefault();
+		 HttpPost httppost = new HttpPost("https://www.googleapis.com/oauth2/v4/token");
+
+		 // Request parameters and other properties.
+		 List<NameValuePair> params = new ArrayList<>(5);
+		 params.add(new BasicNameValuePair("refresh_token", refreshToken));
+		 params.add(new BasicNameValuePair("client_id", clientID)); 
+				 //"7378376161-vu7audi0s6fck7bbl9ojo31onjpedhs2.apps.googleusercontent.com"));
+		 params.add(new BasicNameValuePair("client_secret", clientSecret));
+				 //"bReyi0bTMzvy9ayu97fYYZyx"));
+		 params.add(new BasicNameValuePair("grant_type", "authorization_code" ));
+		 httppost.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
+
+		 //Execute and get the response.
+		 HttpResponse response = httpclient.execute(httppost);
+		 HttpEntity entity = response.getEntity();
+
+		 String theString =null;
+		 if (entity != null) {
+		     InputStream instream = entity.getContent();
+		     try {
+		         // do something useful
+		    	 java.util.Scanner s = new java.util.Scanner(instream).useDelimiter("\\A");
+		    	 theString = s.hasNext() ? s.next() : "";
+		    	 System.out.println( theString);
+		     } finally {
+		         instream.close();
+		     }
+		 }
+		 return theString;
+	}
+	
 }
