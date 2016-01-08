@@ -35,6 +35,7 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -67,6 +68,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
@@ -80,16 +82,20 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
+import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
-import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
+import org.ndexbio.security.OAuthUserRecord;
 import org.ndexbio.task.Configuration;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
@@ -98,8 +104,8 @@ import org.slf4j.Logger;
 @Path("/user")
 public class UserService extends NdexService {
 	
-	private static final String GOOGLE_OAUTH_FLAG = "USE_GOOGLE_AUTHENTICATION";
-	private static final String GOOGLE_OATH_KEY = "GOOGLE_OATH_KEY";
+//	private static final String GOOGLE_OAUTH_FLAG = "USE_GOOGLE_AUTHENTICATION";
+//	private static final String GOOGLE_OATH_KEY = "GOOGLE_OATH_KEY";
 	
 	
 	static Logger logger = LoggerFactory.getLogger(UserService.class);
@@ -483,88 +489,27 @@ public class UserService extends NdexService {
 	@Path("/google/authenticate")
 	@Produces("application/json")
 	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
-	public User authenticateFromGoogle()
+	public String authenticateFromGoogle()
 			throws NdexException, ClientProtocolException, IOException {
 		
 		logger.info("[start: Authenticate user using Google oauth endpoint]");
-		
-		String useGoogle= Configuration.getInstance().getProperty(GOOGLE_OAUTH_FLAG);
-		if ( useGoogle == null || !useGoogle.trim().toLowerCase().equals("true")) {
+
+		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+		if ( authenticator ==null ) {
 			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
 			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
 		}
 		
-		String apiState = Configuration.getInstance().getProperty(GOOGLE_OATH_KEY);
-		if ( apiState == null)
-			throw new NdexException("GOOGLE_OATH_KEY property is not defined in ndex.property file.");
-//		Map<String, String[]> paras = this._httpRequest.getParameterMap();
-		
-//		String hostName = this._httpRequest.getLocalName();
-//		String serverName = this._httpRequest.getServerName();
-//		String fwdedhost = this._httpRequest.getHeader("x-forwarded-host");
 		String qStr = this._httpRequest.getQueryString();
    	    System.out.println(qStr);
 
-//		state=111333222url%3Dhttp://ws1.ndexbio.org/rest/user/google/authenticate&code=4/ifDnoTR2n3MnYcUHGBDMadiqAtFwcMm0AB0lfnK4uFE&authuser=0
-		 Pattern p = Pattern.compile("state=(.*)url%3D(http://.*/user/google/authenticate)&code=(.*)&authuser=.*");
-		 Matcher m = p.matcher(qStr);
-		 boolean b = m.matches();
-		 String state = m.group(1);
-		 String redirectURI = m.group(2);
-		 String code = m.group(3);
-		 System.out.println(state + "," + redirectURI + "," + code);
-
-		 if ( state ==null || !state.equals(apiState))
-			 throw new NdexException("GOOGLE_OATH_KEY value mismatch between config and Google request");
-		 
-		 HttpClient httpclient = HttpClients.createDefault();
-		 HttpPost httppost = new HttpPost("https://www.googleapis.com/oauth2/v4/token");
-
-		 // Request parameters and other properties.
-		 List<NameValuePair> params = new ArrayList<>(5);
-		 params.add(new BasicNameValuePair("code", code));
-		 params.add(new BasicNameValuePair("client_id", "7378376161-vu7audi0s6fck7bbl9ojo31onjpedhs2.apps.googleusercontent.com"));
-		 params.add(new BasicNameValuePair("client_secret", "bReyi0bTMzvy9ayu97fYYZyx"));
-		 params.add(new BasicNameValuePair("redirect_uri", redirectURI ));
-		 params.add(new BasicNameValuePair("grant_type", "authorization_code" ));
-		 httppost.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
-
-		 //Execute and get the response.
-		 HttpResponse response = httpclient.execute(httppost);
-		 HttpEntity entity = response.getEntity();
-
-		 if (entity != null) {
-		     InputStream instream = entity.getContent();
-		     try {
-		         // do something useful
-		    	 java.util.Scanner s = new java.util.Scanner(instream).useDelimiter("\\A");
-		    	 String theString = s.hasNext() ? s.next() : "";
-		    	 System.out.println( theString);
-		     } finally {
-		         instream.close();
-		     }
-		 }
-		 
-//		String sPath = this._httpRequest.getServletPath();
-		
-//		System.out.println(hostName + ",serverName:" + serverName + ", forwarded: " + fwdedhost + 
-//				", queryString: " + qStr + ", servletPath:" + sPath);
-		
-		
-//		String[] foo = paras.get("id");
-       
-		User u = this.getLoggedInUser(); 
-		if ( u == null ) {
-			logger.error("[end: Unauthorized user. Throwing UnauthorizedOperationException...]");
-			throw new UnauthorizedOperationException("Unauthorized user " + u.getAccountName());
-		}	
-		
-		logger.info("[end: user {} autenticated from Auth header]",  u.getAccountName());
-		return this.getLoggedInUser();
+ 	    String theString =authenticator.getIDTokenFromQueryStr(qStr);
+		return theString;
 	}
 	
 	
 	
+
 	
 	
 	/**************************************************************************

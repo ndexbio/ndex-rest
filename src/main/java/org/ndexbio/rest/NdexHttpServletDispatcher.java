@@ -33,7 +33,9 @@ package org.ndexbio.rest;
 import java.io.File;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Timer;
+import java.util.TreeMap;
 import java.util.logging.Logger;
 
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
@@ -46,6 +48,9 @@ import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
+import org.ndexbio.security.GoogleOpenIDAuthenticator;
+import org.ndexbio.security.OAuthUserRecord;
 import org.ndexbio.task.ClientTaskProcessor;
 import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexServerQueue;
@@ -74,6 +79,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	private SystemTaskProcessor systemTaskProcessor;
 	private ClientTaskProcessor clientTaskProcessor;
 	
+	
 	public NdexHttpServletDispatcher() {
 		super();
 	}
@@ -82,6 +88,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	public void init(javax.servlet.ServletConfig servletConfig)
 	          throws javax.servlet.ServletException {
 		super.init(servletConfig);
+		
 		
 		Configuration configuration = null;
 		try {
@@ -189,6 +196,12 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
             logger.info("Error occured when shutting down Orient db.");
         }
         
+        // revoke the googleTokens 
+        
+        GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+        
+        authenticator.revokeAllTokens();
+        
 		super.destroy();
 	}
 	
@@ -219,5 +232,6 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			logger.info (list.size() + " unfinished user tasks found for user task queue.");
 		} 
 	}
+	
 
 }

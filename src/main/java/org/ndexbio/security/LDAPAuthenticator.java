@@ -48,6 +48,7 @@ import javax.naming.directory.SearchResult;
 import javax.naming.ldap.InitialLdapContext;
 import javax.naming.ldap.LdapContext;
 
+import org.apache.commons.lang.RandomStringUtils;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NewUser;
@@ -292,7 +293,8 @@ public class LDAPAuthenticator {
                 NewUser newUser = new NewUser();
 				
                 newUser.setAccountName(username);
-                newUser.setPassword(password);
+    			newUser.setPassword(RandomStringUtils.random(25));
+
                 
                 Attribute attr =attrs.get("givenName");
                 if ( attr.size()>0) {

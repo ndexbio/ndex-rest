@@ -59,6 +59,7 @@ import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.services.NdexOpenFunction;
 import org.ndexbio.security.DelegatedLDAPAuthenticator;
+import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
@@ -82,9 +83,12 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     //		new ServerResponse("User not found.", 401, new Headers<>());
     //private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<>());
     private static LDAPAuthenticator ADAuthenticator = null;
+    private static GoogleOpenIDAuthenticator googleOAuthAuthenticator = null;
+    
     private boolean authenticatedUserOnly = false;
     private static final String AUTHENTICATED_USER_ONLY="AUTHENTICATED_USER_ONLY";
     private static final String AD_CREATE_USER_AUTOMATICALLY="AD_CREATE_USER_AUTOMATICALLY";
+    private static final String USE_GOOGLE_OAUTH = "USE_GOOGLE_AUTHENTICATION";
     
     public BasicAuthenticationFilter() throws NdexException {
     	super();
@@ -96,6 +100,11 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     	}
     	String value = config.getProperty(AUTHENTICATED_USER_ONLY);
 		_logger.info("authenticatedUserOnly setting is " + value);
+		
+		String useGoogleOAuth = config.getProperty(USE_GOOGLE_OAUTH);
+		if ( useGoogleOAuth !=null && useGoogleOAuth.equalsIgnoreCase("true")) {
+			googleOAuthAuthenticator = new GoogleOpenIDAuthenticator(config);
+		}
 
     	if ( value !=null && Boolean.parseBoolean(value)) {
     		_logger.info("Server running in authenticatedUserOnly mode.");
@@ -106,6 +115,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     public static LDAPAuthenticator getLDAPAuthenticator() {
     	return ADAuthenticator;
     }
+    
+    public static GoogleOpenIDAuthenticator getGoogleOAuthAuthenticatior() { return googleOAuthAuthenticator;}
     
     @Override
     public void filter(ContainerRequestContext requestContext)
@@ -288,25 +299,32 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         if (authHeader == null || authHeader.isEmpty())
             return null;
 
-        if ( authHeader.get(0) == null )
+        String authenticationStr =  authHeader.get(0); 
+        if (  authenticationStr == null )
         	throw new UnauthorizedOperationException("Authorization value was null in HTTP request header.");
         
-        if ( ! authHeader.get(0).startsWith(basicAuthPrefix))
-        	throw new UnauthorizedOperationException("Authorization is not using Basic auth.");
+        if (  authenticationStr.startsWith(basicAuthPrefix)) {
         
-        final String encodedAuthInfo = authHeader.get(0).substring(basicAuthPrefix.length());
-        final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+        	final String encodedAuthInfo = authHeader.get(0).substring(basicAuthPrefix.length());
+        	final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
         
-        String[] result = new String[2];
+        	String[] result = new String[2];
         
-        int idx = decodedAuthInfo.indexOf(":");
+        	int idx = decodedAuthInfo.indexOf(":");
         
-        if ( idx == -1) 
-        	throw new UnauthorizedOperationException("Malformed authorization value in HTTP request header.");
+        	if ( idx == -1) 
+        		throw new UnauthorizedOperationException("Malformed authorization value in HTTP request header.");
         
-        result[0] = decodedAuthInfo.substring(0, idx);
-        result[1] = decodedAuthInfo.substring(idx+1);
-        return result; //decodedAuthInfo.split(":");
+        	result[0] = decodedAuthInfo.substring(0, idx);
+        	result[1] = decodedAuthInfo.substring(idx+1);
+        	return result; //decodedAuthInfo.split(":");
+        }
+        
+        if ( authenticationStr.startsWith("Bearer ")) { // user OAuth 
+        	
+        }
+        
+        throw new UnauthorizedOperationException("Authorization is not using Basic auth.");
     }
     
 
