@@ -508,7 +508,30 @@ public class UserService extends NdexService {
 	}
 	
 	
-	
+	@GET
+	@PermitAll
+	@NdexOpenFunction
+	@Path("/google/authenticate/renew/token={accessToken}&refresh_token={refreshToken}")
+	@Produces("application/json")
+	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
+	public String renewGoogleToken(String accessToken, String refreshToken)
+			throws NdexException, ClientProtocolException, IOException {
+		
+		logger.info("[start: renew Google access token by refresh token]");
+
+		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+		if ( authenticator ==null ) {
+			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
+			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
+		}
+		
+		//String qStr = this._httpRequest.getQueryString();
+  
+ 	    String theString =authenticator.getNewAccessTokenByRefreshToken(accessToken, refreshToken);
+ 	    
+		return theString;
+	}
+		
 
 	
 	

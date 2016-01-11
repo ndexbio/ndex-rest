@@ -14,6 +14,10 @@ public class OAuthUserRecord {
 
 	public String getUserUUID() {return userUUID;}
 	
+	public void setExpirationTime(long expiration_time) {
+		this.expirationTime = expiration_time;
+	}
+	
 	public boolean isExpired () {
 		return Calendar.getInstance().getTimeInMillis() > expirationTime;
 	}

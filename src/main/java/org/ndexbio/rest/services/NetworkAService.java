@@ -30,8 +30,6 @@
  */
 package org.ndexbio.rest.services;
 
-import org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;

@@ -209,8 +209,14 @@ public class GoogleOpenIDAuthenticator {
 		
 	}
 	
-	public String getNewAccessTokenByRefreshToken(String refreshToken) throws ClientProtocolException, IOException {
-		 HttpClient httpclient = HttpClients.createDefault();
+	public String getNewAccessTokenByRefreshToken(String expiredAccessToken, String refreshToken) throws ClientProtocolException, IOException, NdexException {
+		
+		OAuthUserRecord r = googleTokenTable .get(expiredAccessToken);
+		
+		if ( r == null) throw new NdexException ("AccessToken not found in Ndex server.");
+		
+		
+		HttpClient httpclient = HttpClients.createDefault();
 		 HttpPost httppost = new HttpPost("https://www.googleapis.com/oauth2/v4/token");
 
 		 // Request parameters and other properties.
@@ -239,6 +245,24 @@ public class GoogleOpenIDAuthenticator {
 		         instream.close();
 		     }
 		 }
+		 
+		 ObjectMapper mapper = new ObjectMapper();
+		 
+		 Map<String,Object> googleToken = mapper.readValue(theString, new TypeReference<Map<String,Object>>() {});
+
+		 String accessToken = (String)googleToken.get("access_token");
+		 Integer expiresIn = (Integer)googleToken.get("expires_in");
+		 long newExpirationTime = Calendar.getInstance().getTimeInMillis() + expiresIn * 1000; 
+		 
+		 // get user profile from access_token
+		 OAuthUserRecord userRec = this.googleTokenTable.remove(expiredAccessToken);
+		 
+		 if ( userRec == null)
+			 throw new NdexException ("Access token " + expiredAccessToken + " not found in Ndex.");
+		 
+		 userRec.setExpirationTime(newExpirationTime);
+		 googleTokenTable.put(accessToken, userRec);
+
 		 return theString;
 	}
 	

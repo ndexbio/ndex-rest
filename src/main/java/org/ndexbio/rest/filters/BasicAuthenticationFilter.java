@@ -33,6 +33,7 @@ package org.ndexbio.rest.filters;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.UUID;
 
 import javax.annotation.security.DenyAll;
 import javax.annotation.security.PermitAll;
@@ -44,6 +45,7 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.Provider;
 
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.common.access.NdexDatabase;
 import org.apache.log4j.MDC;
 import org.jboss.resteasy.core.Headers;
@@ -131,6 +133,19 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         try
         {
             authInfo = parseCredentials(requestContext);
+            if (authInfo.length == 1) { // google OAuth for now
+            	if ( googleOAuthAuthenticator == null) {
+                    throw new NdexException("Google OAuth is not enabled in NDEx server.");
+            	}
+  
+            	String token = authInfo[0].substring(7);
+            	
+            	try ( UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ) {
+                	String uuidStr = googleOAuthAuthenticator.GetUserUUIDFromAccessToke(token);
+             		authUser = dao.getUserById(UUID.fromString(uuidStr));
+            	}	
+            } else {
+            
             MDC.put("UserName", ((authInfo != null) ? authInfo[0] : ""));
     		_logger.debug("[start: User={}]",  (authInfo != null) ? authInfo[0] : "");
             if(authInfo != null) {  // server need to authenticate the user.
@@ -138,7 +153,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             		if ( ADAuthenticator.authenticateUser(authInfo[0], authInfo[1]) ) {
             			authenticated = true;
             			_logger.debug("User {} authenticated by AD.", authInfo[0]);
-                		try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
+                		try ( UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ) {
                    		  try {
                 			authUser = dao.getUserByAccountName(authInfo[0]);
                    		  } catch (ObjectNotFoundException e) {
@@ -153,7 +168,6 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             		}
             	} else {
             		authInfo[0] = authInfo[0].toLowerCase();
-  //          		localConnection = NdexDatabase.getInstance().getAConnection();
             		try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
             		 authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
             		}
@@ -164,12 +178,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             		_logger.debug("[end: User {} authenticated]", authInfo[0]);
             		return;
             	}
-    /*        	else { 
-            		_logger.error("Can't get user object in authentication. URL:" + requestContext.getUriInfo().getPath());
-                    requestContext.abortWith(ACCESS_DENIED);
-            	}
-                return ; */
             }
+          }
         } catch (SecurityException | UnauthorizedOperationException e2 ) {
             _logger.info("Failed to authenticate a user: " + (authInfo == null? "": authInfo[0]) + " Path:" +
             		requestContext.getUriInfo().getPath(), e2);
@@ -321,7 +331,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         }
         
         if ( authenticationStr.startsWith("Bearer ")) { // user OAuth 
-        	
+            String[] result = new String[1];
+            result [0] = authenticationStr;
+            return result;
         }
         
         throw new UnauthorizedOperationException("Authorization is not using Basic auth.");
