@@ -2,7 +2,6 @@ package org.ndexbio.security;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -62,9 +61,9 @@ public class GoogleOpenIDAuthenticator {
 //	public String getClientSecret() { return clientSecret;}
 	
 
-	public void revokeAllTokens() {
+	public void revokeAllTokens() throws ClientProtocolException, IOException, NdexException {
 		for (String token : googleTokenTable.keySet() ) {
-			//TODO: revoke all tokens when shutdown. 
+			revokeAccessToken(token);
 		}
 	}
 	

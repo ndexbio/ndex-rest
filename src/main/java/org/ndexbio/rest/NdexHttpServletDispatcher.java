@@ -199,9 +199,11 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
         // revoke the googleTokens 
         
         GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
-        
-        authenticator.revokeAllTokens();
-        
+        try {
+          authenticator.revokeAllTokens();
+        } catch (Exception e)  {
+        	logger.severe("Error occured when revoking Google access tokens." + e.getMessage());
+        }
 		super.destroy();
 	}
 	
