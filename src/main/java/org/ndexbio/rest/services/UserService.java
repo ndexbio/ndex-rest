@@ -90,6 +90,7 @@ import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
+import org.ndexbio.security.OAuthTokenRenewRequest;
 import org.ndexbio.security.OAuthUserRecord;
 import org.ndexbio.task.Configuration;
 import org.slf4j.LoggerFactory;
@@ -508,13 +509,13 @@ public class UserService extends NdexService {
 	}
 	
 	
-	@GET
+	@POST
 	@PermitAll
 	@NdexOpenFunction
-	@Path("/google/authenticate/renew/token={accessToken}&refresh_token={refreshToken}")
+	@Path("/google/authenticate/renew")
 	@Produces("application/json")
-	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
-	public String renewGoogleToken(String accessToken, String refreshToken)
+	@ApiDoc("renew the given accessToken on Ndex server.")
+	public String renewGoogleToken(OAuthTokenRenewRequest renewRequest)
 			throws NdexException, ClientProtocolException, IOException {
 		
 		logger.info("[start: renew Google access token by refresh token]");
@@ -527,12 +528,31 @@ public class UserService extends NdexService {
 		
 		//String qStr = this._httpRequest.getQueryString();
   
- 	    String theString =authenticator.getNewAccessTokenByRefreshToken(accessToken, refreshToken);
+ 	    String theString =authenticator.getNewAccessTokenByRefreshToken(
+ 	    		renewRequest.getAccessToken(), renewRequest.getRefreshToken());
  	    
 		return theString;
 	}
 		
 
+	@GET
+	@PermitAll
+	@NdexOpenFunction
+	@Path("/google/authenticate/revoke/{accessToken}")
+	@Produces("application/json")
+	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
+	public void revokeGoogleAccessToken(@PathParam("accessToken") String accessToken)
+			throws NdexException, ClientProtocolException, IOException {
+		
+		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+		if ( authenticator ==null ) {
+			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
+			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
+		}
+
+		authenticator.revokeAccessToken(accessToken);
+ 	    
+	}
 	
 	
 	/**************************************************************************

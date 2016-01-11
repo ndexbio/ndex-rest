@@ -19,6 +19,7 @@ public class OAuthUserRecord {
 	}
 	
 	public boolean isExpired () {
-		return Calendar.getInstance().getTimeInMillis() > expirationTime;
+		long now = Calendar.getInstance().getTimeInMillis();
+		return now > expirationTime;
 	}
 }

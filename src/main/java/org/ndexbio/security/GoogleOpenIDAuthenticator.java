@@ -191,13 +191,13 @@ public class GoogleOpenIDAuthenticator {
 	public String GetUserUUIDFromAccessToke(String accessToken) throws NdexException {
 		OAuthUserRecord r = googleTokenTable.get(accessToken);
 		if ( r== null) throw new NdexException ("Invalid access token received.");
-		if (r.isExpired())
+		if (!r.isExpired())
 			return r.getUserUUID();
 		
 		throw new NdexException ("Access token already expired.");
 	}
 	
-	public static void revokeAccessToken ( String accessToken) throws ClientProtocolException, IOException, NdexException {
+	public void revokeAccessToken ( String accessToken) throws ClientProtocolException, IOException, NdexException {
 		 HttpClient httpclient = HttpClients.createDefault();
 		 HttpGet httpget = new HttpGet("https://accounts.google.com/o/oauth2/revoke?token="
 				 + accessToken);
@@ -206,6 +206,8 @@ public class GoogleOpenIDAuthenticator {
 		 HttpResponse response = httpclient.execute(httpget);
 		 if (response.getStatusLine().getStatusCode() != 200) 
 			 throw new NdexException ("Failed to revoke accessToken on Google.");
+		 
+		 googleTokenTable.remove(accessToken);
 		
 	}
 	
@@ -226,7 +228,7 @@ public class GoogleOpenIDAuthenticator {
 				 //"7378376161-vu7audi0s6fck7bbl9ojo31onjpedhs2.apps.googleusercontent.com"));
 		 params.add(new BasicNameValuePair("client_secret", clientSecret));
 				 //"bReyi0bTMzvy9ayu97fYYZyx"));
-		 params.add(new BasicNameValuePair("grant_type", "authorization_code" ));
+		 params.add(new BasicNameValuePair("grant_type", "refresh_token" ));
 		 httppost.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
 
 		 //Execute and get the response.
@@ -252,7 +254,7 @@ public class GoogleOpenIDAuthenticator {
 
 		 String accessToken = (String)googleToken.get("access_token");
 		 Integer expiresIn = (Integer)googleToken.get("expires_in");
-		 long newExpirationTime = Calendar.getInstance().getTimeInMillis() + expiresIn * 1000; 
+		 long newExpirationTime = Calendar.getInstance().getTimeInMillis() + expiresIn.longValue() * 1000; 
 		 
 		 // get user profile from access_token
 		 OAuthUserRecord userRec = this.googleTokenTable.remove(expiredAccessToken);

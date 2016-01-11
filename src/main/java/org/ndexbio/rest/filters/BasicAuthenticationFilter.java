@@ -125,7 +125,6 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     {
         final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)requestContext.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
         final Method method = methodInvoker.getMethod();
-//        ODatabaseDocumentTx localConnection = null;
         
         String[] authInfo = null;
         User authUser = null;
@@ -133,53 +132,52 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         try
         {
             authInfo = parseCredentials(requestContext);
-            if (authInfo.length == 1) { // google OAuth for now
-            	if ( googleOAuthAuthenticator == null) {
-                    throw new NdexException("Google OAuth is not enabled in NDEx server.");
-            	}
-  
-            	String token = authInfo[0].substring(7);
-            	
-            	try ( UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ) {
-                	String uuidStr = googleOAuthAuthenticator.GetUserUUIDFromAccessToke(token);
-             		authUser = dao.getUserById(UUID.fromString(uuidStr));
-            	}	
-            } else {
-            
-            MDC.put("UserName", ((authInfo != null) ? authInfo[0] : ""));
-    		_logger.debug("[start: User={}]",  (authInfo != null) ? authInfo[0] : "");
+
             if(authInfo != null) {  // server need to authenticate the user.
-            	if (ADAuthenticator !=null ) {
-            		if ( ADAuthenticator.authenticateUser(authInfo[0], authInfo[1]) ) {
-            			authenticated = true;
-            			_logger.debug("User {} authenticated by AD.", authInfo[0]);
-                		try ( UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ) {
-                   		  try {
-                			authUser = dao.getUserByAccountName(authInfo[0]);
-                   		  } catch (ObjectNotFoundException e) {
-                     			String autoCreateAccount = Configuration.getInstance().getProperty(AD_CREATE_USER_AUTOMATICALLY);
-                       			if ( autoCreateAccount !=null && Boolean.parseBoolean(autoCreateAccount)) {
-                       				NewUser newUser = ADAuthenticator.getNewUser(authInfo[0], authInfo[1]);
-                       				authUser = dao.createNewUser(newUser,null);
-                       			} else 
-                       				throw e;
-                       	  }	
-                   		} 
+
+            	if (authInfo.length == 1) { // google OAuth for now
+            		if ( googleOAuthAuthenticator == null) {
+            			throw new NdexException("Google OAuth is not enabled in NDEx server.");
             		}
+  
+            		String token = authInfo[0].substring(7);
+            	
+            		try ( UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ) {
+            			String uuidStr = googleOAuthAuthenticator.GetUserUUIDFromAccessToke(token);
+            			authUser = dao.getUserById(UUID.fromString(uuidStr));
+            		}	
             	} else {
-            		authInfo[0] = authInfo[0].toLowerCase();
-            		try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
-            		 authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
+            
+            		if (ADAuthenticator !=null ) {
+            			if ( ADAuthenticator.authenticateUser(authInfo[0], authInfo[1]) ) {
+            				authenticated = true;
+            				_logger.debug("User {} authenticated by AD.", authInfo[0]);
+            				try ( UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ) {
+            					try {
+            						authUser = dao.getUserByAccountName(authInfo[0]);
+            					} catch (ObjectNotFoundException e) {
+            						String autoCreateAccount = Configuration.getInstance().getProperty(AD_CREATE_USER_AUTOMATICALLY);
+            						if ( autoCreateAccount !=null && Boolean.parseBoolean(autoCreateAccount)) {
+            							NewUser newUser = ADAuthenticator.getNewUser(authInfo[0], authInfo[1]);
+            							authUser = dao.createNewUser(newUser,null);
+            						} else 
+            							throw e;
+            					}	
+            				} 
+            			}
+            		} else {
+            			authInfo[0] = authInfo[0].toLowerCase();
+            			try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
+            				authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
+            			}
             		}
             	}
-            
             	if (authUser != null) {
             		requestContext.setProperty("User", authUser);
-            		_logger.debug("[end: User {} authenticated]", authInfo[0]);
             		return;
             	}
+            	
             }
-          }
         } catch (SecurityException | UnauthorizedOperationException e2 ) {
             _logger.info("Failed to authenticate a user: " + (authInfo == null? "": authInfo[0]) + " Path:" +
             		requestContext.getUriInfo().getPath(), e2);
