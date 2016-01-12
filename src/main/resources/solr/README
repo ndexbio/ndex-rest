@@ -1,0 +1,3 @@
+ndex-node
+
+This directory has the configset schema files for indexing individual NDEx networks. This index is to support within network searches (neighborhood searches for now). It needs to be copied to directory $NDEX_HOME/solr/server/solr/configsets 
