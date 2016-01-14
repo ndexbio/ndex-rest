@@ -191,7 +191,7 @@ public class NetworkAService extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkId}/namespaceFile/{prefix}")
-	@Produces("application/json")
+	@Produces("text/plain")
     @ApiDoc("Retrieves the archived namespace file if exists. Otherwise 404 will be returned.")
 	public String getBELNamespaceFile(
 			@PathParam("networkId") final String networkId,
@@ -202,7 +202,7 @@ public class NetworkAService extends NdexService {
 		if ( isSearchable(networkId) ) { 
 			try ( SingleNetworkDAO dao = new SingleNetworkDAO (networkId) ) {
 				String s = dao.getNamespaceFile(prefix);
-				logger.info("[end: Return namespace file of {} ,in network {}]", networkId);
+				logger.info("[end: Return namespace file of {} ,in network {}]", prefix, networkId);
 				return s;
 			}
 		}
