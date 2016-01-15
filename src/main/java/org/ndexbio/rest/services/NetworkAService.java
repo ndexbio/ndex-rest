@@ -234,8 +234,7 @@ public class NetworkAService extends NdexService {
 			return (List<Namespace>) daoNew.getNamespaces(networkId);
 		} finally {
 			if ( db != null) db.close();
-			logger.info("[end: Got list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
-					networkId);
+			logger.info("[end: Got list of namespaces for network {}]",  networkId);
 		}
 
 	}

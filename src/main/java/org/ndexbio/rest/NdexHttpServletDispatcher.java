@@ -31,6 +31,7 @@
 package org.ndexbio.rest;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,7 @@ import java.util.Timer;
 import java.util.TreeMap;
 import java.util.logging.Logger;
 
+import org.apache.solr.client.solrj.SolrServerException;
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.NdexServerProperties;
@@ -45,6 +47,7 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.TaskDocDAO;
 import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
+import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
@@ -117,6 +120,10 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 				size = defaultPoolSize;
 			}
 			
+			// create solr core for network indexes if needed.
+			NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager();
+			mgr.createCoreIfNotExists();
+			
 /*			// check if the db exists, if not create it.
 			try ( ODatabaseDocumentTx odb = new ODatabaseDocumentTx(configuration.getDBURL())) {
 				if ( !odb.exists() ) 
@@ -159,7 +166,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 					 DatabaseBackupTask.getTomorrowBackupTime(), 
 					 DatabaseBackupTask.fONCE_PER_DAY);
 			
-		} catch (NdexException e) {
+		} catch (NdexException | SolrServerException | IOException e) {
 			e.printStackTrace();
 			throw new javax.servlet.ServletException(e.getMessage());
 		}
