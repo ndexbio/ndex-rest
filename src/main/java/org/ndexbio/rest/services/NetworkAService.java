@@ -175,17 +175,17 @@ public class NetworkAService extends NdexService {
 		logger.info("[start: Getting BaseTerm objects from network {}, skipBlocks {}, blockSize {}]",  
 				networkId, skipBlocks, blockSize);
 		
-		ODatabaseDocumentTx db = null;
-		try {
-			db = NdexDatabase.getInstance().getAConnection();
-			NetworkDAO daoNew = new NetworkDAO(db);
-			return (List<BaseTerm>) daoNew.getBaseTerms(networkId);
-		} finally {
-			if ( db != null) db.close();
-			logger.info("[end: Got BaseTerm objects from network {}, skipBlocks {}, blockSize {}]",  
-					networkId, skipBlocks, blockSize);
-		}
+		try (NetworkDocDAO daoNew = new NetworkDocDAO()){
+			
+			if ( !isReadable(daoNew, networkId)) {
+				logger.error("[end: Network {} not readable for this user]", networkId);
+				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
+			}
 
+			logger.info("[end: Got BaseTerm objects from network {}]",  networkId);
+			
+			return (List<BaseTerm>) daoNew.getBaseTerms(networkId);
+		} 
 	}
 	
 	@PermitAll
@@ -200,7 +200,7 @@ public class NetworkAService extends NdexService {
     	logger.info("[start: Getting namespace file for " + prefix + " in network {}]", networkId);
 
 		if ( isReadable(networkId) ) { 
-			try ( SingleNetworkDAO dao = new SingleNetworkDAO (networkId) ) {
+			try ( SingleNetworkDAO dao = new SingleNetworkDAO (networkId) ) {				
 				String s = dao.getNamespaceFile(prefix);
 				logger.info("[end: Return namespace file of {} ,in network {}]", prefix, networkId);
 				return s;
@@ -227,15 +227,16 @@ public class NetworkAService extends NdexService {
 		logger.info("[start: Getting list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
 				networkId);
 		
-		ODatabaseDocumentTx db = null;
-		try {
-			db = NdexDatabase.getInstance().getAConnection();
-			NetworkDAO daoNew = new NetworkDAO(db);
-			return (List<Namespace>) daoNew.getNamespaces(networkId);
-		} finally {
-			if ( db != null) db.close();
+		try (NetworkDocDAO daoNew = new NetworkDocDAO()){
+			
+			if ( !isReadable(daoNew, networkId)) {
+				logger.error("[end: Network {} not readable for this user]", networkId);
+				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
+			}
+			
 			logger.info("[end: Got list of namespaces for network {}]",  networkId);
-		}
+			return (List<Namespace>) daoNew.getNamespaces(networkId);
+		} 
 
 	}
 
@@ -621,18 +622,17 @@ public class NetworkAService extends NdexService {
     	logger.info("[start: Getting edges of network UUID='{}', skipBlocks={}, blockSize={}]", 
     			networkId, skipBlocks, blockSize);
 	    
-		ODatabaseDocumentTx db = null;
-		Network n = null;
-		try {
-			db = NdexDatabase.getInstance().getAConnection();
-			NetworkDAO dao = new NetworkDAO(db);
-			n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
-	        return n;
-		} finally {
-			if ( db !=null) db.close();
-	    	logger.info("[end: Got edges of network UUID='{}', edgeCount={}]", 
+    	try (NetworkDocDAO dao = new NetworkDocDAO()){
+			
+			if ( !isReadable(dao, networkId)) {
+				logger.error("[end: Network {} not readable for this user]", networkId);
+				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
+			}
+			Network n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
+			logger.info("[end: Got edges of network UUID='{}', edgeCount={}]", 
 	    			networkId, ((null==n) ? 0 : n.getEdgeCount()));
-		}
+	        return n;
+		} 
 	}
 
 	
@@ -1152,13 +1152,17 @@ public class NetworkAService extends NdexService {
 
     	logger.info("[start: Retrieving a subnetwork of network {}, skipBlocks {}, blockSize {}]", 
     			networkId, skipBlocks, blockSize);
-		ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
-		NetworkDAO dao = new NetworkDAO(db);
- 		PropertyGraphNetwork n = dao.getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
-		db.close();
-    	logger.info("[start: Retrieved a subnetwork of network {}, skipBlocks {}, blockSize {}]", 
-    			networkId, skipBlocks, blockSize);
-        return n;
+		try (NetworkDAO dao = new NetworkDAO()) {
+		
+			if ( !isReadable(dao, networkId)) {
+				logger.error("[end: Network {} not readable for this user]", networkId);
+				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
+			}
+
+			PropertyGraphNetwork n = dao.getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
+			logger.info("[start: Retrieved a subnetwork of network {}]", networkId);
+			return n;
+		}
 	}
 
 	/**************************************************************************
@@ -1197,21 +1201,14 @@ public class NetworkAService extends NdexService {
 			permission = Permissions.valueOf(permissions.toUpperCase());
 		}
 		
-		ODatabaseDocumentTx db = null;
-		try {
+		try (NetworkDAO networkDao = new NetworkDAO()) {
 
-			db = NdexDatabase.getInstance().getAConnection();
-			NetworkDAO networkDao = new NetworkDAO(db);
-            
 			List<Membership> results = networkDao.getNetworkUserMemberships(
 					UUID.fromString(networkId), permission, skipBlocks, blockSize);
 			logger.info("[end: Got {} members returned for network {}]", 
 					results.size(), networkId);
 			return results;
-
-		} finally {
-			if (db != null) db.close();
-		}
+		} 
 	}
 
 	@DELETE
