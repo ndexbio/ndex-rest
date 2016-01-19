@@ -199,7 +199,7 @@ public class NetworkAService extends NdexService {
 			) throws ObjectNotFoundException, UnauthorizedOperationException, NdexException, Exception {
     	logger.info("[start: Getting namespace file for " + prefix + " in network {}]", networkId);
 
-		if ( isSearchable(networkId) ) { 
+		if ( isReadable(networkId) ) { 
 			try ( SingleNetworkDAO dao = new SingleNetworkDAO (networkId) ) {
 				String s = dao.getNamespaceFile(prefix);
 				logger.info("[end: Return namespace file of {} ,in network {}]", prefix, networkId);
@@ -314,23 +314,19 @@ public class NetworkAService extends NdexService {
 
 			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException, NdexException {
 		
-
 		logger.info("[start: Getting provenance of network {}]", networkId);
-		if (  ! isSearchable(networkId) ) {
-			logger.error("[end: Network {} not readable for this user]", networkId);
-			throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
-		}
 		
 		try (NetworkDocDAO daoNew = new NetworkDocDAO()) {
-
+			
+			if ( !isReadable(daoNew, networkId)) {
+				String userStr = this.getLoggedInUser() != null? this.getLoggedInUser().getAccountName() : "anonymous";
+				logger.error("[end: Network {} not readable for user {} ]", networkId,  userStr);
+				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
+			}
+			logger.info("[end: Got provenance of network {}]", networkId);
 			return daoNew.getProvenance(UUID.fromString(networkId));
 
-		} finally {
-			logger.info("[end: Got provenance of network {}]", networkId);
-		}
-
-
-
+		} 
 	}
 
     /**************************************************************************
@@ -576,33 +572,18 @@ public class NetworkAService extends NdexService {
 
     	logger.info("[start: Getting networkSummary of network {}]", networkId);
 		
-		ODatabaseDocumentTx db = null;
-		NetworkDocDAO networkDocDao = null;
-		try {
-			db = NdexDatabase.getInstance().getAConnection();
-
-			networkDocDao = new NetworkDocDAO(db);
-
-			VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
-			boolean hasPrivilege = (vt == VisibilityType.PUBLIC || vt== VisibilityType.DISCOVERABLE);
-
-			if ( !hasPrivilege && getLoggedInUser() != null) {
-				hasPrivilege = networkDocDao.checkPrivilege(getLoggedInUser().getAccountName(),
-						networkId, Permissions.READ);
-			}
-			if ( hasPrivilege) {
+		try (NetworkDocDAO networkDocDao = new NetworkDocDAO())  {
+			
+			if ( isReadable(networkDocDao, networkId)) {
 				NetworkSummary summary = networkDocDao.getNetworkSummaryById(networkId);
-				if (summary == null)
+				if (summary == null) {
+					logger.info("[end: network {} not found in db.]", networkId);
 					throw new ObjectNotFoundException("Network with ID: " + networkId + " doesn't exist.");
-				networkDocDao.close();
-				networkDocDao = null;
+				}
 				logger.info("[end: Got networkSummary of network {}]", networkId);
 				return summary;
-
 			}
-		} finally {
-			if (networkDocDao != null) networkDocDao.close();
-		}
+		} 
 		
 		logger.error("[end: Getting networkSummary of network {}. Throwing UnauthorizedOperationException ...]", networkId);	
 		if ( getLoggedInUser() !=null)
@@ -673,7 +654,7 @@ public class NetworkAService extends NdexService {
 
     	logger.info("[start: Getting complete network {}]", networkId);
 
-		if ( isSearchable(networkId) ) {
+		if ( isReadable(networkId) ) {
 			
 			ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
 			NetworkDAO daoNew = new NetworkDAO(db);
@@ -717,7 +698,7 @@ public class NetworkAService extends NdexService {
 
     	logger.info("[start: Getting aspects in network {}]", networkId);
 
-		if ( isSearchable(networkId) ) {
+		if ( isReadable(networkId) ) {
 			Set<String> asp = new HashSet<>(aspectNames.size());
 			for ( String s : aspectNames)
 				asp.add(s);
@@ -758,7 +739,7 @@ public class NetworkAService extends NdexService {
 
     	logger.info("[start: Getting CX metadata from network {}]", networkId);
 
-		if ( isSearchable(networkId) ) {
+		if ( isReadable(networkId) ) {
 
 			try (CXNetworkExporter dao = new CXNetworkExporter(networkId) ) {
 				MetaDataCollection md = 
@@ -791,7 +772,7 @@ public class NetworkAService extends NdexService {
 
     	logger.info("[start: Getting one aspect in network {}]", networkId);
 
-		if ( isSearchable(networkId) ) {
+		if ( isReadable(networkId) ) {
 			
 			PipedInputStream in = new PipedInputStream();
 			PipedOutputStream out;
@@ -834,7 +815,7 @@ public class NetworkAService extends NdexService {
 
     	logger.info("[start: Getting complete network {}]", networkId);
 
-		if ( isSearchable(networkId) ) {
+		if ( isReadable(networkId) ) {
 			
 			PipedInputStream in = new PipedInputStream();
 			PipedOutputStream out;
@@ -1080,7 +1061,7 @@ public class NetworkAService extends NdexService {
 
     	logger.info("[start: request to export network {}]", networkId);
 		
-		if ( isSearchable(networkId) ) {
+		if ( isReadable(networkId) ) {
 			
 			String networkName =null;
 			try (NetworkDAO networkdao = new NetworkDAO(NdexDatabase.getInstance().getAConnection())){
@@ -1133,7 +1114,7 @@ public class NetworkAService extends NdexService {
 		
     	logger.info("[start: Retrieving an entire network {} as a PropertyGraphNetwork object]", networkId);
 		
-		if ( isSearchable(networkId) ) {
+		if ( isReadable(networkId) ) {
 		
 			ODatabaseDocumentTx db =null;
 			try {
@@ -1497,32 +1478,22 @@ public class NetworkAService extends NdexService {
 		logger.info("[start: Retrieving neighborhood subnetwork for network {} with phrase \"{}\"]", 
 				networkId, queryParameters.getSearchString());
 
-		try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()) {
+		try (NetworkDocDAO networkDao = new NetworkDocDAO()) {
 
-		   NetworkDAO networkDao = new NetworkDAO(db);
-
-		   VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
-		   boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
-
-		   if ( !hasPrivilege && getLoggedInUser() != null) {
-			   hasPrivilege = networkDao.checkPrivilege(
-					   (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName()),
-					   networkId, Permissions.READ);
+		   if ( ! isReadable ( networkDao , networkId)) {
+			   logger.error("[end: User doesn't have read permission on network {}]",  
+					   networkId);
+		       throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
 		   }
 
-		   if ( hasPrivilege) {
-			   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
+		   NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
-			   Network n = dao.queryForSubnetworkV2(networkId, queryParameters);
-               logger.info("[end: Subnetwork for network {} with phrase \"{}\" retrieved]", 
-                       networkId, queryParameters.getSearchString());	
-			   return n;
-		   }
-		   
-		   logger.error("[end: User doesn't have read permission to retrieve neighborhood subnetwork for network {} with phrase\"{}\"]",  
-				   networkId, queryParameters.getSearchString());
-	       throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
+		   Network n = dao.queryForSubnetworkV2(networkId, queryParameters);
+           logger.info("[end: Subnetwork for network {} retrieved]", networkId);	
+		   return n;
+		  
 		} 
+		
 	}
 
 	@PermitAll
@@ -1543,7 +1514,7 @@ public class NetworkAService extends NdexService {
 		logger.info("[start: Retrieving neighborhood subnetwork for network {} with phrase \"{}\"]", 
 				networkId, queryParameters.getSearchString());
 		
-		if ( !isSearchable(networkId)) {
+		if ( !isReadable(networkId)) {
 			 logger.error("[end: User doesn't have read permission to retrieve neighborhood subnetwork for network {} with phrase\"{}\"]",  
 					   networkId, queryParameters.getSearchString());
 		       throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
@@ -1597,7 +1568,7 @@ public class NetworkAService extends NdexService {
 		logger.info("[start: filter query on network {}]", networkId);
 		
 
-		if ( !isSearchable(networkId ) ) {
+		if ( !isReadable(networkId ) ) {
 			logger.error("[end: Network {} not readable for this user]", networkId);
 			throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
 		}
@@ -1610,22 +1581,29 @@ public class NetworkAService extends NdexService {
 	}
 	
 	
+	private boolean isReadable(NetworkDocDAO dao, String networkId) 
+			throws ObjectNotFoundException, NdexException {
+
+		    return		 dao.checkPrivilege(
+				   (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName()),
+				   networkId, Permissions.READ);
+	}	
 	
-	
-	private boolean isSearchable(String networkId) 
+	private boolean isReadable( String networkId) 
 				throws ObjectNotFoundException, NdexException {
 		   try ( NetworkDocDAO networkDao = new NetworkDocDAO() ) {
 
-		       VisibilityType vt = Helper.getNetworkVisibility(networkDao.getDBConnection(), networkId);
-		       boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
+//		       VisibilityType vt = Helper.getNetworkVisibility(networkDao.getDBConnection(), networkId);
+//		       boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
 
-		       if ( !hasPrivilege && getLoggedInUser() != null) {
-			     hasPrivilege = networkDao.checkPrivilege(
+	//	       if ( !hasPrivilege && getLoggedInUser() != null) {
+			 //    hasPrivilege = 
+			    return		 networkDao.checkPrivilege(
 					   (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName()),
 					   networkId, Permissions.READ);
-		       }
+	//	       }
 
-		       return hasPrivilege;
+	//	       return hasPrivilege;
 		   }
 	}
 
@@ -1653,41 +1631,23 @@ public class NetworkAService extends NdexService {
 		logger.info("[start: Retrieving neighborhood subnetwork for network {} based on SimplePathQuery object]",
 				networkId);
 		
-		ODatabaseDocumentTx db = null;
+		try (NetworkDocDAO networkDao = new NetworkDocDAO() ) {
 
-		try {
-			db = NdexDatabase.getInstance().getAConnection();
-
-			NetworkDAO networkDao = new NetworkDAO(db);
-
-   		    VisibilityType vt = Helper.getNetworkVisibility(db, networkId);
-			boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
-
-			if ( !hasPrivilege && getLoggedInUser() != null) {
-				   hasPrivilege = networkDao.checkPrivilege(
-						   (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName()),
-						   networkId, Permissions.READ);
+			if ( !isReadable( networkId)) {
+				logger.error("[end: network {} is not readble to this user]",
+						networkId);
+			    throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
 			}
-
-			db.close();
-			db = null;
 			
-			if ( hasPrivilege) {
-				NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
+			NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
 
-				PropertyGraphNetwork n = dao.queryForSubPropertyGraphNetworkV2(networkId, queryParameters);
-				logger.info("[end: Retrieved neighborhood subnetwork for network {} based on SimplePathQuery object]",
+			PropertyGraphNetwork n = dao.queryForSubPropertyGraphNetworkV2(networkId, queryParameters);
+			logger.info("[end: Retrieved neighborhood subnetwork for network {} based on SimplePathQuery object]",
 						networkId);				
-				return n;
+			return n;
 
-			}
-		} finally {
-			if ( db !=null) db.close();
-		}
+		} 
 
-		logger.error("[end: Retrieving neighborhood subnetwork for network {} based on SimplePathQuery object. Throwing UnauthorizedOperationException ...]",
-				networkId);
-	    throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
 	}
 
 
