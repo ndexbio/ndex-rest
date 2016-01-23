@@ -95,6 +95,7 @@ import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NdexProvenanceEventType;
+import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
 import org.ndexbio.model.object.ProvenanceEntity;
@@ -1362,7 +1363,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("networkId") final String networkId,
 			final NetworkSummary summary
 			)
-            throws IllegalArgumentException, NdexException, IOException
+            throws IllegalArgumentException, NdexException, IOException, SolrServerException
     {
 		logger.info("[start: Updating profile information of network {}]", networkId);
 		
@@ -1721,6 +1722,39 @@ public class NetworkAService extends NdexService {
         }
 	}
 
+	@POST
+	@PermitAll
+	@Path("/1_3/search/{skipBlocks}/{blockSize}")
+	@Produces("application/json")
+	@ApiDoc("This method returns a list of NetworkSummary objects based on a POSTed query JSON object. " +
+            "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
+            "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
+            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
+	public NetworkSearchResult searchNetwork_V1_3(
+			final SimpleNetworkQuery query,
+			@PathParam("skipBlocks") final int skipBlocks,
+			@PathParam("blockSize") final int blockSize)
+			throws IllegalArgumentException, NdexException {
+		
+		logger.info("[start: Retrieving NetworkSummary objects using query \"{}\"]", 
+				query.getSearchString());		
+		
+    	if(query.getAccountName() != null)
+    		query.setAccountName(query.getAccountName().toLowerCase());
+        
+    	try (NetworkDocDAO dao = new NetworkDocDAO()) {
+
+			NetworkSearchResult result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
+			logger.info("[end: Retrieved {} NetworkSummary objects]", result.getNetworks().size());		
+			return result;
+
+        } catch (Exception e) {
+			logger.error("[end: Retrieving NetworkSummary objects using query \"{}\". Exception caught:]{}", 
+					query.getSearchString(), e);	
+			e.printStackTrace();
+        	throw new NdexException(e.getMessage());
+        }
+	}
 
 	
 
@@ -2008,9 +2042,7 @@ public class NetworkAService extends NdexService {
 		
 		String userAcc = getLoggedInUser().getAccountName();
 
-		ODatabaseDocumentTx db = null;
-		try{
-			db = NdexDatabase.getInstance().getAConnection();
+		try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection() ) {
 
             if (!Helper.checkPermissionOnNetworkByAccountName(db, id, userAcc, Permissions.ADMIN))
 	        {	        
@@ -2034,12 +2066,9 @@ public class NetworkAService extends NdexService {
 				task.setResource(id);
 				NdexServerQueue.INSTANCE.addSystemTask(task);
 			}
-			db = null;
 			
 			logger.info("[end: Deleted network {}]", id);
-		} finally {
-			if ( db != null) db.close();
-		}
+		} 
 	}
 	
 
