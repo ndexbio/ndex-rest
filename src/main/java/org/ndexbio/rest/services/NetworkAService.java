@@ -1225,7 +1225,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("networkId") final String networkId,
 			@PathParam("userUUID") final String  userUUID
 			)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, SolrServerException, IOException {
 		
 		logger.info("[start: Removing any permissions for network {} for user {}]", networkId, userUUID);
 		
@@ -1270,7 +1270,7 @@ public class NetworkAService extends NdexService {
 			@PathParam("networkId") final String networkId,
 			final Membership membership
 			)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, SolrServerException, IOException {
 
 		logger.info("[start: Updating membership for network {}]", networkId);
 		

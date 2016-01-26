@@ -297,7 +297,8 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/{userId}")
 	@Produces("application/json")
-	@ApiDoc("Return the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
+	@ApiDoc("Deprecated. User should use either the user/account/{accountName} function or user/uuid/{uuid} funciton to get user information. "
+			+ "This function returns the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
 	public User getUser(@PathParam("userId") @Encoded final String userId)
 			throws IllegalArgumentException, NdexException {
 
@@ -317,7 +318,63 @@ public class UserService extends NdexService {
 		}
 		
 	}
+	
+	/**************************************************************************
+	 * Gets a user by accountName. 
+	 * 
+	 * @param userId
+	 *            The accountName of the user.
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws NdexException
+	 *             Failed to change the password in the database.
+	 **************************************************************************/
+	@GET
+	@PermitAll
+	@Path("/account/{userId}")
+	@Produces("application/json")
+	@ApiDoc("Return the user corresponding to user account name. Error if this account is not found.")
+	public User getUserByAccountName(@PathParam("userId") @Encoded final String userId)
+			throws IllegalArgumentException, NdexException {
+
+		logger.info("[start: Getting user by account name {}]", userId);
+		try (UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
+			
+			final User user = dao.getUserByAccountName(userId.toLowerCase());
+			logger.info("[end: User object returned for user account {}]", userId);
+			return user;
+		} 
 		
+	}
+		
+	/**************************************************************************
+	 * Gets a user by UUID  
+	 * 
+	 * @param userId
+	 *            The UUID of the user.
+	 * @throws IllegalArgumentException
+	 *             Bad input.
+	 * @throws NdexException
+	 *             Failed to change the password in the database.
+	 **************************************************************************/
+	@GET
+	@PermitAll
+	@Path("/uuid/{userId}")
+	@Produces("application/json")
+	@ApiDoc("Deprecated. Return the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
+	public User getUserByUUID(@PathParam("userId") @Encoded final String userId)
+			throws IllegalArgumentException, NdexException {
+
+		logger.info("[start: Getting user from UUID {}]", userId);
+		;
+		try (UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ){
+			final User user = dao.getUserById(UUID.fromString(userId));
+			logger.info("[end: User object returned for user uuid {}]", userId);
+			return user;	
+		} 
+		
+	}	
+	
 	/**************************************************************************
 	 * Retrieves array of network membership objects
 	 * 
