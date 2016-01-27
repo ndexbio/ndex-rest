@@ -143,7 +143,15 @@
    <field name="grpEdit" type="string" indexed="true" stored="true"  multiValued="true"/>
    <field name="grpAdmin" type="string" indexed="true" stored="true"  multiValued="true"/>
    <field name="visibility" type="string" indexed="true" stored="true"  multiValued="false"/>
- 
+
+  <!-- some fields that should be useful for biological networks -->
+   <field name="nodeName" type="string" indexed="true" stored="true"  multiValued="true"/>
+   <field name="NCBIGeneID" type="string" indexed="true" stored="true" multiValued="true" />
+   <field name="geneSymbol" type="string" indexed="true" stored="true"  multiValued="true" />
+   <field name="represents" type="string" indexed="true" stored="true"  multiValued="true" />
+   <field name="alias" type="string" indexed="true" stored="true"  multiValued="true" />
+   <field name="relatedTo" type="string" indexed="true" stored="true"  multiValued="true" />
+   
    
    <!-- Collaborator required index fields   -->
    <field name="ObjectCategory" type="text_general" indexed="true" stored="false" multiValued="true"/>
@@ -159,6 +167,8 @@
    <field name="SubnetworkFilter" type="text_general" indexed="true" stored="false"  />
    <field name="GraphHash" type="string" indexed="true" stored="false"  />
    <field name="Rights" type="text_general" indexed="true" stored="false"  />
+
+
 
 
    <field name="_src_" type="string" indexed="false" stored="true"/>
@@ -282,6 +292,14 @@
    <copyField source="GraphHash" dest="text"/>
    <copyField source="Rights" dest="text"/>
    <copyField source="Methods" dest="text"/>
+
+   <copyField source="nodeName" dest="text"/>
+   <copyField source="NCBIGeneID" dest="text"/>
+   <copyField source="geneSymbol" dest="text"/>
+   <copyField source="represents" dest="text"/>
+   <copyField source="alias" dest="text"/>
+   <copyField source="relatedTo" dest="text"/>
+
   
    <!-- Above, multiple source fields are copied to the [text] field. 
     Another way to map multiple source fields to the same 
