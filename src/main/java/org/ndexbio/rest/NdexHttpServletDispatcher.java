@@ -165,6 +165,10 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			 timer.scheduleAtFixedRate(new DatabaseBackupTask(), 
 					 DatabaseBackupTask.getTomorrowBackupTime(), 
 					 DatabaseBackupTask.fONCE_PER_DAY);
+
+			 timer.scheduleAtFixedRate(new EmailNotificationTask(), 
+					 EmailNotificationTask.getTomorrowNotificationTime(), 
+					 EmailNotificationTask.fONCE_PER_DAY);
 			
 		} catch (NdexException | SolrServerException | IOException e) {
 			e.printStackTrace();
