@@ -1700,7 +1700,9 @@ public class NetworkAService extends NdexService {
 			@PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 		
-		logger.info("[start: Retrieving NetworkSummary objects using query \"{}\"]", 
+		return searchNetwork_solr(query, skipBlocks, blockSize).getNetworks();
+		
+/*		logger.info("[start: Retrieving NetworkSummary objects using query \"{}\"]", 
 				query.getSearchString());		
 		
     	if(query.getAccountName() != null)
@@ -1719,18 +1721,18 @@ public class NetworkAService extends NdexService {
 					query.getSearchString(), e);	
 			e.printStackTrace();
         	throw new NdexException(e.getMessage());
-        }
+        } */
 	}
 
 	@POST
 	@PermitAll
-	@Path("/1_3/search/{skipBlocks}/{blockSize}")
+	@Path("/textsearch/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("This method returns a list of NetworkSummary objects based on a POSTed query JSON object. " +
             "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
             "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
             "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
-	public NetworkSearchResult searchNetwork_V1_3(
+	public NetworkSearchResult searchNetwork_solr(
 			final SimpleNetworkQuery query,
 			@PathParam("skipBlocks") final int skipBlocks,
 			@PathParam("blockSize") final int blockSize)

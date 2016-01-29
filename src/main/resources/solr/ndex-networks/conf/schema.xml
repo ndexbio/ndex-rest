@@ -127,7 +127,7 @@
      in a compatible way. Any analysis applied to the <uniqueKey> should _not_ produce multiple
      tokens
    -->   
-   <field name="uuid" type="string" indexed="true" stored="false" required="true" multiValued="false" /> 
+   <field name="uuid" type="string" indexed="true" stored="true" required="true" multiValued="false" /> 
         
    <field name="name" type="text_general" indexed="true" stored="false"/>
    <field name="description" type="text_general" indexed="true" stored="false" multiValued="false"/>
