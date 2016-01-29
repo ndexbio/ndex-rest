@@ -319,8 +319,8 @@ public class NetworkAService extends NdexService {
 		logger.info("[start: Getting provenance of network {}]", networkId);
 		
 		try (NetworkDocDAO daoNew = new NetworkDocDAO()) {
-			
-			if ( !isReadable(daoNew, networkId)) {
+			String userAccountName =  (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName());
+			if ( ! daoNew.networkSummaryIsReadable(userAccountName, networkId)) {
 				String userStr = this.getLoggedInUser() != null? this.getLoggedInUser().getAccountName() : "anonymous";
 				logger.error("[end: Network {} not readable for user {} ]", networkId,  userStr);
 				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
@@ -575,8 +575,8 @@ public class NetworkAService extends NdexService {
     	logger.info("[start: Getting networkSummary of network {}]", networkId);
 		
 		try (NetworkDocDAO networkDocDao = new NetworkDocDAO())  {
-			
-			if ( isReadable(networkDocDao, networkId)) {
+			String userAccountName =  (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName());
+			if ( networkDocDao.networkSummaryIsReadable(userAccountName, networkId)) {
 				NetworkSummary summary = networkDocDao.getNetworkSummaryById(networkId);
 				if (summary == null) {
 					logger.info("[end: network {} not found in db.]", networkId);

@@ -41,10 +41,16 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.rest.services.UserService;
 import org.ndexbio.task.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Email
 {
+	
+	static Logger logger = LoggerFactory.getLogger(Email.class);
+
     /**************************************************************************
     * Sends an email using configured settings for the SMTP server.
     *  
@@ -133,4 +139,40 @@ public class Email
  
         Transport.send(emailToSend);
     }
+    
+    public static void sendEmailUsingLocalhost(final String senderAddress, final String recipientAddress, final String subject, final String emailText ) throws NdexException {
+	    // Get system properties
+	        Properties properties = System.getProperties();
+
+	    // Setup mail server
+	    properties.setProperty("mail.smtp.host", "localhost");
+	    
+	    // Get the default Session object.
+	      Session session = Session.getDefaultInstance(properties);
+	    
+	    try{
+	          // Create a default MimeMessage object.
+	          MimeMessage message = new MimeMessage(session);
+
+	          // Set From: header field of the header.
+	          message.setFrom(new InternetAddress(senderAddress));
+
+	          // Set To: header field of the header.
+	          message.addRecipient(Message.RecipientType.TO,
+	                                   new InternetAddress(recipientAddress));
+
+	          // Set Subject: header field
+	          message.setSubject(subject);
+
+	          // Now set the actual message
+	          message.setText(emailText);
+
+	          // Send message
+	          Transport.send(message);
+	          //System.out.println("Sent message successfully....");
+	    }catch (MessagingException mex) {
+	        throw new NdexException ("Failed to send email. Cause:" + mex.getMessage());
+	    }
+    }
+    
 }

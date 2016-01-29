@@ -84,6 +84,7 @@ import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
+import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.model.object.SimpleUserQuery;
@@ -229,33 +230,10 @@ public class UserService extends NdexService {
 						+ "/verify/" + verificationCode;
 						
 			
-				// Get system properties
-				Properties properties = System.getProperties();
-
-				// Setup mail server
-				properties.setProperty("mail.smtp.host", "localhost");
-		    
-				// Get the default Session object.
-				Session session = Session.getDefaultInstance(properties);
-		    
-				try{
-		          // Create a default MimeMessage object.
-		          MimeMessage message = new MimeMessage(session);
-
-		          // Set From: header field of the header.
-		          message.setFrom(new InternetAddress(Configuration.getInstance().getProperty("Feedback-Email")));
-
-		          // Set To: header field of the header.
-		          message.addRecipient(Message.RecipientType.TO,
-		                                   new InternetAddress(newUser.getEmailAddress()));
-
-		          // Set Subject: header field
-		          message.setSubject("Your New NDEx Account Verification Code");
-
-		          // Now set the actual message
-		          String userNameStr = (user.getFirstName()!=null ? user.getFirstName(): "") + " "+ 
+		        // Now set the actual message
+		        String userNameStr = (user.getFirstName()!=null ? user.getFirstName(): "") + " "+ 
 		        		  (user.getLastName() !=null ? user.getLastName() : "");
-		          String messageBody = "Dear " + userNameStr + ",\n" + 
+		        String messageBody = "Dear " + userNameStr + ",\n" + 
 		        		  	"Thank you for registering an NDEx account.\n" + 
 		        		  	"Please click the link below to confirm your email address and start using NDEx now!\n" +
 		        		  	"You can also copy and paste the link in a new browser window. "+
@@ -264,15 +242,12 @@ public class UserService extends NdexService {
 							restURL + 
 							"\n\nThis is an automated message, please do not respond to this email. If you need help, please contact us by emailing: support@ndexbio.org\n\n" +
 							"Best Regards,\nNDEx team";
-		          message.setText(messageBody);
+		          
+				Email.sendEmailUsingLocalhost(Configuration.getInstance().getProperty("Feedback-Email"),
+						newUser.getEmailAddress(),
+						"Your New NDEx Account Verification Code",
+						messageBody);
 
-		          // Send message
-		          Transport.send(message);
-		          //System.out.println("Sent message successfully....");
-				}catch (MessagingException mex) {
-					logger.error("[end: Failed to email new password. Cause: {}]", mex.getMessage());
-					throw new NdexException ("Failed to email new password. Cause:" + mex.getMessage());
-				}
 				
 				user.setExternalId(null);
 			}	
@@ -714,39 +689,10 @@ public class UserService extends NdexService {
 
 			dao.commit();
 			
-		    // Get system properties
-  	        Properties properties = System.getProperties();
-
-		    // Setup mail server
-		    properties.setProperty("mail.smtp.host", "localhost");
-		    
-		    // Get the default Session object.
-		      Session session = Session.getDefaultInstance(properties);
-		    
-		    try{
-		          // Create a default MimeMessage object.
-		          MimeMessage message = new MimeMessage(session);
-
-		          // Set From: header field of the header.
-		          message.setFrom(new InternetAddress(Configuration.getInstance().getProperty("Forgot-Password-Email")));
-
-		          // Set To: header field of the header.
-		          message.addRecipient(Message.RecipientType.TO,
-		                                   new InternetAddress(authUser.getEmailAddress()));
-
-		          // Set Subject: header field
-		          message.setSubject("Your NDEx Password Has Been Reset");
-
-		          // Now set the actual message
-		          message.setText("Your new password is:" + newPasswd);
-
-		          // Send message
-		          Transport.send(message);
-		          //System.out.println("Sent message successfully....");
-		    }catch (MessagingException mex) {
-		    	logger.error("[end: Failed to email new password. Cause: {}]", mex.getMessage());
-		        throw new NdexException ("Failed to email new password. Cause:" + mex.getMessage());
-		    }
+			Email.sendEmailUsingLocalhost(Configuration.getInstance().getProperty("Forgot-Password-Email"), 
+					authUser.getEmailAddress(), 
+					"Your NDEx Password Has Been Reset", 
+					"Your new password is:" + newPasswd);
 
 			logger.info("[end: Emailed new password to {}]", accountName);
 			return Response.ok().build();
