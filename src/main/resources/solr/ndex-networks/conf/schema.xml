@@ -132,17 +132,17 @@
    <field name="name" type="text_general" indexed="true" stored="false"/>
    <field name="description" type="text_general" indexed="true" stored="false" multiValued="false"/>
    <field name="version" type="string" indexed="true" stored="false" multiValued="false"/>
-   <field name="CreationTime" type="date" indexed="true" stored="false"  />
-   <field name="ModificationTime" type="date" indexed="true" stored="false"  />
-   <field name="EdgeCount" type="int" indexed="true" stored="false"  />
-   <field name="NodeCount" type="int" indexed="true" stored="false"  />
-   <field name="userRead" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="userEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="userAdmin" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="grpRead" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="grpEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="grpAdmin" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="visibility" type="string" indexed="true" stored="false"  multiValued="false"/>
+   <field name="CreationTime" type="date" indexed="true" stored="true"  />
+   <field name="ModificationTime" type="date" indexed="true" stored="true"  />
+   <field name="EdgeCount" type="int" indexed="true" stored="true"  />
+   <field name="NodeCount" type="int" indexed="true" stored="true"  />
+   <field name="userRead" type="string" indexed="true" stored="true"  multiValued="true"/>
+   <field name="userEdit" type="string" indexed="true" stored="true"  multiValued="true"/>
+   <field name="userAdmin" type="string" indexed="true" stored="true"  multiValued="true"/>
+   <field name="grpRead" type="string" indexed="true" stored="true"  multiValued="true"/>
+   <field name="grpEdit" type="string" indexed="true" stored="true"  multiValued="true"/>
+   <field name="grpAdmin" type="string" indexed="true" stored="true"  multiValued="true"/>
+   <field name="visibility" type="string" indexed="true" stored="true"  multiValued="false"/>
 
   <!-- some fields that should be useful for biological networks -->
    <field name="nodeName" type="string" indexed="true" stored="false"  multiValued="true"/>
