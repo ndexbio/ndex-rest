@@ -140,7 +140,7 @@ public class Email
         Transport.send(emailToSend);
     }
     
-    public static void sendEmailUsingLocalhost(final String senderAddress, final String recipientAddress, final String subject, final String emailText ) throws NdexException {
+    public static void sendHTMLEmailUsingLocalhost(final String senderAddress, final String recipientAddress, final String subject, final String emailText ) throws NdexException {
 	    // Get system properties
 	        Properties properties = System.getProperties();
 
@@ -165,7 +165,7 @@ public class Email
 	          message.setSubject(subject);
 
 	          // Now set the actual message
-	          message.setText(emailText);
+	          message.setText(emailText, "UTF-8", "html");
 
 	          // Send message
 	          Transport.send(message);

@@ -79,23 +79,23 @@ public class EmailNotificationTask extends TimerTask {
 			Map<ResponseType,Integer> notifications = rec.getValue();
 			if ( notifications.get(ResponseType.PENDING)!=null)	{			
 			
-				String emailString = "Dear " + u.getAccountName() + " account holder,\n\n" + 
-					"You have received one or more requests to access networks or groups that you currently manage in NDEx. \n" + 
-					"Please log in to your account to review and manage all pending requests.\n" ;
+				String emailString = "Dear " + u.getAccountName() + " account holder,<br>" + 
+					"You have received one or more requests to access networks or groups that you currently manage in NDEx." + 
+					"Please log in to your account to review and manage all pending requests." ;
 					
 				
 				// send email;
-				Email.sendEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Have Pending Request(s)",
+				Email.sendHTMLEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Have Pending Request(s)",
 					  emailTemplate.replaceFirst("%%____%%",emailString));
 			}
 			if ( notifications.get(ResponseType.ACCEPTED)!=null)	{			
 				
-				String emailString = "Dear " + u.getAccountName() + " account holder,\n\n" + 
-					"Your pending requests have been reviewed by the account's administrator.\n"+
-					"You can now log in to your account and access new networks and groups.\n" ;
+				String emailString = "Dear " + u.getAccountName() + " account holder,<br>" + 
+					"Your pending requests have been reviewed by the account's administrator."+
+					"You can now log in to your account and access new networks and groups." ;
 				
 				// send email;
-				Email.sendEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Request Has Been Reviewed",
+				Email.sendHTMLEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Request Has Been Reviewed",
 						emailTemplate.replaceFirst("%%____%%",emailString));
 			}
 			

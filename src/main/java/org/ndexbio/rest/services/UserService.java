@@ -237,20 +237,20 @@ public class UserService extends NdexService {
 		        // Now set the actual message
 		        String userNameStr = (user.getFirstName()!=null ? user.getFirstName(): "") + " "+ 
 		        		  (user.getLastName() !=null ? user.getLastName() : "");
-		        String messageBody = "Dear " + userNameStr + ",\n" + 
+		        String messageBody = "Dear " + userNameStr + ",<br>" + 
 		        		  	"Thank you for registering an NDEx account.\n" + 
-		        		  	"Please click the link below to confirm your email address and start using NDEx now!\n" +
+		        		  	"Please click the link below to confirm your email address and start using NDEx now!<br>" +
 		        		  	"You can also copy and paste the link in a new browser window. "+
-		        		  	"Please note that you have 24 hours to complete the registration process.\n\n" +
+		        		  	"Please note that you have 24 hours to complete the registration process.<br>" +
 
-							restURL ;
+							restURL;
 							
-		        emailTemplate.replaceFirst("%%____%%", messageBody) ;
+		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
 		        
-				Email.sendEmailUsingLocalhost(Configuration.getInstance().getProperty("Feedback-Email"),
+				Email.sendHTMLEmailUsingLocalhost(Configuration.getInstance().getProperty("Feedback-Email"),
 						newUser.getEmailAddress(),
 						"Verify Your New NDEx Account",
-						messageBody);
+						htmlEmail);
 
 				
 				user.setExternalId(null);
@@ -693,7 +693,7 @@ public class UserService extends NdexService {
 
 			dao.commit();
 			
-			Email.sendEmailUsingLocalhost(Configuration.getInstance().getProperty("Forgot-Password-Email"), 
+			Email.sendHTMLEmailUsingLocalhost(Configuration.getInstance().getProperty("Forgot-Password-Email"), 
 					authUser.getEmailAddress(), 
 					"Your NDEx Password Has Been Reset", 
 					"Your new password is:" + newPasswd);
