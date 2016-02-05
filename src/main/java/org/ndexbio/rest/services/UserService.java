@@ -82,6 +82,7 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
+import org.ndexbio.common.util.Util;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.Email;
@@ -175,7 +176,7 @@ public class UserService extends NdexService {
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
 	public User createUser(final NewUser newUser)
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
-			NdexException {
+			NdexException, IOException {
 
 		logger.info("[start: Creating User {}]", newUser.getAccountName());
 		
@@ -212,6 +213,9 @@ public class UserService extends NdexService {
 
 			if ( verificationCode != null ) {  // need to email the verification code.			
 				
+				//Reading in the email template
+				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
+				
 				// construct the URL for the verification rest service:
 				
 				String protocal = this._httpRequest.getHeader("x-forwarded-proto");
@@ -239,13 +243,13 @@ public class UserService extends NdexService {
 		        		  	"You can also copy and paste the link in a new browser window. "+
 		        		  	"Please note that you have 24 hours to complete the registration process.\n\n" +
 
-							restURL + 
-							"\n\nThis is an automated message, please do not respond to this email. If you need help, please contact us by emailing: support@ndexbio.org\n\n" +
-							"Best Regards,\nNDEx team";
-		          
+							restURL ;
+							
+		        emailTemplate.replaceFirst("%%____%%", messageBody) ;
+		        
 				Email.sendEmailUsingLocalhost(Configuration.getInstance().getProperty("Feedback-Email"),
 						newUser.getEmailAddress(),
-						"Your New NDEx Account Verification Code",
+						"Verify Your New NDEx Account",
 						messageBody);
 
 				

@@ -1,5 +1,6 @@
 package org.ndexbio.rest;
 
+import java.io.IOException;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
@@ -15,6 +16,7 @@ import org.ndexbio.common.models.dao.orientdb.GroupDocDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkDocDAO;
 import org.ndexbio.common.models.dao.orientdb.RequestDAO;
 import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
+import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
@@ -37,6 +39,8 @@ public class EmailNotificationTask extends TimerTask {
 
 	private static Logger logger = LoggerFactory.getLogger(EmailNotificationTask.class);
 	
+	private String emailTemplate;
+	
    private final static int f12_AM = 0;
 
 	  protected static Date getTomorrowNotificationTime(){
@@ -52,7 +56,9 @@ public class EmailNotificationTask extends TimerTask {
 	    return result.getTime();
 	  }	
 
-	public EmailNotificationTask() {
+	public EmailNotificationTask() throws IOException, NdexException {
+	 emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
+
 	}
 
 	@Override
@@ -75,27 +81,22 @@ public class EmailNotificationTask extends TimerTask {
 			
 				String emailString = "Dear " + u.getAccountName() + " account holder,\n\n" + 
 					"You have received one or more requests to access networks or groups that you currently manage in NDEx. \n" + 
-					"Please log in to your account to review and manage all pending requests.\n" + 
-					"This is an automated message, please do not respond to this email. If you need help, contact us by emailing: support@ndexbio.org\n\n" +
-					"Best Regards,\n" + 
-					"The NDEx team\n";
+					"Please log in to your account to review and manage all pending requests.\n" ;
+					
 				
 				// send email;
 				Email.sendEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Have Pending Request(s)",
-						emailString);
+					  emailTemplate.replaceFirst("%%____%%",emailString));
 			}
 			if ( notifications.get(ResponseType.ACCEPTED)!=null)	{			
 				
 				String emailString = "Dear " + u.getAccountName() + " account holder,\n\n" + 
 					"Your pending requests have been reviewed by the account's administrator.\n"+
-					"You can now log in to your account and access new networks and groups.\n" +
-					"This is an automated message, please do not respond to this email. If you need help, contact us by emailing: support@ndexbio.org\n\n" +
-					"Best Regards,\n" + 
-					"The NDEx team\n";
+					"You can now log in to your account and access new networks and groups.\n" ;
 				
 				// send email;
 				Email.sendEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Request Has Been Reviewed",
-						emailString);
+						emailTemplate.replaceFirst("%%____%%",emailString));
 			}
 			
 		}
