@@ -80,7 +80,7 @@ public class EmailNotificationTask extends TimerTask {
 			if ( notifications.get(ResponseType.PENDING)!=null)	{			
 			
 				String emailString = "Dear " + u.getAccountName() + " account holder,<br>" + 
-					"You have received one or more requests to access networks or groups that you currently manage in NDEx." + 
+					"You have received one or more requests to access networks or groups that you currently manage in NDEx. " + 
 					"Please log in to your account to review and manage all pending requests." ;
 					
 				
@@ -91,7 +91,7 @@ public class EmailNotificationTask extends TimerTask {
 			if ( notifications.get(ResponseType.ACCEPTED)!=null)	{			
 				
 				String emailString = "Dear " + u.getAccountName() + " account holder,<br>" + 
-					"Your pending requests have been reviewed by the account's administrator."+
+					"Your pending requests have been reviewed by the account's administrator. "+
 					"You can now log in to your account and access new networks and groups." ;
 				
 				// send email;
