@@ -132,10 +132,10 @@
    <field name="name" type="text_general" indexed="true" stored="false"/>
    <field name="description" type="text_general" indexed="true" stored="false" multiValued="false"/>
    <field name="version" type="string" indexed="true" stored="false" multiValued="false"/>
-   <field name="CreationTime" type="date" indexed="true" stored="true"  />
-   <field name="ModificationTime" type="date" indexed="true" stored="true"  />
-   <field name="EdgeCount" type="int" indexed="true" stored="true"  />
-   <field name="NodeCount" type="int" indexed="true" stored="true"  />
+   <field name="creationTime" type="date" indexed="true" stored="true"  />
+   <field name="modificationTime" type="date" indexed="true" stored="true"  />
+   <field name="edgeCount" type="int" indexed="true" stored="true"  />
+   <field name="nodeCount" type="int" indexed="true" stored="true"  />
    <field name="userRead" type="string" indexed="true" stored="true"  multiValued="true"/>
    <field name="userEdit" type="string" indexed="true" stored="true"  multiValued="true"/>
    <field name="userAdmin" type="string" indexed="true" stored="true"  multiValued="true"/>
@@ -154,19 +154,19 @@
    
    
    <!-- Collaborator required index fields   -->
-   <field name="ObjectCategory" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="Organism" type="text_general" indexed="true" stored="false"  />
-   <field name="Platform" type="text_general" indexed="true" stored="false"  />
-   <field name="Disease" type="text_general" indexed="true" stored="false"  />
-   <field name="Tissue" type="text_general" indexed="true" stored="false"  />
-   <field name="RightsHolder" type="text_general" indexed="true" stored="false"  />
-   <field name="Author" type="text_general" indexed="true" stored="false"  />
-   <field name="CreatedAt" type="text_general" indexed="true" stored="false"  />
-   <field name="Methods" type="text_general" indexed="true" stored="false"  />
-   <field name="SubnetworkType" type="text_general" indexed="true" stored="false"  />
-   <field name="SubnetworkFilter" type="text_general" indexed="true" stored="false"  />
-   <field name="GraphHash" type="string" indexed="true" stored="false"  />
-   <field name="Rights" type="text_general" indexed="true" stored="false"  />
+   <field name="objectCategory" type="text_general" indexed="true" stored="false" multiValued="true"/>
+   <field name="organism" type="text_general" indexed="true" stored="false"  />
+   <field name="platform" type="text_general" indexed="true" stored="false"  />
+   <field name="disease" type="text_general" indexed="true" stored="false"  />
+   <field name="tissue" type="text_general" indexed="true" stored="false"  />
+   <field name="rightsHolder" type="text_general" indexed="true" stored="false"  />
+   <field name="author" type="text_general" indexed="true" stored="false"  />
+   <field name="createdAt" type="text_general" indexed="true" stored="false"  />
+   <field name="methods" type="text_general" indexed="true" stored="false"  />
+   <field name="subnetworkType" type="text_general" indexed="true" stored="false"  />
+   <field name="subnetworkFilter" type="text_general" indexed="true" stored="false"  />
+   <field name="graphHash" type="string" indexed="true" stored="false"  />
+   <field name="rights" type="text_general" indexed="true" stored="false"  />
 
 
 
@@ -280,19 +280,22 @@
 
    <copyField source="name" dest="text"/>
    <copyField source="description" dest="text"/>
-   <copyField source="ObjectCategory" dest="text"/>
-   <copyField source="Organism" dest="text"/>
-   <copyField source="Platform" dest="text"/>
-   <copyField source="Disease" dest="text"/>
-   <copyField source="Tissue" dest="text"/>
-   <copyField source="RightsHolder" dest="text"/>
-   <copyField source="Author" dest="text"/>
-   <copyField source="CreatedAt" dest="text"/>
-   <copyField source="SubnetworkType" dest="text"/>
-   <copyField source="SubnetworkFilter" dest="text"/>
-   <copyField source="GraphHash" dest="text"/>
-   <copyField source="Rights" dest="text"/>
-   <copyField source="Methods" dest="text"/>
+   <copyField source="objectCategory" dest="text"/>
+   <copyField source="organism" dest="text"/>
+   <copyField source="platform" dest="text"/>
+   <copyField source="disease" dest="text"/>
+   <copyField source="tissue" dest="text"/>
+   <copyField source="author" dest="text"/>
+   <copyField source="createdAt" dest="text"/>
+   <copyField source="subnetworkType" dest="text"/>
+   <copyField source="subnetworkFilter" dest="text"/>
+   <copyField source="graphHash" dest="text"/>
+   <copyField source="methods" dest="text"/>
+
+<!-- 
+   <copyField source="rightsHolder" dest="text"/>
+   <copyField source="rights" dest="text"/>
+ -->
 
    <copyField source="nodeName" dest="text"/>
    <copyField source="NCBIGeneID" dest="text"/>
