@@ -82,6 +82,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	private SystemTaskProcessor systemTaskProcessor;
 	private ClientTaskProcessor clientTaskProcessor;
 	
+	private final static String backupDB = "BACKUP_DATABASE";
 	
 	public NdexHttpServletDispatcher() {
 		super();
@@ -162,10 +163,12 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 
 			// setup the automatic backup
 			 Timer timer = new Timer();
-			 timer.scheduleAtFixedRate(new DatabaseBackupTask(), 
+			 String dbNeedsBackup = configuration.getProperty(backupDB);
+			 if ( dbNeedsBackup ==null || dbNeedsBackup.trim().equalsIgnoreCase("true") ) {
+				 timer.scheduleAtFixedRate(new DatabaseBackupTask(), 
 					 DatabaseBackupTask.getTomorrowBackupTime(), 
 					 DatabaseBackupTask.fONCE_PER_DAY);
-
+			 }
 			 timer.scheduleAtFixedRate(new EmailNotificationTask(), 
 					 EmailNotificationTask.getTomorrowNotificationTime(), 
 					 EmailNotificationTask.fONCE_PER_DAY);
