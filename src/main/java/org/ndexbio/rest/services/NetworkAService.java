@@ -39,7 +39,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.net.HttpURLConnection;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,7 +68,6 @@ import javax.ws.rs.core.Response;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NodesElement;
 import org.cxio.metadata.MetaDataCollection;
@@ -83,7 +81,6 @@ import org.ndexbio.common.models.dao.orientdb.Helper;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.NetworkDAOTx;
 import org.ndexbio.common.models.dao.orientdb.NetworkDocDAO;
-import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO;
 import org.ndexbio.common.models.dao.orientdb.SingleNetworkDAO;
 import org.ndexbio.common.models.dao.orientdb.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
@@ -115,7 +112,6 @@ import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.common.query.NetworkFilterQueryExecutor;
 import org.ndexbio.common.query.NetworkFilterQueryExecutorFactory;
 import org.ndexbio.common.query.SearchNetworkByPropertyExecutor;
-import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;
@@ -124,7 +120,6 @@ import org.ndexbio.model.object.network.Namespace;
 import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSourceFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
-import org.ndexbio.model.object.network.PropertyGraphNetwork;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.util.MemoryUtilization;
@@ -1099,7 +1094,7 @@ public class NetworkAService extends NdexService {
 	}  
 	
 	
-	
+/*	
 	@PermitAll
 	@GET
 	@Path("/{networkId}/asPropertyGraph")
@@ -1133,7 +1128,8 @@ public class NetworkAService extends NdexService {
 			throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 		}
 	}
-
+*/
+/*	
 	@PermitAll
 	@GET
 	@Path("/{networkId}/edge/asPropertyGraph/{skipBlocks}/{blockSize}")
@@ -1165,7 +1161,7 @@ public class NetworkAService extends NdexService {
 			return n;
 		}
 	}
-
+*/
 	/**************************************************************************
 	 * Retrieves array of user membership objects
 	 *
@@ -1605,6 +1601,7 @@ public class NetworkAService extends NdexService {
 		   }
 	}
 
+/*	
 	@PermitAll
 	@POST
 	@Path("/{networkId}/asPropertyGraph/query")
@@ -1647,7 +1644,7 @@ public class NetworkAService extends NdexService {
 		} 
 
 	}
-
+*/
 
 
 /*	@PermitAll
@@ -1783,7 +1780,7 @@ public class NetworkAService extends NdexService {
 	}
 	
 	
-
+/*
 	@POST
 	@Path("/asPropertyGraph")
 	@Produces("application/json")
@@ -1811,7 +1808,7 @@ public class NetworkAService extends NdexService {
 			return ns;
 
 	}
-    	
+*/    	
 
 	@POST
 	@Path("/asNetwork")
