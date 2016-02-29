@@ -217,9 +217,7 @@ public class NetworkAService extends NdexService {
 	@GET
 	@Path("/{networkId}/namespace")
 	@Produces("application/json")
-    @ApiDoc("Retrieves a list of Namespace objects from the network specified by 'networkId'. The maximum number of " +
-            "Namespace objects to retrieve in the query is set by 'blockSize' (which may be any number chosen by the " +
-            "user) while  'skipBlocks' specifies the number of blocks that have already been read.")
+    @ApiDoc("Retrieves a list of Namespace objects from the network specified by 'networkId'.")
 	public List<Namespace> getNamespaces(
 			@PathParam("networkId") final String networkId)
 
