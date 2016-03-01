@@ -465,19 +465,20 @@ public class NetworkAService extends NdexService {
 			logger.info("[end: Updated properties of network {}]", networkId);
 		}
     }
-
+/*
     @PUT
 	@Path("/{networkId}/presentationProperties")
 	@Produces("application/json")
     @ApiDoc("Updates the'presentationProperties' field of the network specified by 'networkId' to be the list of " +
             "SimplePropertyValuePair objects in the PUT data.")
+    
     public int setNetworkPresentationProperties(
     		@PathParam("networkId")final String networkId,
     		final List<SimplePropertyValuePair> properties)
     		throws Exception {
 
     	throw new NdexException("This function is no longer supported.");
-    	/*
+    	
     	//logger.info(userNameForLog() + "[start: Updating presentationProperties field of network " + networkId + "]");
     	logger.info("[start: Updating presentationProperties field of network {}]", networkId);
     	
@@ -544,9 +545,9 @@ public class NetworkAService extends NdexService {
 		} finally {
 			if (null != db) db.close();
 			logger.error("[end: Updating presentationProperties field of network {}]", networkId);
-		}  */
+		} 
     }
-    
+  */  
 	/*
 	 *
 	 * Operations returning Networks 
