@@ -49,6 +49,7 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.SimpleUserQuery;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.common.models.dao.orientdb.GroupDAO;
 import org.ndexbio.common.models.dao.orientdb.GroupDocDAO;
 import org.ndexbio.common.access.NdexDatabase;
@@ -561,7 +562,9 @@ public class GroupService extends NdexService {
 	@PermitAll
 	@Path("/{groupId}/membership/{networkId}")
 	@Produces("application/json")
-	@ApiDoc("")
+	@ApiDoc("For authenticated users, this function returns all the networks that the given group has direct access to and the authenticated user can see." + 
+			"For anonymous users, this function returns all publice networks that the specified group bas direct access to."
+			+ "")
 	public Membership getNetworkMembership(@PathParam("groupId") final String groupId,
 			@PathParam("networkId") final String networkId) throws NdexException {
 		
@@ -574,6 +577,24 @@ public class GroupService extends NdexService {
 					groupId, networkId);
 			return m;
 		} 
+	}
+	
+	@GET
+	@PermitAll
+	@Path("/{groupId}/networks")
+	@Produces("application/json")
+	@ApiDoc("")
+	public List <NetworkSummary> getNetworkSummaries(@PathParam("groupId") final String groupId) throws NdexException {
+		
+		logger.info("[start: Getting networks of group {}]", groupId);
+				
+		try (GroupDocDAO dao = getGroupDocDAO()){
+			List<NetworkSummary> l = dao.getGroupNetworks(groupId,
+					(getLoggedInUser() == null? null: getLoggedInUser().getAccountName()) );
+					
+			logger.info("[end: Getting networks of group {}]", groupId);
+			return l;
+		}
 	}
 	
 	
