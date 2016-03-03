@@ -170,10 +170,12 @@
    
    <!-- Collaborator required index fields   -->
    <field name="objectCategory" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="organism" type="text_general" indexed="true" stored="false"  />
+   <field name="networkType" type="text_general" indexed="true" stored="false" multiValued="true"/>
+   <field name="graphPropertiesHash" type="string" indexed="true" stored="true" multiValued="false"/>
+   <field name="organism" type="text_general" indexed="true" stored="true"  />
    <field name="platform" type="text_general" indexed="true" stored="false"  />
-   <field name="disease" type="text_general" indexed="true" stored="false"  />
-   <field name="tissue" type="text_general" indexed="true" stored="false"  />
+   <field name="disease" type="text_general" indexed="true" stored="true"  />
+   <field name="tissue" type="text_general" indexed="true" stored="true"  />
    <field name="rightsHolder" type="text_general" indexed="true" stored="false"  />
    <field name="author" type="text_general" indexed="true" stored="false"  />
    <field name="createdAt" type="text_general" indexed="true" stored="false"  />
@@ -306,6 +308,8 @@
    <copyField source="subnetworkFilter" dest="text"/>
    <copyField source="graphHash" dest="text"/>
    <copyField source="methods" dest="text"/>
+   <copyField source="networkType" dest="text"/>
+   <copyField source="graphPropertiesHash" dest="text"/>
 
 <!-- 
    <copyField source="rightsHolder" dest="text"/>
