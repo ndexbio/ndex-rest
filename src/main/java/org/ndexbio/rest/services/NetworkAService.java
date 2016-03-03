@@ -127,7 +127,6 @@ import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexServerQueue;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
@@ -572,7 +571,7 @@ public class NetworkAService extends NdexService {
 			String userAccountName =  (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName());
 			if ( networkDocDao.networkSummaryIsReadable(userAccountName, networkId)) {
 				NetworkSummary summary = networkDocDao.getNetworkSummaryById(networkId);
-				if (summary == null) {
+				if (summary == null || (!summary.getIsComplete())) {
 					logger.info("[end: network {} not found in db.]", networkId);
 					throw new ObjectNotFoundException("Network with ID: " + networkId + " doesn't exist.");
 				}
@@ -651,10 +650,14 @@ public class NetworkAService extends NdexService {
 
 		if ( isReadable(networkId) ) {
 			
-			ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection();
-			NetworkDAO daoNew = new NetworkDAO(db);
+			NetworkDAO daoNew = new NetworkDAO(NdexDatabase.getInstance().getAConnection());
 			
 			NetworkSummary sum = daoNew.getNetworkSummaryById(networkId);
+			if (!sum.getIsComplete()) {
+				logger.error("[end: Ndex server can't find netowrk {}]", networkId);
+				daoNew.close();
+				throw new ObjectNotFoundException("Network " + networkId + " not found.");
+			}
 			long commitId = sum.getReadOnlyCommitId();
 			if ( commitId > 0 && commitId == sum.getReadOnlyCacheId()) {
 				daoNew.close();
