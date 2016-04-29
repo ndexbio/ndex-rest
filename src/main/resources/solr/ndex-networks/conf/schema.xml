@@ -165,7 +165,7 @@
    <field name="geneSymbol" type="string" indexed="true" stored="false"  multiValued="true" />
    <field name="represents" type="string" indexed="true" stored="false"  multiValued="true" />
    <field name="alias" type="string" indexed="true" stored="false"  multiValued="true" />
-   <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />
+<!--  <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />   -->  
    
    
    <!-- Collaborator required index fields   -->
@@ -321,7 +321,7 @@
    <copyField source="geneSymbol" dest="text"/>
    <copyField source="represents" dest="text"/>
    <copyField source="alias" dest="text"/>
-   <copyField source="relatedTo" dest="text"/>
+<!--    <copyField source="relatedTo" dest="text"/>   -->
 
   
    <!-- Above, multiple source fields are copied to the [text] field. 
