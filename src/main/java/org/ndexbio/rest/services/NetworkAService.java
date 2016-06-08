@@ -108,7 +108,6 @@ import org.ndexbio.common.models.object.network.RawNamespace;
 import org.ndexbio.common.persistence.orientdb.CXNetworkLoader;
 import org.ndexbio.common.persistence.orientdb.NdexNetworkCloneService;
 import org.ndexbio.common.persistence.orientdb.NdexPersistenceService;
-import org.ndexbio.common.persistence.orientdb.PropertyGraphLoader;
 import org.ndexbio.common.query.NetworkFilterQueryExecutor;
 import org.ndexbio.common.query.NetworkFilterQueryExecutorFactory;
 import org.ndexbio.common.query.SearchNetworkByPropertyExecutor;
@@ -368,7 +367,7 @@ public class NetworkAService extends NdexService {
 			daoNew.commit();
 			return  provenance; //  daoNew.getProvenance(networkUUID);
 		} catch (Exception e) {
-			if (null != daoNew) daoNew.rollback();
+			//if (null != daoNew) daoNew.rollback();
 			logger.error("[end: Updating provenance of network {}. Exception caught:]{}", networkId, e);	
 			throw e;
 		} finally {
@@ -455,7 +454,7 @@ public class NetworkAService extends NdexService {
 		} catch (Exception e) {
 			//logger.severe("Error occurred when update network properties: " + e.getMessage());
 			//e.printStackTrace();
-			if (null != daoNew) daoNew.rollback();
+			//if (null != daoNew) daoNew.rollback();
 			logger.error("[end: Updating properties of network {}. Exception caught:]{}", networkId, e);
 			
 			throw new NdexException(e.getMessage());
@@ -1377,8 +1376,7 @@ public class NetworkAService extends NdexService {
 				logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
 			}
-
-
+			
 			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
 					Permissions.WRITE)) {
 				logger.error("[end: No write permissions for user account {} on network {}]", 
@@ -1386,6 +1384,12 @@ public class NetworkAService extends NdexService {
 				networkDao.close();
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			}
+
+			if ( networkDao.networkIsLocked(networkId)) {
+				networkDao.close();
+				logger.info("[end: Can't update locked network {}]", networkId);
+				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+			} 
 
             UUID networkUUID = UUID.fromString(networkId);
 	        networkDao.updateNetworkProfile(networkUUID, summary);
@@ -2001,7 +2005,6 @@ public class NetworkAService extends NdexService {
 	       inputProcessor.start();
 	  
 			try (CXNetworkLoader loader = new CXNetworkLoader(in, getLoggedInUser().getAccountName())) {
-				UUID networkUUID = loader.updateNetwork(networkId);
 				
 				// adding provenance.
 				if( entity == null) {
@@ -2022,7 +2025,9 @@ public class NetworkAService extends NdexService {
 					} 
 				}
 					
-				loader.setNetworkProvenance(entity);
+				UUID networkUUID = loader.updateNetwork(networkId,entity);
+
+//				loader.setNetworkProvenance(entity);
 				logger.info("[end: Updating network {} using CX data]", networkId);
 				return networkUUID.toString();
 			}
@@ -2058,7 +2063,12 @@ public class NetworkAService extends NdexService {
 					logger.info("[end: Can't delete readonly network {}]", id);					
 					throw new NdexException ("Can't delete readonly network.");
 				}
-				  
+
+				if ( networkDao.networkIsLocked(id)) {
+					logger.info("[end: Can't delete locked network {}]", id);
+					throw new NdexException ("Can't delete locked network. The network is currently locked by another updating thread.");
+				} 
+			  
 				//logger.info("Start deleting network " + id);
 				networkDao.logicalDeleteNetwork(id); // this function committed the changes.
 			//	networkDao.commit();
@@ -2289,6 +2299,7 @@ public class NetworkAService extends NdexService {
 				}
 					
 				loader.setNetworkProvenance(entity);
+				loader.commit();
 				logger.info("[end: Created a new network based on a POSTed CX stream.]");
 				return networkId.toString();
 			}

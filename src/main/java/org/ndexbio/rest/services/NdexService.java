@@ -152,6 +152,8 @@ public abstract class NdexService
                 	resource.setApiDoc(apiDocAnnotation.value());
                 } else if (annotation instanceof PermitAll){
                 	resource.setAuthentication(false);
+                } else if ( annotation instanceof NdexOpenFunction ) {
+                	resource.setIsOpenFunction(true);
                 } else {
                 	// annotation class not handled
                 	System.out.println(annotation.toString() + " not handled");
