@@ -362,6 +362,13 @@ public class NetworkAService extends NdexService {
 				throw new NdexException ("Can't update readonly network.");
 			}
 
+			if ( daoNew.networkIsLocked(networkId)) {
+				daoNew.close();
+				logger.info("[end: Can't update locked network {}]", networkId);
+				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+			} 
+
+
 			UUID networkUUID = UUID.fromString(networkId);
 			daoNew.setProvenance(networkUUID, provenance);
 			daoNew.commit();
@@ -417,6 +424,12 @@ public class NetworkAService extends NdexService {
 				throw new NdexException ("Can't update readonly network.");
 			}
 			
+			if ( daoNew.networkIsLocked(networkId)) {
+				logger.info("[end: Can't update locked network {}]", networkId);
+				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+			} 
+
+
 			UUID networkUUID = UUID.fromString(networkId);
 			db.begin();
 
@@ -1285,6 +1298,12 @@ public class NetworkAService extends NdexService {
 				
 				throw new UnauthorizedOperationException("Unable to update network membership: user is not an admin of this network.");
 			}
+
+			if ( networkDao.networkIsLocked(networkId)) {
+				networkDao.close();
+				logger.info("[end: Can't update locked network {}]", networkId);
+				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+			} 
 
 	        int count = networkDao.grantPrivilege(networkId, membership.getMemberUUID().toString(), membership.getPermissions());
 			db.commit();
@@ -2225,6 +2244,13 @@ public class NetworkAService extends NdexService {
 			try (ODatabaseDocumentTx db = NdexDatabase.getInstance().getAConnection()){
 				if (Helper.isAdminOfNetwork(db, networkId, getLoggedInUser().getExternalId().toString())) {
 				 
+					NetworkDocDAO dao = new NetworkDocDAO(db);
+										
+					if ( dao.networkIsLocked(networkId)) {
+						logger.info("[end: Can't update locked network {}]", networkId);
+						throw new NdexException ("Can't modify locked network.");
+					}
+					
 				  if ( parameter.equals(readOnlyParameter)) {
 					  boolean bv = Boolean.parseBoolean(value);
 
