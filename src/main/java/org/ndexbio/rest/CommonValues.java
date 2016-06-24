@@ -34,6 +34,7 @@ package org.ndexbio.rest;
  * Represents a set of literals used throughout the ndexbio-rest project
  */
 
+@Deprecated
 public interface CommonValues {
 
 	public static final String SEARCH_MATCH_EXACT = "exact-match";

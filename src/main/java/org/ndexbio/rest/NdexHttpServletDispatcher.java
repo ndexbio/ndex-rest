@@ -149,7 +149,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			}
 			
 			// find tasks that needs to be processed in system queue
-			populateSystemQueue();
+	//		populateSystemQueue();
 			populateUserQueue();
 
 			systemTaskProcessor = new SystemTaskProcessor();

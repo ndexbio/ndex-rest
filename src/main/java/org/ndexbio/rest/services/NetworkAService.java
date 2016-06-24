@@ -2090,11 +2090,11 @@ public class NetworkAService extends NdexService {
 			  
 				//logger.info("Start deleting network " + id);
 				networkDao.logicalDeleteNetwork(id); // this function committed the changes.
-			//	networkDao.commit();
-				Task task = new Task();
+				// commment out for now as a workaround for Orientdb bug.
+		/*		Task task = new Task();
 				task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
 				task.setResource(id);
-				NdexServerQueue.INSTANCE.addSystemTask(task);
+				NdexServerQueue.INSTANCE.addSystemTask(task); */
 			}
 			
 			logger.info("[end: Deleted network {}]", id);
