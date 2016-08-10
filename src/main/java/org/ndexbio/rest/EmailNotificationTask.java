@@ -42,10 +42,10 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.models.dao.orientdb.GroupDocDAO;
-import org.ndexbio.common.models.dao.orientdb.NetworkDocDAO;
-import org.ndexbio.common.models.dao.orientdb.RequestDAO;
-import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
+import org.ndexbio.common.models.dao.postgresql.GroupDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
+import org.ndexbio.common.models.dao.postgresql.RequestDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Membership;
@@ -54,13 +54,8 @@ import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.helpers.Email;
-import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
 public class EmailNotificationTask extends TimerTask {
 
@@ -96,9 +91,9 @@ public class EmailNotificationTask extends TimerTask {
 	
 	  logger.info("Performing email notification tasks.");
 		// testing the email notification code.
-	  try (UserDocDAO userdao = new UserDocDAO()) {
+	  try (UserDAO userdao = new UserDAO()) {
 			
-		Map<String, Map<ResponseType, Integer>> tab = getNotificationTable(userdao.getDBConnection());
+		Map<String, Map<ResponseType, Integer>> tab = getNotificationTable();
 		
 		String senderAddress = Configuration.getInstance().getProperty("Feedback-Email");
 		String emailSubject = "NDEx Notifications - ";
@@ -143,7 +138,7 @@ public class EmailNotificationTask extends TimerTask {
 	 * @return
 	 * @throws NdexException 
 	 */
-	private static Map<String, Map<ResponseType, Integer>> getNotificationTable(ODatabaseDocumentTx dbconn) throws NdexException{
+	private static Map<String, Map<ResponseType, Integer>> getNotificationTable() throws NdexException{
 		  		
 	  			OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
 	  						"SELECT FROM " + NdexClasses.Request +
@@ -158,7 +153,7 @@ public class EmailNotificationTask extends TimerTask {
 	  				if ( r.getResponse() == ResponseType.PENDING ) {  // pending request need to notify the destinations side.
 	  					if (r.getPermission() == Permissions.MEMBER || r.getPermission() == Permissions.GROUPADMIN ) {
 	  						// group request. need to notify all admins of the group
-	  						GroupDocDAO grpdao = new GroupDocDAO ( dbconn);
+	  						GroupDAO grpdao = new GroupDAO ( dbconn);
 	  						List<Membership> members = grpdao.getGroupUserMemberships(r.getDestinationUUID(), Permissions.GROUPADMIN, 0, 5);
 	  						for ( Membership member : members){
 	  							String uuidStr = member.getMemberUUID().toString();

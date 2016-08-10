@@ -30,6 +30,8 @@
  */
 package org.ndexbio.rest.services;
 
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
@@ -41,7 +43,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.orientdb.RequestDAO;
+import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -49,16 +51,14 @@ import org.ndexbio.model.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.LoggerFactory;
 
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 
 import org.slf4j.Logger;
 
 @Path("/request")
 public class RequestService extends NdexService
 {
-	private RequestDAO dao;
-	private ODatabaseDocumentTx  localConnection; 
-
 	static Logger logger = LoggerFactory.getLogger(RequestService.class);
     
     /**************************************************************************
@@ -76,32 +76,34 @@ public class RequestService extends NdexService
     * Creates a request. 
     * 
     * @return The newly created request.
+     * @throws SQLException 
+     * @throws IOException 
+     * @throws JsonMappingException 
+     * @throws JsonParseException 
     **************************************************************************/
     @POST
     @Produces("application/json")
-	@ApiDoc("Create a new request based on a request JSON structure. Returns the JSON structure including the assigned database id.")
+	@ApiDoc("Create a new request based on a request JSON structure. Returns the JSON structure including the assigned UUID of this request."
+			+ "CreationDate, modificationDate, and sourceName fields will be ignored in the input object. A user can only create request for "
+			+ "himself or the group that he is a member of.")
     public Request createRequest(final Request newRequest) 
-    		throws IllegalArgumentException, DuplicateObjectException, NdexException {
+    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: Creating request for {}]", newRequest.getDestinationName());
-		
-		this.openDatabase();
-		
-		Request request = null;
-		try {
-			request = dao.createRequest(newRequest, this.getLoggedInUser());
+				
+		try (RequestDAO dao = new RequestDAO ()){			
+			Request request = dao.createRequest(newRequest, this.getLoggedInUser());
 			dao.commit();
 			return request;
 		} finally {
-			this.closeDatabase();
-			logger.info("[end: Request {} created]", 
-					(request != null) ? request.getExternalId() : "null");
+			logger.info("[end: Request created]");
 		}
     	
     }
 
     /**************************************************************************
     * Deletes a request.
+     * @throws SQLException 
     * 
     * 
     **************************************************************************/
@@ -110,18 +112,16 @@ public class RequestService extends NdexService
     @Produces("application/json")
 	@ApiDoc("Deletes the request specified by requestId. Errors if requestId not specified or if request not found.")
     public void deleteRequest(@PathParam("requestId")final String requestId) 
-    		throws IllegalArgumentException, ObjectNotFoundException, NdexException {
+    		throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
 
 		logger.info("[start: Deleting request {}]", requestId);
-
-    	this.openDatabase();
 		
-		try {
+		try (RequestDAO dao = new RequestDAO()) {
+			
 			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
 			dao.commit();
 		} finally {
-			this.closeDatabase();
-			logger.info("[end: Request {} deleted]", requestId);
+			logger.info("[end: Request deleted]");
 		}
     	
     }
@@ -136,23 +136,21 @@ public class RequestService extends NdexService
     * @throws NdexException
     *           Failed to query the database.
     * @return The request.
+     * @throws SQLException 
     **************************************************************************/
     @GET
     @Path("/{requestId}")
     @Produces("application/json")
 	@ApiDoc("Returns the request JSON structure for the request specified by requestId. Errors if requestId not specified or if request not found.")
     public Request getRequest(@PathParam("requestId")final String requestId) 
-    		throws IllegalArgumentException, NdexException {
+    		throws IllegalArgumentException, NdexException, SQLException {
  
 		logger.info("[start: Getting request {}]", requestId);
-		
-    	this.openDatabase();
-		
-		try {
+				
+		try (RequestDAO dao = new RequestDAO()){
 			final Request request = dao.getRequest(UUID.fromString(requestId), this.getLoggedInUser());
 			return request;
 		} finally {
-			this.closeDatabase();
 			logger.info("[end: Got request {}]", requestId);
 		}
     }
@@ -161,7 +159,7 @@ public class RequestService extends NdexService
     * Updates a request.
     * 
     **************************************************************************/
-    @POST
+/*   @POST
     @Path("/{requestId}")
     @Produces("application/json")
 	@ApiDoc("Updates a request corresponding to the POSTed request JSON structure. " +
@@ -172,27 +170,16 @@ public class RequestService extends NdexService
     		throws IllegalArgumentException, NdexException {
   
 		logger.info("[start: Updating request {}]", requestId);
-    	
-    	this.openDatabase();
 		
-		try {
+		try  {
 			dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
 			dao.commit();
 		} finally {
-			this.closeDatabase();
 			logger.info("[end: Updated request {}]", requestId);
 		}
     }
     
-  
-    
-    private void openDatabase() throws NdexException {
-    	localConnection = NdexDatabase.getInstance().getAConnection();
-		dao = new RequestDAO(localConnection);
-	}
-	private void closeDatabase() {
-		dao.close();
-	}
+*/
     
     
 }

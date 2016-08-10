@@ -30,6 +30,11 @@
  */
 package org.ndexbio.rest.services;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -48,10 +53,10 @@ import javax.ws.rs.core.Context;
 import org.eclipse.jetty.server.Server;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.orientdb.GroupDocDAO;
-import org.ndexbio.common.models.dao.orientdb.NetworkDocDAO;
-import org.ndexbio.common.models.dao.orientdb.RequestDAO;
-import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
+import org.ndexbio.common.models.dao.postgresql.GroupDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
+import org.ndexbio.common.models.dao.postgresql.RequestDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Account;
@@ -61,15 +66,12 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.server.StandaloneServer;
-import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
 @Path("/admin")
 public class AdminService extends NdexService {
@@ -88,6 +90,7 @@ public class AdminService extends NdexService {
 	 * 
 	 * Gets status for the service.
 	 * @throws NdexException 
+	 * @throws SQLException 
 	 **************************************************************************/
 
 	@GET
@@ -95,11 +98,11 @@ public class AdminService extends NdexService {
 	@NdexOpenFunction
 	@Path("/status")
 	@Produces("application/json")
-	public NdexStatus getStatus() throws NdexException	{
+	public NdexStatus getStatus() throws NdexException, SQLException	{
 
 		logger.info("[start: Getting status]");
 		
-		try (ODatabaseDocumentTx db =NdexDatabase.getInstance().getAConnection()){
+		try (Connection db =NdexDatabase.getInstance().getConnection()){
 			
 			NdexStatus status = new NdexStatus();
 			status.setNetworkCount(AdminService.getClassCount(db,"network"));
@@ -169,27 +172,30 @@ public class AdminService extends NdexService {
 	}
 
 	
-	private static Integer getClassCount(ODatabaseDocumentTx db, String className) {
+	private static Integer getClassCount(Connection db,String className) throws SQLException {
 
-		final List<ODocument> classCountResult = db.query(new OSQLSynchQuery<ODocument>(
-						"SELECT COUNT(*) as count FROM " + className + " where isDeleted = false"));
-
-		final Long count = classCountResult.get(0).field("count");
-
-		Integer classCount = count != null ? count.intValue() : null;
-
-		return classCount;
+		String queryStr = "select reltuples as cnt from pg_class where relname = ?";
+		try (PreparedStatement st = db.prepareStatement(queryStr)) { 
+			st.setString(1, className);
+			try (ResultSet rs = st.executeQuery(queryStr)) {
+				if ( rs.next()) {
+					return rs.getInt(1);
+				}
+			}
+		}
+		
+		return null;
 
 	} 
 	
-	
+/*	
 	@POST
 	@PermitAll
 	@Path("/accounts")
 	@Produces("application/json")
 	public List<Account> getAccountsByuuids(final Set<String> uuidStrs) throws NdexException	{
 		List<Account> accountList = new ArrayList<> (uuidStrs.size());
-		try ( UserDocDAO userdao = new UserDocDAO() ) {
+		try ( UserDAO userdao = new UserDAO() ) {
 			GroupDocDAO groupdao = new GroupDocDAO(userdao.getDBConnection());
 			for ( String uuidStr : uuidStrs) {
 				UUID uuid = UUID.fromString(uuidStr);
@@ -204,7 +210,7 @@ public class AdminService extends NdexService {
 		}
 		
 		return accountList;
-	}
+	} */
 	
 /*
 	@GET

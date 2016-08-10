@@ -44,10 +44,8 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.Provider;
 
-import org.ndexbio.common.models.dao.orientdb.UserDAO;
-import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.common.access.NdexDatabase;
-import org.apache.log4j.MDC;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
@@ -59,13 +57,14 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.NdexOpenFunction;
 import org.ndexbio.security.DelegatedLDAPAuthenticator;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
-import org.ndexbio.task.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 /*
  * class represents a RestEasy request filter that will validate
@@ -142,9 +141,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
   
             		String token = authInfo[0].substring(7);
             	
-            		try ( UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ) {
-            			String uuidStr = googleOAuthAuthenticator.GetUserUUIDFromAccessToke(token);
-            			authUser = dao.getUserById(UUID.fromString(uuidStr));
+            		try ( UserDAO dao = new UserDAO() ) {
+            			UUID uuid = googleOAuthAuthenticator.GetUserUUIDFromAccessToke(token);
+            			authUser = dao.getUserById(uuid,true);
             		}	
             	} else {
             
@@ -152,13 +151,13 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             			if ( ADAuthenticator.authenticateUser(authInfo[0], authInfo[1]) ) {
             				authenticated = true;
             				_logger.debug("User {} authenticated by AD.", authInfo[0]);
-            				try ( UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ) {
+            				try ( UserDAO dao = new UserDAO() ) {
             					try {
-            						authUser = dao.getUserByAccountName(authInfo[0]);
+            						authUser = dao.getUserByAccountName(authInfo[0],true);
             					} catch (ObjectNotFoundException e) {
             						String autoCreateAccount = Configuration.getInstance().getProperty(AD_CREATE_USER_AUTOMATICALLY);
             						if ( autoCreateAccount !=null && Boolean.parseBoolean(autoCreateAccount)) {
-            							NewUser newUser = ADAuthenticator.getNewUser(authInfo[0], authInfo[1]);
+            							User newUser = ADAuthenticator.getNewUser(authInfo[0], authInfo[1]);
             							authUser = dao.createNewUser(newUser,null);
             						} else 
             							throw e;
@@ -167,7 +166,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             			}
             		} else {
             			authInfo[0] = authInfo[0].toLowerCase();
-            			try ( UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection()) ) {
+            			try ( UserDAO dao = new UserDAO() ) {
             				authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
             			}
             		}

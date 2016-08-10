@@ -47,16 +47,12 @@ import org.junit.BeforeClass;
 import org.junit.Before;
 import org.junit.runners.MethodSorters;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.SimpleUserQuery;
-import org.ndexbio.common.models.dao.orientdb.UserDAO;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.rest.services.UserService;
-
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class TestUserService extends TestNdexService {

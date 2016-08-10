@@ -38,6 +38,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
@@ -186,6 +187,15 @@ public abstract class NdexService
         return null;
     }
     
+    protected UUID getLoggedInUserId()
+    {
+        final Object user = _httpRequest.getAttribute("User");
+        if (user != null)
+            return ((org.ndexbio.model.object.User)user).getExternalId();
+        
+        return null;
+    }
+    
     protected void setZipFlag() {
     	_httpRequest.setAttribute(NdexZipFlag, Boolean.TRUE);
     }
@@ -215,14 +225,14 @@ public abstract class NdexService
         return decodedAuthInfo.substring(0, idx);
     }
      
-    protected void logInfo (Logger logger, String message) {
+    protected void logInfo (Logger locallogger, String message) {
     	final Object user = _httpRequest.getAttribute("User");
     	
     	String userPrefix = (user != null) ?
-            "[USER:"+ ((org.ndexbio.model.object.User)user).getAccountName()+ "]\t": 
+            "[USER:"+ ((org.ndexbio.model.object.User)user).getUserName()+ "]\t": 
             	"[ANONYMOUS-USER]\t";
     	
-    	logger.info(userPrefix + message);
+    	locallogger.info(userPrefix + message);
     }
    
     protected String getRequestsUniqueId() {

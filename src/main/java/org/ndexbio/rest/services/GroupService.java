@@ -30,6 +30,8 @@
  */
 package org.ndexbio.rest.services;
 
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.List;
 
 import javax.annotation.security.PermitAll;
@@ -37,7 +39,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
-//import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -49,15 +50,17 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.SimpleUserQuery;
-import org.ndexbio.model.object.network.NetworkSummary;
-import org.ndexbio.common.models.dao.orientdb.GroupDAO;
-import org.ndexbio.common.models.dao.orientdb.GroupDocDAO;
-import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+
 import org.slf4j.Logger;
 
 @Path("/group")
@@ -88,6 +91,10 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to create the user in the database.
 	 * @return The newly created group.
+	 * @throws IOException 
+	 * @throws SQLException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
 	/*
 	 * refactor this method to use non-transactional database interactions
@@ -99,49 +106,20 @@ public class GroupService extends NdexService {
 	        "Errors if the group name specified in the JSON is not valid or is already in use. ")
 	public Group createGroup(final Group newGroup)
 			throws IllegalArgumentException, DuplicateObjectException,
-			NdexException {
+			NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 	
-		logger.info("[start: Creating group {}]", newGroup.getAccountName());
+		logger.info("[start: Creating group {}]", newGroup.getGroupName());
 
-		try (GroupDAO dao = getGroupDAO()){
-			newGroup.setAccountName(newGroup.getAccountName().toLowerCase());
+		try (GroupDAO dao = new GroupDAO()){
+			newGroup.setGroupName(newGroup.getGroupName().toLowerCase());
 			Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId());
 			dao.commit();	
-			logger.info("[end: Group {} ({}) created.]", newGroup.getAccountName(), group.getExternalId());
+			logger.info("[end: Group {} ({}) created.]", newGroup.getGroupName(), group.getExternalId());
 			return group;
 		} 
 	}
 
-/*	private void addGroupMembers(final Group newGroup, final IUser groupOwner,
-			final IGroup group) {
-		if (newGroup.getMembers() == null
-				|| newGroup.getMembers().size() == 0) {
-			final IGroupMembership membership = _orientDbGraph.addVertex(
-					"class:groupMembership", IGroupMembership.class);
-			membership.setPermissions(Permissions.ADMIN);
-			membership.setMember(groupOwner);
-			membership.setGroup(group);
 
-			
-		} else {
-			for (Membership member : newGroup.getMembers()) {
-				final IUser groupMember = _orientDbGraph.getVertex(
-						IdConverter.toRid(member.getResourceId()),
-						IUser.class);
-
-				final IGroupMembership membership = _orientDbGraph
-						.addVertex("class:groupMembership",
-								IGroupMembership.class);
-				membership.setPermissions(member.getPermissions());
-				membership.setMember(groupMember);
-				membership.setGroup(group);
-
-				groupMember.addGroup(membership);
-				group.addMember(membership);
-			}
-		}
-	}
-*/
 	/**************************************************************************
 	 * Deletes a group.
 	 * 
@@ -155,6 +133,7 @@ public class GroupService extends NdexService {
 	 *             The user doesn't have permissions to delete the group.
 	 * @throws NdexException
 	 *             Failed to delete the user from the database.
+	 * @throws SQLException 
 	 **************************************************************************/
 	
 	
@@ -164,83 +143,18 @@ public class GroupService extends NdexService {
 	@ApiDoc("Delete the group specified by groupId. " +
 	        "Errors if the group is not found or if the authenticated user does not have authorization to delete the group.")
 	public void deleteGroup(@PathParam("groupId") final String groupId)
-			throws ObjectNotFoundException, NdexException {
+			throws ObjectNotFoundException, NdexException, SQLException {
 		
 		logger.info("[start: Deleting group {}]", groupId);
 		
-		try (GroupDAO dao = getGroupDAO()){
+		try (GroupDAO dao = new GroupDAO()){
 			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
 			dao.commit();
 			logger.info("[end: Group {} deleted]", groupId);
 		} 
 	}
 
-	/*
-	private void validateGroupDeletionAuthorization(final String groupId,
-			final ORID groupRid, final IGroup groupToDelete)
-			throws ObjectNotFoundException, NdexException {
-		if (groupToDelete == null)
-			throw new ObjectNotFoundException("Group", groupId);
-		else if (!hasPermission(new Group(groupToDelete), Permissions.ADMIN))
-			throw new UnauthorizedOperationException(
-					"Insufficient privileges to delete the group.");
 
-		final List<ODocument> adminCount = _ndexDatabase
-				.query(new OSQLSynchQuery<Integer>(
-						"SELECT COUNT(@RID) FROM GroupMembership WHERE in_groupMembers = "
-								+ groupRid + " AND permissions = 'ADMIN'"));
-		if (adminCount == null || adminCount.isEmpty())
-			throw new NdexException("Unable to count ADMIN members.");
-		else if ((long) adminCount.get(0).field("COUNT") > 1)
-			throw new NdexException(
-					"Cannot delete a group that contains other ADMIN members.");
-
-		final List<ODocument> adminNetworks = _ndexDatabase
-				.query(new OSQLSynchQuery<Integer>(
-						"SELECT COUNT(@RID) FROM Membership WHERE in_userNetworks = "
-								+ groupRid + " AND permissions = 'ADMIN'"));
-		if (adminCount == null || adminCount.isEmpty())
-			throw new NdexException(
-					"Unable to query group/network membership.");
-		else if ((long) adminNetworks.get(0).field("COUNT") > 1)
-			throw new NdexException(
-					"Cannot delete a group that is an ADMIN member of any network.");
-		_logger.info("OK to delete group id " + groupId);
-	}
-*/
-	/*
-	 * private method to determine if a proposed group name is novel
-	 * @params groupName - new group name
-	 * @returns boolean - true if group name is new
-	 *                    false id group name already exists
-	 * 
-	 */
-/*	private boolean isValidGroupName(Group newGroup) throws IllegalArgumentException,
-		NdexException{
-		try {
-			Preconditions.checkNotNull(newGroup.getName(), "The new group requires a name");
-			Preconditions.checkState(Validation.isValid(newGroup.getName(),
-					Validation.REGEX_GROUP_NAME), "Invalid group name");
-		} catch (Exception e) {
-			throw new IllegalArgumentException(e);
-		}
-		
-		
-		final SearchParameters searchParameters = new SearchParameters();
-        searchParameters.setSearchString(newGroup.getName());
-        searchParameters.setSkip(0);
-        searchParameters.setTop(1);
-        
-      
-           List<Group> groupList = this.findGroups(searchParameters, 
-        		   CommonValues.SEARCH_MATCH_EXACT);
-           if (groupList.isEmpty()) {
-        	   return true;
-           }
-           return false;
-  	
-	}
-*/
 	/**************************************************************************
 	 * Find Groups based on search parameters - string matching for now
 	 * 
@@ -250,6 +164,7 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to query the database.
 	 * @return Groups that match the search criteria.
+	 * @throws SQLException 
 	 **************************************************************************/
 	@POST
 	@PermitAll
@@ -259,11 +174,11 @@ public class GroupService extends NdexService {
 	public List<Group> findGroups(SimpleUserQuery simpleQuery,
 			@PathParam("skipBlocks") final int skip,
 			@PathParam("blockSize") final int top)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, SQLException {
 
 		logger.info("[start: Search group \"{}\"]", simpleQuery.getSearchString());
 		
-		try (GroupDocDAO dao = getGroupDocDAO()) {
+		try (GroupDAO dao = new GroupDAO()) {
 			if(simpleQuery.getAccountName() != null)
 				simpleQuery.setAccountName(simpleQuery.getAccountName().toLowerCase());
 			final List<Group> groups = dao.findGroups(simpleQuery, skip, top);
@@ -282,6 +197,10 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to query the database.
 	 * @return The group.
+	 * @throws IOException 
+	 * @throws SQLException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
 	@GET
 	@PermitAll
@@ -289,99 +208,18 @@ public class GroupService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Returns a group JSON structure for the group specified by groupId. Errors if the group is not found. ")
 	public Group getGroup(@PathParam("groupId") final String groupId)
-			throws IllegalArgumentException,ObjectNotFoundException, NdexException {
+			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 		
 		logger.info("[start: Getting group {}]", groupId);
 
-		try (GroupDocDAO dao = getGroupDocDAO()) {
+		try (GroupDAO dao = new GroupDAO()) {
 			final Group group = dao.getGroupById(UUID.fromString(groupId));
 			logger.info("[end: Getting group {}]", groupId);
 			return group;
 		} 
 	}
 
-	/**************************************************************************
-	 * Removes a member from a group.
-	 * 
-	 * @param groupId
-	 *            The group ID.
-	 * @param userId
-	 *            The ID of the member to remove.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws ObjectNotFoundException
-	 *             The network or member doesn't exist.
-	 * @throws SecurityException
-	 *             The user doesn't have access to change members.
-	 * @throws NdexException
-	 *             Failed to query the database.
-	 **************************************************************************/
-	/*
-	 * refactored to accommodate non-transactional database interactions
-	 */
-/*	@DELETE
-	@Path("/{groupId}/member/{userId}")
-	@Produces("application/json")
-	@ApiDoc("Removes the member specified by userId from the group specified by groupId. " + 
-			"Errors if the group or the user is not found. " +
-			"Also errors if the authenticated user is not authorized to edit the group or if removing the member would leave the group with no Admin member.")
-	public void removeMember(@PathParam("groupId") final String groupId,
-			@PathParam("userId") final String userId)
-			throws IllegalArgumentException, ObjectNotFoundException,
-			SecurityException, NdexException {
-		
-		
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(groupId), 
-				"A group id is required");
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(userId),
-				"A user id for the member is required");
-	
 
-		try {
-			setupDatabase();
-
-			final ORID groupRid = IdConverter.toRid(groupId);
-			final IGroup group = _orientDbGraph.getVertex(groupRid,
-					IGroup.class);
-			if (group == null)
-				throw new ObjectNotFoundException("Group", groupId);
-			else if (!hasPermission(new Group(group), Permissions.ADMIN))
-				throw new UnauthorizedOperationException("Access denied.");
-
-			final IUser user = _orientDbGraph.getVertex(
-					IdConverter.toRid(userId), IUser.class);
-			if (user == null)
-				throw new ObjectNotFoundException("User", userId);
-
-			for (IGroupMembership groupMember : group.getMembers()) {
-				String memberId = IdConverter.toJid((ORID) groupMember
-						.getMember().asVertex().getId());
-				if (memberId.equals(userId)) {
-					if (countAdminMembers(groupRid) < 2)
-						throw new UnauthorizedOperationException(
-								"Cannot remove the only ADMIN member.");
-
-					group.removeMember(groupMember);
-					user.removeGroup(groupMember);
-					_orientDbGraph.getBaseGraph().commit();
-					return;
-				}
-			}
-		} catch (ObjectNotFoundException | SecurityException ne) {
-			throw ne;
-		} catch (Exception e) {
-			if (e.getMessage().indexOf("cluster: null") > -1) {
-				_logger.error("Group id " +groupId +" not found");
-				throw new ObjectNotFoundException("Group", groupId);
-			}
-			_logger.error("Failed to remove member.", e);
-			
-			throw new NdexException("Failed to remove member.");
-		} finally {
-			teardownDatabase();
-		}
-	}
-*/
 	/**************************************************************************
 	 * Updates a group.
 	 * 
@@ -395,6 +233,8 @@ public class GroupService extends NdexService {
 	 *             The user doesn't have access to update the group.
 	 * @throws NdexException
 	 *             Failed to update the user in the database.
+	 * @throws SQLException 
+	 * @throws JsonProcessingException 
 	 **************************************************************************/
 	@POST
 	@Path("/{groupId}")
@@ -403,12 +243,20 @@ public class GroupService extends NdexService {
 			"Errors if the JSON structure does not specify the group id or if no group is found by that id. ")
 	public Group updateGroup(final Group updatedGroup, 
 							@PathParam("groupId") final String id)
-			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
+			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException, JsonProcessingException {
 
 		logger.info("[start: Updating group {}]", id);
 		
-		try (GroupDAO dao = getGroupDAO()){
-			Group group = dao.updateGroup(updatedGroup, UUID.fromString(id), this.getLoggedInUser().getExternalId());
+		try (GroupDAO dao = new GroupDAO ()){
+			
+			UUID groupId = UUID.fromString(id);
+			if ( updatedGroup.getExternalId() !=null && !groupId.equals(updatedGroup.getExternalId())) {
+				throw new NdexException ( "UUID does't match between URL and uploaded group object.");
+			}
+			if ( ! dao.isGroupAdmin(groupId, getLoggedInUser().getExternalId()))
+				throw new NdexException ("Only group administrators can update a group." );
+			
+			Group group = dao.updateGroup(updatedGroup, groupId);
 			dao.commit();
 			logger.info("[end: Updating group {}]", id);		
 			return group;
@@ -429,27 +277,31 @@ public class GroupService extends NdexService {
 	 *             The network or member doesn't exist.
 	 * @throws NdexException
 	 *             Failed to query the database.
+	 * @throws SQLException 
 	 **************************************************************************/
 	@POST
-	@Path("/{groupId}/member")
-	@ApiDoc("Updates the membership corresponding to the POSTed GroupMembership JSON structure in the group specified by groupId " +
-			"Errors if GroupMembership is or groupId is not provided. " + 
+	@Path("/{groupId}/member/{userId}")
+	@ApiDoc("Updates a user's membership corresponding to the POSTed Permission in the group specified by groupId." +
 			"Errors if the authenticated user does not have admin permissions for the group. " + 
 			"Errors if the change would leave the group without an Admin member.")
-	public void updateMember(@PathParam("groupId") final String groupId,
-			final Membership groupMember) throws IllegalArgumentException,
-			ObjectNotFoundException, NdexException {
+	public void updateMember(@PathParam("groupId") final String group_id,
+			@PathParam("userId") final String user_id,
+			final Permissions permission) throws IllegalArgumentException,
+			ObjectNotFoundException, NdexException, SQLException {
 
-		logger.info("[start: Updating members of group {}]", groupId);
-		
-		try (GroupDAO dao = getGroupDAO()) {
-			if(groupMember.getMemberAccountName() != null)
-				groupMember.setMemberAccountName(groupMember.getMemberAccountName().toLowerCase());
+		logger.info("[start: Updating members of group {}]", group_id);
+		UUID groupId = UUID.fromString(group_id) ;
+		UUID userId = UUID.fromString(user_id);
+	
+		try (GroupDAO dao = new GroupDAO()) {
+			
+			if ( !dao.isGroupAdmin(groupId, getLoggedInUserId()))
+				throw new NdexException("Only group admin can update membership.");
+			
 			//check for resource name? but it can be a network. Not really important, the code uses external id's
-			dao.updateMember(groupMember, UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
+			dao.updateMember(groupId, userId, permission, this.getLoggedInUser().getExternalId());
 			dao.commit();
-			logger.info("[end: Member {} ({}) updated for group {}]", 
-					groupMember.getMemberAccountName(), groupMember.getMembershipType(),  groupId);
+			logger.info("[end: Member updated for group ]");
 		} 
 	}
 
@@ -466,6 +318,7 @@ public class GroupService extends NdexService {
 	 *             The network or member doesn't exist.
 	 * @throws NdexException
 	 *             Failed to query the database.
+	 * @throws SQLException 
 	 **************************************************************************/
 	/*
 	 * refactored to accommodate non-transactional database interactions
@@ -477,14 +330,18 @@ public class GroupService extends NdexService {
 			+ "Errors if the group or the user is not found. "
 			+ "Also errors if the authenticated user is not authorized to edit the group "
 			+ "or if removing the member would leave the group with no Admin member.")
-	public void removeMember(@PathParam("groupId") final String groupId,
+	public void removeUserMember(@PathParam("groupId") final String groupIdStr,
 			@PathParam("memberId") final String memberId) throws IllegalArgumentException,
-			ObjectNotFoundException, NdexException {
+			ObjectNotFoundException, NdexException, SQLException {
 
-		logger.info("[start: Removing member {} from group {}]", memberId, groupId);
+		logger.info("[start: Removing member {} from group {}]", memberId, groupIdStr);
 
-		try (GroupDAO dao = getGroupDAO()){
-			dao.removeMember(UUID.fromString(memberId), UUID.fromString(groupId), this.getLoggedInUser().getExternalId());
+		UUID groupId = UUID.fromString(groupIdStr);
+		try (GroupDAO dao = new GroupDAO()){
+			if ( !dao.isGroupAdmin(groupId, getLoggedInUserId()))
+				throw new NdexException("Only group admin can update membership.");
+			
+			dao.removeMember(UUID.fromString(memberId), groupId, this.getLoggedInUser().getExternalId());
 			dao.commit();
 			logger.info("[start: Member {} removed from group {}]", memberId, groupId);
 		} 
@@ -501,24 +358,30 @@ public class GroupService extends NdexService {
 	 *             The group doesn't exist.
 	 * @throws NdexException
 	 *             Failed to query the database.
+	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
 	
 	@GET
-	@PermitAll
 	@Path("/{groupId}/network/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("")
-	public List<Membership> getGroupNetworkMemberships(@PathParam("groupId") final String groupId,
+	@ApiDoc("Return a list of network membership objects which the given group have direct permission to.")
+	public List<Membership> getGroupNetworkMemberships(@PathParam("groupId") final String groupIdStr,
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException {
+			@PathParam("blockSize") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
-		logger.info("[start: Getting {} networks of group {}]", permissions, groupId);
+		logger.info("[start: Getting {} networks of group {}]", permissions, groupIdStr);
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
+		UUID groupId = UUID.fromString(groupIdStr);
 		
-		try (GroupDocDAO dao = getGroupDocDAO()){
-			List<Membership> l = dao.getGroupNetworkMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
+		try (GroupDAO dao = new GroupDAO()){
+			if ( !dao.isInGroup(groupId, getLoggedInUserId()))
+				throw new NdexException("User is not a member of this group.");
+			List<Membership> l = dao.getGroupNetworkMemberships(groupId, permission, skipBlocks, blockSize);
 			logger.info("[end: Getting {} networks of group {}]", permissions, groupId);
 			return l;
 		}
@@ -535,25 +398,32 @@ public class GroupService extends NdexService {
 	 *             The group doesn't exist.
 	 * @throws NdexException
 	 *             Failed to query the database.
+	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
 	
 	@GET
-	@PermitAll
 	@Path("/{groupId}/user/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public List<Membership> getGroupUserMemberships(@PathParam("groupId") final String groupId,
+	public List<Membership> getGroupUserMemberships(@PathParam("groupId") final String groupIdStr,
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException {
+			@PathParam("blockSize") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
-		logger.info("[start: Getting {} users in group {}]", permissions, groupId);
+		logger.info("[start: Getting {} users in group {}]", permissions, groupIdStr);
 
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
+		UUID groupId = UUID.fromString(groupIdStr);
 		
-		try (GroupDocDAO dao = getGroupDocDAO()){
-			List<Membership> l = dao.getGroupUserMemberships(UUID.fromString(groupId), permission, skipBlocks, blockSize);
-			logger.info("[end: Getting {} users in group {}]", permissions, groupId);
+		try (GroupDAO dao = new GroupDAO()){
+			if ( ! dao.isInGroup(groupId, getLoggedInUserId())) {
+				throw new NdexException("User has to be a member of this group.");
+			}
+			List<Membership> l = dao.getGroupUserMemberships(groupId, permission, skipBlocks, blockSize);
+			logger.info("[end:]");
 			return l;
 		} 
 	}
@@ -565,38 +435,41 @@ public class GroupService extends NdexService {
 	@ApiDoc("For authenticated users, this function returns all the networks that the given group has direct access to and the authenticated user can see." + 
 			"For anonymous users, this function returns all publice networks that the specified group bas direct access to."
 			+ "")
-	public Membership getNetworkMembership(@PathParam("groupId") final String groupId,
-			@PathParam("networkId") final String networkId) throws NdexException {
+	public Permissions getNetworkMembership(@PathParam("groupId") final String groupIdStr,
+			@PathParam("networkId") final String networkId) throws NdexException, SQLException {
 		
 		logger.info("[start: Getting network membership for groupId {} and networkId {}]", 
-				groupId, networkId);
+				groupIdStr, networkId);
 		
-		try (GroupDocDAO dao = getGroupDocDAO()) {
-			Membership m = dao.getMembershipToNetwork(UUID.fromString(groupId), UUID.fromString(networkId));
-			logger.info("[start: Getting network membership for groupId {} and networkId {}]", 
-					groupId, networkId);
+		UUID groupId = UUID.fromString(groupIdStr);
+		try (GroupDAO dao = new GroupDAO()) {
+			if ( !dao.isInGroup(groupId,getLoggedInUserId()) )
+				throw new NdexException ("Only a group member or admin can check group permission on a network");
+			
+			Permissions m = dao.getMembershipToNetwork(groupId, UUID.fromString(networkId));
+			logger.info("[start: Getting network membership]");
 			return m;
 		} 
-	}
+	} 
 	
-	@GET
+/*	@GET
 	@PermitAll
 	@Path("/{groupId}/networks")
 	@Produces("application/json")
-	@ApiDoc("")
+	@ApiDoc("Return a list of networkSummary objects on which the given group has a explicit READ or WRITE permission.")
 	public List <NetworkSummary> getNetworkSummaries(@PathParam("groupId") final String groupId) throws NdexException {
 		
 		logger.info("[start: Getting networks of group {}]", groupId);
 				
-		try (GroupDocDAO dao = getGroupDocDAO()){
-			List<NetworkSummary> l = dao.getGroupNetworks(groupId,
-					(getLoggedInUser() == null? null: getLoggedInUser().getAccountName()) );
+		try (GroupDocDAO dao = new GroupDocDAO()){
+			List<NetworkSummary> l = dao.getGroupNetworks(groupId, getLoggedInUserId() );
 					
 			logger.info("[end: Getting networks of group {}]", groupId);
 			return l;
 		}
 	}
 	
+*/
 	
 	/**************************************************************************
 	 * Counter the number of administrative members in the network.
@@ -612,32 +485,6 @@ public class GroupService extends NdexService {
 		return (long) adminCount.get(0).field("COUNT");
 	}*/
 
-	/**************************************************************************
-	 * Determines if the logged in user has sufficient permissions to a group.
-	 * 
-	 * @param targetGroup
-	 *            The group to test for permissions.
-	 * @return True if the member has permission, false otherwise.
-	 * @throws NdexException 
-	 **************************************************************************/
-/*	private boolean hasPermission(Group targetGroup,
-			Permissions requiredPermissions) {
-		for (Membership groupMembership : this.getLoggedInUser().getGroups()) {
-			if (groupMembership.getResourceId().equals(targetGroup.getId())
-					&& groupMembership.getPermissions().compareTo(
-							requiredPermissions) > -1)
-				return true;
-		}
 
-		return false;
-	}
-*/
-	private static GroupDAO getGroupDAO() throws NdexException {
-		return new GroupDAO(NdexDatabase.getInstance().getAConnection());
-	}
-
-	private static GroupDocDAO getGroupDocDAO() throws NdexException {
-		return new GroupDocDAO(NdexDatabase.getInstance().getAConnection());
-	}
 
 }

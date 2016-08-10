@@ -31,6 +31,7 @@
 package org.ndexbio.rest.services;
 
 
+import java.sql.SQLException;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
@@ -42,9 +43,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
-import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.orientdb.TaskDAO;
-import org.ndexbio.common.models.dao.orientdb.TaskDocDAO;
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -94,16 +93,17 @@ public class TaskService extends NdexService
 	@ApiDoc("Create a new task owned by the authenticated user based on the supplied JSON task object.")
     public UUID createTask(final Task newTask) throws IllegalArgumentException, NdexException
     {
-        final String userAccount = this.getLoggedInUser().getAccountName();
+        final String userAccount = this.getLoggedInUser().getUserName();
 
 		logger.info("[start: Creating {} task for user {}]", newTask.getTaskType(), userAccount);
 		
         Preconditions.checkArgument(null != newTask, 
     			" A task object is required");
+        newTask.setTaskOwnerId(getLoggedInUser().getExternalId());
         
-        try (TaskDAO dao = new TaskDAO(NdexDatabase.getInstance().getAConnection()))    {
+        try (TaskDAO dao = new TaskDAO())    {
         	
-        	UUID taskId = dao.createTask(userAccount, newTask);
+        	UUID taskId = dao.createTask( newTask);
             
             dao.commit();
 
@@ -150,7 +150,7 @@ public class TaskService extends NdexService
     			"A task id is required");
   
     	
-    	try (TaskDocDAO tdao= new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
+    	try (TaskDAO tdao= new TaskDAO()) {
             
             final Task taskToDelete = tdao.getTaskByUUID(taskUUID);
             
@@ -167,13 +167,13 @@ public class TaskService extends NdexService
             }
             if ( taskToDelete.getIsDeleted()) {
             	logger.info("[end: Task {} is already deleted by user {}]", 
-            			taskUUID,this.getLoggedInUser().getAccountName());            
+            			taskUUID,this.getLoggedInUser().getUserName());            
             } else {
             	tdao.deleteTask(taskToDelete.getExternalId());
             
             	tdao.commit();
             	logger.info("[end: Task {} is deleted by user {}]", 
-            			taskUUID,this.getLoggedInUser().getAccountName());
+            			taskUUID,this.getLoggedInUser().getUserName());
             }
         }
         catch (UnauthorizedOperationException | ObjectNotFoundException onfe)
@@ -206,18 +206,19 @@ public class TaskService extends NdexService
     *            The user doesn't own the task.
     * @throws NdexException
     *            Failed to query the database.
+     * @throws SQLException 
     **************************************************************************/
     @GET
     @Path("/{taskId}")
     @Produces("application/json")
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public Task getTask(@PathParam("taskId")final String taskId) throws  UnauthorizedOperationException, NdexException
+    public Task getTask(@PathParam("taskId")final String taskId) throws  UnauthorizedOperationException, NdexException, SQLException
     {
     	logger.info("[start: get task {}] ", taskId);
     	
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId), "A task id is required");
 
-    	try (TaskDocDAO tdao= new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
+    	try (TaskDAO tdao= new TaskDAO()) {
             
             final Task task = tdao.getTaskByUUID(taskId);
             
@@ -230,7 +231,7 @@ public class TaskService extends NdexService
         		logger.info("[end: User {} is unauthorized to query task {}]", 
         				getLoggedInUser().getExternalId(), taskId);            
                 throw new UnauthorizedOperationException("Can't query task " + taskId + 
-                		" for user " + this.getLoggedInUser().getAccountName());
+                		" for user " + this.getLoggedInUser().getUserName());
             }
 
         	logger.info("[end: Return task {} to user] ", taskId);

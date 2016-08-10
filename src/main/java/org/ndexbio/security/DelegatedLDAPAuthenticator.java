@@ -31,7 +31,7 @@
 package org.ndexbio.security;
 
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.task.Configuration;
+import org.ndexbio.rest.Configuration;
 
 public class DelegatedLDAPAuthenticator extends LDAPAuthenticator {
 

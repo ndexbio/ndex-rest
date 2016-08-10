@@ -31,18 +31,19 @@
 package org.ndexbio.security;
 
 import java.util.Calendar;
+import java.util.UUID;
 
 public class OAuthUserRecord {
 
-	private String userUUID;
+	private UUID userUUID;
 	private long expirationTime;
 	
-	public OAuthUserRecord(String uuid, long expiresAt) {
+	public OAuthUserRecord(UUID uuid, long expiresAt) {
 		this.userUUID = uuid;
 		this.expirationTime = expiresAt;
 	}
 
-	public String getUserUUID() {return userUUID;}
+	public UUID getUserUUID() {return userUUID;}
 	
 	public void setExpirationTime(long expiration_time) {
 		this.expirationTime = expiration_time;

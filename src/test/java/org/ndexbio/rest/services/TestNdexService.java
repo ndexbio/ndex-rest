@@ -47,23 +47,13 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.orientdb.UserDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.object.SimpleUserQuery;
-import org.ndexbio.orientdb.NdexSchemaManager;
 
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.id.ORID;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 public abstract class TestNdexService
 {
 //    protected static FramedGraphFactory _graphFactory = null;
-    protected static ODatabaseDocumentTx _ndexDatabase = null;
  //   protected static FramedGraph<OrientBaseGraph> _orientDbGraph = null;
     
     protected static final HttpServletRequest _mockRequest = EasyMock.createMock(HttpServletRequest.class);
@@ -190,39 +180,6 @@ public abstract class TestNdexService
 //    }
 //    */
     
-    /**************************************************************************
-    * Gets the record ID of an object by its name from the database.
-    * 
-    * @param objectName
-    *            The name of the object.
-    * @return An ORID object containing the record ID.
-    **************************************************************************/
-    protected ORID getRid(String objectName) throws NdexException
-    {
-        objectName = objectName.replace("'", "\\'");
-        
-   /*     final List<ODocument> matchingUsers = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from User where username = '" + objectName + "'"));
-        if (!matchingUsers.isEmpty())
-            return (ORID)_orientDbGraph.getVertex(matchingUsers.get(0)).getId();
-        
-        final List<ODocument> matchingGroups = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Group where name = '" + objectName + "'"));
-        if (!matchingGroups.isEmpty())
-            return (ORID)_orientDbGraph.getVertex(matchingGroups.get(0)).getId();
-
-        final List<ODocument> matchingNetworks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Network where name = '" + objectName + "'"));
-        if (!matchingNetworks.isEmpty())
-            return (ORID)_orientDbGraph.getVertex(matchingNetworks.get(0)).getId();
-
-        final List<ODocument> matchingRequests = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Request where message = '" + objectName + "'"));
-        if (!matchingRequests.isEmpty())
-            return (ORID)_orientDbGraph.getVertex(matchingRequests.get(0)).getId();
-
-        final List<ODocument> matchingTasks = _ndexDatabase.query(new OSQLSynchQuery<Object>("select from Task where description = '" + objectName + "'"));
-        if (!matchingTasks.isEmpty())
-            return (ORID)_orientDbGraph.getVertex(matchingTasks.get(0)).getId();
-      */  
-        throw new NdexException(objectName + " is not a user, group, network, request, or task.");
-    }
 
     
     /**************************************************************************

@@ -65,6 +65,11 @@ public class Security
         return generatePassword(10);
     }
 
+    public static String generateLongPassword()
+    {
+        return generatePassword(20);
+    }
+    
     
     public static String generateVerificationCode()
     {

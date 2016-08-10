@@ -30,6 +30,8 @@
  */
 package org.ndexbio.rest.server;
 
+import java.sql.SQLException;
+
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -49,7 +51,7 @@ public class StandaloneServer {
 		return server;
 	}
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) throws SQLException {
 		
 		//System.out.println("Log file location:" + StandaloneServer.class.getClassLoader().getResource("logging.properties"));
 		
@@ -124,6 +126,7 @@ public class StandaloneServer {
 			e.printStackTrace();
 		}
 		System.out.println("Shutting down server");
+		NdexDatabase.getInstance();
 		NdexDatabase.close();
 	}
 	

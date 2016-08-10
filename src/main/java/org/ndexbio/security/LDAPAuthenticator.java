@@ -48,11 +48,12 @@ import javax.naming.directory.SearchResult;
 import javax.naming.ldap.InitialLdapContext;
 import javax.naming.ldap.LdapContext;
 
-import org.apache.commons.lang.RandomStringUtils;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NewUser;
-import org.ndexbio.task.Configuration;
+import org.ndexbio.model.object.User;
+import org.ndexbio.rest.Configuration;
+import org.ndexbio.rest.helpers.Security;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -249,7 +250,7 @@ public class LDAPAuthenticator {
 	}
 
 	
-	public NewUser getNewUser (String username, String password) throws UnauthorizedOperationException  {
+	public User getNewUser (String username, String password) throws UnauthorizedOperationException  {
 	      
 	 	  //env.put(Context.SECURITY_PRINCIPAL, "NA\\" +username);
 	      String searchFilter = null;
@@ -290,10 +291,10 @@ public class LDAPAuthenticator {
 				searchResult = results.nextElement();
 				Attributes attrs = searchResult.getAttributes();
 //				Attribute uWWID = attrs.get("employeeID");
-                NewUser newUser = new NewUser();
+                User newUser = new User();
 				
-                newUser.setAccountName(username);
-    			newUser.setPassword(RandomStringUtils.random(25));
+                newUser.setUserName(username);
+    			newUser.setPassword(Security.generateLongPassword());
 
                 
                 Attribute attr =attrs.get("givenName");

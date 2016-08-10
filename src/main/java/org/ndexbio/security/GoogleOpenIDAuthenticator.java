@@ -32,15 +32,17 @@ package org.ndexbio.security;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.NoSuchAlgorithmException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.lang.RandomStringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -51,11 +53,12 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
-import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
-import org.ndexbio.task.Configuration;
+import org.ndexbio.rest.Configuration;
+import org.ndexbio.rest.helpers.Security;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -98,7 +101,7 @@ public class GoogleOpenIDAuthenticator {
 	}
 	
 	
-	public String getIDTokenFromQueryStr(String googleQueryString) throws NdexException, ClientProtocolException, IOException {
+	public String getIDTokenFromQueryStr(String googleQueryString) throws NdexException, ClientProtocolException, IOException, SQLException, IllegalArgumentException, NoSuchAlgorithmException {
 		
 	
 		 Pattern p = Pattern.compile("state=(.*)url%3D(http://.*/user/google/authenticate)&code=(.*)");
@@ -160,23 +163,23 @@ public class GoogleOpenIDAuthenticator {
 		 
 		 String userEmail = userProfile.get("email");
 		
-		 if ( userEmail == null || userEmail.length() < 6) 
+		 if ( userEmail == null || userEmail.length() < 6) {
 			 throw new NdexException ( "Failed to get email address from Google.");
-		 
-		 try (UserDocDAO userDao = new UserDocDAO()) {
-			 String userUUID = userDao.getUserUUIDByEmail(userEmail);
+		 }
+		 try (UserDAO userDao = new UserDAO()) {
+			 UUID userUUID = userDao.getUUIDByEmail(userEmail);
 			 if ( userUUID ==null) { 
 				 // create this user and store the token.
-				 NewUser newUser = new NewUser();
-				 newUser.setAccountName(userEmail);
+				 User newUser = new User();
+				 newUser.setUserName(userEmail);
 				 newUser.setEmailAddress(userEmail);
 				 newUser.setFirstName(userProfile.get("given_name"));
 				 newUser.setLastName(userProfile.get("family_name"));
 				 newUser.setImage(userProfile.get("picture"));
 				 newUser.setWebsite(userProfile.get("link"));
-				 newUser.setPassword(RandomStringUtils.random(25));
+				 newUser.setPassword(Security.generatePassword());
 				 User user = userDao.createNewUser(newUser, null);
-				 userUUID = user.getExternalId().toString();
+				 userUUID = user.getExternalId();
 			 }
 
 			 // store the token in in-memory table
@@ -217,7 +220,7 @@ public class GoogleOpenIDAuthenticator {
 	}
 	
 
-	public String GetUserUUIDFromAccessToke(String accessToken) throws NdexException {
+	public UUID GetUserUUIDFromAccessToke(String accessToken) throws NdexException {
 		OAuthUserRecord r = googleTokenTable.get(accessToken);
 		if ( r== null) throw new NdexException ("Invalid access token received.");
 		if (!r.isExpired())

@@ -34,6 +34,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
+import java.security.NoSuchAlgorithmException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -61,7 +63,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
-import org.apache.commons.lang.RandomStringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -80,24 +81,28 @@ import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.NewUser;
-import org.ndexbio.common.models.dao.orientdb.UserDAO;
-import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
 import org.ndexbio.common.util.Util;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.postgresql.RequestDAO;
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.security.OAuthTokenRenewRequest;
 import org.ndexbio.security.OAuthUserRecord;
-import org.ndexbio.task.Configuration;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -139,6 +144,10 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to create the user in the database.
 	 * @return The new user's profile.
+	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
 	/*
 	 * refactored to accommodate non-transactional database operations
@@ -148,20 +157,20 @@ public class UserService extends NdexService {
 	@Path("/{userId}/verify/{verificationCode}")
 	@NdexOpenFunction
 //	@Produces("application/json")
-	@ApiDoc("Verify the given user with UUID, account name and verificationCode")
+	@ApiDoc("Verify the given user with UUID and verificationCode")
 	public String verifyUser(@PathParam("userId") String userUUID,
 //					@PathParam("accountName") String accountName, 
 					@PathParam("verificationCode") String verificationCode
 				
 			)
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
-			NdexException {
+			NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: verifing User {}]", userUUID);
 		
-		try (UserDocDAO userdao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
+		try (UserDAO userdao = new UserDAO()){
 			
-			String accountName = userdao.verifyUser(userUUID, verificationCode);
+			String accountName = userdao.verifyUser(UUID.fromString(userUUID), verificationCode);
 			userdao.commit();
 			logger.info("[end: User {} verified ]", userUUID);
 			return // userdao.getUserById(UUID.fromString(userUUID));
@@ -173,14 +182,15 @@ public class UserService extends NdexService {
 	@PermitAll
 	@NdexOpenFunction
 	@Produces("application/json")
-	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. Username and emailAddress must be unique in the database.")
-	public User createUser(final NewUser newUser)
+	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. "
+			+ "Username and emailAddress must be unique in the database. If email verification is turned on on the server, the user uuid field will be set to null.")
+	public User createUser(final User newUser)
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
-			NdexException, IOException {
+			NdexException, IOException, SQLException, NoSuchAlgorithmException {
 
-		logger.info("[start: Creating User {}]", newUser.getAccountName());
+		logger.info("[start: Creating User {}]", newUser.getUserName());
 		
-		if ( newUser.getAccountName().indexOf(":")>=0) {
+		if ( newUser.getUserName().indexOf(":")>=0) {
 			logger.warn("[end: Failed to create user, account name can't contain \":\" in it]");
 			throw new NdexException("User account name can't have \":\" in it.");
 		}
@@ -188,18 +198,18 @@ public class UserService extends NdexService {
 		//verify against AD if AD authentication is defined in the configure file
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
-			if (!authenticator.authenticateUser(newUser.getAccountName(), newUser.getPassword()) ) {
+			if (!authenticator.authenticateUser(newUser.getUserName(), newUser.getPassword()) ) {
 				logger.error("[end: Unauthorized to create user {}. Throwing UnauthorizedOperationException.]", 
-						newUser.getAccountName());
+						newUser.getUserName());
 				throw new UnauthorizedOperationException("Only valid AD users can have an account in NDEx.");
 			}
-			newUser.setPassword(RandomStringUtils.random(25));
+			newUser.setPassword(Security.generateLongPassword());
 			logger.info("[User is a authenticated by AD.]");
 		}
 
-		try (UserDocDAO userdao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
+		try (UserDAO userdao = new UserDAO()){
 			
-			newUser.setAccountName(newUser.getAccountName().toLowerCase());
+			newUser.setUserName(newUser.getUserName().toLowerCase());
 
 			String needVerify = Configuration.getInstance().getProperty("VERIFY_NEWUSER_BY_EMAIL");
 
@@ -256,7 +266,7 @@ public class UserService extends NdexService {
 				user.setExternalId(null);
 			}	
 			logger.info("[end: User {} created with UUID {}]", 
-					newUser.getAccountName(), user.getExternalId());
+					newUser.getUserName(), user.getExternalId());
 			return user;
 		}
 	}
@@ -271,31 +281,34 @@ public class UserService extends NdexService {
 	 *             Bad input.
 	 * @throws NdexException
 	 *             Failed to change the password in the database.
+	 * @throws IOException 
+	 * @throws SQLException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
 	@GET
 	@PermitAll
 	@Path("/{userId}")
 	@Produces("application/json")
-	@ApiDoc("Deprecated. User should use either the user/account/{accountName} function or user/uuid/{uuid} funciton to get user information. "
+	@ApiDoc("Deprecated. User should use either the user/account/{accountName} function or user/uuid/{uuid} function to get user information. "
 			+ "This function returns the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
 	public User getUser(@PathParam("userId") @Encoded final String userId)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 		logger.info("[start: Getting user {}]", userId);
-		UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection());
-		try {
-			final User user = dao.getUserByAccountName(userId.toLowerCase());
-			logger.info("[end: User object returned for user account {}]", userId);
-			return user;
-		} catch (ObjectNotFoundException e) {
-			final User user = dao.getUserById(UUID.fromString(userId));
-			logger.info("[end: User object returned for user account {}]", userId);
-			return user;	
-		} finally  {
-			if ( dao !=null)
-				dao.close();
-		}
 		
+		try (UserDAO dao = new UserDAO()) {
+			try {
+				UUID useruuid = UUID.fromString(userId);
+				final User user = dao.getUserById(useruuid,true);
+				logger.info("[end: User object returned for user account {}]", userId);
+				return user;	
+			} catch (IllegalArgumentException e) {
+				final User user = dao.getUserByAccountName(userId.toLowerCase(),true);
+				logger.info("[end: User object returned for user account {}]", userId);
+				return user;
+			}
+		} 
 	}
 	
 	/**************************************************************************
@@ -307,19 +320,23 @@ public class UserService extends NdexService {
 	 *             Bad input.
 	 * @throws NdexException
 	 *             Failed to change the password in the database.
+	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
 	@GET
 	@PermitAll
 	@Path("/account/{userId}")
 	@Produces("application/json")
-	@ApiDoc("Return the user corresponding to user account name. Error if this account is not found.")
+	@ApiDoc("Return the user corresponding to the given user account name. Error if this account is not found.")
 	public User getUserByAccountName(@PathParam("userId") @Encoded final String userId)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: Getting user by account name {}]", userId);
-		try (UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection())){
+		try (UserDAO dao = new UserDAO()){
 			
-			final User user = dao.getUserByAccountName(userId.toLowerCase());
+			final User user = dao.getUserByAccountName(userId.toLowerCase(),true);
 			logger.info("[end: User object returned for user account {}]", userId);
 			return user;
 		} 
@@ -335,19 +352,24 @@ public class UserService extends NdexService {
 	 *             Bad input.
 	 * @throws NdexException
 	 *             Failed to change the password in the database.
+	 * @throws IOException 
+	 * @throws SQLException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
+	@SuppressWarnings("static-method")
 	@GET
 	@PermitAll
 	@Path("/uuid/{userId}")
 	@Produces("application/json")
-	@ApiDoc("Deprecated. Return the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
+	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
 	public User getUserByUUID(@PathParam("userId") @Encoded final String userId)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 		logger.info("[start: Getting user from UUID {}]", userId);
-		;
-		try (UserDocDAO dao = new UserDocDAO(NdexDatabase.getInstance().getAConnection()) ){
-			final User user = dao.getUserById(UUID.fromString(userId));
+		
+		try (UserDAO dao = new UserDAO() ){
+			final User user = dao.getUserById(UUID.fromString(userId),true);
 			logger.info("[end: User object returned for user uuid {}]", userId);
 			return user;	
 		} 
@@ -365,25 +387,31 @@ public class UserService extends NdexService {
 	 *             The group doesn't exist.
 	 * @throws NdexException
 	 *             Failed to query the database.
+	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
 	
 	@GET
-	@PermitAll
-	@Path("/{userId}/network/{permission}/{skipBlocks}/{blockSize}")
+	@Path("/network/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("")
-	public List<Membership> getUserNetworkMemberships(@PathParam("userId") final String userId,
+	@ApiDoc("Get a list of memberships which contains networks that this this user has explicit permissions on. The result includes permissions directly"
+			+ " and in-directly ( through groups) granted to this user. ")
+	//TODO: need to review the spec. Should we remove userID from URL or remove this function and replace with a getNetworksByOwner function?
+	
+	public List<Membership> getUserNetworkMemberships(
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException {
+			@PathParam("blockSize") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 		
-		logger.info("[start: Getting {} networks of user {}]", permissions, userId);
+		logger.info("[start: Getting {} networks ]", permissions);
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
-			List<Membership> members= dao.getUserNetworkMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
-			logger.info("[end: Returned {} members for user {}]", members.size(), userId);			
+		try (UserDAO dao = new UserDAO ()) {
+			List<Membership> members= dao.getUserNetworkMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize);
+			logger.info("[end: Returned {} members ]", members.size());			
 			return members;
 		} 
 	}
@@ -399,81 +427,34 @@ public class UserService extends NdexService {
 	 *             The group doesn't exist.
 	 * @throws NdexException
 	 *             Failed to query the database.
+	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	 **************************************************************************/
 	
 	@GET
-	@PermitAll
-	@Path("/{userId}/group/{permission}/{skipBlocks}/{blockSize}")
+	@Path("/group/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("")
-	public List<Membership> getUserGroupMemberships(@PathParam("userId") final String userId,
+	@ApiDoc("Returns a list of membership of groups that the current user has the given permission on. skipBlocks <0 or blockSize <=0 means return all results in one list.")
+	public List<Membership> getUserGroupMemberships(
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException {
+			@PathParam("blockSize") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
-		logger.info("[start: Getting {} groups for user {}]", permissions, userId);
+		logger.info("[start: Getting {} groups for user {}]", permissions, getLoggedInUser().getUserName());
 
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
+		try (UserDAO dao = new UserDAO ()) {
 			List<Membership> result =
-					dao.getUserGroupMemberships(UUID.fromString(userId), permission, skipBlocks, blockSize);
-			logger.info("[end: Got {} group membership for user {}]", result.size(), userId);
+					dao.getUserGroupMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize);
+			logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
 			return result;
 		} 
 	}
 
 
-	/**************************************************************************
-	 * Authenticates a user trying to login.
-	 * 
-	 * @param username
-	 *            The AccountName.
-	 * @param password
-	 *            The password.
-	 * @throws UnauthorizedOperationException
-	 *             Invalid accountName or password.
-	 * @throws NdexException
-	 *             Can't authenticate users against the database.
-	 * @return The authenticated user's information.
-	 **************************************************************************/
-	@GET
-	@PermitAll
-	@NdexOpenFunction
-	@Path("/authenticate/{accountName}/{password}")
-	@Produces("application/json")
-	@ApiDoc("DEPRECATED. Authenticates the combination of accountName and password supplied in the route parameters, returns the authenticated user if successful.")
-	public User authenticateUser(@PathParam("accountName") @Encoded final String accountName,
-			@PathParam("password") final String password)
-			throws SecurityException, UnauthorizedOperationException, NdexException {
-
-		logger.info("[start: Authenticate user {}]", accountName );
-		
-		if ( Configuration.getInstance().getUseADAuthentication()) {
-			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
-			try { 
-			 if ( !authenticator.authenticateUser(accountName, password)) {
-			    logger.info("[end: Invalid accountName or password in AD.  Throwing UnauthorizedOperationException.]");
-				throw new UnauthorizedOperationException("Invalid accountName or password in AD.");
-			 }
-			} catch (UnauthorizedOperationException e) {
-			    logger.info("[end: User {} not authenticated. {}]", accountName, e.getMessage());
-				throw e;
-			}
-			try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
-				logger.info("[end: User {} authenticated]",accountName);
-				return dao.getUserByAccountName(accountName);
-			}	
-		}
-		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
-			logger.info("[end: User {} authenticated]", accountName);		
-			return dao.authenticateUser(accountName.toLowerCase(), password);
-		} catch ( ObjectNotFoundException e) {
-			logger.error("[end: User {} not found]", accountName);
-			throw new UnauthorizedOperationException("User not found.");
-		}
-	}
 
 	
 	/**************************************************************************
@@ -506,7 +487,7 @@ public class UserService extends NdexService {
 			throw new UnauthorizedOperationException("Unauthorized user.");
 		}	
 		
-		logger.info("[end: user {} autenticated from Auth header]",  u.getAccountName());
+		logger.info("[end: user {} autenticated from Auth header]",  u.getUserName());
 		return this.getLoggedInUser();
 	}
 	
@@ -519,6 +500,9 @@ public class UserService extends NdexService {
 	 * @throws NdexException 
 	 * @throws IOException 
 	 * @throws ClientProtocolException 
+	 * @throws SQLException 
+	 * @throws NoSuchAlgorithmException 
+	 * @throws IllegalArgumentException 
 	 **************************************************************************/
 	@GET
 	@PermitAll
@@ -527,7 +511,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
 	public String authenticateFromGoogle()
-			throws NdexException, ClientProtocolException, IOException {
+			throws NdexException, ClientProtocolException, IOException, IllegalArgumentException, NoSuchAlgorithmException, SQLException {
 		
 		logger.info("[start: Authenticate user using Google oauth endpoint]");
 
@@ -602,6 +586,8 @@ public class UserService extends NdexService {
 	 *             Bad input.
 	 * @throws NdexException
 	 *             Failed to change the password in the database.
+	 * @throws SQLException 
+	 * @throws NoSuchAlgorithmException 
 	 **************************************************************************/
 	
 	@POST
@@ -609,9 +595,9 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Changes the authenticated user's password to the new password in the POST data.")
 	public void changePassword(String password)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, SQLException, NoSuchAlgorithmException {
 		
-		logger.info("[start: Changing password for user {}]", getLoggedInUser().getAccountName() );
+		logger.info("[start: Changing password for user {}]", getLoggedInUser().getUserName() );
 		
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			logger.warn("[end: Changing password not allowed for AD authentication method]");
@@ -621,10 +607,10 @@ public class UserService extends NdexService {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
 				"A password is required");
 		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())) {
-			dao.changePassword(password, getLoggedInUser().getExternalId());
+		try (UserDAO dao = new UserDAO ()) {
+			dao.setNewPassword(getLoggedInUser().getUserName(),password);
 			dao.commit();
-			logger.info("[end: Password changed for user {}]", getLoggedInUser().getAccountName());
+			logger.info("[end: Password changed for user {}]", getLoggedInUser().getUserName());
 		}
 	}
 
@@ -634,18 +620,20 @@ public class UserService extends NdexService {
 	 * 
 	 * @throws NdexException
 	 *             Failed to delete the user from the database.
+	 * @throws SQLException 
 	 **************************************************************************/
 	@DELETE
 	@Produces("application/json")
-	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user.")
-	public void deleteUser() throws NdexException, ObjectNotFoundException {
+	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user. "
+			+ "If this operation orphans a network or group, an exception will be thrown.")
+	public void deleteUser() throws NdexException, ObjectNotFoundException, SQLException {
 
 		logger.info("[start: Deleting user (self).]");
 		
-		try (UserDAO dao = new UserDAO(NdexDatabase.getInstance().getAConnection())) {
+		try (UserDAO dao = new UserDAO()) {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
 			dao.commit();
-			logger.info("[end: User {} deleted]", getLoggedInUser().getAccountName());
+			logger.info("[end: User {} deleted]", getLoggedInUser().getUserName());
 		} 
 	}
 
@@ -661,6 +649,8 @@ public class UserService extends NdexService {
 	 *             send the email.
 	 * @throws IOException 
 	 * @throws MessagingException 
+	 * @throws SQLException 
+	 * @throws NoSuchAlgorithmException 
 	 **************************************************************************/
 	@POST
 	@PermitAll
@@ -669,7 +659,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Causes a new password to be generated for the given user account and then emailed to the user's emailAddress")
 	public Response emailNewPassword( final String accountName)
-			throws IllegalArgumentException, NdexException, IOException, MessagingException {
+			throws IllegalArgumentException, NdexException, IOException, MessagingException, SQLException, NoSuchAlgorithmException {
 
 		logger.info("[start: Email new password for {}]", accountName);
 		
@@ -686,10 +676,10 @@ public class UserService extends NdexService {
 		// password
 		
 	//	BufferedReader fileReader = null;
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
+		try (UserDAO dao = new UserDAO ()){
 
-			User authUser = dao.getUserByAccountName(accountName);
-			String newPasswd = dao.setNewPassword(accountName.toLowerCase());
+			User authUser = dao.getUserByAccountName(accountName,true);
+			String newPasswd = dao.setNewPassword(accountName.toLowerCase(),null);
 
 			dao.commit();
 			
@@ -712,6 +702,7 @@ public class UserService extends NdexService {
 	 *             Bad input.
 	 * @throws NdexException
 	 *             Failed to query the database.
+	 * @throws SQLException 
 	 **************************************************************************/
 	@POST
 	@PermitAll
@@ -720,11 +711,11 @@ public class UserService extends NdexService {
 	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
 			+ "The searchParameters must contain a 'searchString' parameter. ")
 	public List<User> findUsers(SimpleUserQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, SQLException {
 
 		logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
 		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
+		try (UserDAO dao = new UserDAO ()){
 
 			if(simpleUserQuery.getAccountName() != null)
 				simpleUserQuery.setAccountName(simpleUserQuery.getAccountName().toLowerCase());
@@ -748,113 +739,121 @@ public class UserService extends NdexService {
 	 *             Users trying to update someone else.
 	 * @throws NdexException
 	 *             Failed to update the user in the database.
+	 * @throws SQLException 
+	 * @throws JsonProcessingException 
 	 **************************************************************************/
 	@POST
 	@Path("/{userIdentifier}")
 	@Produces("application/json")
-	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. Errors if the user object references a different user.")
+	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. The userName and UUID fields in the posted object are ignored by the server."
+			+ " Errors if the user object references a different user.")
 	public User updateUser(@PathParam("userIdentifier") final String userId, final User updatedUser)
-			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException {
+			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, JsonProcessingException {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
+		Preconditions.checkArgument(UUID.fromString(userId).equals(updatedUser.getExternalId()), 
+				"UUID in updated user data doesn't match user ID in the URL.");
+		Preconditions.checkArgument(updatedUser.getExternalId().equals(getLoggedInUser().getExternalId()), 
+				"UUID in URL doesn't match the user ID of the signed in user's.");
 		
 		// Currently not using path param. We can already retrieve the id from the authentication
 		// However, this depends on the authentication method staying consistent?
 
-		logger.info("[start: Updating user {}]", updatedUser.getAccountName());
+		logger.info("[start: Updating user {}]", updatedUser.getUserName());
 		
 		if ( Configuration.getInstance().getUseADAuthentication()) {
-			if ( !updatedUser.getAccountName().equals(getLoggedInUser().getAccountName())) {
+			if ( !updatedUser.getUserName().equals(getLoggedInUser().getUserName())) {
 				logger.error("[end: Updating accountName is not allowed when NDEx server is running on AD authentication.]");
 				throw new UnauthorizedOperationException(
 						"Updating accountName is not allowed when NDEx server is running on AD authentication.");
 			}
 		}
 		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
+		try (UserDAO dao = new UserDAO ()){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			dao.commit();
-			logger.info("[end: User {} updated]", updatedUser.getAccountName());
+			logger.info("[end: User {} updated]", updatedUser.getUserName());
 			return user;
 		} 
 	}
 	
 	@GET
-	@PermitAll
-	@Path("/{accountId}/membership/{resourceId}/{depth}")
+	@Path("/membership/group/{groupId}")
 	@Produces("application/json")
-	@ApiDoc("")
-	public Membership getMembership(@PathParam("accountId") final String accountId, 
-				@PathParam("resourceId") final String resourceId, 
-				@PathParam("depth") final int depth) 
-			throws IllegalArgumentException, ObjectNotFoundException, NdexException {
+	@ApiDoc("Returns the permission the current logged in user has on the given group. Returns null if the user is not a member of this group.")
+	public Permissions getGroupMembership(
+				@PathParam("groupId") final String groupId) 
+			throws IllegalArgumentException, SQLException {
 
-		logger.info("[start: Getting membership of account {}]", accountId);
+		logger.info("[start: Getting membership of account {}]", groupId);
 		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
-			Membership m = dao.getMembership(UUID.fromString(accountId), UUID.fromString(resourceId), depth);
+		try (UserDAO dao = new UserDAO ()){
+			
+			Permissions m = dao.getUserMembershipTypeOnGroup(getLoggedInUserId(), UUID.fromString(groupId));
+			
 			if ( m==null)
-			   logger.info("[end: No membership found for account {} on resource {}]", 
-                   accountId, resourceId);			
+			   logger.info("[end: No membership found.]" );			
 			else 
-			   logger.info("[end: Membership {} found for account {} on resource {}]", 
-                   m.getPermissions().name(), accountId, resourceId);
+			   logger.info("[end: Membership {} found.]", m.toString());
+			return m;
+		} 
+	}
+	
+	@GET
+	@Path("/membership/network/{networkId}/{directOnly}")
+	@Produces("application/json")
+	@ApiDoc("Get the type of permission the logged in user has on the given network. If directOnly is set to true, permissions grant through groups are not included in the result.")
+	public Permissions getNetworkMembership(@PathParam("networkId") final String networkId, 
+				@PathParam("directOnly") final boolean directOnly) 
+			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
+
+		logger.info("[start: Getting membership of account {} on {}]", getLoggedInUser().getUserName(), networkId);
+		
+		try (UserDAO dao = new UserDAO ()){
+			Permissions m = dao.getLoggedInUserPermissionOnNetwork(getLoggedInUserId(), UUID.fromString(networkId), directOnly);
+			if ( m==null)
+			   logger.info("[end: No membership found.]");			
+			else 
+			   logger.info("[end: Membership {} found.]",  m.name());
 			return m;
 		} 
 	}
 	
 	
-	//TODO both requests methods ignore UUID in url. Should at least verify it is the same as logged in UUID for consistency
-	
 	@GET
-	@Path("/{userId}/request/{skipBlocks}/{blockSize}")
+	@Path("/request/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public List<Request> getSentRequest(@PathParam("userId") final String userId,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException {
+	public List<Request> getSentRequest(@PathParam("skipBlocks") int skipBlocks,
+			@PathParam("blockSize") int blockSize) throws NdexException, SQLException {
 
-		logger.info("[start: Getting requests sent by user {}]", userId);
+		logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
-			List<Request> reqs= dao.getSentRequest(this.getLoggedInUser(),skipBlocks, blockSize);
-			logger.info("[end: Returning {} requests sent by user {}]", reqs.size(), userId);
+		try (RequestDAO dao = new RequestDAO ()){
+			List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),skipBlocks, blockSize);
+			logger.info("[end: Returning {} requests]", reqs.size());
 			return reqs;
 		}
 	}
 	
 	@GET
-	@Path("/{userId}/request/pending/{skipBlocks}/{blockSize}")
+	@Path("/request/pending/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public List<Request> getPendingRequests(@PathParam("userId") final String userId,
+	public List<Request> getPendingRequests(
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException {
+			@PathParam("blockSize") int blockSize) throws NdexException, SQLException {
 
-		logger.info("[start: Getting pending request for user {}]", userId);
+		logger.info("[start: Getting pending request for user {}]", getLoggedInUser().getUserName());
 		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
-			List<Request> reqs= dao.getPendingRequest(this.getLoggedInUser(),skipBlocks, blockSize);
-			logger.info("[end: Returning {} pending request under user {}]", reqs.size(), userId);
+		try (RequestDAO dao = new RequestDAO ()){
+			List<Request> reqs= dao.getPendingRequestByUserId(this.getLoggedInUserId(),skipBlocks, blockSize);
+			logger.info("[end: Returning {} pending request.]", reqs.size());
 			return reqs;
 		} 
 	}
 	
-	@GET
-	@Path("/{userId}/task/{status}/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-	@ApiDoc("The function is deperated. Please use the other get user tasks function without the user UUID parameter. Returns an array of Task objects with the specified status")
-	public List<Task> getTasks_aux(
-			@PathParam("userId") final String userId,
-			@PathParam("status") final String status,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException {
-		
-		return getTasks ( status,skipBlocks, blockSize);
-		
-	}
 
-	
 	@GET
 	@Path("/task/{status}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
@@ -863,14 +862,14 @@ public class UserService extends NdexService {
 
 			@PathParam("status") final String status,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException {
+			@PathParam("blockSize") int blockSize) throws SQLException {
 
-		logger.info("[start: Getting tasks for user {}]", getLoggedInUser().getAccountName());
+		logger.info("[start: Getting tasks for user {}]", getLoggedInUser().getUserName());
 		
-		try (UserDocDAO dao = new UserDocDAO (NdexDatabase.getInstance().getAConnection())){
+		try (TaskDAO dao = new TaskDAO ()){
 			Status taskStatus = Status.valueOf(status);
-			List<Task> tasks= dao.getTasks(this.getLoggedInUser(),taskStatus, skipBlocks, blockSize);
-			logger.info("[end: Returned {} tasks under user {}]", tasks.size(), getLoggedInUser().getAccountName());
+			List<Task> tasks= dao.getTasksByUserId(this.getLoggedInUser().getExternalId(),taskStatus, skipBlocks, blockSize);
+			logger.info("[end: Returned {} tasks under user {}]", tasks.size(), getLoggedInUser().getUserName());
 			return tasks;
 		} 
 	}

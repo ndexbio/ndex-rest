@@ -42,11 +42,10 @@ import java.util.logging.Logger;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.NdexServerProperties;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.orientdb.Helper;
-import org.ndexbio.common.models.dao.orientdb.TaskDocDAO;
-import org.ndexbio.common.models.dao.orientdb.UserDocDAO;
+import org.ndexbio.common.models.dao.postgresql.Helper;
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
@@ -55,17 +54,8 @@ import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.OAuthUserRecord;
 import org.ndexbio.task.ClientTaskProcessor;
-import org.ndexbio.task.Configuration;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SystemTaskProcessor;
-
-import com.orientechnologies.orient.core.Orient;
-import com.orientechnologies.orient.core.config.OGlobalConfiguration;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.orientechnologies.orient.server.OServer;
-import com.orientechnologies.orient.server.OServerMain;
 
 public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	
@@ -75,8 +65,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	 * 
 	 */
 	private static final long serialVersionUID = 1L;
-	private static final int defaultPoolSize = 50;
-	private OServer orientDBServer;
+	private static final int defaultPoolSize = 10;
 	private Thread  systemTaskProcessorThread;
 	private Thread  clientTaskProcessorThread;
 	private SystemTaskProcessor systemTaskProcessor;
@@ -97,56 +86,37 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 		Configuration configuration = null;
 		try {
 			configuration = Configuration.getInstance();
-
-			try {
-				String configFile = configuration.getNdexRoot() + "/conf/orientdb-server-config.xml";
-				File cf = new File( configFile);
-//				OGlobalConfiguration.RID_BAG_SBTREEBONSAI_TO_EMBEDDED_THRESHOLD.setValue(-1);
-				orientDBServer = OServerMain.create();
-				orientDBServer.startup(cf);
-				orientDBServer.activate();
-			} catch (Exception e1) {
-				e1.printStackTrace();
-				throw new javax.servlet.ServletException("Failed to start up OrientDB server: " + e1.getMessage());
-			}
 			
-			String poolSize = configuration.getProperty(NdexServerProperties.NDEX_DBCONNECTION_POOL_SIZE);
-			Integer size = null;
+			String poolSize = configuration.getProperty("NdexDBConnectionPoolSize");
+			int size = defaultPoolSize;
 			try {
 				if ( poolSize != null ) {
-					size = Integer.valueOf(poolSize);
-				} else 
-					size = defaultPoolSize;
+					size = Integer.parseInt(poolSize);
+				} 
 			} catch (NumberFormatException e) {
-				size = defaultPoolSize;
+				logger.warning("NdexDBConnectionPoolSize doesn't have a numeric value in configuration. Using default setting " + defaultPoolSize + " instead.");
 			}
 			
 			// create solr core for network indexes if needed.
 			NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager();
 			mgr.createCoreIfNotExists();
 			
-/*			// check if the db exists, if not create it.
-			try ( ODatabaseDocumentTx odb = new ODatabaseDocumentTx(configuration.getDBURL())) {
-				if ( !odb.exists() ) 
-					odb.create();
-			}
-*/			
 			//and initialize the db connections
     	
-			NdexDatabase db = NdexDatabase.createNdexDatabase(configuration.getHostURI(),
+			NdexDatabase db = NdexDatabase.createNdexDatabase(
 					configuration.getDBURL(),
 	    			configuration.getDBUser(),
-	    			configuration.getDBPasswd(), size.intValue());
+	    			configuration.getDBPasswd(), size);
     	
-			logger.info("Db created for " + NdexDatabase.getURIPrefix());
+			logger.info("Db created for " + configuration.getDBURL());
     	
-			try (UserDocDAO dao = new UserDocDAO(db.getAConnection())) {
+		/*	try (UserDocDAO dao = new UserDocDAO(db.getAConnection())) {
     	
 				String sysUserEmail = configuration.getProperty("NdexSystemUserEmail");
 				Helper.createUserIfnotExist(dao, configuration.getSystmUserName(),
 					(sysUserEmail == null? "support@ndexbio.org" : sysUserEmail), 
     				configuration.getSystemUserPassword());
-			}
+			} */
 			
 			// find tasks that needs to be processed in system queue
 	//		populateSystemQueue();
@@ -202,12 +172,10 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
         	logger.info("Client task processors stopped. Closing database");
         	
         	NdexDatabase.close();
-        	Orient.instance().shutdown();
-		    orientDBServer.shutdown();			
-		    logger.info ("Database has been closed.");
+		    logger.info ("Ndex Database connections have been closed.");
         } catch (Exception ee) {
             ee.printStackTrace();
-            logger.info("Error occured when shutting down Orient db.");
+            logger.info("Error occured when closing Ndex database connections.");
         }
         
         // revoke the googleTokens 
@@ -222,7 +190,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	}
 	
 	
-	private static void populateSystemQueue() throws NdexException {
+/*	private static void populateSystemQueue() throws NdexException {
 		try ( ODatabaseDocumentTx odb = NdexDatabase.getInstance().getAConnection()) {
 			OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
 		  			"SELECT FROM network where isDeleted = true");
@@ -236,17 +204,17 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			}
 			logger.info (records.size() + " deleted network found for system task queue.");
 		}
-	}
+	} */
 
 	
 	private static void populateUserQueue() throws NdexException {
-		try ( TaskDocDAO taskDAO = new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
+	/*	try ( TaskDocDAO taskDAO = new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
 			Collection<Task> list =taskDAO.getUnfinishedTasks(); 
 			for ( Task t : list) {
 				NdexServerQueue.INSTANCE.addUserTask(t);
 			}
 			logger.info (list.size() + " unfinished user tasks found for user task queue.");
-		} 
+		}  */
 	}
 	
 

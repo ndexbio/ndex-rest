@@ -38,8 +38,6 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.Task;
 
-import com.orientechnologies.orient.core.id.ORID;
-
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class TestTaskService extends TestNdexService
 {
