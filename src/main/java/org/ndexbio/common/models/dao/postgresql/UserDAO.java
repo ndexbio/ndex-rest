@@ -286,18 +286,34 @@ public class UserDAO extends NdexDBDAO {
 	}
 	
 	public UUID getUUIDByEmail(String email) throws NdexException,
-		IllegalArgumentException, ObjectNotFoundException, SQLException, JsonParseException, JsonMappingException, IOException {
+		IllegalArgumentException, ObjectNotFoundException, SQLException {
 
 
 		String sqlStr = "SELECT \"UUID\" FROM " + NdexClasses.User + " where  email_addr = ? and is_deleted=false";
 
 		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
+			st.setString(1, email);
 			try (ResultSet rs = st.executeQuery(sqlStr) ) {
 				if (rs.next()) 
 					return (UUID)rs.getObject(1);
 			}
 		} 
 		throw new ObjectNotFoundException("User with email " + email.toString() + " doesn't exist.");
+
+	}
+
+
+	public boolean isNetworkAdmin(UUID userId, UUID networkId) throws IllegalArgumentException, SQLException {
+
+		String sqlStr = "SELECT 1 FROM network where owneruuid = ? and \"UUID\" = ? and is_deleted=false";
+
+		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
+			st.setObject(1, userId);
+			st.setObject(2, networkId);
+			try (ResultSet rs = st.executeQuery(sqlStr) ) {
+				return rs.next();
+			}
+		} 
 
 	}
 

@@ -52,6 +52,21 @@ COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
 
 SET search_path = core, pg_catalog;
 
+--
+-- Name: ndex_permission_type; Type: TYPE; Schema: core; Owner: ndexserver
+--
+
+CREATE TYPE ndex_permission_type AS ENUM (
+    'READ',
+    'WRITE',
+    'ADMIN',
+    'MEMBER',
+    'GROUPADMIN'
+);
+
+
+ALTER TYPE ndex_permission_type OWNER TO ndexserver;
+
 SET default_tablespace = '';
 
 SET default_with_oids = false;
@@ -63,7 +78,7 @@ SET default_with_oids = false;
 CREATE TABLE group_network_membership (
     group_id uuid NOT NULL,
     network_id uuid NOT NULL,
-    permission_type character varying(20)
+    permission_type ndex_permission_type
 );
 
 
@@ -76,8 +91,8 @@ ALTER TABLE group_network_membership OWNER TO ndexserver;
 CREATE TABLE group_network_membership_arc (
     group_id uuid,
     network_id uuid,
-    permission_type character varying(20),
-    archive_time timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone
+    archive_time timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
+    permission_type ndex_permission_type
 );
 
 
@@ -95,7 +110,8 @@ CREATE TABLE ndex_group (
     description text,
     is_deleted boolean,
     other_attributes jsonb,
-    modification_time timestamp without time zone
+    modification_time timestamp without time zone,
+    website_url character varying(200)
 );
 
 
@@ -175,7 +191,7 @@ COMMENT ON TABLE ndex_user IS 'User info.';
 CREATE TABLE network (
     "UUID" uuid NOT NULL,
     creation_time timestamp without time zone,
-    modification_ime timestamp without time zone,
+    modification_time timestamp without time zone,
     is_deleted boolean,
     name character varying(500),
     description text,
@@ -223,7 +239,8 @@ CREATE TABLE request (
     responsemessage character varying(1000),
     requestpermission character varying(1000),
     responsetime timestamp without time zone,
-    other_attributes jsonb
+    other_attributes jsonb,
+    responder character varying(200)
 );
 
 
@@ -276,7 +293,7 @@ COMMENT ON TABLE task IS 'Task info.';
 CREATE TABLE user_network_membership (
     user_id uuid NOT NULL,
     network_id uuid NOT NULL,
-    permission_type character varying(20)
+    permission_type ndex_permission_type
 );
 
 
@@ -289,8 +306,8 @@ ALTER TABLE user_network_membership OWNER TO ndexserver;
 CREATE TABLE user_network_membership_arc (
     user_id uuid,
     network_id uuid,
-    permission_type character varying(20),
-    archive_time timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone
+    archive_time timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
+    permission_type ndex_permission_type
 );
 
 
@@ -308,7 +325,7 @@ COPY group_network_membership (group_id, network_id, permission_type) FROM stdin
 -- Data for Name: group_network_membership_arc; Type: TABLE DATA; Schema: core; Owner: ndexserver
 --
 
-COPY group_network_membership_arc (group_id, network_id, permission_type, archive_time) FROM stdin;
+COPY group_network_membership_arc (group_id, network_id, archive_time, permission_type) FROM stdin;
 \.
 
 
@@ -316,7 +333,7 @@ COPY group_network_membership_arc (group_id, network_id, permission_type, archiv
 -- Data for Name: ndex_group; Type: TABLE DATA; Schema: core; Owner: ndexserver
 --
 
-COPY ndex_group ("UUID", creation_time, group_name, image_url, description, is_deleted, other_attributes, modification_time) FROM stdin;
+COPY ndex_group ("UUID", creation_time, group_name, image_url, description, is_deleted, other_attributes, modification_time, website_url) FROM stdin;
 \.
 
 
@@ -351,7 +368,7 @@ COPY ndex_user ("UUID", creation_time, modification_ime, user_name, display_name
 -- Data for Name: network; Type: TABLE DATA; Schema: core; Owner: ndexserver
 --
 
-COPY network ("UUID", creation_time, modification_ime, is_deleted, name, description, edgecount, nodecount, islocked, iscomplete, visibility, cacheid, roid, owner, owneruuid, sourceformat, properties, provenance, cxmetadata, version, ndexdoi, is_validated) FROM stdin;
+COPY network ("UUID", creation_time, modification_time, is_deleted, name, description, edgecount, nodecount, islocked, iscomplete, visibility, cacheid, roid, owner, owneruuid, sourceformat, properties, provenance, cxmetadata, version, ndexdoi, is_validated) FROM stdin;
 \.
 
 
@@ -359,7 +376,7 @@ COPY network ("UUID", creation_time, modification_ime, is_deleted, name, descrip
 -- Data for Name: request; Type: TABLE DATA; Schema: core; Owner: ndexserver
 --
 
-COPY request ("UUID", creation_time, modification_time, is_deleted, sourceuuid, destinationuuid, requestmessage, response, responsemessage, requestpermission, responsetime, other_attributes) FROM stdin;
+COPY request ("UUID", creation_time, modification_time, is_deleted, sourceuuid, destinationuuid, requestmessage, response, responsemessage, requestpermission, responsetime, other_attributes, responder) FROM stdin;
 \.
 
 
@@ -383,7 +400,7 @@ COPY user_network_membership (user_id, network_id, permission_type) FROM stdin;
 -- Data for Name: user_network_membership_arc; Type: TABLE DATA; Schema: core; Owner: ndexserver
 --
 
-COPY user_network_membership_arc (user_id, network_id, permission_type, archive_time) FROM stdin;
+COPY user_network_membership_arc (user_id, network_id, archive_time, permission_type) FROM stdin;
 \.
 
 

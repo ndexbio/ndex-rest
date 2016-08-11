@@ -130,13 +130,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Path("/network")
-public class NetworkAService extends NdexService {
+public class NetworkService extends NdexService {
 	
-	static Logger logger = LoggerFactory.getLogger(NetworkAService.class);
+	static Logger logger = LoggerFactory.getLogger(NetworkService.class);
 	
 	static private final String readOnlyParameter = "readOnly";
 
-	public NetworkAService(@Context HttpServletRequest httpRequest) {
+	public NetworkService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
 

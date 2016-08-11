@@ -42,7 +42,7 @@ import org.easymock.EasyMock;
 
 public class NetworkAServiceTest  extends TestNdexService{
 
-    private static final NetworkAService _networkService = new NetworkAService(_mockRequest);
+    private static final NetworkService _networkService = new NetworkService(_mockRequest);
 
 //	@Test
 //	public void test() throws IllegalArgumentException, NdexException {

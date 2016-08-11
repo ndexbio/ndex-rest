@@ -31,6 +31,7 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -101,247 +102,6 @@ public class Helper {
 		return accObj;
 	}
 	
-    /**
-     * Get direct privilege between the account and a network. Indirect privileges are not included.  
-     * @param networkUUID
-     * @param accountUUID
-     * @return the permission allowed between them. Null if no permissions are found.
-     */
-    public static Permissions getNetworkPermissionByAccout(ODatabaseDocumentTx db, String networkUUID, 
-    				String accountUUID) {
-        String query = "select $path from (traverse out_admin,out_write,out_read from (select * from " + NdexClasses.Account + 
-          		" where UUID='"+ accountUUID + "')) where UUID = '"+ networkUUID + "'";
-
-	    final List<ODocument> result = db.query(new OSQLSynchQuery<ODocument>(query));
-
-	    for ( ODocument d : result ) { 
-	    	String s = d.field("$path");
-	    	return getNetworkPermissionFromOutPath(s);
-        }
-    	
-    	return null;
-    }
-    
-    public static ODocument getDocumentByElementId(ODatabaseDocumentTx db, long id, String className) {
-    		String query = "select from " + className + " where " + 
-    		        NdexClasses.Element_ID + "=" + id;
-    	    final List<ODocument> nss = db.query(new OSQLSynchQuery<ODocument>(query));
-    	  
-    	    if (!nss.isEmpty())
-    	  	       return nss.get(0);
-    	    return null;
-    }
-
-    public static Permissions getNetworkPermissionFromOutPath(String path) {
-	    Pattern pattern = Pattern.compile("out_([a-z]+)");
-	    Matcher matcher = pattern.matcher(path);
-	    if (matcher.find())
-	    {
-	    	return Permissions.valueOf(matcher.group(1).toUpperCase());
-	    }  
-	    return null;
-    }
-
-    public static Permissions getNetworkPermissionFromInPath(String path) {
-	    Pattern pattern = Pattern.compile("in_([a-z]+)");
-	    Matcher matcher = pattern.matcher(path);
-	    if (matcher.find())
-	    {
-	    	return Permissions.valueOf(matcher.group(1).toUpperCase());
-	    }  
-	    return null;
-    }
-
-    
-    public static boolean isAdminOfNetwork(ODatabaseDocumentTx db, String networkUUID, 
-			String accountUUID) {
-    	String query = "select $path from (traverse out_admin,out_member,out_groupadmin from (select * from " + NdexClasses.Account + 
-    			" where UUID='"+ accountUUID + "') while $depth < 3 ) where UUID = '"+ networkUUID + "'";
-
-    	final List<ODocument> result = db.query(new OSQLSynchQuery<ODocument>(query));
-
-    	for ( ODocument d : result ) { 
-    		String s = d.field("$path");
-    		Pattern pattern = Pattern.compile("out_admin");
-    		Matcher matcher = pattern.matcher(s);
-    		if (matcher.find())
-    		{
-    			return true;
-    		}  
-    	}
-
-    	return false;
-    }
-
-    public static boolean checkPermissionOnNetworkByAccountName(ODatabaseDocumentTx db, String networkUUID, 
-			String accountName, Permissions expectedPermission) {
-    	String query = "select $path from (traverse out_admin,out_member,out_groupadmin,out_write,out_read from (select * from " + NdexClasses.Account + 
-    			" where accountName='"+ accountName + "') while $depth < 3 ) where UUID = '"+ networkUUID + "'";
-
-    	logger.debug("Checking permissiong, query string is: " + query);
-    	
-    	final List<ODocument> result = db.query(new OSQLSynchQuery<ODocument>(query));
-
-    	for ( ODocument d : result ) { 
-    		String s = d.field("$path");
-    		
-        	logger.debug("Got query result $path: " + s);
-        	
-    		Pattern pattern = Pattern.compile("(out_admin|out_write|out_read)");
-    		Matcher matcher = pattern.matcher(s);
-    		if (matcher.find())
-    		{
-    			Permissions p = Permissions.valueOf(matcher.group(1).substring(4).toUpperCase());
-    			if ( permissionSatisfied( expectedPermission, p))
-    				return true;
-    		}  
-    	}
-
-    	return false;
-    }
-    
-    public static VisibilityType getNetworkVisibility(ODatabaseDocumentTx db, String networkUUID) {
-    	String query = "select " + NdexClasses.Network_P_visibility + " from " + NdexClasses.Network + 
-    			" where UUID='"+ networkUUID + "'";
-
-    	final List<ODocument> result = db.query(new OSQLSynchQuery<ODocument>(query));
-
-    	if ( result.isEmpty()) return null;
- 
-    	String s = result.get(0).field(NdexClasses.Network_P_visibility);
-    	return VisibilityType.valueOf(s);
-    	
-    }
-
-    
-    /**
-     * Check if the actual permission meets the required permission level.
-     * @param requiredPermission
-     * @param actualPermission
-     * @return
-     */
-    public static boolean permissionSatisfied(Permissions requiredPermission, Permissions actualPermission) {
-    	if ( actualPermission == Permissions.ADMIN) return true;
-    	if ( actualPermission == Permissions.WRITE) {
-    		if (requiredPermission == Permissions.ADMIN)
-    			return false;
-    		return true;
-    	}
-    	if ( actualPermission == Permissions.READ && requiredPermission == Permissions.READ) 
-    			return true;
-    	return false;
-    }
-    
-/*    
-    public static boolean isAdminOfNetworkByAccountName(ODatabaseDocumentTx db, String networkUUID, 
-			String accountName) {
-    	String query = "select $path from (traverse out_admin,out_member,out_groupadmin from (select * from " + NdexClasses.Account + 
-    			" where accountName='"+ accountName + "') while $depth < 3 ) where UUID = '"+ networkUUID + "'";
-
-    	final List<ODocument> result = db.query(new OSQLSynchQuery<ODocument>(query));
-
-    	for ( ODocument d : result ) { 
-    		String s = d.field("$path");
-    		Pattern pattern = Pattern.compile("out_admin");
-    		Matcher matcher = pattern.matcher(s);
-    		if (matcher.find())
-    		{
-    			return true;
-    		}  
-    	}
-
-    	return false;
-    }
- */   
-    /**
-     * Check if an admin account exists on the given network other than the one specified in the parameter.
-     *  Basically used to check if an admin edge are allowed to be removed between the network and given account. 
-     * @param db
-     * @param networkUUID
-     * @param accountUUID
-     * @return 
-     */
-    public static boolean canRemoveAdmin(ODatabaseDocumentTx db, String networkUUID, 
-    				String accountUUID) {
-    	
-    	String query = "select count(*) as c from (traverse in_" + NdexClasses.E_admin + " from (select from " +
-    	   NdexClasses.Network +" where UUID = '"+ networkUUID + "')) where UUID <> '"+ accountUUID +"'";
-
-    	final List<ODocument> result = db.query(new OSQLSynchQuery<ODocument>(query));
-
-	    if ((long) result.get(0).field("c") > 1 ) return true;
-    	return false;
-    }
-
-    public static boolean canRemoveAdminOnGrp(ODatabaseDocumentTx db, String grpUUID, 
-			String accountUUID) {
-
-    	String query = "select count(*) as c from (traverse in_" + NdexClasses.GRP_E_admin + " from (select from " +
-    	NdexClasses.Group +" where UUID = '"+ grpUUID + "')) where UUID <> '"+ accountUUID +"'";
-
-    	final List<ODocument> result = db.query(new OSQLSynchQuery<ODocument>(query));
-
-    	if ((long) result.get(0).field("c") > 1 ) return true;
-    	return false;
-    }
-
-    public static boolean canRemoveAdminByAccount(ODatabaseDocumentTx db, String networkUUID, 
-			String accountName) {
-
-    	String query = "select count(*) as c from (traverse in_" + NdexClasses.E_admin + " from (select from " +
-    			NdexClasses.Network +" where UUID = '"+ networkUUID + "')) where accountName <> '"+ accountName +"'";
-
-    	final List<ODocument> result = db.query(new OSQLSynchQuery<ODocument>(query));
-
-    	if ((long) result.get(0).field("c") > 1 ) return true;
-		return false;
-    }
-
-/*	public static NdexPropertyValuePair getNdexPropertyFromDoc(ODocument doc) {
-		NdexPropertyValuePair p = new NdexPropertyValuePair();
-		
-		ODocument baseTermDoc = doc.field("out_" + NdexClasses.ndexProp_E_predicate);
-		if ( baseTermDoc == null ) {
-			p.setPredicateString((String)doc.field(NdexClasses.ndexProp_P_predicateStr));
-		} else {
-			p.setPredicateString(getBaseTermStrFromDocument (baseTermDoc));
-//			p.setPredicateId((long)baseTermDoc.field(NdexClasses.Element_ID));
-		}
-		
-		p.setValue((String)doc.field(NdexClasses.ndexProp_P_value)) ;
-    	p.setDataType((String)doc.field(NdexClasses.ndexProp_P_datatype));
-		return p;
-	}
-	
-	private static String getBaseTermStrFromDocument(ODocument doc) {
-		ODocument nsDoc = doc.field("out_" + NdexClasses.BTerm_E_Namespace);
-		String localName = doc.field(NdexClasses.BTerm_P_name);
-		if ( nsDoc !=null) {
-			String prefix = nsDoc.field(NdexClasses.ns_P_prefix);
-			if ( prefix != null)
-				return prefix + ":" + localName;
-			return nsDoc.field(NdexClasses.ns_P_uri) + localName;
-		}
-		return localName;
-	}
-*/	
-	public static SimplePropertyValuePair getSimplePropertyFromDoc(ODocument doc) {
-		SimplePropertyValuePair p = new SimplePropertyValuePair();
-		p.setName((String)doc.field(NdexClasses.SimpleProp_P_name));
-		p.setValue((String)doc.field(NdexClasses.SimpleProp_P_value)) ;
-    	
-		return p;
-	}
-
-
-	
-	public static ODocument createSimplePropertyDoc(SimplePropertyValuePair property) {
-		ODocument pDoc = new ODocument(NdexClasses.SimpleProperty)
-			.fields(NdexClasses.SimpleProp_P_name,property.getName(),
-					NdexClasses.SimpleProp_P_value, property.getValue())
-			.save();
-		return  pDoc;
-	}
 
 	public static ODocument updateNetworkProfile(ODocument doc, NetworkSummary newSummary){
 	
@@ -372,30 +132,10 @@ public class Helper {
 	  return doc;
 	}
 	
-	
-	public static NetworkSourceFormat getSourceFormatFromNetworkDoc(ODocument networkDoc) {
-		String s = networkDoc.field(NdexClasses.Network_P_source_format);
-		if ( s == null)
-			return null;
-		return NetworkSourceFormat.valueOf(s);
-	}
-
-
-	//TODO: this is a quick fix. Need to review Orientdb string escape rules to properly implement it.
-	public static String escapeOrientDBSQL(String str) {
-		return str.replace("'", "\\'");
-	}
-
-    // Added by David Welker
- /*    public static void populateProvenanceEntity(ProvenanceEntity entity, NetworkDocDAO dao, String networkId) throws NdexException
-    {
-        NetworkSummary summary = NetworkDocDAO.getNetworkSummary(dao.getRecordByUUIDStr(networkId, null));
-        populateProvenanceEntity(entity, summary);
-    } */
 
 	
     //Added by David Welker
-    public static void populateProvenanceEntity(ProvenanceEntity entity, NetworkSummary summary) throws NdexException
+    public static void populateProvenanceEntity(ProvenanceEntity entity, NetworkSummary summary)
     {
 
         List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
@@ -432,42 +172,15 @@ public class Helper {
             eventProperties.add( new SimplePropertyValuePair("user", name));
         }
 
-        if( user.getAccountName() != null )
-            eventProperties.add( new SimplePropertyValuePair("account name", user.getAccountName()) );
+        if( user.getUserName() != null )
+            eventProperties.add( new SimplePropertyValuePair("user name", user.getUserName()) );
     }
 
 
-    public static Iterable<ODocument> getNetworkElements(ODocument networkDoc, String elementEdgeString) {	
-    	
-    	Object f = networkDoc.field("out_"+ elementEdgeString);
-    	
-    	if ( f == null) return emptyDocs;
-    	
-    	if ( f instanceof ODocument)
-    		 return new OrientDBIterableSingleLink((ODocument)f);
-    	
-    	return ((Iterable<ODocument>)f);
-    	     
-    }
-
-    
-    public static Iterable<ODocument> getDocumentLinks(ODocument doc, String direction, String elementEdgeString) {	
-    	
-    	Object f = doc.field(direction+ elementEdgeString);
-    	
-    	if ( f == null) return emptyDocs;
-    	
-    	if ( f instanceof ODocument)
-    		 return new OrientDBIterableSingleLink((ODocument)f);
-    	
-    	return ((Iterable<ODocument>)f);
-    	     
-    }
-    
-    
-	public static void createUserIfnotExist(UserDAO dao, String accountName, String email, String password) throws NdexException {
+     
+	public static void createUserIfnotExist(UserDAO dao, String accountName, String email, String password) throws NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, NoSuchAlgorithmException, SQLException, IOException {
 		try {
-			User u = dao.getUserByAccountName(accountName);
+			User u = dao.getUserByAccountName(accountName,true);
 			if ( u!= null) return;
 		} catch (IllegalArgumentException e) {
 			e.printStackTrace();
@@ -476,10 +189,10 @@ public class Helper {
 			
 		}
 		
-		NewUser newUser = new NewUser();
+		User newUser = new User();
         newUser.setEmailAddress(email);
         newUser.setPassword(password);
-        newUser.setAccountName(accountName);
+        newUser.setUserName(accountName);
         newUser.setFirstName("");
         newUser.setLastName("");
         dao.createNewUser(newUser, null);
