@@ -71,9 +71,7 @@ import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.cx.aspect.GeneralAspectFragmentReader;
-import org.ndexbio.common.models.dao.postgresql.BasicNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.Helper;
-import org.ndexbio.common.models.dao.postgresql.SingleNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
@@ -107,13 +105,9 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.orientechnologies.common.concur.ONeedRetryException;
-import com.orientechnologies.orient.core.metadata.schema.OType;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 
-public class CXNetworkLoader extends BasicNetworkDAO {
+
+public class CXNetworkLoader  {
 	
     protected static Logger logger = LoggerFactory.getLogger(CXNetworkLoader.class);
 
@@ -123,11 +117,8 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 	
 	private InputStream inputStream;
 	private NdexDatabase ndexdb;
-	private String ownerAcctName;
-	private ODocument networkDoc;
-	private OrientVertex networkVertex;
-	
-    protected OrientGraph graph;
+	private UUID ownerUUID;
+
     
     //mapping tables mapping from element SID to internal ID. 
 	private Map<Long, Long> nodeSIDMap;
@@ -153,18 +144,14 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 	
 	private Map<String, String> opaqueAspectEdgeTable;
 		
-	public CXNetworkLoader(InputStream iStream,String ownerAccountName)  throws NdexException {
+	public CXNetworkLoader(InputStream iStream,UUID ownerUUID)  throws NdexException {
 		super();
 		this.inputStream = iStream;
 		
 		ndexdb = NdexDatabase.getInstance();
 		
-		ownerAcctName = ownerAccountName;
-		
-		graph =  new OrientGraph(localConnection,false);
-		graph.setAutoScaleEdgeType(true);
-		graph.setEdgeContainerEmbedded2TreeThreshold(40);
-		graph.setUseLightweightEdges(true);
+		ownerUUID = ownerUUID;
+	
 				
 		String edgeLimit = Configuration.getInstance().getProperty(Configuration.networkPostEdgeLimit);
 		if ( edgeLimit != null ) {
@@ -240,7 +227,7 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 		
 		  // set the admin
 		
-		  UserDAO userdao = new UserDAO(localConnection);
+	/*	  UserDAO userdao = new UserDAO(localConnection);
 		  ODocument ownerDoc = userdao.getRecordByAccountName(ownerAcctName, null) ;
 		  OrientVertex ownerV = graph.getVertex(ownerDoc);
 		  
@@ -254,14 +241,14 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 					
 				}
 			}		
-		graph.commit();
-		createSolrIndex(networkDoc);
+		graph.commit(); */
+	//	createSolrIndex(networkDoc);
 		return uuid;
 		
 		} catch (Exception e) {
 			// delete network and close the database connection
 			e.printStackTrace();
-			this.abortTransaction();
+	//		this.abortTransaction();
 			throw new NdexException("Error occurred when loading CX stream. " + e.getMessage());
 		} 
        
@@ -270,7 +257,7 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 	private void persistNetworkData()
 			throws IOException, DuplicateObjectException, NdexException, ObjectNotFoundException {
 		
-		init();
+	/*	init();
 		
 		networkDoc = this.createNetworkHeadNode();
 		networkVertex = graph.getVertex(networkDoc);
@@ -428,7 +415,7 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 				  NdexClasses.Network_P_edgeCount,this.edgeSIDMap.size(),
 				   NdexClasses.Network_P_isComplete,true,
 				   NdexClasses.Network_P_opaquEdgeTable, this.opaqueAspectEdgeTable);
-		  networkDoc.save();
+		  networkDoc.save(); */
 	}
 	
 	private void addOpaqueAspectElement(OpaqueElement elmt) throws IOException, NdexException {
@@ -441,16 +428,16 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 			opaqueCounter ++;
 			opaqueAspectEdgeTable.put(aspectName, edgeName);
 		}
-		ODocument doc = new ODocument (NdexClasses.OpaqueElement).
+/*		ODocument doc = new ODocument (NdexClasses.OpaqueElement).
 				field(edgeName, elmt.toJsonString() ).save();
-		networkVertex.addEdge(edgeName, graph.getVertex(doc));
-		tick();
+		networkVertex.addEdge(edgeName, graph.getVertex(doc)); */
+		//tick();
 	}
 
 
 	private void createEdgeSupport(EdgeSupportLinksElement elmt) throws ObjectNotFoundException, DuplicateObjectException {
 		for ( Long sourceId : elmt.getSourceIds()) {
-		   ODocument edgeDoc = getOrCreateEdgeDocBySID(sourceId);
+/*		   ODocument edgeDoc = getOrCreateEdgeDocBySID(sourceId);
 		   Set<Long> supportIds = edgeDoc.field(NdexClasses.Support);
 		
 		  if(supportIds == null)
@@ -464,10 +451,10 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 			supportIds.add(supportId);
 		  }
 		
-		  edgeDoc.field(NdexClasses.Support, supportIds).save();
+		  edgeDoc.field(NdexClasses.Support, supportIds).save(); */
 		}
 	}
-
+/*
 	private void createNodeSupport(NodeSupportLinksElement elmt) throws ObjectNotFoundException, DuplicateObjectException {
 	  for (Long sourceId : elmt.getSourceIds())	 {
 		ODocument nodeDoc = getOrCreateNodeDocBySID(sourceId);
@@ -1044,7 +1031,7 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 	 * @return
 	 * @throws NdexException
 	 */
-	private Long getBaseTermId(String termString) throws NdexException {
+/*	private Long getBaseTermId(String termString) throws NdexException {
 		Long btId = baseTermMap.get(termString);
 		if ( btId == null) {
 			btId = createBaseTerm(termString);
@@ -1063,11 +1050,11 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 		counter ++;
 		if ( serverElementLimit>=0 && counter >serverElementLimit ) 
 			throw new NdexException("Element count in the CX input stream exceeded server limit " + serverElementLimit);
-		if ( counter % 5000 == 0 )  graph.commit();
+	//	if ( counter % 5000 == 0 )  graph.commit();
 		if ( counter %10000 == 0 )
 			System.out.println("Loaded " + counter + " element in CX");
 		
-	}
+	} 
 	
 	
 	private void abortTransaction() throws ObjectNotFoundException, NdexException {
@@ -1082,13 +1069,13 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 		task.setResource(uuid.toString());
 		NdexServerQueue.INSTANCE.addSystemTask(task);
 		logger.info("Partial network "+ uuid + " is deleted.");
-	}
+	} */
 	
 	
 	public UUID updateNetwork(String networkUUID, ProvenanceEntity provenanceEntity) throws NdexException, ExecutionException, SolrServerException, IOException {
 
 		// get the old network head node
-		ODocument srcNetworkDoc = this.getRecordByUUIDStr(networkUUID);
+	/*	ODocument srcNetworkDoc = this.getRecordByUUIDStr(networkUUID);
 		if (srcNetworkDoc == null)
 				throw new NdexException("Network with UUID " + networkUUID + " is not found in this server");
 
@@ -1159,7 +1146,7 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 		 	
 	}
 
-	private void copyNetworkPermissions(ODocument srcNetworkDoc, OrientVertex targetNetworkVertex) {
+/*	private void copyNetworkPermissions(ODocument srcNetworkDoc, OrientVertex targetNetworkVertex) {
 		
 		copyNetworkPermissionAux(srcNetworkDoc, targetNetworkVertex, NdexClasses.E_admin);
 		copyNetworkPermissionAux(srcNetworkDoc, targetNetworkVertex, NdexClasses.account_E_canEdit);
@@ -1175,7 +1162,7 @@ public class CXNetworkLoader extends BasicNetworkDAO {
 			userV.addEdge(permissionEdgeType, targetNetworkVertex);
 		}
 		
-	}
+	} */
 	
     public void setNetworkProvenance(ProvenanceEntity e) throws JsonProcessingException
     {
@@ -1183,10 +1170,10 @@ public class CXNetworkLoader extends BasicNetworkDAO {
         ObjectMapper mapper = new ObjectMapper();
         String provenanceString = mapper.writeValueAsString(e);
         // store provenance string
-        this.networkDoc = this.networkDoc.field(NdexClasses.Network_P_provenance, provenanceString)
-                .save();
+  /*      this.networkDoc = this.networkDoc.field(NdexClasses.Network_P_provenance, provenanceString)
+                .save(); */
     }
 
-    public void commit () { graph.commit(); } 
+   // public void commit () { graph.commit(); } 
 
 }

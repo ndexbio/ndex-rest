@@ -103,7 +103,7 @@ public class Helper {
 	}
 	
 
-	public static ODocument updateNetworkProfile(ODocument doc, NetworkSummary newSummary){
+/*	public static ODocument updateNetworkProfile(ODocument doc, NetworkSummary newSummary){
 	
 	   boolean needResetModificationTime = false;
 	   
@@ -130,7 +130,7 @@ public class Helper {
       
 	  doc.save();
 	  return doc;
-	}
+	} */
 	
 
 	

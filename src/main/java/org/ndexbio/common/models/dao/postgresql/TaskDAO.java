@@ -79,11 +79,11 @@ public class TaskDAO extends NdexDBDAO {
 		super();
 	}
 
-	public Task getTaskByUUID(String UUIDStr) throws ObjectNotFoundException, NdexException, SQLException {
+	public Task getTaskByUUID(UUID taskId) throws ObjectNotFoundException, NdexException, SQLException {
         
-		String sqlStr = "SELECT * FROM " + NdexClasses.Task + " where \"UUID\" = '" + UUIDStr + "' and not is_deleted ";
+		String sqlStr = "SELECT * FROM " + NdexClasses.Task + " where \"UUID\" = ? and not is_deleted ";
 		
-		try (Statement st = db.createStatement()) {
+		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
 			try (ResultSet rs = st.executeQuery(sqlStr) ) {
 				if (rs.next()) {
 					// populate the user object;
@@ -93,7 +93,7 @@ public class TaskDAO extends NdexDBDAO {
 
 					return result;
 				} 
-				throw new ObjectNotFoundException("Task with UUID: " + UUIDStr.toString() + " doesn't exist.");
+				throw new ObjectNotFoundException("Task with UUID: " + taskId.toString() + " doesn't exist.");
 
 			}
 		}		
@@ -125,32 +125,6 @@ public class TaskDAO extends NdexDBDAO {
 		}
 	}
 	
-
-    // This is the method called by trusted applications
-    // such as the task runner, where we also update
-    // status in the Task object passed in.
-    /**
-     * Update the status of task.status to newStatus. Update will be applied to database and the task object. 
-     * @param newStatus
-     * @param task
-     * @return
-     * @throws ObjectNotFoundException
-     * @throws NdexException
-     * @throws SQLException 
-     */
-    public void updateTaskStatus(Status newStatus, UUID taskID) throws ObjectNotFoundException, NdexException, SQLException {
-    	
-    	String updateStr = " update from " + NdexClasses.Task + " set status= ? where \"UUID\" = ? and is_deleted = false";
-		
-		try (PreparedStatement st = db.prepareStatement(updateStr) ) {
-			st.setString ( 1, newStatus.toString());
-			st.setObject(2, taskID);			
-			
-			int rowsInserted = st.executeUpdate();
-			if ( rowsInserted != 1)
-				throw new NdexException ( "Failed to update task status for " + taskID + " in database.");
-		}
-    }
 
     
 	public UUID createTask(Task newTask) throws ObjectNotFoundException, NdexException, SQLException, JsonProcessingException {
@@ -195,12 +169,29 @@ public class TaskDAO extends NdexDBDAO {
 		
 	}
 
-    
-	public void saveTaskStatus (String taskID, Status status, String message, String stackTrace) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+    /**
+     * Update the status of task.status to newStatus. Update will be applied to database and the task object. 
+     * @param newStatus
+     * @param task
+     * @return
+     * @throws ObjectNotFoundException
+     * @throws NdexException
+     * @throws SQLException 
+     * @throws IOException 
+     * @throws JsonMappingException 
+     * @throws JsonParseException 
+     */
+    public void updateTaskStatus(UUID taskID,Status newStatus) throws ObjectNotFoundException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+    	
+    	updateTaskStatus (taskID,newStatus, null,null);
+    }
+
+
+	public void updateTaskStatus (UUID taskID, Status status, String message, String stackTrace) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		String updateStr = " update from " + NdexClasses.Task + " set status= ?, message = ? " ;	
 		String updateStr2 =  " where \"UUID\" = ? and is_deleted = false";
-	
+			
 		if ( stackTrace == null) {
 			try (PreparedStatement st = db.prepareStatement(updateStr + updateStr2 ) ) {
 				st.setString ( 1, status.toString());

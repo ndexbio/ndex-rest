@@ -51,21 +51,21 @@ import org.ndexbio.rest.Configuration;
 public class CXParser implements IParsingEngine {
 	
 	private String fileName;
-	private String ownerAccountName;
+	private UUID ownerUUID;
 	private UUID uuid;
 	private String description;
 
-	public CXParser(String fn, String ownerName, String description) {
+	public CXParser(String fn, UUID ownerUUID, String description) {
 		this.fileName = fn;
-		this.ownerAccountName = ownerName;
+		this.ownerUUID = ownerUUID;
 		this.description = description;
 	}
 
 	@Override
 	public void parseFile() throws NdexException  {
 
-		
-		try (CXNetworkLoader loader = new CXNetworkLoader(new FileInputStream(fileName), ownerAccountName)) {
+	/*	
+		try (CXNetworkLoader loader = new CXNetworkLoader(new FileInputStream(fileName), ownerUUID)) {
 			uuid = loader.persistCXNetwork();
 			
 			try (NetworkDocDAO dao = new NetworkDocDAO()) {
@@ -74,7 +74,7 @@ public class CXParser implements IParsingEngine {
 				String uri = Configuration.getInstance().getHostURI();
 		        @SuppressWarnings("resource")
 				UserDAO userDocDAO = new UserDAO() ;
-		        User loggedInUser = userDocDAO.getUserByAccountName(ownerAccountName);
+		        User loggedInUser = userDocDAO.getUserById(ownerUUID,true);
 		        	
 				ProvenanceEntity provEntity = ProvenanceHelpers.createProvenanceHistory(currentNetwork,
                     uri, NdexProvenanceEventType.FILE_UPLOAD, currentNetwork.getCreationTime(), 
@@ -88,11 +88,11 @@ public class CXParser implements IParsingEngine {
 
 				loader.setNetworkProvenance(provEntity);
 				loader.commit();
-			}
+			} 
 		} catch ( Exception e) {
 			e.printStackTrace();
 			throw new NdexException ("Failed to load CX file. " + e.getMessage());
-		} 
+		}  */
 		
 	}
 

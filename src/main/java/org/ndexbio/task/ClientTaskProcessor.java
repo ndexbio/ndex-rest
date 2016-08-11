@@ -30,18 +30,22 @@
  */
 package org.ndexbio.task;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.sql.SQLException;
+import java.util.UUID;
 
-import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
-import org.ndexbio.model.object.network.FileFormat;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
+
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 
 
 
@@ -73,9 +77,9 @@ public class ClientTaskProcessor extends NdexTaskProcessor {
 				logger.info("[start: starting task]");
 				
 				NdexTask t = getNdexTask(task);
-				saveTaskStatus(task.getExternalId().toString(), Status.PROCESSING, null,null);
+				saveTaskStatus(task.getExternalId(), Status.PROCESSING, null,null);
 				Task taskObj = t.call();
-				saveTaskStatus(task.getExternalId().toString(), Status.COMPLETED, taskObj.getMessage(),null);
+				saveTaskStatus(task.getExternalId(), Status.COMPLETED, taskObj.getMessage(),null);
 
 				logger.info("[end: task completed]");
 
@@ -86,10 +90,22 @@ public class ClientTaskProcessor extends NdexTaskProcessor {
 				PrintWriter pw = new PrintWriter(sw);
 				e.printStackTrace(pw);     
 				try {
-					saveTaskStatus(task.getExternalId().toString(), Status.FAILED, e.getMessage(), sw.toString() );
+					saveTaskStatus(task.getExternalId(), Status.FAILED, e.getMessage(), sw.toString() );
 
 				} catch (NdexException e1) {
 					logger.error("Error occured when saving task " + e1);
+				} catch (JsonParseException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				} catch (JsonMappingException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				} catch (SQLException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
 				}
 				
 			} 
@@ -101,28 +117,11 @@ public class ClientTaskProcessor extends NdexTaskProcessor {
 		try {
 			switch ( task.getTaskType()) { 
 				case PROCESS_UPLOADED_NETWORK: 
-					return new FileUploadTask(task, NdexDatabase.getInstance());
-				case DOWNLOAD_NAMESPACE_FILES:
-					return new AttachNamespacefilesTask(task);
-				case EXPORT_NETWORK_TO_FILE: 
-					
-					if ( task.getFormat() == FileFormat.XBEL)
-						return new XbelExporterTask(task);
-					else if ( task.getFormat() == FileFormat.XGMML) {
-						return new XGMMLExporterTask(task);
-					} if ( task.getFormat() == FileFormat.BIOPAX) {
-						return new BioPAXExporterTask(task);
-					} if ( task.getFormat() == FileFormat.SIF) {
-						return new SIFExporterTask(task);
-					} if ( task.getFormat() == FileFormat.CX)  {
-						return new CXExporterTask(task);
-					}
-				
-					throw new NdexException ("Only XBEL, XGMML, SIF, CX, and BIOPAX exporters are implemented.");
-				case CREATE_NETWORK_CACHE: 
+					return new FileUploadTask(task);
+			/*	case CREATE_NETWORK_CACHE: 
 					return new AddNetworkToCacheTask(task);
 				case DELETE_NETWORK_CACHE:
-					return new RemoveNetworkFromCacheTask(task);
+					return new RemoveNetworkFromCacheTask(task); */
 				default:
 					throw new NdexException("Task type: " +task.getTaskType() +" is not supported");
 			}		
@@ -133,9 +132,9 @@ public class ClientTaskProcessor extends NdexTaskProcessor {
 	}
 
 
-	private static  void saveTaskStatus (String taskID, Status status, String message, String stackTrace) throws NdexException {
-		try (TaskDAO dao = new TaskDAO (NdexDatabase.getInstance().getAConnection());) {
-			dao.saveTaskStatus(taskID, status, message,stackTrace);
+	private static  void saveTaskStatus (UUID taskID, Status status, String message, String stackTrace) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+		try (TaskDAO dao = new TaskDAO ()) {
+			dao.updateTaskStatus(taskID, status, message,stackTrace);
 			dao.commit();
 		}
 	}

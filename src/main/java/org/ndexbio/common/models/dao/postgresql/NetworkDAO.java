@@ -31,6 +31,7 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -72,26 +73,12 @@ import org.ndexbio.model.object.network.VisibilityType;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.orientechnologies.common.concur.ONeedRetryException;
-import com.orientechnologies.orient.core.command.traverse.OTraverse;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.db.record.ridbag.ORidBag;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.filter.OSQLPredicate;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.Direction;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientVertex;
-import com.orientechnologies.orient.core.id.ORID;
+
 
 public class NetworkDAO extends NetworkDocDAO {
-		
-	private OrientGraph graph;	
-	
-	private static final int CLEANUP_BATCH_SIZE = 10000;
-	
+			
 	public static final String RESET_MOD_TIME = "resetMTime";
+
 	
     private static final String[] networkElementType = {NdexClasses.Network_E_BaseTerms, NdexClasses.Network_E_Nodes, NdexClasses.Network_E_Citations,
     		NdexClasses.Network_E_Edges, NdexClasses.Network_E_FunctionTerms, NdexClasses.Network_E_Namespace,
@@ -102,21 +89,12 @@ public class NetworkDAO extends NetworkDocDAO {
 	static Logger logger = Logger.getLogger(NetworkDAO.class.getName());
 	
 	
-	public NetworkDAO (ODatabaseDocumentTx db) {
-	    super(db);
-		graph = new OrientGraph(this.db,false);
-		graph.setAutoScaleEdgeType(true);
-		graph.setEdgeContainerEmbedded2TreeThreshold(40);
-		graph.setUseLightweightEdges(true);
+	public NetworkDAO () throws NdexException, SQLException {
+	    super();
 
 	}
 
-	public NetworkDAO () throws NdexException {
-	    this(NdexDatabase.getInstance().getAConnection());
-	}
 
-		
-	
 	public int deleteNetwork (String UUID) throws ObjectNotFoundException, NdexException {
 		int counter = 0, cnt = 0;
 		
@@ -140,7 +118,7 @@ public class NetworkDAO extends NetworkDocDAO {
 	 * @throws NdexException
 	 */
 	public int cleanupDeleteNetwork(String uuid) throws ObjectNotFoundException, NdexException {
-		ODocument networkDoc = getRecordByUUID(UUID.fromString(uuid), NdexClasses.Network);
+	/*	ODocument networkDoc = getRecordByUUID(UUID.fromString(uuid), NdexClasses.Network);
 		
 		int count = cleanupNetworkElements(networkDoc);
 		if ( count >= CLEANUP_BATCH_SIZE) {
@@ -158,12 +136,12 @@ public class NetworkDAO extends NetworkDocDAO {
 				logger.warning("Retry: "+ e.getMessage());
 				networkDoc.reload();
 			}
-		}
+		} */
 		
-		return count++;
+		return 1 ;// count++;
 	}
 	 
-	private List<String> getOpaqueAspectEdges (ODocument networkDoc) {
+/*	private List<String> getOpaqueAspectEdges (ODocument networkDoc) {
 		List<String> result = new ArrayList<>();
 		Map<String, String> opaqueAspectEdgeTable = networkDoc.field(NdexClasses.Network_P_opaquEdgeTable);
 		if ( opaqueAspectEdgeTable == null )
@@ -172,7 +150,7 @@ public class NetworkDAO extends NetworkDocDAO {
 		result.addAll(opaqueAspectEdgeTable.values());
 		
 		return result;
-	}
+	} */
 	
 	/**
 	 * Delete up to CLEANUP_BATCH_SIZE vertices in a network. This function is for cleaning up a logically 
@@ -182,7 +160,7 @@ public class NetworkDAO extends NetworkDocDAO {
 	 * @throws NdexException 
 	 * @throws ObjectNotFoundException 
 	 */
-	private int cleanupNetworkElements(ODocument networkDoc) throws ObjectNotFoundException, NdexException {
+/*	private int cleanupNetworkElements(ODocument networkDoc) throws ObjectNotFoundException, NdexException {
         int counter = 0;
 
         List<String> edgesToBeDeleted = getOpaqueAspectEdges(networkDoc);
@@ -197,7 +175,7 @@ public class NetworkDAO extends NetworkDocDAO {
         }
         
         return counter;
-	}
+	} */
 	
 	/**
 	 * Cleanup up to CLEANUP_BATCH_SIZE vertices in the out going edge of fieldName. 
@@ -207,7 +185,7 @@ public class NetworkDAO extends NetworkDocDAO {
 	 * @return the number of vertices being deleted. 
 	 * @throws NdexException 
 	 */
-	private int cleanupElementsByEdge(ODocument doc, String fieldName, int currentCounter) throws NdexException {
+/*	private int cleanupElementsByEdge(ODocument doc, String fieldName, int currentCounter) throws NdexException {
 		
 		Object f = doc.field("out_"+fieldName);
 		if ( f != null ) {
@@ -252,15 +230,15 @@ public class NetworkDAO extends NetworkDocDAO {
 		}
 		return counter;
 	}
-
+*/
 	public int logicalDeleteNetwork (String uuid) throws ObjectNotFoundException, NdexException {
-		ODocument networkDoc = getRecordByUUID(UUID.fromString(uuid), NdexClasses.Network);
+	/*	ODocument networkDoc = getRecordByUUID(UUID.fromString(uuid), NdexClasses.Network);
 
 		if ( networkDoc != null) {
 		   networkDoc.fields(NdexClasses.ExternalObj_isDeleted,true,
 				   NdexClasses.ExternalObj_mTime, new Date()).save();
-		}
-		commit();
+		} 
+		commit(); */
 
 		// remove the solr Index
 		SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(uuid);
@@ -302,28 +280,13 @@ public class NetworkDAO extends NetworkDocDAO {
 	 * delete all ndex and presentation properties from a network record.
 	 * Properities on network elements won't be deleted.
 	 */
-	public static void deleteNetworkProperties(ODocument networkDoc) {
+/*	public static void deleteNetworkProperties(ODocument networkDoc) {
 
 		networkDoc.removeField(NdexClasses.ndexProperties);
 		networkDoc.save();
 
-	}
+	} */
 	
-	
-	public PropertyGraphNetwork getProperytGraphNetworkById (UUID networkID, int skipBlocks, int blockSize) throws NdexException {
-
-   	    return new PropertyGraphNetwork( getNetwork(networkID,skipBlocks,blockSize)); 
-	}
-
-    
-    
-	public PropertyGraphNetwork getProperytGraphNetworkById(UUID id) throws NdexException {
-		
-
-		 return new PropertyGraphNetwork(this.getNetworkById(id)); 
-	}
-
-
  
 	/**************************************************************************
 	    * getNetworkUserMemberships
@@ -353,13 +316,13 @@ public class NetworkDAO extends NetworkDocDAO {
 				|| (permission.equals( Permissions.WRITE ))
 				|| (permission.equals( Permissions.READ )),
 				"Valid permission required");
-		
-		ODocument network = this.getRecordByUUID(networkId, NdexClasses.Network);
+		List<Membership> memberships = new ArrayList<>();
+
+	/*	ODocument network = this.getRecordByUUID(networkId, NdexClasses.Network);
 		
 		final int startIndex = skipBlocks
 				* blockSize;
 		
-			List<Membership> memberships = new ArrayList<>();
 			
 			String networkRID = network.getIdentity().toString();
 			
@@ -394,7 +357,7 @@ public class NetworkDAO extends NetworkDocDAO {
 				membership.setResourceUUID( networkId );
 				
 				memberships.add(membership);
-			}
+			} */
 			
 			logger.info("Successfuly retrieved network-user memberships");
 			return memberships;
@@ -405,7 +368,7 @@ public class NetworkDAO extends NetworkDocDAO {
     public int grantPrivilege(String networkUUID, String accountUUID, Permissions permission) throws NdexException, SolrServerException, IOException {
     	// check if the edge already exists?
 
-    	Permissions p = Helper.getNetworkPermissionByAccout(db,networkUUID, accountUUID);
+    /*	Permissions p = Helper.getNetworkPermissionByAccout(db,networkUUID, accountUUID);
 
         if ( p!=null && p == permission) {
         	logger.info("Permission " + permission + " already exists between account " + accountUUID + 
@@ -465,7 +428,7 @@ public class NetworkDAO extends NetworkDocDAO {
 		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
 		
 		networkIdx.grantNetworkPermission(networkUUID, accountName, permission, p,
-				className.equals(NdexClasses.User));
+				className.equals(NdexClasses.User)); */
                
     	return 1;
     }
@@ -473,7 +436,7 @@ public class NetworkDAO extends NetworkDocDAO {
     public int revokePrivilege(String networkUUID, String accountUUID) throws NdexException, SolrServerException, IOException {
     	// check if the edge exists?
 
-    	Permissions p = Helper.getNetworkPermissionByAccout(this.db,networkUUID, accountUUID);
+   /* 	Permissions p = Helper.getNetworkPermissionByAccout(this.db,networkUUID, accountUUID);
 
         if ( p ==null ) {
         	logger.info("Permission doesn't exists between account " + accountUUID + 
@@ -515,7 +478,7 @@ public class NetworkDAO extends NetworkDocDAO {
 		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
 		networkIdx.revokeNetworkPermission(networkUUID, accountName, p, 
 				className.equals(NdexClasses.User));
-        
+        */
         
     	return 1;
     }
@@ -525,20 +488,10 @@ public class NetworkDAO extends NetworkDocDAO {
 		graph.rollback();		
 	} */
 
-	@Override
-	public void commit() {
-		graph.commit();
-		
-	}
-	
-	@Override
-	public void close() {
-		graph.shutdown();
-	}
     
 	
 	public void updateNetworkProfile(UUID networkId, NetworkSummary newSummary) throws NdexException, SolrServerException, IOException {
-		ODocument doc = this.getNetworkDocByUUID(networkId);
+	/*	ODocument doc = this.getNetworkDocByUUID(networkId);
 		
 		Helper.updateNetworkProfile(doc, newSummary);
 		
@@ -565,7 +518,7 @@ public class NetworkDAO extends NetworkDocDAO {
 	    if ( newSummary.getVisibility()!=null )
 				newValues.put( NdexClasses.Network_P_visibility, newSummary.getVisibility());
 			 
-		networkIdx.updateNetworkProfile(networkId.toString(), newValues);
+		networkIdx.updateNetworkProfile(networkId.toString(), newValues); */
 	}
 	
 	

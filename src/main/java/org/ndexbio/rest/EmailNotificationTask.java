@@ -31,6 +31,7 @@
 package org.ndexbio.rest;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
@@ -56,6 +57,9 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.rest.helpers.Email;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 
 public class EmailNotificationTask extends TimerTask {
 
@@ -100,11 +104,11 @@ public class EmailNotificationTask extends TimerTask {
 		
 		for ( Map.Entry<String, Map<ResponseType,Integer>> rec : tab.entrySet()) {
 			String userUUIDStr = rec.getKey();
-			User u = userdao.getUserById(UUID.fromString(userUUIDStr));
+			User u = userdao.getUserById(UUID.fromString(userUUIDStr),true);
 			Map<ResponseType,Integer> notifications = rec.getValue();
 			if ( notifications.get(ResponseType.PENDING)!=null)	{			
 			
-				String emailString = "Dear " + u.getAccountName() + " account holder,<br>" + 
+				String emailString = "Dear " + u.getUserName() + " account holder,<br>" + 
 					"You have received one or more requests to access networks or groups that you currently manage in NDEx. " + 
 					"Please log in to your account to review and manage all pending requests." ;
 					
@@ -115,7 +119,7 @@ public class EmailNotificationTask extends TimerTask {
 			}
 			if ( notifications.get(ResponseType.ACCEPTED)!=null)	{			
 				
-				String emailString = "Dear " + u.getAccountName() + " account holder,<br>" + 
+				String emailString = "Dear " + u.getUserName() + " account holder,<br>" + 
 					"Your pending requests have been reviewed by the account's administrator. "+
 					"You can now log in to your account and access new networks and groups." ;
 				
@@ -129,6 +133,21 @@ public class EmailNotificationTask extends TimerTask {
 	  } catch (NdexException e) {
 		logger.error("Error occured when sending email notifications. Cause:" + e.getMessage() );
 		e.printStackTrace();
+	} catch (SQLException e1) {
+		// TODO Auto-generated catch block
+		e1.printStackTrace();
+	} catch (JsonParseException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	} catch (JsonMappingException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	} catch (IllegalArgumentException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	} catch (IOException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
 	} 
 
 	}
@@ -140,15 +159,15 @@ public class EmailNotificationTask extends TimerTask {
 	 */
 	private static Map<String, Map<ResponseType, Integer>> getNotificationTable() throws NdexException{
 		  		
-	  			OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
+	/*  			OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
 	  						"SELECT FROM " + NdexClasses.Request +
 	  						" WHERE sysdate().asLong()  - modificationTime.asLong()  < 24*3600000 and  isDeleted=false"
 	  								 );
 
-	  			List<ODocument> records = dbconn.command(query).execute();
+	  			List<ODocument> records = dbconn.command(query).execute(); */
 
 	  		    Map <String, Map<ResponseType, Integer>> result = new HashMap<> ();
-	  			for (ODocument request : records) {
+/*	  			for (ODocument request : records) {
 	  				Request r = RequestDAO.getRequestFromDocument(request);
 	  				if ( r.getResponse() == ResponseType.PENDING ) {  // pending request need to notify the destinations side.
 	  					if (r.getPermission() == Permissions.MEMBER || r.getPermission() == Permissions.GROUPADMIN ) {
@@ -205,7 +224,7 @@ public class EmailNotificationTask extends TimerTask {
 	  					notifications.put(ResponseType.ACCEPTED, cnt);
 	  				}
 	  				
-	  			}
+	  			} */
 	  		return result;	
 	}
 	

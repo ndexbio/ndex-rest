@@ -31,6 +31,7 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -54,6 +55,7 @@ import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.Permissions;
@@ -79,22 +81,16 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+
 
 public class NetworkDocDAO extends NdexDBDAO {
 
 	private static Logger logger = Logger.getLogger(NetworkDocDAO.class.getName());
 	
 	
-	public NetworkDocDAO (ODatabaseDocumentTx db) {
-	    super(db);
 
-	}
-
-	public NetworkDocDAO () throws NdexException {
-	    this(NdexDatabase.getInstance().getAConnection());
+	public NetworkDocDAO () throws NdexException, SQLException {
+	    super();
 	}
 
 	/**
@@ -104,10 +100,10 @@ public class NetworkDocDAO extends NdexDBDAO {
 	 * @throws ObjectNotFoundException 
 	 */
 	public void lockNetwork(String networkIDstr) throws ObjectNotFoundException {
-		ODocument nDoc = getNetworkDocByUUIDString(networkIDstr);
+	/*	ODocument nDoc = getNetworkDocByUUIDString(networkIDstr);
 		nDoc.field(NdexClasses.Network_P_isLocked,true);
 		nDoc.save();
-		db.commit();
+		db.commit();*/
 	}
 	
 	/**
@@ -117,27 +113,29 @@ public class NetworkDocDAO extends NdexDBDAO {
 	 * @throws ObjectNotFoundException 
 	 */
 	public void unlockNetwork (String networkIDstr) throws ObjectNotFoundException {
-		ODocument nDoc = getNetworkDocByUUIDString(networkIDstr);
+	/*	ODocument nDoc = getNetworkDocByUUIDString(networkIDstr);
 		nDoc.field(NdexClasses.Network_P_isLocked,false);
 		nDoc.save();
-		db.commit();
+		db.commit(); */
 	}
 	
 	public boolean networkIsLocked(String networkUUIDStr) throws ObjectNotFoundException {
-		ODocument nDoc = getNetworkDocByUUIDString(networkUUIDStr);
-		return nDoc.field(NdexClasses.Network_P_isLocked);
+/*		ODocument nDoc = getNetworkDocByUUIDString(networkUUIDStr);
+		return nDoc.field(NdexClasses.Network_P_isLocked); */
+		
+		return false;
 	}
 	
 	public ProvenanceEntity getProvenance(UUID networkId) throws JsonParseException, JsonMappingException, IOException, ObjectNotFoundException {
 		// get the network document
-		ODocument nDoc = getNetworkDocByUUIDString(networkId.toString());
+	/*	ODocument nDoc = getNetworkDocByUUIDString(networkId.toString());
 		// get the provenance string
 		String provenanceString = nDoc.field(NdexClasses.Network_P_provenance);
 		// deserialize it to create a ProvenanceEntity object
 		if (provenanceString != null && provenanceString.length() > 0){
 			ObjectMapper mapper = new ObjectMapper();
-			return mapper.readValue(provenanceString, ProvenanceEntity.class);
-		} 
+			return mapper.readValue(provenanceString, ProvenanceEntity.class); 
+		}  */
 		
 		return new ProvenanceEntity();
 		
@@ -145,19 +143,19 @@ public class NetworkDocDAO extends NdexDBDAO {
     
 	public int setProvenance(UUID networkId, ProvenanceEntity provenance) throws JsonProcessingException, ObjectNotFoundException {
 		// get the network document
-		ODocument nDoc = getNetworkDocByUUIDString(networkId.toString());	
+/*		ODocument nDoc = getNetworkDocByUUIDString(networkId.toString());	
 		// serialize the ProvenanceEntity
 		ObjectMapper mapper = new ObjectMapper();
 		String provenanceString = mapper.writeValueAsString(provenance);
 		// store provenance string
 		nDoc.field(NdexClasses.Network_P_provenance, provenanceString);
     //    nDoc.field(NdexClasses.ExternalObj_mTime, Calendar.getInstance().getTime());
-		nDoc.save();
+		nDoc.save(); */
 				
 		return 1;
 	}
 	
-	public ODocument getNetworkDocByUUIDString(String id) throws ObjectNotFoundException {
+/*	public ODocument getNetworkDocByUUIDString(String id) throws ObjectNotFoundException {
 	     String query = "select from " + NdexClasses.Network + " where UUID='"
                 +id+"' and (isDeleted = false) and (isComplete=true)";
         final List<ODocument> networks = db.query(new OSQLSynchQuery<ODocument>(query));
@@ -166,10 +164,10 @@ public class NetworkDocDAO extends NdexDBDAO {
 	        throw new ObjectNotFoundException("Network " + id + " not found.");
         
         return networks.get(0);
-   }
+   } */
 
 
-	public  Edge getEdgeFromDocument(ODocument doc, Network network) throws NdexException {
+/*	public  Edge getEdgeFromDocument(ODocument doc, Network network) throws NdexException {
 		Edge e = new Edge();
 		e.setId((long)doc.field(NdexClasses.Element_ID));
 		SingleNetworkDAO.getPropertiesFromDoc(doc, e);
@@ -242,7 +240,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 
 		}
 		return e;
-	}
+	} */
 
     /**
      *  Create a node object from a document. If network is not null, also  
@@ -252,7 +250,7 @@ public class NetworkDocDAO extends NdexDBDAO {
      * @return
      * @throws NdexException 
      */
-    public Node getNode(ODocument nodeDoc, Network network) throws NdexException {
+/*    public Node getNode(ODocument nodeDoc, Network network) throws NdexException {
     	Node n = new Node();
 
     	n.setId((long)nodeDoc.field(NdexClasses.Element_ID));
@@ -359,7 +357,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 		}
 		
     	return n;
-    }
+    } */
 
     
 	/**
@@ -371,12 +369,12 @@ public class NetworkDocDAO extends NdexDBDAO {
 	public Collection<Citation> getNetworkCitations(String networkUUID) throws NdexException {
 		ArrayList<Citation> citations = new ArrayList<>();
 		
-		ODocument networkDoc = getNetworkDocByUUIDString(networkUUID);
+	/*	ODocument networkDoc = getNetworkDocByUUIDString(networkUUID);
 		
 		for ( ODocument doc : Helper.getNetworkElements(networkDoc, NdexClasses.Network_E_Citations)) {
     			citations.add(getCitationFromDoc(doc));
-    	}
-    	return citations;
+    	} */
+    	return citations; 
 	}
 
 	/**************************************************************************
@@ -390,7 +388,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 	    * 			Invalid groupId
 	    **************************************************************************/
 	
-	public Set<String> getAdminUsersOnNetwork(String networkId) 
+/*	public Set<String> getAdminUsersOnNetwork(String networkId) 
 			throws ObjectNotFoundException, NdexException {
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),
 		
@@ -420,7 +418,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 			
 			logger.info("Successfuly retrieved network-user memberships");
 			return adminUUIDStrs;
-	}
+	} */
 	
 	
 	   /**
@@ -437,7 +435,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 			Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),	
 					"A network UUID is required");
 
-			ODocument network = this.getNetworkDocByUUIDString(networkId);
+	/*		ODocument network = this.getNetworkDocByUUIDString(networkId);
 			
 			Map<Permissions,Set<String>> userMemberships = new HashMap<>();
 			
@@ -448,10 +446,10 @@ public class NetworkDocDAO extends NdexDBDAO {
 			Map<Permissions, Set<String>> grpMemberships = new HashMap<>();
 			grpMemberships.put(Permissions.ADMIN, new TreeSet<String> ());
 			grpMemberships.put(Permissions.READ, new TreeSet<String> ());
-			grpMemberships.put(Permissions.WRITE, new TreeSet<String> ());
+			grpMemberships.put(Permissions.WRITE, new TreeSet<String> ()); */
 			
 			Map<String, Map<Permissions,Set<String>> > fullMembership = new HashMap <>();
-			fullMembership.put(NdexClasses.Group,grpMemberships);
+		/*	fullMembership.put(NdexClasses.Group,grpMemberships);
 			fullMembership.put(NdexClasses.User, userMemberships);
 			
 			String networkRID = network.getIdentity().toString();
@@ -480,13 +478,13 @@ public class NetworkDocDAO extends NdexDBDAO {
 						
 //						userMemberships.get(p).add(accountName);	
 
-				}
+				} */
 				
 				return fullMembership;
 		}
 		
 
-	public Namespace getNamespace(String prefix, String URI, UUID networkID ) {
+/*	public Namespace getNamespace(String prefix, String URI, UUID networkID ) {
 		String query = "select from (traverse out_" +
 	    		  NdexClasses.Network_E_Namespace +" from (select from "
 	    		  + NdexClasses.Network + " where " +
@@ -504,16 +502,16 @@ public class NetworkDocDAO extends NdexDBDAO {
          Namespace result = getNamespace(nss.get(0));
          return result;
 	}
+*/
 
-
-	public  Collection<Namespace> getNamespacesFromNetworkDoc(ODocument networkDoc)  {
+/*	public  Collection<Namespace> getNamespacesFromNetworkDoc(ODocument networkDoc)  {
 		ArrayList<Namespace> namespaces = new ArrayList<>();
 		
 		for ( ODocument doc : Helper.getNetworkElements(networkDoc, NdexClasses.Network_E_Namespace)) {
     			namespaces.add(getNamespace(doc));
     	}
     	return namespaces;
-	}
+	} */
 	
     /**
      * This funciton return a self-contained sub network from a given citation. It is mainly for the XBel exporter.
@@ -524,7 +522,7 @@ public class NetworkDocDAO extends NdexDBDAO {
      * @throws NdexException
      */
 
-	private BaseTerm getBaseTerm(ODocument o, Network network) throws NdexException {
+/*	private BaseTerm getBaseTerm(ODocument o, Network network) throws NdexException {
 		BaseTerm t = new BaseTerm();
 		t.setId((long)o.field(NdexClasses.Element_ID));
 		String name = o.field(NdexClasses.BTerm_P_name);
@@ -548,10 +546,10 @@ public class NetworkDocDAO extends NdexDBDAO {
 		   }
 		}
 		return t;
-	}
+	} */
 	
 	//TODO: make a better implementation for this function.
-	public ODocument getDocumentByElementId(long elementID) throws NdexException {
+/*	public ODocument getDocumentByElementId(long elementID) throws NdexException {
 		ODocument result = getDocumentByElementId(NdexClasses.Node, elementID);
 		if ( result != null) return result;
 		
@@ -573,7 +571,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 		if ( result != null) return result;
 		
 		throw new NdexException ("ElementId " + elementID + " was not found in database.");
-	}
+	} */
 
     /**
      * Check if an account has a certain privilege on a network.
@@ -585,7 +583,7 @@ public class NetworkDocDAO extends NdexDBDAO {
      * @throws ObjectNotFoundException 
      */
 	
-	public boolean checkPrivilege(String accountName, String UUIDStr, Permissions permission) throws ObjectNotFoundException, NdexException {
+/*	public boolean checkPrivilege(String accountName, String UUIDStr, Permissions permission) throws ObjectNotFoundException, NdexException {
 		
 		ODocument d = this.getRecordByUUID(UUID.fromString(UUIDStr), NdexClasses.Network);
 		
@@ -597,7 +595,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 
 		if ( accountName == null ) return false;
 		return Helper.checkPermissionOnNetworkByAccountName(db,UUIDStr, accountName, permission);
-	}
+	} */
 	
 	/**
 	 * Check if a user has access to a network summary.
@@ -607,7 +605,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 	 * @throws ObjectNotFoundException
 	 * @throws NdexException
 	 */
-	public boolean networkSummaryIsReadable(String accountName, String UUIDStr) throws ObjectNotFoundException, NdexException {
+/*	public boolean networkSummaryIsReadable(String accountName, String UUIDStr) throws ObjectNotFoundException, NdexException {
 		
 		ODocument d = this.getRecordByUUID(UUID.fromString(UUIDStr), NdexClasses.Network);
 		
@@ -619,13 +617,13 @@ public class NetworkDocDAO extends NdexDBDAO {
 
 		if ( accountName == null ) return false;
 		return Helper.checkPermissionOnNetworkByAccountName(db,UUIDStr, accountName, Permissions.READ);
-	}
+	} */
 	
 	
 	
-	public ODocument getDocumentByElementId(String NdexClassName, long elementID) {
+/*	public ODocument getDocumentByElementId(String NdexClassName, long elementID) {
 		return Helper.getDocumentByElementId(db, elementID, NdexClassName);
-	}
+	} */
 
 /*	private static String getBaseTermStrForBaseTerm(BaseTerm bterm, Network n) {
 		String localName = bterm.getName();
@@ -640,7 +638,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 		return localName;
 	}
 */
-    private  Namespace getNamespace(ODocument ns)  {
+ /*   private  Namespace getNamespace(ODocument ns)  {
         Namespace rns = new Namespace();
         rns.setId((long)ns.field("id"));
         rns.setPrefix((String)ns.field(NdexClasses.ns_P_prefix));
@@ -652,142 +650,13 @@ public class NetworkDocDAO extends NdexDBDAO {
      } 
      
 
+   */ 
     
-    
-	public Network getNetworkById(UUID id) throws NdexException {
-		ODocument nDoc = getNetworkDocByUUIDString(id.toString());
 
-        if (nDoc==null) return null;
-   
-        Network network = new Network(); 
-
-        setNetworkSummary(nDoc, network);
-        
-        for ( Namespace ns : getNamespacesFromNetworkDoc(nDoc)) {
-        	network.getNamespaces().put(ns.getId(),ns);
-        }
-
-        // get all baseTerms
-        for ( ODocument doc : Helper.getNetworkElements(nDoc, NdexClasses.Network_E_BaseTerms) ) {
-
-        		BaseTerm term = getBaseTerm(doc,network);
-        		network.getBaseTerms().put(term.getId(), term);
-        }
-
-        // get all citations
-        for ( ODocument doc : Helper.getNetworkElements(nDoc,NdexClasses.Network_E_Citations)) {
-    		Citation citation = getCitationFromDoc(doc);
-    		network.getCitations().put(citation.getId(), citation);
-        }
-        
-        // get all functionTerms
-        for ( ODocument doc : Helper.getNetworkElements(nDoc,NdexClasses.Network_E_FunctionTerms)) {
-    		FunctionTerm func = getFunctionTermfromDoc(doc,network);
-    		network.getFunctionTerms().put(func.getId(), func);
-        }
-        
-        // get all supports
-        for ( ODocument doc : Helper.getNetworkElements(nDoc,NdexClasses.Network_E_Supports)) {
-    		Support support = getSupportFromDoc(doc,network);
-    		network.getSupports().put(support.getId(), support);
-        }
-        
-        // get all reifedEdges
-        for ( ODocument doc : Helper.getNetworkElements(nDoc,NdexClasses.Network_E_ReifiedEdgeTerms)) {
-    		ReifiedEdgeTerm reifiedEdge = getReifiedEdgeTermFromDoc(doc,network);
-    		network.getReifiedEdgeTerms().put(reifiedEdge.getId(), reifiedEdge);
-        }
-        
-        for ( ODocument doc : Helper.getNetworkElements(nDoc,NdexClasses.Network_E_Nodes)) {
-        		Node node = getNode(doc,network);
-        		network.getNodes().put(node.getId(), node);
-        }
-        
-        for ( ODocument doc: Helper.getNetworkElements(nDoc, NdexClasses.Network_E_Edges)) {
-              	   Edge e = getEdgeFromDocument(doc,network);
-              	   network.getEdges().put(e.getId(), e);
-        }
-        
-        return network;
-	}
 	
-	/**
-	 * Returns a subnetwork based on a block of edges selected from the network specified by networkUUID 
-	 *     based on the specified blockSize and number of blocks to skip. It is intended to be used to 
-	 *     incrementally "page" through a network by edges and forms the basis for operations like incremental copy. 
-	 *     The returned network is fully poplulated and 'self-sufficient', including all nodes, terms, supports, 
-	 *     citations, and namespaces referenced by the edges. 
-	 *     The query selects a number of edges specified by the 'blockSize' parameter, 
-	 *     starting at an offset specified by the 'skipBlocks' parameter. 
-	 * @param networkID
-	 * @param skipBlocks
-	 * @param blockSize
-	 * @return the subnetwork as a Network Object.   
-	 * @throws NdexException 
-	 */
-	public Network getNetwork (UUID networkID, int skipBlocks, int blockSize) throws NdexException {
-		ODocument nDoc = getNetworkDocByUUID(networkID);
-		
-	    if (nDoc == null) return null;
-
-	    
-	    int startPosition = skipBlocks * blockSize;
-	    int counter = 0;
-	    int endPosition = skipBlocks * blockSize + blockSize;
-
-	    Network network = new Network(blockSize);  //result holder
-
-        setNetworkSummary(nDoc, network);
-
-        
-        for ( ODocument doc : Helper.getNetworkElements(nDoc, NdexClasses.Network_E_Edges) ){ 
-            	if ( counter >= endPosition) break;
-
-            	
-            	if ( counter >= startPosition )  {
-              	   Edge e = getEdgeFromDocument(doc,network);
-              	   network.getEdges().put(e.getId(), e);
-            	               
-                }
-                counter ++;
-        }
-        
-        network.setEdgeCount(network.getEdges().size());
-        network.setNodeCount(network.getNodes().size());
-        
-		 return network; 
-	}
 	
 
-	public Collection<BaseTerm> getBaseTerms(String networkUUID) throws NdexException {
-		ArrayList<BaseTerm> baseTerms = new ArrayList<>();
-		
-		ODocument networkDoc = getNetworkDocByUUIDString(networkUUID);
-		
-		
-		for ( ODocument doc : Helper.getNetworkElements(networkDoc, NdexClasses.Network_E_BaseTerms)) {
-        
-        			BaseTerm t = getBaseTerm(doc,null);
-        			baseTerms.add(t);
-        }
-    	  	
-    	return baseTerms;
-    	
-    }
-	
-	public Collection<Namespace> getNamespaces(String networkUUID) throws ObjectNotFoundException  {
-		ArrayList<Namespace> namespaces = new ArrayList<>();
-		
-		ODocument networkDoc = getNetworkDocByUUIDString(networkUUID);
-		
-		for ( ODocument doc : Helper.getNetworkElements(networkDoc, NdexClasses.Network_E_Namespace)) {
- 
-        			Namespace n = getNamespace(doc);
-        			namespaces.add(n);
-        	}
-    	return namespaces;
-	}
-
+/*
     public static NetworkSummary getNetworkSummary(ODocument doc)  {
     	NetworkSummary networkSummary = new NetworkSummary();
     	setNetworkSummary(doc,networkSummary);
@@ -812,121 +681,14 @@ public class NetworkDocDAO extends NdexDBDAO {
     	return getNetworkDocByUUIDString(id.toString());
     }
 
-    
+    */
 
     
-	private static Citation getCitationFromDoc(ODocument doc) {
-		Citation result = new Citation();
-		result.setId((long)doc.field(NdexClasses.Element_ID));
-		result.setTitle((String)doc.field(NdexClasses.Citation_P_title));
-		result.setIdType((String)doc.field(NdexClasses.Citation_p_idType));
-		result.setIdentifier((String)doc.field(NdexClasses.Citation_P_identifier));
-		
-		List<String> o = doc.field(NdexClasses.Citation_P_contributors);
-		
-		if ( o!=null && !o.isEmpty())
-			result.setContributors(o);
-		
-    	List<NdexPropertyValuePair> props = doc.field(NdexClasses.ndexProperties);
-    	if ( props !=null && props.size() > 0 ) {
-    		for ( NdexPropertyValuePair p : props)
-    			result.getProperties().add(p);
-    	}
-    	return result;
-	}
-
-
-    private Support getSupportFromDoc(ODocument doc, Network network) throws NdexException {
-    	Support s = new Support();
-    	s.setText((String)doc.field(NdexClasses.Support_P_text));
-    	s.setId((long)doc.field(NdexClasses.Element_ID));
-    	Long citationId = doc.field(NdexClasses.Citation);
-    	if ( citationId !=null) {
-    		s.setCitationId(citationId);
-    	
-    		if ( network !=null && 
-            		! network.getCitations().containsKey(citationId)) {
-    			ODocument citationDoc = this.getDocumentByElementId(NdexClasses.Citation, citationId);
-            	Citation citation = getCitationFromDoc(citationDoc);
-            	network.getCitations().put(citationId, citation);
-            }
-    	}
-        
-    	SingleNetworkDAO.getPropertiesFromDoc(doc, s);
-
-    	return s;
-    	
-    }
-
-    
-    //TODO: need to make sure the recursion doesn't form a loop.
-    private FunctionTerm getFunctionTermfromDoc(ODocument doc,Network network) throws NdexException {
-    	FunctionTerm term = new FunctionTerm();
-    	
-    	term.setId((long)doc.field(NdexClasses.Element_ID));
-
-    	// get the functionTerm 
-    	
-    	Long baseTermId =doc.field(NdexClasses.BaseTerm);
-    	
-    	if ( network !=null && !network.getBaseTerms().containsKey(baseTermId)) {
-    		ODocument baseTermDoc = getDocumentByElementId(NdexClasses.BaseTerm, baseTermId);
-    		BaseTerm bt = getBaseTerm(baseTermDoc, network);
-   			network.getBaseTerms().put(baseTermId, bt);
-    	}
-    	
-    	term.setFunctionTermId(baseTermId);
-    	// traverse for the argument
-    	boolean isFirst= true; 
-    	
-    	for ( ODocument parameterDoc : Helper.getDocumentLinks(doc, "out_", NdexClasses.FunctionTerm_E_paramter))  {
-
-    		   if ( network != null) { 
-    		     if ( parameterDoc.getClassName().equals(NdexClasses.BaseTerm)) {
-    			    BaseTerm t = getBaseTerm(parameterDoc, network);
-    			    if ( !network.getBaseTerms().containsKey(t.getId()))
-    			    	network.getBaseTerms().put(t.getId(), t);
-    		     } else if(parameterDoc.getClassName().equals(NdexClasses.ReifiedEdgeTerm)) {
-    		    	 ReifiedEdgeTerm t = 
-    		    			 this.getReifiedEdgeTermFromDoc(parameterDoc, network);
-    		    //	 if ( !network.getReifiedEdgeTerms().containsKey(t.getId())) {
-    		    //		 network.getReifiedEdgeTerms().put(t.getId(), t);
-    		    //	 }
-    		     } else if ( parameterDoc.getClassName().equals(NdexClasses.FunctionTerm)) {
-    		    	 FunctionTerm t = this.getFunctionTermfromDoc(parameterDoc, network);
-    		    	 if ( !network.getFunctionTerms().containsKey(t.getId())) {
-    		    		 network.getFunctionTerms().put(t.getId(), t);
-    		    	 }
-    		     }
-    		   }
-     		   Long argElementId = parameterDoc.field(NdexClasses.Element_ID);
-     		   term.getParameterIds().add(argElementId);	
-    	//	}
-    	}
-    	return term;
-    }
-
-
-    private ReifiedEdgeTerm getReifiedEdgeTermFromDoc(ODocument doc, Network network) throws NdexException {
-    	ReifiedEdgeTerm term = new ReifiedEdgeTerm();
-    	term.setId((long)doc.field(NdexClasses.Element_ID));
-    	ODocument e = doc.field("out_" +NdexClasses.ReifiedEdge_E_edge );
-    	term.setEdgeId((long)e.field(NdexClasses.Element_ID));
-    	if ( network != null) {
-    		if ( !network.getReifiedEdgeTerms().containsKey(term.getId()))
-    			network.getReifiedEdgeTerms().put(term.getId(), term);
-    		if ( !network.getEdges().containsKey(term.getEdgeId())) {
-    			Edge edge = getEdgeFromDocument(e, network);
-    			network.getEdges().put(edge.getId(), edge);
-    		}
-    	}
-    		
-    	return term;
-    }
-    
+	
+/*    
     protected static  NetworkSummary setNetworkSummary(ODocument doc, NetworkSummary nSummary)  {
     	
-		Helper.populateExternalObjectFromResultSet (nSummary, doc);
+	Helper.populateExternalObjectFromResultSet (nSummary, doc);
 
     	nSummary.setName((String)doc.field(NdexClasses.Network_P_name));
     	nSummary.setDescription((String)doc.field(NdexClasses.Network_P_desc));
@@ -969,7 +731,7 @@ public class NetworkDocDAO extends NdexDBDAO {
         
         return nSummary;
     }
-
+*/
     /**
 	 * This function sets network properties using the given property list. All Existing properties
 	 * of the network will be deleted. 
@@ -984,7 +746,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 	public int setNetworkProperties (UUID networkId, Collection<NdexPropertyValuePair> properties
 			 ) throws ObjectNotFoundException, NdexException, SolrServerException, IOException {
 
-		ODocument rec = this.getRecordByUUID(networkId, null);
+//		ODocument rec = this.getRecordByUUID(networkId, null);
 		
 		List<NdexPropertyValuePair> props = new ArrayList<>(properties.size());
 		for ( NdexPropertyValuePair p : properties ) {
@@ -993,8 +755,8 @@ public class NetworkDocDAO extends NdexDBDAO {
 		}
 		
 		Date updateTime = Calendar.getInstance().getTime();
-		rec.fields(NdexClasses.ndexProperties, props,
-					NdexClasses.ExternalObj_mTime, updateTime).save();
+	//	rec.fields(NdexClasses.ndexProperties, props,
+	//				NdexClasses.ExternalObj_mTime, updateTime).save();
 
 		
 		// update the solr Index
@@ -1004,7 +766,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 		return props.size();
 	}
 	
-	public NetworkSearchResult findNetworks(SimpleNetworkQuery simpleNetworkQuery, int skipBlocks, int top, User loggedInUser) throws NdexException, SolrServerException, IOException {
+	public NetworkSearchResult findNetworks(SimpleNetworkQuery simpleNetworkQuery, int skipBlocks, int top, User loggedInUser) throws NdexException, SolrServerException, IOException, SQLException {
 	
 		String queryStr = simpleNetworkQuery.getSearchString().trim();
 		if (queryStr.equals("*")  || queryStr.length() == 0 )
@@ -1021,21 +783,24 @@ public class NetworkDocDAO extends NdexDBDAO {
 
 		List<String> groupNames = null;
 		if ( loggedInUser !=null && simpleNetworkQuery.getIncludeGroups()) {
-			UserDAO userDao = new UserDAO(this.getDBConnection());
-			groupNames = userDao.getUserAllGroupMemberships(loggedInUser.getAccountName());
+			try (UserDAO userDao = new UserDAO() ) {
+				for ( Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(), Permissions.MEMBER,0,0) ) {
+					groupNames.add(m.getResourceName());
+				}
+			}
 		}
 			
 		SolrDocumentList solrResults = networkIdx.searchForNetworks(queryStr, 
-				(loggedInUser == null? null: loggedInUser.getAccountName()), top, skipBlocks * top, 
+				(loggedInUser == null? null: loggedInUser.getUserName()), top, skipBlocks * top, 
 						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), simpleNetworkQuery.getCanRead(), groupNames);
 		
 		List<NetworkSummary> results = new ArrayList<>(solrResults.size());
 		for ( SolrDocument d : solrResults) {
 			String id = (String) d.get(NetworkGlobalIndexManager.UUID);
-			NetworkSummary s = getNetworkSummaryById(id);
+		/*	NetworkSummary s = getNetworkSummaryById(id);
 			if ( s !=null)
-				results .add(s);
-		}
+				results .add(s); */
+		} 
 		
 		return new NetworkSearchResult ( solrResults.getNumFound(), solrResults.getStart(), results);
 	}

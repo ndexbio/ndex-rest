@@ -149,10 +149,10 @@ public class TaskService extends NdexService
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskUUID), 
     			"A task id is required");
   
-    	
+    	UUID taskId = UUID.fromString(taskUUID);
     	try (TaskDAO tdao= new TaskDAO()) {
             
-            final Task taskToDelete = tdao.getTaskByUUID(taskUUID);
+            final Task taskToDelete = tdao.getTaskByUUID(taskId);
             
             if (taskToDelete == null) {
         		logger.info("[end: Task {} not found. Throwing ObjectNotFoundException.]", 
@@ -212,19 +212,21 @@ public class TaskService extends NdexService
     @Path("/{taskId}")
     @Produces("application/json")
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public Task getTask(@PathParam("taskId")final String taskId) throws  UnauthorizedOperationException, NdexException, SQLException
+    public Task getTask(@PathParam("taskId")final String taskIdStr) throws  UnauthorizedOperationException, NdexException, SQLException
     {
-    	logger.info("[start: get task {}] ", taskId);
+    	logger.info("[start: get task {}] ", taskIdStr);
     	
-    	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskId), "A task id is required");
+    	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskIdStr), "A task id is required");
+    	
+    	UUID taskId = UUID.fromString(taskIdStr);
 
     	try (TaskDAO tdao= new TaskDAO()) {
             
             final Task task = tdao.getTaskByUUID(taskId);
             
             if (task == null || task.getIsDeleted()) {
-        		logger.info("[end: Task {} not found]", taskId);
-                throw new ObjectNotFoundException("Task", taskId);
+        		logger.info("[end: Task {} not found]", taskIdStr);
+                throw new ObjectNotFoundException("Task", taskIdStr);
             }    
             
             else if (!task.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
@@ -234,7 +236,7 @@ public class TaskService extends NdexService
                 		" for user " + this.getLoggedInUser().getUserName());
             }
 
-        	logger.info("[end: Return task {} to user] ", taskId);
+        	logger.info("[end: Return task {} to user] ", taskIdStr);
         	return task;
         }
     }

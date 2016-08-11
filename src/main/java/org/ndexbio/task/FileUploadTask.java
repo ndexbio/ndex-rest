@@ -33,6 +33,7 @@ package org.ndexbio.task;
 import java.io.File;
 
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.Status;
@@ -56,17 +57,14 @@ public class FileUploadTask extends NdexTask {
 	private final String filename;
 	private static final Logger logger = LoggerFactory
 			.getLogger(FileUploadTask.class);
-
-    private NdexDatabase db;
 	
-	public FileUploadTask(Task itask, NdexDatabase ndexDb) throws IllegalArgumentException,
+	public FileUploadTask(Task itask) throws IllegalArgumentException,
 			SecurityException, NdexException {
 		super(itask);
 		this.filename = this.getTask().getResource();
 		if (!(new File(this.filename).isFile())) {
 			throw new NdexException("File " + this.filename + " does not exist");
 		}
-		this.db = ndexDb;
 	}
 
 	@Override
@@ -98,36 +96,9 @@ public class FileUploadTask extends NdexTask {
 		IParsingEngine parser = null;
 
 		switch (fileExtension) {
-		case ("SIF"):
-			parser = new SifParser(
-						file.getAbsolutePath(), this.getTaskOwnerAccount(),db, networkName, getTask().getDescription());
-			break;
-		case ("XGMML"):
-			parser = new XgmmlParser(
-						file.getAbsolutePath(), this.getTaskOwnerAccount(),db, networkName, getTask().getDescription());
-			break;
-		case ("OWL"):
-			parser = new BioPAXParser(
-						file.getAbsolutePath(), this.getTaskOwnerAccount(),db, networkName, getTask().getDescription());
-			break;
-		case ("XBEL"):
-			parser = new XbelParser(
-						file.getAbsolutePath(), this.getTaskOwnerAccount(),db, getTask().getDescription());
 
-			if (!((XbelParser)parser).getValidationState().isValid()) {
-					logger.info("XBel validation failed");
-					taskStatus = Status.COMPLETED_WITH_ERRORS;
-					throw new NdexException(
-							"XBEL file fails XML schema validation - one or more elements do not meet XBEL specification.");
-			}
-			break;
-		case ("XLSX"):
-		case ("XLS"):
-			parser = new ExcelParser(
-						file.getAbsolutePath(), this.getTaskOwnerAccount(),db);
-			break;
 		case ("CX")	:
-			parser = new CXParser(file.getAbsolutePath(), this.getTaskOwnerAccount(),getTask().getDescription());
+			parser = new CXParser(file.getAbsolutePath(), getTask().getTaskOwnerId(),getTask().getDescription());
 		    break;
 		default:		
 			String message = "The uploaded file type is not supported; must be SIF, XGMML, XBEL, CX, XLS or XLSX."; 
@@ -140,8 +111,13 @@ public class FileUploadTask extends NdexTask {
 		long fileSize = file.length();
 		file.delete(); // delete the file from the staging area
 		logger.info("Network upload file: " + file.getName() +" deleted from staging area");
-		this.addTaskAttribute("networkUUID", parser.getUUIDOfUploadedNetwork().toString());
-		this.updateTaskStatus(taskStatus);
+		try (TaskDAO dao = new TaskDAO ()) {
+			this.getTask().getAttributes().put("networkUUID",parser.getUUIDOfUploadedNetwork().toString());
+			dao.saveTaskAttributes(this.getTask().getExternalId(),this.getTask().getAttributes());
+			dao.updateTaskStatus(this.getTask().getExternalId(),taskStatus );
+			dao.commit();
+			this.getTask().setStatus(taskStatus);
+		}
         logger.info("[end: Network upload finished; UUID='{}' fileSize={}]", parser.getUUIDOfUploadedNetwork().toString(), fileSize);
 	}
 

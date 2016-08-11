@@ -32,6 +32,7 @@ package org.ndexbio.common.solr;
 
 import java.io.IOException;
 import java.util.Date;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -253,7 +254,7 @@ public class NetworkGlobalIndexManager {
 	
 	
 	
-	public void createIndexDocFromSummary(NetworkSummary summary) throws SolrServerException, IOException, NdexException {
+	public void createIndexDocFromSummary(NetworkSummary summary) throws SolrServerException, IOException, NdexException, SQLException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		doc = new SolrInputDocument();
 	
