@@ -124,7 +124,7 @@ public class GroupDAO extends NdexDBDAO {
 	private static void populateGroupFromResultSet(Group group, ResultSet rs) throws JsonParseException, JsonMappingException, SQLException, IOException {
 		Helper.populateAccountFromResultSet (group, rs);
 
-		group.setGroupName(rs.getString("groupName"));
+		group.setGroupName(rs.getString("group_name"));
 	}
 	
 	/**************************************************************************
@@ -135,6 +135,7 @@ public class GroupDAO extends NdexDBDAO {
 	    * @throws NdexException
 	    *            Attempting to access database
 	    * @throws IllegalArgumentexception
+	    * 
 	    * 			The id is invalid
 	    * @throws ObjectNotFoundException
 	    * 			The group specified by id does not exist
@@ -633,7 +634,7 @@ public class GroupDAO extends NdexDBDAO {
 				"insert into ndex_group_user_arc (group_id,user_id, is_admin) " + 
 						" select group_id,user_id,is_admin from ndex_group_user where group_id = ?",
 				"delete from ndex_group_user where group_id = ?",
-				"update from ndex_group set is_deleted = true where \"UUID\" = ? and not is_deleted"
+				"update ndex_group set is_deleted = true where \"UUID\" = ? and not is_deleted"
 			};
 		
 		for (String cmd : sqlCmds) {

@@ -330,6 +330,7 @@ public class UserDAO extends NdexDBDAO {
 		user.setEmailAddress(rs.getString(NdexClasses.User_emailAddress));
 		user.setPassword(rs.getString(NdexClasses.User_password));
 		user.setIsVerified(rs.getBoolean(NdexClasses.User_isVerified));
+		user.setUserName(rs.getString("user_name"));
 	}
 	
 	/**************************************************************************
@@ -465,7 +466,6 @@ public class UserDAO extends NdexDBDAO {
 			st.setString(2, accountName);
 			st.executeUpdate();
 		} 
-		db.commit();
 		return newPassword;		
 	}
 
@@ -497,7 +497,7 @@ public class UserDAO extends NdexDBDAO {
 		Preconditions.checkArgument(updatedUser != null,
 				"An updated user is required");
 
-		String updateStr = " update from " + NdexClasses.User + " set \"" + NdexClasses.ExternalObj_mTime + "\"= localtimestamp, " + 
+		String updateStr = " update " + NdexClasses.User + " set \"" + NdexClasses.ExternalObj_mTime + "\"= localtimestamp, " + 
 			     NdexClasses.Account_description  + " =?, " +
 				 NdexClasses.Account_imageURL     + " =?, " +
 			     NdexClasses.Account_websiteURL   + " =?, " +
@@ -875,7 +875,7 @@ public class UserDAO extends NdexDBDAO {
 			}
 		}	
 		
-		try (PreparedStatement st = db.prepareStatement("select 1 from ndex_user_group where user_id = ? limit 1")) {
+		try (PreparedStatement st = db.prepareStatement("select 1 from ndex_group_user where user_id = ? limit 1")) {
 			st.setObject(1, id);
 			try (ResultSet rs = st.executeQuery()) {
 				if ( rs.next()) {
@@ -891,7 +891,7 @@ public class UserDAO extends NdexDBDAO {
 				"insert into ndex_group_user_arc (user_id, group_id, is_admin) " + 
 						" select user_id, group_id, is_admin from ndex_group_user where user_id = ?",
 				"delete from ndex_group_user where user_id = ?",
-				"update from ndex_user set is_deleted = true where \"UUID\" = ? and not is_deleted"
+				"update ndex_user set is_deleted = true where \"UUID\" = ? and not is_deleted"
 			};
 
 		for (String cmd : sqlCmds) {

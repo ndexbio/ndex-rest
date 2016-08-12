@@ -189,7 +189,7 @@ public class TaskDAO extends NdexDBDAO {
 
 	public void updateTaskStatus (UUID taskID, Status status, String message, String stackTrace) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
-		String updateStr = " update from " + NdexClasses.Task + " set status= ?, message = ? " ;	
+		String updateStr = " update " + NdexClasses.Task + " set status= ?, message = ? " ;	
 		String updateStr2 =  " where \"UUID\" = ? and is_deleted = false";
 			
 		if ( stackTrace == null) {
@@ -230,7 +230,7 @@ public class TaskDAO extends NdexDBDAO {
 
     public int deleteTask (UUID taskID) throws ObjectNotFoundException, NdexException, SQLException {
     	
-    	String updateStr = "update from " + NdexClasses.Task + " set is_deleted= true where \"UUID\" = ? and isDeleted = false";
+    	String updateStr = "update " + NdexClasses.Task + " set is_deleted= true where \"UUID\" = ? and isDeleted = false";
 		
     	try (PreparedStatement st = db.prepareStatement(updateStr) ) {
     		st.setObject(1, taskID);			
@@ -244,7 +244,7 @@ public class TaskDAO extends NdexDBDAO {
     
     public void saveTaskAttributes(UUID taskID, Map<String, Object> attributes ) throws ObjectNotFoundException, NdexException, JsonProcessingException, SQLException {
 
-    	String updateStr = "update from " + NdexClasses.Task + " set other_attributes= ? ::jsonb where \"UUID\" = ? and isDeleted = false";
+    	String updateStr = "update " + NdexClasses.Task + " set other_attributes= ? ::jsonb where \"UUID\" = ? and isDeleted = false";
 		
 		ObjectMapper mapper = new ObjectMapper();
 	    String s = mapper.writeValueAsString( attributes);
