@@ -153,9 +153,11 @@ public class UserDAO extends NdexDBDAO {
 		} catch ( ObjectNotFoundException e ) {}
 		
 		newUser.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
-			
+		newUser.setCreationTime(new Timestamp(Calendar.getInstance().getTimeInMillis()));	
+		newUser.setModificationTime(newUser.getCreationTime());
+		
 		String insertstmt = " insert into " + NdexClasses.User + " (\"" + NdexClasses.ExternalObj_ID + 
-				    "\", \"" + NdexClasses.ExternalObj_cTime     + "\", " + NdexClasses.ExternalObj_mTime + 
+				    "\", " + NdexClasses.ExternalObj_cTime     + ", " + NdexClasses.ExternalObj_mTime + 
 				    ","  + NdexClasses.ExternalObj_isDeleted + 
 				    ","  + NdexClasses.Account_description   + ", " + NdexClasses.Account_imageURL +
 				    ","  + NdexClasses.Account_websiteURL    + ", " + NdexClasses.Account_otherAttributes  +
@@ -163,12 +165,11 @@ public class UserDAO extends NdexDBDAO {
 				    ","  + NdexClasses.User_firstName        + ", " + NdexClasses.User_password +
 				    ","  + NdexClasses.User_displayName      + ","  + NdexClasses.User_emailAddress + 
 				    "," + NdexClasses.User_isIndividual     +","  + NdexClasses.User_isVerified + 
-				    ") values ( ? :: uuid ,?,?,false, ?,?,?,? :: jsonb, ?,?,?,?,?,?,?,?)";
+				    ") values ( ?,?,?,false,?, ?,?,? :: jsonb, ?,?, ?,?,?,?,?,?)";
 		try (PreparedStatement st = db.prepareStatement(insertstmt) ) {
-				st.setString(1, newUser.getExternalId().toString());
-				Timestamp current = (Timestamp) new Date();
-				st.setTimestamp(2, current);
-				st.setTimestamp(3, current);
+				st.setObject(1, newUser.getExternalId());
+				st.setTimestamp(2, newUser.getCreationTime());
+				st.setTimestamp(3, newUser.getModificationTime());
 				st.setString ( 4, newUser.getDescription());
 				st.setString(5, newUser.getImage());
 				st.setString(6, newUser.getWebsite());
@@ -180,10 +181,10 @@ public class UserDAO extends NdexDBDAO {
 					ObjectMapper mapper = new ObjectMapper();
 			        String s = mapper.writeValueAsString( attr);
 					st.setString(7, s);
-					st.setBoolean(14, false);
+					st.setBoolean(15, false);
 				} else {
 					st.setString(7, null);
-					st.setBoolean(14, true);
+					st.setBoolean(15, true);
 				}
 				
 				st.setString(8, newUser.getUserName());
@@ -191,7 +192,8 @@ public class UserDAO extends NdexDBDAO {
 				st.setString(10, newUser.getFirstName());
 				st.setString(11, Security.hashText(newUser.getPassword()));
 				st.setString(12, newUser.getDisplayName());
-				st.setBoolean(13, newUser.getIsIndividual());
+				st.setString(13, newUser.getEmailAddress());
+				st.setBoolean(14, newUser.getIsIndividual());
 				
 				
 				int rowsInserted = st.executeUpdate();

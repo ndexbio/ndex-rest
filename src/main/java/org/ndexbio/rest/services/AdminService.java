@@ -34,40 +34,20 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.GET;
-import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.eclipse.jetty.server.Server;
-import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
-import org.ndexbio.common.models.dao.postgresql.RequestDAO;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.object.Account;
-import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexStatus;
-import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.Request;
-import org.ndexbio.model.object.ResponseType;
-import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.server.StandaloneServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,6 +73,7 @@ public class AdminService extends NdexService {
 	 * @throws SQLException 
 	 **************************************************************************/
 
+	@SuppressWarnings("static-method")
 	@GET
 	@PermitAll
 	@NdexOpenFunction
@@ -106,8 +87,8 @@ public class AdminService extends NdexService {
 			
 			NdexStatus status = new NdexStatus();
 			status.setNetworkCount(AdminService.getClassCount(db,"network"));
-			status.setUserCount(AdminService.getClassCount(db,"user"));
-			status.setGroupCount(AdminService.getClassCount(db,"group")); 
+			status.setUserCount(AdminService.getClassCount(db,"ndex_user"));
+			status.setGroupCount(AdminService.getClassCount(db,"ndex_group")); 
 
 			Map<String,String> props = status.getProperties();
 			
@@ -164,114 +145,27 @@ public class AdminService extends NdexService {
 	        try {
 	    		NdexDatabase.close();
 	        	server.stop();
-	        } catch (Exception e) {
-	    	    ;
-	        }
+	        } catch (Exception e) {}
 		}
 		return;
 	}
 
 	
-	private static Integer getClassCount(Connection db,String className) throws SQLException {
+	private static int getClassCount(Connection db,String className) throws SQLException, NdexException {
 
 		String queryStr = "select reltuples as cnt from pg_class where relname = ?";
 		try (PreparedStatement st = db.prepareStatement(queryStr)) { 
 			st.setString(1, className);
-			try (ResultSet rs = st.executeQuery(queryStr)) {
+			try (ResultSet rs = st.executeQuery()) {
 				if ( rs.next()) {
 					return rs.getInt(1);
 				}
 			}
 		}
 		
-		return null;
+		throw new NdexException("Failed to get Ndex db statistics.");
 
 	} 
 	
-/*	
-	@POST
-	@PermitAll
-	@Path("/accounts")
-	@Produces("application/json")
-	public List<Account> getAccountsByuuids(final Set<String> uuidStrs) throws NdexException	{
-		List<Account> accountList = new ArrayList<> (uuidStrs.size());
-		try ( UserDAO userdao = new UserDAO() ) {
-			GroupDocDAO groupdao = new GroupDocDAO(userdao.getDBConnection());
-			for ( String uuidStr : uuidStrs) {
-				UUID uuid = UUID.fromString(uuidStr);
-				try {
-					User u = userdao.getUserById(uuid);
-					accountList.add(u);
-				} catch ( ObjectNotFoundException e) {
-					accountList.add(groupdao.getGroupById(uuid));
-				}
-			
-			}
-		}
-		
-		return accountList;
-	} */
-	
-/*
-	@GET
-	@Path("/backupdb")
-	@Produces("application/json")
-	public void backupDB() throws NdexException	{
-		if ( !isSystemUser())
-			throw new NdexException ("Only Sysetm users are allowed to backup database from API.");
-		Thread t = new Thread(new Runnable() {
-	         @Override
-			public void run()
-	         {
-	        	 ODatabaseDocumentTx db = null;
-	        	 try {
-			
-	        		 String ndexRoot = Configuration.getInstance().getNdexRoot();
-	        		 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-	        		 String strDate = sdf.format(Calendar.getInstance().getTime());
-			
-	        		 db = NdexDatabase.getInstance().getAConnection();
-	        		 String exportFile = ndexRoot + "/dbbackups/db_"+ strDate + ".export";
 
-	        		 logger.info("Backing up database to " + exportFile);
-	        		 
-	        		 try{
-	        			  OCommandOutputListener listener = new OCommandOutputListener() {
-	        			    @Override
-	        			    public void onMessage(String iText) {
-	        			      System.out.print(iText);
-	        			      logger.info(iText);
-	        			    }
-	        			  };
-
-	        			  ODatabaseExport export = new ODatabaseExport(db, exportFile, listener);
-	        			  export.setIncludeIndexDefinitions(false);
-	        			  export.exportDatabase();
-	        			  export.close();
-	        			} catch (IOException e) {
-							e.printStackTrace();
-							logger.error("IO exception when backing up database. " + e.getMessage());
-						}  finally {
-	        			  db.close();
-	        			} 
-	        		 logger.info("Database back up fininished succefully.");
-
-	        	 } catch (NdexException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-					logger.error("Failed to backup database.  " + e.getMessage()) ;
-	        	 } finally {
-	        		 if ( db!=null) db.close();
-
-	        	 }
-	         }
-		});
-		t.start();
-	}
-*/
-	
-/*	private boolean isSystemUser() throws NdexException {
-	  return getLoggedInUser().getAccountName().equals(Configuration.getInstance().getSystmUserName()) ;
-	}
-*/
 }

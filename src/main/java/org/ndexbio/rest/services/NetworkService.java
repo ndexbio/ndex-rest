@@ -1857,7 +1857,7 @@ public class NetworkService extends NdexService {
 
 
 
-	@GET
+	@PUT
 	@Path("/{networkId}/setFlag/{parameter}={value}")
 	@Produces("application/json")
     @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +

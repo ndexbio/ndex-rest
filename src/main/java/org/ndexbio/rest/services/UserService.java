@@ -476,7 +476,7 @@ public class UserService extends NdexService {
 	@Path("/authenticate")
 	@Produces("application/json")
 	@ApiDoc("Authenticates the combination of accountName and password supplied in the Auth header, returns the authenticated user if successful.")
-	public User authenticateUserNoOp()
+	public User authenticateUser()
 			throws UnauthorizedOperationException {
 		
 		logger.info("[start: Authenticate user from Auth header]");

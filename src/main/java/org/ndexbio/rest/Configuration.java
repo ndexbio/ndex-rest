@@ -55,7 +55,7 @@ public class Configuration
     private Properties _configurationProperties;
     
 	private String dbURL;
-	private static final String dbUserPropName 	   = "ndexDBUsername";
+	private static final String dbUserPropName 	   = "NdexDBUsername";
 	private static final String dbPasswordPropName = "NdexDBDBPassword";
 	
 	public static final String networkPostEdgeLimit = "NETWORK_POST_ELEMENT_LIMIT";

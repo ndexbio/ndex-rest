@@ -143,6 +143,9 @@ public class NdexDatabase {
      * @throws SQLException
      */
     public Connection getConnection() throws SQLException {
+    	
+	    logger.info("Current idle connection in db connection pool is " + connectionPool.getNumIdle());
+
     	Connection conn = connectionPool.getConnection();
     	conn.setAutoCommit(false);
     	return conn;
