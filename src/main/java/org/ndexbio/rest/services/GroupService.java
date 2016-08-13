@@ -111,7 +111,7 @@ public class GroupService extends NdexService {
 		logger.info("[start: Creating group {}]", newGroup.getGroupName());
 
 		try (GroupDAO dao = new GroupDAO()){
-			newGroup.setGroupName(newGroup.getGroupName().toLowerCase());
+		//	newGroup.setGroupName(newGroup.getGroupName().toLowerCase());
 			Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId());
 			dao.commit();	
 			logger.info("[end: Group {} ({}) created.]", newGroup.getGroupName(), group.getExternalId());

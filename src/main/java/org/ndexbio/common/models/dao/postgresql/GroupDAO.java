@@ -37,6 +37,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -567,7 +568,7 @@ public class GroupDAO extends NdexDBDAO {
 			
 			try (PreparedStatement st = db.prepareStatement(insertStr) ) {
 				newGroup.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
-				Timestamp current = (Timestamp) new Date();
+				Timestamp current = new Timestamp(Calendar.getInstance().getTimeInMillis());
 				newGroup.setCreationTime(current);
 				newGroup.setModificationTime(current);
 				
@@ -585,7 +586,7 @@ public class GroupDAO extends NdexDBDAO {
 					throw new NdexException ( "Failed to save group " + newGroup.getGroupName() + " to database.");
 			}
 			
-			insertStr = "insert into ndex_group_user (group_uuid,user_uuid,is_admin) values(?,?,true)";
+			insertStr = "insert into ndex_group_user (group_id,user_id,is_admin) values(?,?,true)";
 			try (PreparedStatement st = db.prepareStatement(insertStr) ) {
 				st.setObject(1, newGroup.getExternalId());
 				st.setObject(2, adminId);

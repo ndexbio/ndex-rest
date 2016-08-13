@@ -501,7 +501,7 @@ public class UserDAO extends NdexDBDAO {
 			     NdexClasses.Account_description  + " =?, " +
 				 NdexClasses.Account_imageURL     + " =?, " +
 			     NdexClasses.Account_websiteURL   + " =?, " +
-				 NdexClasses.Account_otherAttributes  + " =?, " +
+				 NdexClasses.Account_otherAttributes  + " =? ::jsonb, " +
 			     NdexClasses.User_firstName        + " =?, " +
 			     NdexClasses.User_lastName        + " =?, " +
 			     NdexClasses.User_displayName      + " =?, " +
@@ -525,7 +525,7 @@ public class UserDAO extends NdexDBDAO {
 			st.setString(5, updatedUser.getFirstName());
 			st.setString(6, updatedUser.getLastName());
 			st.setString(7, updatedUser.getDisplayName());
-			st.setString(8, updatedUser.getDisplayName());
+			st.setString(8, updatedUser.getEmailAddress());
 			st.setBoolean(9, updatedUser.getIsIndividual());
 			
 			
