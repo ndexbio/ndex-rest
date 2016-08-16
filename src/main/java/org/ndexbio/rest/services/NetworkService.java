@@ -39,6 +39,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -605,7 +607,7 @@ public class NetworkService extends NdexService {
 
     	logger.info("[start: Getting aspects in network {}]", networkId);
 
-		if ( isReadable(networkId) ) {
+	//	if ( isReadable(networkId) ) {
 			Set<String> asp = new HashSet<>(aspectNames.size());
 			for ( String s : aspectNames)
 				asp.add(s);
@@ -631,9 +633,9 @@ public class NetworkService extends NdexService {
 			//setZipFlag();
 			logger.info("[end: get aspects from network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
-		}
-		else
-            throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+	//	}
+	//	else
+   //         throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 
 	}  
 
@@ -646,7 +648,7 @@ public class NetworkService extends NdexService {
 
     	logger.info("[start: Getting CX metadata from network {}]", networkId);
 
-		if ( isReadable(networkId) ) {
+	//	if ( isReadable(networkId) ) {
 
 		/*	try (CXNetworkExporter dao = new CXNetworkExporter(networkId) ) {
 				MetaDataCollection md = 
@@ -660,11 +662,11 @@ public class NetworkService extends NdexService {
 			} */
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity("").build(); //to be removed when implemented.
 
-		}
+	/*	}
 		else {
 			logger.info("[end: Return CX metadata from network {}]", networkId);
             throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-		}
+		} */
 	}  
 	
 	
@@ -680,7 +682,7 @@ public class NetworkService extends NdexService {
 
     	logger.info("[start: Getting one aspect in network {}]", networkId);
 
-		if ( isReadable(networkId) ) {
+//		if ( isReadable(networkId) ) {
 			
 			PipedInputStream in = new PipedInputStream();
 			PipedOutputStream out;
@@ -701,9 +703,9 @@ public class NetworkService extends NdexService {
 			new CXAspectElementsWriterThread(out,networkId, aspectName, limit).start();
 			logger.info("[end: Return get one aspect in network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
-		}
+	/*	}
 		else
-            throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+            throw new UnauthorizedOperationException("User doesn't have read access to this network."); */
 	}  
 	
 	
@@ -723,24 +725,26 @@ public class NetworkService extends NdexService {
 
     	logger.info("[start: Getting complete network {}]", networkId);
 
-		if ( isReadable(networkId) ) {
-			
-			PipedInputStream in = new PipedInputStream();
-			PipedOutputStream out;
-			try {
-				out = new PipedOutputStream(in);
-			} catch (IOException e) {
-				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
-			}
-			
-			new CXNetworkWriterThread(out,networkId).start();
-			//setZipFlag();
-			logger.info("[end: Return cx network {}]", networkId);
-			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
-		}
-		else
-            throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+    	
+    	try (NetworkDocDAO dao = new NetworkDocDAO()) {
+    		if ( ! dao.isReadable(UUID.fromString(networkId), getLoggedInUserId()))
+                throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 
+    	}
+    	
+		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + ".cx";
+
+    	try {
+			FileInputStream in = new FileInputStream(cxFilePath)  ;
+		
+		//	setZipFlag();
+			logger.info("[end: Return network {}]", networkId);
+			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+		} catch (IOException e) {
+			logger.error("[end: Ndex server can't find file: {}]", e.getMessage());
+			throw new NdexException ("Ndex server can't find file: " + e.getMessage());
+		}
+		
 	}  
 	
 	private class CXNetworkWriterThread extends Thread {
@@ -887,51 +891,14 @@ public class NetworkService extends NdexService {
 		
 	}
 	private class CXNetworkLoadThread extends Thread {
-		private OutputStream out;
-		private List<InputPart> inputParts;
-		public CXNetworkLoadThread (OutputStream o, List<InputPart> inputParts  ) {
-			this.out = o;
-			this.inputParts = inputParts;
+		private UUID networkId;
+		public CXNetworkLoadThread (UUID networkUUID  ) {
+			this.networkId = networkUUID;
 		}
 		
 		public void run() {
-            try {
-			byte[] bytes = new byte[8192];
             
-		    for (InputPart inputPart : inputParts) {
-		           try
-		           {
-		               // convert the uploaded file to inputstream and write it to disk
-		        	   org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
-		        			   (org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
-		               InputStream inputStream = p.getBody();
-		               //InputStream.class, null);
-		              
-		               int read = 0;
-		               while ((read = inputStream.read(bytes)) != -1) {
-		                  out.write(bytes, 0, read);
-		               }
-		               inputStream.close();
-		               
-		           }
-		           catch (Exception e)
-		           {
-		               e.printStackTrace();
-		           }
-		    }
-		    
-            } finally {
-	            try {
-					out.flush();
-					out.close();
-				}  catch (IOException e) {
-					System.out.println("can't close out stream in piped stream.");
-					e.printStackTrace(); 
-				}
-			} 
-
 		}
-		
 	}
 
 	
@@ -1453,31 +1420,6 @@ public class NetworkService extends NdexService {
 	} */
 	
 	
-	private boolean isReadable(NetworkDocDAO dao, String networkId) 
-			throws ObjectNotFoundException, NdexException {
-
-		    return	false ; /*	 dao.checkPrivilege(
-				   (getLoggedInUser() == null ? null : getLoggedInUser().getUserName()),
-				   networkId, Permissions.READ); */
-	}	
-	
-	private boolean isReadable( String networkId) 
-				throws ObjectNotFoundException, NdexException, SQLException {
-		   try ( NetworkDocDAO networkDao = new NetworkDocDAO() ) {
-
-//		       VisibilityType vt = Helper.getNetworkVisibility(networkDao.getDBConnection(), networkId);
-//		       boolean hasPrivilege = (vt == VisibilityType.PUBLIC );
-
-	//	       if ( !hasPrivilege && getLoggedInUser() != null) {
-			 //    hasPrivilege = 
-			    return false;	/*	 networkDao.checkPrivilege(
-					   (getLoggedInUser() == null ? null : getLoggedInUser().getUserName()),
-					   networkId, Permissions.READ); */
-	//	       }
-
-	//	       return hasPrivilege;
-		   }
-	}
 
 /*	
 	@PermitAll
@@ -1653,7 +1595,7 @@ public class NetworkService extends NdexService {
 				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
 			}
 	       
-	       CXNetworkLoadThread inputProcessor = new CXNetworkLoadThread(out, inputParts);
+	       CXNetworkLoadThread inputProcessor = new CXNetworkLoadThread(null);
 	       inputProcessor.start();
 	  
 		/*	try (CXNetworkLoader loader = new CXNetworkLoader(in, getLoggedInUser().getAccountName())) {
@@ -1697,39 +1639,14 @@ public class NetworkService extends NdexService {
 	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException, IOException, SQLException {
 
 		logger.info("[start: Deleting network {}]", id);
+		    
+		try (NetworkDocDAO networkDao = new NetworkDocDAO()) {
+			networkDao.deleteNetwork(UUID.fromString(id), getLoggedInUser().getExternalId());
 		
-	//	try (NetworkDAO networkDao = new NetworkDAO()) {
-
-         /*   if (!Helper.checkPermissionOnNetworkByAccountName(db, id, userAcc, Permissions.ADMIN))
-	        {	        
-				logger.error("[end: Unable to delete. User {} not an admin of network {}. Throwing  UnauthorizedOperationException ...]", 
-						userAcc, id); 
-				throw new UnauthorizedOperationException("Unable to delete network membership: user is not an admin of this network.");		        
-	        } */
-            
-			try (NetworkDAO networkDao = new NetworkDAO()) {
-				
-		/*		if(networkDao.networkIsReadOnly(id)) {
-					logger.info("[end: Can't delete readonly network {}]", id);					
-					throw new NdexException ("Can't delete readonly network.");
-				} */
-
-				if ( networkDao.networkIsLocked(id)) {
-					logger.info("[end: Can't delete locked network {}]", id);
-					throw new NdexException ("Can't delete locked network. The network is currently locked by another updating thread.");
-				} 
-			  
-				//logger.info("Start deleting network " + id);
-				networkDao.logicalDeleteNetwork(id); // this function committed the changes.
-				// commment out for now as a workaround for Orientdb bug.
-		/*		Task task = new Task();
-				task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
-				task.setResource(id);
-				NdexServerQueue.INSTANCE.addSystemTask(task); */
-			}
+			networkDao.commit();
+		}
 			
 			logger.info("[end: Deleted network {}]", id);
-	//	} 
 	}
 	
 
@@ -1918,49 +1835,46 @@ public class NetworkService extends NdexService {
 	   
 	       Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
 	       
-	       ProvenanceEntity entity = this.getProvenanceEntityFromMultiPart(uploadForm);
+	 //      ProvenanceEntity entity = this.getProvenanceEntityFromMultiPart(uploadForm);
 	       
 	       //Get file data to save
 	       List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
-
-			PipedInputStream in = new PipedInputStream();
-			PipedOutputStream out;
-			try {
-				out = new PipedOutputStream(in);
-			} catch (IOException e) {
-				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
-			}
+			
+		   byte[] bytes = new byte[8192];
+		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   String uuidStr = uuid.toString();
+		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr;
+		   
+		   //Create dir
+		   java.nio.file.Path dir = Paths.get(pathPrefix);
+		   Files.createDirectory(dir);
+		   
+		   //write content to file
+		   String cxFilePath = pathPrefix + "/" + uuidStr + ".cx";
+		   try (FileOutputStream out = new FileOutputStream (cxFilePath ) ){     
+			   for (InputPart inputPart : inputParts) {
+		               // convert the uploaded file to inputstream and write it to disk
+		        	org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
+		        			   (org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
+		            try (InputStream inputStream = p.getBody()) {
+		              
+		            	int read = 0;
+		            	while ((read = inputStream.read(bytes)) != -1) {
+		                  out.write(bytes, 0, read);
+		            	}
+		            }
+		               
+			   }
+		   }
+		   
+		   // create entry in db. 
+	       try (NetworkDocDAO dao = new NetworkDocDAO()) {
+	    	   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName());
+	    	   dao.commit();
+	       }
 	       
-	       CXNetworkLoadThread inputProcessor = new CXNetworkLoadThread(out, inputParts);
-	       inputProcessor.start();
-	  
-		/*	try (CXNetworkLoader loader = new CXNetworkLoader(in, getLoggedInUser().getAccountName())) {
-				UUID networkId = loader.persistCXNetwork();
-
-				// adding provenance.
-				if( entity == null) {
-					try (NetworkDocDAO dao = new NetworkDocDAO()) { 
-						entity = new ProvenanceEntity();
-						NetworkSummary summary = dao.getNetworkSummaryById(networkId.toString());
-						entity.setUri(summary.getURI());
-                
-						Helper.populateProvenanceEntity(entity, summary);
-
-						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
-
-						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-						Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
-						event.setProperties(eventProperties);
-
-						entity.setCreationEvent(event);
-					} 
-				}
-					
-				loader.setNetworkProvenance(entity);
-				loader.commit(); */
-				logger.info("[end: Created a new network based on a POSTed CX stream.]");
-				return null; //networkId.toString();
-		//	}
+		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
+		   return uuidStr;
 
 	   	}
 	   

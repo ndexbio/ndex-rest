@@ -31,6 +31,8 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -89,10 +91,72 @@ public class NetworkDocDAO extends NdexDBDAO {
 	
 	
 
-	public NetworkDocDAO () throws NdexException, SQLException {
+	public NetworkDocDAO () throws  SQLException {
 	    super();
 	}
 
+	
+	public void CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName) throws SQLException {
+		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly) values"
+				+ "(?, localtimestamp, localtimestamp, false, false, 'PRIVATE',?,?,false) ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkUUID);
+			pst.setObject(2, ownerId);
+			pst.setString(3, ownerUserName);
+			pst.executeUpdate();
+		}
+	}
+	
+
+	public void deleteNetwork(UUID netowrkId, UUID userId) throws SQLException, NdexException {
+		String sqlStr = "update network set is_deleted=true where \"UUID\" = ? and owneruuid = ? and is_deleted=false and isLocked = false and readonly=false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, netowrkId);
+			pst.setObject(2, userId);
+			int cnt = pst.executeUpdate();
+			if ( cnt !=1) {
+				throw new NdexException ("Failed to delete network. Reason could be invalid UUID, user is not the owner of the network, the network is Locked or the network is readonly.");
+			}
+		}	
+	}
+	
+
+	public UUID getNetworkOwner(UUID networkId) throws SQLException, NdexException {
+		String sqlStr = "select owneruuid from network where  is_deleted=false and  \"UUID\" = ? ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					return (UUID)rs.getObject(1);
+				}
+				throw new ObjectNotFoundException("Network "+ networkId + " not found in NDEx.");
+			}
+		}	
+	}
+
+	public boolean isReadable(UUID networkID, UUID userId) throws SQLException {
+		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and (n.visibility='PUBLIC'";
+		
+		if ( userId != null) {
+			sqlStr += " or n.owneruuid = ? or "
+				+ " exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = ? limit 1) or " +
+				  " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id and gn1.network_id = n.\"UUID\" and gu.user_id = ? limit 1) " ;
+		} 
+		sqlStr += ")";
+			
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkID);
+			if (userId !=null) {
+				pst.setObject(2, userId);
+				pst.setObject(3, userId);
+				pst.setObject(4, userId);
+			}
+			try ( ResultSet rs = pst.executeQuery()) {
+				return rs.next();
+			}
+		}
+	}
+	
 	/**
 	 * Set the islocked flag to true in the db.
 	 * This is an atomic operation. Will commit the current transaction.
@@ -105,6 +169,8 @@ public class NetworkDocDAO extends NdexDBDAO {
 		nDoc.save();
 		db.commit();*/
 	}
+	
+	
 	
 	/**
 	 * Set the islocked flag to false in the db.
