@@ -30,8 +30,11 @@
  */
 package org.ndexbio.common.persistence.orientdb;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
@@ -68,6 +71,7 @@ import org.cxio.core.interfaces.AspectFragmentReader;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.cxio.util.CxioUtil;
+import org.cxio.util.JsonWriter;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.cx.aspect.GeneralAspectFragmentReader;
@@ -120,14 +124,14 @@ public class CXNetworkLoader  {
 	private UUID owneruuid;
 	private UUID networkId;
 
-    
+    private String rootPath;
+	
     //mapping tables mapping from element SID to internal ID. 
-	private Map<Long, Long> nodeSIDMap;
-	private Map<Long, Long> edgeSIDMap;
-	private Map<Long, Long> citationSIDMap;
-	private Map<Long, Long> supportSIDMap;
+	private Set<Long> nodeIds;
+	private Set<Long> edgeIds;
+	private Set<Long> citationIds;
+	private Set<Long> supportIds;
 	private Map<String, Long> namespaceMap;   // prefix to nsID mapping.
-	private Map<String, Long> baseTermMap;    // map a baseterm string to bastermId;
 	
 	// tables to track undefined Elements. Stores element SIDs
 	private Set<Long> undefinedNodeId;
@@ -141,7 +145,7 @@ public class CXNetworkLoader  {
 
 	long serverElementLimit; 
 		
-	private Map<String, String> opaqueAspectEdgeTable;
+	private Map<String,JsonWriter> aspectTable;
 		
 	public CXNetworkLoader(InputStream iStream,UUID networkUUID,UUID ownerUUID)  throws NdexException {
 		super();
@@ -150,7 +154,7 @@ public class CXNetworkLoader  {
 		
 		this.owneruuid = ownerUUID;
 		this.networkId = networkUUID;
-	
+		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/";
 				
 		String edgeLimit = Configuration.getInstance().getProperty(Configuration.networkPostEdgeLimit);
 		if ( edgeLimit != null ) {
@@ -169,19 +173,18 @@ public class CXNetworkLoader  {
 		opaqueCounter = 0;
 		counter =0; 
 		
-		nodeSIDMap = new TreeMap<>();
-		edgeSIDMap = new TreeMap<> ();
-		citationSIDMap = new TreeMap<> ();
-		supportSIDMap = new TreeMap<> ();
+		nodeIds = new TreeSet<>();
+		edgeIds = new TreeSet<> ();
+		citationIds = new TreeSet<> ();
+		supportIds = new TreeSet<> ();
 		this.namespaceMap = new TreeMap<>();
-		this.baseTermMap = new TreeMap<>();
 		
 		undefinedNodeId = new TreeSet<>();
 		undefinedEdgeId = new TreeSet<>();
 		undefinedSupportId = new TreeSet<>();
 		undefinedCitationId = new TreeSet<>();
 
-		opaqueAspectEdgeTable = new HashMap<>();
+		aspectTable = new TreeMap<>();
 		
 		provenanceHistory = null;
 		
@@ -258,7 +261,7 @@ public class CXNetworkLoader  {
 		  
 		MetaDataCollection metadata = cxreader.getPreMetaData();
 		
-	/*	for ( AspectElement elmt : cxreader ) {
+/*		for ( AspectElement elmt : cxreader ) {
 			switch ( elmt.getAspectName() ) {
 				case NodesElement.ASPECT_NAME :       //Node
 					createCXNode((NodesElement) elmt);
@@ -316,8 +319,8 @@ public class CXNetworkLoader  {
 					addOpaqueAspectElement((OpaqueElement) elmt);
 			}
 
-		}
-		  // check data integrity.
+		} */
+/*		  // check data integrity.
 		  if ( !undefinedNodeId.isEmpty()) {
 			  String errorMessage = undefinedNodeId.size() + "undefined nodes found in CX stream: [";
 			  for( Long sid : undefinedNodeId)
@@ -412,7 +415,7 @@ public class CXNetworkLoader  {
 		
 		String aspectName = elmt.getAspectName();
 
-		String edgeName = this.opaqueAspectEdgeTable.get(aspectName);
+	/*	String edgeName = this.opaqueAspectEdgeTable.get(aspectName);
 		if ( edgeName == null) {
 			edgeName = NdexClasses.Network_E_opaque_asp_prefix + this.opaqueCounter;
 			opaqueCounter ++;
@@ -544,11 +547,27 @@ public class CXNetworkLoader  {
 	}
 */	
 
-/*	private Long createCXNode(NodesElement node) throws NdexException {
-		Long nodeId = nodeSIDMap.get(node.getId());
-		ODocument nodeDoc;
+	private JsonWriter getAspectOutputStream(String aspectName) throws IOException {
+		JsonWriter writer = aspectTable.get(aspectName);
+		if ( writer == null) {
+			FileOutputStream fos = new FileOutputStream(rootPath + aspectName);
+			
+			aspectTable.put(aspectName, JsonWriter.createInstance(fos));
+		}
+		return writer;
+	}
+	
+	
+	private Long createCXNode(NodesElement node) throws NdexException, IOException {
+		if ( !this.nodeIds.add(Long.valueOf(node.getId()))) {
+			throw new NdexException ("Duplicate Node Id " + node.getId() + " found.");
+		}
 		
-		if ( nodeId !=null) {
+	
+		JsonWriter fos = getAspectOutputStream(NodesElement.ASPECT_NAME);
+			
+		
+		/*if ( nodeId !=null) {
 			if ( !undefinedNodeId.remove(node.getId()))  // it has been defined more than once
 			   throw new DuplicateObjectException(NodesElement.ASPECT_NAME, node.getId());
 			nodeDoc = this.getNodeDocById(nodeId);
@@ -571,9 +590,9 @@ public class CXNetworkLoader  {
 		
 		nodeDoc.save();
 		networkVertex.addEdge(NdexClasses.Network_E_Nodes,graph.getVertex(nodeDoc));
-		tick();
-		return nodeId;
-	}	 */
+		tick(); */
+		return null;
+	}	 
 
 /*	
 	private Long createCXEdge(EdgesElement ee) throws NdexException {

@@ -60,6 +60,8 @@ public class AdminService extends NdexService {
 //	static final String defaultPostEdgeLimit = "800000";
 	
 	private static final String postElementLimitProp = "ServerPostElementLimit";
+	
+	private static final String ndexServerVersion = "2.0";
 
 	public AdminService(@Context HttpServletRequest httpRequest)
     {
@@ -106,6 +108,7 @@ public class AdminService extends NdexService {
 			} */
 		    
 			props.put("ServerResultLimit", "10000");
+			props.put("ServerVersion", ndexServerVersion);
 			status.setProperties(props);
 			logger.info("[end: Got status]");
 			
