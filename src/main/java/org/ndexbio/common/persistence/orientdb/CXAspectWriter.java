@@ -35,14 +35,6 @@ public class CXAspectWriter implements AutoCloseable{
 		out.close();
 	}
 
-
-/*	public JsonWriter getJwriter() {
-		return jwriter;
-	}
-
-	public OutputStreamWriter getStringWriter() {
-		return owriter;
-	} */
 	
 	public void writeStrig(String s) throws IOException {
 		owriter.write(s);

@@ -30,19 +30,11 @@
  */
 package org.ndexbio.common.persistence.orientdb;
 
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -53,9 +45,6 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
-import org.cxio.aspects.datamodels.AbstractAspectElement;
-import org.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
@@ -66,50 +55,38 @@ import org.cxio.aspects.readers.NetworkAttributesFragmentReader;
 import org.cxio.aspects.readers.NodeAttributesFragmentReader;
 import org.cxio.aspects.readers.NodesFragmentReader;
 import org.cxio.core.CxElementReader;
-import org.cxio.misc.OpaqueElement;
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.core.interfaces.AspectFragmentReader;
 import org.cxio.metadata.MetaDataCollection;
-import org.cxio.metadata.MetaDataElement;
 import org.cxio.util.CxioUtil;
-import org.cxio.util.JsonWriter;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.cx.aspect.GeneralAspectFragmentReader;
-import org.ndexbio.common.models.dao.postgresql.Helper;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
-import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
-import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.common.util.TermUtilities;
-import org.ndexbio.model.cx.CXSimpleAttribute;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
-import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.NodeCitationLinksElement;
 import org.ndexbio.model.cx.NodeSupportLinksElement;
 import org.ndexbio.model.cx.Provenance;
-import org.ndexbio.model.cx.ReifiedEdgeElement;
 import org.ndexbio.model.cx.SupportElement;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.Task;
-import org.ndexbio.model.object.TaskType;
-import org.ndexbio.model.object.network.NetworkSourceFormat;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.task.NdexServerQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 
 
 public class CXNetworkLoader implements AutoCloseable {
@@ -122,7 +99,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 	private InputStream inputStream;
 //	private NdexDatabase ndexdb;
-	private UUID owneruuid;
+	private String ownerName;
 	private UUID networkId;
 
     private String rootPath;
@@ -147,20 +124,25 @@ public class CXNetworkLoader implements AutoCloseable {
 	long serverElementLimit; 
 	
 	private String networkName ;
+	private String description;
+	private String version;
+	
+	private List<NdexPropertyValuePair> properties;
+	
 		
 	private Map<String,CXAspectWriter> aspectTable;
 	private NetworkGlobalIndexManager globalIdx ;
 
 		
-	public CXNetworkLoader(InputStream iStream,UUID networkUUID,UUID ownerUUID)  throws NdexException {
+	public CXNetworkLoader(UUID networkUUID,String ownerUserName)  throws NdexException, FileNotFoundException {
 		super();
-		this.inputStream = iStream;
 		
-		
-		this.owneruuid = ownerUUID;
+		this.ownerName = ownerUserName;
 		this.networkId = networkUUID;
 		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/";
 		this.networkName = null;
+
+		this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + ".cx");
 				
 		String edgeLimit = Configuration.getInstance().getProperty(Configuration.networkPostEdgeLimit);
 		if ( edgeLimit != null ) {
@@ -196,6 +178,11 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		provenanceHistory = null;
 		
+		networkName = null;
+		description = null;
+		version = null;
+		properties = new ArrayList<>();
+		
 	//	declaredNodeCount = -1 ;
 	//	declaredEdgeCount = -1;
 		
@@ -227,29 +214,29 @@ public class CXNetworkLoader implements AutoCloseable {
 				   readers);
 	}
 	
-	public void persistCXNetwork() throws IOException, ObjectNotFoundException, NdexException {
+	public void persistCXNetwork() throws ObjectNotFoundException, NdexException {
 		        	    
 	    try {
 		  persistNetworkData(); 
-		
-		  // set the admin
-		
-	/*	  UserDAO userdao = new UserDAO(localConnection);
-		  ODocument ownerDoc = userdao.getRecordByAccountName(ownerAcctName, null) ;
-		  OrientVertex ownerV = graph.getVertex(ownerDoc);
 		  
-		  for	(int retry = 0;	retry <	NdexDatabase.maxRetries;	++retry)	{
-				try	{
-					ownerV.reload();
-					ownerV.addEdge(NdexClasses.E_admin, this.networkVertex);
-					break;
-				} catch(ONeedRetryException	e)	{
-					logger.warn("Retry - " + e.getMessage());
-					
-				}
-			}		
-		graph.commit(); */
-	//	createSolrIndex(networkDoc);
+		  NetworkSummary summary = new NetworkSummary();
+
+		  try (NetworkDocDAO dao = new NetworkDocDAO ()) {
+				//handle the network properties 
+				summary.setExternalId(this.networkId);
+				summary.setVisibility(VisibilityType.PRIVATE);
+				summary.setEdgeCount(this.edgeIds.size());
+				summary.setNodeCount(this.nodeIds.size());
+				
+				Timestamp t = dao.getNetworkCreationTime(this.networkId)	;
+				summary.setCreationTime(t);
+				summary.setModificationTime(t);
+				summary.setProperties(properties);
+				dao.populateNetworkEntry(summary);
+				dao.commit();
+		  }
+		
+		  createSolrIndex(summary);
 		
 		} catch (Exception e) {
 			// delete network and close the database connection
@@ -384,60 +371,44 @@ public class CXNetworkLoader implements AutoCloseable {
 		  networkDoc.save(); */
 	}
 	
+	
+	private void createSolrIndex(NetworkSummary summary) throws SolrServerException, IOException {
+
+		globalIdx.createIndexDocFromSummary(summary,ownerName);
+		
+		globalIdx.commit();
+   	
+	}
+
+
 
 	private void createNetworkAttribute(NetworkAttributesElement e) throws NdexException, IOException {
 		
 		if ( e.getName().equals(NdexClasses.Network_P_name) && ( networkName == null || e.getSubnetwork() == null)) {
 				this.networkName = e.getValue();
-		}
-		CXAspectWriter writer = getAspectOutputStream(e.getAspectName());	
-		writer.writeCXElement(e);
+		} else if ( e.getName().equals(NdexClasses.Network_P_desc) && ( description == null || e.getSubnetwork() == null)) {
+			this.description = e.getValue();
+		} else if ( e.getName().equals(NdexClasses.Network_P_version) && ( version == null || e.getSubnetwork() == null)) {
+			this.version = e.getValue();
+		} else 
+			properties.add(new NdexPropertyValuePair(e.getSubnetwork(),e.getName(), 
+					 (e.isSingleValue() ? e.getValue(): CxioUtil.getAttributeValuesAsString(e)), e.getDataType().toString()));
+		
+		writeCXElement(e);
 		
 		this.globalIdx.addCXNetworkAttrToIndex(e);	
 		tick();
-		
-	/*	if ( e.getName().equals(NdexClasses.Network_P_name) && e.getSubnetwork() == null) {
-			networkDoc.field(NdexClasses.Network_P_name,
-					  e.getValue()).save();
-		} else if ( e.getName().equals(NdexClasses.Network_P_desc)) {
-			networkDoc.field(NdexClasses.Network_P_desc, e.getValue()).save();
-		} else if ( e.getName().equals(NdexClasses.Network_P_version)) {
-			networkDoc.field(NdexClasses.Network_P_version, e.getValue()).save();
-		} else if ( e.getName().equals(SingleNetworkDAO.CXsrcFormatAttrName)) {
-			try {
-				NetworkSourceFormat.valueOf(e.getValue());
-			} catch (IllegalArgumentException ex) {
-				throw new NdexException("Unsupported source format " + 
-						e.getValue() + 
-						" received in network attribute " + 
-						SingleNetworkDAO.CXsrcFormatAttrName);
-			}
-			networkDoc.field(NdexClasses.Network_P_source_format, e.getValue()).save();
-		} else {
-			
-			NdexPropertyValuePair newProps= new NdexPropertyValuePair(e.getSubnetwork(),
-					 e.getName(),
-					 (e.isSingleValue() ? e.getValue(): CxioUtil.getAttributeValuesAsString(e))
-					 , e.getDataType().toString());
-			List<NdexPropertyValuePair> props =networkDoc.field(NdexClasses.ndexProperties);
-			if ( props == null) {
-				props = new ArrayList<>(1);
-			} 
-			
-			props.add(newProps);
-			networkDoc.field(NdexClasses.ndexProperties,props).save();
-		} */
+
 	}
 	
-
-
-	private CXAspectWriter getAspectOutputStream(String aspectName) throws IOException {
+	private void writeCXElement(AspectElement element) throws IOException {
+		String aspectName = element.getAspectName();
 		CXAspectWriter writer = aspectTable.get(aspectName);
 		if ( writer == null) {
 			writer = new CXAspectWriter(rootPath + aspectName);
 			aspectTable.put(aspectName, writer);
 		}
-		return writer;
+		writer.writeCXElement(element);
 	}
 	
 	
@@ -448,8 +419,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		undefinedNodeId.remove(node.getId());
 		
-		CXAspectWriter writer = getAspectOutputStream(node.getAspectName());	
-		writer.writeCXElement(node);
+		writeCXElement(node);
 		this.globalIdx.addCXNodeToIndex(node);	
 		   
 		tick();   
@@ -469,16 +439,14 @@ public class CXNetworkLoader implements AutoCloseable {
 		if ( !nodeIds.contains(ee.getTarget()))
 			undefinedNodeId.add(ee.getTarget());
 		
-		CXAspectWriter writer = getAspectOutputStream(ee.getAspectName());	
-		writer.writeCXElement(ee);
+		writeCXElement(ee);
 
 		tick();	
 	   
 	}
 	
 	private void createAspectElement(AspectElement element) throws NdexException, IOException {
-		CXAspectWriter writer = getAspectOutputStream(element.getAspectName());	
-		writer.writeCXElement(element);
+		writeCXElement(element);
 		tick();			
 	}
 	
@@ -490,8 +458,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				undefinedNodeId.add(nodeId);
 		}
 		
-		CXAspectWriter writer = getAspectOutputStream(e.getAspectName());	
-		writer.writeCXElement(e);
+		writeCXElement(e);
 		
 		this.globalIdx.addCXNodeAttrToIndex(e);	
 		tick();
@@ -631,6 +598,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		for ( Map.Entry<String, CXAspectWriter> entry : aspectTable.entrySet() ){
 			entry.getValue().close();
 		}
+		
+		this.inputStream.close();
 	}
 
 

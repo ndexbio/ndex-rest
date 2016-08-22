@@ -63,6 +63,7 @@ import org.cxio.aspects.datamodels.NodesElement;
 import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
 import org.ndexbio.common.util.TermUtilities;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
@@ -261,10 +262,8 @@ public class NetworkGlobalIndexManager {
 	}
 	
 	
-	@Deprecated
-	public void createIndexDocFromSummary(NetworkSummary summary) throws SolrServerException, IOException, NdexException, SQLException {
+/*	public void createIndexDocFromSummary(NetworkSummary summary) throws SolrServerException, IOException, NdexException, SQLException {
 		client.setBaseURL(solrUrl + "/" + coreName);
-//		doc = new SolrInputDocument();
 	
 		doc.addField(UUID,  summary.getExternalId().toString() );
 		doc.addField(EDGE_COUNT, summary.getEdgeCount());
@@ -273,37 +272,34 @@ public class NetworkGlobalIndexManager {
 		
 		doc.addField(CREATION_TIME, summary.getCreationTime());
 		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
-
-		if ( summary.getName() != null ) 
-			doc.addField(NAME, summary.getName());
-		if ( summary.getDescription() !=null)
-			doc.addField(DESC, summary.getDescription());
-		if ( summary.getVersion() !=null)
-			doc.addField(VERSION, summary.getVersion());
-				
 		
-		// dynamic fields from property table.
-		List<NdexPropertyValuePair> props = summary.getProperties();
-		
-		for ( NdexPropertyValuePair prop : props) {
-		//	String attrName = attTable.get(prop.getPredicateString().toLowerCase()) ;
-			if ( otherAttributes.contains(prop.getPredicateString()) ) {
-				doc.addField(prop.getPredicateString(), prop.getValue());
-			}
-		}
-		
-		try (NetworkDAO dao = new NetworkDAO()) {
-			Map<String,Map<Permissions, Set<String>>> members = dao.getAllMembershipsOnNetwork(summary.getExternalId().toString());
-			doc.addField(USER_READ, members.get(NdexClasses.User).get(Permissions.READ));
-			doc.addField(USER_EDIT, members.get(NdexClasses.User).get(Permissions.WRITE));
-			doc.addField(USER_ADMIN, members.get(NdexClasses.User).get(Permissions.ADMIN));
-			doc.addField(GRP_ADMIN, members.get(NdexClasses.Group).get(Permissions.ADMIN));
-			doc.addField(GRP_READ, members.get(NdexClasses.Group).get(Permissions.READ));
-			doc.addField(GRP_EDIT, members.get(NdexClasses.Group).get(Permissions.WRITE));
+		try (NetworkDocDAO dao = new NetworkDocDAO()) {
+			List<Map<Permissions, Collection<String>>> members = dao.getAllMembershipsOnNetwork(summary.getExternalId());
+			doc.addField(USER_READ, members.get(0).get(Permissions.READ));
+			doc.addField(USER_EDIT, members.get(0).get(Permissions.WRITE));
+			doc.addField(USER_ADMIN, members.get(0).get(Permissions.ADMIN));
+			doc.addField(GRP_READ, members.get(1).get(Permissions.READ));
+			doc.addField(GRP_EDIT, members.get(1).get(Permissions.WRITE));
 		}
 
-//		counter = 0;
+	} */
+	
+	public void createIndexDocFromSummary(NetworkSummary summary, String ownerUserName) {
+		client.setBaseURL(solrUrl + "/" + coreName);
+	
+		doc.addField(UUID,  summary.getExternalId().toString() );
+		doc.addField(EDGE_COUNT, summary.getEdgeCount());
+		doc.addField(NODE_COUNT, summary.getNodeCount());
+		doc.addField(VISIBILITY, summary.getVisibility().toString());
+		
+		doc.addField(CREATION_TIME, summary.getCreationTime());
+		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
+		
+		doc.addField(USER_ADMIN, ownerUserName);
+
 	}
+	
+
 	
 	
 	public void addCXNodeToIndex(NodesElement node)  {
@@ -359,7 +355,7 @@ public class NetworkGlobalIndexManager {
 	}
 	
 	@Deprecated
-    public void addNodeToIndex(String name, List<String> represents, List<String> alias, /*List<String> relatedTerms, */
+    private void addNodeToIndex(String name, List<String> represents, List<String> alias, /*List<String> relatedTerms, */
     				List<String> geneSymbol, List<String> NCBIGeneID)  {
 				
 		if ( name != null && name.length() >2 ) 

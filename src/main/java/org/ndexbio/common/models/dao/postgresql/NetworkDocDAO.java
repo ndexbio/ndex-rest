@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -134,7 +135,54 @@ public class NetworkDocDAO extends NdexDBDAO {
 			}
 		}	
 	}
+	
+	public Timestamp getNetworkCreationTime(UUID networkId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select creation_time from network where \"UUID\" = ? and is_deleted=false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getTimestamp(1);
+				}
+				throw new ObjectNotFoundException("Network "+ networkId + " not found in NDEx.");
+			}
+		}	
+	}
 
+	/**
+	 * Pass in a partial summary to initialize the db entry. Only the name, description, version, edge and node counts are used
+	 * in this function.
+	 * @param networkSummary
+	 * @throws SQLException 
+	 * @throws NdexException 
+	 * @throws JsonProcessingException 
+	 */
+	public void populateNetworkEntry(NetworkSummary networkSummary) throws SQLException, NdexException, JsonProcessingException {
+		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, properties = ? ::jsonb,"
+				+ "iscomplete=true where \"UUID\" = ?";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setString(1,networkSummary.getName());
+			pst.setString(2, networkSummary.getDescription());
+			pst.setString(3, networkSummary.getVersion());
+			pst.setInt(4, networkSummary.getEdgeCount());
+			pst.setInt(5, networkSummary.getNodeCount());
+			
+			if ( networkSummary.getProperties()!=null && networkSummary.getProperties().size() >0 ) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( networkSummary.getProperties());
+				pst.setString(6, s);
+			} else {
+				pst.setString(6, null);
+			}
+			
+			pst.setObject(7, networkSummary.getExternalId());
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to update network summary entry in db.");
+		}
+	}
+	
+	
 	public boolean isReadable(UUID networkID, UUID userId) throws SQLException {
 		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and (n.visibility='PUBLIC'";
 		
@@ -491,94 +539,65 @@ public class NetworkDocDAO extends NdexDBDAO {
 	   /**
 	    * Get all the direct membership on a network.
 	    * @param networkId
-	    * @return A table as a map. Key is a string with value either 'user' or 'group'. value is another map which holds all the members under either the 
-	    *  'user' or 'group' category. For the inner map, tts key is one of the permission type, value is a set of account names that have that permission.
-	    *  If an account has a edit privilege on the network this function wont duplicate that account in the read permission list automatically.
+	    * @return A 2 elements array. First element is a map about user permissions and the second is about group permissions. For the inner map, the
+	    *  key is one of the permission type, value is a collection of account names that have that permission.
+	    *  If an account has a write privilege on the network this function won't duplicate that account in the read permission list.
 	    * @throws ObjectNotFoundException
 	    * @throws NdexException
+	 * @throws SQLException 
 	    */
-		public Map<String,Map<Permissions, Set<String>>> getAllMembershipsOnNetwork(String networkId) 
-				throws ObjectNotFoundException, NdexException {
+		public List<Map<Permissions, Collection<String>>> getAllMembershipsOnNetwork(UUID networkId) 
+				throws ObjectNotFoundException, NdexException, SQLException {
 			Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),	
 					"A network UUID is required");
+			
+			Map<Permissions,Collection<String>> userMemberships = new HashMap<>();
+			
+			userMemberships.put(Permissions.ADMIN, new ArrayList<String> ());
+			userMemberships.put(Permissions.WRITE, new ArrayList<String> ());
+			userMemberships.put(Permissions.READ, new ArrayList<String> ());
+			
+			Map<Permissions, Collection<String>> grpMemberships = new HashMap<>();
+			grpMemberships.put(Permissions.READ, new ArrayList<String> ());
+			grpMemberships.put(Permissions.WRITE, new ArrayList<String> ()); 
+			
+		    ArrayList<Map<Permissions,Collection<String>>> fullMembership = new ArrayList<> (2);
+		    fullMembership.add(0, userMemberships);
+		    fullMembership.add(1,grpMemberships);
 
-	/*		ODocument network = this.getNetworkDocByUUIDString(networkId);
+		    String sqlStr = "select u.user_name, b.per from  (select a.user_id, max(a.per) from "+
+		    		"(select owneruuid as user_id, 'ADMIN' :: ndex_permission_type as per from network where \"UUID\" = ? "+
+		    		 " union select user_id, permission_type as per from user_network_membership where network_id = ?) a "
+		    		 + "group by a.user_id) b, ndex_user u where u.\"UUID\"= b.user_id";
 			
-			Map<Permissions,Set<String>> userMemberships = new HashMap<>();
+		    try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+		    	pst.setObject(1, networkId);
+		    	pst.setObject(2, networkId);
+		    	try (ResultSet rs = pst.executeQuery()) {
+		    		while ( rs.next()) {
+		    			Collection<String> userSet = userMemberships.get(Permissions.valueOf(rs.getString(2)));
+		    			userSet.add(rs.getString(1));
+		    			
+		    		}
+		    	}
+		    }
+		    
+		    sqlStr = "select group_id, permission_type from group_network_membership where network_id = ?";
 			
-			userMemberships.put(Permissions.ADMIN, new TreeSet<String> ());
-			userMemberships.put(Permissions.WRITE, new TreeSet<String> ());
-			userMemberships.put(Permissions.READ, new TreeSet<String> ());
-			
-			Map<Permissions, Set<String>> grpMemberships = new HashMap<>();
-			grpMemberships.put(Permissions.ADMIN, new TreeSet<String> ());
-			grpMemberships.put(Permissions.READ, new TreeSet<String> ());
-			grpMemberships.put(Permissions.WRITE, new TreeSet<String> ()); */
-			
-			Map<String, Map<Permissions,Set<String>> > fullMembership = new HashMap <>();
-		/*	fullMembership.put(NdexClasses.Group,grpMemberships);
-			fullMembership.put(NdexClasses.User, userMemberships);
-			
-			String networkRID = network.getIdentity().toString();
+		    try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+		    	pst.setObject(1, networkId);
+		    	try (ResultSet rs = pst.executeQuery()) {
+		    		while ( rs.next()) {
+		    			Collection<String> grpSet = grpMemberships.get(Permissions.valueOf(rs.getString(2)));
+		    			grpSet.add(rs.getString(1));
+		    			
+		    		}
+		    	}
+		    }
 				
-			String traverseCondition = "in_" + Permissions.ADMIN + ",in_" + Permissions.READ + ",in_" + Permissions.WRITE;   
-				
-				OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
-			  			"SELECT " + NdexClasses.account_P_accountName + "," +
-			  					NdexClasses.ExternalObj_ID + ", $path, @class" +
-			  					
-				        " FROM"
-			  			+ " (TRAVERSE "+ traverseCondition.toLowerCase() +" FROM"
-			  				+ " " + networkRID
-			  				+ "  WHILE $depth <=1)"
-			  			+ " WHERE (@class = '" + NdexClasses.User + "'"
-			  			+ " OR @class='" + NdexClasses.Group + "'" +  ") AND ( " + NdexClasses.ExternalObj_isDeleted + " = false) ");
-				
-				List<ODocument> records = this.db.command(query).execute(); 
-				for(ODocument member: records) {
-					
-					String accountType = member.field("class");
-					Permissions p = Helper.getNetworkPermissionFromInPath ((String)member.field("$path"));
-					String accountName = member.field(NdexClasses.account_P_accountName);
-			
-					fullMembership.get(accountType).get(p).add(accountName);
-						
-//						userMemberships.get(p).add(accountName);	
-
-				} */
-				
-				return fullMembership;
+			return fullMembership;
 		}
 		
-
-/*	public Namespace getNamespace(String prefix, String URI, UUID networkID ) {
-		String query = "select from (traverse out_" +
-	    		  NdexClasses.Network_E_Namespace +" from (select from "
-	    		  + NdexClasses.Network + " where " +
-	    		  NdexClasses.Network_P_UUID + "='" + networkID + 
-	    		  "')) where @class='"+  NdexClasses.Namespace + "' and ";
-		if ( prefix != null) {
-	      query = query + NdexClasses.ns_P_prefix + "='"+ prefix +"'";
-		}   else {
-		  query = query + NdexClasses.ns_P_uri + "='"+ URI +"'";	
-		}	
-	    final List<ODocument> nss = db.query(new OSQLSynchQuery<ODocument>(query));
-	     
-	     if (nss.isEmpty())
-	    	 return null;
-         Namespace result = getNamespace(nss.get(0));
-         return result;
-	}
-*/
-
-/*	public  Collection<Namespace> getNamespacesFromNetworkDoc(ODocument networkDoc)  {
-		ArrayList<Namespace> namespaces = new ArrayList<>();
-		
-		for ( ODocument doc : Helper.getNetworkElements(networkDoc, NdexClasses.Network_E_Namespace)) {
-    			namespaces.add(getNamespace(doc));
-    	}
-    	return namespaces;
-	} */
 	
     /**
      * This funciton return a self-contained sub network from a given citation. It is mainly for the XBel exporter.

@@ -94,8 +94,8 @@ public class NetworkDAO extends NetworkDocDAO {
 
 	}
 
-
-	public int deleteNetwork (String UUID) throws ObjectNotFoundException, NdexException {
+	@Deprecated
+	private int deleteNetwork (String UUID) throws ObjectNotFoundException, NdexException {
 		int counter = 0, cnt = 0;
 		
 		do {
@@ -117,7 +117,8 @@ public class NetworkDAO extends NetworkDocDAO {
 	 * @throws ObjectNotFoundException
 	 * @throws NdexException
 	 */
-	public int cleanupDeleteNetwork(String uuid) throws ObjectNotFoundException, NdexException {
+	@Deprecated
+	private int cleanupDeleteNetwork(String uuid) throws ObjectNotFoundException, NdexException {
 	/*	ODocument networkDoc = getRecordByUUID(UUID.fromString(uuid), NdexClasses.Network);
 		
 		int count = cleanupNetworkElements(networkDoc);

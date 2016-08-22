@@ -64,7 +64,7 @@ public class DatabaseBackupTask extends TimerTask {
 		Task task = new Task();
 		
 		task.setTaskType(TaskType.SYSTEM_DATABASE_BACKUP);
-		NdexServerQueue.INSTANCE.addFirstSystemTask(task);
+		//NdexServerQueue.INSTANCE.addFirstSystemTask(task);
 
 	}
 

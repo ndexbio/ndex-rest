@@ -116,6 +116,7 @@ import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -1872,6 +1873,8 @@ public class NetworkService extends NdexService {
 	    	   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName());
 	    	   dao.commit();
 	       }
+	       
+	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName()));
 	       
 		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 		   return uuidStr;

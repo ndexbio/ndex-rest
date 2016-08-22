@@ -30,25 +30,7 @@
  */
 package org.ndexbio.task;
 
-import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.List;
 import java.util.logging.Logger;
-
-import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.RequestDAO;
-import org.ndexbio.common.models.dao.postgresql.TaskDAO;
-import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.Request;
-import org.ndexbio.model.object.ResponseType;
-import org.ndexbio.model.object.Status;
-import org.ndexbio.model.object.Task;
-import org.ndexbio.model.object.TaskType;
-import org.ndexbio.rest.Configuration;
 
 public class SystemTaskProcessor extends NdexTaskProcessor {
 
@@ -61,20 +43,23 @@ public class SystemTaskProcessor extends NdexTaskProcessor {
 	@Override
 	public void run() {
 		while ( !shutdown) {
-			Task task = null;
+			NdexSystemTask task = null;
 			try {
 				task = NdexServerQueue.INSTANCE.takeNextSystemTask();
 				if ( task == NdexServerQueue.endOfQueue) {
 					logger.info("End of queue signal received. Shutdown processor.");
 					return;
 				}
-			} catch (InterruptedException e) {
-				logger.info("takeNextSystemTask Interrupted.");
+				try {
+					task.run();
+				} catch (Exception e) {
+					logger.severe("Error occurred when executing task: " + e.getMessage());
+					e.printStackTrace();
+				}
+			} catch (InterruptedException e1) {
+				logger.info("takeNextSystemTask Interrupted:" + e1.getMessage());
 				return;
 			}
-
-			TaskType type = task.getTaskType();
-
 		}
 	}
 	

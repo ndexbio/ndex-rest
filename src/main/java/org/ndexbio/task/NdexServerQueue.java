@@ -39,18 +39,21 @@ public enum NdexServerQueue {
 	
 	INSTANCE;
 	
-	private LinkedBlockingDeque<Task> systemTaskQueue;
+	private LinkedBlockingDeque<NdexSystemTask> systemTaskQueue;
 	private LinkedBlockingDeque<Task> userTaskQueue;
 	
 	public static final Task endOfQueue = new Task();
 	
+	public static final NdexSystemTask endOfSystemQueue = new NdexSystemTask() { @Override
+	public void run () {}};
+
 	private NdexServerQueue () {
 		systemTaskQueue = new LinkedBlockingDeque<>();
 		userTaskQueue = new LinkedBlockingDeque<>();
     }
 	
 
-	public Task takeNextSystemTask () throws InterruptedException {
+	public NdexSystemTask takeNextSystemTask () throws InterruptedException {
 		return systemTaskQueue.take();
 	}
 
@@ -58,11 +61,11 @@ public enum NdexServerQueue {
 		return userTaskQueue.take();
 	}
 	
-	public void addSystemTask (Task task)  {
+	public void addSystemTask (NdexSystemTask task)  {
 		systemTaskQueue.add(task);
 	}
 
-	public void addFirstSystemTask (Task task)  {
+	public void addFirstSystemTask (NdexSystemTask task)  {
 		systemTaskQueue.addFirst(task);
 	}
 	
@@ -70,7 +73,7 @@ public enum NdexServerQueue {
 		userTaskQueue.add(task);
 	}
 	
-	public BlockingQueue<Task> getSystemTaskQueue () {
+	public BlockingQueue<NdexSystemTask> getSystemTaskQueue () {
 		return systemTaskQueue;
 	}
 	
@@ -79,7 +82,7 @@ public enum NdexServerQueue {
 	}
 	
 	public void shutdown () {
-		systemTaskQueue.add(endOfQueue);
+		systemTaskQueue.add(endOfSystemQueue);
 		userTaskQueue.add(endOfQueue);
 		
 	}

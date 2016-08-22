@@ -158,7 +158,8 @@
    <field name="grpEdit" type="string" indexed="true" stored="true"  multiValued="true"/>
    <field name="grpAdmin" type="string" indexed="true" stored="true"  multiValued="true"/>
    <field name="visibility" type="string" indexed="true" stored="true"  multiValued="false"/>
-
+   <field name="labels" type="text_general" indexed="true" stored="true" multiValued="true"/>
+   
   <!-- some fields that should be useful for biological networks -->
    <field name="nodeName" type="string" indexed="true" stored="false"  multiValued="true"/>
    <field name="NCBIGeneID" type="string" indexed="true" stored="false" multiValued="true" />
