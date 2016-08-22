@@ -31,6 +31,8 @@
 package org.ndexbio.common.solr;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Date;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -55,11 +57,17 @@ import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
+import org.cxio.aspects.datamodels.NetworkAttributesElement;
+import org.cxio.aspects.datamodels.NodeAttributesElement;
+import org.cxio.aspects.datamodels.NodesElement;
+import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.util.TermUtilities;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.network.NetworkSourceFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -127,7 +135,7 @@ public class NetworkGlobalIndexManager {
 		// TODO Auto-generated constructor stub
 		solrUrl = Configuration.getInstance().getSolrURL();
 		client = new HttpSolrClient(solrUrl);
-		doc = null;
+		doc = new SolrInputDocument();
 /*		if ( attTable == null) { 
 			attTable = new HashMap<>(otherAttributes.size());
 			for ( String att : otherAttributes) {
@@ -253,10 +261,10 @@ public class NetworkGlobalIndexManager {
 	}
 	
 	
-	
+	@Deprecated
 	public void createIndexDocFromSummary(NetworkSummary summary) throws SolrServerException, IOException, NdexException, SQLException {
 		client.setBaseURL(solrUrl + "/" + coreName);
-		doc = new SolrInputDocument();
+//		doc = new SolrInputDocument();
 	
 		doc.addField(UUID,  summary.getExternalId().toString() );
 		doc.addField(EDGE_COUNT, summary.getEdgeCount());
@@ -298,8 +306,59 @@ public class NetworkGlobalIndexManager {
 	}
 	
 	
+	public void addCXNodeToIndex(NodesElement node)  {
+			
+		   if ( node.getNodeName() != null && node.getNodeName().length() >2 ) 
+			   doc.addField(NODE_NAME, node.getNodeName());
+		   if ( node.getNodeRepresents() !=null ) {
+			   String indexableString = getIndexableString(node.getNodeRepresents());
+			   if( indexableString !=null)
+				   doc.addField(REPRESENTS, indexableString);
+		   }	
 	
 
+	}
+	
+	public void addCXNodeAttrToIndex(NodeAttributesElement e)  {
+		
+		if ( e.getName().equals(NdexClasses.Node_P_alias) && !e.getValues().isEmpty()) {
+			 for ( String v : e.getValues()) {
+				 String indexableString = getIndexableString(v);
+				 if ( indexableString !=null )
+					 doc.addField(ALIASES, indexableString);
+			   }
+		}
+
+	}
+
+	public void addCXNetworkAttrToIndex(NetworkAttributesElement e)  {
+		
+		if ( e.getName().equals(NdexClasses.Network_P_name) && e.getValue() !=null && e.getValue().length()>0) {
+			doc.addField(NAME, e.getValue());
+		} else if ( e.getName().equals(NdexClasses.Network_P_desc ) && e.getValue() !=null && e.getValue().length()>0 ) {
+			doc.addField(DESC, e.getValue());
+		} else if ( e.getName().equals(NdexClasses.Network_P_version) && e.getValue() !=null && e.getValue().length()>0 ) {
+			doc.addField(VERSION, e.getValue());
+		} /* else if ( e.getName().equals("ndex:sourceFormat") && e.getValue() !=null && e.getValue().length()>0) {
+			//TODO: check if we really need to index sourceFormat.
+			try {
+				NetworkSourceFormat.valueOf(e.getValue());
+			} catch (IllegalArgumentException ex) {
+				throw new NdexException("Unsupported source format " + 
+						e.getValue() + 
+						" received in network attribute ndex:sourceFormat" );
+			}
+			
+		} */ else {
+			if ( otherAttributes.contains(e.getName()) && e.getValue() != null && e.getValue().length()>0 ) {
+				doc.addField(e.getName(), e.getValue());
+			}
+			
+		}
+		
+	}
+	
+	@Deprecated
     public void addNodeToIndex(String name, List<String> represents, List<String> alias, /*List<String> relatedTerms, */
     				List<String> geneSymbol, List<String> NCBIGeneID)  {
 				
@@ -347,6 +406,7 @@ public class NetworkGlobalIndexManager {
 	}
 	
 	public void commit () throws SolrServerException, IOException {
+		client.setBaseURL(solrUrl + "/" + coreName);
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(doc);
 		client.add(docs);
@@ -520,4 +580,48 @@ public class NetworkGlobalIndexManager {
 		client.commit();
 
 	}
+	
+	
+	
+	private String getIndexableString(String termString) {
+		
+		// case 1 : termString is a URI
+		// example: http://identifiers.org/uniprot/P19838
+		// treat the last element in the URI as the identifier and the rest as
+		// prefix string. Just to help the future indexing.
+		//
+		String identifier = null;
+		if ( termString.length() > 8 && termString.substring(0, 7).equalsIgnoreCase("http://") &&
+				(!termString.endsWith("/"))) {
+  		  try {
+			URI termStringURI = new URI(termString);
+				identifier = termStringURI.getFragment();
+			
+			    if ( identifier == null ) {
+				    String path = termStringURI.getPath();
+				    if (path != null && path.indexOf("/") != -1) {
+				       int pos = termString.lastIndexOf('/');
+					   identifier = termString.substring(pos + 1);
+				    } else
+				       return null; // the string is a URL in the format that we don't want to index it in Solr. 
+			    } 
+			    return identifier;
+			  
+		  } catch (URISyntaxException e) {
+			// ignore and move on to next case
+		  }
+		}
+		
+		String[] termStringComponents = TermUtilities.getNdexQName(termString);
+		if (termStringComponents != null && termStringComponents.length == 2) {
+			// case 2: termString is of the form (NamespacePrefix:)*Identifier
+			return termStringComponents[1];
+		} 
+		
+		// case 3: termString cannot be parsed, use it as the identifier.
+		// so leave the prefix as null and return the string				
+		return termString;
+			
+	}
+
 }

@@ -109,7 +109,8 @@ public class NetworkDocDAO extends NdexDBDAO {
 	
 
 	public void deleteNetwork(UUID netowrkId, UUID userId) throws SQLException, NdexException {
-		String sqlStr = "update network set is_deleted=true where \"UUID\" = ? and owneruuid = ? and is_deleted=false and isLocked = false and readonly=false";
+		String sqlStr = "update network set is_deleted=true,"
+				+ " modification_time = localtimestamp where \"UUID\" = ? and owneruuid = ? and is_deleted=false and isLocked = false and readonly=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, netowrkId);
 			pst.setObject(2, userId);
