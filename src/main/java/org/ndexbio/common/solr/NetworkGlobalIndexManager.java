@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Date;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,15 +59,12 @@ import org.apache.solr.common.util.NamedList;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
-import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
 import org.ndexbio.common.util.TermUtilities;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.network.NetworkSourceFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -87,6 +83,7 @@ public class NetworkGlobalIndexManager {
 	private static final String NAME = "name";
 	private static final String DESC = "description";
 	private static final String VERSION = "version";
+	private static final String LABELS = "labels";
 	private static final String USER_READ= "userRead";
 	private static final String USER_EDIT = "userEdit";
 	private static final String USER_ADMIN = "userAdmin";
@@ -335,6 +332,8 @@ public class NetworkGlobalIndexManager {
 			doc.addField(DESC, e.getValue());
 		} else if ( e.getName().equals(NdexClasses.Network_P_version) && e.getValue() !=null && e.getValue().length()>0 ) {
 			doc.addField(VERSION, e.getValue());
+		} else if (e.getName().equals(LABELS) && e.getValue() !=null && e.getValue().length()>0 ) {
+			doc.addField(LABELS, e.getValue());
 		} /* else if ( e.getName().equals("ndex:sourceFormat") && e.getValue() !=null && e.getValue().length()>0) {
 			//TODO: check if we really need to index sourceFormat.
 			try {

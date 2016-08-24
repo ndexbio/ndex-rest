@@ -1,17 +1,8 @@
 package org.ndexbio.task;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.sql.SQLException;
 import java.util.UUID;
 
-import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
 import org.ndexbio.common.persistence.orientdb.CXNetworkLoader;
-import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.rest.Configuration;
 
 public class CXNetworkLoadingTask implements NdexSystemTask {
 	

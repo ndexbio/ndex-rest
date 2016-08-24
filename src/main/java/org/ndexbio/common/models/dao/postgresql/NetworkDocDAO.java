@@ -148,6 +148,25 @@ public class NetworkDocDAO extends NdexDBDAO {
 			}
 		}	
 	}
+	
+	/**
+	 * Set a flag in the network entry. 
+	 * @param fieldName
+	 * @param value
+	 * @throws SQLException 
+	 * @throws NdexException 
+	 */
+	
+	public void setFlag(UUID networkId, String fieldName, boolean value) throws SQLException, NdexException {
+		String sqlStr = "update network set "
+				+ fieldName + "=" + value + " where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to set network flag entry in db.");
+		}
+	}
 
 	/**
 	 * Pass in a partial summary to initialize the db entry. Only the name, description, version, edge and node counts are used
@@ -159,7 +178,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 	 */
 	public void populateNetworkEntry(NetworkSummary networkSummary) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, properties = ? ::jsonb,"
-				+ "iscomplete=true where \"UUID\" = ?";
+				+ " is_validated =true where \"UUID\" = ?";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setString(1,networkSummary.getName());
 			pst.setString(2, networkSummary.getDescription());

@@ -32,6 +32,8 @@ package org.ndexbio.common.persistence.orientdb;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -217,6 +219,11 @@ public class CXNetworkLoader implements AutoCloseable {
 	public void persistCXNetwork() throws ObjectNotFoundException, NdexException {
 		        	    
 	    try {
+	    	
+	      //Create dir
+		  java.nio.file.Path dir = Paths.get(rootPath);
+		  Files.createDirectory(dir);
+			    	
 		  persistNetworkData(); 
 		  
 		  NetworkSummary summary = new NetworkSummary();
@@ -232,11 +239,18 @@ public class CXNetworkLoader implements AutoCloseable {
 				summary.setCreationTime(t);
 				summary.setModificationTime(t);
 				summary.setProperties(properties);
+				summary.setName(this.networkName);
+				summary.setDescription(this.description);
+				summary.setVersion(this.version);
 				dao.populateNetworkEntry(summary);
 				dao.commit();
 		  }
 		
 		  createSolrIndex(summary);
+		  try ( NetworkDocDAO dao = new NetworkDocDAO()) {
+			  dao.setFlag(this.networkId, "iscomplete", true);
+			  dao.commit();
+		  }
 		
 		} catch (Exception e) {
 			// delete network and close the database connection
@@ -405,10 +419,12 @@ public class CXNetworkLoader implements AutoCloseable {
 		String aspectName = element.getAspectName();
 		CXAspectWriter writer = aspectTable.get(aspectName);
 		if ( writer == null) {
+			logger.info("creating new file for aspect " + aspectName);
 			writer = new CXAspectWriter(rootPath + aspectName);
 			aspectTable.put(aspectName, writer);
 		}
 		writer.writeCXElement(element);
+		writer.flush();
 	}
 	
 	

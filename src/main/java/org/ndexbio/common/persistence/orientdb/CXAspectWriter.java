@@ -18,12 +18,16 @@ public class CXAspectWriter implements AutoCloseable{
 	
 	private OutputStream out;
 	private JsonWriter jwriter;
-	private OutputStreamWriter owriter;
+	//private OutputStreamWriter owriter;
 	private long count;
+	
+	private static final byte[] start = {'['};
+	private static final byte[] comma = {','};
+	private static final byte[] end = {']'};
 	
 	public CXAspectWriter(String aspectFileName) throws IOException {
 		out = new FileOutputStream(aspectFileName);
-		owriter = new OutputStreamWriter (out);
+//		owriter = new OutputStreamWriter (out);
 		jwriter = JsonWriter.createInstance(out,true);
 		count = 0;
 	}
@@ -31,22 +35,29 @@ public class CXAspectWriter implements AutoCloseable{
 
 	@Override
 	public void close () throws IOException {
-		owriter.close();
+		out.write(end);
+		jwriter.close();
+	//	owriter.close();
 		out.close();
 	}
 
 	
-	public void writeStrig(String s) throws IOException {
+	/*public void writeSting(String s) throws IOException {
 		owriter.write(s);
-	}
+	} */
 	
 	public void writeCXElement(AspectElement e) throws IOException {
 		if ( count == 0 ) 
-			owriter.write("[");
+			out.write(start);
+			//owriter.write("[");
 		else 
-			owriter.write(",");
+			out.write(comma);//owriter.write(","); 
 		e.write(jwriter);
 		count++;
 	}
+	
+	public void flush() throws IOException { out.flush();}
+	
+//	public void writeEnd() throws IOException { out.write(end); }
 
 }
