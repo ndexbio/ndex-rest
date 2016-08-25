@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +77,7 @@ import org.cxio.metadata.MetaDataCollection;
 import org.cxio.util.JsonWriter;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -1246,89 +1248,94 @@ public class NetworkService extends NdexService {
     {
 		logger.info("[start: Updating profile information of network {}]", networkId);
 		
-		try (NetworkDAO networkDao = new NetworkDAO()){
+		try (NetworkDocDAO networkDao = new NetworkDocDAO()){
 
 			User user = getLoggedInUser();
-			
-		/*	if(networkDao.networkIsReadOnly(networkId)) {
-				networkDao.close();
+			UUID networkUUID = UUID.fromString(networkId);
+	
+	  	    if(networkDao.isReadOnly(networkUUID)) {
 				logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
-			} */
+			} 
 			
-		/*	if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getUserName(),
-					Permissions.WRITE)) {
+			if ( !networkDao.isWriteable(networkUUID, user.getExternalId())) {
 				logger.error("[end: No write permissions for user account {} on network {}]", 
 						user.getUserName(), networkId);
-				networkDao.close();
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
-			} */
-
-			if ( networkDao.networkIsLocked(networkId)) {
-				networkDao.close();
-				logger.info("[end: Can't update locked network {}]", networkId);
-				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
 			} 
+			
+			Map<String,String> newValues = new HashMap<> ();
+			
+			if ( summary.getName() != null) {
+					 newValues.put(NdexClasses.Network_P_name, summary.getName());
+			}
+					
+			if ( summary.getDescription() != null) {
+					newValues.put( NdexClasses.Network_P_desc, summary.getDescription());
+			}
+				
+			if ( summary.getVersion()!=null ) {
+					newValues.put( NdexClasses.Network_P_version, summary.getVersion());
+			}
 
-            UUID networkUUID = UUID.fromString(networkId);
-	        networkDao.updateNetworkProfile(networkUUID, summary);
+			if ( newValues.size() > 0 ) { 
+				networkDao.updateNetworkProfile(networkUUID, newValues);
 
-            //DW: Handle provenance
-            //Special Logic. Test whether we should record provenance at all.
-            //If the only thing that has changed is the visibility, we should not add a provenance
-            //event.
-            ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
-            String oldName = "", oldDescription = "", oldVersion ="";
-            for( SimplePropertyValuePair oldProperty : oldProv.getProperties() )
-            {
-                if( oldProperty.getName() == null )
-                    continue;
-                if( oldProperty.getName().equals("dc:title") )
-                    oldName = oldProperty.getValue().trim();
-                else if( oldProperty.getName().equals("description") )
-                    oldDescription = oldProperty.getValue().trim();
-                else if( oldProperty.getName().equals("version") )
-                    oldVersion = oldProperty.getValue().trim();
-            }
+				//DW: Handle provenance
+				//Special Logic. Test whether we should record provenance at all.
+				//If the only thing that has changed is the visibility, we should not add a provenance
+				//event.
+				ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
+				String oldName = "", oldDescription = "", oldVersion ="";
+				for( SimplePropertyValuePair oldProperty : oldProv.getProperties() )
+				{
+					if( oldProperty.getName() == null )
+						continue;
+					if( oldProperty.getName().equals("dc:title") )
+						oldName = oldProperty.getValue().trim();
+					else if( oldProperty.getName().equals("description") )
+						oldDescription = oldProperty.getValue().trim();
+					else if( oldProperty.getName().equals("version") )
+						oldVersion = oldProperty.getValue().trim();
+				}
 
-            //Treat all summary values that are null like ""
-            String summaryName = summary.getName() == null ? "" : summary.getName().trim();
-            String summaryDescription = summary.getDescription() == null ? "" : summary.getDescription().trim();
-            String summaryVersion = summary.getVersion() == null ? "" : summary.getVersion().trim();
+				//Treat all summary values that are null like ""
+				String summaryName = summary.getName() == null ? "" : summary.getName().trim();
+				String summaryDescription = summary.getDescription() == null ? "" : summary.getDescription().trim();
+				String summaryVersion = summary.getVersion() == null ? "" : summary.getVersion().trim();
 
+				if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
+				{
+					ProvenanceEntity newProv = new ProvenanceEntity();
+					newProv.setUri(oldProv.getUri());
 
+					/*         Helper.populateProvenanceEntity(newProv, 
+                				NetworkDocDAO.getNetworkSummary(networkDao.getRecordByUUIDStr(networkId, null))); */
 
-            if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
-            {
-                ProvenanceEntity newProv = new ProvenanceEntity();
-                newProv.setUri(oldProv.getUri());
+					ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
 
-       /*         Helper.populateProvenanceEntity(newProv, 
-                		NetworkDocDAO.getNetworkSummary(networkDao.getRecordByUUIDStr(networkId, null))); */
+					List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+					Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
 
-                ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
+					if (summary.getName() != null)
+						eventProperties.add(new SimplePropertyValuePair("dc:title", summary.getName()));
 
-                List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-                Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
+					if (summary.getDescription() != null)
+						eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
 
-                if (summary.getName() != null)
-                    eventProperties.add(new SimplePropertyValuePair("dc:title", summary.getName()));
+					if (summary.getVersion() != null)
+						eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
 
-                if (summary.getDescription() != null)
-                    eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
+					event.setProperties(eventProperties);
+					List<ProvenanceEntity> oldProvList = new ArrayList<>();
+					oldProvList.add(oldProv);
+					event.setInputs(oldProvList);
 
-                if (summary.getVersion() != null)
-                    eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
-
-                event.setProperties(eventProperties);
-                List<ProvenanceEntity> oldProvList = new ArrayList<>();
-                oldProvList.add(oldProv);
-                event.setInputs(oldProvList);
-
-                newProv.setCreationEvent(event);
-                networkDao.setProvenance(networkUUID, newProv);
-            }
-			networkDao.commit();
+					newProv.setCreationEvent(event);
+					networkDao.setProvenance(networkUUID, newProv);
+				}
+				networkDao.commit();
+			}
 		} finally {
 			logger.info("[end: Updated profile information of network {}]", networkId);
 		}

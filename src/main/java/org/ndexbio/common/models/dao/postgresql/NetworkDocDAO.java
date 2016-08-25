@@ -80,6 +80,7 @@ import org.ndexbio.model.object.network.VisibilityType;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
@@ -90,7 +91,8 @@ public class NetworkDocDAO extends NdexDBDAO {
 
 	private static Logger logger = Logger.getLogger(NetworkDocDAO.class.getName());
 	
-	
+//	public static final String RESET_MOD_TIME = "resetMTime";
+
 
 	public NetworkDocDAO () throws  SQLException {
 	    super();
@@ -224,6 +226,43 @@ public class NetworkDocDAO extends NdexDBDAO {
 			}
 		}
 	}
+	
+	public boolean isWriteable(UUID networkID, UUID userId) throws SQLException {
+		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and (";
+		
+		sqlStr += " n.owneruuid = ? or "
+				+ " exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = ? and un1.permission_type = 'WRITE' limit 1) or " +
+				  " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
+				  + "   and gn1.network_id = n.\"UUID\" and gu.user_id = ? and gn1.permission_type = 'WRITE' limit 1) " ;
+
+		sqlStr += ")";
+			
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkID);
+				pst.setObject(2, userId);
+				pst.setObject(3, userId);
+				pst.setObject(4, userId);
+			
+			try ( ResultSet rs = pst.executeQuery()) {
+				return rs.next();
+			}
+		}
+	}
+	
+	public boolean isReadOnly(UUID networkID) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select roid,cacheid from network n where n.\"UUID\" = ? and n.is_deleted=false ";
+			
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkID);
+			try ( ResultSet rs = pst.executeQuery()) {
+				if( rs.next() ) {
+					return rs.getLong(1)>0 && rs.getLong(1) == rs.getLong(2);
+				}
+				throw new ObjectNotFoundException("Network", networkID );
+			}
+		}
+	}
+	
 	
 	/**
 	 * Set the islocked flag to true in the db.
@@ -902,15 +941,112 @@ public class NetworkDocDAO extends NdexDBDAO {
 		List<NetworkSummary> results = new ArrayList<>(solrResults.size());
 		for ( SolrDocument d : solrResults) {
 			String id = (String) d.get(NetworkGlobalIndexManager.UUID);
-		/*	NetworkSummary s = getNetworkSummaryById(id);
+			NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
 			if ( s !=null)
-				results .add(s); */
+				results .add(s); 
 		} 
 		
 		return new NetworkSearchResult ( solrResults.getNumFound(), solrResults.getStart(), results);
 	}
 
 	
+	public NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
+		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
+		String sqlStr = "select creation_time, modification_time, name,description,version,"
+				+ "edgecount,nodecount,visibility,owner,owneruuid,"
+				+ " properties,sourceformat,is_validated,readonly "
+				+ "from network where \"UUID\" = ? and is_deleted= false";
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					NetworkSummary result = new NetworkSummary();
+					populateNetworkSummaryFromResultSet(result,rs);
+					
+					return result;
+				}
+				throw new ObjectNotFoundException("Network " + networkId + " not found in db.");
+			}
+		}
+	}
 	
+	/**
+	 * Order in the ResultSet is critical.
+	 * @param summary
+	 * @param rs
+	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
+	 */
+	private static void populateNetworkSummaryFromResultSet (NetworkSummary result, ResultSet rs) throws SQLException, JsonParseException, JsonMappingException, IOException {
+		result.setCreationTime(rs.getTimestamp(1));
+		result.setModificationTime(rs.getTimestamp(2));
+		result.setName(rs.getString(3));
+		result.setDescription(rs.getString(4));
+		result.setVersion(rs.getString(5));
+		result.setEdgeCount(rs.getInt(6));
+		result.setNodeCount(rs.getInt(7));
+		result.setVisibility(VisibilityType.valueOf(rs.getString(8)));
+		result.setOwner(rs.getString(9));
+		result.setOwnerUUID((UUID)rs.getObject(10));
+		String proptiesStr = rs.getString(11);
+		
+		if ( proptiesStr != null) {
+			ObjectMapper mapper = new ObjectMapper(); 
+			
+			List<NdexPropertyValuePair> o = mapper.readValue(proptiesStr, ArrayList.class); 		
+	        result.setProperties(o);  
+		}
+		
+	}
+	
+	
+	public void updateNetworkProfile(UUID networkId, Map<String,String> newValues) throws NdexException, SolrServerException, IOException, SQLException {
+	
+	    	
+	    	 //update db
+		    String sqlStr = "update network set ";
+		    List<String> values = new ArrayList<>(newValues.size());
+		    for (Map.Entry<String,String> entry : newValues.entrySet()) {
+		    		if (values.size() >0)
+		    			sqlStr += ", ";
+		    		sqlStr += entry.getKey() + " = ?";	
+		    		values.add(entry.getValue());
+		    }
+		    sqlStr += " where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false and islocked=false";
+		    
+		    try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+		    	for ( int i = 0 ; i < values.size(); i++) {
+		    		p.setString(i, values.get(i));
+		    	}
+		    	int cnt = p.executeUpdate();
+		    	if ( cnt != 1 ) {
+		    		throw new NdexException ("Failed to update. Network " + networkId + " might have been locked.");
+		    	}
+		    }
+	    	//update solr index
+	    	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+
+	    	networkIdx.updateNetworkProfile(networkId.toString(), newValues); 
+		
+	}
+	
+	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException, SolrServerException, IOException {
+		 String sqlStr = "update network set visibility = " + v.toString() + " where \"UUID\" = ? and is_deleted=false and islocked=false";
+		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			 pst.setObject(1, networkId);
+			 int i = pst.executeUpdate();
+			 if ( i !=1 )
+				 throw new NdexException ("Failed to update visibility. Network " + networkId + " might have been locked.");
+		 }
+		    	
+		    	
+		 //update solr index
+		 NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+
+		 networkIdx.updateNetworkVisibility(networkId.toString(), v.toString()); 
+		    			
+	}
 	
 }

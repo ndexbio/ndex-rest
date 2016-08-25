@@ -77,7 +77,6 @@ import com.google.common.base.Strings;
 
 public class NetworkDAO extends NetworkDocDAO {
 			
-	public static final String RESET_MOD_TIME = "resetMTime";
 
 	
     private static final String[] networkElementType = {NdexClasses.Network_E_BaseTerms, NdexClasses.Network_E_Nodes, NdexClasses.Network_E_Citations,
@@ -490,37 +489,6 @@ public class NetworkDAO extends NetworkDocDAO {
 	} */
 
     
-	
-	public void updateNetworkProfile(UUID networkId, NetworkSummary newSummary) throws NdexException, SolrServerException, IOException {
-	/*	ODocument doc = this.getNetworkDocByUUID(networkId);
-		
-		Helper.updateNetworkProfile(doc, newSummary);
-		
-		//update solr index
-		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-		
-		Map<String,Object> newValues = new HashMap<> ();
-		
-		if ( newSummary.getName() != null) {
-				 newValues.put(NdexClasses.Network_P_name, newSummary.getName());
-				 newValues.put(RESET_MOD_TIME,"true");
-		}
-				
-			  if ( newSummary.getDescription() != null) {
-				newValues.put( NdexClasses.Network_P_desc, newSummary.getDescription());
-				newValues.put(RESET_MOD_TIME, "true");
-			  }
-			
-			  if ( newSummary.getVersion()!=null ) {
-				newValues.put( NdexClasses.Network_P_version, newSummary.getVersion());
-				newValues.put(RESET_MOD_TIME, "true") ;
-			  }
-			  
-	    if ( newSummary.getVisibility()!=null )
-				newValues.put( NdexClasses.Network_P_visibility, newSummary.getVisibility());
-			 
-		networkIdx.updateNetworkProfile(networkId.toString(), newValues); */
-	}
 	
 	
 }

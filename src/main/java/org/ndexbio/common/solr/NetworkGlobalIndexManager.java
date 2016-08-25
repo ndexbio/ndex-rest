@@ -60,13 +60,12 @@ import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
 import org.ndexbio.common.util.TermUtilities;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
-import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
 public class NetworkGlobalIndexManager {
@@ -446,43 +445,53 @@ public class NetworkGlobalIndexManager {
 	}
 	
 	
-	public void updateNetworkProfile(String networkId, Map<String,Object> table) throws SolrServerException, IOException {
+	public void updateNetworkProfile(String networkId, Map<String,String> table) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		SolrInputDocument tmpdoc = new SolrInputDocument();
 		tmpdoc.addField(UUID, networkId);
 		 
-		String newTitle = (String)table.get(NdexClasses.Network_P_name); 
+		String newTitle = table.get(NdexClasses.Network_P_name); 
 		if ( newTitle !=null) {
 			Map<String,String> cmd = new HashMap<>();
 			cmd.put("set", newTitle);
 			tmpdoc.addField(NAME, cmd);
 		}
 		
-		String newDesc =(String) table.get(NdexClasses.Network_P_desc);
+		String newDesc =table.get(NdexClasses.Network_P_desc);
 		if ( newDesc != null) {
 			Map<String,String> cmd = new HashMap<>();
 			cmd.put("set", newDesc);
 			tmpdoc.addField(DESC, cmd);
 		}
 		
-		String newVersion = (String)table.get(NdexClasses.Network_P_version);
+		String newVersion = table.get(NdexClasses.Network_P_version);
 		if ( newVersion !=null) {
 			Map<String,String> cmd = new HashMap<>();
 			cmd.put("set", newVersion);
 			tmpdoc.addField(VERSION, cmd);
 		}
 		
-		if ( table.get(NetworkDAO.RESET_MOD_TIME)!=null) {
 			Map<String,Timestamp> cmd = new HashMap<>();
 			java.util.Date now = Calendar.getInstance().getTime();
 			cmd.put("set",  new java.sql.Timestamp(now.getTime()));
 			tmpdoc.addField(MODIFICATION_TIME, cmd);
-		}
+	
 		
-		VisibilityType  vt = (VisibilityType)table.get(NdexClasses.Network_P_visibility);		
+		Collection<SolrInputDocument> docs = new ArrayList<>(1);
+		docs.add(tmpdoc);
+		client.add(docs);
+		client.commit();
+
+	}
+	
+	public void updateNetworkVisibility(String networkId, String vt) throws SolrServerException, IOException {
+		client.setBaseURL(solrUrl + "/" + coreName);
+		SolrInputDocument tmpdoc = new SolrInputDocument();
+		tmpdoc.addField(UUID, networkId);
+		 
 		if ( vt!=null) {
 			Map<String,String> cmd = new HashMap<>();
-			cmd.put("set",  vt.toString());
+			cmd.put("set",  vt);
 			tmpdoc.addField(VISIBILITY, cmd);
 		}
 		
@@ -492,6 +501,8 @@ public class NetworkGlobalIndexManager {
 		client.commit();
 
 	}
+	
+		
 	
 	public void revokeNetworkPermission(String networkId, String accountName, Permissions p, boolean isUser) 
 			throws NdexException, SolrServerException, IOException {
