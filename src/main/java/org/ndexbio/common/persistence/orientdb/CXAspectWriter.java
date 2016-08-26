@@ -8,6 +8,8 @@ import java.io.OutputStreamWriter;
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.util.JsonWriter;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+
 /**
  * Encapsulate the output stream, writer, JsonWriters that we need to write
  * individual aspects into a file.
@@ -27,8 +29,9 @@ public class CXAspectWriter implements AutoCloseable{
 	
 	public CXAspectWriter(String aspectFileName) throws IOException {
 		out = new FileOutputStream(aspectFileName);
-//		owriter = new OutputStreamWriter (out);
 		jwriter = JsonWriter.createInstance(out,true);
+	    jwriter.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
+	    jwriter.configure(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM, false);
 		count = 0;
 	}
 	
@@ -37,7 +40,6 @@ public class CXAspectWriter implements AutoCloseable{
 	public void close () throws IOException {
 		out.write(end);
 		jwriter.close();
-	//	owriter.close();
 		out.close();
 	}
 
