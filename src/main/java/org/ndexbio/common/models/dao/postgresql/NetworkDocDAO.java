@@ -263,20 +263,42 @@ public class NetworkDocDAO extends NdexDBDAO {
 		}
 	}
 	
+	public boolean isAdmin(UUID networkID, UUID userId) throws SQLException {
+		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and owneruuid= ?";
+			
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkID);
+			pst.setObject(2, userId);
+			try ( ResultSet rs = pst.executeQuery()) {
+				return rs.next() ;
+			}
+		}
+	}	
+	
 	
 	/**
 	 * Set the islocked flag to true in the db.
 	 * This is an atomic operation. Will commit the current transaction.
 	 * @param networkID
 	 * @throws ObjectNotFoundException 
+	 * @throws SQLException 
 	 */
-	public void lockNetwork(String networkIDstr) throws ObjectNotFoundException {
-	/*	ODocument nDoc = getNetworkDocByUUIDString(networkIDstr);
-		nDoc.field(NdexClasses.Network_P_isLocked,true);
-		nDoc.save();
-		db.commit();*/
+	public void lockNetwork(UUID networkId) throws ObjectNotFoundException, SQLException {
+		setNetworkLock(networkId,true);
+		db.commit();
 	}
 	
+	
+	private void setNetworkLock(UUID networkId, boolean lock) throws SQLException, ObjectNotFoundException {
+		String sql = "update network set islocked=? where \"UUID\" = ? and is_deleted=false";
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+			p.setBoolean(1, lock);
+			p.setObject(2, networkId);
+			int i = p.executeUpdate();
+			if ( i !=1)
+				throw new ObjectNotFoundException("network",networkId);
+		}
+	}
 	
 	
 	/**
@@ -284,60 +306,63 @@ public class NetworkDocDAO extends NdexDBDAO {
 	 * This is an atomic operation. Will commit the current transaction.
 	 * @param networkID
 	 * @throws ObjectNotFoundException 
+	 * @throws SQLException 
 	 */
-	public void unlockNetwork (String networkIDstr) throws ObjectNotFoundException {
-	/*	ODocument nDoc = getNetworkDocByUUIDString(networkIDstr);
-		nDoc.field(NdexClasses.Network_P_isLocked,false);
-		nDoc.save();
-		db.commit(); */
+	public void unlockNetwork (UUID networkId) throws ObjectNotFoundException, SQLException {
+		setNetworkLock(networkId,false);
+		db.commit(); 
 	}
 	
-	public boolean networkIsLocked(String networkUUIDStr) throws ObjectNotFoundException {
-/*		ODocument nDoc = getNetworkDocByUUIDString(networkUUIDStr);
-		return nDoc.field(NdexClasses.Network_P_isLocked); */
-		
-		return false;
+	public boolean networkIsLocked(UUID networkUUID) throws ObjectNotFoundException, SQLException {
+		String sql = "select islocked from network where \"UUID\" = ? and is_deleted = false";
+		try(PreparedStatement p = db.prepareStatement(sql)){
+			p.setObject(1, networkUUID);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getBoolean(1);
+				}
+				throw new ObjectNotFoundException ("network",networkUUID);
+			}
+		}
 	}
 	
-	public ProvenanceEntity getProvenance(UUID networkId) throws JsonParseException, JsonMappingException, IOException, ObjectNotFoundException {
-		// get the network document
-	/*	ODocument nDoc = getNetworkDocByUUIDString(networkId.toString());
-		// get the provenance string
-		String provenanceString = nDoc.field(NdexClasses.Network_P_provenance);
-		// deserialize it to create a ProvenanceEntity object
-		if (provenanceString != null && provenanceString.length() > 0){
-			ObjectMapper mapper = new ObjectMapper();
-			return mapper.readValue(provenanceString, ProvenanceEntity.class); 
-		}  */
-		
-		return new ProvenanceEntity();
+	public ProvenanceEntity getProvenance(UUID networkId) throws JsonParseException, JsonMappingException, IOException, ObjectNotFoundException, SQLException {
+		String sql = "select provenance from network where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, networkId);
+			try (ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					String s = rs.getString(1);
+					if ( s != null) {
+						ObjectMapper mapper = new ObjectMapper(); 
+				        ProvenanceEntity o = mapper.readValue(s, ProvenanceEntity.class); 	
+				        return o;
+					}
+					return null;
+				}
+				throw new ObjectNotFoundException ("network",networkId);
+			}
+		}
 		
 	}
     
-	public int setProvenance(UUID networkId, ProvenanceEntity provenance) throws JsonProcessingException, ObjectNotFoundException {
+	public int setProvenance(UUID networkId, ProvenanceEntity provenance) throws JsonProcessingException, SQLException, NdexException {
 		// get the network document
-/*		ODocument nDoc = getNetworkDocByUUIDString(networkId.toString());	
-		// serialize the ProvenanceEntity
-		ObjectMapper mapper = new ObjectMapper();
-		String provenanceString = mapper.writeValueAsString(provenance);
-		// store provenance string
-		nDoc.field(NdexClasses.Network_P_provenance, provenanceString);
-    //    nDoc.field(NdexClasses.ExternalObj_mTime, Calendar.getInstance().getTime());
-		nDoc.save(); */
-				
-		return 1;
+		String sql = " update network set provenance = ? :: jsonb where \"UUID\"=? and is_deleted=false and islocked = false";
+		try (PreparedStatement p = db.prepareStatement(sql)) {
+			ObjectMapper mapper = new ObjectMapper();
+			String s = mapper.writeValueAsString(provenance);
+			p.setString(1, s);
+			p.setObject(2, networkId);
+			int cnt = p.executeUpdate();
+			if ( cnt != 1) {
+				throw new NdexException ("Failed to update db, network not found or locked by another update process");
+			}
+			return cnt;
+		}
 	}
 	
-/*	public ODocument getNetworkDocByUUIDString(String id) throws ObjectNotFoundException {
-	     String query = "select from " + NdexClasses.Network + " where UUID='"
-                +id+"' and (isDeleted = false) and (isComplete=true)";
-        final List<ODocument> networks = db.query(new OSQLSynchQuery<ODocument>(query));
- 
-        if (networks.isEmpty())
-	        throw new ObjectNotFoundException("Network " + id + " not found.");
-        
-        return networks.get(0);
-   } */
+
 
 
 /*	public  Edge getEdgeFromDocument(ODocument doc, Network network) throws NdexException {
