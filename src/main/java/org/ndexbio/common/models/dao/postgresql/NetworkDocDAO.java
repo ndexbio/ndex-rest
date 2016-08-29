@@ -264,7 +264,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 	}
 	
 	public boolean isAdmin(UUID networkID, UUID userId) throws SQLException {
-		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and owneruuid= ?";
+		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and n.owneruuid= ?";
 			
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkID);
@@ -986,6 +986,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 			try ( ResultSet rs = p.executeQuery()) {
 				if ( rs.next()) {
 					NetworkSummary result = new NetworkSummary();
+					result.setExternalId(networkId);
 					populateNetworkSummaryFromResultSet(result,rs);
 					
 					return result;
@@ -1029,7 +1030,6 @@ public class NetworkDocDAO extends NdexDBDAO {
 	
 	public void updateNetworkProfile(UUID networkId, Map<String,String> newValues) throws NdexException, SolrServerException, IOException, SQLException {
 	
-	    	
 	    	 //update db
 		    String sqlStr = "update network set ";
 		    List<String> values = new ArrayList<>(newValues.size());
@@ -1043,7 +1043,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 		    
 		    try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 		    	for ( int i = 0 ; i < values.size(); i++) {
-		    		p.setString(i, values.get(i));
+		    		p.setString(i+1, values.get(i));
 		    	}
 		    	int cnt = p.executeUpdate();
 		    	if ( cnt != 1 ) {
@@ -1058,15 +1058,14 @@ public class NetworkDocDAO extends NdexDBDAO {
 	}
 	
 	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException, SolrServerException, IOException {
-		 String sqlStr = "update network set visibility = " + v.toString() + " where \"UUID\" = ? and is_deleted=false and islocked=false";
+		 String sqlStr = "update network set visibility = '" + v.toString() + "' where \"UUID\" = ? and is_deleted=false and islocked=false";
 		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			 pst.setObject(1, networkId);
 			 int i = pst.executeUpdate();
 			 if ( i !=1 )
 				 throw new NdexException ("Failed to update visibility. Network " + networkId + " might have been locked.");
 		 }
-		    	
-		    	
+		    	  	
 		 //update solr index
 		 NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
 

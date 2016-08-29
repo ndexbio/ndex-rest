@@ -1261,17 +1261,21 @@ public class NetworkService extends NdexService {
 			} 
 			
 			Map<String,String> newValues = new HashMap<> ();
-			
+	        List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
+
 			if ( summary.getName() != null) {
-					 newValues.put(NdexClasses.Network_P_name, summary.getName());
+				newValues.put(NdexClasses.Network_P_name, summary.getName());
+			    entityProperties.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
 			}
 					
 			if ( summary.getDescription() != null) {
 					newValues.put( NdexClasses.Network_P_desc, summary.getDescription());
+		            entityProperties.add( new SimplePropertyValuePair("description", summary.getDescription()) );
 			}
 				
 			if ( summary.getVersion()!=null ) {
 					newValues.put( NdexClasses.Network_P_version, summary.getVersion());
+		            entityProperties.add( new SimplePropertyValuePair("version", summary.getVersion()) );
 			}
 
 			if ( newValues.size() > 0 ) { 
@@ -1283,17 +1287,19 @@ public class NetworkService extends NdexService {
 				//event.
 				ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
 				String oldName = "", oldDescription = "", oldVersion ="";
-				for( SimplePropertyValuePair oldProperty : oldProv.getProperties() )
-				{
-					if( oldProperty.getName() == null )
-						continue;
-					if( oldProperty.getName().equals("dc:title") )
-						oldName = oldProperty.getValue().trim();
-					else if( oldProperty.getName().equals("description") )
-						oldDescription = oldProperty.getValue().trim();
-					else if( oldProperty.getName().equals("version") )
-						oldVersion = oldProperty.getValue().trim();
+				if ( oldProv != null ) {
+					for( SimplePropertyValuePair oldProperty : oldProv.getProperties() ) {
+						if( oldProperty.getName() == null )
+							continue;
+						if( oldProperty.getName().equals("dc:title") )
+							oldName = oldProperty.getValue().trim();
+						else if( oldProperty.getName().equals("description") )
+							oldDescription = oldProperty.getValue().trim();
+						else if( oldProperty.getName().equals("version") )
+							oldVersion = oldProperty.getValue().trim();
+					}
 				}
+				
 
 				//Treat all summary values that are null like ""
 				String summaryName = summary.getName() == null ? "" : summary.getName().trim();
@@ -1303,10 +1309,10 @@ public class NetworkService extends NdexService {
 				if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
 				{
 					ProvenanceEntity newProv = new ProvenanceEntity();
-					newProv.setUri(oldProv.getUri());
+					if ( oldProv !=null )   //TODO: initialize the URI properly when there is null.
+						newProv.setUri(oldProv.getUri());
 
-					/*         Helper.populateProvenanceEntity(newProv, 
-                				NetworkDocDAO.getNetworkSummary(networkDao.getRecordByUUIDStr(networkId, null))); */
+			        newProv.setProperties(entityProperties);
 
 					ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
 
@@ -1330,7 +1336,11 @@ public class NetworkService extends NdexService {
 					newProv.setCreationEvent(event);
 					networkDao.setProvenance(networkUUID, newProv);
 				}
+				
+				//TODO: update the networkProperty aspect 
+				
 				networkDao.commit();
+				
 			}
 		} finally {
 			logger.info("[end: Updated profile information of network {}]", networkId);
@@ -1800,7 +1810,7 @@ public class NetworkService extends NdexService {
 			@PathParam("parameter") final String parameter,
 			@PathParam("value")     final String value)
 
-			throws IllegalArgumentException, NdexException, SQLException {
+			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
 		
 		    logger.info("[start: Setting {}={} for network {}]", parameter, value, networkIdStr);
 		    
@@ -1812,21 +1822,23 @@ public class NetworkService extends NdexService {
 								
 							  if ( parameter.equals(readOnlyParameter)) {
 								  boolean bv = Boolean.parseBoolean(value);
-
+								  
 								/*  try (NetworkDAOTx daoNew = new NetworkDAOTx()) {
 									  long oldId = daoNew.setReadOnlyFlag(networkId, bv, getLoggedInUser().getAccountName());
 									  logger.info("[end: Set {}={} for network {}]", parameter, value, networkId);
 									  return Long.toString(oldId);
 								  }  */
 							  } else if ( parameter.toLowerCase().equals("visibility")) {
-								  
+								  networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf(value));
+								  networkDao.commit();		
+								  return value;
 							  }
 
 						}
 						throw new NdexException ("Network is locked by another updating process. Please try again.");
 					
 				}	
-				throw new NdexException("Only network owner can have this operation on a network.");	
+				throw new NdexException("Only network owner can set network permissions.");	
 			}
 		    
 	}
