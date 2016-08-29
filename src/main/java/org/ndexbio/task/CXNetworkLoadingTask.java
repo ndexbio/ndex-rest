@@ -2,7 +2,7 @@ package org.ndexbio.task;
 
 import java.util.UUID;
 
-import org.ndexbio.common.persistence.orientdb.CXNetworkLoader;
+import org.ndexbio.common.persistence.CXNetworkLoader;
 
 public class CXNetworkLoadingTask implements NdexSystemTask {
 	

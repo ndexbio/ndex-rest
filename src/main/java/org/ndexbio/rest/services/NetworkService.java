@@ -105,8 +105,7 @@ import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.object.network.RawNamespace;
-import org.ndexbio.common.persistence.orientdb.CXNetworkLoader;
-
+import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;

@@ -1,4 +1,4 @@
-package org.ndexbio.common.persistence.orientdb;
+package org.ndexbio.common.persistence;
 
 import java.io.FileOutputStream;
 import java.io.IOException;

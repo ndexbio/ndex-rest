@@ -144,50 +144,11 @@
    -->   
    <field name="uuid" type="string" indexed="true" stored="true" required="true" multiValued="false" /> 
         
-   <field name="name" type="text_general" indexed="true" stored="true" multiValued="true"/>
-   <field name="description" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="version" type="string" indexed="true" stored="false" multiValued="true"/>
-   <field name="creationTime" type="date" indexed="true" stored="true"  />
-   <field name="modificationTime" type="date" indexed="true" stored="true"  />
-   <field name="edgeCount" type="int" indexed="true" stored="true"  />
-   <field name="nodeCount" type="int" indexed="true" stored="true"  />
-   <field name="userRead" type="string" indexed="true" stored="true"  multiValued="true"/>
-   <field name="userEdit" type="string" indexed="true" stored="true"  multiValued="true"/>
-   <field name="userAdmin" type="string" indexed="true" stored="true"  multiValued="true"/>
-   <field name="grpRead" type="string" indexed="true" stored="true"  multiValued="true"/>
-   <field name="grpEdit" type="string" indexed="true" stored="true"  multiValued="true"/>
-   <field name="grpAdmin" type="string" indexed="true" stored="true"  multiValued="true"/>
-   <field name="visibility" type="string" indexed="true" stored="true"  multiValued="false"/>
-   <field name="labels" type="text_general" indexed="true" stored="true" multiValued="true"/>
-   
-  <!-- some fields that should be useful for biological networks -->
-   <field name="nodeName" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="NCBIGeneID" type="string" indexed="true" stored="false" multiValued="true" />
-   <field name="geneSymbol" type="string" indexed="true" stored="false"  multiValued="true" />
-   <field name="represents" type="string" indexed="true" stored="false"  multiValued="true" />
-   <field name="alias" type="string" indexed="true" stored="false"  multiValued="true" />
-<!--  <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />   -->  
-   
-   
-   <!-- Collaborator required index fields   -->
-   <field name="objectCategory" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="networkType" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="graphPropertiesHash" type="string" indexed="true" stored="true" multiValued="true"/>
-   <field name="organism" type="text_general" indexed="true" stored="true" multiValued="true" />
-   <field name="platform" type="text_general" indexed="true" stored="false" multiValued="true" />
-   <field name="disease" type="text_general" indexed="true" stored="true"  multiValued="true"/>
-   <field name="tissue" type="text_general" indexed="true" stored="true"  multiValued="true"/>
-   <field name="rightsHolder" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="author" type="text_general" indexed="true" stored="false" multiValued="true" />
-   <field name="createdAt" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="methods" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="subnetworkType" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="subnetworkFilter" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="graphHash" type="string" indexed="true" stored="false" multiValued="true" />
-   <field name="rights" type="text_general" indexed="true" stored="false" multiValued="true" />
-
-
-
+   <field name="userName" type="string" indexed="true" stored="true" multiValued="false"/>
+   <field name="description" type="text_general" indexed="true" stored="false" multiValued="false"/>
+   <field name="firstName" type="string" indexed="true" stored="false" multiValued="false"/>
+   <field name="lastName"  type="string" indexed="true" stored="false" multiValued="false"/>
+   <field name="displayName"  type="text_general" indexed="true" stored="false" multiValued="false"/>
 
    <field name="_src_" type="string" indexed="false" stored="true"/>
 
@@ -296,35 +257,11 @@
         is added to the index.  It's used either to index the same field differently,
         or to add multiple fields to the same field for easier/faster searching.  -->
 
-   <copyField source="name" dest="text"/>
+   <copyField source="userName" dest="text"/>
    <copyField source="description" dest="text"/>
-   <copyField source="objectCategory" dest="text"/>
-   <copyField source="organism" dest="text"/>
-   <copyField source="platform" dest="text"/>
-   <copyField source="disease" dest="text"/>
-   <copyField source="tissue" dest="text"/>
-   <copyField source="author" dest="text"/>
-   <copyField source="createdAt" dest="text"/>
-   <copyField source="subnetworkType" dest="text"/>
-   <copyField source="subnetworkFilter" dest="text"/>
-   <copyField source="graphHash" dest="text"/>
-   <copyField source="methods" dest="text"/>
-   <copyField source="networkType" dest="text"/>
-   <copyField source="graphPropertiesHash" dest="text"/>
-   <copyField source="labels" dest="text"/>
-
-<!-- 
-   <copyField source="rightsHolder" dest="text"/>
-   <copyField source="rights" dest="text"/>
- -->
-
-   <copyField source="nodeName" dest="text"/>
-   <copyField source="NCBIGeneID" dest="text"/>
-   <copyField source="geneSymbol" dest="text"/>
-   <copyField source="represents" dest="text"/>
-   <copyField source="alias" dest="text"/>
-<!--    <copyField source="relatedTo" dest="text"/>   -->
-
+   <copyField source="firstName" dest="text"/>
+   <copyField source="lastName" dest="text"/>
+   <copyField source="displayName" dest="text"/>
   
    <!-- Above, multiple source fields are copied to the [text] field. 
     Another way to map multiple source fields to the same 
