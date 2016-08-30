@@ -49,10 +49,12 @@ import java.util.UUID;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.object.SimpleUserQuery;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
+import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.SimpleQuery;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.LoggerFactory;
@@ -95,6 +97,7 @@ public class GroupService extends NdexService {
 	 * @throws SQLException 
 	 * @throws JsonMappingException 
 	 * @throws JsonParseException 
+	 * @throws SolrServerException 
 	 **************************************************************************/
 	/*
 	 * refactor this method to use non-transactional database interactions
@@ -106,13 +109,16 @@ public class GroupService extends NdexService {
 	        "Errors if the group name specified in the JSON is not valid or is already in use. ")
 	public Group createGroup(final Group newGroup)
 			throws IllegalArgumentException, DuplicateObjectException,
-			NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
+			NdexException, JsonParseException, JsonMappingException, SQLException, IOException, SolrServerException {
 	
 		logger.info("[start: Creating group {}]", newGroup.getGroupName());
 
 		try (GroupDAO dao = new GroupDAO()){
 		//	newGroup.setGroupName(newGroup.getGroupName().toLowerCase());
 			Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId());
+			GroupIndexManager m = new GroupIndexManager();
+			m.addGroup(group.getExternalId().toString(), group.getGroupName(), group.getDescription());
+			
 			dao.commit();	
 			logger.info("[end: Group {} ({}) created.]", newGroup.getGroupName(), group.getExternalId());
 			return group;
@@ -134,6 +140,8 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to delete the user from the database.
 	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws SolrServerException 
 	 **************************************************************************/
 	
 	
@@ -143,12 +151,14 @@ public class GroupService extends NdexService {
 	@ApiDoc("Delete the group specified by groupId. " +
 	        "Errors if the group is not found or if the authenticated user does not have authorization to delete the group.")
 	public void deleteGroup(@PathParam("groupId") final String groupId)
-			throws ObjectNotFoundException, NdexException, SQLException {
+			throws ObjectNotFoundException, NdexException, SQLException, SolrServerException, IOException {
 		
 		logger.info("[start: Deleting group {}]", groupId);
 		
 		try (GroupDAO dao = new GroupDAO()){
 			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
+			GroupIndexManager m = new GroupIndexManager();
+			m.deleteGroup(groupId);
 			dao.commit();
 			logger.info("[end: Group {} deleted]", groupId);
 		} 
@@ -165,22 +175,22 @@ public class GroupService extends NdexService {
 	 *             Failed to query the database.
 	 * @return Groups that match the search criteria.
 	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws SolrServerException 
 	 **************************************************************************/
 	@POST
 	@PermitAll
 	@Path("/search/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of groups found based on the searchOperator and the POSTed searchParameters.")
-	public List<Group> findGroups(SimpleUserQuery simpleQuery,
+	public List<Group> findGroups(SimpleQuery simpleQuery,
 			@PathParam("skipBlocks") final int skip,
 			@PathParam("blockSize") final int top)
-			throws IllegalArgumentException, NdexException, SQLException {
+			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
 
 		logger.info("[start: Search group \"{}\"]", simpleQuery.getSearchString());
 		
 		try (GroupDAO dao = new GroupDAO()) {
-			if(simpleQuery.getAccountName() != null)
-				simpleQuery.setAccountName(simpleQuery.getAccountName().toLowerCase());
 			final List<Group> groups = dao.findGroups(simpleQuery, skip, top);
 			logger.info("[end: Search group \"{}\"]", simpleQuery.getSearchString());
 			return groups;
@@ -234,7 +244,8 @@ public class GroupService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to update the user in the database.
 	 * @throws SQLException 
-	 * @throws JsonProcessingException 
+	 * @throws IOException 
+	 * @throws SolrServerException 
 	 **************************************************************************/
 	@POST
 	@Path("/{groupId}")
@@ -243,7 +254,7 @@ public class GroupService extends NdexService {
 			"Errors if the JSON structure does not specify the group id or if no group is found by that id. ")
 	public Group updateGroup(final Group updatedGroup, 
 							@PathParam("groupId") final String id)
-			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException, JsonProcessingException {
+			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException, SolrServerException, IOException {
 
 		logger.info("[start: Updating group {}]", id);
 		
@@ -257,6 +268,8 @@ public class GroupService extends NdexService {
 				throw new NdexException ("Only group administrators can update a group." );
 			
 			Group group = dao.updateGroup(updatedGroup, groupId);
+			GroupIndexManager m = new GroupIndexManager();
+			m.updateGrp(id, group.getGroupName(), group.getDescription());
 			dao.commit();
 			logger.info("[end: Updating group {}]", id);		
 			return group;

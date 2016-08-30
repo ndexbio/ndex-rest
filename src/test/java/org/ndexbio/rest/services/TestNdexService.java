@@ -48,7 +48,6 @@ import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.model.object.SimpleUserQuery;
 
 
 public abstract class TestNdexService

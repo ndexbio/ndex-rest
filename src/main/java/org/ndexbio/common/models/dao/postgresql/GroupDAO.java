@@ -38,22 +38,27 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.common.SolrDocument;
+import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.solr.GroupIndexManager;
+import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.SimpleUserQuery;
 
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.SimpleQuery;
+import org.ndexbio.model.object.User;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -186,85 +191,24 @@ public class GroupDAO extends NdexDBDAO {
 	    *            Attempting to access and delete an ODocument from the database
 	    * @throws IllegalArgumentException
 	    * 			Group object cannot be null
+	 * @throws IOException 
+	 * @throws SolrServerException 
+	 * @throws SQLException 
 	    **************************************************************************/
-	public List<Group> findGroups(SimpleUserQuery simpleQuery, int skipBlocks, int blockSize) 
-			throws NdexException, IllegalArgumentException {
+	public List<Group> findGroups(SimpleQuery simpleQuery, int skipBlocks, int blockSize) 
+			throws NdexException, IllegalArgumentException, SolrServerException, IOException, SQLException {
 		
 		Preconditions.checkArgument(null != simpleQuery, "Search parameters are required");
 
-		//TODO: implement using solr.
-	/*	String traversePermission;
-		OSQLSynchQuery<ODocument> query;
-		Iterable<ODocument> groups;
-		final List<Group> foundgroups = new ArrayList<>();
-		final int startIndex = skipBlocks * blockSize;
+		GroupIndexManager indexManager = new GroupIndexManager();
+		SolrDocumentList l = indexManager.searchGroups(simpleQuery.getSearchString(), blockSize, skipBlocks*blockSize);	
+		List<Group> results = new ArrayList<>(l.size());
+		for (SolrDocument d : l) {
+			results.add(getGroupById(UUID.fromString((String)d.get(GroupIndexManager.UUID))));
+		}
 		
-		if (simpleQuery.getSearchString().equals("*") )
-			simpleQuery.setSearchString("");
+		return results;
 		
-		if( simpleQuery.getPermission() == null ) 
-			traversePermission = "out_groupadmin, out_member";
-		else 
-			traversePermission = "out_"+simpleQuery.getPermission().name().toLowerCase();
-		
-		simpleQuery.setSearchString(simpleQuery.getSearchString().toLowerCase().trim());
-		
-		try {
-			if(!Strings.isNullOrEmpty(simpleQuery.getAccountName())) {
-				ODocument nUser = this.getRecordByAccountName(simpleQuery.getAccountName(), NdexClasses.User);
-				
-				if(nUser == null) 
-					throw new NdexException("Invalid accountName to filter by");
-				
-				String traverseRID = nUser.getIdentity().toString();
-				query = new OSQLSynchQuery<>("SELECT FROM"
-						+ " (TRAVERSE "+traversePermission+" FROM"
-			  				+ " " + traverseRID
-			  				+ " WHILE $depth <=1)"
-			  			+ " WHERE @class = '"+ NdexClasses.Group +"'"
-			  			+ " AND ( " + NdexClasses.ExternalObj_isDeleted + " = false)" 
-			  			+ " AND (accountName.toLowerCase() LIKE '%"+ Helper.escapeOrientDBSQL(simpleQuery.getSearchString()) +"%'"
-						+ " OR " + NdexClasses.GRP_P_NAME + ".toLowerCase() LIKE '%"+ Helper.escapeOrientDBSQL(simpleQuery.getSearchString()) +"%')"
-						+ " ORDER BY " + NdexClasses.ExternalObj_cTime + " DESC " 
-						+ " SKIP " + startIndex
-						+ " LIMIT " + blockSize );
-				
-				groups = this.db.command(query).execute();
-				
-				for ( ODocument group : groups) {
-						foundgroups.add(GroupDAO.getGroupFromDocument(group));
-				}
-				return foundgroups;
-			
-			} 
-			
-			query = new OSQLSynchQuery<>("SELECT FROM"
-						+ " " + NdexClasses.Group
-						+ " WHERE "
-			  			+ " ( " + NdexClasses.ExternalObj_isDeleted + " = false )" 
-						+ " AND (accountName.toLowerCase() LIKE '%"+ Helper.escapeOrientDBSQL(simpleQuery.getSearchString()) +"%'"
-						+ " OR " + NdexClasses.GRP_P_NAME +".toLowerCase() LIKE '%"+ Helper.escapeOrientDBSQL(simpleQuery.getSearchString()) +"%')"
-						+ " ORDER BY " + NdexClasses.ExternalObj_cTime + " DESC " 
-						+ " SKIP " + startIndex
-						+ " LIMIT " + blockSize );
-				
-			groups = this.db.command(query).execute();
-				
-//			if( !groups.iterator().hasNext() && simpleQuery.getSearchString().equals("") ) 
-//					groups = this.db.browseClass(NdexClasses.Group).setLimit(blockSize);
-				
-				for (final ODocument group : groups) {
-					foundgroups.add(GroupDAO.getGroupFromDocument(group));
-			}
-			return foundgroups;
-			
-			
-		} catch (Exception e) {
-			logger.severe("Unable to query the database");
-			throw new NdexException("Failed to search for groups.\n" + e.getMessage());
-			
-		}  */
-		return null;
 	}
 	
 	

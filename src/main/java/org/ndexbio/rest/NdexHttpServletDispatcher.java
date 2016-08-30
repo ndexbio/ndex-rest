@@ -46,7 +46,9 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
+import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
@@ -100,6 +102,10 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			// create solr core for network indexes if needed.
 			NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager();
 			mgr.createCoreIfNotExists();
+			UserIndexManager umgr = new UserIndexManager();
+			umgr.createCoreIfNotExists();
+			GroupIndexManager gmgr = new GroupIndexManager();
+			gmgr.createCoreIfNotExists();
 			
 			//and initialize the db connections
     	

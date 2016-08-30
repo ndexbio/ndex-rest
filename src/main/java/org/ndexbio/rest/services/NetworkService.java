@@ -106,6 +106,7 @@ import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.object.network.RawNamespace;
 import org.ndexbio.common.persistence.CXNetworkLoader;
+import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.object.SearchParameters;
 import org.ndexbio.model.object.network.BaseTerm;
@@ -1650,7 +1651,7 @@ public class NetworkService extends NdexService {
 	@Produces("application/json")
     @ApiDoc("Deletes the network specified by networkId. There is no method to undo a deletion, so care " +
 	        "should be exercised. A user can only delete networks that they own.")
-	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException, IOException, SQLException {
+	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException, IOException, SQLException, SolrServerException {
 
 		logger.info("[start: Deleting network {}]", id);
 		    
@@ -1661,8 +1662,12 @@ public class NetworkService extends NdexService {
 				if (!networkDao.isReadOnly(networkId) ) {
 					if ( !networkDao.networkIsLocked(networkId)) {
 					
+						NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
+						globalIdx.deleteNetwork(id);
+						
 						networkDao.deleteNetwork(UUID.fromString(id), getLoggedInUser().getExternalId());
 						networkDao.commit();
+										
 						logger.info("[end: Deleted network {}]", id);
 					}
 					throw new NdexException ("Network is locked by another updating process. Please try again.");

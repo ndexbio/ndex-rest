@@ -31,27 +31,13 @@
 package org.ndexbio.rest.services;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
-import java.util.Map;
-import java.util.Properties;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.annotation.security.PermitAll;
-import javax.mail.Message;
 import javax.mail.MessagingException;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.Encoded;
@@ -63,51 +49,40 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
 import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.message.BasicNameValuePair;
-import org.ndexbio.model.exceptions.*;
-import org.ndexbio.model.object.Membership;
-import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.Request;
-import org.ndexbio.model.object.Status;
-import org.ndexbio.model.object.Task;
-import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.NewUser;
-import org.ndexbio.common.util.Util;
-import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.NdexHttpServletDispatcher;
-import org.ndexbio.rest.filters.BasicAuthenticationFilter;
-import org.ndexbio.rest.helpers.Email;
-import org.ndexbio.rest.helpers.Security;
-import org.ndexbio.common.access.NdexDatabase;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.model.object.SimpleUserQuery;
+import org.ndexbio.common.solr.UserIndexManager;
+import org.ndexbio.common.util.Util;
+import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.Membership;
+import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.Request;
+import org.ndexbio.model.object.SimpleQuery;
+import org.ndexbio.model.object.Status;
+import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.User;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
+import org.ndexbio.rest.helpers.Email;
+import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.security.OAuthTokenRenewRequest;
-import org.ndexbio.security.OAuthUserRecord;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-
-import org.slf4j.Logger;
 
 @Path("/user")
 public class UserService extends NdexService {
@@ -148,6 +123,7 @@ public class UserService extends NdexService {
 	 * @throws IOException 
 	 * @throws JsonMappingException 
 	 * @throws JsonParseException 
+	 * @throws SolrServerException 
 	 **************************************************************************/
 	/*
 	 * refactored to accommodate non-transactional database operations
@@ -164,13 +140,16 @@ public class UserService extends NdexService {
 				
 			)
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
-			NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+			NdexException, SQLException, JsonParseException, JsonMappingException, IOException, SolrServerException {
 
 		logger.info("[start: verifing User {}]", userUUID);
 		
 		try (UserDAO userdao = new UserDAO()){
-			
-			String accountName = userdao.verifyUser(UUID.fromString(userUUID), verificationCode);
+			UUID userId = UUID.fromString(userUUID);
+			String accountName = userdao.verifyUser(userId, verificationCode);
+			User u = userdao.getUserById(userId, true);
+			UserIndexManager mgr = new UserIndexManager();
+			mgr.addUser(userUUID, u.getUserName(), u.getFirstName(), u.getLastName(), u.getDisplayName(), u.getDescription());
 			userdao.commit();
 			logger.info("[end: User {} verified ]", userUUID);
 			return // userdao.getUserById(UUID.fromString(userUUID));
@@ -186,7 +165,7 @@ public class UserService extends NdexService {
 			+ "Username and emailAddress must be unique in the database. If email verification is turned on on the server, the user uuid field will be set to null.")
 	public User createUser(final User newUser)
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
-			NdexException, IOException, SQLException, NoSuchAlgorithmException {
+			NdexException, IOException, SQLException, NoSuchAlgorithmException, SolrServerException {
 
 		logger.info("[start: Creating User {}]", newUser.getUserName());
 		
@@ -216,8 +195,13 @@ public class UserService extends NdexService {
 			String verificationCode =  ( needVerify !=null && needVerify.equalsIgnoreCase("true"))?
 					Security.generateVerificationCode() : null;
 			
-			
 			User user = userdao.createNewUser(newUser, verificationCode);
+			
+			if ( verificationCode == null) {
+				UserIndexManager mgr = new UserIndexManager();
+				mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
+			}
+			
 			userdao.commit();
 			
 
@@ -621,17 +605,21 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to delete the user from the database.
 	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws SolrServerException 
 	 **************************************************************************/
 	@DELETE
 	@Produces("application/json")
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user. "
 			+ "If this operation orphans a network or group, an exception will be thrown.")
-	public void deleteUser() throws NdexException, ObjectNotFoundException, SQLException {
+	public void deleteUser() throws NdexException, ObjectNotFoundException, SQLException, SolrServerException, IOException {
 
 		logger.info("[start: Deleting user (self).]");
 		
 		try (UserDAO dao = new UserDAO()) {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
+			UserIndexManager mgr = new UserIndexManager();
+			mgr.deleteUser(getLoggedInUser().getExternalId().toString());
 			dao.commit();
 			logger.info("[end: User {} deleted]", getLoggedInUser().getUserName());
 		} 
@@ -703,6 +691,8 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to query the database.
 	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws SolrServerException 
 	 **************************************************************************/
 	@POST
 	@PermitAll
@@ -710,17 +700,15 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
 			+ "The searchParameters must contain a 'searchString' parameter. ")
-	public List<User> findUsers(SimpleUserQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
-			throws IllegalArgumentException, NdexException, SQLException {
+	public List<User> findUsers(SimpleQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
+			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
 
 		logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
 		
 		try (UserDAO dao = new UserDAO ()){
 
-			if(simpleUserQuery.getAccountName() != null)
-				simpleUserQuery.setAccountName(simpleUserQuery.getAccountName().toLowerCase());
-			
 			final List<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
+			
 			logger.info("[end: Returning {} users from search]", users.size());			
 			return users;
 		} 
@@ -740,7 +728,8 @@ public class UserService extends NdexService {
 	 * @throws NdexException
 	 *             Failed to update the user in the database.
 	 * @throws SQLException 
-	 * @throws JsonProcessingException 
+	 * @throws IOException 
+	 * @throws SolrServerException 
 	 **************************************************************************/
 	@POST
 	@Path("/{userIdentifier}")
@@ -748,7 +737,7 @@ public class UserService extends NdexService {
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. The userName and UUID fields in the posted object are ignored by the server."
 			+ " Errors if the user object references a different user.")
 	public User updateUser(@PathParam("userIdentifier") final String userId, final User updatedUser)
-			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, JsonProcessingException {
+			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, SolrServerException, IOException {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
 		Preconditions.checkArgument(UUID.fromString(userId).equals(updatedUser.getExternalId()), 
@@ -771,6 +760,8 @@ public class UserService extends NdexService {
 		
 		try (UserDAO dao = new UserDAO ()){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
+			UserIndexManager mgr = new UserIndexManager();
+			mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
 			dao.commit();
 			logger.info("[end: User {} updated]", updatedUser.getUserName());
 			return user;

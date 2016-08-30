@@ -45,7 +45,12 @@ import java.util.logging.Logger;
 import java.util.Date;
 import java.util.HashMap;
 
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.common.SolrDocument;
+import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.solr.NetworkGlobalIndexManager;
+import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Security;
 import org.ndexbio.model.exceptions.*;
@@ -53,8 +58,9 @@ import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
+import org.ndexbio.model.object.SimpleQuery;
 import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.SimpleUserQuery;
+import org.ndexbio.model.object.network.NetworkSummary;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -416,16 +422,24 @@ public class UserDAO extends NdexDBDAO {
 	 *            block size
 	 * @throws NdexException
 	 *             Attempting to query the database
+	 * @throws IOException 
+	 * @throws SolrServerException 
+	 * @throws SQLException 
 	 * @returns User object, from the NDEx Object Model
 	 **************************************************************************/
-	public List<User> findUsers(SimpleUserQuery simpleQuery, int skip, int top)
-			throws IllegalArgumentException, NdexException {
+	public List<User> findUsers(SimpleQuery simpleQuery, int skipBlock, int top)
+			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
 		Preconditions.checkArgument(simpleQuery != null,
 				"Search parameters are required");
 
-		//TODO: implement this using solr
-			return null;	
-
+			UserIndexManager indexManager = new UserIndexManager();
+			SolrDocumentList l = indexManager.searchUsers(simpleQuery.getSearchString(), top, skipBlock*top);	
+			List<User> results = new ArrayList<>(l.size());
+			for (SolrDocument d : l) {
+				results.add(getUserById(UUID.fromString((String)d.get(UserIndexManager.UUID)), true));
+			}
+			
+			return results;
 			
 	}
 

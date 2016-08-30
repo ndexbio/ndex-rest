@@ -30,29 +30,9 @@
  */
 package org.ndexbio.rest.services;
 
-import java.util.Collection;
-
-
-
-
-
-
-//import org.easymock.EasyMock;
-import org.junit.Assert;
 import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.AfterClass;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Before;
 import org.junit.runners.MethodSorters;
-import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.SimpleUserQuery;
 import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.NewUser;
-import org.ndexbio.rest.services.UserService;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class TestUserService extends TestNdexService {
