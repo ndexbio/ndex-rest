@@ -144,8 +144,8 @@
    -->   
    <field name="uuid" type="string" indexed="true" stored="true" required="true" multiValued="false" /> 
         
-   <field name="groupName" type="text_general" indexed="true" stored="true" multiValued="true"/>
-   <field name="description" type="text_general" indexed="true" stored="false" multiValued="true"/>
+   <field name="groupName" type="text_general" indexed="true" stored="true" multiValued="false"/>
+   <field name="description" type="text_general" indexed="true" stored="false" multiValued="false"/>
 
    <!-- Main body of document extracted by SolrCell.
         NOTE: This field is not indexed by default, since it is also copied to "text"

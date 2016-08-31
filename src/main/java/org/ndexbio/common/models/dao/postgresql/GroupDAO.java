@@ -200,6 +200,9 @@ public class GroupDAO extends NdexDBDAO {
 		
 		Preconditions.checkArgument(null != simpleQuery, "Search parameters are required");
 
+		 if ( simpleQuery.getSearchString().length()==0)
+		    	simpleQuery.setSearchString("*:*");
+		 
 		GroupIndexManager indexManager = new GroupIndexManager();
 		SolrDocumentList l = indexManager.searchGroups(simpleQuery.getSearchString(), blockSize, skipBlocks*blockSize);	
 		List<Group> results = new ArrayList<>(l.size());

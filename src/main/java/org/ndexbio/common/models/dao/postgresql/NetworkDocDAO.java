@@ -59,6 +59,7 @@ import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Membership;
+import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.Permissions;
@@ -93,7 +94,11 @@ public class NetworkDocDAO extends NdexDBDAO {
 	
 //	public static final String RESET_MOD_TIME = "resetMTime";
 
-
+    /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
+	private static final String networkSummarySelectClause = "select creation_time, modification_time, name,description,version,"
+			+ "edgecount,nodecount,visibility,owner,owneruuid,"
+			+ " properties, \"UUID\""; //sourceformat,is_validated, iscomplete, readonly,"
+	
 	public NetworkDocDAO () throws  SQLException {
 	    super();
 	}
@@ -203,16 +208,22 @@ public class NetworkDocDAO extends NdexDBDAO {
 		}
 	}
 	
+	/**
+	 * We assume the alias of network table is n in this function. so make sure this is true when using this function to construct your sql.
+	 * @param userId
+	 * @return
+	 */
+	private String createIsReadableConditionStr(UUID userId) {
+		if ( userId == null)
+			return "n.visibility='PUBLIC'";
+		return "( n.visibility='PUBLIC' or n.owneruuid = '" + userId + "' ::uuid or " + 
+			" exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = '"+ userId + "' limit 1) or " +
+		    " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
+		    + "and gn1.network_id = n.\"UUID\" and gu.user_id = '"+ userId + "' limit 1) )";
+	}
 	
 	public boolean isReadable(UUID networkID, UUID userId) throws SQLException {
-		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and (n.visibility='PUBLIC'";
-		
-		if ( userId != null) {
-			sqlStr += " or n.owneruuid = ? or "
-				+ " exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = ? limit 1) or " +
-				  " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id and gn1.network_id = n.\"UUID\" and gu.user_id = ? limit 1) " ;
-		} 
-		sqlStr += ")";
+		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and " + createIsReadableConditionStr(userId);		
 			
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkID);
@@ -950,7 +961,7 @@ public class NetworkDocDAO extends NdexDBDAO {
 	//	if (simpleNetworkQuery.getPermission() == null) 
 	//		simpleNetworkQuery.setPermission(Permissions.READ);
 
-		List<String> groupNames = null;
+		List<String> groupNames = new ArrayList<>();
 		if ( loggedInUser !=null && simpleNetworkQuery.getIncludeGroups()) {
 			try (UserDAO userDao = new UserDAO() ) {
 				for ( Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(), Permissions.MEMBER,0,0) ) {
@@ -977,16 +988,12 @@ public class NetworkDocDAO extends NdexDBDAO {
 	
 	public NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
-		String sqlStr = "select creation_time, modification_time, name,description,version,"
-				+ "edgecount,nodecount,visibility,owner,owneruuid,"
-				+ " properties,sourceformat,is_validated,readonly "
-				+ "from network where \"UUID\" = ? and is_deleted= false";
+		String sqlStr = networkSummarySelectClause + "from network where \"UUID\" = ? and is_deleted= false";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, networkId);
 			try ( ResultSet rs = p.executeQuery()) {
 				if ( rs.next()) {
 					NetworkSummary result = new NetworkSummary();
-					result.setExternalId(networkId);
 					populateNetworkSummaryFromResultSet(result,rs);
 					
 					return result;
@@ -994,6 +1001,37 @@ public class NetworkDocDAO extends NdexDBDAO {
 				throw new ObjectNotFoundException("Network " + networkId + " not found in db.");
 			}
 		}
+	}
+	
+	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId) throws SQLException, JsonParseException, JsonMappingException, IOException {
+		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
+		
+		List<NetworkSummary> result = new ArrayList<>(networkIdstrList.size());
+		
+		if ( networkIdstrList.isEmpty()) return result;
+		
+		StringBuffer cnd = new StringBuffer() ;
+		for ( String idstr : networkIdstrList ) {
+			if (cnd.length()>1)
+				cnd.append(',');
+			cnd.append('\'');
+			cnd.append(idstr);
+			cnd.append('\'');			
+		}
+		
+		String sqlStr = networkSummarySelectClause 
+				+ "from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false and " + createIsReadableConditionStr(userId) ;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			try ( ResultSet rs = p.executeQuery()) {
+				while ( rs.next()) {
+					NetworkSummary s = new NetworkSummary();
+					populateNetworkSummaryFromResultSet(s,rs);
+					result.add(s);
+				}
+			}
+		}
+		return result;
 	}
 	
 	/**
@@ -1024,6 +1062,8 @@ public class NetworkDocDAO extends NdexDBDAO {
 			List<NdexPropertyValuePair> o = mapper.readValue(proptiesStr, ArrayList.class); 		
 	        result.setProperties(o);  
 		}
+		
+		result.setExternalId((UUID)rs.getObject(12));
 		
 	}
 	
@@ -1072,5 +1112,71 @@ public class NetworkDocDAO extends NdexDBDAO {
 		 networkIdx.updateNetworkVisibility(networkId.toString(), v.toString()); 
 		    			
 	}
+	
+	
+	/**************************************************************************
+	    * getNetworkUserMemberships
+	    *
+	    * @param networkId
+	    *            UUID for network
+	    * @param permission
+	    * 			Type of memberships to retrieve, ADMIN, WRITE, or READ
+	    * @param skipBlocks
+	    * 			amount of blocks to skip
+	    * @param blockSize
+	    * 			The size of blocks to be skipped and retrieved
+	    * @throws NdexException
+	    *            Invalid parameters or an error occurred while accessing the database
+	    * @throws ObjectNotFoundException
+	    * 			Invalid groupId
+	 * @throws SQLException 
+	    **************************************************************************/
+	
+	public List<Membership> getNetworkUserMemberships(UUID networkId, Permissions permission, int skipBlocks, int blockSize) 
+			throws ObjectNotFoundException, NdexException, SQLException {
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),
+		
+				"A network UUID is required");
+		if ( permission !=null )
+			Preconditions.checkArgument( 
+				(permission.equals( Permissions.ADMIN) )
+				|| (permission.equals( Permissions.WRITE ))
+				|| (permission.equals( Permissions.READ )),
+				"Valid permission required");
+		List<Membership> memberships = new ArrayList<>();
+
+		String sql = "select owneruuid as user_id, owner as user_name,name, 'ADMIN' from network where \"UUID\"=? and is_deleted=false";
+		if ( permission == null ) {
+			sql = " union select un.user_id, u.user_name, n.name, un.ndex_permission_type from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and "
+					+ "n.\"UUID\" = un.network_id and network_id = ?" ;
+		}else if ( permission != Permissions.ADMIN) 
+			sql = "select user_id, u.user_name, n.name, un.ndex_permission_type, from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and n.\"UUID\" = un.network_id "
+					+ "and network_id = ? and ndex_permission_type = '" + permission.toString() + "'";
+		
+		if ( skipBlocks>=0 && blockSize>0) {
+			sql += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				while ( rs.next()) {
+					Membership membership = new Membership();
+					membership.setMembershipType( MembershipType.NETWORK );
+					membership.setMemberAccountName( rs.getString(2)  ); 
+					membership.setMemberUUID((UUID) rs.getObject(1) );
+					membership.setPermissions(  Permissions.valueOf(rs.getString(4)));
+					membership.setResourceName(rs.getString(3) );
+					membership.setResourceUUID( networkId );
+				
+					memberships.add(membership);
+				}
+			}
+		}
+		
+			
+		logger.info("Successfuly retrieved network-user memberships");
+		return memberships;
+	}
+
 	
 }

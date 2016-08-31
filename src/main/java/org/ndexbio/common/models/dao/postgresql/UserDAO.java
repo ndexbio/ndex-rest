@@ -432,6 +432,8 @@ public class UserDAO extends NdexDBDAO {
 		Preconditions.checkArgument(simpleQuery != null,
 				"Search parameters are required");
 
+		    if ( simpleQuery.getSearchString().length()==0)
+		    	simpleQuery.setSearchString("*:*");
 			UserIndexManager indexManager = new UserIndexManager();
 			SolrDocumentList l = indexManager.searchUsers(simpleQuery.getSearchString(), top, skipBlock*top);	
 			List<User> results = new ArrayList<>(l.size());

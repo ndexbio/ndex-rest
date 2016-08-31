@@ -132,7 +132,7 @@ public class TaskDAO extends NdexDBDAO {
 		if (newTask.getExternalId() == null)
 			newTask.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
 		
-		String insertStr = "insert into task (\"UUID\", createion_time, modification_time," + 
+		String insertStr = "insert into task (\"UUID\", creation_time, modification_time," + 
 					"status, start_time,end_time,task_type,owneruuid,is_deleted,other_attribute,"+
 				   "description,priority, progress,file_format, message, resource) values ( ?,?,?,?,?,?,?,?,false,? ::jsonb,?,?,?,?,?,?)";
 		

@@ -87,59 +87,13 @@ public class NetworkDAO extends NetworkDocDAO {
 	
 	static Logger logger = Logger.getLogger(NetworkDAO.class.getName());
 	
-	
+	@Deprecated
 	public NetworkDAO () throws NdexException, SQLException {
 	    super();
 
 	}
 
-	@Deprecated
-	private int deleteNetwork (String UUID) throws ObjectNotFoundException, NdexException {
-		int counter = 0, cnt = 0;
-		
-		do {
-			cnt = cleanupDeleteNetwork(UUID);
-			if (cnt <0 ) 
-				counter += -1*cnt;
-			else 
-				counter += cnt;
-		} while ( cnt < 0 ); 
- 		return counter;
-	}
 	
-	/** 
-	 * Delete up to CLEANUP_BATCH_SIZE vertices in a network. This function is for cleaning up a logically 
-	 * deleted network in the database. 
-	 * @param uuid
-	 * @return Number of vertices being deleted. If the returned number is negative, it means the elements
-	 * of the network are not completely deleted yet, and the number of vertices deleted are abs(returned number).
-	 * @throws ObjectNotFoundException
-	 * @throws NdexException
-	 */
-	@Deprecated
-	private int cleanupDeleteNetwork(String uuid) throws ObjectNotFoundException, NdexException {
-	/*	ODocument networkDoc = getRecordByUUID(UUID.fromString(uuid), NdexClasses.Network);
-		
-		int count = cleanupNetworkElements(networkDoc);
-		if ( count >= CLEANUP_BATCH_SIZE) {
-			return (-1) * count;
-		}
-		
-		// remove the network node.
-		networkDoc.reload();
-		
-		for	(int retry = 0;	retry <	NdexDatabase.maxRetries;	++retry)	{
-			try	{
-				graph.removeVertex(graph.getVertex(networkDoc));
-				break;
-			} catch(ONeedRetryException	e)	{
-				logger.warning("Retry: "+ e.getMessage());
-				networkDoc.reload();
-			}
-		} */
-		
-		return 1 ;// count++;
-	}
 	 
 /*	private List<String> getOpaqueAspectEdges (ODocument networkDoc) {
 		List<String> result = new ArrayList<>();
@@ -231,14 +185,14 @@ public class NetworkDAO extends NetworkDocDAO {
 		return counter;
 	}
 */
-	public int logicalDeleteNetwork (String uuid) throws ObjectNotFoundException, NdexException {
-	/*	ODocument networkDoc = getRecordByUUID(UUID.fromString(uuid), NdexClasses.Network);
+	/*public int logicalDeleteNetwork (String uuid) throws ObjectNotFoundException, NdexException {
+		ODocument networkDoc = getRecordByUUID(UUID.fromString(uuid), NdexClasses.Network);
 
 		if ( networkDoc != null) {
 		   networkDoc.fields(NdexClasses.ExternalObj_isDeleted,true,
 				   NdexClasses.ExternalObj_mTime, new Date()).save();
 		} 
-		commit(); */
+		commit(); 
 
 		// remove the solr Index
 		SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(uuid);
@@ -251,7 +205,7 @@ public class NetworkDAO extends NetworkDocDAO {
 		}
 		
  		return 1;
-	}
+	} */
 	
 /*	@Deprecated
 	private int deleteNetworkElements(String UUID) {
@@ -288,80 +242,6 @@ public class NetworkDAO extends NetworkDocDAO {
 	} */
 	
  
-	/**************************************************************************
-	    * getNetworkUserMemberships
-	    *
-	    * @param networkId
-	    *            UUID for network
-	    * @param permission
-	    * 			Type of memberships to retrieve, ADMIN, WRITE, or READ
-	    * @param skipBlocks
-	    * 			amount of blocks to skip
-	    * @param blockSize
-	    * 			The size of blocks to be skipped and retrieved
-	    * @throws NdexException
-	    *            Invalid parameters or an error occurred while accessing the database
-	    * @throws ObjectNotFoundException
-	    * 			Invalid groupId
-	    **************************************************************************/
-	
-	public List<Membership> getNetworkUserMemberships(UUID networkId, Permissions permission, int skipBlocks, int blockSize) 
-			throws ObjectNotFoundException, NdexException {
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),
-		
-				"A network UUID is required");
-		if ( permission !=null )
-			Preconditions.checkArgument( 
-				(permission.equals( Permissions.ADMIN) )
-				|| (permission.equals( Permissions.WRITE ))
-				|| (permission.equals( Permissions.READ )),
-				"Valid permission required");
-		List<Membership> memberships = new ArrayList<>();
-
-	/*	ODocument network = this.getRecordByUUID(networkId, NdexClasses.Network);
-		
-		final int startIndex = skipBlocks
-				* blockSize;
-		
-			
-			String networkRID = network.getIdentity().toString();
-			
-			String traverseCondition = null;
-			
-			if ( permission != null) 
-				traverseCondition = NdexClasses.Network +".in_"+ permission.name().toString();
-			else 
-				traverseCondition = "in_" + Permissions.ADMIN + ",in_" + Permissions.READ + ",in_" + Permissions.WRITE;   
-			
-			OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
-		  			"SELECT " + NdexClasses.account_P_accountName + "," +
-		  					NdexClasses.ExternalObj_ID + ", $path" +
-			        " FROM"
-		  			+ " (TRAVERSE "+ traverseCondition.toLowerCase() +" FROM"
-		  				+ " " + networkRID
-		  				+ "  WHILE $depth <=1)"
-		  			+ " WHERE (@class = '" + NdexClasses.User + "'"
-		  			+ " OR @class='" + NdexClasses.Group + "') " +" AND ( " + NdexClasses.ExternalObj_isDeleted + " = false) "
-		 			+ " ORDER BY " + NdexClasses.ExternalObj_cTime + " DESC " + " SKIP " + startIndex
-		 			+ " LIMIT " + blockSize);
-			
-			List<ODocument> records = this.db.command(query).execute(); 
-			for(ODocument member: records) {
-				
-				Membership membership = new Membership();
-				membership.setMembershipType( MembershipType.NETWORK );
-				membership.setMemberAccountName( (String) member.field(NdexClasses.account_P_accountName) ); 
-				membership.setMemberUUID( UUID.fromString( (String) member.field(NdexClasses.ExternalObj_ID) ) );
-				membership.setPermissions( Helper.getNetworkPermissionFromInPath ((String)member.field("$path") ));
-				membership.setResourceName( (String) network.field("name") );
-				membership.setResourceUUID( networkId );
-				
-				memberships.add(membership);
-			} */
-			
-			logger.info("Successfuly retrieved network-user memberships");
-			return memberships;
-	}
 
 	
 	

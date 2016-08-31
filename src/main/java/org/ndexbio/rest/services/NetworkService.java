@@ -521,34 +521,54 @@ public class NetworkService extends NdexService {
             "method returns an error if the network is not found or if the authenticated user does not have " +
             "READ permission for the network.")
 	public NetworkSummary getNetworkSummary(
-			@PathParam("networkId") final String networkId)
+			@PathParam("networkId") final String networkIdStr)
 
-			throws IllegalArgumentException, NdexException {
+			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
-    	logger.info("[start: Getting networkSummary of network {}]", networkId);
+    	logger.info("[start: Getting networkSummary of network {}]", networkIdStr);
 		
-	/*	try (NetworkDocDAO networkDocDao = new NetworkDocDAO())  {
-			String userAccountName =  (getLoggedInUser() == null ? null : getLoggedInUser().getAccountName());
-			if ( networkDocDao.networkSummaryIsReadable(userAccountName, networkId)) {
-				NetworkSummary summary = networkDocDao.getNetworkSummaryById(networkId);
-				if (summary == null || (!summary.getIsComplete())) {
-					logger.info("[end: network {} not found in db.]", networkId);
-					throw new ObjectNotFoundException("Network with ID: " + networkId + " doesn't exist.");
-				}
-				logger.info("[end: Got networkSummary of network {}]", networkId);
+		try (NetworkDocDAO dao = new NetworkDocDAO())  {
+			UUID userId = getLoggedInUserId();
+			UUID networkId = UUID.fromString(networkIdStr);
+			if ( dao.isReadable(networkId, userId)) {
+				NetworkSummary summary = dao.getNetworkSummaryById(networkId);
+				logger.error("[end: Getting networkSummary of network {}.", networkId);	
+
 				return summary;
 			}
-		}  */
-		
-		logger.error("[end: Getting networkSummary of network {}. Throwing UnauthorizedOperationException ...]", networkId);	
-		if ( getLoggedInUser() !=null)
-			throw new UnauthorizedOperationException("User " + 
-		         getLoggedInUser().getUserName() + " doesn't have read access to network " + networkId);
-		else 
-			throw new UnauthorizedOperationException("Anonymous users don't have read access to network " + networkId);
+				
+			throw new ObjectNotFoundException ("network", networkId);
+		}  
+			
 			
 	}
 
+
+	@PermitAll
+	@POST
+	@Path("/summaries")
+	@Produces("application/json")
+	@ApiDoc("Retrieves a list of NetworkSummary objects based on the network uuids POSTed. This " +
+            "method only returns network summaries that the user is allowed to read. User can only post up to 300 uuids in this function.")
+	public List<NetworkSummary> getNetworkSummaries(
+			List<String> networkIdStrs)
+
+			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+
+		if (networkIdStrs.size() > 300) 
+			throw new NdexException ("You can only send up to 300 network ids in this function.");
+		
+    	logger.info("[start: Getting networkSummary of networks {}]", networkIdStrs);
+		
+		try (NetworkDocDAO dao = new NetworkDocDAO())  {
+			UUID userId = getLoggedInUserId();
+			return dao.getNetworkSummariesByIdStrList(networkIdStrs, userId);				
+		}  finally {
+	    	logger.info("[end: Getting networkSummary of networks {}]", networkIdStrs);
+		}						
+	}
+	
+	
 /*
  * Note: reimplement in service. or replaced by a get sample function.
 	@PermitAll
@@ -1076,7 +1096,7 @@ public class NetworkService extends NdexService {
 		Permissions permission = null;
 		if ( ! permissions.toUpperCase().equals("ALL")) {
 			permission = Permissions.valueOf(permissions.toUpperCase());
-		}
+		} 
 		
 		try (NetworkDAO networkDao = new NetworkDAO()) {
 
