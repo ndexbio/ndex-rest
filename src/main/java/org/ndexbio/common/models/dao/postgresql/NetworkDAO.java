@@ -31,7 +31,10 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -40,24 +43,32 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.logging.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.common.SolrDocument;
+import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
+//import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO.NetworkResultComparator;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
-import org.ndexbio.model.exceptions.*;
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.NdexPropertyValuePair;
+import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.PropertiedObject;
-import org.ndexbio.model.object.SimplePropertyValuePair;
+import org.ndexbio.model.object.ProvenanceEntity;
+import org.ndexbio.model.object.SimpleNetworkQuery;
+import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.BaseTerm;
+import org.ndexbio.model.object.network.Citation;
 import org.ndexbio.model.object.network.Edge;
 import org.ndexbio.model.object.network.FunctionTerm;
 import org.ndexbio.model.object.network.Namespace;
@@ -65,313 +76,854 @@ import org.ndexbio.model.object.network.Network;
 import org.ndexbio.model.object.network.NetworkSourceFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.Node;
-import org.ndexbio.model.object.network.PropertyGraphEdge;
-import org.ndexbio.model.object.network.PropertyGraphNetwork;
-import org.ndexbio.model.object.network.PropertyGraphNode;
 import org.ndexbio.model.object.network.ReifiedEdgeTerm;
+import org.ndexbio.model.object.network.Support;
 import org.ndexbio.model.object.network.VisibilityType;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 
-public class NetworkDAO extends NetworkDocDAO {
-			
+public class NetworkDAO extends NdexDBDAO {
 
+	private static Logger logger = Logger.getLogger(NetworkDAO.class.getName());
 	
-    private static final String[] networkElementType = {NdexClasses.Network_E_BaseTerms, NdexClasses.Network_E_Nodes, NdexClasses.Network_E_Citations,
-    		NdexClasses.Network_E_Edges, NdexClasses.Network_E_FunctionTerms, NdexClasses.Network_E_Namespace,
-    		NdexClasses.Network_E_ReifiedEdgeTerms, NdexClasses.Network_E_Supports
-  //  		,	NdexClasses.E_ndexPresentationProps, NdexClasses.E_ndexProperties
-    		};
+//	public static final String RESET_MOD_TIME = "resetMTime";
+
+    /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
+	private static final String networkSummarySelectClause = "select creation_time, modification_time, name,description,version,"
+			+ "edgecount,nodecount,visibility,owner,owneruuid,"
+			+ " properties, \"UUID\""; //sourceformat,is_validated, iscomplete, readonly,"
 	
-	static Logger logger = Logger.getLogger(NetworkDAO.class.getName());
-	
-	@Deprecated
-	public NetworkDAO () throws NdexException, SQLException {
+	public NetworkDAO () throws  SQLException {
 	    super();
-
 	}
 
 	
-	 
-/*	private List<String> getOpaqueAspectEdges (ODocument networkDoc) {
-		List<String> result = new ArrayList<>();
-		Map<String, String> opaqueAspectEdgeTable = networkDoc.field(NdexClasses.Network_P_opaquEdgeTable);
-		if ( opaqueAspectEdgeTable == null )
-			return result;
-		
-		result.addAll(opaqueAspectEdgeTable.values());
-		
-		return result;
-	} */
+	public void CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName) throws SQLException {
+		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly) values"
+				+ "(?, localtimestamp, localtimestamp, false, false, 'PRIVATE',?,?,false) ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkUUID);
+			pst.setObject(2, ownerId);
+			pst.setString(3, ownerUserName);
+			pst.executeUpdate();
+		}
+	}
 	
-	/**
-	 * Delete up to CLEANUP_BATCH_SIZE vertices in a network. This function is for cleaning up a logically 
-	 * deleted network in the database. 
-	 * @param networkDoc
-	 * @return the number of vertices being deleted. 
-	 * @throws NdexException 
-	 * @throws ObjectNotFoundException 
-	 */
-/*	private int cleanupNetworkElements(ODocument networkDoc) throws ObjectNotFoundException, NdexException {
-        int counter = 0;
 
-        List<String> edgesToBeDeleted = getOpaqueAspectEdges(networkDoc);
-        for ( String ndexEdges : networkElementType)
-           edgesToBeDeleted.add(ndexEdges);
-        
-        for ( String fieldName : edgesToBeDeleted) {
-        	counter = cleanupElementsByEdge(networkDoc, fieldName, counter);
-        	if ( counter >= CLEANUP_BATCH_SIZE) {
-        		return counter;
-        	}
-        }
-        
-        return counter;
-	} */
+	public void deleteNetwork(UUID netowrkId, UUID userId) throws SQLException, NdexException {
+		String sqlStr = "update network set is_deleted=true,"
+				+ " modification_time = localtimestamp where \"UUID\" = ? and owneruuid = ? and is_deleted=false and isLocked = false and readonly=false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, netowrkId);
+			pst.setObject(2, userId);
+			int cnt = pst.executeUpdate();
+			if ( cnt !=1) {
+				throw new NdexException ("Failed to delete network. Reason could be invalid UUID, user is not the owner of the network, the network is Locked or the network is readonly.");
+			}
+		}	
+	}
 	
-	/**
-	 * Cleanup up to CLEANUP_BATCH_SIZE vertices in the out going edge of fieldName. 
-	 * @param doc The ODocument record to be clean up on.
-	 * @param fieldName
-	 * @param currentCounter
-	 * @return the number of vertices being deleted. 
-	 * @throws NdexException 
-	 */
-/*	private int cleanupElementsByEdge(ODocument doc, String fieldName, int currentCounter) throws NdexException {
-		
-		Object f = doc.field("out_"+fieldName);
-		if ( f != null ) {
-			if ( f instanceof ORidBag ) {
-				ORidBag e = (ORidBag)f;
-				int counter = currentCounter;
-				for ( OIdentifiable rid : e) {
-					if(rid !=null) {
-						counter = cleanupElement((ODocument)rid, counter);
-						if ( counter >= CLEANUP_BATCH_SIZE) {
-							return counter;
-						}
-					} else 
-						throw new NdexException ("Db traversing on " + fieldName + " got a null value in the ORidBag.");
+
+	public UUID getNetworkOwner(UUID networkId) throws SQLException, NdexException {
+		String sqlStr = "select owneruuid from network where  is_deleted=false and  \"UUID\" = ? ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					return (UUID)rs.getObject(1);
 				}
-				return  counter;
-			} 
-			return cleanupElement((ODocument)f, currentCounter);
-		}
-		return currentCounter;
+				throw new ObjectNotFoundException("Network "+ networkId + " not found in NDEx.");
+			}
+		}	
 	}
 	
-	private int cleanupElement(ODocument doc, int currentCount) {
-		int counter = currentCount;
-		doc.reload();
-
-		for	(int retry = 0;	retry <	NdexDatabase.maxRetries;	++retry)	{
-			try	{
-				graph.removeVertex(graph.getVertex(doc));
-				break;
-			} catch(ONeedRetryException	e)	{
-				logger.warning("Retry: "+ e.getMessage());
-				doc.reload();
+	public Timestamp getNetworkCreationTime(UUID networkId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select creation_time from network where \"UUID\" = ? and is_deleted=false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getTimestamp(1);
+				}
+				throw new ObjectNotFoundException("Network "+ networkId + " not found in NDEx.");
 			}
-		}
-		counter ++;
-		if ( counter % 200 == 0 ) {
-			graph.commit();
-			if (counter % 1000 == 0 ) {
-				logger.info("Deleted " + counter + " vertexes from network during cleanup.");
-			}
-		}
-		return counter;
+		}	
 	}
-*/
-	/*public int logicalDeleteNetwork (String uuid) throws ObjectNotFoundException, NdexException {
-		ODocument networkDoc = getRecordByUUID(UUID.fromString(uuid), NdexClasses.Network);
-
-		if ( networkDoc != null) {
-		   networkDoc.fields(NdexClasses.ExternalObj_isDeleted,true,
-				   NdexClasses.ExternalObj_mTime, new Date()).save();
-		} 
-		commit(); 
-
-		// remove the solr Index
-		SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(uuid);
-		NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
-		try {
-			idxManager.dropIndex();
-			globalIdx.deleteNetwork(uuid);
-		} catch (SolrServerException | HttpSolrClient.RemoteSolrException | IOException se ) {
-			logger.warning("Failed to delete Solr Index for network " + uuid + ". Please clean it up manually from solr. Error message: " + se.getMessage());
-		}
-		
- 		return 1;
-	} */
 	
-/*	@Deprecated
-	private int deleteNetworkElements(String UUID) {
-		int counter = 0;
-		
-		String query = "traverse * from ( traverse out_networkNodes,out_BaseTerms,out_networkNS from (select from network where UUID='"
-				+ UUID + "')) while @class <> 'network'";
-        final List<ODocument> elements = db.query(new OSQLSynchQuery<ODocument>(query));
-        
-        for ( ODocument element : elements ) {
-        	element.reload();
-        	graph.removeVertex(graph.getVertex(element));
-        	counter ++;
-        	if ( counter % 1500 == 0 ) {
-        		graph.commit();
-        		if (counter % 6000 == 0 ) {
-        			logger.info("Deleted " + counter + " vertexes from network during cleanup." + UUID);
-        		}
-        	}
-
-        }
-        return counter;
-	} */
-	
-	/** 
-	 * delete all ndex and presentation properties from a network record.
-	 * Properities on network elements won't be deleted.
+	/**
+	 * Set a flag in the network entry. 
+	 * @param fieldName
+	 * @param value
+	 * @throws SQLException 
+	 * @throws NdexException 
 	 */
-/*	public static void deleteNetworkProperties(ODocument networkDoc) {
+	
+	public void setFlag(UUID networkId, String fieldName, boolean value) throws SQLException, NdexException {
+		String sqlStr = "update network set "
+				+ fieldName + "=" + value + " where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to set network flag entry in db.");
+		}
+	}
 
-		networkDoc.removeField(NdexClasses.ndexProperties);
-		networkDoc.save();
+	/**
+	 * Pass in a partial summary to initialize the db entry. Only the name, description, version, edge and node counts are used
+	 * in this function.
+	 * @param networkSummary
+	 * @throws SQLException 
+	 * @throws NdexException 
+	 * @throws JsonProcessingException 
+	 */
+	public void populateNetworkEntry(NetworkSummary networkSummary) throws SQLException, NdexException, JsonProcessingException {
+		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, properties = ? ::jsonb,"
+				+ " is_validated =true where \"UUID\" = ?";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setString(1,networkSummary.getName());
+			pst.setString(2, networkSummary.getDescription());
+			pst.setString(3, networkSummary.getVersion());
+			pst.setInt(4, networkSummary.getEdgeCount());
+			pst.setInt(5, networkSummary.getNodeCount());
+			
+			if ( networkSummary.getProperties()!=null && networkSummary.getProperties().size() >0 ) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( networkSummary.getProperties());
+				pst.setString(6, s);
+			} else {
+				pst.setString(6, null);
+			}
+			
+			pst.setObject(7, networkSummary.getExternalId());
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to update network summary entry in db.");
+		}
+	}
+	
+	/**
+	 * We assume the alias of network table is n in this function. so make sure this is true when using this function to construct your sql.
+	 * @param userId
+	 * @return
+	 */
+	private String createIsReadableConditionStr(UUID userId) {
+		if ( userId == null)
+			return "n.visibility='PUBLIC'";
+		return "( n.visibility='PUBLIC' or n.owneruuid = '" + userId + "' ::uuid or " + 
+			" exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = '"+ userId + "' limit 1) or " +
+		    " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
+		    + "and gn1.network_id = n.\"UUID\" and gu.user_id = '"+ userId + "' limit 1) )";
+	}
+	
+	public boolean isReadable(UUID networkID, UUID userId) throws SQLException {
+		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and " + createIsReadableConditionStr(userId);		
+			
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkID);
 
+			try ( ResultSet rs = pst.executeQuery()) {
+				return rs.next();
+			}
+		}
+	}
+	
+	public boolean isWriteable(UUID networkID, UUID userId) throws SQLException {
+		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and (";
+		
+		sqlStr += " n.owneruuid = ? or "
+				+ " exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = ? and un1.permission_type = 'WRITE' limit 1) or " +
+				  " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
+				  + "   and gn1.network_id = n.\"UUID\" and gu.user_id = ? and gn1.permission_type = 'WRITE' limit 1) " ;
+
+		sqlStr += ")";
+			
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkID);
+				pst.setObject(2, userId);
+				pst.setObject(3, userId);
+				pst.setObject(4, userId);
+			
+			try ( ResultSet rs = pst.executeQuery()) {
+				return rs.next();
+			}
+		}
+	}
+	
+	public boolean isReadOnly(UUID networkID) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select roid,cacheid from network n where n.\"UUID\" = ? and n.is_deleted=false ";
+			
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkID);
+			try ( ResultSet rs = pst.executeQuery()) {
+				if( rs.next() ) {
+					return rs.getLong(1)>0 && rs.getLong(1) == rs.getLong(2);
+				}
+				throw new ObjectNotFoundException("Network", networkID );
+			}
+		}
+	}
+	
+	public boolean isAdmin(UUID networkID, UUID userId) throws SQLException {
+		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and n.owneruuid= ?";
+			
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkID);
+			pst.setObject(2, userId);
+			try ( ResultSet rs = pst.executeQuery()) {
+				return rs.next() ;
+			}
+		}
+	}	
+	
+	
+	/**
+	 * Set the islocked flag to true in the db.
+	 * This is an atomic operation. Will commit the current transaction.
+	 * @param networkID
+	 * @throws ObjectNotFoundException 
+	 * @throws SQLException 
+	 */
+	public void lockNetwork(UUID networkId) throws ObjectNotFoundException, SQLException {
+		setNetworkLock(networkId,true);
+		db.commit();
+	}
+	
+	
+	private void setNetworkLock(UUID networkId, boolean lock) throws SQLException, ObjectNotFoundException {
+		String sql = "update network set islocked=? where \"UUID\" = ? and is_deleted=false";
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+			p.setBoolean(1, lock);
+			p.setObject(2, networkId);
+			int i = p.executeUpdate();
+			if ( i !=1)
+				throw new ObjectNotFoundException("network",networkId);
+		}
+	}
+	
+	
+	/**
+	 * Set the islocked flag to false in the db.
+	 * This is an atomic operation. Will commit the current transaction.
+	 * @param networkID
+	 * @throws ObjectNotFoundException 
+	 * @throws SQLException 
+	 */
+	public void unlockNetwork (UUID networkId) throws ObjectNotFoundException, SQLException {
+		setNetworkLock(networkId,false);
+		db.commit(); 
+	}
+	
+	public boolean networkIsLocked(UUID networkUUID) throws ObjectNotFoundException, SQLException {
+		String sql = "select islocked from network where \"UUID\" = ? and is_deleted = false";
+		try(PreparedStatement p = db.prepareStatement(sql)){
+			p.setObject(1, networkUUID);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getBoolean(1);
+				}
+				throw new ObjectNotFoundException ("network",networkUUID);
+			}
+		}
+	}
+	
+	public ProvenanceEntity getProvenance(UUID networkId) throws JsonParseException, JsonMappingException, IOException, ObjectNotFoundException, SQLException {
+		String sql = "select provenance from network where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, networkId);
+			try (ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					String s = rs.getString(1);
+					if ( s != null) {
+						ObjectMapper mapper = new ObjectMapper(); 
+				        ProvenanceEntity o = mapper.readValue(s, ProvenanceEntity.class); 	
+				        return o;
+					}
+					return null;
+				}
+				throw new ObjectNotFoundException ("network",networkId);
+			}
+		}
+		
+	}
+    
+	public int setProvenance(UUID networkId, ProvenanceEntity provenance) throws JsonProcessingException, SQLException, NdexException {
+		// get the network document
+		String sql = " update network set provenance = ? :: jsonb where \"UUID\"=? and is_deleted=false and islocked = false";
+		try (PreparedStatement p = db.prepareStatement(sql)) {
+			ObjectMapper mapper = new ObjectMapper();
+			String s = mapper.writeValueAsString(provenance);
+			p.setString(1, s);
+			p.setObject(2, networkId);
+			int cnt = p.executeUpdate();
+			if ( cnt != 1) {
+				throw new NdexException ("Failed to update db, network not found or locked by another update process");
+			}
+			return cnt;
+		}
+	}
+	
+
+    
+	/**
+	 *  This function returns the citations in this network.
+	 * @param networkUUID
+	 * @return
+	 * @throws NdexException 
+	 */
+	public Collection<Citation> getNetworkCitations(String networkUUID) throws NdexException {
+		ArrayList<Citation> citations = new ArrayList<>();
+		
+	/*	ODocument networkDoc = getNetworkDocByUUIDString(networkUUID);
+		
+		for ( ODocument doc : Helper.getNetworkElements(networkDoc, NdexClasses.Network_E_Citations)) {
+    			citations.add(getCitationFromDoc(doc));
+    	} */
+    	return citations; 
+	}
+
+	/**************************************************************************
+	    * getAllAdminUsers on a network
+	    *
+	    * @param networkId
+	    *            UUID for network
+	    * @throws NdexException
+	    *            Invalid parameters or an error occurred while accessing the database
+	    * @throws ObjectNotFoundException
+	    * 			Invalid groupId
+	    **************************************************************************/
+	
+/*	public Set<String> getAdminUsersOnNetwork(String networkId) 
+			throws ObjectNotFoundException, NdexException {
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),
+		
+				"A network UUID is required");
+
+		ODocument network = this.getRecordByUUIDStr(networkId, NdexClasses.Network);
+		
+		Set<String> adminUUIDStrs = new TreeSet<>();
+			
+		String networkRID = network.getIdentity().toString();
+			
+		String traverseCondition = "in_" + Permissions.ADMIN + ",in_" + Permissions.GROUPADMIN + ",in_" + Permissions.MEMBER;   
+			
+		OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
+		  			"SELECT " +
+		  					NdexClasses.ExternalObj_ID + ", $path" +
+			        " FROM"
+		  			+ " (TRAVERSE "+ traverseCondition.toLowerCase() +" FROM"
+		  				+ " " + networkRID
+		  				+ "  WHILE $depth <=3)"
+		  			+ " WHERE @class = '" + NdexClasses.User + "' " +" AND  " + NdexClasses.ExternalObj_isDeleted + " = false ");
+			
+			List<ODocument> records = this.db.command(query).execute(); 
+			for(ODocument member: records) {
+				adminUUIDStrs.add( (String) member.field(NdexClasses.ExternalObj_ID) );
+			}
+			
+			logger.info("Successfuly retrieved network-user memberships");
+			return adminUUIDStrs;
 	} */
 	
- 
+	
+	   /**
+	    * Get all the direct membership on a network.
+	    * @param networkId
+	    * @return A 2 elements array. First element is a map about user permissions and the second is about group permissions. For the inner map, the
+	    *  key is one of the permission type, value is a collection of account names that have that permission.
+	    *  If an account has a write privilege on the network this function won't duplicate that account in the read permission list.
+	    * @throws ObjectNotFoundException
+	    * @throws NdexException
+	 * @throws SQLException 
+	    */
+		public List<Map<Permissions, Collection<String>>> getAllMembershipsOnNetwork(UUID networkId) 
+				throws ObjectNotFoundException, NdexException, SQLException {
+			Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),	
+					"A network UUID is required");
+			
+			Map<Permissions,Collection<String>> userMemberships = new HashMap<>();
+			
+			userMemberships.put(Permissions.ADMIN, new ArrayList<String> ());
+			userMemberships.put(Permissions.WRITE, new ArrayList<String> ());
+			userMemberships.put(Permissions.READ, new ArrayList<String> ());
+			
+			Map<Permissions, Collection<String>> grpMemberships = new HashMap<>();
+			grpMemberships.put(Permissions.READ, new ArrayList<String> ());
+			grpMemberships.put(Permissions.WRITE, new ArrayList<String> ()); 
+			
+		    ArrayList<Map<Permissions,Collection<String>>> fullMembership = new ArrayList<> (2);
+		    fullMembership.add(0, userMemberships);
+		    fullMembership.add(1,grpMemberships);
+
+		    String sqlStr = "select u.user_name, b.per from  (select a.user_id, max(a.per) from "+
+		    		"(select owneruuid as user_id, 'ADMIN' :: ndex_permission_type as per from network where \"UUID\" = ? "+
+		    		 " union select user_id, permission_type as per from user_network_membership where network_id = ?) a "
+		    		 + "group by a.user_id) b, ndex_user u where u.\"UUID\"= b.user_id";
+			
+		    try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+		    	pst.setObject(1, networkId);
+		    	pst.setObject(2, networkId);
+		    	try (ResultSet rs = pst.executeQuery()) {
+		    		while ( rs.next()) {
+		    			Collection<String> userSet = userMemberships.get(Permissions.valueOf(rs.getString(2)));
+		    			userSet.add(rs.getString(1));
+		    			
+		    		}
+		    	}
+		    }
+		    
+		    sqlStr = "select group_id, permission_type from group_network_membership where network_id = ?";
+			
+		    try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+		    	pst.setObject(1, networkId);
+		    	try (ResultSet rs = pst.executeQuery()) {
+		    		while ( rs.next()) {
+		    			Collection<String> grpSet = grpMemberships.get(Permissions.valueOf(rs.getString(2)));
+		    			grpSet.add(rs.getString(1));
+		    			
+		    		}
+		    	}
+		    }
+				
+			return fullMembership;
+		}
+		
+
+    /**
+	 * This function sets network properties using the given property list. All Existing properties
+	 * of the network will be deleted. 
+	 * @param networkId
+	 * @param properties
+	 * @return
+	 * @throws ObjectNotFoundException
+	 * @throws NdexException
+     * @throws IOException 
+     * @throws SolrServerException 
+	 */
+	public int setNetworkProperties (UUID networkId, Collection<NdexPropertyValuePair> properties
+			 ) throws ObjectNotFoundException, NdexException, SolrServerException, IOException {
+
+//		ODocument rec = this.getRecordByUUID(networkId, null);
+		
+		List<NdexPropertyValuePair> props = new ArrayList<>(properties.size());
+		for ( NdexPropertyValuePair p : properties ) {
+			if (!p.getPredicateString().equals(NdexClasses.Network_P_source_format))
+				props.add(p);
+		}
+		
+		Date updateTime = Calendar.getInstance().getTime();
+	//	rec.fields(NdexClasses.ndexProperties, props,
+	//				NdexClasses.ExternalObj_mTime, updateTime).save();
+
+		
+		// update the solr Index
+		NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
+		globalIdx.updateNetworkProperties(networkId.toString(), props, updateTime);
+		
+		return props.size();
+	}
+	
+	public NetworkSearchResult findNetworks(SimpleNetworkQuery simpleNetworkQuery, int skipBlocks, int top, User loggedInUser) throws NdexException, SolrServerException, IOException, SQLException {
+	
+		String queryStr = simpleNetworkQuery.getSearchString().trim();
+		if (queryStr.equals("*")  || queryStr.length() == 0 )
+			queryStr = "*:*";
+		
+		if ( simpleNetworkQuery.getPermission() !=null && simpleNetworkQuery.getPermission() == Permissions.ADMIN)
+			throw new NdexException("Permission can only be WRITE or READ in this function.");
+		
+		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+		
+		//prepare the query.
+	//	if (simpleNetworkQuery.getPermission() == null) 
+	//		simpleNetworkQuery.setPermission(Permissions.READ);
+
+		List<String> groupNames = new ArrayList<>();
+		if ( loggedInUser !=null && simpleNetworkQuery.getIncludeGroups()) {
+			try (UserDAO userDao = new UserDAO() ) {
+				for ( Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(), Permissions.MEMBER,0,0) ) {
+					groupNames.add(m.getResourceName());
+				}
+			}
+		}
+			
+		SolrDocumentList solrResults = networkIdx.searchForNetworks(queryStr, 
+				(loggedInUser == null? null: loggedInUser.getUserName()), top, skipBlocks * top, 
+						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), simpleNetworkQuery.getCanRead(), groupNames);
+		
+		List<NetworkSummary> results = new ArrayList<>(solrResults.size());
+		for ( SolrDocument d : solrResults) {
+			String id = (String) d.get(NetworkGlobalIndexManager.UUID);
+			NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
+			if ( s !=null)
+				results .add(s); 
+		} 
+		
+		return new NetworkSearchResult ( solrResults.getNumFound(), solrResults.getStart(), results);
+	}
 
 	
+	public NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
+		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
+		String sqlStr = networkSummarySelectClause + "from network where \"UUID\" = ? and is_deleted= false";
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					NetworkSummary result = new NetworkSummary();
+					populateNetworkSummaryFromResultSet(result,rs);
+					
+					return result;
+				}
+				throw new ObjectNotFoundException("Network " + networkId + " not found in db.");
+			}
+		}
+	}
 	
-    public int grantPrivilege(String networkUUID, String accountUUID, Permissions permission) throws NdexException, SolrServerException, IOException {
+	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId) throws SQLException, JsonParseException, JsonMappingException, IOException {
+		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
+		
+		List<NetworkSummary> result = new ArrayList<>(networkIdstrList.size());
+		
+		if ( networkIdstrList.isEmpty()) return result;
+		
+		StringBuffer cnd = new StringBuffer() ;
+		for ( String idstr : networkIdstrList ) {
+			if (cnd.length()>1)
+				cnd.append(',');
+			cnd.append('\'');
+			cnd.append(idstr);
+			cnd.append('\'');			
+		}
+		
+		String sqlStr = networkSummarySelectClause 
+				+ "from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false and " + createIsReadableConditionStr(userId) ;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			try ( ResultSet rs = p.executeQuery()) {
+				while ( rs.next()) {
+					NetworkSummary s = new NetworkSummary();
+					populateNetworkSummaryFromResultSet(s,rs);
+					result.add(s);
+				}
+			}
+		}
+		return result;
+	}
+	
+	/**
+	 * Order in the ResultSet is critical.
+	 * @param summary
+	 * @param rs
+	 * @throws SQLException 
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
+	 */
+	private static void populateNetworkSummaryFromResultSet (NetworkSummary result, ResultSet rs) throws SQLException, JsonParseException, JsonMappingException, IOException {
+		result.setCreationTime(rs.getTimestamp(1));
+		result.setModificationTime(rs.getTimestamp(2));
+		result.setName(rs.getString(3));
+		result.setDescription(rs.getString(4));
+		result.setVersion(rs.getString(5));
+		result.setEdgeCount(rs.getInt(6));
+		result.setNodeCount(rs.getInt(7));
+		result.setVisibility(VisibilityType.valueOf(rs.getString(8)));
+		result.setOwner(rs.getString(9));
+		result.setOwnerUUID((UUID)rs.getObject(10));
+		String proptiesStr = rs.getString(11);
+		
+		if ( proptiesStr != null) {
+			ObjectMapper mapper = new ObjectMapper(); 
+			
+			List<NdexPropertyValuePair> o = mapper.readValue(proptiesStr, ArrayList.class); 		
+	        result.setProperties(o);  
+		}
+		
+		result.setExternalId((UUID)rs.getObject(12));
+		
+	}
+	
+	
+	public void updateNetworkProfile(UUID networkId, Map<String,String> newValues) throws NdexException, SolrServerException, IOException, SQLException {
+	
+	    	 //update db
+		    String sqlStr = "update network set ";
+		    List<String> values = new ArrayList<>(newValues.size());
+		    for (Map.Entry<String,String> entry : newValues.entrySet()) {
+		    		if (values.size() >0)
+		    			sqlStr += ", ";
+		    		sqlStr += entry.getKey() + " = ?";	
+		    		values.add(entry.getValue());
+		    }
+		    sqlStr += " where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false and islocked=false";
+		    
+		    try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+		    	for ( int i = 0 ; i < values.size(); i++) {
+		    		p.setString(i+1, values.get(i));
+		    	}
+		    	int cnt = p.executeUpdate();
+		    	if ( cnt != 1 ) {
+		    		throw new NdexException ("Failed to update. Network " + networkId + " might have been locked.");
+		    	}
+		    }
+	    	//update solr index
+	    	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+
+	    	networkIdx.updateNetworkProfile(networkId.toString(), newValues); 
+		
+	}
+	
+	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException, SolrServerException, IOException {
+		 String sqlStr = "update network set visibility = '" + v.toString() + "' where \"UUID\" = ? and is_deleted=false and islocked=false";
+		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			 pst.setObject(1, networkId);
+			 int i = pst.executeUpdate();
+			 if ( i !=1 )
+				 throw new NdexException ("Failed to update visibility. Network " + networkId + " might have been locked.");
+		 }
+		    	  	
+		 //update solr index
+		 NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+
+		 networkIdx.updateNetworkVisibility(networkId.toString(), v.toString()); 
+		    			
+	}
+	
+	
+	/**************************************************************************
+	    * getNetworkUserMemberships
+	    *
+	    * @param networkId
+	    *            UUID for network
+	    * @param permission
+	    * 			Type of memberships to retrieve, ADMIN, WRITE, or READ
+	    * @param skipBlocks
+	    * 			amount of blocks to skip
+	    * @param blockSize
+	    * 			The size of blocks to be skipped and retrieved
+	    * @throws NdexException
+	    *            Invalid parameters or an error occurred while accessing the database
+	    * @throws ObjectNotFoundException
+	    * 			Invalid groupId
+	 * @throws SQLException 
+	    **************************************************************************/
+	
+	public List<Membership> getNetworkUserMemberships(UUID networkId, Permissions permission, int skipBlocks, int blockSize) 
+			throws ObjectNotFoundException, NdexException, SQLException {
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),
+		
+				"A network UUID is required");
+		if ( permission !=null )
+			Preconditions.checkArgument( 
+				(permission.equals( Permissions.ADMIN) )
+				|| (permission.equals( Permissions.WRITE ))
+				|| (permission.equals( Permissions.READ )),
+				"Valid permission required");
+		List<Membership> memberships = new ArrayList<>();
+
+		String sql = "select owneruuid as user_id, owner as user_name,name, 'ADMIN' from network where \"UUID\"=? and is_deleted=false";
+		if ( permission == null ) {
+			sql = " union select un.user_id, u.user_name, n.name, un.ndex_permission_type from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and "
+					+ "n.\"UUID\" = un.network_id and network_id = ?" ;
+		}else if ( permission != Permissions.ADMIN) 
+			sql = "select user_id, u.user_name, n.name, un.ndex_permission_type, from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and n.\"UUID\" = un.network_id "
+					+ "and network_id = ? and ndex_permission_type = '" + permission.toString() + "'";
+		
+		if ( skipBlocks>=0 && blockSize>0) {
+			sql += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				while ( rs.next()) {
+					Membership membership = new Membership();
+					membership.setMembershipType( MembershipType.NETWORK );
+					membership.setMemberAccountName( rs.getString(2)  ); 
+					membership.setMemberUUID((UUID) rs.getObject(1) );
+					membership.setPermissions(  Permissions.valueOf(rs.getString(4)));
+					membership.setResourceName(rs.getString(3) );
+					membership.setResourceUUID( networkId );
+				
+					memberships.add(membership);
+				}
+			}
+		}
+		
+			
+		logger.info("Successfuly retrieved network-user memberships");
+		return memberships;
+	}
+
+	
+	private Permissions getNetworkPermissionOnGroup(UUID networkId, UUID groupId) throws SQLException {
+		String sql = "select permission_type from group_network_membership where network_id =? and group_id = ?";
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, networkId);
+			p.setObject(2, groupId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					return Permissions.valueOf(rs.getString(1));
+				}
+				return null;
+			}
+		}
+	}
+	
+	private Permissions getNetworkNonAdminPermissionOnUser(UUID networkId, UUID userId) throws SQLException {
+		String sql = "select permission_type from user_network_membership where network_id =? and user_id = ?";
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, networkId);
+			p.setObject(2, userId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					return Permissions.valueOf(rs.getString(1));
+				}
+				return null;
+			}
+		}
+	}
+	
+    public int grantPrivilegeToGroup(UUID networkUUID, UUID groupUUID, Permissions permission) throws NdexException, SolrServerException, IOException, SQLException {
+    
+    	if (permission == Permissions.ADMIN)
+    		throw new NdexException ("Groups are not allowed to administer a network, only users are allowed.");
+    		
     	// check if the edge already exists?
 
-    /*	Permissions p = Helper.getNetworkPermissionByAccout(db,networkUUID, accountUUID);
+    	Permissions p = getNetworkPermissionOnGroup(networkUUID, groupUUID);
 
         if ( p!=null && p == permission) {
-        	logger.info("Permission " + permission + " already exists between account " + accountUUID + 
+        	logger.info("Permission " + permission + " already exists between group " + groupUUID + 
         			 " and network " + networkUUID + ". Igore grant request."); 
         	return 0;
         }
         
-        //check if this network has other admins
-        if ( permission != Permissions.ADMIN && !Helper.canRemoveAdmin(db, networkUUID, accountUUID)) {
-        	
-        	throw new NdexException ("Privilege change failed. Network " + networkUUID +" will not have an administrator if permission " +
-        	    permission + " are granted to account " + accountUUID);
+        String sql = "insert into group_network_membership (network_id, group_id, permission_type) values (?,?,?) "
+        		+ "ON CONFLICT (group_id,network_id) DO UPDATE set permission_type = EXCLUDED.permission_type";
+        
+        try ( PreparedStatement pst = db.prepareStatement(sql)) {
+        	pst.setObject(1, networkUUID);
+        	pst.setObject(2, groupUUID);
+        	pst.setString(3, permission.toString());
+        	pst.executeUpdate();
         }
         
-        ODocument networkdoc = this.getNetworkDocByUUID(UUID.fromString(networkUUID));
-        ODocument accountdoc = this.getRecordByUUID(UUID.fromString(accountUUID), null);
-        
-        if ( permission == Permissions.ADMIN && accountdoc.getClassName().equals(NdexClasses.Group) )
-        	throw new NdexException ("Groups are not allowed to administer a network, only individual accounts are allowed.");
-        
-        String className = accountdoc.getClassName();
-        String accountName = accountdoc.field(NdexClasses.account_P_accountName);
-        OrientVertex networkV = graph.getVertex(networkdoc);
-        OrientVertex accountV = graph.getVertex(accountdoc);
-        
-        for ( com.tinkerpop.blueprints.Edge e : accountV.getEdges(networkV, Direction.OUT)) { 
-    		for	(int retry = 0;	retry <	NdexDatabase.maxRetries;	++retry)	{
-    			try	{
-    	          	graph.removeEdge(e);
-    				break;
-    			} catch(ONeedRetryException	ex)	{
-    				logger.warning("Retry removing edge between account and network: " + ex.getMessage());
-    		        networkdoc.reload();
-    		        accountdoc.reload();
-//    		       networkV.reload();
-//    		       accountV.reload();
-    			}
-    		}
-        }
-
-        networkdoc.reload();
-        accountdoc.reload();
-        
-		for	(int retry = 0;	retry <	NdexDatabase.maxRetries;	++retry)	{
-			try	{
-		        accountV.addEdge(permission.toString().toLowerCase(), networkV);
-				break;
-			} catch(ONeedRetryException	e)	{
-				logger.warning("Retry adding edge between account and network: " + e.getMessage());
-		        networkdoc.reload();
-		        accountdoc.reload();
-			//	taskV.getRecord().removeField("out_"+ NdexClasses.Task_E_owner);
-			}
-		}
-
 		//update solr index
 		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
 		
-		networkIdx.grantNetworkPermission(networkUUID, accountName, permission, p,
-				className.equals(NdexClasses.User)); */
+		networkIdx.grantNetworkPermission(networkUUID.toString(), groupUUID.toString(), permission, p, false); 
                
     	return 1;
     }
+	
+    public int grantPrivilegeToUser(UUID networkUUID, UUID userUUID, Permissions permission, String userName) throws NdexException, SolrServerException, IOException, SQLException {
+    	
+    	UUID oldOwnerUUID = getNetworkOwner(networkUUID);
+    	User oldUser ;
+    	try ( UserDAO dao = new UserDAO ()) {
+    		oldUser = dao.getUserById(oldOwnerUUID, true);
+    	}
+    	if ( oldOwnerUUID.equals(userUUID) ) {
+    		if ( permission == Permissions.ADMIN)
+    			return 0;
+    		throw new NdexException ("Privilege change failed. Network " + networkUUID +" will not have an administrator if permission " +
+            	    permission + " are granted to user " + userUUID);
+    	}
 
-    public int revokePrivilege(String networkUUID, String accountUUID) throws NdexException, SolrServerException, IOException {
-    	// check if the edge exists?
+    	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
+    	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+    	//TODO: need to get the old permission from somewhere.
+    	if ( permission == Permissions.ADMIN) {
+    		String sql = "update network set owneruuid = ?, owner = ? where \"UUID\" = ? and is_deleted = false";
+    		try ( PreparedStatement pst = db.prepareStatement(sql)) {
+    			pst.setObject(1, userUUID);
+    			pst.setString(2, userName);
+    			pst.setObject(3, networkUUID);
+    			pst.executeUpdate();
+    		}
+    		
+    		networkIdx.revokeNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.ADMIN, true);
+    		
+    	} else {
+    		String sql = "insert into user_network_membership ( user_id,network_id, permission_type) values (?,?,?) "
+    				+ "ON CONFLICT (user_id,network_id) DO UPDATE set permission_type = EXCLUDED.permission_type";
+    		try ( PreparedStatement pst = db.prepareStatement(sql)) {
+    			pst.setObject(1, userUUID);
+    			pst.setObject(2, networkUUID);
+    			pst.setString(3, permission.toString());
+    			pst.executeUpdate();
+    		}
+    	}
 
-   /* 	Permissions p = Helper.getNetworkPermissionByAccout(this.db,networkUUID, accountUUID);
+		//update solr index	
+		networkIdx.grantNetworkPermission(networkUUID.toString(), userName, permission, p,true); 
+               
+    	return 1;
+    }
+	
+    
+    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws NdexException, SolrServerException, IOException, SQLException {
+    
+    	Permissions p = getNetworkPermissionOnGroup(networkUUID, groupUUID);
 
         if ( p ==null ) {
-        	logger.info("Permission doesn't exists between account " + accountUUID + 
+        	logger.info("Permission doesn't exists between group " + groupUUID + 
         			 " and network " + networkUUID + ". Igore revoke request."); 
         	return 0;
         }
         
-        //check if this network has other admins
-        if ( p == Permissions.ADMIN && !Helper.canRemoveAdmin(this.db, networkUUID, accountUUID)) {
-        	
-        	throw new NdexException ("Privilege revoke failed. Network " + networkUUID +" only has account " + accountUUID
-        			+ " as the administrator.");
+        String sql = "delete from group_network_membership where network_id = ? and group_id = ?" ;
+        try ( PreparedStatement pst = db.prepareStatement(sql)) {
+        	pst.setObject(1, networkUUID);
+        	pst.setObject(2,groupUUID);
+        	int c = pst.executeUpdate();
+        	if ( c ==1 )  {
+        		try (GroupDAO dao = new GroupDAO()) {
+        			Group g = dao.getGroupById(groupUUID);
+        			
+        			//update solr index
+            		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getGroupName(), p, false);
+        		}               
+        	} 
+        	return c;	
         }
-        
-        ODocument networkdoc = this.getNetworkDocByUUID(UUID.fromString(networkUUID));
-        ODocument accountdoc = this.getRecordByUUID(UUID.fromString(accountUUID), null);
-        
-        String className = accountdoc.getClassName();
-        String accountName = accountdoc.field(NdexClasses.account_P_accountName);
-        OrientVertex networkV = graph.getVertex(networkdoc);
-        OrientVertex accountV = graph.getVertex(accountdoc);
-        
-        for ( com.tinkerpop.blueprints.Edge e : accountV.getEdges(networkV, Direction.OUT)) { 
-        	
-    		for	(int retry = 0;	retry <	NdexDatabase.maxRetries;	++retry)	{
-    			try	{
-    	          	graph.removeEdge(e);
-    				break;
-    			} catch(ONeedRetryException	ex)	{
-    				logger.warning("Retry removing edge between account and network: " + ex.getMessage());
-    		       networkV.reload();
-    		       accountV.reload();
-    			}
-    		}
-          	break;
-        }
-
-		//update solr index
-		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-		networkIdx.revokeNetworkPermission(networkUUID, accountName, p, 
-				className.equals(NdexClasses.User));
-        */
-        
-    	return 1;
+        		
     }
-
-	
-/*	public void rollback() {
-		graph.rollback();		
-	} */
-
     
-	
-	
+    public int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws NdexException, SolrServerException, IOException, SQLException {
+    	
+    	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
+
+        if ( p ==null ) {
+        	logger.info("Permission doesn't exists between user " + userUUID + 
+        			 " and network " + networkUUID + ". Igore revoke request."); 
+        	return 0;
+        }
+        
+        String sql = "delete from user_network_membership where network_id = ? and user_id = ?" ;
+        try ( PreparedStatement pst = db.prepareStatement(sql)) {
+        	pst.setObject(1, networkUUID);
+        	pst.setObject(2,userUUID);
+        	int c = pst.executeUpdate();
+        	if ( c ==1 )  {
+        		try (UserDAO dao = new UserDAO()) {
+        			User g = dao.getUserById(userUUID, true);
+        			
+        			//update solr index
+            		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getUserName(), p, false);
+        		}               
+        	} 
+        	return c;	
+        }
+    }
 }
-
-
-

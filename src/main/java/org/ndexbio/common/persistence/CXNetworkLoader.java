@@ -63,7 +63,7 @@ import org.cxio.metadata.MetaDataCollection;
 import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.aspect.GeneralAspectFragmentReader;
-import org.ndexbio.common.models.dao.postgresql.NetworkDocDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
@@ -228,7 +228,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  
 		  NetworkSummary summary = new NetworkSummary();
 
-		  try (NetworkDocDAO dao = new NetworkDocDAO ()) {
+		  try (NetworkDAO dao = new NetworkDAO ()) {
 				//handle the network properties 
 				summary.setExternalId(this.networkId);
 				summary.setVisibility(VisibilityType.PRIVATE);
@@ -247,7 +247,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  }
 		
 		  createSolrIndex(summary);
-		  try ( NetworkDocDAO dao = new NetworkDocDAO()) {
+		  try ( NetworkDAO dao = new NetworkDAO()) {
 			  dao.setFlag(this.networkId, "iscomplete", true);
 			  dao.commit();
 		  }
