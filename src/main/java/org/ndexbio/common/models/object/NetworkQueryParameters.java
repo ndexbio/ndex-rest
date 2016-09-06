@@ -35,6 +35,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 //TODO: This class is inaccurate; it should look like the client-side model
+@Deprecated
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class NetworkQueryParameters
 {

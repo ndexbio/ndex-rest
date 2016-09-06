@@ -58,6 +58,7 @@ import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
@@ -214,7 +215,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @param userId
 	 * @return
 	 */
-	private String createIsReadableConditionStr(UUID userId) {
+	private static String createIsReadableConditionStr(UUID userId) {
 		if ( userId == null)
 			return "n.visibility='PUBLIC'";
 		return "( n.visibility='PUBLIC' or n.owneruuid = '" + userId + "' ::uuid or " + 
@@ -288,12 +289,26 @@ public class NetworkDAO extends NdexDBDAO {
 	 * Set the islocked flag to true in the db.
 	 * This is an atomic operation. Will commit the current transaction.
 	 * @param networkID
-	 * @throws ObjectNotFoundException 
 	 * @throws SQLException 
+	 * @throws InterruptedException 
+	 * @throws NdexException 
 	 */
-	public void lockNetwork(UUID networkId) throws ObjectNotFoundException, SQLException {
-		setNetworkLock(networkId,true);
-		db.commit();
+	public void lockNetwork(UUID networkId) throws SQLException, InterruptedException, NdexException {
+		//setNetworkLock(networkId,true);
+		
+		String sql = "update network set islocked= true where \"UUID\" = ? and is_deleted=false and islocked =false";
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, networkId);
+			for( int j = 0 ; j < 3 ; j++ )  {
+				int i = p.executeUpdate();
+				if ( i ==1) {
+					db.commit();
+					return;
+				}
+				Thread.sleep(400);
+			}
+			throw new NdexException("Failed to lock network. ");
+		}
 	}
 	
 	
@@ -371,23 +386,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 
-    
-	/**
-	 *  This function returns the citations in this network.
-	 * @param networkUUID
-	 * @return
-	 * @throws NdexException 
-	 */
-	public Collection<Citation> getNetworkCitations(String networkUUID) throws NdexException {
-		ArrayList<Citation> citations = new ArrayList<>();
-		
-	/*	ODocument networkDoc = getNetworkDocByUUIDString(networkUUID);
-		
-		for ( ODocument doc : Helper.getNetworkElements(networkDoc, NdexClasses.Network_E_Citations)) {
-    			citations.add(getCitationFromDoc(doc));
-    	} */
-    	return citations; 
-	}
+
 
 	/**************************************************************************
 	    * getAllAdminUsers on a network
@@ -791,6 +790,17 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 	}
 	
+	
+	public void checkMembershipOperationPermission(UUID networkId, UUID userId) throws SQLException, ObjectNotFoundException, NdexException {
+		if (!isAdmin(networkId,userId)) {
+			throw new UnauthorizedOperationException("Unable to update network membership: user is not an admin of this network.");
+		}
+
+		if ( networkIsLocked(networkId)) {
+			throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+		} 
+	}
+	
     public int grantPrivilegeToGroup(UUID networkUUID, UUID groupUUID, Permissions permission) throws NdexException, SolrServerException, IOException, SQLException {
     
     	if (permission == Permissions.ADMIN)
@@ -806,13 +816,12 @@ public class NetworkDAO extends NdexDBDAO {
         	return 0;
         }
         
-        String sql = "insert into group_network_membership (network_id, group_id, permission_type) values (?,?,?) "
+        String sql = "insert into group_network_membership (network_id, group_id, permission_type) values (?,?,'" + permission + "') "
         		+ "ON CONFLICT (group_id,network_id) DO UPDATE set permission_type = EXCLUDED.permission_type";
         
         try ( PreparedStatement pst = db.prepareStatement(sql)) {
         	pst.setObject(1, networkUUID);
         	pst.setObject(2, groupUUID);
-        	pst.setString(3, permission.toString());
         	pst.executeUpdate();
         }
         
@@ -824,12 +833,14 @@ public class NetworkDAO extends NdexDBDAO {
     	return 1;
     }
 	
-    public int grantPrivilegeToUser(UUID networkUUID, UUID userUUID, Permissions permission, String userName) throws NdexException, SolrServerException, IOException, SQLException {
+    public int grantPrivilegeToUser(UUID networkUUID, UUID userUUID, Permissions permission) throws NdexException, SolrServerException, IOException, SQLException {
     	
     	UUID oldOwnerUUID = getNetworkOwner(networkUUID);
     	User oldUser ;
+    	User newUser;
     	try ( UserDAO dao = new UserDAO ()) {
     		oldUser = dao.getUserById(oldOwnerUUID, true);
+    		newUser = dao.getUserById(userUUID,true);
     	}
     	if ( oldOwnerUUID.equals(userUUID) ) {
     		if ( permission == Permissions.ADMIN)
@@ -840,12 +851,11 @@ public class NetworkDAO extends NdexDBDAO {
 
     	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
     	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-    	//TODO: need to get the old permission from somewhere.
     	if ( permission == Permissions.ADMIN) {
     		String sql = "update network set owneruuid = ?, owner = ? where \"UUID\" = ? and is_deleted = false";
     		try ( PreparedStatement pst = db.prepareStatement(sql)) {
     			pst.setObject(1, userUUID);
-    			pst.setString(2, userName);
+    			pst.setString(2, newUser.getUserName());
     			pst.setObject(3, networkUUID);
     			pst.executeUpdate();
     		}
@@ -853,18 +863,17 @@ public class NetworkDAO extends NdexDBDAO {
     		networkIdx.revokeNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.ADMIN, true);
     		
     	} else {
-    		String sql = "insert into user_network_membership ( user_id,network_id, permission_type) values (?,?,?) "
+    		String sql = "insert into user_network_membership ( user_id,network_id, permission_type) values (?,?,'"+ permission.toString() + "') "
     				+ "ON CONFLICT (user_id,network_id) DO UPDATE set permission_type = EXCLUDED.permission_type";
     		try ( PreparedStatement pst = db.prepareStatement(sql)) {
     			pst.setObject(1, userUUID);
     			pst.setObject(2, networkUUID);
-    			pst.setString(3, permission.toString());
     			pst.executeUpdate();
     		}
     	}
 
 		//update solr index	
-		networkIdx.grantNetworkPermission(networkUUID.toString(), userName, permission, p,true); 
+		networkIdx.grantNetworkPermission(networkUUID.toString(), newUser.getUserName(), permission, p,true); 
                
     	return 1;
     }
@@ -920,7 +929,7 @@ public class NetworkDAO extends NdexDBDAO {
         			
         			//update solr index
             		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getUserName(), p, false);
+            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getUserName(), p, true);
         		}               
         	} 
         	return c;	

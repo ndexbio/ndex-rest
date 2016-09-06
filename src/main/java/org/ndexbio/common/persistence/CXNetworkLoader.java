@@ -46,11 +46,14 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
+import javax.naming.spi.DirStateFactory.Result;
+
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
+import org.cxio.aspects.datamodels.SubNetworkElement;
 import org.cxio.aspects.readers.EdgeAttributesFragmentReader;
 import org.cxio.aspects.readers.EdgesFragmentReader;
 import org.cxio.aspects.readers.NetworkAttributesFragmentReader;
@@ -60,6 +63,7 @@ import org.cxio.core.CxElementReader;
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.core.interfaces.AspectFragmentReader;
 import org.cxio.metadata.MetaDataCollection;
+import org.cxio.misc.OpaqueElement;
 import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.aspect.GeneralAspectFragmentReader;
@@ -120,6 +124,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	private Set<Long> undefinedSupportId;
 	
 	private Provenance provenanceHistory;
+	private Set<Long> subNetworkIds;
 		
 	long opaqueCounter ;
 
@@ -177,6 +182,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		undefinedCitationId = new TreeSet<>();
 
 		aspectTable = new TreeMap<>();
+		this.subNetworkIds = new HashSet<>(10);
+
 		
 		provenanceHistory = null;
 		
@@ -211,7 +218,6 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(new GeneralAspectFragmentReader (NodeCitationLinksElement.ASPECT_NAME,NodeCitationLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader (Provenance.ASPECT_NAME,Provenance.class));
-		  		  
 		  return  CxElementReader.createInstance(inputStream, true,
 				   readers);
 	}
@@ -247,6 +253,25 @@ public class CXNetworkLoader implements AutoCloseable {
 		  }
 		
 		  createSolrIndex(summary);
+		  
+		  // create the network sample if the network has more than 500 edges
+		  if (edgeIds.size() > CXNetworkSampleGenerator.sampleSize)  {
+			  
+			  Long subNetworkId = null;
+			  if (subNetworkIds.size()>1 )  {
+				  for ( Long i : subNetworkIds) {
+					  subNetworkIds.add(i);
+					  break;
+				  }
+			  }
+			  try ( CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId) ) {
+				  g.createSampleNetwork();
+			  }
+			  
+		  }
+			  
+		  
+		  
 		  try ( NetworkDAO dao = new NetworkDAO()) {
 			  dao.setFlag(this.networkId, "iscomplete", true);
 			  dao.commit();
@@ -291,6 +316,11 @@ public class CXNetworkLoader implements AutoCloseable {
 					break;
 				default:    // opaque aspect
 					createAspectElement(elmt);
+					if ( elmt.getAspectName().equals("subNetworks") 
+							|| elmt.getAspectName().equals(SubNetworkElement.ASPECT_NAME)) {
+						 OpaqueElement e = (OpaqueElement) elmt;
+						 subNetworkIds.add(e.getData().get("@id").asLong())  ;
+					} 
 			}
 
 		} 
@@ -598,6 +628,10 @@ public class CXNetworkLoader implements AutoCloseable {
 		}
 		
 	} */
+	
+	
+	
+	
 	
     public void setNetworkProvenance(ProvenanceEntity e) throws JsonProcessingException
     {

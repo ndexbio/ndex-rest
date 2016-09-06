@@ -30,6 +30,7 @@
  */
 package org.ndexbio.common.models.object;
 
+@Deprecated
 public class MetaParameter
 {
     private String _key;

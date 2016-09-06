@@ -32,6 +32,7 @@ package org.ndexbio.rest.services;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -736,6 +737,40 @@ public class NetworkService extends NdexService {
 		}
 		
 	}  
+
+	@PermitAll
+	@GET
+	@Path("/{networkId}/sample")
+	@ApiDoc("The getSampleNetworkAsCX method enables an application to obtain a sample of the given network as a CX " +
+	        "structure. The sample network is a 500 random edge subnetwork of the original network if it was created by the server automatically. "
+	        + "User can also upload their own sample network if they "
+	        + "")
+	public Response getSampleNetworkAsCX(	@PathParam("networkId") final String networkId)
+			throws IllegalArgumentException, NdexException, SQLException {
+
+    	logger.info("[start: Getting sample network {}]", networkId);
+  	
+    	try (NetworkDAO dao = new NetworkDAO()) {
+    		if ( ! dao.isReadable(UUID.fromString(networkId), getLoggedInUserId()))
+                throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+
+    	}
+    	
+		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + "_sample.cx";
+		
+		try {
+			FileInputStream in = new FileInputStream(cxFilePath)  ;
+		
+			//	setZipFlag();
+			logger.info("[end: Return network {}]", networkId);
+			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+		} catch ( FileNotFoundException e) {
+				throw new ObjectNotFoundException("Sample network of " + networkId + " not found");
+		}  
+		
+	}  
+	
+	
 	
 	private class CXNetworkWriterThread extends Thread {
 		private OutputStream o;
@@ -1100,17 +1135,8 @@ public class NetworkService extends NdexService {
 		try (NetworkDAO networkDao = new NetworkDAO()){
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
-			if (!networkDao.isAdmin(networkUUID, user.getExternalId())){
-				logger.error("[end: User {} not an admin of network {}]", 
-						user.getExternalId(), networkId); 
-				throw new UnauthorizedOperationException("Unable to delete network membership: user is not an admin of this network.");
-			} 
-
-			if ( networkDao.networkIsLocked(networkUUID)) {
-				networkDao.close();
-				logger.info("[end: Can't update locked network {}]", networkId);
-				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
-			} 	
+			
+			networkDao.checkMembershipOperationPermission(networkUUID, user.getExternalId());
 			
 			int count = networkDao.revokeUserPrivilege(UUID.fromString(networkId), UUID.fromString(userUUID));
             networkDao.commit();
@@ -1139,17 +1165,7 @@ public class NetworkService extends NdexService {
 		try (NetworkDAO networkDao = new NetworkDAO()){
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
-			if (!networkDao.isAdmin(networkUUID, user.getExternalId())){
-				logger.error("[end: User {} not an admin of network {}]", 
-						user.getExternalId(), networkId); 
-				throw new UnauthorizedOperationException("Unable to delete network membership: user is not an admin of this network.");
-			} 
-
-			if ( networkDao.networkIsLocked(networkUUID)) {
-				networkDao.close();
-				logger.info("[end: Can't update locked network {}]", networkId);
-				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
-			} 	
+			networkDao.checkMembershipOperationPermission(networkUUID, user.getExternalId());
 			
 			int count = networkDao.revokeGroupPrivilege(UUID.fromString(networkId), UUID.fromString(groupUUID));
             networkDao.commit();
@@ -1164,7 +1180,7 @@ public class NetworkService extends NdexService {
 	 * 
 	 */
 
-	@POST
+/*	@POST
 	@Path("/{networkId}/member")
 	@Produces("application/json")
     @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
@@ -1211,10 +1227,81 @@ public class NetworkService extends NdexService {
 	        return count;
 		} finally {
 		}
-	}
+	} */
+
+	@POST
+	@Path("/{networkId}/member/user/{userId}")
+	@Produces("application/json")
+    @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
+            "specified by networkUUID. The permission is updated to the value specified in the 'permission' field of " +
+            "the Membership. This method returns 1 if the update is performed and 0 if the update is redundant, " +
+            "where the user already has the specified permission. It also returns an error if the authenticated user " +
+            "making the request does not have sufficient permissions or if the network or user is not found. It also " +
+            "returns an error if it would leave the network without any user having ADMIN permissions: NDEx does not " +
+            "permit networks to become 'orphans' without any owner. Because we only allow user to be the administrator of a network, "
+            + "Granting ADMIN permission to another user will move the admin privilege (ownership) from the network's"
+            + " previous administrator (owner) to the new user.")
+	public int updateNetworkUserMembership(
+			@PathParam("networkId") final String networkIdStr,
+			@PathParam("userId") final String userIdStr,
+			final Permissions permission
+			)
+			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
+
+		logger.info("[start: Updating membership for network {}]", networkIdStr);
+		
+		try (NetworkDAO networkDao = new NetworkDAO()){
+
+			User user = getLoggedInUser();
+			UUID networkId = UUID.fromString(networkIdStr);
+			
+			networkDao.checkMembershipOperationPermission(networkId, user.getExternalId());
+
+	        int count = networkDao.grantPrivilegeToUser(networkId, UUID.fromString(userIdStr), permission);
+	        			//networkDao.grantPrivilegeToGroup(networkId, membership.getMemberUUID(), membership.getPermissions());
+			networkDao.commit();
+			logger.info("[end: Updated membership for network {}]", networkId);
+	        return count;
+		} 
+	}	
 
 	
+	@POST
+	@Path("/{networkId}/member/group/{groupId}")
+	@Produces("application/json")
+    @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
+            "specified by networkUUID. The permission is updated to the value specified in the 'permission' field of " +
+            "the Membership. This method returns 1 if the update is performed and 0 if the update is redundant, " +
+            "where the user already has the specified permission. It also returns an error if the authenticated user " +
+            "making the request does not have sufficient permissions or if the network or user is not found. It also " +
+            "returns an error if it would leave the network without any user having ADMIN permissions: NDEx does not " +
+            "permit networks to become 'orphans' without any owner. Because we only allow user to be the administrator of a network, "
+            + "Granting ADMIN permission to another user will move the admin privilege (ownership) from the network's"
+            + " previous administrator (owner) to the new user.")
+	public int updateNetworkGroupMembership(
+			@PathParam("networkId") final String networkIdStr,
+			@PathParam("groupId") final String groupIdStr,
+			final Permissions permission
+			)
+			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
 
+		logger.info("[start: Updating membership for network {}]", networkIdStr);
+		
+		try (NetworkDAO networkDao = new NetworkDAO()){
+
+			User user = getLoggedInUser();
+			UUID networkId = UUID.fromString(networkIdStr);
+			
+			networkDao.checkMembershipOperationPermission(networkId,user.getExternalId());
+	        int count = networkDao.grantPrivilegeToGroup(networkId, UUID.fromString(groupIdStr), permission);
+			networkDao.commit();
+			logger.info("[end: Updated membership for network {}]", networkId);
+	        return count;
+		} 
+	}	
+	
+	
+	
 	@POST
 	@Path("/{networkId}/summary")
 	@Produces("application/json")
