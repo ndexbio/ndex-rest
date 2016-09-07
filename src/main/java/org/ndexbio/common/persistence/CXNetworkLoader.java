@@ -260,7 +260,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  Long subNetworkId = null;
 			  if (subNetworkIds.size()>1 )  {
 				  for ( Long i : subNetworkIds) {
-					  subNetworkIds.add(i);
+					  subNetworkId = i;
 					  break;
 				  }
 			  }

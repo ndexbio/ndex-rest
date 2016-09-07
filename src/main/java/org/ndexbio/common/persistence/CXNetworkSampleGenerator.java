@@ -10,15 +10,12 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
-import javax.naming.spi.DirStateFactory.Result;
-
 import org.cxio.aspects.datamodels.CyVisualPropertiesElement;
 import org.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
-import org.cxio.aspects.datamodels.SubNetworkElement;
 import org.cxio.aspects.readers.EdgeAttributesFragmentReader;
 import org.cxio.aspects.readers.EdgesFragmentReader;
 import org.cxio.aspects.readers.NetworkAttributesFragmentReader;
@@ -113,6 +110,8 @@ public class CXNetworkSampleGenerator implements AutoCloseable {
 		} 
 		inputStream.close();
 		
+		this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + ".cx");
+
 		// now pull out all the relevent aspect elements in the second round.
 		cxreader = createCXReader();
 		
@@ -141,7 +140,7 @@ public class CXNetworkSampleGenerator implements AutoCloseable {
 			case EdgeAttributesElement.ASPECT_NAME : // edge attributes
 				EdgeAttributesElement ea = (EdgeAttributesElement) elmt;
 				for ( Long id : ea.getPropertyOf()) {
-					if ( nodeIds.contains(id) && 
+					if ( result.getEdges().containsKey(id) && 
 							(subNetworkId == null || ea.getSubnetwork() == null || subNetworkId.equals(ea.getSubnetwork()))) {
 						result.addEdgeAttribute(id, ea);
 					}

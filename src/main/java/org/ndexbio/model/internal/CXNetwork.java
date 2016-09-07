@@ -5,14 +5,21 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
 
 import org.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
+import org.cxio.aspects.writers.EdgeAttributesFragmentWriter;
+import org.cxio.aspects.writers.EdgesFragmentWriter;
+import org.cxio.aspects.writers.NetworkAttributesFragmentWriter;
+import org.cxio.aspects.writers.NodeAttributesFragmentWriter;
+import org.cxio.aspects.writers.NodesFragmentWriter;
 import org.cxio.core.CxWriter;
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.core.interfaces.AspectFragmentWriter;
@@ -68,6 +75,8 @@ public class CXNetwork {
 		
 		nodeAttributes = new HashMap<> ();
 		edgeAttributes = new HashMap<> ();
+		
+		networkAttributes = new ArrayList<> ();
 		
 		nodeAssociatedAspects = new HashMap<>();
 		edgeAssociatedAspects = new HashMap<>();
@@ -154,28 +163,28 @@ public class CXNetwork {
 		this.namespaces = ns;
 	}
 	
+	public Map<Long, EdgesElement> getEdges () {
+		return this.edges;
+	}
+	
 	private static CxWriter getNdexCXWriter(OutputStream out, boolean use_default_pretty_printer) throws IOException {
         CxWriter cxwtr = CxWriter.createInstance(out, use_default_pretty_printer);
         
+        cxwtr.addAspectFragmentWriter(NodesFragmentWriter.createInstance());
+        cxwtr.addAspectFragmentWriter(EdgesFragmentWriter.createInstance());
+        cxwtr.addAspectFragmentWriter(NetworkAttributesFragmentWriter.createInstance());
+        cxwtr.addAspectFragmentWriter(EdgeAttributesFragmentWriter.createInstance());
+        cxwtr.addAspectFragmentWriter(NodeAttributesFragmentWriter.createInstance());
+        
         GeneralAspectFragmentWriter cfw = new GeneralAspectFragmentWriter(CitationElement.ASPECT_NAME);
-        
-        for (AspectFragmentWriter afw : CxioUtil.getAllAvailableAspectFragmentWriters() ) {
-        	cxwtr.addAspectFragmentWriter(afw);
-        }
-        
         cxwtr.addAspectFragmentWriter(cfw);
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(SupportElement.ASPECT_NAME));
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(NodeCitationLinksElement.ASPECT_NAME));
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(EdgeCitationLinksElement.ASPECT_NAME));
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(EdgeSupportLinksElement.ASPECT_NAME));
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(NodeSupportLinksElement.ASPECT_NAME));
-        cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(FunctionTermElement.ASPECT_NAME));
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(NamespacesElement.ASPECT_NAME));
-        cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(ReifiedEdgeElement.ASPECT_NAME));
-        cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(NdexNetworkStatus.ASPECT_NAME));
-        cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(Provenance.ASPECT_NAME));
-        cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(BELNamespaceElement.ASPECT_NAME));
-        
+      
         return cxwtr;
 	}
 	
@@ -199,10 +208,12 @@ public class CXNetwork {
         }
                 
         // write name, desc and other properties;
-        cxwtr.startAspectFragment(NetworkAttributesElement.ASPECT_NAME);
-        for ( AspectElement e: this.networkAttributes)
-        	cxwtr.writeAspectElement(e);
-        cxwtr.endAspectFragment();
+        if ( networkAttributes.size()>0) {
+        	cxwtr.startAspectFragment(NetworkAttributesElement.ASPECT_NAME);
+        	for ( AspectElement e: this.networkAttributes)
+        		cxwtr.writeAspectElement(e);
+        	cxwtr.endAspectFragment();
+        }
         
         cxwtr.startAspectFragment(NodesElement.ASPECT_NAME);
         for ( AspectElement e: this.nodes.values())
@@ -213,40 +224,49 @@ public class CXNetwork {
         for ( AspectElement e: this.edges.values())
         	cxwtr.writeAspectElement(e);
         cxwtr.endAspectFragment();
-
-        cxwtr.startAspectFragment(CitationElement.ASPECT_NAME);
-        for ( AspectElement e: this.citations.values())
-        	cxwtr.writeAspectElement(e);
-        cxwtr.endAspectFragment();
         
-        cxwtr.startAspectFragment(SupportElement.ASPECT_NAME);
-        for ( AspectElement e: this.supports.values())
-        	cxwtr.writeAspectElement(e);
-        cxwtr.endAspectFragment();
-        
-        cxwtr.startAspectFragment(NodeAttributesElement.ASPECT_NAME);
-        for ( Map.Entry<Long, Collection<NodeAttributesElement>> entry: this.nodeAttributes.entrySet()) {
-        	Long nodeId = entry.getKey();
-        	for ( NodeAttributesElement e : entry.getValue()) {
-        		ArrayList<Long> ids = new ArrayList<>(1);
-        		ids.add(nodeId);
-        		e.setPropertyOf(ids);
+        if ( citations.size()>0) {
+        	cxwtr.startAspectFragment(CitationElement.ASPECT_NAME);
+        	for ( AspectElement e: this.citations.values())
         		cxwtr.writeAspectElement(e);
-        	}		
-        }
-        cxwtr.endAspectFragment();
+        	cxwtr.endAspectFragment();
+        }	
         
-        cxwtr.startAspectFragment(EdgeAttributesElement.ASPECT_NAME);
-        for ( Map.Entry<Long, Collection<EdgeAttributesElement>> entry: this.edgeAttributes.entrySet()) {
-        	Long edgeId = entry.getKey();
-        	for ( EdgeAttributesElement e : entry.getValue()) {
-        		ArrayList<Long> ids = new ArrayList<>(1);
-        		ids.add(edgeId);
-        		e.setPropertyOf(ids);
+        if ( supports.size() > 0 ) {
+        	cxwtr.startAspectFragment(SupportElement.ASPECT_NAME);
+        
+        	for ( AspectElement e: this.supports.values())
         		cxwtr.writeAspectElement(e);
-        	}		
+        	cxwtr.endAspectFragment();
         }
-        cxwtr.endAspectFragment();
+        
+        if ( nodeAttributes.size() > 0 ) {
+        	cxwtr.startAspectFragment(NodeAttributesElement.ASPECT_NAME);
+        	for ( Map.Entry<Long, Collection<NodeAttributesElement>> entry: this.nodeAttributes.entrySet()) {
+        		Long nodeId = entry.getKey();
+        		for ( NodeAttributesElement e : entry.getValue()) {
+        			ArrayList<Long> ids = new ArrayList<>(1);
+        			ids.add(nodeId);
+        			e.setPropertyOf(ids);
+        			cxwtr.writeAspectElement(e);
+        		}		
+        	}
+        	cxwtr.endAspectFragment();
+        }
+        
+        if ( edgeAttributes.size() > 0) {
+        	cxwtr.startAspectFragment(EdgeAttributesElement.ASPECT_NAME);
+        	for ( Map.Entry<Long, Collection<EdgeAttributesElement>> entry: this.edgeAttributes.entrySet()) {
+        		Long edgeId = entry.getKey();
+        		for ( EdgeAttributesElement e : entry.getValue()) {
+        			ArrayList<Long> ids = new ArrayList<>(1);
+        			ids.add(edgeId);
+        			e.setPropertyOf(ids);
+        			cxwtr.writeAspectElement(e);
+        		}		
+        	}
+        	cxwtr.endAspectFragment();
+        }
 
         for (Map.Entry<String, Collection<AspectElement>> entry : this.opaqueAspects.entrySet()) {
         	 cxwtr.startAspectFragment(entry.getKey());
