@@ -397,89 +397,7 @@ public class NetworkService extends NdexService {
 			logger.info("[end: Updated properties of network {}]", networkId);
 		}
     }
-/*
-    @PUT
-	@Path("/{networkId}/presentationProperties")
-	@Produces("application/json")
-    @ApiDoc("Updates the'presentationProperties' field of the network specified by 'networkId' to be the list of " +
-            "SimplePropertyValuePair objects in the PUT data.")
-    
-    public int setNetworkPresentationProperties(
-    		@PathParam("networkId")final String networkId,
-    		final List<SimplePropertyValuePair> properties)
-    		throws Exception {
-
-    	throw new NdexException("This function is no longer supported.");
-    	
-    	//logger.info(userNameForLog() + "[start: Updating presentationProperties field of network " + networkId + "]");
-    	logger.info("[start: Updating presentationProperties field of network {}]", networkId);
-    	
-    	ODatabaseDocumentTx db = null;
-    	NetworkDAO daoNew = null;
-
-		try {
-			db = NdexDatabase.getInstance().getAConnection();
-			User user = getLoggedInUser();
-
-			if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getAccountName(),
-					Permissions.WRITE)) {
-				logger.error("[end: No write permissions for user account {} on network {}]",
-						user.getAccountName(), networkId);				
-		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
-			}
-
-			daoNew = new NetworkDAO(db);
-			UUID networkUUID = UUID.fromString(networkId);
-			
-			if(daoNew.networkIsReadOnly(networkId)) {
-				daoNew.close();
-				logger.info("[end: Can't update readonly network {}]", networkId);
-				throw new NdexException ("Can't update readonly network.");
-			}
-
-			
-			int i = daoNew.setNetworkPresentationProperties(networkUUID, properties);
-
-            //DW: Handle provenance
-            ProvenanceEntity oldProv = daoNew.getProvenance(networkUUID);
-            ProvenanceEntity newProv = new ProvenanceEntity();
-            newProv.setUri( oldProv.getUri() );
-
-            NetworkSummary summary = daoNew.getNetworkSummary(daoNew.getRecordByUUIDStr(networkId, null));
-            Helper.populateProvenanceEntity(newProv, summary);
-            ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_PRESENTATION_PROPERTIES, summary.getModificationTime());
-
-            List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
-            for( SimplePropertyValuePair vp : properties )
-            {
-                SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getName(), vp.getValue());
-                eventProperties.add(svp);
-            }
-            event.setProperties(eventProperties);
-            List<ProvenanceEntity> oldProvList = new ArrayList<>();
-            oldProvList.add(oldProv);
-            event.setInputs(oldProvList);
-
-            newProv.setCreationEvent(event);
-            daoNew.setProvenance(networkUUID, newProv);
-
-
-			daoNew.commit();
-			return i;
-		} catch (Exception e) {
-			if (null != daoNew) {
-				daoNew.rollback();
-				daoNew = null;
-			}
-			logger.error("[end: Updating presentationProperties field of network {}. Exception caught:]{}", networkId, e);
-			throw e;
-		} finally {
-			if (null != db) db.close();
-			logger.error("[end: Updating presentationProperties field of network {}]", networkId);
-		} 
-    }
-  */  
+  
 	/*
 	 *
 	 * Operations returning Networks 
@@ -541,50 +459,6 @@ public class NetworkService extends NdexService {
 		}						
 	}
 	
-	
-/*
- * Note: reimplement in service. or replaced by a get sample function.
-	@PermitAll
-	@GET
-	@Path("/{networkId}/edge/asNetwork/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-	@ApiDoc("This method retrieves a subnetwork of the network specified by 'networkId' based on a ‘block’ of " +
-	        "edges, where a ‘block’ is simply a set that is contiguous in the network as stored in the specific " +
-	        "NDEx Server. The maximum number of edges to retrieve in the query is set by 'blockSize' " +
-	        "(which may be any number chosen by the user) while 'skipBlocks' specifies the number of " +
-	        "blocks of edges in sequence to ignore before selecting the block to return. The subnetwork is " + 
-	        "returned as a Network object containing the edges specified by the query plus all of the other " +
- 	        "network elements relevant to the edges." +
-            "<br /><br />" +
-	        "This method is used by the NDEx Web UI to sample a network, enabling the user to view some " +
-	        "of the content of a large network without attempting to retrieve and load the full network. It can " + 
-	        "also be used to obtain a network in ‘chunks’, but it is anticipated that this use will be superseded "  +
-	        "by upcoming API methods that will enable streaming transfers of network content.")
-	public Network getEdges(
-			@PathParam("networkId") final String networkId,
-			@PathParam("skipBlocks") final int skipBlocks,
-			@PathParam("blockSize") final int blockSize)
-
-			throws IllegalArgumentException, NdexException {
-	
-    	logger.info("[start: Getting edges of network UUID='{}', skipBlocks={}, blockSize={}]", 
-    			networkId, skipBlocks, blockSize);
-	    
-    	try (NetworkDocDAO dao = new NetworkDocDAO()){
-			
-			if ( !isReadable(dao, networkId)) {
-				logger.error("[end: Network {} not readable for this user]", networkId);
-				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
-			}
-			Network n = dao.getNetwork(UUID.fromString(networkId), skipBlocks, blockSize);
-			logger.info("[end: Got edges of network UUID='{}', edgeCount={}]", 
-	    			networkId, ((null==n) ? 0 : n.getEdgeCount()));
-	        return n;
-		} 
-	}
-
-	
-*/
 	
 	@PermitAll
 	@POST
@@ -1000,74 +874,8 @@ public class NetworkService extends NdexService {
 	}  
 	*/
 	
-/*	
-	@PermitAll
-	@GET
-	@Path("/{networkId}/asPropertyGraph")
-	@Produces("application/json")
-    @ApiDoc("Retrieves an entire network specified by 'networkId' as a PropertyGraphNetwork object. A user may wish " +
-            "to retrieve a PropertyGraphNetwork rather than an ordinary Network when the would like to work with the " +
-            "network with a table-oriented data structure, for example, an R or Python data frame. (Compare this " +
-            "method to getCompleteNetwork).")
-	public PropertyGraphNetwork getCompleteNetworkAsPropertyGraph(
-			@PathParam("networkId") final String networkId)
 
-			throws IllegalArgumentException, NdexException, JsonProcessingException {
-		
-    	logger.info("[start: Retrieving an entire network {} as a PropertyGraphNetwork object]", networkId);
-		
-		if ( isReadable(networkId) ) {
-		
-			ODatabaseDocumentTx db =null;
-			try {
-				db = NdexDatabase.getInstance().getAConnection();
-				NetworkDAO daoNew = new NetworkDAO(db);
-				PropertyGraphNetwork n = daoNew.getProperytGraphNetworkById(UUID.fromString(networkId));
-				return n;
-			} finally {
-				if (db !=null ) db.close();
-		    	logger.info("[end: Retrieved an entire network {} as a PropertyGraphNetwork object]", networkId);
-			}
-		}
-		else {
-			logger.error("[end: User doesn't have read access network {}. Throwing  UnauthorizedOperationException]", networkId);
-			throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-		}
-	}
-*/
-/*	
-	@PermitAll
-	@GET
-	@Path("/{networkId}/edge/asPropertyGraph/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-    @ApiDoc("Retrieves a subnetwork of a network based on a block (where a block is simply a contiguous set) of edges" +
-            ". The network is specified by 'networkId'  and the maximum number of edges to retrieve in the query is " +
-            "set by 'blockSize' (which may be any number chosen by the user) while  'skipBlocks' specifies number of " +
-            "blocks that have already been read.   The subnetwork is returned as a PropertyGraphNetwork object " +
-            "containing the PropertyGraphEdge objects specified by the query along with all of the PropertyGraphNode " +
-            "objects and network information relevant to the edges. (Compare this method to getEdges).")
-	public PropertyGraphNetwork getPropertyGraphEdges(
-			@PathParam("networkId") final String networkId,
-			@PathParam("skipBlocks") final int skipBlocks,
-			@PathParam("blockSize") final int blockSize)
 
-			throws IllegalArgumentException, NdexException {
-
-    	logger.info("[start: Retrieving a subnetwork of network {}, skipBlocks {}, blockSize {}]", 
-    			networkId, skipBlocks, blockSize);
-		try (NetworkDAO dao = new NetworkDAO()) {
-		
-			if ( !isReadable(dao, networkId)) {
-				logger.error("[end: Network {} not readable for this user]", networkId);
-				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
-			}
-
-			PropertyGraphNetwork n = dao.getProperytGraphNetworkById(UUID.fromString(networkId),skipBlocks, blockSize);
-			logger.info("[start: Retrieved a subnetwork of network {}]", networkId);
-			return n;
-		}
-	}
-*/
 	/**************************************************************************
 	 * Retrieves array of user membership objects
 	 *

@@ -40,8 +40,10 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
 
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.*;
+import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.ResponseType;
@@ -53,7 +55,6 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-
 
 public class RequestDAO extends NdexDBDAO  {
 	private static final Logger logger = Logger.getLogger(RequestDAO.class.getName());
@@ -108,24 +109,39 @@ public class RequestDAO extends NdexDBDAO  {
 		Preconditions.checkArgument(account != null,
 				"Must be logged in to make a request");
 		
-		if ( newRequest.getSourceUUID() !=null && !newRequest.getSourceUUID().equals(account.getExternalId())) {
-			throw new NdexException ("Creating request for other users are not allowed.");
-		} 
-		
-		if ( newRequest.getPermission() == Permissions.GROUPADMIN || 
-				newRequest.getPermission() == Permissions.MEMBER) {
-			try (GroupDAO gdao = new GroupDAO ()) {
+		if( newRequest.getPermission().equals(Permissions.GROUPADMIN) || newRequest.getPermission().equals(Permissions.MEMBER)) {
+			try (GroupDAO dao = new GroupDAO()) {
 				try {
-					 gdao.getGroupById(newRequest.getDestinationUUID());
+					dao.getGroupById(newRequest.getSourceUUID());
+					throw new NdexException("Group cannot request access to group");
+				} catch(ObjectNotFoundException e) {/* all good */}		
+				
+				try {
+					 dao.getGroupById(newRequest.getDestinationUUID());
 				} catch ( ObjectNotFoundException e) {
 					throw new NdexException ("Destination of group permission request has to be a group");
-				}				
+				}	
 			}
+
 		} 
-				
+	
+		try (GroupDAO dao = new GroupDAO()) {
+			try {
+				Group g = dao.getGroupById(newRequest.getSourceUUID());
+				if ( !dao.isGroupAdmin(g.getExternalId(), account.getExternalId()))
+					 new NdexException("Not admin of specified group");
+			} catch (ObjectNotFoundException e) {
+				if ( newRequest.getSourceUUID() !=null && !newRequest.getSourceUUID().equals(account.getExternalId())) {
+					throw new NdexException ("Creating request for other users are not allowed.");
+				} 
+			}
+		}
+		
+		//TODO: check if the same request exists.
+			
 		String insertStr = "insert into request (\"UUID\", creation_time, modification_time, is_deleted, sourceuuid,"
-				+ "destinationuuid,requestmessage,requestpremission)"
-				+ "values ( ?,?,?,false,?, ?,?,?,?,?,?)";
+				+ "destinationuuid,requestmessage,requestpermission, owner_id,response)"
+				+ "values ( ?,?,?,false,?, ?,?,?,?,?)";
 		
 		Timestamp currentTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
 		newRequest.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
@@ -134,13 +150,15 @@ public class RequestDAO extends NdexDBDAO  {
 		
 		
 		try (PreparedStatement pst = db.prepareStatement(insertStr)) {
-			pst.setObject(1, account.getExternalId());
+			pst.setObject(1, newRequest.getExternalId());
 			pst.setTimestamp(2, newRequest.getCreationTime());
 			pst.setTimestamp(3, newRequest.getModificationTime());
 			pst.setObject(4, newRequest.getSourceUUID());
 			pst.setObject(5, newRequest.getDestinationUUID());
 			pst.setObject(6, newRequest.getMessage());
 			pst.setString(7, newRequest.getPermission().toString());	
+			pst.setObject(8, account.getExternalId());
+			pst.setString(9, newRequest.getResponse().name());
 			pst.executeUpdate();
 		}
 		
@@ -162,18 +180,18 @@ public class RequestDAO extends NdexDBDAO  {
 	    *            Failed to delete the request from the database.
 	 * @throws SQLException 
 	    **************************************************************************/
-	public void deleteRequest(UUID requestId, User account)
+	public void deleteRequest(UUID requestId, UUID ownerId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			NdexException, SQLException {
 		Preconditions.checkArgument( requestId != null,
 				"A request id is required");
-		Preconditions.checkArgument( account != null,
+		Preconditions.checkArgument( ownerId != null,
 				"A user must be logged in");
 		
-		String updateStr = "update request set is_deleted = true where \"UUID\" = ? and owneruuid = ?";
+		String updateStr = "update request set is_deleted = true where \"UUID\" = ? and owner_id = ?";
 		try ( PreparedStatement pst = db.prepareStatement(updateStr)) {
 			pst.setObject(1, requestId);
-			pst.setObject(2, account.getExternalId());
+			pst.setObject(2, ownerId);
 			
 			int cnt = pst.executeUpdate();
 			if ( cnt != 1 ) {
@@ -255,15 +273,20 @@ public class RequestDAO extends NdexDBDAO  {
 
 		final List<Request> requests = new ArrayList<>();
 
-		String queryStr = "select * from request where destinationuuid = ? and is_deleted = false and response = ? order by creation_time desc";
-		
+		String queryStr = "select a.* from ( select r.* from request r, network n "
+				+ "where n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and "
+				+ "(r.response is null or r.response = '"+ ResponseType.PENDING.name()+ "') and r.is_deleted =false "
+				+ "union select r2.* from request r2, ndex_group_user gu "
+				+ "where gu.group_id = r2.destinationuuid and gu.user_id = ? and gu.is_admin and "
+				+ "( r2.response is null or r2.response = '"+ ResponseType.PENDING.name()+ "') and r2.is_deleted=false) a ";
+						
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
 		}
 		
 		try ( PreparedStatement pst = db.prepareStatement(queryStr)) {
 			pst.setObject(1, userId);
-			pst.setString(2, ResponseType.PENDING.toString());
+			pst.setObject(2, userId);
 			try ( ResultSet rs = pst.executeQuery()) {
 				while ( rs.next()) {
 					Request r = getRequestFromResultSet(rs);
@@ -297,7 +320,7 @@ public class RequestDAO extends NdexDBDAO  {
 
 		final List<Request> requests = new ArrayList<>();
 
-		String queryStr = "select * from request where owneruuid = ? and is_deleted = false order by creation_time desc";
+		String queryStr = "select * from request where owner_id = ? and is_deleted = false order by creation_time desc";
 		
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
@@ -319,7 +342,8 @@ public class RequestDAO extends NdexDBDAO  {
 
 
 	/**************************************************************************
-	    * Updates a request.
+	    * Updates a request. Should only be called by the users who are targets of this request.
+	    * This function is used as a response as a request, so only the reponsepart will be updated.
 	    * 
 	    * @param requestId
 	    * 			UUID for request
@@ -331,9 +355,10 @@ public class RequestDAO extends NdexDBDAO  {
 	    *            Bad input.
 	    * @throws NdexException
 	    *            Failed to update the request in the database.
+	 * @throws SQLException 
 	    **************************************************************************/
-/*	public void updateRequest(UUID requestId, Request updatedRequest, User account)
-			throws IllegalArgumentException, NdexException {
+	public void updateRequest(UUID requestId, Request updatedRequest, User account)
+			throws IllegalArgumentException, NdexException, SQLException {
 		Preconditions.checkArgument(null != updatedRequest,
 				"A Request object is required");
 		Preconditions.checkArgument(updatedRequest.getResponse().equals(ResponseType.ACCEPTED)
@@ -342,41 +367,51 @@ public class RequestDAO extends NdexDBDAO  {
 		Preconditions.checkArgument(account != null,
 				"Must be logged in to update a request");
 
-		ODocument request = this.getRecordByUUID(requestId, NdexClasses.Request);
-		ODocument responder = this.getRecordByUUID(account.getExternalId(), NdexClasses.User);
-
-		try {
-			
-			OrientVertex vRequest = this.graph.getVertex(request);
-			
-			boolean canModify = false;
-			for(Vertex v : vRequest.getVertices(Direction.OUT, "requests")) {
-				if( ((OrientVertex) v).getIdentity().equals(responder.getIdentity()) )
-					canModify = true;
+					
+		if (userIsRequestDestination(requestId,account.getExternalId())) {
+			String sql = "update request set responder = ? , response = ?, responsemessage = ?, responsetime = localtimestamp "
+					+ "where \"UUID\" = ? and is_deleted=false ";
+			try ( PreparedStatement p = db.prepareStatement(sql)) {
+				p.setString(1, account.getUserName() );
+				p.setString(2, updatedRequest.getResponse().name());
+				p.setString(3, updatedRequest.getResponseMessage());
+				p.setObject(4, requestId);
+				p.executeUpdate();
 			}
 			
-			if(canModify) {
-				logger.info("User credentials match with request");
-				
-				request.field("responder", account.getAccountName());
-				request.field(NdexClasses.ExternalObj_mTime, new Date());
-				if(updatedRequest.getPermission() != null) request.field("requestPermission", updatedRequest.getPermission().name());
-				if(!Strings.isNullOrEmpty( updatedRequest.getResponseMessage() )) request.field("responseMessage", updatedRequest.getResponseMessage() );
-				if(!Strings.isNullOrEmpty( updatedRequest.getResponse().name() )) request.field("response", updatedRequest.getResponse().name());
-				request.field(NdexClasses.Request_P_responseTime, new Date());
-				request.save();
-				logger.info("Request has been updated. UUID : " + requestId.toString());
-				
-			} else {
-				logger.severe("Account is not a recipient or sender of request");
-				throw new NdexException(""); // message will not be saved
-			}
+			logger.info("Request has been updated. UUID : " + requestId.toString());
+		
 			
-		} catch (Exception e) {
-			logger.severe("Unable to update request. UUID : " +  requestId.toString());
+		} else {
+			logger.severe("Unable to update request. Account is not a recipient of request.");
 			throw new NdexException("Failed to update the request.");
 		} 
-	} */
+	} 
+	
+	/**
+	 * Returns true if the given user is the destination of the given request.
+	 * @param requestId
+	 * @param userId
+	 * @return
+	 * @throws SQLException 
+	 */
+	
+	private boolean userIsRequestDestination (UUID requestId, UUID userId) throws SQLException {
+		String sql = "select 1 from request r, network n where r.\"UUID\" = ? and "
+				+ "n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and r.is_deleted =false "
+				+ "union select 1 from request r2, ndex_group_user gu "
+				+ "where r2.\"UUID\" = ? and gu.group_id = r2.destinationuuid and gu.user_id = ? and gu.is_admin and r2.is_deleted=false";
+		try (PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, requestId);
+			p.setObject(2, userId);
+			p.setObject(3, requestId);
+			p.setObject(4, userId);
+			try ( ResultSet rs = p.executeQuery()) {
+					return rs.next();
+			}
+		}
+	}
+	
 	
 /*
 	

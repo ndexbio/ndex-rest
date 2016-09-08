@@ -42,19 +42,18 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
-import org.ndexbio.common.access.NdexDatabase;
+
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-
-import org.slf4j.Logger;
 
 @Path("/request")
 public class RequestService extends NdexService
@@ -118,7 +117,7 @@ public class RequestService extends NdexService
 		
 		try (RequestDAO dao = new RequestDAO()) {
 			
-			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUser());
+			dao.deleteRequest(UUID.fromString(requestId), this.getLoggedInUserId());
 			dao.commit();
 		} finally {
 			logger.info("[end: Request deleted]");
@@ -157,9 +156,10 @@ public class RequestService extends NdexService
 
     /**************************************************************************
     * Updates a request.
+     * @throws SQLException 
     * 
     **************************************************************************/
-/*   @POST
+   @POST
     @Path("/{requestId}")
     @Produces("application/json")
 	@ApiDoc("Updates a request corresponding to the POSTed request JSON structure. " +
@@ -167,19 +167,16 @@ public class RequestService extends NdexService
 			"Errors if requestId is not specified or if request is not found." +
 			"If the response field of the request is updated such that the request is accepted, then the action associated with the request is performed.")
     public void updateRequest(@PathParam("requestId")final String requestId, final Request updatedRequest)
-    		throws IllegalArgumentException, NdexException {
+    		throws IllegalArgumentException, NdexException, SQLException {
   
 		logger.info("[start: Updating request {}]", requestId);
 		
-		try  {
+		try (RequestDAO dao = new RequestDAO()) {
 			dao.updateRequest(UUID.fromString(requestId), updatedRequest, this.getLoggedInUser());
 			dao.commit();
 		} finally {
 			logger.info("[end: Updated request {}]", requestId);
 		}
     }
-    
-*/
-    //TODO: need a API function to response a request.
-    
+        
 }

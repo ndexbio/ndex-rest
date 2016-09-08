@@ -210,7 +210,8 @@ CREATE TABLE network (
     cxmetadata jsonb,
     version character varying(100),
     ndexdoi character varying(200),
-    is_validated boolean DEFAULT false
+    is_validated boolean DEFAULT false,
+    readonly boolean
 );
 
 
@@ -240,7 +241,8 @@ CREATE TABLE request (
     requestpermission character varying(1000),
     responsetime timestamp without time zone,
     other_attributes jsonb,
-    responder character varying(200)
+    responder character varying(200),
+    owner_id uuid
 );
 
 
@@ -251,6 +253,13 @@ ALTER TABLE request OWNER TO ndexserver;
 --
 
 COMMENT ON TABLE request IS 'request info.';
+
+
+--
+-- Name: COLUMN request.owner_id; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN request.owner_id IS 'The owner of this request.';
 
 
 --
@@ -427,6 +436,20 @@ CREATE INDEX network_owneruuid_idx ON network USING btree (owneruuid);
 
 
 --
+-- Name: request_destinationuuid_idx; Type: INDEX; Schema: core; Owner: ndexserver
+--
+
+CREATE INDEX request_destinationuuid_idx ON request USING btree (destinationuuid) WHERE (is_deleted = false);
+
+
+--
+-- Name: request_owner_id_idx; Type: INDEX; Schema: core; Owner: ndexserver
+--
+
+CREATE INDEX request_owner_id_idx ON request USING btree (owner_id) WHERE (is_deleted = false);
+
+
+--
 -- Name: task_owner_index; Type: INDEX; Schema: core; Owner: ndexserver
 --
 
@@ -475,6 +498,14 @@ ALTER TABLE ONLY ndex_group_user
 
 ALTER TABLE ONLY ndex_group_user
     ADD CONSTRAINT "groupUser_userUUID_fkey" FOREIGN KEY (user_id) REFERENCES ndex_user("UUID");
+
+
+--
+-- Name: request_owner_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: ndexserver
+--
+
+ALTER TABLE ONLY request
+    ADD CONSTRAINT request_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES ndex_user("UUID");
 
 
 --

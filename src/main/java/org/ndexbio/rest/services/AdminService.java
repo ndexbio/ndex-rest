@@ -148,7 +148,7 @@ public class AdminService extends NdexService {
 	        try {
 	    		NdexDatabase.close();
 	        	server.stop();
-	        } catch (Exception e) {}
+	        } catch (Exception e) {/* */}
 		}
 		return;
 	}
