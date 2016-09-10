@@ -31,10 +31,13 @@
 package org.ndexbio.rest;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.IOException;
 import java.util.Properties;
 
 import javax.naming.InitialContext;
+import javax.naming.NamingException;
 
 import org.ndexbio.model.exceptions.NdexException;
 import org.slf4j.Logger;
@@ -83,12 +86,14 @@ public class Configuration
     
     /**************************************************************************
     * Default constructor. Made private to prevent instantiation. 
+     * @throws NamingException 
      * @throws NdexException 
+     * @throws IOException 
+     * @throws FileNotFoundException 
     **************************************************************************/
-    private Configuration() throws NdexException
+    private Configuration() throws NamingException, NdexException, FileNotFoundException, IOException
     {
-        try
-        {
+   //     try {
         	String configFilePath = System.getenv("ndexConfigurationPath");
         	
         	if ( configFilePath == null) {
@@ -138,12 +143,12 @@ public class Configuration
             } else {
             	setUseADAuthentication(false);
             }
-        }
+   /*     } 
         catch (Exception e)
         {
             _logger.error("Failed to load the configuration file.", e);
             throw new NdexException ("Failed to load the configuration file. " + e.getMessage());
-        }
+        } */
     }
     
     /*
@@ -182,11 +187,18 @@ public class Configuration
     /**************************************************************************
     * Gets the singleton instance. 
      * @throws NdexException 
+     * @throws IOException 
+     * @throws NamingException 
+     * @throws FileNotFoundException 
     **************************************************************************/
     public static Configuration getInstance() throws NdexException
     {
     	if ( INSTANCE == null)  { 
-    		INSTANCE = new Configuration();
+    		try {
+    			INSTANCE = new Configuration();
+    		} catch (  NamingException | IOException e) {
+    			throw new NdexException ( "Failed to get Configurtion Instance: " + e.getMessage(), e);
+    		}
     	}
         return INSTANCE;
     }

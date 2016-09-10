@@ -51,6 +51,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
+import org.cxio.metadata.MetaDataCollection;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
 //import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO.NetworkResultComparator;
@@ -185,8 +186,9 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws NdexException 
 	 * @throws JsonProcessingException 
 	 */
-	public void populateNetworkEntry(NetworkSummary networkSummary) throws SQLException, NdexException, JsonProcessingException {
-		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, properties = ? ::jsonb,"
+	public void populateNetworkEntry(NetworkSummary networkSummary, ProvenanceEntity provenance, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
+		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
+				+ "properties = ? ::jsonb, provenance = ? :: jsonb, cxmetadata = ? :: json"
 				+ " is_validated =true where \"UUID\" = ?";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setString(1,networkSummary.getName());
@@ -203,7 +205,21 @@ public class NetworkDAO extends NdexDBDAO {
 				pst.setString(6, null);
 			}
 			
-			pst.setObject(7, networkSummary.getExternalId());
+			if ( provenance != null ) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( provenance);
+				pst.setString(7, s);
+			} else 
+				pst.setString(7, null);
+				
+			if (metadata !=null) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( metadata);
+				pst.setString(8, s);
+			}	else 
+				pst.setString(8, null);
+			
+			pst.setObject(9, networkSummary.getExternalId());
 			int i = pst.executeUpdate();
 			if ( i != 1)
 				throw new NdexException ("Failed to update network summary entry in db.");
@@ -935,4 +951,26 @@ public class NetworkDAO extends NdexDBDAO {
         	return c;	
         }
     }
+    
+    /**
+     * Becareful when using this function, it commit the db connection of the current DAO object.
+     * 
+     * @param networkId
+     * @param ErrorMessage
+     */
+    public void setErrorMessage(UUID networkId, String ErrorMessage) {
+    	String sql = "update network set error = ? where \"UUID\" = ? and is_deleted=false";
+    	try ( PreparedStatement pst = db.prepareStatement(sql)) {
+    		pst.setString(1, ErrorMessage);
+    		pst.setObject(2, networkId);
+    		int i = pst.executeUpdate();
+    		if ( i !=1)
+    			logger.severe("Update statement for network " + networkId + " doesn't returned row count " + i + ". sql=" + sql);
+    		db.commit();
+    	} catch (SQLException e) {
+    		logger.severe("Failed to set error messge for network " + networkId + ": " + e.getMessage());
+    	}
+    
+    }
+    
 }

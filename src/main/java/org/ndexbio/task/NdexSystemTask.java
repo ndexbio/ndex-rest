@@ -3,5 +3,5 @@ package org.ndexbio.task;
 
 public interface NdexSystemTask {
 
-	public void run () throws Exception;
+	public void run () ;
 }

@@ -180,9 +180,13 @@ public class CXNetworkSampleGenerator implements AutoCloseable {
 	}
 	
 	@Override
-	public void close() throws Exception {
-		// TODO Auto-generated method stub
-		inputStream.close();
+	public void close() {
+			try {
+				inputStream.close();
+			} catch (IOException e) {
+				System.out.println("failed to colse inputStream: " + e.getMessage());
+				e.printStackTrace();
+			}
 	}
 
 }

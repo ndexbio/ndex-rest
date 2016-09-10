@@ -597,7 +597,7 @@ public class UserDAO extends NdexDBDAO {
 			throw new IllegalArgumentException("Valid permissions required.");
 		}
 		
-		queryStr = "select b.network_id, b,permission_type, n.name from (" + queryStr + ") b, network n2 where n2.\"UUID\"= b.network_id and n2.is_deleted =false";
+		queryStr = "select b.network_id, b.permission_type, n2.name from (" + queryStr + ") b, network n2 where n2.\"UUID\"= b.network_id and n2.is_deleted =false";
 		
 	/*	if ( loggedInUserId == null) {
 			queryStr =  queryStr + " and n2.visibility='PUBLIC'";
@@ -624,7 +624,8 @@ public class UserDAO extends NdexDBDAO {
 					membership.setMembershipType(MembershipType.NETWORK);
 					membership.setMemberAccountName(user.getUserName());
 					membership.setMemberUUID(userId);
-					membership.setPermissions(Permissions.valueOf(rs.getString(2)));
+					String pp = rs.getString(2);
+					membership.setPermissions(Permissions.valueOf(pp));
 					membership.setResourceName(rs.getString(3));
 					membership.setResourceUUID(UUID.fromString( rs.getString(1)));
 

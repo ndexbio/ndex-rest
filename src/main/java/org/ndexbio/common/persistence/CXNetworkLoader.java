@@ -30,6 +30,8 @@
  */
 package org.ndexbio.common.persistence;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -37,16 +39,14 @@ import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-
-import javax.naming.spi.DirStateFactory.Result;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.EdgesElement;
@@ -63,6 +63,7 @@ import org.cxio.core.CxElementReader;
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.core.interfaces.AspectFragmentReader;
 import org.cxio.metadata.MetaDataCollection;
+import org.cxio.metadata.MetaDataElement;
 import org.cxio.misc.OpaqueElement;
 import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
@@ -89,12 +90,6 @@ import org.ndexbio.rest.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-
-
 public class CXNetworkLoader implements AutoCloseable {
 	
     protected static Logger logger = LoggerFactory.getLogger(CXNetworkLoader.class);
@@ -104,24 +99,18 @@ public class CXNetworkLoader implements AutoCloseable {
 	private long counter;
 	
 	private InputStream inputStream;
-//	private NdexDatabase ndexdb;
 	private String ownerName;
 	private UUID networkId;
 
     private String rootPath;
 	
     //mapping tables mapping from element SID to internal ID. 
-	private Set<Long> nodeIds;
-	private Set<Long> edgeIds;
-	private Set<Long> citationIds;
-	private Set<Long> supportIds;
-	private Map<String, Long> namespaceMap;   // prefix to nsID mapping.
+	private AspectElementIdTracker nodeIdTracker;
+	private AspectElementIdTracker edgeIdTracker;
+	private AspectElementIdTracker citationIdTracker;
+	private AspectElementIdTracker supportIdTracker;
 	
-	// tables to track undefined Elements. Stores element SIDs
-	private Set<Long> undefinedNodeId;
-	private Set<Long> undefinedEdgeId;
-	private Set<Long> undefinedCitationId;
-	private Set<Long> undefinedSupportId;
+//	private Map<String, Long> namespaceMap;   // prefix to nsID mapping.
 	
 	private Provenance provenanceHistory;
 	private Set<Long> subNetworkIds;
@@ -133,6 +122,8 @@ public class CXNetworkLoader implements AutoCloseable {
 	private String networkName ;
 	private String description;
 	private String version;
+	
+	private MetaDataCollection metadata;
 	
 	private List<NdexPropertyValuePair> properties;
 	
@@ -170,30 +161,22 @@ public class CXNetworkLoader implements AutoCloseable {
 		opaqueCounter = 0;
 		counter =0; 
 		
-		nodeIds = new TreeSet<>();
-		edgeIds = new TreeSet<> ();
-		citationIds = new TreeSet<> ();
-		supportIds = new TreeSet<> ();
-		this.namespaceMap = new TreeMap<>();
+		nodeIdTracker = new AspectElementIdTracker(NodesElement.ASPECT_NAME);
+		edgeIdTracker = new AspectElementIdTracker(EdgesElement.ASPECT_NAME);
+		citationIdTracker = new AspectElementIdTracker(CitationElement.ASPECT_NAME);
+		supportIdTracker = new AspectElementIdTracker(SupportElement.ASPECT_NAME);
 		
-		undefinedNodeId = new TreeSet<>();
-		undefinedEdgeId = new TreeSet<>();
-		undefinedSupportId = new TreeSet<>();
-		undefinedCitationId = new TreeSet<>();
+	//	this.namespaceMap = new TreeMap<>();
 
 		aspectTable = new TreeMap<>();
 		this.subNetworkIds = new HashSet<>(10);
-
-		
+	
 		provenanceHistory = null;
 		
 		networkName = null;
 		description = null;
 		version = null;
 		properties = new ArrayList<>();
-		
-	//	declaredNodeCount = -1 ;
-	//	declaredEdgeCount = -1;
 		
 	}
 	
@@ -222,9 +205,9 @@ public class CXNetworkLoader implements AutoCloseable {
 				   readers);
 	}
 	
-	public void persistCXNetwork() throws ObjectNotFoundException, NdexException {
+	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {
 		        	    
-	    try {
+	 //   try {
 	    	
 	      //Create dir
 		  java.nio.file.Path dir = Paths.get(rootPath);
@@ -238,8 +221,8 @@ public class CXNetworkLoader implements AutoCloseable {
 				//handle the network properties 
 				summary.setExternalId(this.networkId);
 				summary.setVisibility(VisibilityType.PRIVATE);
-				summary.setEdgeCount(this.edgeIds.size());
-				summary.setNodeCount(this.nodeIds.size());
+				summary.setEdgeCount(this.edgeIdTracker.getDefinedElementSize());
+				summary.setNodeCount(this.nodeIdTracker.getDefinedElementSize());
 				
 				Timestamp t = dao.getNetworkCreationTime(this.networkId)	;
 				summary.setCreationTime(t);
@@ -248,41 +231,46 @@ public class CXNetworkLoader implements AutoCloseable {
 				summary.setName(this.networkName);
 				summary.setDescription(this.description);
 				summary.setVersion(this.version);
-				dao.populateNetworkEntry(summary);
-				dao.commit();
-		  }
-		
-		  createSolrIndex(summary);
+				try {
+					dao.populateNetworkEntry(summary, provenanceHistory.getEntity(), metadata);
+					dao.commit();
+				} catch (SQLException e) {
+					dao.rollback();	
+					throw new NdexException ("DB error when saving network summary: " + e.getMessage(), e);
+				}
 		  
-		  // create the network sample if the network has more than 500 edges
-		  if (edgeIds.size() > CXNetworkSampleGenerator.sampleSize)  {
-			  
-			  Long subNetworkId = null;
-			  if (subNetworkIds.size()>1 )  {
-				  for ( Long i : subNetworkIds) {
-					  subNetworkId = i;
-					  break;
-				  }
-			  }
-			  try ( CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId) ) {
-				  g.createSampleNetwork();
-			  }
-			  
-		  }
-			  
+				createSolrIndex(summary);
 		  
-		  
-		  try ( NetworkDAO dao = new NetworkDAO()) {
-			  dao.setFlag(this.networkId, "iscomplete", true);
-			  dao.commit();
-		  }
-		
-		} catch (Exception e) {
+				// create the network sample if the network has more than 500 edges
+				if (summary.getEdgeCount() > CXNetworkSampleGenerator.sampleSize)  {
+			  
+					Long subNetworkId = null;
+					if (subNetworkIds.size()>1 )  {
+						for ( Long i : subNetworkIds) {
+							subNetworkId = i;
+							break;
+						}
+					}
+					try ( CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId) ) {
+						g.createSampleNetwork();
+					}
+			  
+				}
+			  
+				try {
+					dao.setFlag(this.networkId, "iscomplete", true);
+					dao.commit();
+				} catch (SQLException e) {
+					dao.rollback();
+					throw new NdexException ("DB error when setting iscomplete flag: " + e.getMessage(), e);
+				}
+		  } 
+	/*    }  catch (Exception e) {
 			// delete network and close the database connection
 			e.printStackTrace();
 	//		this.abortTransaction();
 			throw new NdexException("Error occurred when loading CX stream. " + e.getMessage());
-		} 
+		} */
        
 	}
 
@@ -293,7 +281,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		CxElementReader cxreader = createCXReader();
 		  
-		MetaDataCollection metadata = cxreader.getPreMetaData();
+	    metadata = cxreader.getPreMetaData();
 		
 		for ( AspectElement elmt : cxreader ) {
 			switch ( elmt.getAspectName() ) {
@@ -314,6 +302,28 @@ public class CXNetworkLoader implements AutoCloseable {
 				case NetworkAttributesElement.ASPECT_NAME: //network attributes
 					createNetworkAttribute(( NetworkAttributesElement) elmt);
 					break;
+				case CitationElement.ASPECT_NAME: 
+					createCXCitation((CitationElement)elmt);
+					break;
+				case SupportElement.ASPECT_NAME:
+					createCXSupport((SupportElement)elmt);
+					break;
+				case EdgeCitationLinksElement.ASPECT_NAME:
+					createEdgeCitation((EdgeCitationLinksElement) elmt);
+					break;
+				case EdgeSupportLinksElement.ASPECT_NAME:
+					createEdgeSupport((EdgeSupportLinksElement) elmt);
+					break;
+				case NodeSupportLinksElement.ASPECT_NAME:
+					createNodeSupport((NodeSupportLinksElement) elmt);
+					break;
+				case NodeCitationLinksElement.ASPECT_NAME:
+					createNodeCitation((NodeCitationLinksElement) elmt);
+					break;
+				case Provenance.ASPECT_NAME:   // we only save the provenance aspect in db not in the disk.
+			//		createAspectElement(elmt);
+					this.provenanceHistory = (Provenance)elmt;
+					break;
 				default:    // opaque aspect
 					createAspectElement(elmt);
 					if ( elmt.getAspectName().equals("subNetworks") 
@@ -324,23 +334,11 @@ public class CXNetworkLoader implements AutoCloseable {
 			}
 
 		} 
-/*		  // check data integrity.
-		  if ( !undefinedNodeId.isEmpty()) {
-			  String errorMessage = undefinedNodeId.size() + "undefined nodes found in CX stream: [";
-			  for( Long sid : undefinedNodeId)
-				  errorMessage += sid + " ";		  
-			  logger.error(errorMessage);
-			  throw new NdexException(errorMessage );
-		  } 
-		  
-		  if ( !undefinedEdgeId.isEmpty()) {
-			  String errorMessage = undefinedEdgeId.size() + "undefined edges found in CX stream: [";
-			  for( Long sid : undefinedEdgeId)
-				  errorMessage += sid + " ";		  
-			  logger.error(errorMessage);
-			  throw new NdexException(errorMessage );
-		  }
-		  //TODO: check citation and supports
+		  // check data integrity.
+		  nodeIdTracker.checkUndefinedIds();
+		  edgeIdTracker.checkUndefinedIds();
+		  supportIdTracker.checkUndefinedIds();
+		  citationIdTracker.checkUndefinedIds();
 		  
 		  //save the metadata
 		  MetaDataCollection postmetadata = cxreader.getPostMetaData();
@@ -371,9 +369,14 @@ public class CXNetworkLoader implements AutoCloseable {
 								  e.getName().equals(SupportElement.ASPECT_NAME))) {  
 					   if ( e.getIdCounter() == null )
 						   throw new NdexException ( "Idcounter value is not found in metadata of aspect " + e.getName());
-					   if ( e.getName().equals(NodesElement.ASPECT_NAME) && e.getElementCount() !=null && nodeSIDMap.size()!=e.getElementCount())
-						   throw new NdexException("ActualNodeCount in CX stream is " + nodeSIDMap.size() + ", but metadata says it's " + e.getElementCount());
-					   //TODO: check other 3 aspects too.
+					   if ( e.getName().equals(NodesElement.ASPECT_NAME) && e.getElementCount() !=null && nodeIdTracker.getDefinedElementSize() != (e.getElementCount().intValue()))
+						   throw new NdexException("Actual node count in CX stream is " + nodeIdTracker.getDefinedElementSize() + ", but metadata says it's " + e.getElementCount());
+					   else if ( e.getName().equals(EdgesElement.ASPECT_NAME) && e.getElementCount() !=null && edgeIdTracker.getDefinedElementSize() != (e.getElementCount().intValue()))
+						   throw new NdexException("Actual edge count in CX stream is " + nodeIdTracker.getDefinedElementSize() + ", but metadata says it's " + e.getElementCount());
+					   else if ( e.getName().equals(CitationElement.ASPECT_NAME) && e.getElementCount() !=null && citationIdTracker.getDefinedElementSize() != (e.getElementCount().intValue()))
+						   throw new NdexException("Actual citation count in CX stream is " + citationIdTracker.getDefinedElementSize() + ", but metadata says it's " + e.getElementCount());
+					   else if ( e.getName().equals(SupportElement.ASPECT_NAME) && e.getElementCount() !=null && supportIdTracker.getDefinedElementSize() != (e.getElementCount().intValue()))
+						   throw new NdexException("Actual support count in CX stream is " + supportIdTracker.getDefinedElementSize() + ", but metadata says it's " + e.getElementCount());
 				  }
 			  }
 			  Long consistencyGrp = metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup();
@@ -390,24 +393,18 @@ public class CXNetworkLoader implements AutoCloseable {
 			  }
 			  e.setLastUpdate(modificationTime.getTime());
 			  
-			  // process Provenance metadata
-			  e = metadata.getMetaDataElement(Provenance.ASPECT_NAME);
-			  if ( e == null) {
-				  e = new MetaDataElement();
-				  e.setName(Provenance.ASPECT_NAME);
-				  e.setVersion("1.0");
-				  e.setConsistencyGroup(consistencyGrp);
-				  e.setElementCount(1l);
-				  metadata.add(e);
+			  // check if all the aspects has metadata
+			  for ( String aspectName : aspectTable.keySet() ){
+				  if ( metadata.getMetaDataElement(aspectName) == null)
+					  throw new NdexException ("Aspect " + aspectName + " is not defined in MetaData section.");
 			  }
-			  e.setLastUpdate(modificationTime.getTime());
 			  
-		      networkDoc.field(NdexClasses.Network_P_metadata,metadata);
+			  			  
 		  } else 
 			  throw new NdexException ("No CX metadata found in this CX stream.");
   
 		  // finalize the headnode
-		  networkDoc.fields(NdexClasses.ExternalObj_mTime, modificationTime,
+	/*	  networkDoc.fields(NdexClasses.ExternalObj_mTime, modificationTime,
 				  NdexClasses.Network_P_nodeCount, this.nodeSIDMap.size(),
 				  NdexClasses.Network_P_edgeCount,this.edgeSIDMap.size(),
 				   NdexClasses.Network_P_isComplete,true,
@@ -459,37 +456,81 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 	
 	private void createCXNode(NodesElement node) throws NdexException, IOException {
-		if ( !this.nodeIds.add(Long.valueOf(node.getId()))) {
-			throw new NdexException ("Duplicate Node Id " + node.getId() + " found.");
-		}
-		
-		undefinedNodeId.remove(node.getId());
-		
+
+		nodeIdTracker.addDefinedElementId(node.getId());
 		writeCXElement(node);
 		this.globalIdx.addCXNodeToIndex(node);	
 		   
 		tick();   
 	}	 
 
+	private void createCXCitation(CitationElement citation) throws NdexException, IOException {
+
+		citationIdTracker.addDefinedElementId(citation.getId());
+		writeCXElement(citation);		   
+		tick();   
+	}	 
+
+	private void createCXSupport(SupportElement support) throws NdexException, IOException {
+		supportIdTracker.addDefinedElementId(support.getId());
+		writeCXElement(support);		   
+		tick();   
+	}	 
+	
 	
 	private void createCXEdge(EdgesElement ee) throws NdexException, IOException {
 		
-		if ( !this.edgeIds.add(ee.getId())) {
-			throw new NdexException ("Duplicate Edge found in CX stream. @id=" + ee.getId());
-		}
+		edgeIdTracker.addDefinedElementId(ee.getId());
 		
-		undefinedEdgeId.remove(ee.getId());
-		
-		if( !nodeIds.contains(ee.getSource()))
-			undefinedNodeId.add(ee.getSource());
-		if ( !nodeIds.contains(ee.getTarget()))
-			undefinedNodeId.add(ee.getTarget());
+		nodeIdTracker.addReferenceId(ee.getSource());
+		nodeIdTracker.addReferenceId(ee.getTarget());
 		
 		writeCXElement(ee);
 
 		tick();	
 	   
 	}
+	
+	private void createEdgeCitation(EdgeCitationLinksElement elmt) {
+		  for ( Long sourceId : elmt.getSourceIds()) {
+			  edgeIdTracker.addReferenceId(sourceId);
+		  }
+		  
+		  for ( Long citationSID : elmt.getCitationIds()) {
+			  citationIdTracker.addReferenceId(citationSID);
+		  }
+	}
+
+	private void createEdgeSupport(EdgeSupportLinksElement elmt) {
+		  for ( Long sourceId : elmt.getSourceIds()) {
+			edgeIdTracker.addReferenceId(sourceId);
+		  }
+		  
+		  for ( Long supportId : elmt.getSupportIds()) {
+			  supportIdTracker.addReferenceId(supportId);
+		  }
+	}
+
+	private void createNodeCitation(NodeCitationLinksElement elmt) {
+		  for ( Long sourceId : elmt.getSourceIds()) {
+			  nodeIdTracker.addReferenceId(sourceId);
+		  }
+		  
+		  for ( Long citationSID : elmt.getCitationIds()) {
+			  citationIdTracker.addReferenceId(citationSID);
+		  }
+	}
+
+	private void createNodeSupport(NodeSupportLinksElement elmt) {
+		  for ( Long sourceId : elmt.getSourceIds()) {
+			nodeIdTracker.addReferenceId(sourceId);
+		  }
+		  
+		  for ( Long supportId : elmt.getSupportIds()) {
+			  supportIdTracker.addReferenceId(supportId);
+		  }
+	}
+
 	
 	private void createAspectElement(AspectElement element) throws NdexException, IOException {
 		writeCXElement(element);
@@ -500,8 +541,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	private void addNodeAttribute(NodeAttributesElement e) throws NdexException, IOException{
 		
 		for ( Long nodeId : e.getPropertyOf()) { 
-			if ( !nodeIds.contains(nodeId))
-				undefinedNodeId.add(nodeId);
+			nodeIdTracker.addReferenceId(nodeId);
 		}
 		
 		writeCXElement(e);
@@ -510,7 +550,6 @@ public class CXNetworkLoader implements AutoCloseable {
 		tick();
 		
 	}
-
 	
 	private void tick() throws NdexException {
 		counter ++;
@@ -520,21 +559,6 @@ public class CXNetworkLoader implements AutoCloseable {
 			System.out.println("Loaded " + counter + " element in CX");
 		
 	} 
-	
-	
-/*	private void abortTransaction() throws ObjectNotFoundException, NdexException {
-		logger.warn("AbortTransaction has been invoked from CX loader.");
-
-		logger.info("Deleting partial network "+ uuid + " in order to rollback in response to error");
-		networkDoc.field(NdexClasses.ExternalObj_isDeleted, true).save();
-		graph.commit();
-		
-		Task task = new Task();
-		task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
-		task.setResource(uuid.toString());
-		NdexServerQueue.INSTANCE.addSystemTask(task);
-		logger.info("Partial network "+ uuid + " is deleted.");
-	} */
 	
 	
 	public UUID updateNetwork(String networkUUID, ProvenanceEntity provenanceEntity) throws NdexException, ExecutionException, SolrServerException, IOException {
@@ -632,25 +656,36 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 	
 	
-	
+/*	
     public void setNetworkProvenance(ProvenanceEntity e) throws JsonProcessingException
     {
 
         ObjectMapper mapper = new ObjectMapper();
         String provenanceString = mapper.writeValueAsString(e);
         // store provenance string
-  /*      this.networkDoc = this.networkDoc.field(NdexClasses.Network_P_provenance, provenanceString)
-                .save(); */
-    }
+       this.networkDoc = this.networkDoc.field(NdexClasses.Network_P_provenance, provenanceString)
+                .save(); 
+    } */
 
 	@Override
-	public void close() throws Exception {
+	public void close() {
 		for ( Map.Entry<String, CXAspectWriter> entry : aspectTable.entrySet() ){
-			entry.getValue().close();
+			try {
+				entry.getValue().close();
+			} catch (IOException e) {
+				logger.error("Failed to close output stream when closing CXNetworkLoader: " + e.getMessage());
+			}
 		}
 		
-		this.inputStream.close();
+		try {
+			this.inputStream.close();
+		} catch (IOException e) {
+			logger.error("Failed to close input stream when closing CXNetworkLoader: " + e.getMessage());
+		}
 	}
 
 
+	
+	
+	
 }

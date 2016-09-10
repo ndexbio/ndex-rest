@@ -66,7 +66,7 @@ public abstract class NdexDBDAO implements AutoCloseable {
 	}
 	
 	@Deprecated
-	protected ResultSet getRecordByUUIDStr(String id, String entityClass) 
+	private ResultSet getRecordByUUIDStr(String id, String entityClass) 
 			throws ObjectNotFoundException, NdexException, SQLException {
 		
 
@@ -98,7 +98,12 @@ public abstract class NdexDBDAO implements AutoCloseable {
     	db.commit();
     }
     
-    public void rollback() throws SQLException {
-    	db.rollback();
+    public void rollback() {
+    	try {
+    		db.rollback();
+    	} catch (SQLException e) {
+    		System.out.println("failed to rollback trascation in db: " + e.getMessage());
+    		e.printStackTrace();
+    	}
     } 
 }

@@ -423,7 +423,7 @@ public class NetworkService extends NdexService {
 			UUID networkId = UUID.fromString(networkIdStr);
 			if ( dao.isReadable(networkId, userId)) {
 				NetworkSummary summary = dao.getNetworkSummaryById(networkId);
-				logger.error("[end: Getting networkSummary of network {}.", networkId);	
+				logger.error("[end: Getting networkSummary of network {}.]", networkId);	
 
 				return summary;
 			}
