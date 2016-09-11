@@ -232,7 +232,8 @@ public class CXNetworkLoader implements AutoCloseable {
 				summary.setDescription(this.description);
 				summary.setVersion(this.version);
 				try {
-					dao.populateNetworkEntry(summary, provenanceHistory.getEntity(), metadata);
+					
+					dao.populateNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();	

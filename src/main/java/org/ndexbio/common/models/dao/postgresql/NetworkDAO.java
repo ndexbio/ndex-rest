@@ -188,7 +188,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 */
 	public void populateNetworkEntry(NetworkSummary networkSummary, ProvenanceEntity provenance, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
-				+ "properties = ? ::jsonb, provenance = ? :: jsonb, cxmetadata = ? :: json"
+				+ "properties = ? ::jsonb, provenance = ? :: jsonb, cxmetadata = ? :: json, "
 				+ " is_validated =true where \"UUID\" = ?";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setString(1,networkSummary.getName());
