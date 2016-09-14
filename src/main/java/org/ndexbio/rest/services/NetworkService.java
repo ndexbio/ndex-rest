@@ -1678,7 +1678,7 @@ public class NetworkService extends NdexService {
 								
 							  if ( parameter.equals(readOnlyParameter)) {
 								  boolean bv = Boolean.parseBoolean(value);
-								  
+								  throw new NdexException("Function not implemented yet.");
 								/*  try (NetworkDAOTx daoNew = new NetworkDAOTx()) {
 									  long oldId = daoNew.setReadOnlyFlag(networkId, bv, getLoggedInUser().getAccountName());
 									  logger.info("[end: Set {}={} for network {}]", parameter, value, networkId);

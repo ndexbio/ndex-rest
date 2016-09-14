@@ -97,11 +97,8 @@ public class CXNetwork {
 		networkAttributes.add(networkAttribute);
 	}
 	
-	public void addNodeAttribute( NodeAttributesElement nodeAttribute) {
-		
-		for(Long i : nodeAttribute.getPropertyOf()) {
-			addNodeAttribute(i,nodeAttribute);
-		}
+	public void addNodeAttribute( NodeAttributesElement nodeAttribute) {	
+			addNodeAttribute(nodeAttribute.getPropertyOf(),nodeAttribute);
 	}
 	
 	public void addNodeAttribute( Long i, NodeAttributesElement nodeAttribute) {
@@ -115,9 +112,8 @@ public class CXNetwork {
 	}
 	
 	public void addEdgeAttribute(EdgeAttributesElement edgeAttribute) {
-		for ( Long i : edgeAttribute.getPropertyOf()) {
-			addEdgeAttribute(i,edgeAttribute);
-		}
+			addEdgeAttribute(edgeAttribute.getPropertyOf(),edgeAttribute);
+		
 	}
 	
 	public void addEdgeAttribute(Long i , EdgeAttributesElement edgeAttribute) {
@@ -245,9 +241,7 @@ public class CXNetwork {
         	for ( Map.Entry<Long, Collection<NodeAttributesElement>> entry: this.nodeAttributes.entrySet()) {
         		Long nodeId = entry.getKey();
         		for ( NodeAttributesElement e : entry.getValue()) {
-        			ArrayList<Long> ids = new ArrayList<>(1);
-        			ids.add(nodeId);
-        			e.setPropertyOf(ids);
+        			e.setPropertyOf(nodeId);
         			cxwtr.writeAspectElement(e);
         		}		
         	}
@@ -259,9 +253,7 @@ public class CXNetwork {
         	for ( Map.Entry<Long, Collection<EdgeAttributesElement>> entry: this.edgeAttributes.entrySet()) {
         		Long edgeId = entry.getKey();
         		for ( EdgeAttributesElement e : entry.getValue()) {
-        			ArrayList<Long> ids = new ArrayList<>(1);
-        			ids.add(edgeId);
-        			e.setPropertyOf(ids);
+        			e.setPropertyOf(edgeId);
         			cxwtr.writeAspectElement(e);
         		}		
         	}

@@ -30,6 +30,7 @@
  */
 package org.ndexbio.common.solr;
 
+@Deprecated
 public class NetworkIndexField {
 
 	private String name;

@@ -100,7 +100,7 @@ public class NetworkDAO extends NdexDBDAO {
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
 	private static final String networkSummarySelectClause = "select creation_time, modification_time, name,description,version,"
 			+ "edgecount,nodecount,visibility,owner,owneruuid,"
-			+ " properties, \"UUID\""; //sourceformat,is_validated, iscomplete, readonly,"
+			+ " properties, \"UUID\", is_validated, error, readonly "; //sourceformat,is_validated, iscomplete, readonly,"
 	
 	public NetworkDAO () throws  SQLException {
 	    super();
@@ -587,7 +587,7 @@ public class NetworkDAO extends NdexDBDAO {
 	
 	public NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
-		String sqlStr = networkSummarySelectClause + "from network where \"UUID\" = ? and is_deleted= false";
+		String sqlStr = networkSummarySelectClause + " from network where \"UUID\" = ? and is_deleted= false";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, networkId);
 			try ( ResultSet rs = p.executeQuery()) {
@@ -663,6 +663,9 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 		
 		result.setExternalId((UUID)rs.getObject(12));
+		result.setIsValid(rs.getBoolean(13));
+		result.setErrorMessage(rs.getString(14));
+		result.setIsReadOnly(rs.getBoolean(15));
 		
 	}
 	

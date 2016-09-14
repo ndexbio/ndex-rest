@@ -30,10 +30,14 @@
  */
 package org.ndexbio.common.solr;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -43,8 +47,13 @@ import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
+import org.cxio.aspects.datamodels.NodeAttributesElement;
+import org.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class SingleNetworkSolrIdxManager {
 
@@ -100,6 +109,13 @@ public class SingleNetworkSolrIdxManager {
 		docs = new ArrayList<>(batchSize);
 		
 		client.setBaseURL(solrUrl + "/" + coreName);
+		
+		Map<Long,NodeIndexEntry> tab = createIndexDocs();
+		for ( NodeIndexEntry e : tab.values()) {
+			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
+		}
+		
+		commit();
 	}
 	
 	public void dropIndex() throws SolrServerException, IOException {
@@ -107,7 +123,7 @@ public class SingleNetworkSolrIdxManager {
 		CoreAdminRequest.unloadCore(coreName, true, true, client);
 	}
 	
-	public void addNodeIndex(long id, String name, List<String> represents, List<String> alias) throws SolrServerException, IOException {
+	private void addNodeIndex(Long id, String name, Collection<String> represents, Collection<String> alias) throws SolrServerException, IOException {
 		
 		SolrInputDocument doc = new SolrInputDocument();
 		doc.addField("id",  id );
@@ -136,11 +152,130 @@ public class SingleNetworkSolrIdxManager {
 
 	}
 
+/*	private void addNodeIndex(long id, String name, List<String> represents) throws SolrServerException, IOException {
+		
+		SolrInputDocument doc = new SolrInputDocument();
+		doc.addField("id",  id );
+		
+		if ( name != null ) 
+			doc.addField(NAME, name);
+		if ( represents !=null && !represents.isEmpty()) {
+			for ( String rterm : represents )
+				doc.addField(REPRESENTS, rterm);
+		}	
+		
+		docs.add(doc);
+	//	client.add(doc);
+		counter ++;
+		if ( counter % batchSize == 0 ) {
+			client.add(docs);
+			client.commit();
+			docs.clear();
+		}
+
+	}
+	
+	
+	public void addNodeAlias(long id, String name, List<String> represents, List<String> alias) throws SolrServerException, IOException {
+		
+		SolrInputDocument doc = new SolrInputDocument();
+		doc.addField("id",  id );
+		
+		if ( name != null ) 
+			doc.addField(NAME, name);
+		if ( represents !=null && !represents.isEmpty()) {
+			for ( String rterm : represents )
+				doc.addField(REPRESENTS, rterm);
+		}	
+		if ( alias !=null && !alias.isEmpty()) {
+			for ( String aTerm : alias )
+				doc.addField(ALIAS, aTerm);
+		}	
+//		if ( relatedTerms !=null && ! relatedTerms.isEmpty() ) 
+//			doc.addField(RELATEDTO, relatedTerms);
+		
+		docs.add(doc);
+	//	client.add(doc);
+		counter ++;
+		if ( counter % batchSize == 0 ) {
+			client.add(docs);
+			client.commit();
+			docs.clear();
+		}
+
+	} */
+
+	
 	public void commit() throws SolrServerException, IOException {
 		if ( docs.size()>0 ) {
 			client.add(docs);
 			client.commit();
 			docs.clear();
 		}
+	}
+	
+	private Map<Long,NodeIndexEntry> createIndexDocs() throws NdexException, JsonProcessingException, IOException {
+		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
+		
+		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/aspects/"; 
+	
+		//go through node aspect
+		try (FileInputStream inputStream = new FileInputStream(pathPrefix + "nodes")) {
+
+			Iterator<NodesElement> it = new ObjectMapper().readerFor(NodesElement.class).readValues(inputStream);
+
+			while (it.hasNext()) {
+	        	NodesElement node = it.next();
+	        	
+	        	List<String> represents = getIndexableTerms(node.getNodeRepresents());
+	        	if ( node.getNodeName() != null || represents.size() > 0) {
+	        		NodeIndexEntry e = new NodeIndexEntry(node.getId(), node.getNodeName());
+	        		if ( represents .size() > 0 ) 
+	        			e.setRepresents(represents);	     
+	        		result.put(node.getId(), e);
+	        	}
+			}
+		}
+		
+		//go through node attributes to find aliases
+		try (FileInputStream inputStream = new FileInputStream(pathPrefix + "nodeAttributes")) {
+
+			Iterator<NodeAttributesElement> it = new ObjectMapper().readerFor(NodeAttributesElement.class).readValues(inputStream);
+
+			while (it.hasNext()) {
+	        	NodeAttributesElement attr = it.next();
+	        	if ( attr.getName().equals("alias")) {
+	        		List<String>  l = getIndexableTerms(attr.getValues());
+	        		if ( l.size() > 0 ) {
+	        			NodeIndexEntry e = result.get(attr.getPropertyOf());
+	        			if ( e == null) {
+	        				e = new NodeIndexEntry(attr.getPropertyOf(), null);
+	        				result.put(attr.getPropertyOf(), e);
+	        			}
+	        			e.setAliases(l);
+	        		}
+	        	}
+	   
+			}
+		}
+		
+		return result;
+	}
+	
+	private static List<String> getIndexableTerms (String originalString) {		
+		if (originalString == null) return new ArrayList<>(1);
+		return NetworkGlobalIndexManager.getIndexableString(originalString);
+	}
+	
+	private static List<String> getIndexableTerms (List<String> originalStrings) {		
+		List<String> result = new ArrayList<>();
+		if (originalStrings != null ) {
+			for (String rawString : originalStrings) {
+				for ( String term : NetworkGlobalIndexManager.getIndexableString(rawString)) {
+					result.add(term);
+				}
+			}
+		}
+		return result;
 	}
 }

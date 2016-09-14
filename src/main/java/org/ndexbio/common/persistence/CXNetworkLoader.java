@@ -70,6 +70,7 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.aspect.GeneralAspectFragmentReader;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
+import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
@@ -258,6 +259,9 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 				}
 			  
+				SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString());
+				idx2.createIndex();
+				
 				try {
 					dao.setFlag(this.networkId, "iscomplete", true);
 					dao.commit();
@@ -404,13 +408,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  } else 
 			  throw new NdexException ("No CX metadata found in this CX stream.");
   
-		  // finalize the headnode
-	/*	  networkDoc.fields(NdexClasses.ExternalObj_mTime, modificationTime,
-				  NdexClasses.Network_P_nodeCount, this.nodeSIDMap.size(),
-				  NdexClasses.Network_P_edgeCount,this.edgeSIDMap.size(),
-				   NdexClasses.Network_P_isComplete,true,
-				   NdexClasses.Network_P_opaquEdgeTable, this.opaqueAspectEdgeTable);
-		  networkDoc.save(); */
+		  closeAspectStreams();
 	}
 	
 	
@@ -541,9 +539,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	private void addNodeAttribute(NodeAttributesElement e) throws NdexException, IOException{
 		
-		for ( Long nodeId : e.getPropertyOf()) { 
-			nodeIdTracker.addReferenceId(nodeId);
-		}
+			nodeIdTracker.addReferenceId(e.getPropertyOf());
 		
 		writeCXElement(e);
 		
@@ -668,8 +664,7 @@ public class CXNetworkLoader implements AutoCloseable {
                 .save(); 
     } */
 
-	@Override
-	public void close() {
+	private void closeAspectStreams() {
 		for ( Map.Entry<String, CXAspectWriter> entry : aspectTable.entrySet() ){
 			try {
 				entry.getValue().close();
@@ -677,6 +672,11 @@ public class CXNetworkLoader implements AutoCloseable {
 				logger.error("Failed to close output stream when closing CXNetworkLoader: " + e.getMessage());
 			}
 		}
+	}
+	
+	@Override
+	public void close() {
+		closeAspectStreams();
 		
 		try {
 			this.inputStream.close();

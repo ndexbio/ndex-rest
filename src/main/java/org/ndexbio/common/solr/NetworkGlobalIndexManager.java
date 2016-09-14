@@ -303,9 +303,10 @@ public class NetworkGlobalIndexManager {
 		   if ( node.getNodeName() != null && node.getNodeName().length() >2 ) 
 			   doc.addField(NODE_NAME, node.getNodeName());
 		   if ( node.getNodeRepresents() !=null ) {
-			   String indexableString = getIndexableString(node.getNodeRepresents());
-			   if( indexableString !=null)
+			   for (String indexableString : getIndexableString(node.getNodeRepresents())) {
 				   doc.addField(REPRESENTS, indexableString);
+			   }
+		//	   if( indexableString !=null)
 		   }	
 	
 
@@ -315,10 +316,10 @@ public class NetworkGlobalIndexManager {
 		
 		if ( e.getName().equals(NdexClasses.Node_P_alias) && !e.getValues().isEmpty()) {
 			 for ( String v : e.getValues()) {
-				 String indexableString = getIndexableString(v);
-				 if ( indexableString !=null )
+				for ( String indexableString : getIndexableString(v) ){
 					 doc.addField(ALIASES, indexableString);
-			   }
+				}
+			 }
 		}
 
 	}
@@ -589,13 +590,14 @@ public class NetworkGlobalIndexManager {
 	
 	
 	
-	private String getIndexableString(String termString) {
+	protected static List<String> getIndexableString(String termString) {
 		
 		// case 1 : termString is a URI
 		// example: http://identifiers.org/uniprot/P19838
 		// treat the last element in the URI as the identifier and the rest as
 		// prefix string. Just to help the future indexing.
 		//
+	    List<String> result = new ArrayList<>(2) ;
 		String identifier = null;
 		if ( termString.length() > 8 && termString.substring(0, 7).equalsIgnoreCase("http://") &&
 				(!termString.endsWith("/"))) {
@@ -609,9 +611,10 @@ public class NetworkGlobalIndexManager {
 				       int pos = termString.lastIndexOf('/');
 					   identifier = termString.substring(pos + 1);
 				    } else
-				       return null; // the string is a URL in the format that we don't want to index it in Solr. 
+				       return result; // the string is a URL in the format that we don't want to index it in Solr. 
 			    } 
-			    return identifier;
+			    result.add(identifier);
+			    return result;
 			  
 		  } catch (URISyntaxException e) {
 			// ignore and move on to next case
@@ -621,12 +624,16 @@ public class NetworkGlobalIndexManager {
 		String[] termStringComponents = TermUtilities.getNdexQName(termString);
 		if (termStringComponents != null && termStringComponents.length == 2) {
 			// case 2: termString is of the form (NamespacePrefix:)*Identifier
-			return termStringComponents[1];
+			if ( !termStringComponents[0].contains(" "))
+			  result.add(termString);
+			result.add(termStringComponents[1]);
+			return  result;
 		} 
 		
 		// case 3: termString cannot be parsed, use it as the identifier.
-		// so leave the prefix as null and return the string				
-		return termString;
+		// so leave the prefix as null and return the string
+		result.add(termString);
+		return result;
 			
 	}
 

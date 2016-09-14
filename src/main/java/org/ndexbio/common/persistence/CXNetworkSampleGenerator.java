@@ -124,12 +124,12 @@ public class CXNetworkSampleGenerator implements AutoCloseable {
 				break;
 			case NodeAttributesElement.ASPECT_NAME:  // node attributes
 				NodeAttributesElement na = (NodeAttributesElement) elmt;
-				for ( Long id : na.getPropertyOf()) {
+				Long id = na.getPropertyOf();
 					if ( nodeIds.contains(id) && 
 							(subNetworkId == null || na.getSubnetwork() == null || subNetworkId.equals(na.getSubnetwork()))) {
 						result.addNodeAttribute(id, na);
 					}
-				}
+				
 				break;
 			case NetworkAttributesElement.ASPECT_NAME: //network attributes
 				NetworkAttributesElement nAtt = (NetworkAttributesElement) elmt;
@@ -139,12 +139,12 @@ public class CXNetworkSampleGenerator implements AutoCloseable {
 				break;
 			case EdgeAttributesElement.ASPECT_NAME : // edge attributes
 				EdgeAttributesElement ea = (EdgeAttributesElement) elmt;
-				for ( Long id : ea.getPropertyOf()) {
-					if ( result.getEdges().containsKey(id) && 
+				Long eid = ea.getPropertyOf();
+				if ( result.getEdges().containsKey(eid) && 
 							(subNetworkId == null || ea.getSubnetwork() == null || subNetworkId.equals(ea.getSubnetwork()))) {
-						result.addEdgeAttribute(id, ea);
-					}
+						result.addEdgeAttribute(eid, ea);
 				}
+				
 				break;
 			case NamespacesElement.ASPECT_NAME:
 				NamespacesElement ns = (NamespacesElement)elmt;
