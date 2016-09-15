@@ -20,7 +20,6 @@ public class CXAspectWriter implements AutoCloseable{
 	
 	private OutputStream out;
 	private JsonWriter jwriter;
-	//private OutputStreamWriter owriter;
 	private long count;
 	
 	private static final byte[] start = {'['};
@@ -43,10 +42,7 @@ public class CXAspectWriter implements AutoCloseable{
 		out.close();
 	}
 
-	
-	/*public void writeSting(String s) throws IOException {
-		owriter.write(s);
-	} */
+
 	
 	public void writeCXElement(AspectElement e) throws IOException {
 		if ( count == 0 ) 
@@ -60,6 +56,5 @@ public class CXAspectWriter implements AutoCloseable{
 	
 	public void flush() throws IOException { out.flush();}
 	
-//	public void writeEnd() throws IOException { out.write(end); }
 
 }

@@ -1122,7 +1122,7 @@ public class NetworkService extends NdexService {
 			@PathParam("networkId") final String networkId,
 			final NetworkSummary summary
 			)
-            throws IllegalArgumentException, NdexException, IOException, SolrServerException, SQLException
+            throws  NdexException, SQLException, SolrServerException , IOException, IllegalArgumentException 
     {
 		logger.info("[start: Updating profile information of network {}]", networkId);
 		
@@ -1161,67 +1161,86 @@ public class NetworkService extends NdexService {
 			}
 
 			if ( newValues.size() > 0 ) { 
-				networkDao.updateNetworkProfile(networkUUID, newValues);
+				
+				if ( networkDao.networkIsLocked(networkUUID)) {
+					logger.info("[end: Can't update locked network {}]", networkId);
+					throw new NdexException ("Can't modify locked network.");
+				} 
+				
+				try {
+					networkDao.lockNetwork(networkUUID);
+				
+					networkDao.updateNetworkProfile(networkUUID, newValues);
 
-				//DW: Handle provenance
-				//Special Logic. Test whether we should record provenance at all.
-				//If the only thing that has changed is the visibility, we should not add a provenance
-				//event.
-				ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
-				String oldName = "", oldDescription = "", oldVersion ="";
-				if ( oldProv != null ) {
-					for( SimplePropertyValuePair oldProperty : oldProv.getProperties() ) {
-						if( oldProperty.getName() == null )
-							continue;
-						if( oldProperty.getName().equals("dc:title") )
-							oldName = oldProperty.getValue().trim();
-						else if( oldProperty.getName().equals("description") )
-							oldDescription = oldProperty.getValue().trim();
-						else if( oldProperty.getName().equals("version") )
-							oldVersion = oldProperty.getValue().trim();
+					//DW: Handle provenance
+					//Special Logic. Test whether we should record provenance at all.
+					//If the only thing that has changed is the visibility, we should not add a provenance
+					//event.
+					ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
+					String oldName = "", oldDescription = "", oldVersion ="";
+					if ( oldProv != null ) {
+						for( SimplePropertyValuePair oldProperty : oldProv.getProperties() ) {
+							if( oldProperty.getName() == null )
+								continue;
+							if( oldProperty.getName().equals("dc:title") )
+								oldName = oldProperty.getValue().trim();
+							else if( oldProperty.getName().equals("description") )
+								oldDescription = oldProperty.getValue().trim();
+							else if( oldProperty.getName().equals("version") )
+								oldVersion = oldProperty.getValue().trim();
+						}
 					}
+
+					//Treat all summary values that are null like ""
+					String summaryName = summary.getName() == null ? "" : summary.getName().trim();
+					String summaryDescription = summary.getDescription() == null ? "" : summary.getDescription().trim();
+					String summaryVersion = summary.getVersion() == null ? "" : summary.getVersion().trim();
+
+					if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
+					{
+						ProvenanceEntity newProv = new ProvenanceEntity();
+						if ( oldProv !=null )   //TODO: initialize the URI properly when there is null.
+							newProv.setUri(oldProv.getUri());
+
+						newProv.setProperties(entityProperties);
+
+						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
+
+						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+						Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
+
+						if (summary.getName() != null)
+							eventProperties.add(new SimplePropertyValuePair("dc:title", summary.getName()));
+
+						if (summary.getDescription() != null)
+							eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
+
+						if (summary.getVersion() != null)
+							eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
+
+						event.setProperties(eventProperties);
+						List<ProvenanceEntity> oldProvList = new ArrayList<>();
+						oldProvList.add(oldProv);
+						event.setInputs(oldProvList);
+
+						newProv.setCreationEvent(event);
+						networkDao.setProvenance(networkUUID, newProv);
+					}
+				
+					//TODO: update the networkProperty aspect 
+					
+					networkDao.unlockNetwork(networkUUID);
+					//	networkDao.commit();
+				} catch ( SolrServerException | SQLException | IOException | IllegalArgumentException |NdexException e ) {
+					networkDao.rollback();
+					try {
+						networkDao.unlockNetwork(networkUUID);
+					} catch (SQLException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
+					}
+					throw e;
 				}
-				
-
-				//Treat all summary values that are null like ""
-				String summaryName = summary.getName() == null ? "" : summary.getName().trim();
-				String summaryDescription = summary.getDescription() == null ? "" : summary.getDescription().trim();
-				String summaryVersion = summary.getVersion() == null ? "" : summary.getVersion().trim();
-
-				if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
-				{
-					ProvenanceEntity newProv = new ProvenanceEntity();
-					if ( oldProv !=null )   //TODO: initialize the URI properly when there is null.
-						newProv.setUri(oldProv.getUri());
-
-			        newProv.setProperties(entityProperties);
-
-					ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
-
-					List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-					Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
-
-					if (summary.getName() != null)
-						eventProperties.add(new SimplePropertyValuePair("dc:title", summary.getName()));
-
-					if (summary.getDescription() != null)
-						eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
-
-					if (summary.getVersion() != null)
-						eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
-
-					event.setProperties(eventProperties);
-					List<ProvenanceEntity> oldProvList = new ArrayList<>();
-					oldProvList.add(oldProv);
-					event.setInputs(oldProvList);
-
-					newProv.setCreationEvent(event);
-					networkDao.setProvenance(networkUUID, newProv);
-				}
-				
-				//TODO: update the networkProperty aspect 
-				
-				networkDao.commit();
 				
 			}
 		} finally {
@@ -1421,21 +1440,16 @@ public class NetworkService extends NdexService {
            User user = getLoggedInUser();
            UUID networkId = UUID.fromString(networkIdStr);
 
-      /*     if (!Helper.checkPermissionOnNetworkByAccountName(conn, 
-        		   networkId, user.getAccountName(), Permissions.WRITE))
-           {
+	  	   if( daoNew.isReadOnly(networkId)) {
+				logger.info("[end: Can't modify readonly network {}]", networkId);
+				throw new NdexException ("Can't update readonly network.");				
+			} 
+			
+			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
 				logger.error("[end: No write permissions for user account {} on network {}]", 
-						user.getAccountName(), networkId);
+						user.getUserName(), networkId);
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
-           } */
-           
-			
-			
-	/*		if(daoNew.networkIsReadOnly(networkId)) {
-				daoNew.close();
-				logger.info("[end: Can't update readonly network {}]", networkId);
-				throw new NdexException ("Can't update readonly network.");
-			} */
+			} 
 			
 			if ( daoNew.networkIsLocked(networkId)) {
 				daoNew.close();
@@ -1661,7 +1675,7 @@ public class NetworkService extends NdexService {
 	@Produces("application/json")
     @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
 	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
-	public String setNetworkFlag(
+	public void setNetworkFlag(
 			@PathParam("networkId") final String networkIdStr,
 			@PathParam("parameter") final String parameter,
 			@PathParam("value")     final String value)
@@ -1687,7 +1701,7 @@ public class NetworkService extends NdexService {
 							  } else if ( parameter.toLowerCase().equals("visibility")) {
 								  networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf(value));
 								  networkDao.commit();		
-								  return value;
+								  return ;
 							  }
 
 						}
@@ -1763,5 +1777,10 @@ public class NetworkService extends NdexService {
 
 	   	}
 	   
+/*	   
+	   private void writeNetworkAttributeAspect(NetworkSummary s) {
+		   String tempFileName = 
+	   }
+	*/   
 	   
 }

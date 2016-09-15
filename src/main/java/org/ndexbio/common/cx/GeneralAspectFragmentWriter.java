@@ -28,24 +28,18 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-package org.ndexbio.common.cx.aspect;
+package org.ndexbio.common.cx;
 
-import java.io.IOException;
+import org.cxio.aspects.writers.AbstractFragmentWriter;
 
-import org.cxio.aspects.readers.AbstractFragmentReader;
-import org.cxio.core.interfaces.AspectElement;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+public class GeneralAspectFragmentWriter extends AbstractFragmentWriter {
 
-public class GeneralAspectFragmentReader extends AbstractFragmentReader {
-
-	private String aspectName;
-	private Class cls;
+	private String aspectName ;
 	
-	public GeneralAspectFragmentReader(String aspectName, Class cls) {
+	
+	public GeneralAspectFragmentWriter(String aspectName) {
 		this.aspectName = aspectName;
-		this.cls = cls;
 	}
 
 	@Override
@@ -53,13 +47,4 @@ public class GeneralAspectFragmentReader extends AbstractFragmentReader {
 		return aspectName;
 	}
 
-	@Override
-	public AspectElement readElement(ObjectNode o) throws IOException {
-		ObjectMapper jsonObjectMapper = new ObjectMapper();
-		return (AspectElement)jsonObjectMapper.treeToValue(o, cls);
-	//	return o;
-	}
-
-	
-	
 }

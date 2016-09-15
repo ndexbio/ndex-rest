@@ -25,7 +25,7 @@ import org.cxio.core.CxElementReader;
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.core.interfaces.AspectFragmentReader;
 import org.cxio.misc.OpaqueElement;
-import org.ndexbio.common.cx.aspect.GeneralAspectFragmentReader;
+import org.ndexbio.common.cx.GeneralAspectFragmentReader;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;

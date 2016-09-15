@@ -28,7 +28,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-package org.ndexbio.common.cx.aspect;
+package org.ndexbio.common.cx;
 
 import java.util.Collection;
 import java.util.Map;

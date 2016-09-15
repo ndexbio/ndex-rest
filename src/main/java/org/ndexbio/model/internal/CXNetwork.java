@@ -25,7 +25,7 @@ import org.cxio.core.interfaces.AspectElement;
 import org.cxio.core.interfaces.AspectFragmentWriter;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.util.CxioUtil;
-import org.ndexbio.common.cx.aspect.GeneralAspectFragmentWriter;
+import org.ndexbio.common.cx.GeneralAspectFragmentWriter;
 import org.ndexbio.model.cx.BELNamespaceElement;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;

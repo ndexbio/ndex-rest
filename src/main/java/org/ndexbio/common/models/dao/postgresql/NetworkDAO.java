@@ -309,7 +309,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws InterruptedException 
 	 * @throws NdexException 
 	 */
-	public void lockNetwork(UUID networkId) throws SQLException, InterruptedException, NdexException {
+	public void lockNetwork(UUID networkId) throws SQLException, NdexException {
 		//setNetworkLock(networkId,true);
 		
 		String sql = "update network set islocked= true where \"UUID\" = ? and is_deleted=false and islocked =false";
@@ -321,7 +321,13 @@ public class NetworkDAO extends NdexDBDAO {
 					db.commit();
 					return;
 				}
-				Thread.sleep(400);
+				try {
+					Thread.sleep(400);
+				} catch (InterruptedException e) {
+					logger.info("Interrrupted when trying to lock network " + networkId + ": " + e.getMessage()+
+							".");
+					break;
+				}
 			}
 			throw new NdexException("Failed to lock network. ");
 		}
