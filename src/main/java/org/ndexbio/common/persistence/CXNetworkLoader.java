@@ -68,6 +68,7 @@ import org.cxio.metadata.MetaDataElement;
 import org.cxio.misc.OpaqueElement;
 import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.cx.CXAspectWriter;
 import org.ndexbio.common.cx.GeneralAspectFragmentReader;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
@@ -422,24 +423,19 @@ public class CXNetworkLoader implements AutoCloseable {
 	}
 
 
-
+    
 	private void createNetworkAttribute(NetworkAttributesElement e) throws NdexException, IOException {
 		
 		if ( e.getName().equals(NdexClasses.Network_P_name) && ( networkName == null || e.getSubnetwork() == null)) {
 				this.networkName = e.getValue();
 				if ( e.getSubnetwork() != null ) 
 					properties.add(new NdexPropertyValuePair(e.getSubnetwork(), e.getName(), e.getValue(), ATTRIBUTE_DATA_TYPE.STRING.toString()));
-		} else if ( e.getName().equals(NdexClasses.Network_P_desc) && ( description == null || e.getSubnetwork() == null)) {
+		} else if ( e.getName().equals(NdexClasses.Network_P_desc) &&  e.getSubnetwork() == null) {
 			this.description = e.getValue();
-			if ( e.getSubnetwork() != null ) 
-				properties.add(new NdexPropertyValuePair(e.getSubnetwork(), e.getName(), e.getValue(), ATTRIBUTE_DATA_TYPE.STRING.toString()));
-		} else if ( e.getName().equals(NdexClasses.Network_P_version) && ( version == null || e.getSubnetwork() == null)) {
+		} else if ( e.getName().equals(NdexClasses.Network_P_version) &&  e.getSubnetwork() == null) {
 			this.version = e.getValue();
-			if ( e.getSubnetwork() != null ) 
-				properties.add(new NdexPropertyValuePair(e.getSubnetwork(), e.getName(), e.getValue(), ATTRIBUTE_DATA_TYPE.STRING.toString()));
 		} else 
-			properties.add(new NdexPropertyValuePair(e.getSubnetwork(),e.getName(), 
-					 (e.isSingleValue() ? e.getValue(): CxioUtil.getAttributeValuesAsString(e)), e.getDataType().toString()));
+			properties.add(new NdexPropertyValuePair(e.getSubnetwork(),e.getName(), e.getValueAsJsonString(), e.getDataType().toString()));
 		
 		writeCXElement(e);
 		

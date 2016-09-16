@@ -792,7 +792,7 @@ public class UserDAO extends NdexDBDAO {
 			try (ResultSet rs = st.executeQuery() ) {
 				if (rs.next()) {
 					if ( rs.getBoolean(1)) 
-						return Permissions.ADMIN;		
+						return Permissions.GROUPADMIN;		
 					
 					return Permissions.MEMBER;
 				} 

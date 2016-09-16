@@ -51,6 +51,8 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
+import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
+import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
@@ -551,6 +553,7 @@ public class NetworkDAO extends NdexDBDAO {
 		return props.size();
 	}
 	
+	
 	public NetworkSearchResult findNetworks(SimpleNetworkQuery simpleNetworkQuery, int skipBlocks, int top, User loggedInUser) throws NdexException, SolrServerException, IOException, SQLException {
 	
 		String queryStr = simpleNetworkQuery.getSearchString().trim();
@@ -607,6 +610,8 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 	}
+	
+	
 	
 	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.

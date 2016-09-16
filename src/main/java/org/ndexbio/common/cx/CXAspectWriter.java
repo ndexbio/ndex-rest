@@ -1,4 +1,4 @@
-package org.ndexbio.common.persistence;
+package org.ndexbio.common.cx;
 
 import java.io.FileOutputStream;
 import java.io.IOException;

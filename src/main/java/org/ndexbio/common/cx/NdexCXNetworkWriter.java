@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.UUID;
 
 import org.cxio.metadata.MetaDataCollection;
@@ -23,8 +26,8 @@ public class NdexCXNetworkWriter {
 	private OutputStreamWriter writer;
 	private ObjectMapper objectMapper;
 	private JsonGenerator g;
-	
-	public NdexCXNetworkWriter (UUID networkUUID, OutputStream outputStream) throws IOException {
+		
+	public NdexCXNetworkWriter ( OutputStream outputStream) throws IOException {
 	//	networkId = networkUUID;
 		out = outputStream;
 		writer = new OutputStreamWriter(out);
@@ -47,6 +50,7 @@ public class NdexCXNetworkWriter {
 		NumberVerification nv = new NumberVerification(CxConstants.LONG_NUMBER_TEST);
 		writeObject(nv);
 		writer.write(",");
+		writer.flush();
 	}
 	
 	public void writeMetadata(MetaDataCollection m) throws JsonProcessingException, IOException{
@@ -60,6 +64,7 @@ public class NdexCXNetworkWriter {
 		g.writeEndObject();
 		g.flush();
 		writer.write(",");
+		writer.flush();
 	}
 	
 	public void startAspectFragment(String aspectName) throws IOException {
@@ -68,8 +73,9 @@ public class NdexCXNetworkWriter {
 		g.flush();
 	}
 	
-	public void writeAspectElementsFromStream(InputStream in) {
-		
+	public void writeAspectElementsFromNdexAspectFile(String filePath) throws IOException {
+		Path p = Paths.get(filePath);
+		Files.copy(p, out);		
 	}
 	
 	
@@ -77,6 +83,7 @@ public class NdexCXNetworkWriter {
 		g.writeEndObject();
 		g.flush();
 		writer.write(",");
+		writer.flush();
 	}
 	
 	public void end() throws JsonProcessingException, IOException {

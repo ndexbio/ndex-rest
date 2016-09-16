@@ -42,7 +42,9 @@ import java.io.PipedOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -66,14 +68,19 @@ import javax.ws.rs.core.Response;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
+import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.cx.CXAspectWriter;
+import org.ndexbio.common.cx.NdexCXNetworkWriter;
 import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
+import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -1120,7 +1127,7 @@ public class NetworkService extends NdexService {
 	        "method are: 'name', 'description', 'version'. visibility are no longer updated by this function. It is managed by setNetworkFlag function from 2.0")
 	public void updateNetworkProfile(
 			@PathParam("networkId") final String networkId,
-			final NetworkSummary summary
+			final NetworkSummary partialSummary
 			)
             throws  NdexException, SQLException, SolrServerException , IOException, IllegalArgumentException 
     {
@@ -1145,19 +1152,19 @@ public class NetworkService extends NdexService {
 			Map<String,String> newValues = new HashMap<> ();
 	        List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
 
-			if ( summary.getName() != null) {
-				newValues.put(NdexClasses.Network_P_name, summary.getName());
-			    entityProperties.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
+			if ( partialSummary.getName() != null) {
+				newValues.put(NdexClasses.Network_P_name, partialSummary.getName());
+			    entityProperties.add( new SimplePropertyValuePair("dc:title", partialSummary.getName()) );
 			}
 					
-			if ( summary.getDescription() != null) {
-					newValues.put( NdexClasses.Network_P_desc, summary.getDescription());
-		            entityProperties.add( new SimplePropertyValuePair("description", summary.getDescription()) );
+			if ( partialSummary.getDescription() != null) {
+					newValues.put( NdexClasses.Network_P_desc, partialSummary.getDescription());
+		            entityProperties.add( new SimplePropertyValuePair("description", partialSummary.getDescription()) );
 			}
 				
-			if ( summary.getVersion()!=null ) {
-					newValues.put( NdexClasses.Network_P_version, summary.getVersion());
-		            entityProperties.add( new SimplePropertyValuePair("version", summary.getVersion()) );
+			if ( partialSummary.getVersion()!=null ) {
+					newValues.put( NdexClasses.Network_P_version, partialSummary.getVersion());
+		            entityProperties.add( new SimplePropertyValuePair("version", partialSummary.getVersion()) );
 			}
 
 			if ( newValues.size() > 0 ) { 
@@ -1192,9 +1199,9 @@ public class NetworkService extends NdexService {
 					}
 
 					//Treat all summary values that are null like ""
-					String summaryName = summary.getName() == null ? "" : summary.getName().trim();
-					String summaryDescription = summary.getDescription() == null ? "" : summary.getDescription().trim();
-					String summaryVersion = summary.getVersion() == null ? "" : summary.getVersion().trim();
+					String summaryName = partialSummary.getName() == null ? "" : partialSummary.getName().trim();
+					String summaryDescription = partialSummary.getDescription() == null ? "" : partialSummary.getDescription().trim();
+					String summaryVersion = partialSummary.getVersion() == null ? "" : partialSummary.getVersion().trim();
 
 					if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
 					{
@@ -1204,19 +1211,19 @@ public class NetworkService extends NdexService {
 
 						newProv.setProperties(entityProperties);
 
-						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
+						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, partialSummary.getModificationTime());
 
 						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
 						Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
 
-						if (summary.getName() != null)
-							eventProperties.add(new SimplePropertyValuePair("dc:title", summary.getName()));
+						if (partialSummary.getName() != null)
+							eventProperties.add(new SimplePropertyValuePair("dc:title", partialSummary.getName()));
 
-						if (summary.getDescription() != null)
-							eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
+						if (partialSummary.getDescription() != null)
+							eventProperties.add(new SimplePropertyValuePair("description", partialSummary.getDescription()));
 
-						if (summary.getVersion() != null)
-							eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
+						if (partialSummary.getVersion() != null)
+							eventProperties.add(new SimplePropertyValuePair("version", partialSummary.getVersion()));
 
 						event.setProperties(eventProperties);
 						List<ProvenanceEntity> oldProvList = new ArrayList<>();
@@ -1228,6 +1235,25 @@ public class NetworkService extends NdexService {
 					}
 				
 					//TODO: update the networkProperty aspect 
+					NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
+					List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
+					if ( attrs.size() > 0 ) {					
+						try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
+								+ NetworkAttributesElement.ASPECT_NAME) ) {
+							for ( NetworkAttributesElement e : attrs) {
+								writer.writeCXElement(e);	
+								writer.flush();
+							}
+						}
+					}
+					//Recreate the CX file 
+					String tmpFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + 
+							networkId + "-" + Thread.currentThread().getId();
+					try (FileOutputStream out = new FileOutputStream(tmpFileName) ) {
+						NdexCXNetworkWriter wtr = new NdexCXNetworkWriter(out);
+						wtr.start();
+												
+					}
 					
 					networkDao.unlockNetwork(networkUUID);
 					//	networkDao.commit();
@@ -1777,10 +1803,52 @@ public class NetworkService extends NdexService {
 
 	   	}
 	   
-/*	   
-	   private void writeNetworkAttributeAspect(NetworkSummary s) {
-		   String tempFileName = 
+
+	   
+	   private static List<NetworkAttributesElement> getNetworkAttributeAspectsFromSummary(NetworkSummary summary) 
+			   throws JsonParseException, JsonMappingException, IOException {
+			List<NetworkAttributesElement> result = new ArrayList<>();
+			if ( summary.getName() !=null) 
+				result.add(new NetworkAttributesElement(null, NdexClasses.Network_P_name, summary.getName()));
+			if ( summary.getDescription() != null)
+				result.add(new NetworkAttributesElement(null, NdexClasses.Network_P_desc, summary.getDescription()));
+			if ( summary.getVersion() !=null)
+				result.add(new NetworkAttributesElement(null, NdexClasses.Network_P_version, summary.getVersion()));
+			
+			if ( summary.getProperties() != null) {
+				for ( NdexPropertyValuePair p : summary.getProperties()) {
+					result.add(NetworkAttributesElement.createInstanceWithJsonValue(p.getSubNetworkId(), p.getPredicateString(),
+							p.getValue(), ATTRIBUTE_DATA_TYPE.fromCxLabel(p.getDataType())));
+				}
+			}
+			return result;
+		}
+	   
+	   
+	   private static NdexNetworkStatus getNdexNetworkStatusFromSummary(NetworkSummary summary)  {
+		   NdexNetworkStatus nstatus = new NdexNetworkStatus () ;
+		  
+	        nstatus.setCreationTime(summary.getCreationTime());
+	        nstatus.setEdgeCount(summary.getEdgeCount());
+	        nstatus.setNodeCount(summary.getNodeCount());
+	        nstatus.setExternalId(summary.getExternalId().toString());
+	        nstatus.setModificationTime(summary.getModificationTime());
+	        try {
+				nstatus.setNdexServerURI(Configuration.getInstance().getHostURI());
+			} catch (NdexException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+	        nstatus.setOwner(summary.getOwner());
+	        //nstatus.setPublished(isPublished);
+	        
+	        nstatus.setReadOnly(summary.getIsReadOnly());
+	     
+	        nstatus.setVisibility(summary.getVisibility());
+	         
+		   return nstatus;
 	   }
-	*/   
+	   
+	   
 	   
 }
