@@ -335,7 +335,7 @@ public class NetworkGlobalIndexManager {
 
 	}
 	
-	private List<String> getIndexableStringsFromFunctionTerm(FunctionTermElement e)  {
+	protected static List<String> getIndexableStringsFromFunctionTerm(FunctionTermElement e)  {
 		
 		List<String> terms = getIndexableString(e.getFunctionName());
 		for (Object arg: e.getArgs()) {

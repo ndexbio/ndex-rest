@@ -32,6 +32,8 @@ package org.ndexbio.common.solr;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -49,6 +51,7 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
+import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
 
@@ -237,8 +240,33 @@ public class SingleNetworkSolrIdxManager {
 			}
 		}
 		
+		// go through Function Term if it exists
+		java.nio.file.Path functionTermAspect = Paths.get(pathPrefix + FunctionTermElement.ASPECT_NAME);
+
+		if ( Files.exists(functionTermAspect)) { 
+			try (FileInputStream inputStream = new FileInputStream(pathPrefix + FunctionTermElement.ASPECT_NAME)) {
+
+				Iterator<FunctionTermElement> it = new ObjectMapper().readerFor(FunctionTermElement.class).readValues(inputStream);
+
+				while (it.hasNext()) {
+		        	FunctionTermElement functionTerm = it.next();
+		        	List<String> terms = NetworkGlobalIndexManager.getIndexableStringsFromFunctionTerm(functionTerm);
+		        	if ( terms.size() > 0 ) {
+			        	NodeIndexEntry e = result.get(functionTerm.getNodeID());
+		        		if ( e == null ) {  // need to add a new entry
+		        			e = new NodeIndexEntry(functionTerm.getNodeID(), null);
+		        			result.put(functionTerm.getNodeID(), e);
+		        		}	        	
+		        		e.setRepresents(terms);
+		        	}	
+				}
+				
+				
+			}	
+		}
+		
 		//go through node attributes to find aliases
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + "nodeAttributes")) {
+		try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeAttributesElement.ASPECT_NAME)) {
 
 			Iterator<NodeAttributesElement> it = new ObjectMapper().readerFor(NodeAttributesElement.class).readValues(inputStream);
 

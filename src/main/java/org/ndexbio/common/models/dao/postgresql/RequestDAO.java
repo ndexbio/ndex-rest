@@ -140,8 +140,8 @@ public class RequestDAO extends NdexDBDAO  {
 		//TODO: check if the same request exists.
 			
 		String insertStr = "insert into request (\"UUID\", creation_time, modification_time, is_deleted, sourceuuid,"
-				+ "destinationuuid,requestmessage,requestpermission, owner_id,response)"
-				+ "values ( ?,?,?,false,?, ?,?,?,?,?)";
+				+ "destinationuuid,requestmessage,requestpermission, owner_id)"
+				+ "values ( ?,?,?,false,?, ?,?,?,?)";
 		
 		Timestamp currentTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
 		newRequest.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
@@ -158,7 +158,6 @@ public class RequestDAO extends NdexDBDAO  {
 			pst.setObject(6, newRequest.getMessage());
 			pst.setString(7, newRequest.getPermission().toString());	
 			pst.setObject(8, account.getExternalId());
-			pst.setString(9, newRequest.getResponse().name());
 			pst.executeUpdate();
 		}
 		

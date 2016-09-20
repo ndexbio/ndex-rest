@@ -650,8 +650,8 @@ public class GroupDAO extends NdexDBDAO {
 			
 				
 			String updateStr = "update ndex_group set modification_time = localtimestamp, "
-					+ "group_name = ?, image_url = ?, description =?, website_url = ?, other_attribute = ? :: json"
-					+ "where group_id = ? and is_deleted = false";
+					+ "group_name = ?, image_url = ?, description =?, website_url = ?, other_attributes = ? :: json "
+					+ " where \"UUID\" = ? and is_deleted = false";
 			
 			try (PreparedStatement st = db.prepareStatement(updateStr) ) {
 				st.setString(1,  updatedGroup.getGroupName());

@@ -258,9 +258,8 @@ public class CXNetworkLoader implements AutoCloseable {
 							break;
 						}
 					}
-					try ( CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId) ) {
-						g.createSampleNetwork();
-					}
+					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId);
+					g.createSampleNetwork();
 			  
 				}
 			  
