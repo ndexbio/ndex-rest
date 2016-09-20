@@ -93,9 +93,6 @@ public class UserService extends NdexService {
 	
 	static Logger logger = LoggerFactory.getLogger(UserService.class);
 
-//	private UserDAO dao;
-//	private ODatabaseDocumentTx  localConnection; 
-
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
 	 * getLoggedInUser().

@@ -41,6 +41,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -70,10 +71,16 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
+import org.cxio.aspects.datamodels.NodesElement;
+import org.cxio.core.interfaces.AspectElement;
+import org.cxio.metadata.MetaDataCollection;
+import org.cxio.metadata.MetaDataElement;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.cx.CXAspectFragment;
 import org.ndexbio.common.cx.CXAspectWriter;
+import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.cx.NdexCXNetworkWriter;
 import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
@@ -1234,8 +1241,9 @@ public class NetworkService extends NdexService {
 						networkDao.setProvenance(networkUUID, newProv);
 					}
 				
-					//TODO: update the networkProperty aspect 
 					NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
+					
+					//update the networkProperty aspect 
 					List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
 					if ( attrs.size() > 0 ) {					
 						try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
@@ -1246,14 +1254,19 @@ public class NetworkService extends NdexService {
 							}
 						}
 					}
-					//Recreate the CX file 
-					String tmpFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + 
-							networkId + "-" + Thread.currentThread().getId();
-					try (FileOutputStream out = new FileOutputStream(tmpFileName) ) {
-						NdexCXNetworkWriter wtr = new NdexCXNetworkWriter(out);
-						wtr.start();
-												
+					
+					//update metadata
+					MetaDataCollection metadata = networkDao.getMetaDataCollection(networkUUID);
+					MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
+					if ( elmt == null) {
+						elmt = new MetaDataElement();
 					}
+					elmt.setElementCount(Long.valueOf(attrs.size()));
+					networkDao.updateMetadataColleciton(networkUUID, metadata);
+
+					//Recreate the CX file 					
+					CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, fullSummary, metadata);
+					g.reCreateCXFile();
 					
 					networkDao.unlockNetwork(networkUUID);
 					//	networkDao.commit();
@@ -1825,30 +1838,6 @@ public class NetworkService extends NdexService {
 		}
 	   
 	   
-	   private static NdexNetworkStatus getNdexNetworkStatusFromSummary(NetworkSummary summary)  {
-		   NdexNetworkStatus nstatus = new NdexNetworkStatus () ;
-		  
-	        nstatus.setCreationTime(summary.getCreationTime());
-	        nstatus.setEdgeCount(summary.getEdgeCount());
-	        nstatus.setNodeCount(summary.getNodeCount());
-	        nstatus.setExternalId(summary.getExternalId().toString());
-	        nstatus.setModificationTime(summary.getModificationTime());
-	        try {
-				nstatus.setNdexServerURI(Configuration.getInstance().getHostURI());
-			} catch (NdexException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-	        nstatus.setOwner(summary.getOwner());
-	        //nstatus.setPublished(isPublished);
-	        
-	        nstatus.setReadOnly(summary.getIsReadOnly());
-	     
-	        nstatus.setVisibility(summary.getVisibility());
-	         
-		   return nstatus;
-	   }
-	   
-	   
+
 	   
 }

@@ -692,7 +692,7 @@ public class NetworkDAO extends NdexDBDAO {
 		    		sqlStr += entry.getKey() + " = ?";	
 		    		values.add(entry.getValue());
 		    }
-		    sqlStr += " where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false and islocked=false";
+		    sqlStr += " where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false";
 		    
 		    try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 		    	for ( int i = 0 ; i < values.size(); i++) {
@@ -703,11 +703,42 @@ public class NetworkDAO extends NdexDBDAO {
 		    		throw new NdexException ("Failed to update. Network " + networkId + " might have been locked.");
 		    	}
 		    }
+		    
 	    	//update solr index
 	    	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
 
 	    	networkIdx.updateNetworkProfile(networkId.toString(), newValues); 
 		
+	}
+	
+	public MetaDataCollection getMetaDataCollection(UUID networkId) throws SQLException, IOException, NdexException {
+		String sqlStr = "select cxmetadata from network n where n.\"UUID\" =? and n.is_deleted= false" ;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					String s = rs.getString(1);
+					MetaDataCollection metadata = MetaDataCollection.createInstanceFromJson(s);
+					return metadata;
+				}
+				throw new NdexException ("No metadata found for network " + networkId + " in database.");
+			}
+		}
+		
+	}
+	
+	public void updateMetadataColleciton(UUID networkId, MetaDataCollection metadata) throws SQLException, JsonProcessingException, NdexException {
+		String sqlStr = "update network set cxmetadata = ? ::jsonb where \"UUID\" = ? and is_deleted=false";
+		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			ObjectMapper mapper = new ObjectMapper();
+		    String s = mapper.writeValueAsString( metadata);
+			 pst.setString(1, s);
+			 pst.setObject(2, networkId);
+			 int i = pst.executeUpdate();
+			 if ( i !=1 )
+				 throw new NdexException ("Failed to update metadata of Network " + networkId + ". Db record might have been locked.");
+		 }
 	}
 	
 	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException, SolrServerException, IOException {

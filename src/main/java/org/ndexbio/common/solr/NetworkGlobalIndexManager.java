@@ -62,6 +62,7 @@ import org.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.util.TermUtilities;
+import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
@@ -324,6 +325,31 @@ public class NetworkGlobalIndexManager {
 
 	}
 
+	
+	public void addFunctionTermToIndex(FunctionTermElement e)  {
+				
+		for ( String term : getIndexableStringsFromFunctionTerm(e)) {
+			 
+			doc.addField(REPRESENTS, term);
+		}
+
+	}
+	
+	private List<String> getIndexableStringsFromFunctionTerm(FunctionTermElement e)  {
+		
+		List<String> terms = getIndexableString(e.getFunctionName());
+		for (Object arg: e.getArgs()) {
+			if (arg instanceof String ) {
+				terms.addAll(getIndexableString((String)arg));
+			} else if ( arg instanceof FunctionTermElement ){
+				terms.addAll(getIndexableStringsFromFunctionTerm((FunctionTermElement)arg));
+			}
+		}
+	
+		return terms;
+	}
+
+	
 	public void addCXNetworkAttrToIndex(NetworkAttributesElement e)  {
 		
 		if ( e.getName().equals(NdexClasses.Network_P_name) && e.getValue() !=null && e.getValue().length()>0) {
@@ -353,46 +379,7 @@ public class NetworkGlobalIndexManager {
 		
 	}
 	
-	@Deprecated
-    private void addNodeToIndex(String name, List<String> represents, List<String> alias, /*List<String> relatedTerms, */
-    				List<String> geneSymbol, List<String> NCBIGeneID)  {
-				
-		if ( name != null && name.length() >2 ) 
-			doc.addField(NODE_NAME, name);
-		if ( represents !=null ) {
-			for ( String term : represents)
-				doc.addField(REPRESENTS, term);
-		}	
-		if ( alias !=null ) {
-			for (String term : alias )
-				doc.addField(ALIASES, term);
-		}	
-/*		if ( relatedTerms !=null && ! relatedTerms.isEmpty() ) { 
-			for ( String term : relatedTerms)
-				doc.addField(RELATED_TO, term);
-		} */
-		if ( geneSymbol != null && !geneSymbol.isEmpty()) {
-			for ( String gs : geneSymbol)
-				doc.addField(GENE_SYMBOL, gs);
-		}
-		
-		if ( NCBIGeneID !=null && !NCBIGeneID.isEmpty()) {
-			for ( String geneId : NCBIGeneID)
-				doc.addField(NCBI_GENE_ID, geneId);
-		}
-		
-	//	docs.add(doc);
-		
-/*		counter ++;
-		if ( counter == batchSize) {
-			client.add(docs);
-			client.commit();
-			docs.clear();
-			counter = 0;
-		}  */
-
-	}
-
+	
 	
 	public void deleteNetwork(String networkId) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);

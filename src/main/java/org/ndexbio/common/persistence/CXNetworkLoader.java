@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -69,6 +70,7 @@ import org.cxio.misc.OpaqueElement;
 import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXAspectWriter;
+import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.cx.GeneralAspectFragmentReader;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
@@ -76,6 +78,7 @@ import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
+import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.NodeCitationLinksElement;
@@ -264,6 +267,17 @@ public class CXNetworkLoader implements AutoCloseable {
 				SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString());
 				idx2.createIndex();
 				
+				//recreate CX file
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
+				String tmpFileName = g.createNetworkFile();
+				
+				java.nio.file.Path src = Paths.get(tmpFileName);
+				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId+ ".cx");
+				java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId+ ".arc");
+				
+				Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
+				Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
+				
 				try {
 					dao.setFlag(this.networkId, "iscomplete", true);
 					dao.commit();
@@ -327,6 +341,10 @@ public class CXNetworkLoader implements AutoCloseable {
 				case NodeCitationLinksElement.ASPECT_NAME:
 					createNodeCitation((NodeCitationLinksElement) elmt);
 					break;
+				case FunctionTermElement.ASPECT_NAME:
+					createFunctionTerm((FunctionTermElement)elmt);
+					break;
+					
 				case Provenance.ASPECT_NAME:   // we only save the provenance aspect in db not in the disk.
 			//		createAspectElement(elmt);
 					this.provenanceHistory = (Provenance)elmt;
@@ -389,16 +407,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  Long consistencyGrp = metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup();
 
 			  // process NdexNetworkStatus metadata
-			  MetaDataElement e = metadata.getMetaDataElement(NdexNetworkStatus.ASPECT_NAME);
-			  if ( e == null) {
-				  e = new MetaDataElement();
-				  e.setName(NdexNetworkStatus.ASPECT_NAME);
-				  e.setVersion("1.0");
-				  e.setConsistencyGroup(consistencyGrp);
-				  e.setElementCount(1l);
-				  metadata.add(e);
-			  }
-			  e.setLastUpdate(modificationTime.getTime());
+			  metadata.remove(NdexNetworkStatus.ASPECT_NAME);
 			  
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
@@ -473,6 +482,16 @@ public class CXNetworkLoader implements AutoCloseable {
 		tick();   
 	}	 
 
+	private void createFunctionTerm(FunctionTermElement funcTerm) throws NdexException, IOException {
+
+		nodeIdTracker.addReferenceId(funcTerm.getNodeID());
+		writeCXElement(funcTerm);		   
+		
+		globalIdx.addFunctionTermToIndex(funcTerm);
+		tick();   
+	}	 
+
+	
 	private void createCXSupport(SupportElement support) throws NdexException, IOException {
 		supportIdTracker.addDefinedElementId(support.getId());
 		writeCXElement(support);		   

@@ -39,28 +39,27 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
-import java.util.Date;
-import java.util.HashMap;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Security;
-import org.ndexbio.model.exceptions.*;
+import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.SimpleQuery;
 import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.network.NetworkSummary;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -383,33 +382,6 @@ public class UserDAO extends NdexDBDAO {
 
 	}
 
-/*	
-	public User getUserByEmail(String userEmail) throws IllegalArgumentException, JsonParseException, JsonMappingException, SQLException, IOException, ObjectNotFoundException {
-
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(userEmail),
-				"userEmail required");
-
-		String queryStr = "SELECT * FROM " + NdexClasses.User + " where " + NdexClasses.User_emailAddress+ " = ? and is_deleted=false";
-		
-		try (PreparedStatement st = db.prepareStatement(queryStr))  {
-			st.setString(1, userEmail);
-		
-			try (ResultSet rs = st.executeQuery() ) {
-				if (rs.next()) {
-					// populate the user object;
-					
-					User user = new User();
-					populateUserFromResultSet(user, rs);
-					return user;					
-				} 
-				throw new ObjectNotFoundException("User " + userEmail + " doesn't exist.");
-
-			}
-		}
-	
-			
-	}
-*/
 	
 	/**************************************************************************
 	 * Find users
@@ -803,82 +775,6 @@ public class UserDAO extends NdexDBDAO {
 		
 	}
 
-	
-	
-	/**************************************************************************
-	 * getSentRequest
-	 * 
-	 * @param account
-	 *            User object
-	 * @param skipBlocks
-	 *            amount of blocks to skip
-	 * @param blockSize
-	 *            The size of blocks to be skipped and retrieved
-	 * @throws NdexException
-	 *             An error occurred while accessing the database
-	 * @throws ObjectNotFoundException
-	 *             Invalid userId
-	 **************************************************************************/
-
-	public List<Request> getSentRequest(User account, int skipBlocks,
-			int blockSize) throws ObjectNotFoundException, NdexException {
-		Preconditions.checkArgument(account != null, "Must be logged in");
-		// TODO May possibly add extra parameter to specify type of request to
-		// return
-
-		//TODO: need new implementation.
-		final List<Request> requests = new ArrayList<>();
-
-		return requests;
-	}
-
-	/**************************************************************************
-	 * getPendingRequest
-	 * 
-	 * @param account
-	 *            User object
-	 * @param skipBlocks
-	 *            amount of blocks to skip
-	 * @param blockSize
-	 *            The size of blocks to be skipped and retrieved
-	 * @throws NdexException
-	 *             An error occurred while accessing the database
-	 * @throws ObjectNotFoundException
-	 *             Invalid userId
-	 **************************************************************************/
-	public List<Request> getPendingRequest(User account, int skipBlocks,
-			int blockSize) throws ObjectNotFoundException, NdexException {
-		Preconditions.checkArgument(account != null, "Must be logged in");
-		// TODO May possibly add extra parameter to specify type of request to
-		// return
-
-		final List<Request> requests = new ArrayList<>();
-
-		//TODO: need new implementation.
-	/*	ODocument user = this.getRecordByUUID(account.getExternalId(),
-				NdexClasses.User);
-		final int startIndex = skipBlocks * blockSize;
-
-		try {
-			OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
-					"SELECT FROM" + " (TRAVERSE in_requests FROM" + " "
-							+ user.getIdentity().toString()
-							+ "  WHILE $depth <=1)" + " WHERE @class = '"
-							+ NdexClasses.Request + "'" + " AND response = '"
-							+ ResponseType.PENDING + "'"
-							+ " ORDER BY " + NdexClasses.ExternalObj_cTime + " DESC " + " SKIP "
-							+ startIndex + " LIMIT " + blockSize);
-
-			List<ODocument> records = this.db.command(query).execute();
-
-			for (ODocument request : records) {
-				requests.add(RequestDAO.getRequestFromDocument(request));
-			}
-*/
-			return requests;
-	
-	}
-	
 	
 	public void deleteUserById(UUID id) throws NdexException, ObjectNotFoundException, SQLException {
 		Preconditions.checkArgument(null != id, "UUID required");
