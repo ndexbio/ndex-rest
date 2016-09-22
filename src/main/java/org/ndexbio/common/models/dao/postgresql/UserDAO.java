@@ -59,6 +59,7 @@ import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SimpleQuery;
+import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.model.object.User;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -399,7 +400,7 @@ public class UserDAO extends NdexDBDAO {
 	 * @throws SQLException 
 	 * @returns User object, from the NDEx Object Model
 	 **************************************************************************/
-	public List<User> findUsers(SimpleQuery simpleQuery, int skipBlock, int top)
+	public SolrSearchResult<User> findUsers(SimpleQuery simpleQuery, int skipBlock, int top)
 			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
 		Preconditions.checkArgument(simpleQuery != null,
 				"Search parameters are required");
@@ -407,13 +408,15 @@ public class UserDAO extends NdexDBDAO {
 		    if ( simpleQuery.getSearchString().length()==0)
 		    	simpleQuery.setSearchString("*:*");
 			UserIndexManager indexManager = new UserIndexManager();
-			SolrDocumentList l = indexManager.searchUsers(simpleQuery.getSearchString(), top, skipBlock*top);	
+			SolrDocumentList l = indexManager.searchUsers(simpleQuery.getSearchString(), top, skipBlock*top);
+			
 			List<User> results = new ArrayList<>(l.size());
 			for (SolrDocument d : l) {
 				results.add(getUserById(UUID.fromString((String)d.get(UserIndexManager.UUID)), true));
 			}
-			
-			return results;
+			return new SolrSearchResult<> (l.getNumFound(),l.getStart(), results);
+
+			//return results;
 			
 	}
 
@@ -549,7 +552,7 @@ public class UserDAO extends NdexDBDAO {
 	 **************************************************************************/
 
 	public List<Membership> getUserNetworkMemberships(UUID userId,
-			Permissions permission, int skipBlocks, int blockSize)
+			Permissions permission, int skipBlocks, int blockSize, boolean inclusive)
 			throws ObjectNotFoundException, NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(userId.toString()),
@@ -559,11 +562,13 @@ public class UserDAO extends NdexDBDAO {
 						"from network n where owneruuid = '" + userId.toString() + "' :: uuid ";
 		
 		if ( permission == Permissions.READ || permission == Permissions.WRITE) {
-			queryStr = " select a.network_id, max(a.permission_type) as permission_type from (" + 
-					 queryStr + " union select un.network_id, un.permission_type " + 
-					"from user_network_membership un where un.user_id = '"+ userId.toString() + "' :: uuid and un.permission_type >= '" + permission +"' " +
+			
+			String permissionClause =  (inclusive? " >= '" : " = '" ) + permission + "' ";
+			queryStr = " select a.network_id, max(a.permission_type) as permission_type from (" + (inclusive ? (queryStr + " union ") : "" ) +
+					" select un.network_id, un.permission_type " + 
+					"from user_network_membership un where un.user_id = '"+ userId.toString() + "' :: uuid and un.permission_type " + permissionClause +
 					" union select gn.network_id, gn.permission_type from ndex_group_user ug, group_network_membership gn " + 
-					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid and gn.permission_type >= '" + permission +"' ) a group by a.network_id ";
+					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid and gn.permission_type " + permissionClause +" ) a group by a.network_id ";
 					
 		}  else if ( permission == null || permission !=Permissions.ADMIN) {
 			throw new IllegalArgumentException("Valid permissions required.");
@@ -635,7 +640,7 @@ public class UserDAO extends NdexDBDAO {
 	 **************************************************************************/
 
 	public List<Membership> getUserGroupMemberships(UUID userId,
-			Permissions permission, int skipBlocks, int blockSize)
+			Permissions permission, int skipBlocks, int blockSize, boolean inclusive)
 			throws ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, SQLException, IOException {
 
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(userId.toString()),
@@ -649,7 +654,11 @@ public class UserDAO extends NdexDBDAO {
 			queryStr += " and gu.is_admin";
 		} else if ( permission == null || permission != Permissions.MEMBER) 
 			throw new NdexException ("Valid permissions required in getUserGroupMembership function.");
-		
+		else {
+			if ( !inclusive)
+				queryStr += " and gu.is_admin = false";
+		}
+			
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
 		}

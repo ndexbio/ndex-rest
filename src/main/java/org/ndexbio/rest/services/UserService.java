@@ -40,12 +40,14 @@ import javax.annotation.security.PermitAll;
 import javax.mail.MessagingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.Encoded;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
@@ -64,6 +66,7 @@ import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.SimpleQuery;
+import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
@@ -384,14 +387,15 @@ public class UserService extends NdexService {
 	public List<Membership> getUserNetworkMemberships(
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
+			@PathParam("blockSize") int blockSize,
+			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 		
 		logger.info("[start: Getting {} networks ]", permissions);
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
 		
 		try (UserDAO dao = new UserDAO ()) {
-			List<Membership> members= dao.getUserNetworkMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize);
+			List<Membership> members= dao.getUserNetworkMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize, inclusive);
 			logger.info("[end: Returned {} members ]", members.size());			
 			return members;
 		} 
@@ -421,7 +425,9 @@ public class UserService extends NdexService {
 	public List<Membership> getUserGroupMemberships(
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
+			@PathParam("blockSize") int blockSize,
+			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) 
+					throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
 		logger.info("[start: Getting {} groups for user {}]", permissions, getLoggedInUser().getUserName());
 
@@ -429,7 +435,7 @@ public class UserService extends NdexService {
 		
 		try (UserDAO dao = new UserDAO ()) {
 			List<Membership> result =
-					dao.getUserGroupMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize);
+					dao.getUserGroupMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize, inclusive);
 			logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
 			return result;
 		} 
@@ -697,16 +703,16 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
 			+ "The searchParameters must contain a 'searchString' parameter. ")
-	public List<User> findUsers(SimpleQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
+	public SolrSearchResult<User> findUsers(SimpleQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
 			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
 
 		logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
 		
 		try (UserDAO dao = new UserDAO ()){
 
-			final List<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
+			final SolrSearchResult<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
 			
-			logger.info("[end: Returning {} users from search]", users.size());			
+			logger.info("[end: Returning {} users from search]", users.getNumFound());			
 			return users;
 		} 
 		

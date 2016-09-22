@@ -38,11 +38,13 @@ import java.util.UUID;
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 
 import org.apache.solr.client.solrj.SolrServerException;
@@ -55,6 +57,7 @@ import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SimpleQuery;
+import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -180,7 +183,7 @@ public class GroupService extends NdexService {
 	@Path("/search/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of groups found based on the searchOperator and the POSTed searchParameters.")
-	public List<Group> findGroups(SimpleQuery simpleQuery,
+	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@PathParam("skipBlocks") final int skip,
 			@PathParam("blockSize") final int top)
 			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
@@ -188,7 +191,7 @@ public class GroupService extends NdexService {
 		logger.info("[start: Search group \"{}\"]", simpleQuery.getSearchString());
 		
 		try (GroupDAO dao = new GroupDAO()) {
-			final List<Group> groups = dao.findGroups(simpleQuery, skip, top);
+			final SolrSearchResult<Group> groups = dao.findGroups(simpleQuery, skip, top);
 			logger.info("[end: Search group \"{}\"]", simpleQuery.getSearchString());
 			return groups;
 		} 
@@ -375,13 +378,15 @@ public class GroupService extends NdexService {
 	 **************************************************************************/
 	
 	@GET
+	@PermitAll
 	@Path("/{groupId}/network/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
-	@ApiDoc("Return a list of network membership objects which the given group have direct permission to.")
+	@ApiDoc("Return a list of network membership objects which the given group have direct permission to. ")
 	public List<Membership> getGroupNetworkMemberships(@PathParam("groupId") final String groupIdStr,
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
+			@PathParam("blockSize") int blockSize,
+			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
 		logger.info("[start: Getting {} networks of group {}]", permissions, groupIdStr);
 		
@@ -389,9 +394,9 @@ public class GroupService extends NdexService {
 		UUID groupId = UUID.fromString(groupIdStr);
 		
 		try (GroupDAO dao = new GroupDAO()){
-			if ( !dao.isInGroup(groupId, getLoggedInUserId()))
-				throw new NdexException("User is not a member of this group.");
-			List<Membership> l = dao.getGroupNetworkMemberships(groupId, permission, skipBlocks, blockSize);
+	//		if ( !dao.isInGroup(groupId, getLoggedInUserId()))
+	//			throw new NdexException("User is not a member of this group.");
+			List<Membership> l = dao.getGroupNetworkMemberships(groupId, permission, skipBlocks, blockSize, getLoggedInUserId(), inclusive);
 			logger.info("[end: Getting {} networks of group {}]", permissions, groupId);
 			return l;
 		}
@@ -421,7 +426,8 @@ public class GroupService extends NdexService {
 	public List<Membership> getGroupUserMemberships(@PathParam("groupId") final String groupIdStr,
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
+			@PathParam("blockSize") int blockSize,
+			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
 		logger.info("[start: Getting {} users in group {}]", permissions, groupIdStr);
 
@@ -432,7 +438,7 @@ public class GroupService extends NdexService {
 			if ( ! dao.isInGroup(groupId, getLoggedInUserId())) {
 				throw new NdexException("User has to be a member of this group.");
 			}
-			List<Membership> l = dao.getGroupUserMemberships(groupId, permission, skipBlocks, blockSize);
+			List<Membership> l = dao.getGroupUserMemberships(groupId, permission, skipBlocks, blockSize, inclusive);
 			logger.info("[end:]");
 			return l;
 		} 

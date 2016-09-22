@@ -233,7 +233,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @param userId
 	 * @return
 	 */
-	private static String createIsReadableConditionStr(UUID userId) {
+	protected static String createIsReadableConditionStr(UUID userId) {
 		if ( userId == null)
 			return "n.visibility='PUBLIC'";
 		return "( n.visibility='PUBLIC' or n.owneruuid = '" + userId + "' ::uuid or " + 
@@ -572,7 +572,7 @@ public class NetworkDAO extends NdexDBDAO {
 		List<String> groupNames = new ArrayList<>();
 		if ( loggedInUser !=null && simpleNetworkQuery.getIncludeGroups()) {
 			try (UserDAO userDao = new UserDAO() ) {
-				for ( Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(), Permissions.MEMBER,0,0) ) {
+				for ( Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(), Permissions.MEMBER,0,0,true) ) {
 					groupNames.add(m.getResourceName());
 				}
 			}

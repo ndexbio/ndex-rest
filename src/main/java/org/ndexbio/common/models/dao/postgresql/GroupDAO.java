@@ -58,6 +58,7 @@ import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SimpleQuery;
+import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.model.object.User;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -195,7 +196,7 @@ public class GroupDAO extends NdexDBDAO {
 	 * @throws SolrServerException 
 	 * @throws SQLException 
 	    **************************************************************************/
-	public List<Group> findGroups(SimpleQuery simpleQuery, int skipBlocks, int blockSize) 
+	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery, int skipBlocks, int blockSize) 
 			throws NdexException, IllegalArgumentException, SolrServerException, IOException, SQLException {
 		
 		Preconditions.checkArgument(null != simpleQuery, "Search parameters are required");
@@ -210,7 +211,7 @@ public class GroupDAO extends NdexDBDAO {
 			results.add(getGroupById(UUID.fromString((String)d.get(GroupIndexManager.UUID))));
 		}
 		
-		return results;
+		return new SolrSearchResult<> (l.getNumFound(),l.getStart(), results);
 		
 	}
 	
@@ -237,7 +238,7 @@ public class GroupDAO extends NdexDBDAO {
 	 * @throws JsonMappingException 
 	 * @throws JsonParseException 
 	    **************************************************************************/
-	public List<Membership> getGroupNetworkMemberships(UUID groupId, Permissions permission, int skipBlocks, int blockSize) 
+	public List<Membership> getGroupNetworkMemberships(UUID groupId, Permissions permission, int skipBlocks, int blockSize, UUID userId, boolean inclusive) 
 			throws ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, SQLException, IOException {
 		
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(groupId.toString()),
@@ -252,10 +253,11 @@ public class GroupDAO extends NdexDBDAO {
 			permissionStr = " and permission_type=\'" + Permissions.WRITE.toString() + "\'";
 		} else if ( permission != Permissions.READ ) {
 			throw new IllegalArgumentException("Valid permissions required.");
-		}
-		
+		} else if ( !inclusive)
+			permissionStr = " and permission_type=\'" + Permissions.READ.toString() + "\'";
+				
 		String sqlStr = "SELECT n.\"UUID\", n.name, gn.permission_type FROM group_network_membership gn, network n where gn.group_id = ? "+ permissionStr +
-				" and gn.network_id = n.\"UUID\" order by n.modification_time desc";
+				" and gn.network_id = n.\"UUID\" and " + NetworkDAO.createIsReadableConditionStr(userId) + " order by n.modification_time desc";
 		if ( skipBlocks>=0 && blockSize>0) {
 			sqlStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
 		}
@@ -362,7 +364,7 @@ public class GroupDAO extends NdexDBDAO {
 	 * @throws JsonParseException 
 	    **************************************************************************/
 	
-	public List<Membership> getGroupUserMemberships(UUID groupId, Permissions permission, int skipBlocks, int blockSize) 
+	public List<Membership> getGroupUserMemberships(UUID groupId, Permissions permission, int skipBlocks, int blockSize, boolean inclusive) 
 			throws ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, SQLException, IOException {
 		
 		Preconditions.checkArgument( (permission.equals( Permissions.GROUPADMIN) )
@@ -373,6 +375,12 @@ public class GroupDAO extends NdexDBDAO {
 		
 		if ( permission == Permissions.GROUPADMIN) 
 			queryStr += " and is_admin";
+		else {
+			if ( !inclusive) {
+				queryStr += " and is_admin = false";
+			}
+		}
+			
 		
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
@@ -391,7 +399,11 @@ public class GroupDAO extends NdexDBDAO {
 					membership.setMembershipType( MembershipType.GROUP );
 					membership.setMemberAccountName( rs.getString(3) ); 
 					membership.setMemberUUID( (UUID)rs.getObject(1) );
-					membership.setPermissions( Permissions.valueOf(rs.getString(2)) );
+					if (rs.getBoolean(2)) 
+						membership.setPermissions( Permissions.GROUPADMIN );
+					else 
+						membership.setPermissions( Permissions.MEMBER );
+
 					membership.setResourceName( group.getGroupName() );
 					membership.setResourceUUID( groupId );
 					
