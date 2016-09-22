@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import org.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.cxio.aspects.datamodels.EdgesElement;
@@ -60,6 +61,7 @@ public class CXNetwork {
 	
 	private Collection <NetworkAttributesElement> networkAttributes;
 	
+	//function term, node/edge citation and supports might use these 2 tables.
 	private Map<String,Map<Long,Collection<AspectElement>>> nodeAssociatedAspects;
 	private Map<String,Map<Long, Collection<AspectElement>>> edgeAssociatedAspects;
 	
@@ -115,6 +117,7 @@ public class CXNetwork {
 			addEdgeAttribute(edgeAttribute.getPropertyOf(),edgeAttribute);
 		
 	}
+
 	
 	public void addEdgeAttribute(Long i , EdgeAttributesElement edgeAttribute) {
 			Collection<EdgeAttributesElement> edgeAttrs = edgeAttributes.get(i);
@@ -142,7 +145,31 @@ public class CXNetwork {
 		aspectElmts.add(e);
 		
 	}
+	
+	public void addNodeAssociatedAspectElement(Long nodeId, AspectElement elmt) {
+		addAssciatatedAspectElement(nodeAssociatedAspects, nodeId, elmt);
+	}
 
+	public void addEdgeAssociatedAspectElement(Long edgeId, AspectElement elmt) {
+		addAssciatatedAspectElement(edgeAssociatedAspects, edgeId, elmt);	
+	}
+	
+	private static void addAssciatatedAspectElement(Map<String,Map<Long,Collection<AspectElement>>> table, Long id, AspectElement elmt) {
+		Map<Long,Collection<AspectElement>> aspectElements = table.get(elmt.getAspectName());
+		if ( aspectElements == null) {
+			aspectElements = new TreeMap<> ();
+			table.put(elmt.getAspectName(), aspectElements);
+		}
+		Collection<AspectElement> elmts = aspectElements.get(id);
+		
+		if (elmts == null) {
+			elmts = new ArrayList<>();
+			aspectElements.put(id, elmts);
+		}
+		elmts.add(elmt);
+	}
+
+	
 	public MetaDataCollection getMetadata() {
 		return metadata;
 	}

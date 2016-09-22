@@ -41,6 +41,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -136,6 +137,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 	private Map<String,CXAspectWriter> aspectTable;
 	private NetworkGlobalIndexManager globalIdx ;
+	
+	private Map<String, Long> aspectElementCounters;
 
 		
 	public CXNetworkLoader(UUID networkUUID,String ownerUserName)  throws NdexException, FileNotFoundException {
@@ -160,6 +163,8 @@ public class CXNetworkLoader implements AutoCloseable {
 			serverElementLimit = -1;
 		
 		globalIdx = new NetworkGlobalIndexManager();
+		
+		aspectElementCounters = new HashMap<>();
 		
 	}
 	
@@ -577,7 +582,6 @@ public class CXNetworkLoader implements AutoCloseable {
 			System.out.println("Loaded " + counter + " element in CX");
 		
 	} 
-	
 	
 	public UUID updateNetwork(String networkUUID, ProvenanceEntity provenanceEntity) throws NdexException, ExecutionException, SolrServerException, IOException {
 

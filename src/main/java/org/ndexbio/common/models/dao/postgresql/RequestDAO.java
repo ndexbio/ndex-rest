@@ -256,7 +256,9 @@ public class RequestDAO extends NdexDBDAO  {
 		r.setMessage(rs.getString("requestmessage"));
 		r.setPermission( Permissions.valueOf( rs.getString("requestpermission") ) );
 		r.setResponder(rs.getString("responder"));
-		r.setResponse( ResponseType.valueOf(  rs.getString("response") ));
+		String responseStr = rs.getString("response") ;
+		if ( responseStr != null)
+			r.setResponse( ResponseType.valueOf( responseStr));
 		r.setResponseMessage(rs.getString("responseMessage"));
 		r.setResponseTime(rs.getTimestamp("responsetime"));
 		
@@ -412,11 +414,25 @@ public class RequestDAO extends NdexDBDAO  {
 	}
 	
 	
-/*
-	
-	private void checkForExistingRequest(ODocument user, ODocument source, ODocument destination, Permissions permission) 
+
+/*	
+	private void checkForExistingRequest(UUID sourceUUID, UUID destinationUUID, Permissions permission) 
 			throws DuplicateObjectException, NdexException {
 		
+		String sql = "select count(*) from request where destinationuuid = ? and  sourceuuid = ? " 
+				+ "and requestpermission =? and is_deleted =false";
+		try (PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, destinationUUID);
+			p.setObject(2, sourceUUID);
+			p.setString(3, permission.toString());
+			try ( ResultSet rs = p.executeQuery()) {
+					if ( rs.next()) {
+						Integer i = rs.getInt(1);
+						return i.intValue() > 0;
+						return rs.getInt(1)
+					}
+			}
+		}
 		OrientVertex vUser = this.graph.getVertex(user);
 		for(Vertex v : vUser.getVertices(Direction.OUT, "requests") ) {
 			if( ((OrientVertex) v).getRecord().field("destinationUUID").equals( destination.field("UUID") )
@@ -428,7 +444,7 @@ public class RequestDAO extends NdexDBDAO  {
 		if(checkPermission(source.getIdentity(), destination.getIdentity(), Direction.OUT, 1, permission))
 			throw new NdexException("Access has already been granted");
 		
-	} */
-	
+	} 
+	*/
 	
 }

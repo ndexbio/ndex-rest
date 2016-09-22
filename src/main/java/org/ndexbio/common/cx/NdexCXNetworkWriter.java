@@ -35,6 +35,7 @@ public class NdexCXNetworkWriter {
 		g  = (new JsonFactory()).createGenerator(writer);
 		g.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
 		g.configure(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM, false);
+		g.setCodec(objectMapper);
 	}
 	
 

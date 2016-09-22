@@ -20,7 +20,7 @@ public class CXAspectWriter implements AutoCloseable{
 	
 	private OutputStream out;
 	private JsonWriter jwriter;
-	private long count;
+	private int count;
 	
 	private static final byte[] start = {'['};
 	private static final byte[] comma = {','};
@@ -56,5 +56,7 @@ public class CXAspectWriter implements AutoCloseable{
 	
 	public void flush() throws IOException { out.flush();}
 	
+	
+	public int getElementCount() {return count;}
 
 }

@@ -5,6 +5,8 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -30,11 +32,13 @@ import org.cxio.core.interfaces.AspectElement;
 import org.cxio.core.interfaces.AspectFragmentReader;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.misc.OpaqueElement;
+import org.ndexbio.common.access.AspectIterator;
 import org.ndexbio.common.cx.GeneralAspectFragmentReader;
 import org.ndexbio.common.solr.NodeIndexEntry;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
+import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.NodeCitationLinksElement;
@@ -78,13 +82,10 @@ public class CXNetworkSampleGenerator {
 			
 			edgeIds = new ArrayList<>(sampleSize);
 			
-			try (FileInputStream inputStream = new FileInputStream(pathPrefix +  SubNetworkElement.ASPECT_NAME)) {
-
-				Iterator<SubNetworkElement> it = new ObjectMapper().readerFor(SubNetworkElement.class).readValues(inputStream);
-
-				while (it.hasNext()) {
-					SubNetworkElement subNetwork = it.next();
-	        	
+			try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId,SubNetworkElement.ASPECT_NAME /*, SubNetworkElement.class*/ ) ) {
+				while ( subNetIterator.hasNext()) {
+					SubNetworkElement subNetwork = subNetIterator.next();
+					
 					if (subNetworkId.equals(subNetwork.getId())  )  {
 						int i = 0;
 						for (Long edgeId : subNetwork.getEdges() ) {
@@ -94,7 +95,6 @@ public class CXNetworkSampleGenerator {
 	        			
 						}					
 					}
-	        	
 				}
 			}
 		}
@@ -103,9 +103,11 @@ public class CXNetworkSampleGenerator {
 		int i = 0;
 		Set<Long> nodeIds = new TreeSet<>();
 		//go through Edge aspect
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + EdgesElement.ASPECT_NAME)) {
+		
+		try (AspectIterator<EdgesElement> it = new AspectIterator<>(networkId,EdgesElement.ASPECT_NAME /*, SubNetworkElement.class*/ )
+				/*FileInputStream inputStream = new FileInputStream(pathPrefix + EdgesElement.ASPECT_NAME)*/) {
 
-			Iterator<EdgesElement> it = new ObjectMapper().readerFor(EdgesElement.class).readValues(inputStream);
+		//	Iterator<EdgesElement> it = new ObjectMapper().readerFor(EdgesElement.class).readValues(inputStream);
 
 			while (it.hasNext()) {
 	        	EdgesElement edge = it.next();
@@ -139,25 +141,29 @@ public class CXNetworkSampleGenerator {
 		}
 		
 		//process node attribute aspect
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeAttributesElement.ASPECT_NAME)) {
+		java.nio.file.Path nodeAspectFile = Paths.get(pathPrefix + NodeAttributesElement.ASPECT_NAME);
+		if ( Files.exists(nodeAspectFile)) { 
+			try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeAttributesElement.ASPECT_NAME)) {
 
-			Iterator<NodeAttributesElement> it = new ObjectMapper().readerFor(NodeAttributesElement.class).readValues(inputStream);
+				Iterator<NodeAttributesElement> it = new ObjectMapper().readerFor(NodeAttributesElement.class).readValues(inputStream);
 
-			while (it.hasNext()) {
-				NodeAttributesElement na = it.next();
+				while (it.hasNext()) {
+					NodeAttributesElement na = it.next();
 				
-				Long id = na.getPropertyOf();
-				if ( nodeIds.contains(id) && 
-						(subNetworkId == null || na.getSubnetwork() == null || subNetworkId.equals(na.getSubnetwork()))) {
-					result.addNodeAttribute(id, na);
-				}
+					Long id = na.getPropertyOf();
+					if ( nodeIds.contains(id) && 
+							(subNetworkId == null || na.getSubnetwork() == null || subNetworkId.equals(na.getSubnetwork()))) {
+						result.addNodeAttribute(id, na);
+					}
 			        	
+				}
 			}
 		}
 		
-		
 		//process edge attribute aspect
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + EdgeAttributesElement.ASPECT_NAME)) {
+		java.nio.file.Path edgeAspectFile = Paths.get(pathPrefix + EdgeAttributesElement.ASPECT_NAME);
+		if ( Files.exists(edgeAspectFile)) { 
+		  try (FileInputStream inputStream = new FileInputStream(pathPrefix + EdgeAttributesElement.ASPECT_NAME)) {
 
 			Iterator<EdgeAttributesElement> it = new ObjectMapper().readerFor(EdgeAttributesElement.class).readValues(inputStream);
 
@@ -171,11 +177,14 @@ public class CXNetworkSampleGenerator {
 				}
 			        	
 			}
+		  }
 		}
 
 	
 		//process network attribute aspect
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + NetworkAttributesElement.ASPECT_NAME)) {
+		java.nio.file.Path networkAttrAspectFile = Paths.get(pathPrefix + NetworkAttributesElement.ASPECT_NAME);
+		if ( Files.exists(networkAttrAspectFile)) { 
+		  try (FileInputStream inputStream = new FileInputStream(pathPrefix + NetworkAttributesElement.ASPECT_NAME)) {
 
 			Iterator<NetworkAttributesElement> it = new ObjectMapper().readerFor(NetworkAttributesElement.class).readValues(inputStream);
 
@@ -187,11 +196,42 @@ public class CXNetworkSampleGenerator {
 				}
 				  	
 			}
+		  }
 		}
 
 		
 		//process namespace aspect
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + NamespacesElement.ASPECT_NAME)) {
+		java.nio.file.Path nsAspectFile = Paths.get(pathPrefix + NamespacesElement.ASPECT_NAME);
+		if ( Files.exists(nsAspectFile)) { 
+		  try (FileInputStream inputStream = new FileInputStream(pathPrefix + NamespacesElement.ASPECT_NAME)) {
+
+			Iterator<NamespacesElement> it = new ObjectMapper().readerFor(NamespacesElement.class).readValues(inputStream);
+
+			while (it.hasNext()) {
+				NamespacesElement ns = it.next();
+				result.setNamespaces(ns);
+			}
+		  }
+		}
+
+		//process cyVisualProperty aspect
+		java.nio.file.Path cyVisPropAspectFile = Paths.get(pathPrefix + CyVisualPropertiesElement.ASPECT_NAME);
+		if ( Files.exists(cyVisPropAspectFile)) { 
+		  try (FileInputStream inputStream = new FileInputStream(pathPrefix + CyVisualPropertiesElement.ASPECT_NAME)) {
+
+			Iterator<CyVisualPropertiesElement> it = new ObjectMapper().readerFor(CyVisualPropertiesElement.class).readValues(inputStream);
+
+			while (it.hasNext()) {
+				CyVisualPropertiesElement elmt = it.next();
+				 result.addOpapqueAspect(elmt);
+			}
+		  }
+		}
+
+		//process citation links aspects
+		java.nio.file.Path nodeCitationLinkFile = Paths.get(pathPrefix + NodeCitationLinksElement.ASPECT_NAME);
+		if ( Files.exists(nodeCitationLinkFile)) { 
+		try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeCitationLinksElement.ASPECT_NAME)) {
 
 			Iterator<NamespacesElement> it = new ObjectMapper().readerFor(NamespacesElement.class).readValues(inputStream);
 
@@ -200,27 +240,6 @@ public class CXNetworkSampleGenerator {
 				result.setNamespaces(ns);
 			}
 		}
-
-		//process namespace aspect
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + NamespacesElement.ASPECT_NAME)) {
-
-			Iterator<NamespacesElement> it = new ObjectMapper().readerFor(NamespacesElement.class).readValues(inputStream);
-
-			while (it.hasNext()) {
-				NamespacesElement ns = it.next();
-				result.setNamespaces(ns);
-			}
-		}
-
-		//process namespace aspect
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + NamespacesElement.ASPECT_NAME)) {
-
-			Iterator<NamespacesElement> it = new ObjectMapper().readerFor(NamespacesElement.class).readValues(inputStream);
-
-			while (it.hasNext()) {
-				NamespacesElement ns = it.next();
-				result.setNamespaces(ns);
-			}
 		}
 		
 	/*	this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + ".cx");

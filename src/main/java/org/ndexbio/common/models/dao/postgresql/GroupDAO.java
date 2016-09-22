@@ -265,7 +265,6 @@ public class GroupDAO extends NdexDBDAO {
 		List<Membership> memberships = new ArrayList<>();
 		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
 			st.setObject(1, groupId);
-			st.setString(2, permission.toString());
 			
 			try (ResultSet rs = st.executeQuery() ) {
 				while (rs.next()) {

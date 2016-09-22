@@ -79,11 +79,10 @@ public class CXNetworkFileGenerator {
 				  e.setVersion("1.0");
 				  e.setConsistencyGroup(metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup());
 				  e.setElementCount(1L);
-				  metadata.add(e);
+				  metadata.addAt(0, e);
 			 }
 			 e.setLastUpdate(fullSummary.getModificationTime().getTime());
 			
-			 metadata.addAt(0, e);
 			 
 			 //write metadata first.
 			 wtr.writeMetadata(metadata);
