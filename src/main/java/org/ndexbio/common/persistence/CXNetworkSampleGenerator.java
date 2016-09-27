@@ -47,7 +47,7 @@ public class CXNetworkSampleGenerator {
 	private Long currentTime;
 	
 	// size of sample is number of edges.
-	public static final int sampleSize = 10;
+	public static final int sampleSize = 500;
 	
 	
 	public CXNetworkSampleGenerator(UUID networkUUID, Long subNetworkID, MetaDataCollection srcMetaData) {
