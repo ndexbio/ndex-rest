@@ -182,6 +182,30 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 	}
 
+	
+	/**
+	 * Remove the network summary information for the given network. Modification_time will be updated and the network will be set to the un-validated 
+	 * state. All previous error and warnings are removed from db.
+	 * @param fieldName
+	 * @param value
+	 * @throws SQLException 
+	 * @throws NdexException 
+	 */
+	
+	public void clearNetworkSummary(UUID networkId) throws SQLException, NdexException {
+		String sqlStr = "update network set modification_time = localtimestamp, name = null,"
+				+ "description = null, edgeCount = null, nodeCount = null, isComplete=false,"
+				+ "cacheid = null, roid = null, sourceformat = null, properties = null, cxmetadata = null,"
+				+ "version = null, is_validated = false, error = null, warnings = null where \"UUID\" ='" +
+				 networkId.toString() + "' and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to reset network "+ networkId + "'s entry in db.");
+		}
+	}
+	
+	
 	/**
 	 * Pass in a partial summary to initialize the db entry. Only the name, description, version, edge and node counts are used
 	 * in this function.
@@ -234,6 +258,61 @@ public class NetworkDAO extends NdexDBDAO {
 				throw new NdexException ("Failed to update network summary entry in db.");
 		}
 	}
+
+	
+	/**
+	 * Only update fiels that relates to the network content. Permission related fields are not updated.
+	 * in this function.
+	 * @param networkSummary
+	 * @throws SQLException 
+	 * @throws NdexException 
+	 * @throws JsonProcessingException 
+	 */
+/*	public void updateNetworkCoreInfo(NetworkSummary networkSummary, ProvenanceEntity provenance, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
+		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
+				+ "properties = ? ::jsonb, provenance = ? :: jsonb, cxmetadata = ? :: json, warnings = ?, "
+				+ " is_validated =true where \"UUID\" = ?";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setString(1,networkSummary.getName());
+			pst.setString(2, networkSummary.getDescription());
+			pst.setString(3, networkSummary.getVersion());
+			pst.setInt(4, networkSummary.getEdgeCount());
+			pst.setInt(5, networkSummary.getNodeCount());
+			
+			if ( networkSummary.getProperties()!=null && networkSummary.getProperties().size() >0 ) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( networkSummary.getProperties());
+				pst.setString(6, s);
+			} else {
+				pst.setString(6, null);
+			}
+			
+			if ( provenance != null ) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( provenance);
+				pst.setString(7, s);
+			} else 
+				pst.setString(7, null);
+				
+			if (metadata !=null) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( metadata);
+				pst.setString(8, s);
+			}	else 
+				pst.setString(8, null);
+			
+			// set warnings
+			String[] warningArray = networkSummary.getWarnings().toArray(new String[0]);
+			Array arrayWarnings = db.createArrayOf("text", warningArray);
+			pst.setArray(9, arrayWarnings);
+			
+			pst.setObject(10, networkSummary.getExternalId());
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to update network summary entry in db.");
+		}
+	} */
+	
 	
 	/**
 	 * We assume the alias of network table is n in this function. so make sure this is true when using this function to construct your sql.

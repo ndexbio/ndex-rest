@@ -102,6 +102,8 @@ public class CXNetworkLoader implements AutoCloseable {
     protected static Logger logger = LoggerFactory.getLogger(CXNetworkLoader.class);
 
 	//private static final String nodeName = "name";
+    
+    private boolean isUpdate;
 	
 	private long counter;
 	
@@ -140,8 +142,10 @@ public class CXNetworkLoader implements AutoCloseable {
 	private NetworkGlobalIndexManager globalIdx ;
 	private List<String> warnings;
 		
-	public CXNetworkLoader(UUID networkUUID,String ownerUserName)  throws NdexException, FileNotFoundException {
+	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate)  throws NdexException, FileNotFoundException {
 		super();
+		
+		this.isUpdate = isUpdate;
 		
 		this.ownerName = ownerUserName;
 		this.networkId = networkUUID;
@@ -239,8 +243,15 @@ public class CXNetworkLoader implements AutoCloseable {
 					throw new NdexException ("DB error when saving network summary: " + e.getMessage(), e);
 				}
 		  
+				SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString());
+				if ( isUpdate ) {
+					this.globalIdx.deleteNetwork(networkId.toString());
+					idx2.dropIndex();		
+				}	
+				
 				createSolrIndex(summary);
-		  
+				idx2.createIndex();
+  
 				// create the network sample if the network has more than 500 edges
 				if (summary.getEdgeCount() > CXNetworkSampleGenerator.sampleSize)  {
 			  
@@ -256,8 +267,6 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 				}
 			  
-				SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString());
-				idx2.createIndex();
 				
 				//recreate CX file
 				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);

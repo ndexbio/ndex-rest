@@ -16,16 +16,18 @@ public class CXNetworkLoadingTask implements NdexSystemTask {
 	
 	private UUID networkId;
 	private String ownerUserName;
+	private boolean isUpdate;
 	
-	public CXNetworkLoadingTask (UUID networkUUID, String ownerName) {
+	public CXNetworkLoadingTask (UUID networkUUID, String ownerName, boolean isUpdate) {
 		this.networkId = networkUUID;
 		this.ownerUserName = ownerName;
+		this.isUpdate = isUpdate;
 	}
 	
 	@Override
 	public void run()  {
 		
-		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, ownerUserName) ) {
+		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, ownerUserName, isUpdate) ) {
 				loader.persistCXNetwork();
 		} catch ( IOException | NdexException | SQLException | SolrServerException e1) {
 			logger.severe("Error occured when loading network " + networkId + ": " + e1.getMessage());

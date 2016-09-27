@@ -31,15 +31,9 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-
-import java.util.UUID;
 
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
 
 public abstract class NdexDBDAO implements AutoCloseable {
 

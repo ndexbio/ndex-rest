@@ -67,6 +67,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
@@ -86,6 +87,7 @@ import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
+import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.exceptions.NdexException;
@@ -1469,16 +1471,17 @@ public class NetworkService extends NdexService {
             "server configuration. Network UUID is returned. This function also takes an optional 'provenance' field in the posted form."
             + " See createCXNetwork function for more details of this parameter.")
     public String updateCXNetwork(final @PathParam("networkId") String networkIdStr,
-    		MultipartFormDataInput input)
-            throws Exception
+    		MultipartFormDataInput input) throws Exception 
     {
     	
 		logger.info("[start: Updating network {} using CX data]", networkIdStr);
 
+        UUID networkId = UUID.fromString(networkIdStr);
+
         try ( NetworkDAO daoNew = new NetworkDAO() ) {
            User user = getLoggedInUser();
-           UUID networkId = UUID.fromString(networkIdStr);
-
+           
+         try {
 	  	   if( daoNew.isReadOnly(networkId)) {
 				logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
@@ -1497,56 +1500,30 @@ public class NetworkService extends NdexService {
 			} 
 			
 			daoNew.lockNetwork(networkId);
+			
+	        UUID tmpNetworkId = storeRawNetwork (input);
+
+	        daoNew.clearNetworkSummary(networkId);
+
+			java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId);
+			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId);
+			FileUtils.deleteDirectory(new File(Configuration.getInstance().getNdexRoot() + "/data/" + networkId));
+			Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
+			daoNew.commit();
+			daoNew.unlockNetwork(networkId);
+			
+           } catch (SQLException | NdexException | IOException e) {
+        	  // e.printStackTrace();
+        	   daoNew.rollback();
+        	   daoNew.unlockNetwork(networkId);  
+
+        	   throw e;
+           } 
+			
         }  
-    	
-	       Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
-	       
-	       ProvenanceEntity entity = this.getProvenanceEntityFromMultiPart(uploadForm);
-
-	       //Get file data to save
-	       List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
-
-	       
-			PipedInputStream in = new PipedInputStream();
-			PipedOutputStream out;
-			try {
-				out = new PipedOutputStream(in);
-			} catch (IOException e) {
-				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
-			}
-	       
-	       CXNetworkLoadThread inputProcessor = new CXNetworkLoadThread(null);
-	       inputProcessor.start();
-	  
-		/*	try (CXNetworkLoader loader = new CXNetworkLoader(in, getLoggedInUser().getAccountName())) {
-				
-				// adding provenance.
-				if( entity == null) {
-					try (NetworkDocDAO dao = new NetworkDocDAO()) { 
-						entity = new ProvenanceEntity();
-						NetworkSummary summary = dao.getNetworkSummaryById(networkId.toString());
-						entity.setUri(summary.getURI());
-                
-						Helper.populateProvenanceEntity(entity, summary);
-
-						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE, summary.getModificationTime());
-
-						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-						Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
-						event.setProperties(eventProperties);
-
-						entity.setCreationEvent(event);
-					} 
-				}
-					
-				UUID networkUUID = loader.updateNetwork(networkId,entity);
-
-//				loader.setNetworkProvenance(entity);
-				logger.info("[end: Updating network {} using CX data]", networkId);
-				return networkUUID.toString();
-			} */
-
-	       return networkIdStr; 
+    	      
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, getLoggedInUser().getUserName(), true));
+	     return networkIdStr; 
     }
 
     
@@ -1569,7 +1546,9 @@ public class NetworkService extends NdexService {
 					
 						NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
 						globalIdx.deleteNetwork(id);
-						
+						SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id);
+						idxManager.dropIndex();
+
 						networkDao.deleteNetwork(UUID.fromString(id), getLoggedInUser().getExternalId());
 						networkDao.commit();
 										
@@ -1769,39 +1748,8 @@ public class NetworkService extends NdexService {
 
 		   logger.info("[start: Creating a new network based on a POSTed CX stream.]");
 	   
-	       Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
-	       
-	 //      ProvenanceEntity entity = this.getProvenanceEntityFromMultiPart(uploadForm);
-	       
-	       //Get file data to save
-	       List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
-			
-		   byte[] bytes = new byte[8192];
-		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   UUID uuid = storeRawNetwork ( input);
 		   String uuidStr = uuid.toString();
-		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr;
-		   
-		   //Create dir
-		   java.nio.file.Path dir = Paths.get(pathPrefix);
-		   Files.createDirectory(dir);
-		   
-		   //write content to file
-		   String cxFilePath = pathPrefix + "/network.cx";
-		   try (FileOutputStream out = new FileOutputStream (cxFilePath ) ){     
-			   for (InputPart inputPart : inputParts) {
-		               // convert the uploaded file to inputstream and write it to disk
-		        	org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
-		        			   (org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
-		            try (InputStream inputStream = p.getBody()) {
-		              
-		            	int read = 0;
-		            	while ((read = inputStream.read(bytes)) != -1) {
-		                  out.write(bytes, 0, read);
-		            	}
-		            }
-		               
-			   }
-		   }
 		   
 		   // create entry in db. 
 	       try (NetworkDAO dao = new NetworkDAO()) {
@@ -1809,7 +1757,7 @@ public class NetworkService extends NdexService {
 	    	   dao.commit();
 	       }
 	       
-	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName()));
+	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false));
 	       
 		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 		   return uuidStr;
@@ -1817,6 +1765,44 @@ public class NetworkService extends NdexService {
 	   	}
 	   
 
+	   private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException {
+		   Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
+	       
+			 //      ProvenanceEntity entity = this.getProvenanceEntityFromMultiPart(uploadForm);
+			       
+			 //Get file data to save
+			 List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
+					
+				   byte[] bytes = new byte[8192];
+				   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+				   String uuidStr = uuid.toString();
+				   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr;
+				   
+				   //Create dir
+				   java.nio.file.Path dir = Paths.get(pathPrefix);
+				   Files.createDirectory(dir);
+				   
+				   //write content to file
+				   String cxFilePath = pathPrefix + "/network.cx";
+				   try (FileOutputStream out = new FileOutputStream (cxFilePath ) ){     
+					   for (InputPart inputPart : inputParts) {
+				               // convert the uploaded file to inputstream and write it to disk
+				        	org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
+				        			   (org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
+				            try (InputStream inputStream = p.getBody()) {
+				              
+				            	int read = 0;
+				            	while ((read = inputStream.read(bytes)) != -1) {
+				                  out.write(bytes, 0, read);
+				            	}
+				            }
+				               
+					   }
+				   }
+				return uuid; 
+	   }
+	   
+	   
 	   
 	   private static List<NetworkAttributesElement> getNetworkAttributeAspectsFromSummary(NetworkSummary summary) 
 			   throws JsonParseException, JsonMappingException, IOException {
