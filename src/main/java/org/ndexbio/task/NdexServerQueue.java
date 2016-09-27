@@ -45,7 +45,7 @@ public enum NdexServerQueue {
 	public static final Task endOfQueue = new Task();
 	
 	public static final NdexSystemTask endOfSystemQueue = new NdexSystemTask() { @Override
-	public void run () {}};
+	public void run () {/*We don't expect this to be run.*/}};
 
 	private NdexServerQueue () {
 		systemTaskQueue = new LinkedBlockingDeque<>();

@@ -57,7 +57,7 @@ public abstract class NdexDBDAO implements AutoCloseable {
 	 * resolving a user is a common requirement across all DAO classes
 	 * 
 	 */
-
+/*
 	@Deprecated
 	protected ResultSet getRecordByUUID(UUID id, String entityClass) 
 			throws ObjectNotFoundException, NdexException, SQLException {
@@ -80,7 +80,7 @@ public abstract class NdexDBDAO implements AutoCloseable {
 		
 		
 	}
-	
+*/	
 	
 	public Connection getDBConnection() {
 		return db;

@@ -71,7 +71,9 @@ public class NdexCXNetworkWriter {
 	public void startAspectFragment(String aspectName) throws IOException {
 		g.writeStartObject();
 		g.writeFieldName(aspectName);
+		g.writeRaw(':');
 		g.flush();
+		writer.flush();
 	}
 	
 	public void writeAspectElementsFromNdexAspectFile(String filePath) throws IOException {

@@ -611,7 +611,7 @@ public class NetworkService extends NdexService {
 
     	}
     	
-		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + ".cx";
+		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx";
 
     	try {
 			FileInputStream in = new FileInputStream(cxFilePath)  ;
@@ -644,7 +644,7 @@ public class NetworkService extends NdexService {
 
     	}
     	
-		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + "_sample.cx";
+		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/sample.cx";
 		
 		try {
 			FileInputStream in = new FileInputStream(cxFilePath)  ;
@@ -1786,7 +1786,7 @@ public class NetworkService extends NdexService {
 		   Files.createDirectory(dir);
 		   
 		   //write content to file
-		   String cxFilePath = pathPrefix + "/" + uuidStr + ".cx";
+		   String cxFilePath = pathPrefix + "/network.cx";
 		   try (FileOutputStream out = new FileOutputStream (cxFilePath ) ){     
 			   for (InputPart inputPart : inputParts) {
 		               // convert the uploaded file to inputstream and write it to disk

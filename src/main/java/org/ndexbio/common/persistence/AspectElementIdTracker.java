@@ -49,14 +49,16 @@ public class AspectElementIdTracker {
 	
 	public int getDefinedElementSize() { return definedIds.size(); }
 	
-	public void checkUndefinedIds () throws NdexException {
+	
+	public String checkUndefinedIds ()  {
 		if ( undefinedIds.size() > 0 ) {
 		  String errorMessage = undefinedIds.size() + " undefined ids found in aspect " + aspectName + ": [";
 		  for( Long sid : undefinedIds)
 			  errorMessage += sid + " ";	
 		  errorMessage +="]";
-		  throw new NdexException(errorMessage);
-	  } 
+		  return errorMessage;
+		} 
+		return null;
 	}
 	
 }

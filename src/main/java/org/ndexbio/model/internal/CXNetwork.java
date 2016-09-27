@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -21,11 +22,13 @@ import org.cxio.aspects.writers.EdgesFragmentWriter;
 import org.cxio.aspects.writers.NetworkAttributesFragmentWriter;
 import org.cxio.aspects.writers.NodeAttributesFragmentWriter;
 import org.cxio.aspects.writers.NodesFragmentWriter;
+import org.cxio.aspects.writers.VisualPropertiesFragmentWriter;
 import org.cxio.core.CxWriter;
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.core.interfaces.AspectFragmentWriter;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.util.CxioUtil;
+import org.ndexbio.common.cx.GeneralAspectFragmentReader;
 import org.ndexbio.common.cx.GeneralAspectFragmentWriter;
 import org.ndexbio.model.cx.BELNamespaceElement;
 import org.ndexbio.model.cx.CitationElement;
@@ -198,10 +201,12 @@ public class CXNetwork {
         cxwtr.addAspectFragmentWriter(NetworkAttributesFragmentWriter.createInstance());
         cxwtr.addAspectFragmentWriter(EdgeAttributesFragmentWriter.createInstance());
         cxwtr.addAspectFragmentWriter(NodeAttributesFragmentWriter.createInstance());
+        cxwtr.addAspectFragmentWriter(VisualPropertiesFragmentWriter.createInstance());
         
         GeneralAspectFragmentWriter cfw = new GeneralAspectFragmentWriter(CitationElement.ASPECT_NAME);
         cxwtr.addAspectFragmentWriter(cfw);
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(SupportElement.ASPECT_NAME));
+        cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(FunctionTermElement.ASPECT_NAME));
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(NodeCitationLinksElement.ASPECT_NAME));
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(EdgeCitationLinksElement.ASPECT_NAME));
         cxwtr.addAspectFragmentWriter(new GeneralAspectFragmentWriter(EdgeSupportLinksElement.ASPECT_NAME));
@@ -215,6 +220,14 @@ public class CXNetwork {
     	cxwtr.startAspectFragment(element.getAspectName());
 		cxwtr.writeAspectElement(element);
 		cxwtr.endAspectFragment();
+    }
+    
+    
+    private MetaDataCollection computeMetadatqCollection() {
+    	MetaDataCollection mdc = new MetaDataCollection();
+    	
+    	
+    	return mdc;
     }
 
 	public void write(OutputStream out) throws IOException {
@@ -287,6 +300,30 @@ public class CXNetwork {
         	cxwtr.endAspectFragment();
         }
 
+        for (Entry<String,Map<Long,Collection<AspectElement>>>  aspect : nodeAssociatedAspects.entrySet()) {
+        	Map<Long, Collection<AspectElement>> elementMap = aspect.getValue();
+        	if ( ! elementMap.isEmpty()) {
+        		cxwtr.startAspectFragment(aspect.getKey());
+        		for (Collection<AspectElement> eCollection : elementMap.values() ) {
+        			for ( AspectElement e : eCollection)
+        				cxwtr.writeAspectElement(e);
+        		}
+        		cxwtr.endAspectFragment();    
+        	}
+        }
+        
+        for (Entry<String,Map<Long,Collection<AspectElement>>>  aspect : edgeAssociatedAspects.entrySet()) {
+        	Map<Long, Collection<AspectElement>> elementMap = aspect.getValue();
+        	if ( ! elementMap.isEmpty()) {
+        		cxwtr.startAspectFragment(aspect.getKey());
+        		for (Collection<AspectElement> eCollection : elementMap.values() ) {
+        			for ( AspectElement e : eCollection)
+        				cxwtr.writeAspectElement(e);
+        		}
+        		cxwtr.endAspectFragment();    
+        	}
+        }
+        
         for (Map.Entry<String, Collection<AspectElement>> entry : this.opaqueAspects.entrySet()) {
         	 cxwtr.startAspectFragment(entry.getKey());
         	 for (AspectElement e : entry.getValue() ) {
@@ -298,6 +335,7 @@ public class CXNetwork {
         
         cxwtr.end(true,"");
       } catch (Exception e ) {
+    	  e.printStackTrace();
     	  cxwtr.end(false, "Error: " + e.getMessage() );
     	  throw e;
       }

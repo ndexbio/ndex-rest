@@ -3,6 +3,7 @@ package org.ndexbio.task;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
@@ -11,6 +12,7 @@ import org.ndexbio.model.exceptions.NdexException;
 
 public class CXNetworkLoadingTask implements NdexSystemTask {
 	
+	private static Logger logger = Logger.getLogger(CXNetworkLoadingTask.class.getName());
 	
 	private UUID networkId;
 	private String ownerUserName;
@@ -25,16 +27,13 @@ public class CXNetworkLoadingTask implements NdexSystemTask {
 		
 		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, ownerUserName) ) {
 				loader.persistCXNetwork();
-			/*} catch (IOException | NdexException | SQLException | SolrServerException e) {
-				
-			} */
 		} catch ( IOException | NdexException | SQLException | SolrServerException e1) {
-			//TODO: put something in the log.
-			
+			logger.severe("Error occured when loading network " + networkId + ": " + e1.getMessage());
+			e1.printStackTrace();
 			try (NetworkDAO dao= new NetworkDAO()) {
 				dao.setErrorMessage(networkId, e1.getMessage());
 			} catch (SQLException e) {
-				// TODO Auto-generated catch block
+				logger.severe("Error occured when setting error message in network " + networkId + ": " + e1.getMessage());
 				e.printStackTrace();
 			}
 		

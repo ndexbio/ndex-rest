@@ -20,7 +20,8 @@ public class CXAspectWriter implements AutoCloseable{
 	
 	private OutputStream out;
 	private JsonWriter jwriter;
-	private int count;
+	private long count;
+	private boolean isClosed;
 	
 	private static final byte[] start = {'['};
 	private static final byte[] comma = {','};
@@ -32,14 +33,18 @@ public class CXAspectWriter implements AutoCloseable{
 	    jwriter.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
 	    jwriter.configure(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM, false);
 		count = 0;
+		isClosed=false;
 	}
 	
 
 	@Override
 	public void close () throws IOException {
-		out.write(end);
-		jwriter.close();
-		out.close();
+		if ( !isClosed) { 
+			out.write(end);
+			jwriter.close();
+			out.close();
+			isClosed = true;
+		}
 	}
 
 
@@ -57,6 +62,6 @@ public class CXAspectWriter implements AutoCloseable{
 	public void flush() throws IOException { out.flush();}
 	
 	
-	public int getElementCount() {return count;}
+	public long getElementCount() {return count;}
 
 }

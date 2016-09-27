@@ -95,6 +95,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     	super();
     	
     	Configuration config = Configuration.getInstance();
+    	if ( config == null) {
+    		System.err.println("Creating configure object !!!!");
+    		config = Configuration.createInstance();
+    	}
     	
     	if ( config.getUseADAuthentication() && ADAuthenticator == null) {
     		    ADAuthenticator = new LDAPAuthenticator(config);
@@ -336,7 +340,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         throw new UnauthorizedOperationException("Authorization is not using Basic auth.");
     }
     
-
+/*
     private boolean authenticate (String authenticationString) throws IOException {
     	if (authenticationString.startsWith("Basic ")) {
     		
@@ -344,17 +348,17 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     		String encodedAuthInfo = authenticationString.replaceFirst("SAML " + " ", "");
     		String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
     		
-    		/*
+    		
     		SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();
     		 
     		profileValidator.validate(entityDescriptor.getSignature());
     		 
     		SignatureValidator sigValidator = new SignatureValidator(cred);
     		 
-    		sigValidator.validate(entityDescriptor.getSignature()); */
+    		sigValidator.validate(entityDescriptor.getSignature()); 
     	}
     	return true;
     }
     
-    
+    */
 }

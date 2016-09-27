@@ -31,11 +31,13 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
+import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
@@ -102,7 +104,7 @@ public class NetworkDAO extends NdexDBDAO {
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
 	private static final String networkSummarySelectClause = "select creation_time, modification_time, name,description,version,"
 			+ "edgecount,nodecount,visibility,owner,owneruuid,"
-			+ " properties, \"UUID\", is_validated, error, readonly "; //sourceformat,is_validated, iscomplete, readonly,"
+			+ " properties, \"UUID\", is_validated, error, readonly, warnings "; //sourceformat,is_validated, iscomplete, readonly,"
 	
 	public NetworkDAO () throws  SQLException {
 	    super();
@@ -188,9 +190,9 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws NdexException 
 	 * @throws JsonProcessingException 
 	 */
-	public void populateNetworkEntry(NetworkSummary networkSummary, ProvenanceEntity provenance, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
+	public void saveNetworkEntry(NetworkSummary networkSummary, ProvenanceEntity provenance, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
-				+ "properties = ? ::jsonb, provenance = ? :: jsonb, cxmetadata = ? :: json, "
+				+ "properties = ? ::jsonb, provenance = ? :: jsonb, cxmetadata = ? :: json, warnings = ?, "
 				+ " is_validated =true where \"UUID\" = ?";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setString(1,networkSummary.getName());
@@ -221,7 +223,12 @@ public class NetworkDAO extends NdexDBDAO {
 			}	else 
 				pst.setString(8, null);
 			
-			pst.setObject(9, networkSummary.getExternalId());
+			// set warnings
+			String[] warningArray = networkSummary.getWarnings().toArray(new String[0]);
+			Array arrayWarnings = db.createArrayOf("text", warningArray);
+			pst.setArray(9, arrayWarnings);
+			
+			pst.setObject(10, networkSummary.getExternalId());
 			int i = pst.executeUpdate();
 			if ( i != 1)
 				throw new NdexException ("Failed to update network summary entry in db.");
@@ -677,7 +684,13 @@ public class NetworkDAO extends NdexDBDAO {
 		result.setIsValid(rs.getBoolean(13));
 		result.setErrorMessage(rs.getString(14));
 		result.setIsReadOnly(rs.getBoolean(15));
-		
+		Array warnings = rs.getArray(16);
+		if ( warnings != null) {
+			String[] wA = (String[]) warnings.getArray();
+			List<String> warningList = Arrays.asList(wA);  
+			result.setWarnings(warningList);
+		}  
+			
 	}
 	
 	
@@ -794,7 +807,7 @@ public class NetworkDAO extends NdexDBDAO {
 			sql = " union select un.user_id, u.user_name, n.name, un.ndex_permission_type from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and "
 					+ "n.\"UUID\" = un.network_id and network_id = ?" ;
 		}else if ( permission != Permissions.ADMIN) 
-			sql = "select user_id, u.user_name, n.name, un.ndex_permission_type, from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and n.\"UUID\" = un.network_id "
+			sql = "select user_id, u.user_name, n.name, un.ndex_permission_type from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and n.\"UUID\" = un.network_id "
 					+ "and network_id = ? and ndex_permission_type = '" + permission.toString() + "'";
 		
 		if ( skipBlocks>=0 && blockSize>0) {

@@ -77,6 +77,8 @@ public class Configuration
    
 	private boolean useADAuthentication ;
 	
+	private long serverElementLimit;
+	
 	// Possible values for Log-Level are:
     // trace, debug, info, warn, error, all, off
     // If no Log-Level config parameter specified in /opt/ndex/conf/ndex.properties, or the value is 
@@ -133,6 +135,18 @@ public class Configuration
 					throw new NdexException ("Server failed to create data store on path " + this.networkStorePath);
 				}
 			}
+			
+			
+			String edgeLimit = getProperty(Configuration.networkPostEdgeLimit);
+			if ( edgeLimit != null ) {
+				try {
+					serverElementLimit = Long.parseLong(edgeLimit);
+				} catch( NumberFormatException e) {
+					_logger.warn("[Invalid value in server property {}]", Configuration.networkPostEdgeLimit);
+			//		props.put("ServerPostEdgeLimit", "-1");  //defaultPostEdgeLimit);
+				}
+			} else 
+				serverElementLimit = -1;
             
             setLogLevel();
                         
@@ -191,7 +205,20 @@ public class Configuration
      * @throws NamingException 
      * @throws FileNotFoundException 
     **************************************************************************/
-    public static Configuration getInstance() throws NdexException
+    public static Configuration getInstance() //throws NdexException
+    {
+    	/*if ( INSTANCE == null)  { 
+    		try {
+    			INSTANCE = new Configuration();
+    		} catch (  NamingException | IOException e) {
+    			throw new NdexException ( "Failed to get Configurtion Instance: " + e.getMessage(), e);
+    		}
+    	} */
+        return INSTANCE;
+    }
+
+    
+    public static Configuration createInstance() throws NdexException
     {
     	if ( INSTANCE == null)  { 
     		try {
@@ -199,11 +226,9 @@ public class Configuration
     		} catch (  NamingException | IOException e) {
     			throw new NdexException ( "Failed to get Configurtion Instance: " + e.getMessage(), e);
     		}
-    	}
+    	} 
         return INSTANCE;
     }
-
-    
     
     /**************************************************************************
     * Gets the value of a property from configuration.
@@ -240,6 +265,7 @@ public class Configuration
     public String getSolrURL() {return this.solrURL; }
     public Level  getLogLevel()  {return this.logLevel;}
     public String getHostURI () { return hostURI; }
+    public long   getServerElementLimit() { return serverElementLimit;}
 
 	public boolean getUseADAuthentication() {
 		return useADAuthentication;

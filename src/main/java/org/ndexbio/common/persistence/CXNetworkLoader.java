@@ -37,16 +37,17 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.sql.Array;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
@@ -68,7 +69,6 @@ import org.cxio.core.interfaces.AspectFragmentReader;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.cxio.misc.OpaqueElement;
-import org.cxio.util.CxioUtil;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXAspectWriter;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
@@ -130,16 +130,15 @@ public class CXNetworkLoader implements AutoCloseable {
 	private String description;
 	private String version;
 	
+	private boolean networkNameIsAssigned;
+	
 	private MetaDataCollection metadata;
 	
 	private List<NdexPropertyValuePair> properties;
-	
 		
 	private Map<String,CXAspectWriter> aspectTable;
 	private NetworkGlobalIndexManager globalIdx ;
-	
-	private Map<String, Long> aspectElementCounters;
-
+	private List<String> warnings;
 		
 	public CXNetworkLoader(UUID networkUUID,String ownerUserName)  throws NdexException, FileNotFoundException {
 		super();
@@ -149,26 +148,15 @@ public class CXNetworkLoader implements AutoCloseable {
 		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/";
 		this.networkName = null;
 
-		this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + ".cx");
+		this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
 				
-		String edgeLimit = Configuration.getInstance().getProperty(Configuration.networkPostEdgeLimit);
-		if ( edgeLimit != null ) {
-			try {
-				serverElementLimit = Long.parseLong(edgeLimit);
-			} catch( NumberFormatException e) {
-				logger.error("[Invalid value in server property {}]", Configuration.networkPostEdgeLimit);
-		//		props.put("ServerPostEdgeLimit", "-1");  //defaultPostEdgeLimit);
-			}
-		} else 
-			serverElementLimit = -1;
+		serverElementLimit = Configuration.getInstance().getServerElementLimit();
 		
 		globalIdx = new NetworkGlobalIndexManager();
 		
-		aspectElementCounters = new HashMap<>();
-		
-	}
-	
-	private void init () {
+		warnings = new ArrayList<> ();
+		networkNameIsAssigned = false;
+
 		opaqueCounter = 0;
 		counter =0; 
 		
@@ -203,7 +191,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(new GeneralAspectFragmentReader (NdexNetworkStatus.ASPECT_NAME,
 				NdexNetworkStatus.class));
 		  readers.add(new GeneralAspectFragmentReader (NamespacesElement.ASPECT_NAME,NamespacesElement.class));
-		//  readers.add(new GeneralAspectFragmentReader (FunctionTermElement.ASPECT_NAME,FunctionTermElement.class));
+		  readers.add(new GeneralAspectFragmentReader (FunctionTermElement.ASPECT_NAME,FunctionTermElement.class));
 		  readers.add(new GeneralAspectFragmentReader (CitationElement.ASPECT_NAME,CitationElement.class));
 		  readers.add(new GeneralAspectFragmentReader (SupportElement.ASPECT_NAME,SupportElement.class));
 //		  readers.add(new GeneralAspectFragmentReader (ReifiedEdgeElement.ASPECT_NAME,ReifiedEdgeElement.class));
@@ -242,9 +230,9 @@ public class CXNetworkLoader implements AutoCloseable {
 				summary.setName(this.networkName);
 				summary.setDescription(this.description);
 				summary.setVersion(this.version);
+				summary.setWarnings(warnings);
 				try {
-					
-					dao.populateNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
+					dao.saveNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();	
@@ -263,7 +251,7 @@ public class CXNetworkLoader implements AutoCloseable {
 							break;
 						}
 					}
-					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId);
+					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId, metadata);
 					g.createSampleNetwork();
 			  
 				}
@@ -276,8 +264,8 @@ public class CXNetworkLoader implements AutoCloseable {
 				String tmpFileName = g.createNetworkFile();
 				
 				java.nio.file.Path src = Paths.get(tmpFileName);
-				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId+ ".cx");
-				java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId+ ".arc");
+				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
+				java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.arc");
 				
 				Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 				Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
@@ -301,9 +289,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	private void persistNetworkData()
 			throws IOException, DuplicateObjectException, NdexException, ObjectNotFoundException {
-		
-		init();
-		
+				
 		CxElementReader cxreader = createCXReader();
 		  
 	    metadata = cxreader.getPreMetaData();
@@ -364,10 +350,21 @@ public class CXNetworkLoader implements AutoCloseable {
 
 		} 
 		  // check data integrity.
-		  nodeIdTracker.checkUndefinedIds();
-		  edgeIdTracker.checkUndefinedIds();
-		  supportIdTracker.checkUndefinedIds();
-		  citationIdTracker.checkUndefinedIds();
+		  String errMsg = nodeIdTracker.checkUndefinedIds() ;
+		  if ( errMsg !=null) 
+			  throw new NdexException(errMsg);
+		  
+		  errMsg = edgeIdTracker.checkUndefinedIds();
+		  if ( errMsg !=null )
+			  throw new NdexException(errMsg);
+		  
+		  errMsg = supportIdTracker.checkUndefinedIds();
+		  if ( errMsg != null)
+			  warnings.add(errMsg);
+		  
+		  errMsg = citationIdTracker.checkUndefinedIds();
+		  if ( errMsg !=null)
+			  warnings.add(errMsg);
 		  
 		  //save the metadata
 		  MetaDataCollection postmetadata = cxreader.getPostMetaData();
@@ -388,30 +385,65 @@ public class CXNetworkLoader implements AutoCloseable {
 			  }
 		  }
 		  
-		  Timestamp modificationTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
+		//  Timestamp modificationTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
 
 		  if(metadata !=null) {
-			  // check if idCounter is defined in certain espects, and elementCount matches between metadata and data.
+			  
+			  if (networkNameIsAssigned) {
+				 Long l = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME).getElementCount();
+				 metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME).setElementCount(l + 1);
+				 writeCXElement(new NetworkAttributesElement(null, this.networkName, ATTRIBUTE_DATA_TYPE.STRING));
+			  }
+			  
+			  //Remove the NdexNetworkStatus metadata if it exists
+			  metadata.remove(NdexNetworkStatus.ASPECT_NAME);
+			  
+			  Set<Long> consistencyGrpIds = new TreeSet<>();
+			  
 			  for ( MetaDataElement e: metadata.toCollection()) {
+
+				  // check if idCounter is defined in certain espects.
 				  if (  (e.getName().equals(NodesElement.ASPECT_NAME) || e.getName().equals(EdgesElement.ASPECT_NAME) || 
 								  e.getName().equals(CitationElement.ASPECT_NAME) || 
-								  e.getName().equals(SupportElement.ASPECT_NAME))) {  
-					   if ( e.getIdCounter() == null )
-						   throw new NdexException ( "Idcounter value is not found in metadata of aspect " + e.getName());
-					   if ( e.getName().equals(NodesElement.ASPECT_NAME) && e.getElementCount() !=null && nodeIdTracker.getDefinedElementSize() != (e.getElementCount().intValue()))
-						   throw new NdexException("Actual node count in CX stream is " + nodeIdTracker.getDefinedElementSize() + ", but metadata says it's " + e.getElementCount());
-					   else if ( e.getName().equals(EdgesElement.ASPECT_NAME) && e.getElementCount() !=null && edgeIdTracker.getDefinedElementSize() != (e.getElementCount().intValue()))
-						   throw new NdexException("Actual edge count in CX stream is " + nodeIdTracker.getDefinedElementSize() + ", but metadata says it's " + e.getElementCount());
-					   else if ( e.getName().equals(CitationElement.ASPECT_NAME) && e.getElementCount() !=null && citationIdTracker.getDefinedElementSize() != (e.getElementCount().intValue()))
-						   throw new NdexException("Actual citation count in CX stream is " + citationIdTracker.getDefinedElementSize() + ", but metadata says it's " + e.getElementCount());
-					   else if ( e.getName().equals(SupportElement.ASPECT_NAME) && e.getElementCount() !=null && supportIdTracker.getDefinedElementSize() != (e.getElementCount().intValue()))
-						   throw new NdexException("Actual support count in CX stream is " + supportIdTracker.getDefinedElementSize() + ", but metadata says it's " + e.getElementCount());
+								  e.getName().equals(SupportElement.ASPECT_NAME) ) 
+						  &&  e.getIdCounter() == null ) 
+ 						   throw new NdexException ( "Idcounter value is not found in metadata of aspect " + e.getName());
+				  
+				  //check if elementCount matches between metadata and data
+				  Long cntObj = e.getElementCount();
+				  if ( cntObj == null) {
+					  warnings.add("ElementCount missing in Metadata of aspect " + e.getName());
+					  CXAspectWriter w = this.aspectTable.get(e.getName());
+					  if ( w == null)
+						  e.setElementCount(0L);
+					  else {
+						  warnings.add("ElementCount in Metadata of aspect " + e.getName() + " is set to " + w.getElementCount() +" by NDEx server.");
+						  e.setElementCount(w.getElementCount());
+					  }
+				  } 
+					  
+				  long declaredCnt = e.getElementCount().longValue() ;
+				  if ( declaredCnt == 0) {
+						  CXAspectWriter w = this.aspectTable.get(e.getName());
+						  if (w == null)  { // no element found, remove the metadatEntry
+							  metadata.remove(e.getName());
+							  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because the element count is 0.");
+						  } else 
+							  throw new NdexException ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
+								  ", but only " + w.getElementCount() + " was received in CX.");
+				  } else {
+						  if ( this.aspectTable.get(e.getName()) == null || declaredCnt != this.aspectTable.get(e.getName()).getElementCount()) {
+							  throw new NdexException ("Element count mismatch in aspect " + e.getName() + ". Metadate declared element count " + e.getElementCount()+
+							  ", but only " + (this.aspectTable.get(e.getName()) == null ? 0:this.aspectTable.get(e.getName()).getElementCount()) + " was received in CX.");
+						  }
 				  }
+				  
+				  //check consistencyGrp 
+				  Long cGrpIds = e.getConsistencyGroup();
+				  if ( cGrpIds == null)
+					  throw new NdexException("Aspect " + e.getName() + " doesn't have consistencyGroupId defined in metadata.");
+				  consistencyGrpIds.add(cGrpIds);
 			  }
-			  Long consistencyGrp = metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup();
-
-			  // process NdexNetworkStatus metadata
-			  metadata.remove(NdexNetworkStatus.ASPECT_NAME);
 			  
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
@@ -419,6 +451,9 @@ public class CXNetworkLoader implements AutoCloseable {
 					  throw new NdexException ("Aspect " + aspectName + " is not defined in MetaData section.");
 			  }
 			  
+			  if (consistencyGrpIds.size()!=1) {
+				  warnings.add("Unmatching consisencyGroupIds found in Metadata: " + Arrays.toString(consistencyGrpIds.toArray()));
+			  }
 			  			  
 		  } else 
 			  throw new NdexException ("No CX metadata found in this CX stream.");
@@ -441,8 +476,11 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		if ( e.getName().equals(NdexClasses.Network_P_name) && ( networkName == null || e.getSubnetwork() == null)) {
 				this.networkName = e.getValue();
-				if ( e.getSubnetwork() != null ) 
+				if ( e.getSubnetwork() != null ) {
 					properties.add(new NdexPropertyValuePair(e.getSubnetwork(), e.getName(), e.getValue(), ATTRIBUTE_DATA_TYPE.STRING.toString()));
+					this.networkNameIsAssigned = true;
+				} else 
+					this.networkNameIsAssigned = false;					
 		} else if ( e.getName().equals(NdexClasses.Network_P_desc) &&  e.getSubnetwork() == null) {
 			this.description = e.getValue();
 		} else if ( e.getName().equals(NdexClasses.Network_P_version) &&  e.getSubnetwork() == null) {
@@ -507,8 +545,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		edgeIdTracker.addDefinedElementId(ee.getId());
 		
-		nodeIdTracker.addReferenceId(ee.getSource());
-		nodeIdTracker.addReferenceId(ee.getTarget());
+		nodeIdTracker.addReferenceId(Long.valueOf(ee.getSource()));
+		nodeIdTracker.addReferenceId(Long.valueOf(ee.getTarget()));
 		
 		writeCXElement(ee);
 
@@ -516,7 +554,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	   
 	}
 	
-	private void createEdgeCitation(EdgeCitationLinksElement elmt) {
+	private void createEdgeCitation(EdgeCitationLinksElement elmt) throws IOException {
 		  for ( Long sourceId : elmt.getSourceIds()) {
 			  edgeIdTracker.addReferenceId(sourceId);
 		  }
@@ -524,9 +562,11 @@ public class CXNetworkLoader implements AutoCloseable {
 		  for ( Long citationSID : elmt.getCitationIds()) {
 			  citationIdTracker.addReferenceId(citationSID);
 		  }
+	  	  writeCXElement(elmt);
+
 	}
 
-	private void createEdgeSupport(EdgeSupportLinksElement elmt) {
+	private void createEdgeSupport(EdgeSupportLinksElement elmt) throws IOException {
 		  for ( Long sourceId : elmt.getSourceIds()) {
 			edgeIdTracker.addReferenceId(sourceId);
 		  }
@@ -534,9 +574,11 @@ public class CXNetworkLoader implements AutoCloseable {
 		  for ( Long supportId : elmt.getSupportIds()) {
 			  supportIdTracker.addReferenceId(supportId);
 		  }
+	  	  writeCXElement(elmt);
+
 	}
 
-	private void createNodeCitation(NodeCitationLinksElement elmt) {
+	private void createNodeCitation(NodeCitationLinksElement elmt) throws IOException {
 		  for ( Long sourceId : elmt.getSourceIds()) {
 			  nodeIdTracker.addReferenceId(sourceId);
 		  }
@@ -544,9 +586,10 @@ public class CXNetworkLoader implements AutoCloseable {
 		  for ( Long citationSID : elmt.getCitationIds()) {
 			  citationIdTracker.addReferenceId(citationSID);
 		  }
+	  	  writeCXElement(elmt);
 	}
 
-	private void createNodeSupport(NodeSupportLinksElement elmt) {
+	private void createNodeSupport(NodeSupportLinksElement elmt) throws IOException {
 		  for ( Long sourceId : elmt.getSourceIds()) {
 			nodeIdTracker.addReferenceId(sourceId);
 		  }
@@ -554,6 +597,9 @@ public class CXNetworkLoader implements AutoCloseable {
 		  for ( Long supportId : elmt.getSupportIds()) {
 			  supportIdTracker.addReferenceId(supportId);
 		  }
+		  
+	  	  writeCXElement(elmt);
+
 	}
 
 	

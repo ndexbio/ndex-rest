@@ -83,11 +83,10 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	public void init(javax.servlet.ServletConfig servletConfig)
 	          throws javax.servlet.ServletException {
 		super.init(servletConfig);
-		
-		
-		Configuration configuration = null;
+			
+		//Configuration configuration = null;
 		try {
-			configuration = Configuration.getInstance();
+			Configuration configuration = Configuration.createInstance();
 			
 			String poolSize = configuration.getProperty("NdexDBConnectionPoolSize");
 			int size = defaultPoolSize;
@@ -151,7 +150,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			
 		} catch (NdexException | SolrServerException | IOException e) {
 			e.printStackTrace();
-			throw new javax.servlet.ServletException(e.getMessage());
+			throw new javax.servlet.ServletException("Faied to start Ndex server. Cause: " + e.getMessage(), e);
 		}
     	
 	}

@@ -1,14 +1,13 @@
 package org.ndexbio.common.persistence;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Calendar;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -22,28 +21,16 @@ import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
 import org.cxio.aspects.datamodels.SubNetworkElement;
-import org.cxio.aspects.readers.EdgeAttributesFragmentReader;
-import org.cxio.aspects.readers.EdgesFragmentReader;
-import org.cxio.aspects.readers.NetworkAttributesFragmentReader;
-import org.cxio.aspects.readers.NodeAttributesFragmentReader;
-import org.cxio.aspects.readers.NodesFragmentReader;
-import org.cxio.core.CxElementReader;
-import org.cxio.core.interfaces.AspectElement;
-import org.cxio.core.interfaces.AspectFragmentReader;
 import org.cxio.metadata.MetaDataCollection;
-import org.cxio.misc.OpaqueElement;
-import org.ndexbio.common.access.AspectIterator;
-import org.ndexbio.common.cx.GeneralAspectFragmentReader;
-import org.ndexbio.common.solr.NodeIndexEntry;
+import org.cxio.metadata.MetaDataElement;
+import org.ndexbio.common.cx.AspectIterator;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.cx.NamespacesElement;
-import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.NodeCitationLinksElement;
 import org.ndexbio.model.cx.NodeSupportLinksElement;
-import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.cx.SupportElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.internal.CXNetwork;
@@ -56,15 +43,32 @@ public class CXNetworkSampleGenerator {
 //	private InputStream inputStream;
 	private UUID networkId;
 	private Long subNetworkId;
+	private MetaDataCollection srcMetaDataCollection;
+	private Long currentTime;
 	
 	// size of sample is number of edges.
-	public static final int sampleSize = 500;
+	public static final int sampleSize = 10;
 	
 	
-	public CXNetworkSampleGenerator(UUID networkUUID, Long subNetworkID) {
+	public CXNetworkSampleGenerator(UUID networkUUID, Long subNetworkID, MetaDataCollection srcMetaData) {
 		this.networkId = networkUUID;
 		this.subNetworkId = subNetworkID;
+		this.srcMetaDataCollection = srcMetaData;
+		this.currentTime = Long.valueOf(Calendar.getInstance().getTimeInMillis());
 		
+	}
+	
+	private MetaDataElement getMetaDataElementTempleteFromSrc (String aspectName) throws NdexException {
+		MetaDataElement old = this.srcMetaDataCollection.getMetaDataElement(aspectName);
+		if ( old == null)
+			throw new NdexException("MetaData " + aspectName + " is missing in network " + this.networkId.toString());
+		
+		MetaDataElement result = new MetaDataElement();
+		result.setConsistencyGroup(old.getConsistencyGroup());
+		result.setName(aspectName);
+		result.setVersion(old.getVersion());
+		result.setLastUpdate(currentTime);
+		return result;
 	}
 	
 	public void createSampleNetwork() throws IOException, NdexException {
@@ -72,6 +76,7 @@ public class CXNetworkSampleGenerator {
 		CXNetwork result = new CXNetwork();
 
 		MetaDataCollection metadata = new MetaDataCollection();
+		result.setMetadata(metadata);
 		
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/"; 
 	
@@ -82,7 +87,7 @@ public class CXNetworkSampleGenerator {
 			
 			edgeIds = new ArrayList<>(sampleSize);
 			
-			try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId,SubNetworkElement.ASPECT_NAME /*, SubNetworkElement.class*/ ) ) {
+			try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId,SubNetworkElement.ASPECT_NAME , SubNetworkElement.class ) ) {
 				while ( subNetIterator.hasNext()) {
 					SubNetworkElement subNetwork = subNetIterator.next();
 					
@@ -97,14 +102,20 @@ public class CXNetworkSampleGenerator {
 					}
 				}
 			}
+			
+			// add metadata entry
+			MetaDataElement mdElmt = getMetaDataElementTempleteFromSrc(SubNetworkElement.ASPECT_NAME);	
+			mdElmt.setElementCount(1L);
+			metadata.add(mdElmt);
+			
 		}
 			
 		// first round. Get 500 edges and the node Ids they reference.
 		int i = 0;
 		Set<Long> nodeIds = new TreeSet<>();
 		//go through Edge aspect
-		
-		try (AspectIterator<EdgesElement> it = new AspectIterator<>(networkId,EdgesElement.ASPECT_NAME /*, SubNetworkElement.class*/ )
+		Long edgeIdCounter = null;
+		try (AspectIterator<EdgesElement> it = new AspectIterator<>(networkId,EdgesElement.ASPECT_NAME , EdgesElement.class )
 				/*FileInputStream inputStream = new FileInputStream(pathPrefix + EdgesElement.ASPECT_NAME)*/) {
 
 		//	Iterator<EdgesElement> it = new ObjectMapper().readerFor(EdgesElement.class).readValues(inputStream);
@@ -112,10 +123,12 @@ public class CXNetworkSampleGenerator {
 			while (it.hasNext()) {
 	        	EdgesElement edge = it.next();
 	        	
-	        	if ( edgeIds == null || (edgeIds !=null && edgeIds.contains(edge.getId()) )  )  {
+	        	if ( edgeIds == null ||  edgeIds.contains(edge.getId() )  )  {
 					result.addEdge(edge);
 					nodeIds.add(edge.getSource());
 					nodeIds.add(edge.getTarget());
+					if ( edgeIdCounter == null ||edge.getId() > edgeIdCounter.longValue() )
+						edgeIdCounter = Long.valueOf(edge.getId());
 					i++;
 				}
 	        	if (i == sampleSize)
@@ -124,7 +137,13 @@ public class CXNetworkSampleGenerator {
 			}
 		}
 		
+		MetaDataElement edgemd = this.getMetaDataElementTempleteFromSrc(EdgesElement.ASPECT_NAME);
+		edgemd.setElementCount(Long.valueOf(result.getEdges().size()));
+		edgemd.setIdCounter(edgeIdCounter);
+		metadata.add(edgemd);
+		
 		//go through node aspect
+		Long nodeIdCounter = null;
 		try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodesElement.ASPECT_NAME)) {
 
 			Iterator<NodesElement> it = new ObjectMapper().readerFor(NodesElement.class).readValues(inputStream);
@@ -134,13 +153,20 @@ public class CXNetworkSampleGenerator {
 				
 				if (nodeIds.contains(node.getId())) {
 					result.addNode(node);
-				//	nodeIds.remove(node.getId());
+					if ( nodeIdCounter == null ||node.getId() > nodeIdCounter.longValue() )
+						nodeIdCounter = Long.valueOf(node.getId());
 				}    	
 			        	
 			}
 		}
 		
+		MetaDataElement nodemd = this.getMetaDataElementTempleteFromSrc(NodesElement.ASPECT_NAME);
+		nodemd.setElementCount(Long.valueOf(nodeIds.size()));
+		nodemd.setIdCounter(nodeIdCounter);
+		metadata.add(nodemd);
+		
 		//process node attribute aspect
+		long nodeAttrCounter = 0;
 		java.nio.file.Path nodeAspectFile = Paths.get(pathPrefix + NodeAttributesElement.ASPECT_NAME);
 		if ( Files.exists(nodeAspectFile)) { 
 			try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeAttributesElement.ASPECT_NAME)) {
@@ -154,13 +180,21 @@ public class CXNetworkSampleGenerator {
 					if ( nodeIds.contains(id) && 
 							(subNetworkId == null || na.getSubnetwork() == null || subNetworkId.equals(na.getSubnetwork()))) {
 						result.addNodeAttribute(id, na);
+						nodeAttrCounter ++;
 					}
 			        	
 				}
 			}
 		}
 		
+		if ( nodeAttrCounter >0) {
+			MetaDataElement nodeAttrmd = this.getMetaDataElementTempleteFromSrc(NodeAttributesElement.ASPECT_NAME);
+			nodeAttrmd.setElementCount(Long.valueOf(nodeAttrCounter));
+			metadata.add(nodeAttrmd);
+		}
+		
 		//process edge attribute aspect
+		long edgeAttrCounter = 0;
 		java.nio.file.Path edgeAspectFile = Paths.get(pathPrefix + EdgeAttributesElement.ASPECT_NAME);
 		if ( Files.exists(edgeAspectFile)) { 
 		  try (FileInputStream inputStream = new FileInputStream(pathPrefix + EdgeAttributesElement.ASPECT_NAME)) {
@@ -174,14 +208,21 @@ public class CXNetworkSampleGenerator {
 				if ( nodeIds.contains(id) && 
 						(subNetworkId == null || na.getSubnetwork() == null || subNetworkId.equals(na.getSubnetwork()))) {
 					result.addEdgeAttribute(id, na);
+					edgeAttrCounter ++;
 				}
 			        	
 			}
 		  }
 		}
 
+		if ( edgeAttrCounter >0) {
+			MetaDataElement edgeAttrmd = this.getMetaDataElementTempleteFromSrc(EdgeAttributesElement.ASPECT_NAME);
+			edgeAttrmd.setElementCount(Long.valueOf(edgeAttrCounter));
+			metadata.add(edgemd);
+		}
 	
 		//process network attribute aspect
+		long networkAttrCounter = 0;
 		java.nio.file.Path networkAttrAspectFile = Paths.get(pathPrefix + NetworkAttributesElement.ASPECT_NAME);
 		if ( Files.exists(networkAttrAspectFile)) { 
 		  try (FileInputStream inputStream = new FileInputStream(pathPrefix + NetworkAttributesElement.ASPECT_NAME)) {
@@ -193,10 +234,17 @@ public class CXNetworkSampleGenerator {
 				
 				if ( subNetworkId == null || nAtt.getSubnetwork() == null || subNetworkId.equals(nAtt.getSubnetwork())) {
 					result.addNetworkAttribute(nAtt);
+					networkAttrCounter ++;
 				}
 				  	
 			}
 		  }
+		}
+		
+		if ( networkAttrCounter >0) {
+			MetaDataElement netAttrmd = this.getMetaDataElementTempleteFromSrc(NetworkAttributesElement.ASPECT_NAME);
+			netAttrmd.setElementCount(Long.valueOf(networkAttrCounter));
+			metadata.add(netAttrmd);
 		}
 
 		
@@ -212,99 +260,182 @@ public class CXNetworkSampleGenerator {
 				result.setNamespaces(ns);
 			}
 		  }
+		  
+		  MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(NamespacesElement.ASPECT_NAME);
+		  nsmd.setElementCount(1L);
+		  metadata.add(nsmd);
 		}
 
 		//process cyVisualProperty aspect
 		java.nio.file.Path cyVisPropAspectFile = Paths.get(pathPrefix + CyVisualPropertiesElement.ASPECT_NAME);
 		if ( Files.exists(cyVisPropAspectFile)) { 
+		  long vpropCount = 0;
 		  try (FileInputStream inputStream = new FileInputStream(pathPrefix + CyVisualPropertiesElement.ASPECT_NAME)) {
 
 			Iterator<CyVisualPropertiesElement> it = new ObjectMapper().readerFor(CyVisualPropertiesElement.class).readValues(inputStream);
 
 			while (it.hasNext()) {
 				CyVisualPropertiesElement elmt = it.next();
-				 result.addOpapqueAspect(elmt);
+				result.addOpapqueAspect(elmt);
+				vpropCount++;
 			}
+		  }
+		  
+		  if ( vpropCount > 0) {
+			  MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(CyVisualPropertiesElement.ASPECT_NAME);
+			  nsmd.setElementCount(vpropCount);
+			  metadata.add(nsmd);
 		  }
 		}
 
-		//process citation links aspects
-		java.nio.file.Path nodeCitationLinkFile = Paths.get(pathPrefix + NodeCitationLinksElement.ASPECT_NAME);
-		if ( Files.exists(nodeCitationLinkFile)) { 
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeCitationLinksElement.ASPECT_NAME)) {
-
-			Iterator<NamespacesElement> it = new ObjectMapper().readerFor(NamespacesElement.class).readValues(inputStream);
-
+		// process function terms
+		long aspElmtCount = 0;
+		try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId, FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
 			while (it.hasNext()) {
-				NamespacesElement ns = it.next();
-				result.setNamespaces(ns);
+				FunctionTermElement fun = it.next();
+				
+				if ( nodeIds.contains(fun.getNodeID())) {
+					result.addNodeAssociatedAspectElement(fun.getNodeID(), fun);
+					aspElmtCount ++;
+				}
 			}
 		}
-		}
 		
-	/*	this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + ".cx");
-
-		// now pull out all the relevent aspect elements in the second round.
-		cxreader = createCXReader();
+		 if ( aspElmtCount > 0) {
+			  MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(FunctionTermElement.ASPECT_NAME);
+			  nsmd.setElementCount(aspElmtCount);
+			  metadata.add(nsmd);
+		  }
 		
-		for ( AspectElement elmt : cxreader ) {
-			switch ( elmt.getAspectName() ) {
-			case NodesElement.ASPECT_NAME :       //Node
-				NodesElement n = (NodesElement) elmt;
-				if (nodeIds.contains(n.getId()))
-					result.addNode(n);
-				break;
-			case NodeAttributesElement.ASPECT_NAME:  // node attributes
-				NodeAttributesElement na = (NodeAttributesElement) elmt;
-				Long id = na.getPropertyOf();
-					if ( nodeIds.contains(id) && 
-							(subNetworkId == null || na.getSubnetwork() == null || subNetworkId.equals(na.getSubnetwork()))) {
-						result.addNodeAttribute(id, na);
+		
+		Set<Long> citationIds = new TreeSet<> ();
+		
+		//process citation links aspects
+		aspElmtCount = 0;
+		try (AspectIterator<NodeCitationLinksElement> it = new AspectIterator<>(networkId, NodeCitationLinksElement.ASPECT_NAME, NodeCitationLinksElement.class)) {
+			while (it.hasNext()) {
+				NodeCitationLinksElement cl = it.next();
+				
+				for ( Long rNodeId : cl.getSourceIds()) {
+					if ( nodeIds.contains(rNodeId)) {
+						result.addNodeAssociatedAspectElement(rNodeId, 
+								 ( cl.getCitationIds().size() ==1? cl : new NodeCitationLinksElement(rNodeId, cl.getCitationIds())) );
+						aspElmtCount ++;
+						citationIds.addAll(cl.getCitationIds());
 					}
-				
-				break;
-			case NetworkAttributesElement.ASPECT_NAME: //network attributes
-				NetworkAttributesElement nAtt = (NetworkAttributesElement) elmt;
-				if ( subNetworkId == null || nAtt.getSubnetwork() == null || subNetworkId.equals(nAtt.getSubnetwork())) {
-					result.addNetworkAttribute(nAtt);
 				}
-				break;
-			case EdgeAttributesElement.ASPECT_NAME : // edge attributes
-				EdgeAttributesElement ea = (EdgeAttributesElement) elmt;
-				Long eid = ea.getPropertyOf();
-				if ( result.getEdges().containsKey(eid) && 
-							(subNetworkId == null || ea.getSubnetwork() == null || subNetworkId.equals(ea.getSubnetwork()))) {
-						result.addEdgeAttribute(eid, ea);
-				}
-				
-				break;
-			case NamespacesElement.ASPECT_NAME:
-				NamespacesElement ns = (NamespacesElement)elmt;
-				result.setNamespaces(ns);
-				break;
-			case CitationElement.ASPECT_NAME:
-				break;
-			case SupportElement.ASPECT_NAME:
-				break;
-			case NodeCitationLinksElement.ASPECT_NAME:
-				break;
-			case NodeSupportLinksElement.ASPECT_NAME:
-				break;
-			case EdgeCitationLinksElement.ASPECT_NAME:
-				break;
-			case EdgeSupportLinksElement.ASPECT_NAME:
-				break;
-			default:    // opaque aspect
-				if ( elmt.getAspectName().equals(CyVisualPropertiesElement.ASPECT_NAME) 
-						|| elmt.getAspectName().equals("visualProperties")) {
-					 OpaqueElement e = (OpaqueElement) elmt;
-					 result.addOpapqueAspect(e);
-				} 
 			}
-		} */
+		}
+		
+		if ( aspElmtCount > 0) {
+			  MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(NodeCitationLinksElement.ASPECT_NAME);
+			  nsmd.setElementCount(aspElmtCount);
+			  metadata.add(nsmd);
+		 }
+		
+		aspElmtCount = 0;
+		try (AspectIterator<EdgeCitationLinksElement> it = new AspectIterator<>(networkId, EdgeCitationLinksElement.ASPECT_NAME, EdgeCitationLinksElement.class)) {
+			while (it.hasNext()) {
+				EdgeCitationLinksElement cl = it.next();
+				
+				for ( Long rEdgeId : cl.getSourceIds()) {
+					if ( result.getEdges().containsKey(rEdgeId)) {
+						result.addEdgeAssociatedAspectElement(rEdgeId, 
+								( cl.getCitationIds().size() ==1? cl : new EdgeCitationLinksElement(rEdgeId, cl.getCitationIds())) );
+						aspElmtCount++;
+						citationIds.addAll(cl.getCitationIds());
+					}
+				}
+			}
+		}
+		
+		if ( aspElmtCount > 0) {
+			  MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(EdgeCitationLinksElement.ASPECT_NAME);
+			  nsmd.setElementCount(aspElmtCount);
+			  metadata.add(nsmd);
+		 }
+		
+		if( !citationIds.isEmpty()) {
+			try (AspectIterator<CitationElement> it = new AspectIterator<>(networkId, CitationElement.ASPECT_NAME, CitationElement.class)) {
+				while (it.hasNext()) {
+					CitationElement c = it.next();
+					if ( citationIds.contains(c.getId()))
+						result.addCitation(c);
+				}
+			}
+			
+			MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(CitationElement.ASPECT_NAME);
+			  nsmd.setElementCount(Long.valueOf(citationIds.size()));
+			  nsmd.setIdCounter(Collections.max(citationIds));
+			  metadata.add(nsmd);
+		}
+
+		// support and related aspects
+		Set<Long> supportIds = new TreeSet<> ();
+		
+		//process support links aspects
+		aspElmtCount = 0;
+		try (AspectIterator<NodeSupportLinksElement> it = new AspectIterator<>(networkId, NodeSupportLinksElement.ASPECT_NAME, NodeSupportLinksElement.class)) {
+			while (it.hasNext()) {
+				NodeSupportLinksElement cl = it.next();
+				
+				for ( Long rNodeId : cl.getSourceIds()) {
+					if ( nodeIds.contains(rNodeId)) {
+						result.addNodeAssociatedAspectElement(rNodeId, 
+								( cl.getSupportIds().size() ==1? cl : new NodeSupportLinksElement(rNodeId, cl.getSupportIds())) );
+						aspElmtCount ++;
+						supportIds.addAll(cl.getSupportIds());
+					}
+				}
+			}
+		}
+		
+		if ( aspElmtCount > 0) {
+			  MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(NodeSupportLinksElement.ASPECT_NAME);
+			  nsmd.setElementCount(aspElmtCount);
+			  metadata.add(nsmd);
+		 }
+		
+		aspElmtCount = 0;
+		try (AspectIterator<EdgeSupportLinksElement> it = new AspectIterator<>(networkId, EdgeSupportLinksElement.ASPECT_NAME, EdgeSupportLinksElement.class)) {
+			while (it.hasNext()) {
+				EdgeSupportLinksElement cl = it.next();
+				
+				for ( Long rEdgeId : cl.getSourceIds()) {
+					if ( result.getEdges().containsKey(rEdgeId)) {
+						result.addEdgeAssociatedAspectElement(rEdgeId, 
+								( cl.getSupportIds().size() ==1? cl : new EdgeSupportLinksElement(rEdgeId, cl.getSupportIds())) );
+						aspElmtCount++;
+						supportIds.addAll(cl.getSupportIds());
+					}
+				}
+			}
+		}
+		
+		if ( aspElmtCount > 0) {
+			  MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(EdgeSupportLinksElement.ASPECT_NAME);
+			  nsmd.setElementCount(aspElmtCount);
+			  metadata.add(nsmd);
+		 }
+		
+		if( !supportIds.isEmpty()) {
+			try (AspectIterator<SupportElement> it = new AspectIterator<>(networkId, SupportElement.ASPECT_NAME, SupportElement.class)) {
+				while (it.hasNext()) {
+					SupportElement e = it.next();
+					if ( supportIds.contains(e.getId()))
+						result.addSupport(e);
+				}
+			}
+			
+			MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(SupportElement.ASPECT_NAME);
+			  nsmd.setElementCount(Long.valueOf(supportIds.size()));
+			  nsmd.setIdCounter(Collections.max(supportIds));
+			  metadata.add(nsmd);		
+		}
+
 		
 		//write the sample network out to disk and update the db.
-		try (FileOutputStream out = new FileOutputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId + "_sample.cx")) {
+		try (FileOutputStream out = new FileOutputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/sample.cx")) {
 			result.write(out);
 		}
 	}

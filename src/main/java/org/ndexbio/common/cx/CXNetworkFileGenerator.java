@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,7 +19,6 @@ import org.cxio.metadata.MetaDataElement;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 
@@ -63,9 +63,9 @@ public class CXNetworkFileGenerator {
 	}
 	
 	// create a CX network using a tmp file name and return the temp file name;
-	public String createNetworkFile() throws NdexException, FileNotFoundException, IOException {
+	public String createNetworkFile() throws FileNotFoundException, IOException {
 		String tmpFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + 
-				networkId + "-" + Thread.currentThread().getId();
+				 Thread.currentThread().getId() + "-" + Calendar.getInstance().getTimeInMillis();
 		try (FileOutputStream out = new FileOutputStream(tmpFileName) ) {
 			NdexCXNetworkWriter wtr = new NdexCXNetworkWriter(out);
 			wtr.start();
@@ -82,8 +82,7 @@ public class CXNetworkFileGenerator {
 				  metadata.addAt(0, e);
 			 }
 			 e.setLastUpdate(fullSummary.getModificationTime().getTime());
-			
-			 
+					 
 			 //write metadata first.
 			 wtr.writeMetadata(metadata);
 			 
@@ -94,7 +93,7 @@ public class CXNetworkFileGenerator {
 			 stat.add(status);		 
 			 wtr.writeAspectFragment(new CXAspectFragment(NdexNetworkStatus.ASPECT_NAME, stat));
 			 
-			 //write all othe aspects
+			 //write all other aspects
 			 for ( MetaDataElement metaElmt: metadata) {
 				wtr.startAspectFragment(metaElmt.getName());
 				String aspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + metaElmt.getName();
@@ -109,7 +108,7 @@ public class CXNetworkFileGenerator {
 	}
 	
 	
-	public void reCreateCXFile ( ) throws FileNotFoundException, NdexException, IOException {
+	public void reCreateCXFile ( ) throws FileNotFoundException, IOException {
 		String tmpFileName = this.createNetworkFile();
 			// rename the tmp file
 		java.nio.file.Path src = Paths.get(tmpFileName);
@@ -125,12 +124,7 @@ public class CXNetworkFileGenerator {
 	        nstatus.setNodeCount(summary.getNodeCount());
 	        nstatus.setExternalId(summary.getExternalId().toString());
 	        nstatus.setModificationTime(summary.getModificationTime());
-	        try {
-				nstatus.setNdexServerURI(Configuration.getInstance().getHostURI());
-			} catch (NdexException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+			nstatus.setNdexServerURI(Configuration.getInstance().getHostURI());
 	        nstatus.setOwner(summary.getOwner());
 	        //nstatus.setPublished(isPublished);
 	        
