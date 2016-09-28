@@ -84,7 +84,7 @@ public class ClientTaskProcessor extends NdexTaskProcessor {
 				logger.info("[end: task completed]");
 
 			} catch (Exception e) {
-				logger.error("Error occured when executing task " + task.getExternalId());
+				logger.error("Error occurred when executing task " + task.getExternalId());
 				e.printStackTrace();
 				StringWriter sw = new StringWriter();
 				PrintWriter pw = new PrintWriter(sw);
@@ -93,7 +93,7 @@ public class ClientTaskProcessor extends NdexTaskProcessor {
 					saveTaskStatus(task.getExternalId(), Status.FAILED, e.getMessage(), sw.toString() );
 
 				} catch (NdexException e1) {
-					logger.error("Error occured when saving task " + e1);
+					logger.error("Error occurred when saving task " + e1);
 				} catch (JsonParseException e1) {
 					// TODO Auto-generated catch block
 					e1.printStackTrace();

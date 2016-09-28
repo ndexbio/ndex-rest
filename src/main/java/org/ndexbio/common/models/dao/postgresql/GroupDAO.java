@@ -337,7 +337,7 @@ public class GroupDAO extends NdexDBDAO {
 			return results;
 			
 		} catch(Exception e) {
-			logger.severe("An unexpected error occured while retrieving group-networks " + e.getMessage());
+			logger.severe("An unexpected error occurred while retrieving group-networks " + e.getMessage());
 			throw new NdexException("Unable to get networks for group with UUID "+groupId);
 		}
 	}	 */
@@ -446,7 +446,7 @@ public class GroupDAO extends NdexDBDAO {
 			return result;
 			
 		} catch(Exception e) {
-			logger.severe("An unexpected error occured while retrieving group-user memberships "+e.getMessage());
+			logger.severe("An unexpected error occurred while retrieving group-user memberships "+e.getMessage());
 			throw new NdexException("Unable to get user memberships for group "+groupAccount);
 		} 
 	} */

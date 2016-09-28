@@ -50,10 +50,14 @@ import java.util.logging.Logger;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
+import org.cxio.aspects.datamodels.NodesElement;
 import org.cxio.metadata.MetaDataCollection;
+import org.cxio.metadata.MetaDataElement;
 import org.ndexbio.common.NdexClasses;
 //import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO.NetworkResultComparator;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
+import org.ndexbio.model.cx.NdexNetworkStatus;
+import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -202,7 +206,7 @@ public class NetworkDAO extends NdexDBDAO {
 	public void saveNetworkEntry(NetworkSummary networkSummary, ProvenanceEntity provenance, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
 				+ "properties = ? ::jsonb, provenance = ? :: jsonb, cxmetadata = ? :: json, warnings = ?, "
-				+ " is_validated =true where \"UUID\" = ?";
+				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setString(1,networkSummary.getName());
 			pst.setString(2, networkSummary.getDescription());
@@ -464,20 +468,48 @@ public class NetworkDAO extends NdexDBDAO {
 		
 	}
     
-	public int setProvenance(UUID networkId, ProvenanceEntity provenance) throws JsonProcessingException, SQLException, NdexException {
+	public int setProvenance(UUID networkId, ProvenanceEntity provenance) throws SQLException, NdexException, IOException {
+		
+		MetaDataCollection metadata = getMetaDataCollection (networkId);
+		if ( provenance == null) {
+			metadata.remove(Provenance.ASPECT_NAME);
+		} else {
+			MetaDataElement e = metadata.getMetaDataElement(Provenance.ASPECT_NAME);
+			if ( e == null) {
+				e = new MetaDataElement ();
+				e.setName(Provenance.ASPECT_NAME);
+				e.setVersion("1.0");
+				e.setConsistencyGroup(metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup());
+				e.setElementCount(1L);
+				metadata.addAt(0, e);
+			}		
+			metadata.setLastUpdate(Provenance.ASPECT_NAME, Calendar.getInstance().getTimeInMillis());
+		}
+			
 		// get the network document
-		String sql = " update network set provenance = ? :: jsonb where \"UUID\"=? and is_deleted=false";
+		String sql = " update network set provenance = ? :: jsonb, cxmetadata = ? :: json where \"UUID\"=? and is_deleted=false";
 		try (PreparedStatement p = db.prepareStatement(sql)) {
+			
+			if ( provenance != null) {
+				ObjectMapper mapper = new ObjectMapper();
+				String s = mapper.writeValueAsString(provenance);
+				p.setString(1, s);
+			} else 
+				p.setString(1, null);
+			
 			ObjectMapper mapper = new ObjectMapper();
-			String s = mapper.writeValueAsString(provenance);
-			p.setString(1, s);
-			p.setObject(2, networkId);
+		    String s = mapper.writeValueAsString( metadata);
+		    p.setString(2, s);
+			
+			p.setObject(3, networkId);
 			int cnt = p.executeUpdate();
 			if ( cnt != 1) {
 				throw new NdexException ("Failed to update db, network not found or locked by another update process");
 			}
 			return cnt;
 		}
+		
+		
 	}
 	
 
@@ -600,12 +632,12 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws NdexException
      * @throws IOException 
      * @throws SolrServerException 
+     * @throws SQLException 
 	 */
 	public int setNetworkProperties (UUID networkId, Collection<NdexPropertyValuePair> properties
-			 ) throws ObjectNotFoundException, NdexException, SolrServerException, IOException {
+			 ) throws ObjectNotFoundException, NdexException, SolrServerException, IOException, SQLException {
 
-//		ODocument rec = this.getRecordByUUID(networkId, null);
-		
+		//filter out the source format attribute.
 		List<NdexPropertyValuePair> props = new ArrayList<>(properties.size());
 		for ( NdexPropertyValuePair p : properties ) {
 			if (!p.getPredicateString().equals(NdexClasses.Network_P_source_format))
@@ -613,8 +645,23 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 		
 		Date updateTime = Calendar.getInstance().getTime();
-	//	rec.fields(NdexClasses.ndexProperties, props,
-	//				NdexClasses.ExternalObj_mTime, updateTime).save();
+		
+		String sqlStr = "update network set properties = ? ::jsonb, modification_time = localtimestamp where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			
+			if ( props.size() > 0 ) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( props);
+				pst.setString(1, s);
+			} else {
+				pst.setString(1, null);
+			}
+			
+			pst.setObject(2, networkId);
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to update network property in db.");
+		}
 
 		
 		// update the solr Index

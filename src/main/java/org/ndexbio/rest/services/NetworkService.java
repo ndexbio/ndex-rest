@@ -350,26 +350,22 @@ public class NetworkService extends NdexService {
 			
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
-
-	/*		if ( !Helper.checkPermissionOnNetworkByAccountName(db, networkId, user.getUserName(),
-					Permissions.WRITE)) {
-				logger.error("[end: No write permissions for user account {} on network {}]",
+			
+	  	    if(daoNew.isReadOnly(networkUUID)) {
+				logger.info("[end: Can't modify readonly network {}]", networkId);
+				throw new NdexException ("Can't update readonly network.");				
+			} 
+			
+			if ( !daoNew.isWriteable(networkUUID, user.getExternalId())) {
+				logger.error("[end: No write permissions for user account {} on network {}]", 
 						user.getUserName(), networkId);
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
-			} */
-
-					
-		/*	if(daoNew.networkIsReadOnly(networkId)) {
-				logger.info("[end: Can't update readonly network {}]", networkId);
-				throw new NdexException ("Can't update readonly network.");
-			} */
+			} 
 			
 			if ( daoNew.networkIsLocked(networkUUID)) {
 				logger.info("[end: Can't update locked network {}]", networkId);
 				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
 			} 
-
-/*
 
 			int i = daoNew.setNetworkProperties(networkUUID, properties);
 
@@ -379,8 +375,7 @@ public class NetworkService extends NdexService {
             ProvenanceEntity newProv = new ProvenanceEntity();
             newProv.setUri( oldProv.getUri() );
 
-            ODocument d = daoNew.getRecordByUUIDStr(networkId, null);
-            NetworkSummary summary = NetworkDocDAO.getNetworkSummary(d);
+            NetworkSummary summary = daoNew.getNetworkSummaryById(networkUUID);
             Helper.populateProvenanceEntity(newProv, summary);
             ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_NETWORK_PROPERTIES, summary.getModificationTime());
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
@@ -398,15 +393,41 @@ public class NetworkService extends NdexService {
             newProv.setCreationEvent(event);
             daoNew.setProvenance(networkUUID, newProv); 
 
-			daoNew.commit(); */
+            NetworkSummary fullSummary = daoNew.getNetworkSummaryById(networkUUID);
 			
-			//logInfo(logger, "Finished updating properties of network " + networkId);
-			return 0;
+			//update the networkProperty aspect 
+			List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
+			if ( attrs.size() > 0 ) {					
+				try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
+						+ NetworkAttributesElement.ASPECT_NAME) ) {
+					for ( NetworkAttributesElement e : attrs) {
+						writer.writeCXElement(e);	
+						writer.flush();
+					}
+				}
+			}
+			
+			//update metadata
+			MetaDataCollection metadata = daoNew.getMetaDataCollection(networkUUID);
+			MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
+			if ( elmt == null) {
+				elmt = new MetaDataElement();
+			}
+			elmt.setElementCount(Long.valueOf(attrs.size()));
+			daoNew.updateMetadataColleciton(networkUUID, metadata);
+
+			//Recreate the CX file 					
+			CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, fullSummary, metadata);
+			g.reCreateCXFile();
+			
+			daoNew.unlockNetwork(networkUUID);
+            
+   			return i;
 		} catch (Exception e) {
 			//logger.severe("Error occurred when update network properties: " + e.getMessage());
 			//e.printStackTrace();
 			//if (null != daoNew) daoNew.rollback();
-			logger.error("[end: Updating properties of network {}. Exception caught:]{}", networkId, e);
+			logger.error("Updating properties of network {}. Exception caught:]{}", networkId, e);
 			
 			throw new NdexException(e.getMessage());
 		} finally {
@@ -816,6 +837,7 @@ public class NetworkService extends NdexService {
 		}
 	}
 
+	/*
 	
 	private ProvenanceEntity getProvenanceEntityFromMultiPart(Map<String, List<InputPart>> uploadForm) throws NdexException, IOException {
 		
@@ -836,7 +858,7 @@ public class NetworkService extends NdexService {
 		    if (entity == null || entity.getUri() == null)
 	    		   throw new NdexException ("Malformed provenance parameter found in posted form data.");  
 		   return entity;
-	}
+	} */
 	
 
 /* Note: Will be implemented in services	

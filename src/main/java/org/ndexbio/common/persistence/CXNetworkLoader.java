@@ -269,7 +269,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 				
 				//recreate CX file
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, provenanceHistory);
 				String tmpFileName = g.createNetworkFile();
 				
 				java.nio.file.Path src = Paths.get(tmpFileName);
@@ -345,7 +345,6 @@ public class CXNetworkLoader implements AutoCloseable {
 					break;
 					
 				case Provenance.ASPECT_NAME:   // we only save the provenance aspect in db not in the disk.
-			//		createAspectElement(elmt);
 					this.provenanceHistory = (Provenance)elmt;
 					break;
 				default:    // opaque aspect
@@ -437,21 +436,22 @@ public class CXNetworkLoader implements AutoCloseable {
 						  if (w == null)  { // no element found, remove the metadatEntry
 							  metadata.remove(e.getName());
 							  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because the element count is 0.");
-						  } else 
-							  throw new NdexException ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
+						  } else  // maybe this should be raised as an error?
+							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
 								  ", but only " + w.getElementCount() + " was received in CX.");
 				  } else {
 						  if ( this.aspectTable.get(e.getName()) == null || declaredCnt != this.aspectTable.get(e.getName()).getElementCount()) {
-							  throw new NdexException ("Element count mismatch in aspect " + e.getName() + ". Metadate declared element count " + e.getElementCount()+
+							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadate declared element count " + e.getElementCount()+
 							  ", but only " + (this.aspectTable.get(e.getName()) == null ? 0:this.aspectTable.get(e.getName()).getElementCount()) + " was received in CX.");
 						  }
 				  }
 				  
 				  //check consistencyGrp 
 				  Long cGrpIds = e.getConsistencyGroup();
-				  if ( cGrpIds == null)
-					  throw new NdexException("Aspect " + e.getName() + " doesn't have consistencyGroupId defined in metadata.");
-				  consistencyGrpIds.add(cGrpIds);
+				  if ( cGrpIds == null) 
+					  warnings.add("Aspect " + e.getName() + " doesn't have consistencyGroupId defined in metadata.");
+				  else
+				     consistencyGrpIds.add(cGrpIds);
 			  }
 			  
 			  // check if all the aspects has metadata

@@ -30,12 +30,12 @@ public class CXNetworkLoadingTask implements NdexSystemTask {
 		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, ownerUserName, isUpdate) ) {
 				loader.persistCXNetwork();
 		} catch ( IOException | NdexException | SQLException | SolrServerException e1) {
-			logger.severe("Error occured when loading network " + networkId + ": " + e1.getMessage());
+			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
 			e1.printStackTrace();
 			try (NetworkDAO dao= new NetworkDAO()) {
 				dao.setErrorMessage(networkId, e1.getMessage());
 			} catch (SQLException e) {
-				logger.severe("Error occured when setting error message in network " + networkId + ": " + e1.getMessage());
+				logger.severe("Error occurred when setting error message in network " + networkId + ": " + e1.getMessage());
 				e.printStackTrace();
 			}
 		

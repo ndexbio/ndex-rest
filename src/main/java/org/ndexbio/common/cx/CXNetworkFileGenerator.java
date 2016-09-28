@@ -18,6 +18,7 @@ import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.model.cx.NdexNetworkStatus;
+import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
@@ -30,6 +31,7 @@ public class CXNetworkFileGenerator {
 	private UUID networkId;
 	private NetworkSummary fullSummary;
 	private MetaDataCollection metadata;
+	private Provenance provenance;
 	
 	/**
 	 * We need the caller to pass in the NetworkDAO object so that the generator can see the changes have been
@@ -42,10 +44,11 @@ public class CXNetworkFileGenerator {
 	 * @throws JsonParseException 
 	 * @throws NdexException 
 	 */
-	public CXNetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
+	public CXNetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao, Provenance provenanceHistory) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
 		networkId = networkUUID;
 		fullSummary = networkDao.getNetworkSummaryById(networkUUID);
 		metadata = networkDao.getMetaDataCollection(networkUUID);
+		provenance = provenanceHistory;
 	}
 	
 	public CXNetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao, MetaDataCollection metaDataCollection) 
@@ -92,6 +95,17 @@ public class CXNetworkFileGenerator {
 			 List<AspectElement> stat = new ArrayList<> (1);
 			 stat.add(status);		 
 			 wtr.writeAspectFragment(new CXAspectFragment(NdexNetworkStatus.ASPECT_NAME, stat));
+			 
+			 //write provenance history seperately
+			 if ( metadata.getMetaDataElement(Provenance.ASPECT_NAME) != null ) {
+				 metadata.remove(Provenance.ASPECT_NAME);
+				 if (provenance !=null )  {
+					 List<AspectElement> prov = new ArrayList<> (1);
+					 prov.add(provenance);		 
+					 wtr.writeAspectFragment(new CXAspectFragment(Provenance.ASPECT_NAME, prov));	
+				 }
+			 }
+				 
 			 
 			 //write all other aspects
 			 for ( MetaDataElement metaElmt: metadata) {

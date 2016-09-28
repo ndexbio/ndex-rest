@@ -85,7 +85,7 @@ public class EmailNotificationTask extends TimerTask {
 	    return result.getTime();
 	  }	
 
-	public EmailNotificationTask() throws IOException, NdexException {
+	public EmailNotificationTask() throws IOException {
 	 emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
 
 	}
@@ -131,7 +131,7 @@ public class EmailNotificationTask extends TimerTask {
 		}
 		
 	  } catch (NdexException e) {
-		logger.error("Error occured when sending email notifications. Cause:" + e.getMessage() );
+		logger.error("Error occurred when sending email notifications. Cause:" + e.getMessage() );
 		e.printStackTrace();
 	} catch (SQLException e1) {
 		// TODO Auto-generated catch block

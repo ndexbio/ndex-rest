@@ -189,7 +189,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
         try {
           authenticator.revokeAllTokens();
         } catch (Exception e)  {
-        	logger.severe("Error occured when revoking Google access tokens." + e.getMessage());
+        	logger.severe("Error occurred when revoking Google access tokens." + e.getMessage());
         }
 		super.destroy();
 	}
