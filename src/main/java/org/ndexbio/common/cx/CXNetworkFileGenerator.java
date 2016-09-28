@@ -112,7 +112,7 @@ public class CXNetworkFileGenerator {
 		String tmpFileName = this.createNetworkFile();
 			// rename the tmp file
 		java.nio.file.Path src = Paths.get(tmpFileName);
-		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + networkId+ ".cx");
+		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
 		Files.move(src, tgt, StandardCopyOption.REPLACE_EXISTING);  
 	}
 	

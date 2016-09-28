@@ -44,23 +44,16 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.UUID;
 import java.util.logging.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
-import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
-import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.access.NdexDatabase;
 //import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO.NetworkResultComparator;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
-import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -73,17 +66,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.network.BaseTerm;
-import org.ndexbio.model.object.network.Citation;
-import org.ndexbio.model.object.network.Edge;
-import org.ndexbio.model.object.network.FunctionTerm;
-import org.ndexbio.model.object.network.Namespace;
-import org.ndexbio.model.object.network.Network;
-import org.ndexbio.model.object.network.NetworkSourceFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
-import org.ndexbio.model.object.network.Node;
-import org.ndexbio.model.object.network.ReifiedEdgeTerm;
-import org.ndexbio.model.object.network.Support;
 import org.ndexbio.model.object.network.VisibilityType;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -93,6 +76,8 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+
+import com.fasterxml.jackson.core.type.TypeReference;
 
 
 public class NetworkDAO extends NdexDBDAO {
@@ -481,7 +466,7 @@ public class NetworkDAO extends NdexDBDAO {
     
 	public int setProvenance(UUID networkId, ProvenanceEntity provenance) throws JsonProcessingException, SQLException, NdexException {
 		// get the network document
-		String sql = " update network set provenance = ? :: jsonb where \"UUID\"=? and is_deleted=false and islocked = false";
+		String sql = " update network set provenance = ? :: jsonb where \"UUID\"=? and is_deleted=false";
 		try (PreparedStatement p = db.prepareStatement(sql)) {
 			ObjectMapper mapper = new ObjectMapper();
 			String s = mapper.writeValueAsString(provenance);
@@ -755,7 +740,7 @@ public class NetworkDAO extends NdexDBDAO {
 		if ( proptiesStr != null) {
 			ObjectMapper mapper = new ObjectMapper(); 
 			
-			List<NdexPropertyValuePair> o = mapper.readValue(proptiesStr, ArrayList.class); 		
+			List<NdexPropertyValuePair> o = mapper.readValue(proptiesStr, new TypeReference<List<NdexPropertyValuePair>>() {}); 		
 	        result.setProperties(o);  
 		}
 		
