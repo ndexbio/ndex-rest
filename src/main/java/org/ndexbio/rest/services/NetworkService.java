@@ -1732,12 +1732,12 @@ public class NetworkService extends NdexService {
 								
 							  if ( parameter.equals(readOnlyParameter)) {
 								  boolean bv = Boolean.parseBoolean(value);
-								  throw new NdexException("Function not implemented yet.");
-								/*  try (NetworkDAOTx daoNew = new NetworkDAOTx()) {
-									  long oldId = daoNew.setReadOnlyFlag(networkId, bv, getLoggedInUser().getAccountName());
+								  try (NetworkDAO daoNew = new NetworkDAO()) {
+									  daoNew.setFlag(networkId, "readonly",bv);
+									  daoNew.commit();
 									  logger.info("[end: Set {}={} for network {}]", parameter, value, networkId);
-									  return Long.toString(oldId);
-								  }  */
+									  return;
+								  }  
 							  } else if ( parameter.toLowerCase().equals("visibility")) {
 								  networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf(value));
 								  networkDao.commit();		

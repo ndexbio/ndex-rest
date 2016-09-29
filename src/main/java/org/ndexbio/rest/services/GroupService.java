@@ -32,6 +32,7 @@ package org.ndexbio.rest.services;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 
@@ -229,6 +230,27 @@ public class GroupService extends NdexService {
 		} 
 	}
 
+	
+	@POST
+	@PermitAll
+	@Path("/groups")
+	@Produces("application/json")
+	@ApiDoc("Returns a group JSON structure for the group specified by groupId. Errors if the group is not found. ")
+	public List<Group> getGroups(List<String> groupIdStrs)
+			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
+		
+		logger.info("[start: Getting groups by uuids]");
+
+		try (GroupDAO dao = new GroupDAO()) {
+			List<Group> groups = new LinkedList<>();
+			for ( String groupId : groupIdStrs) {
+			  final Group group = dao.getGroupById(UUID.fromString(groupId));
+			  groups.add(group);
+			}
+			logger.info("[end: Getting groups by uuids]");
+			return groups;
+		} 
+	}
 
 	/**************************************************************************
 	 * Updates a group.

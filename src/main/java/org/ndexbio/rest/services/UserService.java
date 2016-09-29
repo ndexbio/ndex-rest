@@ -33,6 +33,7 @@ package org.ndexbio.rest.services;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 
@@ -356,6 +357,30 @@ public class UserService extends NdexService {
 			final User user = dao.getUserById(UUID.fromString(userId),true);
 			logger.info("[end: User object returned for user uuid {}]", userId);
 			return user;	
+		} 
+		
+	}	
+	
+	@SuppressWarnings("static-method")
+	@POST
+	@PermitAll
+	@Path("/users")
+	@Produces("application/json")
+	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
+	public List<User> getUsersByUUIDs(
+			List<String> userIdStrs)
+			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
+
+		logger.info("[start: Getting users from UUIDs]");
+		
+		try (UserDAO dao = new UserDAO() ){
+			List<User> users = new LinkedList<>();
+			for ( String uuidStr : userIdStrs) {
+				User user = dao.getUserById(UUID.fromString(uuidStr),true);
+				users.add(user);
+			}
+		    logger.info("[end: User object returned for user uuids]");
+			return users;	
 		} 
 		
 	}	
