@@ -236,7 +236,7 @@ public class GroupService extends NdexService {
 	@Path("/groups")
 	@Produces("application/json")
 	@ApiDoc("Returns a group JSON structure for the group specified by groupId. Errors if the group is not found. ")
-	public List<Group> getGroups(List<String> groupIdStrs)
+	public List<Group> getGroupsByUUIDs(List<String> groupIdStrs)
 			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 		
 		logger.info("[start: Getting groups by uuids]");
