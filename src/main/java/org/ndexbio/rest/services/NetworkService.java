@@ -297,7 +297,7 @@ public class NetworkService extends NdexService {
 			User user = getLoggedInUser();
 			UUID networkId = UUID.fromString(networkIdStr);
 
-			if ( daoNew.isWriteable(networkId, user.getExternalId())) {
+			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
 				logger.error("[end: No write permissions for user account {} on network {}]", 
 						user.getUserName(), networkId);
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
