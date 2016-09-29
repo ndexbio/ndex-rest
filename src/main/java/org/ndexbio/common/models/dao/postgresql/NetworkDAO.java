@@ -915,11 +915,11 @@ public class NetworkDAO extends NdexDBDAO {
 
 		String sql = "select owneruuid as user_id, owner as user_name,name, 'ADMIN' from network where \"UUID\"=? and is_deleted=false";
 		if ( permission == null ) {
-			sql = " union select un.user_id, u.user_name, n.name, un.ndex_permission_type from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and "
-					+ "n.\"UUID\" = un.network_id and network_id = ?" ;
+			sql += " union select un.user_id, u.user_name, n.name, un.permission_type from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and "
+					+ "n.\"UUID\" = un.network_id and network_id = '" + networkId.toString() + "'";
 		}else if ( permission != Permissions.ADMIN) 
-			sql = "select user_id, u.user_name, n.name, un.ndex_permission_type from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and n.\"UUID\" = un.network_id "
-					+ "and network_id = ? and ndex_permission_type = '" + permission.toString() + "'";
+			sql = "select user_id, u.user_name, n.name, un.permission_type from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and n.\"UUID\" = un.network_id "
+					+ "and network_id = '" + networkId+ "' and ndex_permission_type = '" + permission.toString() + "'";
 		
 		if ( skipBlocks>=0 && blockSize>0) {
 			sql += " limit " + blockSize + " offset " + skipBlocks * blockSize;
