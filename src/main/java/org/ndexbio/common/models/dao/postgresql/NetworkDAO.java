@@ -919,7 +919,7 @@ public class NetworkDAO extends NdexDBDAO {
 					+ "n.\"UUID\" = un.network_id and network_id = '" + networkId.toString() + "'";
 		}else if ( permission != Permissions.ADMIN) 
 			sql = "select user_id, u.user_name, n.name, un.permission_type from user_network_membership un, network n, ndex_user u where u.\"UUID\" = un.user_id and n.\"UUID\" = un.network_id "
-					+ "and network_id = '" + networkId+ "' and ndex_permission_type = '" + permission.toString() + "'";
+					+ "and network_id = ? and un.permission_type = '" + permission.toString() + "'";
 		
 		if ( skipBlocks>=0 && blockSize>0) {
 			sql += " limit " + blockSize + " offset " + skipBlocks * blockSize;
