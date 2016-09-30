@@ -31,6 +31,7 @@
 package org.ndexbio.rest.services;
 
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.UUID;
 
@@ -51,6 +52,8 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
@@ -207,12 +210,15 @@ public class TaskService extends NdexService
     * @throws NdexException
     *            Failed to query the database.
      * @throws SQLException 
+     * @throws IOException 
+     * @throws JsonMappingException 
+     * @throws JsonParseException 
     **************************************************************************/
     @GET
     @Path("/{taskId}")
     @Produces("application/json")
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public Task getTask(@PathParam("taskId")final String taskIdStr) throws  UnauthorizedOperationException, NdexException, SQLException
+    public Task getTask(@PathParam("taskId")final String taskIdStr) throws  UnauthorizedOperationException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException
     {
     	logger.info("[start: get task {}] ", taskIdStr);
     	

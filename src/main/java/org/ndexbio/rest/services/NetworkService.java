@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -1760,11 +1761,11 @@ public class NetworkService extends NdexService {
 	
 	
 	@POST
-	@Path("/{networkId}/export")
+	@Path("/export")
 	@Produces("application/json")
     @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
 	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
-	public void exportNetworks(NetworkExportRequest exportRequest)
+	public Map<UUID,UUID> exportNetworks(NetworkExportRequest exportRequest)
 
 			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
 		
@@ -1772,6 +1773,7 @@ public class NetworkService extends NdexService {
 		    if ( !exportRequest.getNetworkFormat().toLowerCase().equals("cx"))
 		    	throw new NdexException("Networks can only be exported in cx fromat in this server.");
 		    
+		    Map<UUID,UUID> result = new TreeMap<>();
 			try (NetworkDAO networkDao = new NetworkDAO()) {
 				try (TaskDAO taskdao = new TaskDAO()) {
 
@@ -1786,33 +1788,37 @@ public class NetworkService extends NdexService {
 						t.setTaskType(TaskType.EXPORT_NETWORK_TO_FILE);
 						t.setFormat(FileFormat.CX);
 						t.setTaskOwnerId(getLoggedInUserId());
+						t.setResource(networkID.toString());
 						if (! networkDao.isReadable(networkID, getLoggedInUserId())) {
 							t.setStatus(Status.COMPLETED_WITH_ERRORS);
 							t.setMessage("Network " + networkID + " is not found for user.");
 							//throw new NdexException ("Network " + networkID + " is not found.");
 						}	else {
 							t.setStatus(Status.QUEUED);
+							
 							NetworkSummary s = networkDao.getNetworkSummaryById(networkID);
 							t.setAttribute("downloadFileName", s.getName());
 							t.setAttribute("downloadFileExtension", "CX");
 						    
 
 						}
-						taskdao.createTask(t);
+						UUID taskId = taskdao.createTask(t);
 						taskdao.commit();
-
+						
+						result.put(networkID, taskId);
+						
 						if ( t.getStatus() == Status.QUEUED)
 						NdexServerQueue.INSTANCE.addUserTask(new NetworkExportTask(t));
 
 					}
 				}
 			}
+			
+			return result;
 		    
 	}
 	
 	
-	
-
 	   @POST
 	//	@PermitAll
 

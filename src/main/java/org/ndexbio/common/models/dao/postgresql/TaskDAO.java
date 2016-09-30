@@ -52,6 +52,7 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
 import org.ndexbio.model.object.Status;
@@ -79,7 +80,7 @@ public class TaskDAO extends NdexDBDAO {
 		super();
 	}
 
-	public Task getTaskByUUID(UUID taskId) throws ObjectNotFoundException, NdexException, SQLException {
+	public Task getTaskByUUID(UUID taskId) throws ObjectNotFoundException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
         
 		String sqlStr = "SELECT * FROM " + NdexClasses.Task + " where \"UUID\" = ? and not is_deleted ";
 		
@@ -100,7 +101,7 @@ public class TaskDAO extends NdexDBDAO {
 	}
 	
 	
-	private static void populateTaskFromResultSet(Task task, ResultSet rs) throws SQLException {
+	private static void populateTaskFromResultSet(Task task, ResultSet rs) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		Helper.populateExternalObjectFromResultSet(task, rs);
 				
@@ -109,18 +110,19 @@ public class TaskDAO extends NdexDBDAO {
 		task.setProgress(rs.getInt("progress"));
 		task.setResource(rs.getString("resource"));
 		task.setStatus(Status.valueOf(rs.getString("status")));
-		task.setTaskType(TaskType.valueOf(rs.getString("taskType")));
-		task.setStartTime(rs.getTimestamp("startTime"));
-		task.setFinishTime(rs.getTimestamp("endTime"));
-		task.setTaskOwnerId((UUID)rs.getObject("ownerUUID"));
+		task.setTaskType(TaskType.valueOf(rs.getString("task_type")));
+		task.setStartTime(rs.getTimestamp("start_time"));
+		task.setFinishTime(rs.getTimestamp("end_time"));
+		task.setTaskOwnerId((UUID)rs.getObject("owneruuid"));
 		task.setMessage(rs.getString("message"));
         
-		String str = rs.getString("fileFormat");		
+		String str = rs.getString("file_format");		
 		if ( str != null) task.setFormat(FileFormat.valueOf(str));
 
-		Object o = rs.getString("otherAttributes");
+		String o = rs.getString("other_attributes");
 		if ( o != null) {
-			Map<String, Object> attr = (Map<String,Object>) o;
+			ObjectMapper mapper = new ObjectMapper(); 
+			Map<String, Object> attr = mapper.readValue(o, new TypeReference<Map<String,Object>>() {}); 					
 			task.setAttributes(attr);
 		}
 	}
@@ -133,7 +135,7 @@ public class TaskDAO extends NdexDBDAO {
 			newTask.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
 		
 		String insertStr = "insert into task (\"UUID\", creation_time, modification_time," + 
-					"status, start_time,end_time,task_type,owneruuid,is_deleted,other_attribute,"+
+					"status, start_time,end_time,task_type,owneruuid,is_deleted,other_attributes,"+
 				   "description,priority, progress,file_format, message, resource) values ( ?,?,?,?,?,?,?,?,false,? ::jsonb,?,?,?,?,?,?)";
 		
 		try (PreparedStatement st = db.prepareStatement(insertStr) ) {
@@ -260,7 +262,7 @@ public class TaskDAO extends NdexDBDAO {
     }
 
     
-	public List<Task> getTasksByUserId(UUID userID, Status status, int skipBlocks, int blockSize) throws SQLException {
+	public List<Task> getTasksByUserId(UUID userID, Status status, int skipBlocks, int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
 		Preconditions.checkArgument(userID != null, "UserID can't be null");
 

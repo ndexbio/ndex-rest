@@ -881,7 +881,7 @@ public class UserService extends NdexService {
 
 			@PathParam("status") final String status,
 			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws SQLException {
+			@PathParam("blockSize") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: Getting tasks for user {}]", getLoggedInUser().getUserName());
 		
