@@ -39,10 +39,8 @@ import java.util.UUID;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Status;
-import org.ndexbio.model.object.Task;
-import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
-import org.slf4j.MDC;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -60,75 +58,39 @@ public class ClientTaskProcessor extends NdexTaskProcessor {
 	@Override
 	public void run() {
 		while ( !shutdown) {
-			Task task = null;
+			NdexTask task = null;
 			try {
 				task = NdexServerQueue.INSTANCE.takeNextUserTask();
 				if ( task == NdexServerQueue.endOfQueue) {
-					logger.info("End of queue signal received. Shutdown processor.");
+					logger.info("End of queue signal received. Shutdown client task processor.");
 					return;
 				}
 			} catch (InterruptedException e) {
-				logger.info("takeNextUserTask Interrupted.");
+				logger.info("takeNextUserTask Interrupted: " + e.getMessage());
 				return;
 			}
 			
 			try {		        
-		        MDC.put("RequestsUniqueId", (String)task.getAttribute("RequestsUniqueId") );
+//		        MDC.put("RequestsUniqueId", (String)task.getAttribute("RequestsUniqueId") );
 				logger.info("[start: starting task]");
-				
-				NdexTask t = getNdexTask(task);
-				saveTaskStatus(task.getExternalId(), Status.PROCESSING, null,null);
-				Task taskObj = t.call();
-				saveTaskStatus(task.getExternalId(), Status.COMPLETED, taskObj.getMessage(),null);
-
+				task.call();
 				logger.info("[end: task completed]");
 
 			} catch (Exception e) {
-				logger.error("Error occurred when executing task " + task.getExternalId());
+				logger.error("Error occurred when executing task " + task.getTask().getExternalId());
 				e.printStackTrace();
 				StringWriter sw = new StringWriter();
 				PrintWriter pw = new PrintWriter(sw);
 				e.printStackTrace(pw);     
 				try {
-					saveTaskStatus(task.getExternalId(), Status.FAILED, e.getMessage(), sw.toString() );
-
-				} catch (NdexException e1) {
+					saveTaskStatus(task.getTask().getExternalId(), Status.FAILED, e.getMessage(), sw.toString() );
+				} catch (NdexException | SQLException | IOException e1) {
 					logger.error("Error occurred when saving task " + e1);
-				} catch (JsonParseException e1) {
-					// TODO Auto-generated catch block
 					e1.printStackTrace();
-				} catch (JsonMappingException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				} catch (SQLException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				} catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				}
+				} 
 				
 			} 
 		}
-	}
-	
-	private static NdexTask getNdexTask(Task task) throws NdexException{
-		
-		try {
-			switch ( task.getTaskType()) { 
-				case PROCESS_UPLOADED_NETWORK: 
-					return new FileUploadTask(task);
-			/*	case CREATE_NETWORK_CACHE: 
-					return new AddNetworkToCacheTask(task);
-				case DELETE_NETWORK_CACHE:
-					return new RemoveNetworkFromCacheTask(task); */
-				default:
-					throw new NdexException("Task type: " +task.getTaskType() +" is not supported");
-			}		
-		} catch (IllegalArgumentException | SecurityException | NdexException e) {
-			e.printStackTrace();
-			throw new NdexException ("Error occurred when creating task. " + e.getMessage());
-		} 
 	}
 
 

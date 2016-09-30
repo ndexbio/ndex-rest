@@ -44,10 +44,9 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 
 import org.ndexbio.model.object.Status;
 
-
 public abstract class NdexTask implements Callable<Task> {
 	
-	private  Task task;
+	protected  Task task;
 	
 	public NdexTask(Task itask)  {
 		this.task = itask;
@@ -55,7 +54,7 @@ public abstract class NdexTask implements Callable<Task> {
 
 	protected Task getTask() { return this.task;}
 	
-	protected final void startTask() throws IllegalArgumentException, 
+	private final void startTask() throws IllegalArgumentException, 
 		ObjectNotFoundException, SecurityException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException{
 		try (TaskDAO dao = new TaskDAO()) {
 			dao.updateTaskStatus(task.getExternalId(), Status.PROCESSING);
@@ -63,9 +62,21 @@ public abstract class NdexTask implements Callable<Task> {
 		}
 	}
 	
-
-
+    /**
+     * Function should update the message field of task before throw exception.
+     */
 	@Override
-	public abstract Task call() throws Exception;
+	public Task call() throws Exception {
+		startTask();
+		Task t= call_aux();	
+		
+		try (TaskDAO dao = new TaskDAO()) {
+			dao.updateTaskStatus(task.getExternalId(), Status.COMPLETED);
+			dao.commit();
+		}
+		return t;
+	}
+	
+	protected abstract Task call_aux() throws Exception;
 	
 }

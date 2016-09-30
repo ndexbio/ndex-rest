@@ -45,6 +45,7 @@ import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -97,6 +98,7 @@ import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NdexProvenanceEventType;
+import org.ndexbio.model.object.NetworkExportRequest;
 import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
@@ -108,12 +110,14 @@ import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.FileFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.NetworkExportTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1753,6 +1757,60 @@ public class NetworkService extends NdexService {
 		    
 	}
 
+	
+	
+	@POST
+	@Path("/{networkId}/export")
+	@Produces("application/json")
+    @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
+	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
+	public void exportNetworks(NetworkExportRequest exportRequest)
+
+			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
+		
+		    logger.info("exporting networks");
+		    if ( !exportRequest.getNetworkFormat().toLowerCase().equals("cx"))
+		    	throw new NdexException("Networks can only be exported in cx fromat in this server.");
+		    
+			try (NetworkDAO networkDao = new NetworkDAO()) {
+				try (TaskDAO taskdao = new TaskDAO()) {
+
+					for ( UUID networkID : exportRequest.getNetworkIds()) {
+						Task t = new Task();
+						Timestamp currentTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
+						t.setCreationTime(currentTime);
+						t.setModificationTime(currentTime);
+						t.setStartTime(currentTime);
+						t.setFinishTime(currentTime);
+						t.setDescription("network export");
+						t.setTaskType(TaskType.EXPORT_NETWORK_TO_FILE);
+						t.setFormat(FileFormat.CX);
+						t.setTaskOwnerId(getLoggedInUserId());
+						if (! networkDao.isReadable(networkID, getLoggedInUserId())) {
+							t.setStatus(Status.COMPLETED_WITH_ERRORS);
+							t.setMessage("Network " + networkID + " is not found for user.");
+							//throw new NdexException ("Network " + networkID + " is not found.");
+						}	else {
+							t.setStatus(Status.QUEUED);
+							NetworkSummary s = networkDao.getNetworkSummaryById(networkID);
+							t.setAttribute("downloadFileName", s.getName());
+							t.setAttribute("downloadFileExtension", "CX");
+						    
+
+						}
+						taskdao.createTask(t);
+						taskdao.commit();
+
+						if ( t.getStatus() == Status.QUEUED)
+						NdexServerQueue.INSTANCE.addUserTask(new NetworkExportTask(t));
+
+					}
+				}
+			}
+		    
+	}
+	
+	
 	
 
 	   @POST

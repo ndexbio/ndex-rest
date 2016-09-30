@@ -67,27 +67,14 @@ public class FileUploadTask extends NdexTask {
 		}
 	}
 
-	@Override
-	public Task call() throws Exception {
-		
-		try {
-			this.processFile();
-			return this.getTask();
-		} catch (InterruptedException e) {
-			logger.info("FileUploadTask interupted");
-			return null;
-		}
-	}
-
 	protected String getFilename() {
 		return this.filename;
 
 	}
 
-	private void processFile() throws Exception {
+	@Override
+	protected Task call_aux() throws Exception {
 		logger.info("[start: Processing file='{}']", this.getFilename());
-		Status taskStatus = Status.PROCESSING;
-		this.startTask();
 		File file = new File(this.getFilename());
 		String fileExtension = com.google.common.io.Files
 				.getFileExtension(this.getFilename()).toUpperCase().trim();
@@ -107,7 +94,7 @@ public class FileUploadTask extends NdexTask {
 
 		}
 		parser.parseFile();
-		taskStatus = Status.COMPLETED;
+		Status taskStatus = Status.COMPLETED;
 		long fileSize = file.length();
 		file.delete(); // delete the file from the staging area
 		logger.info("Network upload file: " + file.getName() +" deleted from staging area");
@@ -119,6 +106,8 @@ public class FileUploadTask extends NdexTask {
 			this.getTask().setStatus(taskStatus);
 		}
         logger.info("[end: Network upload finished; UUID='{}' fileSize={}]", parser.getUUIDOfUploadedNetwork().toString(), fileSize);
+	
+        return getTask();
 	}
 
 }
