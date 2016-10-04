@@ -56,6 +56,7 @@ import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
+import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
@@ -315,12 +316,19 @@ public class NetworkGlobalIndexManager {
 	
 	public void addCXNodeAttrToIndex(NodeAttributesElement e)  {
 		
-		if ( e.getName().equals(NdexClasses.Node_P_alias) && !e.getValues().isEmpty()) {
-			 for ( String v : e.getValues()) {
-				for ( String indexableString : getIndexableString(v) ){
-					 doc.addField(ALIASES, indexableString);
+		if ( e.getName().equals(NdexClasses.Node_P_alias)) {
+			if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING 	&& !e.getValues().isEmpty()) {
+				for ( String v : e.getValues()) {
+					for ( String indexableString : getIndexableString(v) ){
+						doc.addField(ALIASES, indexableString);
+					}
 				}
-			 }
+			} else if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
+				String v = e.getValue();
+				for ( String indexableString : getIndexableString(v) ){
+					doc.addField(ALIASES, indexableString);
+				}
+			}
 		}
 
 	}

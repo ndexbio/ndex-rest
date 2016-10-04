@@ -495,7 +495,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		} else if ( e.getName().equals(NdexClasses.Network_P_version) &&  e.getSubnetwork() == null) {
 			this.version = e.getValue();
 		} else 
-			properties.add(new NdexPropertyValuePair(e.getSubnetwork(),e.getName(), e.getValueAsJsonString(), e.getDataType().toString()));
+			properties.add(new NdexPropertyValuePair(e.getSubnetwork(),e.getName(), 
+					(e.isSingleValue() ? e.getValue(): e.getValueAsJsonString()), e.getDataType().toString()));
 		
 		writeCXElement(e);
 		

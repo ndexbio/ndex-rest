@@ -299,7 +299,7 @@ public class UserService extends NdexService {
 	/**************************************************************************
 	 * Gets a user by accountName. 
 	 * 
-	 * @param userId
+	 * @param accountName
 	 *            The accountName of the user.
 	 * @throws IllegalArgumentException
 	 *             Bad input.
@@ -312,17 +312,17 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@GET
 	@PermitAll
-	@Path("/account/{userId}")
+	@Path("/account/{accountName}")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to the given user account name. Error if this account is not found.")
-	public User getUserByAccountName(@PathParam("userId") @Encoded final String userId)
+	public User getUserByAccountName(@PathParam("accountName") @Encoded final String accountName)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
-		logger.info("[start: Getting user by account name {}]", userId);
+		logger.info("[start: Getting user by account name {}]", accountName);
 		try (UserDAO dao = new UserDAO()){
 			
-			final User user = dao.getUserByAccountName(userId.toLowerCase(),true);
-			logger.info("[end: User object returned for user account {}]", userId);
+			final User user = dao.getUserByAccountName(accountName.toLowerCase(),true);
+			logger.info("[end: User object returned for user account {}]", accountName);
 			return user;
 		} 
 		
