@@ -434,7 +434,7 @@ public class NetworkService extends NdexService {
 			//if (null != daoNew) daoNew.rollback();
 			logger.error("Updating properties of network {}. Exception caught:]{}", networkId, e);
 			
-			throw new NdexException(e.getMessage());
+			throw new NdexException(e.getMessage(), e);
 		} finally {
 			logger.info("[end: Updated properties of network {}]", networkId);
 		}
@@ -1580,6 +1580,7 @@ public class NetworkService extends NdexService {
 						networkDao.commit();
 										
 						logger.info("[end: Deleted network {}]", id);
+						return;
 					}
 					throw new NdexException ("Network is locked by another updating process. Please try again.");
 				}
