@@ -788,7 +788,7 @@ public class UserDAO extends NdexDBDAO {
 	public void deleteUserById(UUID id) throws NdexException, ObjectNotFoundException, SQLException {
 		Preconditions.checkArgument(null != id, "UUID required");
 
-		try (PreparedStatement st = db.prepareStatement("select 1 from network where owneruuid = ? limit 1")) {
+		try (PreparedStatement st = db.prepareStatement("select 1 from network where owneruuid = ? and is_deleted = false limit 1 ")) {
 			st.setObject(1, id);
 			try (ResultSet rs = st.executeQuery()) {
 				if ( rs.next()) {
@@ -797,7 +797,7 @@ public class UserDAO extends NdexDBDAO {
 			}
 		}	
 		
-		try (PreparedStatement st = db.prepareStatement("select 1 from ndex_group_user where user_id = ? limit 1")) {
+		try (PreparedStatement st = db.prepareStatement("select 1 from ndex_group_user where user_id = ? is_deleted=false limit 1")) {
 			st.setObject(1, id);
 			try (ResultSet rs = st.executeQuery()) {
 				if ( rs.next()) {
