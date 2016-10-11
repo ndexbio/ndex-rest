@@ -1847,7 +1847,7 @@ public class NetworkService extends NdexService {
 	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false));
 	       
 		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
-		   return uuidStr;
+		   return "\"" + uuidStr + "\"";
 
 	   	}
 	   

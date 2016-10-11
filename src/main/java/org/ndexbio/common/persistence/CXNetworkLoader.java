@@ -37,7 +37,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.sql.Array;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -49,7 +48,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
@@ -63,7 +61,7 @@ import org.cxio.aspects.readers.EdgesFragmentReader;
 import org.cxio.aspects.readers.NetworkAttributesFragmentReader;
 import org.cxio.aspects.readers.NodeAttributesFragmentReader;
 import org.cxio.aspects.readers.NodesFragmentReader;
-import org.cxio.core.CxElementReader;
+import org.cxio.core.CxElementReader2;
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.core.interfaces.AspectFragmentReader;
 import org.cxio.metadata.MetaDataCollection;
@@ -90,7 +88,6 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
-import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -183,7 +180,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 	}
 	
-	private CxElementReader createCXReader () throws IOException {
+	private CxElementReader2 createCXReader () throws IOException {
 		HashSet<AspectFragmentReader> readers = new HashSet<>(20);
 		
 		  readers.add(EdgesFragmentReader.createInstance());
@@ -204,8 +201,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(new GeneralAspectFragmentReader (NodeCitationLinksElement.ASPECT_NAME,NodeCitationLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader (Provenance.ASPECT_NAME,Provenance.class));
-		  return  CxElementReader.createInstance(inputStream, true,
-				   readers);
+		  return  new CxElementReader2(inputStream, readers);
 	}
 	
 	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {
@@ -217,6 +213,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		  Files.createDirectory(dir);
 			    	
 		  persistNetworkData(); 
+		  
+		  logger.info("aspects have been stored.");
 		  
 		  NetworkSummary summary = new NetworkSummary();
 
@@ -299,7 +297,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	private void persistNetworkData()
 			throws IOException, DuplicateObjectException, NdexException, ObjectNotFoundException {
 				
-		CxElementReader cxreader = createCXReader();
+		CxElementReader2 cxreader = createCXReader();
 		  
 	    metadata = cxreader.getPreMetaData();
 		
@@ -457,7 +455,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
 				  if ( metadata.getMetaDataElement(aspectName) == null)
-					  throw new NdexException ("Aspect " + aspectName + " is not defined in MetaData section.");
+					  warnings.add ("Aspect " + aspectName + " is not defined in MetaData section.");
 			  }
 			  
 			  if (consistencyGrpIds.size()!=1) {
@@ -639,111 +637,6 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 	} 
 	
-	public UUID updateNetwork(String networkUUID, ProvenanceEntity provenanceEntity) throws NdexException, ExecutionException, SolrServerException, IOException {
-
-		// get the old network head node
-	/*	ODocument srcNetworkDoc = this.getRecordByUUIDStr(networkUUID);
-		if (srcNetworkDoc == null)
-				throw new NdexException("Network with UUID " + networkUUID + " is not found in this server");
-
-//		srcNetworkDoc.field(NdexClasses.Network_P_isComplete, false).save();
-//		graph.commit();
-		try {
-
-
-			// create new network and set the isComplete flag to false 
-			uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-
-			persistNetworkData();
-			
-			// copy the permission from source to target.
-			copyNetworkPermissions(srcNetworkDoc, networkVertex);
-			
-			graph.commit();
-		} catch ( Exception e) {
-			e.printStackTrace();
-			this.abortTransaction();
-			srcNetworkDoc.field(NdexClasses.Network_P_isLocked, false).save();
-//			srcNetworkDoc.field(NdexClasses.Network_P_isComplete, true).save();
-			graph.commit();
-			throw new NdexException("Error occurred when updating network using CX. " + e.getMessage());
-		}
-			
-		// remove the old solr Index and add the new one.
-		SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(networkUUID);
-		NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
-		try {
-			idxManager.dropIndex();
-			globalIdx.deleteNetwork(networkUUID);
-		} catch (SolrServerException | HttpSolrClient.RemoteSolrException | IOException se ) {
-			logger.warn("Failed to delete Solr Index for network " + networkUUID + ". Please clean it up manually from solr. Error message: " + se.getMessage());
-		}
-		
-		graph.begin();
-
-		UUID newUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-
-		srcNetworkDoc.fields(NdexClasses.ExternalObj_ID, newUUID.toString(),
-					  NdexClasses.ExternalObj_isDeleted,true).save();
-			
-		this.networkDoc.reload();
-		
-		// copy the creationTime and visibility
-		networkDoc.fields( NdexClasses.ExternalObj_ID, networkUUID,
-					NdexClasses.ExternalObj_cTime, srcNetworkDoc.field(NdexClasses.ExternalObj_cTime),
-					NdexClasses.Network_P_visibility, srcNetworkDoc.field(NdexClasses.Network_P_visibility),
-					NdexClasses.Network_P_isLocked,false,
-					NdexClasses.ExternalObj_mTime, new Date() ,
-					          NdexClasses.Network_P_isComplete,true)
-			.save();
-		setNetworkProvenance(provenanceEntity);
-		graph.commit();
-		
-		//create Solr index on the new network.	
-		createSolrIndex(networkDoc);
-			
-		// added a delete old network task.
-		// comment this block out because OrientDB will be locked up during delete and update. 
-	/*	Task task = new Task();
-		task.setTaskType(TaskType.SYSTEM_DELETE_NETWORK);
-		task.setResource(newUUID.toString());
-		NdexServerQueue.INSTANCE.addSystemTask(task); */
-			
-		return UUID.fromString(networkUUID);
-		 	
-	}
-
-/*	private void copyNetworkPermissions(ODocument srcNetworkDoc, OrientVertex targetNetworkVertex) {
-		
-		copyNetworkPermissionAux(srcNetworkDoc, targetNetworkVertex, NdexClasses.E_admin);
-		copyNetworkPermissionAux(srcNetworkDoc, targetNetworkVertex, NdexClasses.account_E_canEdit);
-		copyNetworkPermissionAux(srcNetworkDoc, targetNetworkVertex, NdexClasses.account_E_canRead);
-
-	}
-	
-	private void copyNetworkPermissionAux(ODocument srcNetworkDoc, OrientVertex targetNetworkVertex, String permissionEdgeType) {
-		
-		for ( ODocument rec : Helper.getDocumentLinks(srcNetworkDoc, "in_", permissionEdgeType)) {
-			OrientVertex userV = graph.getVertex(rec);
-			targetNetworkVertex.reload();
-			userV.addEdge(permissionEdgeType, targetNetworkVertex);
-		}
-		
-	} */
-	
-	
-	
-	
-/*	
-    public void setNetworkProvenance(ProvenanceEntity e) throws JsonProcessingException
-    {
-
-        ObjectMapper mapper = new ObjectMapper();
-        String provenanceString = mapper.writeValueAsString(e);
-        // store provenance string
-       this.networkDoc = this.networkDoc.field(NdexClasses.Network_P_provenance, provenanceString)
-                .save(); 
-    } */
 
 	private void closeAspectStreams() {
 		for ( Map.Entry<String, CXAspectWriter> entry : aspectTable.entrySet() ){

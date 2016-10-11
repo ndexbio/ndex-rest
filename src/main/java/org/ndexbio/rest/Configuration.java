@@ -70,6 +70,7 @@ public class Configuration
 	private String ndexRoot;
 	
 	private String hostURI ;
+	private String restAPIPrefix ;
 
 	private String networkStorePath;
 	
@@ -148,6 +149,10 @@ public class Configuration
 			} else 
 				serverElementLimit = -1;
             
+			restAPIPrefix = getProperty("RESTAPIPrefix");
+			if ( restAPIPrefix == null) {
+				restAPIPrefix = "v2";
+			}
             setLogLevel();
                         
             // get AD authentication flag
@@ -266,6 +271,7 @@ public class Configuration
     public Level  getLogLevel()  {return this.logLevel;}
     public String getHostURI () { return hostURI; }
     public long   getServerElementLimit() { return serverElementLimit;}
+    public String getRestAPIPrefix() {return restAPIPrefix;}
 
 	public boolean getUseADAuthentication() {
 		return useADAuthentication;

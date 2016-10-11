@@ -797,11 +797,11 @@ public class UserDAO extends NdexDBDAO {
 			}
 		}	
 		
-		try (PreparedStatement st = db.prepareStatement("select 1 from ndex_group_user where user_id = ? is_deleted=false limit 1")) {
+		try (PreparedStatement st = db.prepareStatement("select 1 from ndex_group_user where user_id = ? and is_admin limit 1")) {
 			st.setObject(1, id);
 			try (ResultSet rs = st.executeQuery()) {
 				if ( rs.next()) {
-					throw new NdexException("Cannot orphan groups");
+					throw new NdexException("This user is still an admin of group.");
 				}	
 			}
 		}	

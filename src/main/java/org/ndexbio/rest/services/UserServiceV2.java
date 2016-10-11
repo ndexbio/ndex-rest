@@ -90,8 +90,8 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
-@Path("/user")
-public class UserService extends NdexService {
+@Path("/v2/user")
+public class UserServiceV2 extends NdexService {
 	
 //	private static final String GOOGLE_OAUTH_FLAG = "USE_GOOGLE_AUTHENTICATION";
 //	private static final String GOOGLE_OATH_KEY = "GOOGLE_OATH_KEY";
@@ -106,7 +106,7 @@ public class UserService extends NdexService {
 	 * @param httpRequest
 	 *            The HTTP request injected by RESTEasy's context.
 	 **************************************************************************/
-	public UserService(@Context HttpServletRequest httpRequest) {
+	public UserServiceV2(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
 	
@@ -420,9 +420,9 @@ public class UserService extends NdexService {
 		logger.info("[start: Getting {} networks ]", permissions);
 		
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
+		
 		try (UserDAO dao = new UserDAO ()) {
-			
-			List<Membership> members= dao.getUserNetworkMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize, inclusive );
+			List<Membership> members= dao.getUserNetworkMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize, inclusive);
 			logger.info("[end: Returned {} members ]", members.size());			
 			return members;
 		} 
