@@ -27,7 +27,7 @@ public class AspectIterator<E> implements Iterator<E>, Closeable {
 	private Iterator<E> it;
 	
 	
-	public AspectIterator (UUID networkUUID, String aspectName, Class cls) throws NdexException, JsonProcessingException, IOException {
+	public AspectIterator (UUID networkUUID, String aspectName, Class cls) throws JsonProcessingException, IOException {
 		/*networkId = networkUUID;
 		this.aspectName = aspectName; */
 		typeReference = cls; 
@@ -47,12 +47,19 @@ public class AspectIterator<E> implements Iterator<E>, Closeable {
 		
 	}
 	
+	public AspectIterator (FileInputStream in, Class cls) throws JsonProcessingException, IOException {
+		typeReference = cls; 
+		inputStream = in;	     
+	     it = new ObjectMapper().readerFor(TypeFactory.defaultInstance().constructType(cls)).readValues(inputStream);
+	}
+	
 	
 	
 	@Override
 	public void close() throws IOException {
 		if (inputStream != null ) {
 			inputStream.close();
+			inputStream = null;
 		}
 	}
 

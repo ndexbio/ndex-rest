@@ -27,19 +27,23 @@ public class CXNetworkLoadingTask implements NdexSystemTask {
 	@Override
 	public void run()  {
 		
-		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, ownerUserName, isUpdate) ) {
+	  try (NetworkDAO dao = new NetworkDAO ()) {
+		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, ownerUserName, isUpdate,dao) ) {
 				loader.persistCXNetwork();
-		} catch ( IOException | NdexException | SQLException | SolrServerException e1) {
+		} catch ( IOException | NdexException | SQLException | SolrServerException | RuntimeException e1) {
 			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
 			e1.printStackTrace();
-			try (NetworkDAO dao= new NetworkDAO()) {
-				dao.setErrorMessage(networkId, e1.getMessage());
-			} catch (SQLException e) {
+			dao.setErrorMessage(networkId, e1.getMessage());
+			/*} catch (SQLException e) {
 				logger.severe("Error occurred when setting error message in network " + networkId + ": " + e1.getMessage());
 				e.printStackTrace();
-			}
+			} */
 		
 		} 
+	  } catch (SQLException e) {
+		e.printStackTrace();
+		logger.severe("Failed to create NetworkDAO object: " + e.getMessage());
+	  }
 	}
 
 }

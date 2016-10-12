@@ -35,7 +35,16 @@ public class CXAspectWriter implements AutoCloseable{
 		count = 0;
 		isClosed=false;
 	}
-	
+
+	public CXAspectWriter(OutputStream output) throws IOException {
+		out = output;
+		jwriter = JsonWriter.createInstance(out,true);
+	    jwriter.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
+	    jwriter.configure(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM, false);
+		count = 0;
+		isClosed=false;
+	}
+
 
 	@Override
 	public void close () throws IOException {

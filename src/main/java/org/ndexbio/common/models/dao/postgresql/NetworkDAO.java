@@ -251,7 +251,7 @@ public class NetworkDAO extends NdexDBDAO {
 
 	
 	/**
-	 * Only update fiels that relates to the network content. Permission related fields are not updated.
+	 * Only update fields that relates to the network content. Permission related fields are not updated.
 	 * in this function.
 	 * @param networkSummary
 	 * @throws SQLException 

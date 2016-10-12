@@ -138,8 +138,9 @@ public class CXNetworkLoader implements AutoCloseable {
 	private Map<String,CXAspectWriter> aspectTable;
 	private NetworkGlobalIndexManager globalIdx ;
 	private List<String> warnings;
+	private NetworkDAO dao;
 		
-	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate)  throws NdexException, FileNotFoundException {
+	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate, NetworkDAO networkDao)  throws NdexException, FileNotFoundException {
 		super();
 		
 		this.isUpdate = isUpdate;
@@ -177,6 +178,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		description = null;
 		version = null;
 		properties = new ArrayList<>();
+		dao = networkDao;
 		
 	}
 	
@@ -218,7 +220,6 @@ public class CXNetworkLoader implements AutoCloseable {
 		  
 		  NetworkSummary summary = new NetworkSummary();
 
-		  try (NetworkDAO dao = new NetworkDAO ()) {
 				//handle the network properties 
 				summary.setExternalId(this.networkId);
 				summary.setVisibility(VisibilityType.PRIVATE);
@@ -264,8 +265,7 @@ public class CXNetworkLoader implements AutoCloseable {
 					g.createSampleNetwork();
 			  
 				}
-			  
-				
+			  				
 				//recreate CX file
 				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, provenanceHistory);
 				String tmpFileName = g.createNetworkFile();
@@ -284,13 +284,6 @@ public class CXNetworkLoader implements AutoCloseable {
 					dao.rollback();
 					throw new NdexException ("DB error when setting iscomplete flag: " + e.getMessage(), e);
 				}
-		  } 
-	/*    }  catch (Exception e) {
-			// delete network and close the database connection
-			e.printStackTrace();
-	//		this.abortTransaction();
-			throw new NdexException("Error occurred when loading CX stream. " + e.getMessage());
-		} */
        
 	}
 
