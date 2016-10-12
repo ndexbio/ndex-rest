@@ -44,6 +44,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -946,6 +947,71 @@ public class NetworkDAO extends NdexDBDAO {
 		return memberships;
 	}
 
+
+	public Map<String,String> getNetworkUserPermissions(UUID networkId, Permissions permission, int skipBlocks, int blockSize) 
+			throws SQLException {
+		
+		if ( permission !=null )
+			Preconditions.checkArgument( 
+				(permission.equals( Permissions.ADMIN) )
+				|| (permission.equals( Permissions.WRITE ))
+				|| (permission.equals( Permissions.READ )),
+				"Valid permission required");
+		Map<String,String> memberships = new TreeMap<>();
+
+		String sql = "select owneruuid as user_id, 'ADMIN' :: ndex_permission_type as permission_type from network where \"UUID\"=? and is_deleted=false";
+		if ( permission == null ) {
+			sql += " union select un.user_id, un.permission_type from user_network_membership un where un.network_id = '" + networkId.toString() + "'";
+		}else if ( permission != Permissions.ADMIN) 
+			sql = "select user_id, un.permission_type from user_network_membership un where un.network_id = ? and un.permission_type = '" + permission.toString() + "'";
+		
+		if ( skipBlocks>=0 && blockSize>0) {
+			sql += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				while ( rs.next()) {
+					memberships.put(rs.getObject(1).toString(), rs.getString(2));
+				}
+			}
+		}
+				
+		logger.info("Successfuly retrieved network-user permissions.");
+		return memberships;
+	}
+	
+	public Map<String,String> getNetworkGroupPermissions(UUID networkId, Permissions permission, int skipBlocks, int blockSize) 
+			throws SQLException {
+		
+		if ( permission !=null )
+			Preconditions.checkArgument( 
+				 (permission.equals( Permissions.WRITE ))
+				|| (permission.equals( Permissions.READ )),
+				"Valid permission required");
+		Map<String,String> memberships = new TreeMap<>();
+
+		String sql = "select gn.group_id, gn.permission_type from group_network_membership gn where gn.network_id = '" + networkId.toString() + "'";
+		if (permission != null )
+			sql += " and gn.permission_type = '" + permission.toString() + "'";
+		
+		if ( skipBlocks>=0 && blockSize>0) {
+			sql += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+		
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+			try ( ResultSet rs = p.executeQuery()) {
+				while ( rs.next()) {
+					memberships.put(rs.getObject(1).toString(), rs.getString(2));
+				}
+			}
+		}
+				
+		logger.info("Successfuly retrieved network-group permissions.");
+		return memberships;
+	}
+		
+	
 	
 	private Permissions getNetworkPermissionOnGroup(UUID networkId, UUID groupId) throws SQLException {
 		String sql = "select permission_type from group_network_membership where network_id =? and group_id = ?";

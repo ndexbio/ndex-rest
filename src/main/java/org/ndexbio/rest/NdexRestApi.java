@@ -46,8 +46,10 @@ import org.ndexbio.rest.filters.CrossOriginResourceSharingFilter;
 import org.ndexbio.rest.filters.NdexPreZippedInterceptor;
 import org.ndexbio.rest.services.AdminService;
 import org.ndexbio.rest.services.AdminServiceV2;
+import org.ndexbio.rest.services.BatchServiceV2;
 import org.ndexbio.rest.services.GroupService;
 import org.ndexbio.rest.services.NetworkService;
+import org.ndexbio.rest.services.NetworkServiceV2;
 import org.ndexbio.rest.services.RequestService;
 import org.ndexbio.rest.services.TaskService;
 import org.ndexbio.rest.services.UserService;
@@ -66,8 +68,10 @@ public class NdexRestApi extends Application
         _resources.add(RequestService.class);
         _resources.add(TaskService.class); 
         _resources.add(NetworkService.class);
+        _resources.add(NetworkServiceV2.class);
         _resources.add(AdminService.class);
         _resources.add(AdminServiceV2.class);
+        _resources.add(BatchServiceV2.class);
         
         _providers.add(new BasicAuthenticationFilter());
         _providers.add(new CrossOriginResourceSharingFilter());

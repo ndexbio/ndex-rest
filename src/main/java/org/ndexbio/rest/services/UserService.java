@@ -362,7 +362,7 @@ public class UserService extends NdexService {
 		} 
 		
 	}	
-	
+/*	
 	@SuppressWarnings("static-method")
 	@POST
 	@PermitAll
@@ -385,7 +385,7 @@ public class UserService extends NdexService {
 			return users;	
 		} 
 		
-	}	
+	}	*/
 	
 	/**************************************************************************
 	 * Retrieves array of network membership objects
