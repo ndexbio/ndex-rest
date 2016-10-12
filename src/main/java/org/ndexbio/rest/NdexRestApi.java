@@ -48,9 +48,11 @@ import org.ndexbio.rest.services.AdminService;
 import org.ndexbio.rest.services.AdminServiceV2;
 import org.ndexbio.rest.services.BatchServiceV2;
 import org.ndexbio.rest.services.GroupService;
+import org.ndexbio.rest.services.GroupServiceV2;
 import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.NetworkServiceV2;
 import org.ndexbio.rest.services.RequestService;
+import org.ndexbio.rest.services.SearchServiceV2;
 import org.ndexbio.rest.services.TaskService;
 import org.ndexbio.rest.services.UserService;
 import org.ndexbio.rest.services.UserServiceV2;
@@ -63,6 +65,7 @@ public class NdexRestApi extends Application
     public NdexRestApi() throws NdexException
     {
     	_resources.add(GroupService.class); 
+    	_resources.add(GroupServiceV2.class); 
         _resources.add(UserService.class); 
         _resources.add(UserServiceV2.class); 
         _resources.add(RequestService.class);
@@ -72,6 +75,7 @@ public class NdexRestApi extends Application
         _resources.add(AdminService.class);
         _resources.add(AdminServiceV2.class);
         _resources.add(BatchServiceV2.class);
+        _resources.add(SearchServiceV2.class);
         
         _providers.add(new BasicAuthenticationFilter());
         _providers.add(new CrossOriginResourceSharingFilter());

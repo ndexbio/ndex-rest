@@ -50,7 +50,7 @@ public class AspectIterator<E> implements Iterator<E>, Closeable {
 	public AspectIterator (FileInputStream in, Class cls) throws JsonProcessingException, IOException {
 		typeReference = cls; 
 		inputStream = in;	     
-	     it = new ObjectMapper().readerFor(TypeFactory.defaultInstance().constructType(cls)).readValues(inputStream);
+	    it = new ObjectMapper().readerFor(TypeFactory.defaultInstance().constructType(cls)).readValues(inputStream);
 	}
 	
 	

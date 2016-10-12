@@ -30,6 +30,7 @@
  */
 package org.ndexbio.rest.services;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -81,6 +82,7 @@ import org.cxio.core.interfaces.AspectElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.cxio.misc.OpaqueElement;
+import org.cxio.util.JsonWriter;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
@@ -409,7 +411,7 @@ public class NetworkServiceV2 extends NdexService {
 	@Path("/{networkId}/aspect")
 	
 	@ApiDoc("The getAspectElement method returns elements in the specified aspect up to the given limit.")
-	public MetaDataCollection getNetworkCXMetadataCollection(	@PathParam("networkId") final String networkId)
+	public Response getNetworkCXMetadataCollection(	@PathParam("networkId") final String networkId)
 			throws Exception {
 
     	logger.info("[start: Getting CX metadata from network {}]", networkId);
@@ -420,7 +422,12 @@ public class NetworkServiceV2 extends NdexService {
 			if ( dao.isReadable(networkUUID, getLoggedInUserId())) {
 				MetaDataCollection mdc = dao.getMetaDataCollection(networkUUID);
 		    	logger.info("[end: Return CX metadata from network {}]", networkId);
-		    	return mdc;
+		    	ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				JsonWriter wtr = JsonWriter.createInstance(baos,true);
+				mdc.toJson(wtr);
+				String s = baos.toString();//"java.nio.charset.StandardCharsets.UTF_8");
+				return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(s).build();
+//		    	return mdc;
 			}
 			throw new UnauthorizedOperationException("User doesn't have access to this network.");
 		}
@@ -458,7 +465,7 @@ public class NetworkServiceV2 extends NdexService {
 	@ApiDoc("The getAspectElement method returns elements in the specified aspect up to the given limit.")
 	public Response getAspectElements(	@PathParam("networkId") final String networkId,
 			@PathParam("aspectName") final String aspectName,
-			@DefaultValue("-1") @QueryParam("limit") int limit) throws SQLException, NdexException
+			@DefaultValue("-1") @QueryParam("size") int limit) throws SQLException, NdexException
 		 {
 
     	logger.info("[start: Getting one aspect in network {}]", networkId);
@@ -472,7 +479,7 @@ public class NetworkServiceV2 extends NdexService {
 			FileInputStream in;
 			try {
 				in = new FileInputStream(
-						Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspect/" + aspectName);
+						Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + aspectName);
 			} catch (FileNotFoundException e) {
 					throw new ObjectNotFoundException("Aspect "+ aspectName + " not found in this network.");
 			}
@@ -653,22 +660,22 @@ public class NetworkServiceV2 extends NdexService {
 		private OutputStream o;
 	//	private String networkId;
 		private FileInputStream in;
-		private String aspect;
+	//	private String aspect;
 		private int limit;
 		public CXAspectElementsWriterThread (OutputStream out, FileInputStream inputStream, String aspectName, int limit) {
 			o = out;
 		//	this.networkId = networkId;
-			aspect = aspectName;
+		//	aspect = aspectName;
 			this.limit = limit;
 			in = inputStream;
 		}
 		
 		public void run() {
 			try (AspectIterator<OpaqueElement> asi = new AspectIterator (in, OpaqueElement.class)) {
-				int count = 0;
-				CXAspectWriter wtr = new CXAspectWriter (o);
-				while ( count < limit && asi.hasNext() ) {
-					wtr.writeCXElement(asi.next());
+				try (CXAspectWriter wtr = new CXAspectWriter (o)) {
+					for ( int i = 0 ; i < limit && asi.hasNext() ; i++) {
+						wtr.writeCXElement(asi.next());
+					}
 				}
 			} catch (IOException e) {
 					logger.error("IOException in CXAspectElementWriterThread: " + e.getMessage());
@@ -1225,40 +1232,6 @@ public class NetworkServiceV2 extends NdexService {
 
 
 
-
-	@POST
-	@PermitAll
-	@Path("/textsearch/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-	@ApiDoc("This method returns a list of NetworkSummary objects based on a POSTed query JSON object. " +
-            "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
-            "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
-            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
-	public NetworkSearchResult searchNetwork_solr(
-			final SimpleNetworkQuery query,
-			@PathParam("skipBlocks") final int skipBlocks,
-			@PathParam("blockSize") final int blockSize)
-			throws IllegalArgumentException, NdexException {
-		
-		logger.info("[start: Retrieving NetworkSummary objects using query \"{}\"]", 
-				query.getSearchString());		
-		
-    	if(query.getAccountName() != null)
-    		query.setAccountName(query.getAccountName().toLowerCase());
-        
-    	try (NetworkDAO dao = new NetworkDAO()) {
-
-			NetworkSearchResult result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
-			logger.info("[end: Retrieved {} NetworkSummary objects]", result.getNetworks().size());		
-			return result;
-
-        } catch (Exception e) {
-			logger.error("[end: Retrieving NetworkSummary objects using query \"{}\". Exception caught:]{}", 
-					query.getSearchString(), e);	
-			e.printStackTrace();
-        	throw new NdexException(e.getMessage());
-        }
-	}
 
 	
     @PUT

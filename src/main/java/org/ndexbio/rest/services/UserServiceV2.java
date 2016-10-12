@@ -713,39 +713,6 @@ public class UserServiceV2 extends NdexService {
 		}
 	}
 
-	/**************************************************************************
-	 * Finds users based on the search parameters.
-	 * 
-	 * @param searchParameters
-	 *            The search parameters.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to query the database.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws SolrServerException 
-	 **************************************************************************/
-	@POST
-	@PermitAll
-	@Path("/search/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
-			+ "The searchParameters must contain a 'searchString' parameter. ")
-	public SolrSearchResult<User> findUsers(SimpleQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
-			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
-
-		logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
-		
-		try (UserDAO dao = new UserDAO ()){
-
-			final SolrSearchResult<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
-			
-			logger.info("[end: Returning {} users from search]", users.getNumFound());			
-			return users;
-		} 
-		
-	}
 
 
 	/**************************************************************************
