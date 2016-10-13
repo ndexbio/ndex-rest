@@ -33,6 +33,7 @@ package org.ndexbio.rest.services;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.LinkedList;
@@ -48,6 +49,7 @@ import javax.ws.rs.DefaultValue;
 import javax.ws.rs.Encoded;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -70,8 +72,6 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
-import org.ndexbio.model.object.SimpleQuery;
-import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
@@ -87,7 +87,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -135,19 +134,19 @@ public class UserServiceV2 extends NdexService {
 	 */
 	@GET
 	@PermitAll
-	@Path("/{userId}/verify/{verificationCode}")
+	@Path("/{userId}/verification")
 	@NdexOpenFunction
 //	@Produces("application/json")
 	@ApiDoc("Verify the given user with UUID and verificationCode")
 	public String verifyUser(@PathParam("userId") String userUUID,
-//					@PathParam("accountName") String accountName, 
-					@PathParam("verificationCode") String verificationCode
-				
+					@QueryParam("verificationCode") String verificationCode		
 			)
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
 			NdexException, SQLException, JsonParseException, JsonMappingException, IOException, SolrServerException {
 
 		logger.info("[start: verifing User {}]", userUUID);
+		if ( verificationCode == null || verificationCode.length()== 0) 
+			throw new IllegalArgumentException("Parameter verificationCode can not be empty");
 		
 		try (UserDAO userdao = new UserDAO()){
 			UUID userId = UUID.fromString(userUUID);
@@ -264,7 +263,9 @@ public class UserServiceV2 extends NdexService {
 			  return Response.created(l).entity(l).build();
 			} 
 			
-			return Response.accepted().build();
+			String url = Configuration.getInstance().getHostURI()  + 
+		            Configuration.getInstance().getRestAPIPrefix()+"/user?username=" + URLEncoder.encode(newUser.getUserName().toLowerCase(), "UTF-8");
+			return Response.accepted().location(new URI (url)).build();
 		}
 	}
 	
@@ -324,16 +325,28 @@ public class UserServiceV2 extends NdexService {
 	 **************************************************************************/
 	@GET
 	@PermitAll
-	@Path("/account/{accountName}")
+	@Path("")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to the given user account name. Error if this account is not found.")
-	public User getUserByAccountName(@PathParam("accountName") @Encoded final String accountName)
+	public User getUserByAccountNameOrAuthenticatUser(
+			@QueryParam("username") @Encoded final String accountName,
+			@QueryParam("valid") final String booleanStr
+			)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
+		if ( booleanStr!=null) {
+			if ( !booleanStr.toLowerCase().equals("true"))
+				throw new IllegalArgumentException("Paramber valid can only be true.");
+			return authenticateUser();
+		}
+		
 		logger.info("[start: Getting user by account name {}]", accountName);
+		if ( accountName == null || accountName.length() == 0)
+			throw new IllegalArgumentException("parameter username is required in the URL.");
+		
 		try (UserDAO dao = new UserDAO()){
 			
-			final User user = dao.getUserByAccountName(accountName.toLowerCase(),true);
+			final User user = dao.getUserByAccountName(accountName.toLowerCase(),false);
 			logger.info("[end: User object returned for user account {}]", accountName);
 			return user;
 		} 
@@ -357,10 +370,10 @@ public class UserServiceV2 extends NdexService {
 	@SuppressWarnings("static-method")
 	@GET
 	@PermitAll
-	@Path("/uuid/{userId}")
+	@Path("/{userId}")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
-	public User getUserByUUID(@PathParam("userId") @Encoded final String userId)
+	public User getUserByUUID(@PathParam("userId") final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 		logger.info("[start: Getting user from UUID {}]", userId);
@@ -493,14 +506,8 @@ public class UserServiceV2 extends NdexService {
 	 * @throws NdexException
 	 *             Can't authenticate users against the database.
 	 * @return The authenticated user's information.
-	 **************************************************************************/
-	@GET
-	@PermitAll
-	@NdexOpenFunction
-	@Path("/authenticate")
-	@Produces("application/json")
-	@ApiDoc("Authenticates the combination of accountName and password supplied in the Auth header, returns the authenticated user if successful.")
-	public User authenticateUser()
+	*/
+	private User authenticateUser()
 			throws UnauthorizedOperationException {
 		
 		logger.info("[start: Authenticate user from Auth header]");
@@ -612,15 +619,21 @@ public class UserServiceV2 extends NdexService {
 	 *             Failed to change the password in the database.
 	 * @throws SQLException 
 	 * @throws NoSuchAlgorithmException 
+	 * @throws MessagingException 
+	 * @throws IOException 
 	 **************************************************************************/
 	
-	@POST
-	@Path("/password")
+	@PUT
+	@Path("/{userid}/password")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces("application/json")
 	@ApiDoc("Changes the authenticated user's password to the new password in the POST data.")
-	public void changePassword(String password)
-			throws IllegalArgumentException, NdexException, SQLException, NoSuchAlgorithmException {
+	public void changePassword(
+				@PathParam("userid") final String userId,
+				@QueryParam("forgot") String booleanStr,
+				String password)
+			throws IllegalArgumentException, NdexException, SQLException, NoSuchAlgorithmException, IOException, MessagingException {
+		
 		
 		logger.info("[start: Changing password for user {}]", getLoggedInUser().getUserName() );
 		
@@ -628,7 +641,18 @@ public class UserServiceV2 extends NdexService {
 			logger.warn("[end: Changing password not allowed for AD authentication method]");
 			throw new UnauthorizedOperationException("Emailing new password is not allowed when using AD authentication method");
 		}
-		
+
+		UUID userUUID = UUID.fromString(userId);
+		Preconditions.checkArgument(userId.equals(getLoggedInUserId().toString()), 
+				"Updating other user's password is not allowed.");
+
+		if ( booleanStr != null ) {
+			if ( !booleanStr.toLowerCase().equals("true"))
+				throw new IllegalArgumentException("Value of paramter forgot can only be true.");
+			emailNewPassword(getLoggedInUser());
+			return;
+		}
+
 		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
 				"A password is required");
 		
@@ -650,13 +674,16 @@ public class UserServiceV2 extends NdexService {
 	 * @throws SolrServerException 
 	 **************************************************************************/
 	@DELETE
+	@Path("/{userIdentifier}")
 	@Produces("application/json")
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user. "
 			+ "If this operation orphans a network or group, an exception will be thrown.")
-	public void deleteUser() throws NdexException, ObjectNotFoundException, SQLException, SolrServerException, IOException {
+	public void deleteUser(@PathParam("userIdentifier") final String userId)
+			throws NdexException, ObjectNotFoundException, SQLException, SolrServerException, IOException {
 
 		logger.info("[start: Deleting user (self).]");
-		
+		if ( !userId.equals(getLoggedInUserId()) )
+			throw new NdexException ("An authenticated user can only delete himself.");
 		try (UserDAO dao = new UserDAO()) {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
 			UserIndexManager mgr = new UserIndexManager();
@@ -669,8 +696,8 @@ public class UserServiceV2 extends NdexService {
 	/**************************************************************************
 	 * Emails the user a new randomly generated password.
 	 * 
-	 * @param username
-	 *            The username of the user.
+	 * @param user
+	 *            should be the current authenticated user.
 	 * @throws IllegalArgumentException
 	 *             Bad input.
 	 * @throws NdexException
@@ -681,45 +708,30 @@ public class UserServiceV2 extends NdexService {
 	 * @throws SQLException 
 	 * @throws NoSuchAlgorithmException 
 	 **************************************************************************/
-	@POST
-	@PermitAll
-	@NdexOpenFunction
-	@Path("/forgot-password")
-	@Consumes("application/json")
-	@Produces("application/json")
-	@ApiDoc("Causes a new password to be generated for the given user account and then emailed to the user's emailAddress")
-	public Response emailNewPassword( final String accountName)
+
+	private static void emailNewPassword( final User user)
 			throws IllegalArgumentException, NdexException, IOException, MessagingException, SQLException, NoSuchAlgorithmException {
 
-		logger.info("[start: Email new password for {}]", accountName);
+		logger.info("[start: Email new password for {}]", user.getUserName());
 		
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			logger.warn("[end: Emailing new password is not allowed for AD authentication method]");
 			throw new UnauthorizedOperationException("Emailing new password is not allowed when using AD authentication method");
 		}
-		
-		
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(accountName), 
-				"A accountName is required");
-		// TODO: In the future security questions should be implemented - right
-		// now anyone can change anyone else's password to a randomly generated
-		// password
-		
-	//	BufferedReader fileReader = null;
+	
 		try (UserDAO dao = new UserDAO ()){
 
-			User authUser = dao.getUserByAccountName(accountName,true);
-			String newPasswd = dao.setNewPassword(accountName.toLowerCase(),null);
+		//	User authUser = dao.getUserById(userId, true);
+			String newPasswd = dao.setNewPassword(user.getUserName().toLowerCase(),null);
 
 			dao.commit();
 			
 			Email.sendHTMLEmailUsingLocalhost(Configuration.getInstance().getProperty("Forgot-Password-Email"), 
-					authUser.getEmailAddress(), 
+					user.getEmailAddress(), 
 					"Your NDEx Password Has Been Reset", 
 					"Your new password is:" + newPasswd);
 
-			logger.info("[end: Emailed new password to {}]", accountName);
-			return Response.ok().build();
+			logger.info("[end: Emailed new password to {}]", user.getUserName());
 		}
 	}
 
@@ -740,18 +752,18 @@ public class UserServiceV2 extends NdexService {
 	 * @throws IOException 
 	 * @throws SolrServerException 
 	 **************************************************************************/
-	@POST
+	@PUT
 	@Path("/{userIdentifier}")
 	@Produces("application/json")
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. The userName and UUID fields in the posted object are ignored by the server."
 			+ " Errors if the user object references a different user.")
-	public User updateUser(@PathParam("userIdentifier") final String userId, final User updatedUser)
+	public void updateUser(@PathParam("userIdentifier") final String userId, final User updatedUser)
 			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, SolrServerException, IOException {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
 		Preconditions.checkArgument(UUID.fromString(userId).equals(updatedUser.getExternalId()), 
 				"UUID in updated user data doesn't match user ID in the URL.");
-		Preconditions.checkArgument(updatedUser.getExternalId().equals(getLoggedInUser().getExternalId()), 
+		Preconditions.checkArgument(updatedUser.getExternalId().equals(getLoggedInUserId()), 
 				"UUID in URL doesn't match the user ID of the signed in user's.");
 		
 		// Currently not using path param. We can already retrieve the id from the authentication
@@ -773,7 +785,6 @@ public class UserServiceV2 extends NdexService {
 			mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
 			dao.commit();
 			logger.info("[end: User {} updated]", updatedUser.getUserName());
-			return user;
 		} 
 	}
 	

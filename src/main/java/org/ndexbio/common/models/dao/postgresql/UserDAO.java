@@ -355,9 +355,6 @@ public class UserDAO extends NdexDBDAO {
 	public User getUserByAccountName(String accountName, boolean verifiedOnly) throws NdexException,
 			IllegalArgumentException, ObjectNotFoundException, SQLException, JsonParseException, JsonMappingException, IOException {
 
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(accountName),
-				"accountName required");
-
 		String queryStr = "SELECT * FROM " + NdexClasses.User + " where " + NdexClasses.User_userName + " = ? and is_deleted=false";
 		
 		if ( verifiedOnly ) {
@@ -373,6 +370,8 @@ public class UserDAO extends NdexDBDAO {
 					
 					User user = new User();
 					populateUserFromResultSet(user, rs);
+					if ( !user.getIsVerified())
+						user.setExternalId(null);
 					return user;
 					
 				} 

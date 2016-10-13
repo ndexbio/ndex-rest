@@ -457,9 +457,9 @@ public class GroupService extends NdexService {
 		UUID groupId = UUID.fromString(groupIdStr);
 		
 		try (GroupDAO dao = new GroupDAO()){
-			if ( ! dao.isInGroup(groupId, getLoggedInUserId())) {
+		/*	if ( ! dao.isInGroup(groupId, getLoggedInUserId())) {
 				throw new NdexException("User has to be a member of this group.");
-			}
+			} */
 			List<Membership> l = dao.getGroupUserMemberships(groupId, permission, skipBlocks, blockSize, inclusive);
 			logger.info("[end:]");
 			return l;
