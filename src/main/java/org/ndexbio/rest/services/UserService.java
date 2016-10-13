@@ -446,10 +446,11 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	
 	@GET
-	@Path("/group/{permission}/{skipBlocks}/{blockSize}")
+	@Path("/{userId}/group/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of membership of groups that the current user has the given permission on. skipBlocks <0 or blockSize <=0 means return all results in one list.")
 	public List<Membership> getUserGroupMemberships(
+			@PathParam("userId")	final String userIdStr,
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize,
@@ -459,10 +460,10 @@ public class UserService extends NdexService {
 		logger.info("[start: Getting {} groups for user {}]", permissions, getLoggedInUser().getUserName());
 
 		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
-		
+		UUID userId = UUID.fromString(userIdStr);
 		try (UserDAO dao = new UserDAO ()) {
 			List<Membership> result =
-					dao.getUserGroupMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize, inclusive);
+					dao.getUserGroupMemberships(userId, permission, skipBlocks, blockSize, inclusive);
 			logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
 			return result;
 		} 

@@ -151,7 +151,7 @@ public class Configuration
             
 			restAPIPrefix = getProperty("RESTAPIPrefix");
 			if ( restAPIPrefix == null) {
-				restAPIPrefix = "v2";
+				restAPIPrefix = "/v2";
 			}
             setLogLevel();
                         

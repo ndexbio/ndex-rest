@@ -40,6 +40,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.net.URI;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -91,6 +93,7 @@ import org.ndexbio.common.cx.CXAspectFragment;
 import org.ndexbio.common.cx.CXAspectWriter;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.cx.NdexCXNetworkWriter;
+import org.ndexbio.common.cx.OpaqueAspectIterator;
 import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
@@ -382,31 +385,6 @@ public class NetworkServiceV2 extends NdexService {
 
 
 	@PermitAll
-	@POST
-	@Path("/summaries")
-	@Produces("application/json")
-	@ApiDoc("Retrieves a list of NetworkSummary objects based on the network uuids POSTed. This " +
-            "method only returns network summaries that the user is allowed to read. User can only post up to 300 uuids in this function.")
-	public List<NetworkSummary> getNetworkSummaries(
-			List<String> networkIdStrs)
-
-			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-
-		if (networkIdStrs.size() > 300) 
-			throw new NdexException ("You can only send up to 300 network ids in this function.");
-		
-    	logger.info("[start: Getting networkSummary of networks {}]", networkIdStrs);
-		
-		try (NetworkDAO dao = new NetworkDAO())  {
-			UUID userId = getLoggedInUserId();
-			return dao.getNetworkSummariesByIdStrList(networkIdStrs, userId);				
-		}  finally {
-	    	logger.info("[end: Getting networkSummary of networks {}]", networkIdStrs);
-		}						
-	}
-	
-
-	@PermitAll
 	@GET
 	@Path("/{networkId}/aspect")
 	
@@ -506,7 +484,7 @@ public class NetworkServiceV2 extends NdexService {
 				
 			new CXAspectElementsWriterThread(out,in, aspectName, limit).start();
 			logger.info("[end: Return get one aspect in network {}]", networkId);
-			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 		
 		
     	}
@@ -671,7 +649,9 @@ public class NetworkServiceV2 extends NdexService {
 		}
 		
 		public void run() {
-			try (AspectIterator<OpaqueElement> asi = new AspectIterator (in, OpaqueElement.class)) {
+
+			try {
+				OpaqueAspectIterator asi = new OpaqueAspectIterator(in);
 				try (CXAspectWriter wtr = new CXAspectWriter (o)) {
 					for ( int i = 0 ; i < limit && asi.hasNext() ; i++) {
 						wtr.writeCXElement(asi.next());
@@ -1245,7 +1225,7 @@ public class NetworkServiceV2 extends NdexService {
             "errors if the Network object is larger than a maximum size for network creation set in the NDEx " +
             "server configuration. Network UUID is returned. This function also takes an optional 'provenance' field in the posted form."
             + " See createCXNetwork function for more details of this parameter.")
-    public String updateCXNetwork(final @PathParam("networkId") String networkIdStr,
+    public void updateCXNetwork(final @PathParam("networkId") String networkIdStr,
     		MultipartFormDataInput input) throws Exception 
     {
     	
@@ -1298,7 +1278,7 @@ public class NetworkServiceV2 extends NdexService {
         }  
     	      
 	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, getLoggedInUser().getUserName(), true));
-	     return networkIdStr; 
+	    // return networkIdStr; 
     }
 
     
@@ -1571,19 +1551,21 @@ public class NetworkServiceV2 extends NdexService {
 	//	@PermitAll
 
 	   @Path("")
-	   @Produces("application/json")
+	   @Produces("text/plain")
 	   @Consumes("multipart/form-data")
 	   @ApiDoc("Create a network from the uploaded CX stream. The input cx data is expected to be in the CXNetworkStream field of posted multipart/form-data. "
 	   		+ "There is an optional 'provenance' field in the form. Users can use this field to pass in a JSON string of ProvenanceEntity object. When a user pass"
 	   		+ " in this object, NDEx server will add this object to the provenance history of the CX network. Otherwise NDEx server will create a ProvenanceEntity "
 	   		+ "object and add it to the provenance history of the CX network.")
-	   public String createCXNetwork( MultipartFormDataInput input) throws Exception
+	   public Response createCXNetwork( MultipartFormDataInput input
+			   ) throws Exception
 	   {
 
 		   logger.info("[start: Creating a new network based on a POSTed CX stream.]");
 	   
 		   UUID uuid = storeRawNetwork ( input);
 		   String uuidStr = uuid.toString();
+		   
 		   
 		   // create entry in db. 
 	       try (NetworkDAO dao = new NetworkDAO()) {
@@ -1594,7 +1576,11 @@ public class NetworkServiceV2 extends NdexService {
 	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false));
 	       
 		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
-		   return "\"" + uuidStr + "\"";
+		   
+		   URI l = new URI (Configuration.getInstance().getHostURI()  + 
+				            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr);
+
+		   return Response.created(l).entity(l).build();
 
 	   	}
 	   

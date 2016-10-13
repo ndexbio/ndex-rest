@@ -31,64 +31,32 @@
 package org.ndexbio.rest.services;
 
 import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
-import javax.mail.MessagingException;
 import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.DefaultValue;
-import javax.ws.rs.Encoded;
-import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 
-import org.apache.http.client.ClientProtocolException;
-import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.postgresql.RequestDAO;
-import org.ndexbio.common.models.dao.postgresql.TaskDAO;
+import org.ndexbio.common.models.dao.postgresql.GroupDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.common.solr.UserIndexManager;
-import org.ndexbio.common.util.Util;
-import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.Membership;
-import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.Request;
-import org.ndexbio.model.object.SimpleQuery;
-import org.ndexbio.model.object.SolrSearchResult;
-import org.ndexbio.model.object.Status;
-import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.User;
-import org.ndexbio.rest.Configuration;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.ndexbio.rest.filters.BasicAuthenticationFilter;
-import org.ndexbio.rest.helpers.Email;
-import org.ndexbio.rest.helpers.Security;
-import org.ndexbio.security.GoogleOpenIDAuthenticator;
-import org.ndexbio.security.LDAPAuthenticator;
-import org.ndexbio.security.OAuthTokenRenewRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 
 @Path("/v2/batch")
 public class BatchServiceV2 extends NdexService {
@@ -136,7 +104,53 @@ public class BatchServiceV2 extends NdexService {
 	}	
 	
 	
+	
+	@SuppressWarnings("static-method")
+	@POST
+	@PermitAll
+	@Path("/group")
+	@Produces("application/json")
+	@ApiDoc("Returns a list of groups for the groups specified by the groupid list. Errors if any of the group id is not found. ")
+	public List<Group> getGroupsByUUIDs(List<String> groupIdStrs)
+			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 		
+		logger.info("[start: Getting groups by uuids]");
+
+		try (GroupDAO dao = new GroupDAO()) {
+			List<Group> groups = new LinkedList<>();
+			for ( String groupId : groupIdStrs) {
+			  final Group group = dao.getGroupById(UUID.fromString(groupId));
+			  groups.add(group);
+			}
+			logger.info("[end: Getting groups by uuids]");
+			return groups;
+		} 
+	}
+		
+
+	@PermitAll
+	@POST
+	@Path("/network/summary")
+	@Produces("application/json")
+	@ApiDoc("Retrieves a list of NetworkSummary objects based on the network uuids POSTed. This " +
+            "method only returns network summaries that the user is allowed to read. User can only post up to 300 uuids in this function.")
+	public List<NetworkSummary> getNetworkSummaries(
+			List<String> networkIdStrs)
+			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+
+		if (networkIdStrs.size() > 300) 
+			throw new NdexException ("You can only send up to 300 network ids in this function.");
+		
+    	logger.info("[start: Getting networkSummary of networks {}]", networkIdStrs);
+		
+		try (NetworkDAO dao = new NetworkDAO())  {
+			UUID userId = getLoggedInUserId();
+			return dao.getNetworkSummariesByIdStrList(networkIdStrs, userId);				
+		}  finally {
+	    	logger.info("[end: Getting networkSummary of networks {}]", networkIdStrs);
+		}						
+	}
+	
 	
 
 	

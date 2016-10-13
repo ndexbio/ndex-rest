@@ -31,6 +31,8 @@
 package org.ndexbio.rest.services;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.LinkedList;
@@ -163,12 +165,12 @@ public class UserServiceV2 extends NdexService {
 	@POST
 	@PermitAll
 	@NdexOpenFunction
-	@Produces("application/json")
+	@Produces("text/plain")
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. "
 			+ "Username and emailAddress must be unique in the database. If email verification is turned on on the server, the user uuid field will be set to null.")
-	public User createUser(final User newUser)
+	public Response createUser(final User newUser)
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
-			NdexException, IOException, SQLException, NoSuchAlgorithmException, SolrServerException {
+			NdexException, IOException, SQLException, NoSuchAlgorithmException, SolrServerException, URISyntaxException {
 
 		logger.info("[start: Creating User {}]", newUser.getUserName());
 		
@@ -254,7 +256,15 @@ public class UserServiceV2 extends NdexService {
 			}	
 			logger.info("[end: User {} created with UUID {}]", 
 					newUser.getUserName(), user.getExternalId());
-			return user;
+			
+			if ( user.getExternalId() != null) {
+			  URI l = new URI (Configuration.getInstance().getHostURI()  + 
+			            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ user.getExternalId());
+
+			  return Response.created(l).entity(l).build();
+			} 
+			
+			return Response.accepted().build();
 		}
 	}
 	
