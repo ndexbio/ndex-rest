@@ -33,21 +33,25 @@ package org.ndexbio.rest.services;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.LoggerFactory;
@@ -76,67 +80,13 @@ public class TaskServiceV2 extends NdexService
         super(httpRequest);
     }
     
-    /**************************************************************************
-    * Creates a task. 
-    * 
-    * @param newTask
-    *            The task to create.
-    * @throws IllegalArgumentException
-    *            Bad input.
-    * @throws NdexException
-    *            Failed to create the task in the database.
-    * @return The newly created task.
-    **************************************************************************/
-    /*
-     * refactored for non-transactional database operation
-     */
-
-    @POST
-    @Produces("application/json")
-	@ApiDoc("Create a new task owned by the authenticated user based on the supplied JSON task object.")
-    public UUID createTask(final Task newTask) throws IllegalArgumentException, NdexException
-    {
-        final String userAccount = this.getLoggedInUser().getUserName();
-
-		logger.info("[start: Creating {} task for user {}]", newTask.getTaskType(), userAccount);
-		
-        Preconditions.checkArgument(null != newTask, 
-    			" A task object is required");
-        newTask.setTaskOwnerId(getLoggedInUser().getExternalId());
-        
-        try (TaskDAO dao = new TaskDAO())    {
-        	
-        	UUID taskId = dao.createTask( newTask);
-            
-            dao.commit();
-
-            logger.info("[end: task {} with type {} created for {}]", 
-            		taskId, newTask.getTaskType(), userAccount);
-            
-            return taskId;
-        }
-        catch (Exception e)
-        {
-        	logger.error("[end: Unable to create a task. Exception caught:]{}", e);        	
-            throw new NdexException("Error creating a task: " + e.getMessage());
-        }
-    }
-    
-
-
+   
     /**************************************************************************
     * Deletes a task. 
     * 
     * @param taskId
     *            The task ID.
-    * @throws IllegalArgumentException
-    *            Bad input.
-    * @throws ObjectNotFoundException
-    *            The task doesn't exist.
-    * @throws SecurityException
-    *            The user doesn't own the task.
-    * @throws NdexException
-    *            Failed to delete the task from the database.
+
     **************************************************************************/
     /*
      * refactored for non-transactional database operations
@@ -203,16 +153,7 @@ public class TaskServiceV2 extends NdexService
     * 
     * @param taskId
     *            The task ID.
-    * @throws IllegalArgumentException
-    *            Bad input.
-    * @throws SecurityException
-    *            The user doesn't own the task.
-    * @throws NdexException
-    *            Failed to query the database.
-     * @throws SQLException 
-     * @throws IOException 
-     * @throws JsonMappingException 
-     * @throws JsonParseException 
+
     **************************************************************************/
     @GET
     @Path("/{taskId}")
@@ -246,6 +187,29 @@ public class TaskServiceV2 extends NdexService
         	return task;
         }
     }
+
+    
+	@GET
+	@Produces("application/json")
+	@ApiDoc("Returns an array of Task objects with the specified status")
+	public List<Task> getTasks(
+		    @QueryParam("status") String status,
+			@DefaultValue("0") @QueryParam("start") int skipBlocks,
+			@DefaultValue("100") @QueryParam("size") int blockSize) 
+					throws SQLException, JsonParseException, JsonMappingException, IOException {
+
+		logger.info("[start: Getting tasks for user {}]", getLoggedInUser().getUserName());
+
+		Status taskStatus = Status.ALL;
+		if ( status != null)
+			taskStatus = Status.valueOf(status);
+
+		try (TaskDAO dao = new TaskDAO ()){
+			List<Task> tasks= dao.getTasksByUserId(this.getLoggedInUser().getExternalId(),taskStatus, skipBlocks, blockSize);
+			logger.info("[end: Returned {} tasks under user {}]", tasks.size(), getLoggedInUser().getUserName());
+			return tasks;
+		} 
+	}
 
     
 }

@@ -39,6 +39,8 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -104,7 +106,7 @@ public class GroupDAO extends NdexDBDAO {
 	 * @throws JsonParseException 
 	    **************************************************************************/
 	public Group getGroupById(UUID id)
-			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException{
+			throws ObjectNotFoundException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException{
 		Preconditions.checkArgument(null != id, 
 				"UUID required");
 		
@@ -228,15 +230,8 @@ public class GroupDAO extends NdexDBDAO {
 	    * 			amount of blocks to skip
 	    * @param blockSize
 	    * 			The size of blocks to be skipped and retrieved
-	    * @throws NdexException
-	    *            Invalid parameters or an error occurred while accessing the database
-	    * @throws ObjectNotFoundException
-	    * 			Invalid groupId
-	 * @throws IOException 
-	 * @throws SQLException 
-	 * @throws IllegalArgumentException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
+	    
+
 	    **************************************************************************/
 	public List<Membership> getGroupNetworkMemberships(UUID groupId, Permissions permission, int skipBlocks, int blockSize, UUID userId, boolean inclusive) 
 			throws ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, SQLException, IOException {
@@ -287,6 +282,57 @@ public class GroupDAO extends NdexDBDAO {
 		return memberships;
 		
 	}
+
+	
+	public Map<String,String> getGroupNetworkPermissions(UUID groupId, Permissions permission, int skipBlocks, int blockSize, UUID userId, boolean inclusive) 
+			throws IllegalArgumentException, SQLException {
+
+		Preconditions.checkArgument( (permission.equals( Permissions.READ ))
+				|| (permission.equals( Permissions.WRITE )),
+				"Valid permissions required");				
+	
+		String permissionStr = "";		
+		if ((permission.equals( Permissions.WRITE ) )) {
+			permissionStr = " and permission_type=\'" + Permissions.WRITE.toString() + "\'";
+		} else if ( permission != Permissions.READ ) {
+			throw new IllegalArgumentException("Valid permissions required.");
+		} else if ( !inclusive)
+			permissionStr = " and permission_type=\'" + Permissions.READ.toString() + "\'";
+				
+		String sqlStr = "SELECT n.\"UUID\", gn.permission_type FROM group_network_membership gn, network n where gn.group_id = ? "+ permissionStr +
+				" and gn.network_id = n.\"UUID\" and " + NetworkDAO.createIsReadableConditionStr(userId) + " order by n.modification_time desc";
+		if ( skipBlocks>=0 && blockSize>0) {
+			sqlStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+		
+		Map<String,String> result = new TreeMap<>();
+		
+//		Group group = getGroupById(groupId);
+		
+//		List<Membership> memberships = new ArrayList<>();
+		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
+			st.setObject(1, groupId);
+			
+			try (ResultSet rs = st.executeQuery() ) {
+				while (rs.next()) {
+					result.put(rs.getObject(1).toString(), rs.getString(2));
+				/*	Membership membership = new Membership();
+					membership.setMembershipType( MembershipType.NETWORK );
+					membership.setMemberAccountName( group.getGroupName() ); 
+					membership.setMemberUUID( groupId );
+					membership.setPermissions( Permissions.valueOf(rs.getString(3)) );
+					membership.setResourceName( rs.getString(2) );
+					membership.setResourceUUID( (UUID) rs.getObject(1) );
+					
+					memberships.add(membership); */
+				} 
+			}
+		}	
+		
+		return result;
+		
+	}
+
 	
 	/**
 	 * 

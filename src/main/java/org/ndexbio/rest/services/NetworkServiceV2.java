@@ -481,6 +481,7 @@ public class NetworkServiceV2 extends NdexService {
 			} catch (IOException e) {
 				try {
 					pin.close();
+					in.close();
 				} catch (IOException e1) {
 					e1.printStackTrace();
 				}

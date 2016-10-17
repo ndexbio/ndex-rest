@@ -69,6 +69,7 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.PermissionRequest;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.User;
@@ -651,8 +652,38 @@ public class UserServiceV2 extends NdexService {
 		} 	
 	}
 	
+/*
+ * requests and responses
+ * 
+ */
 	
-	
+	   @POST
+	   @Path("/{userId}/permissionrequest")
+	   @Produces("application/json")
+		@ApiDoc("Create a new request based on a request JSON structure. Returns the JSON structure including the assigned UUID of this request."
+				+ "CreationDate, modificationDate, and sourceName fields will be ignored in the input object. A user can only create request for "
+				+ "himself or the group that he is a member of.")
+	    public Request createRequest(final PermissionRequest newRequest) 
+	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+
+			if ( newRequest.getNetworkid() == null)
+					throw new NdexException("Networkid is required in the Posted object.");
+			if ( newRequest.getPermission() == null)
+				throw new NdexException("permission is required in the Posted object.");
+
+			logger.info("[start: Creating request for {}]", newRequest.getNetworkid());
+			try (RequestDAO dao = new RequestDAO ()){	
+				
+				Request r = new Request(newRequest.getNetworkid(),newRequest.getPermission());
+				Request request = dao.createRequest(r, this.getLoggedInUser());
+				dao.commit();
+				return request;
+			} finally {
+				logger.info("[end: Request created]");
+			}
+	    	
+	    }
+
 	
 	
 	
