@@ -52,6 +52,7 @@ public class NdexExceptionMapper implements ExceptionMapper<NdexException>
         return Response
             .status(Status.INTERNAL_SERVER_ERROR)
             .entity(exception.getNdexExceptionInJason())
+            .header("WWW-Authenticate", "Basic")
             .type("application/json")
             .build();
     }

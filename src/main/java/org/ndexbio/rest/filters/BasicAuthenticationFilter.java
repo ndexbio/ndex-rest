@@ -192,6 +192,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                     .status(Status.UNAUTHORIZED)
                     .entity(e.getNdexExceptionInJason())
                     .type("application/json")
+                    .header("WWW-Authenticate", "Basic")
                     .build());            
              return;
         } catch (ObjectNotFoundException e0) {
@@ -203,8 +204,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             			new ObjectNotFoundException("User " + authInfo[0] + " is not known.");
             	requestContext.abortWith(
             			Response
-                        .status(Status.NOT_FOUND)
+                        .status(Status.UNAUTHORIZED)
                         .entity(e.getNdexExceptionInJason())
+                        .header("WWW-Authenticate", "Basic")
                         .type("application/json")
                         .build());
 
@@ -225,6 +227,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
        			Response
                    .status(Status.UNAUTHORIZED)
                    .entity(uoe.getNdexExceptionInJason())
+                   .header("WWW-Authenticate", "Basic")
                    .type("application/json")
                    .build()); 
             return ;
@@ -240,6 +243,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                			Response
                            .status(Status.UNAUTHORIZED)
                            .entity(e.getNdexExceptionInJason())
+                           .header("WWW-Authenticate", "Basic")
                            .type("application/json")
                            .build());     
         	}
@@ -268,6 +272,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                			Response
                            .status(Status.FORBIDDEN)
                            .entity(e.getNdexExceptionInJason())
+                           .header("WWW-Authenticate", "Basic")
                            .type("application/json")
                            .build()); 
                 return;
@@ -283,6 +288,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                			Response
                            .status(Status.UNAUTHORIZED)
                            .entity(e.getNdexExceptionInJason())
+                           .header("WWW-Authenticate", "Basic")
                            .type("application/json")
                            .build());
             }

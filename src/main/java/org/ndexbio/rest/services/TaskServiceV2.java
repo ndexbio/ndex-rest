@@ -33,7 +33,6 @@ package org.ndexbio.rest.services;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
@@ -49,7 +48,6 @@ import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.LoggerFactory;
@@ -61,8 +59,8 @@ import com.google.common.base.Strings;
 
 import org.slf4j.Logger;
 
-@Path("/task")
-public class TaskService extends NdexService
+@Path("/v2/task")
+public class TaskServiceV2 extends NdexService
 {
 	static Logger logger = LoggerFactory.getLogger(TaskService.class);
     
@@ -73,7 +71,7 @@ public class TaskService extends NdexService
     * @param httpRequest
     *            The HTTP request injected by RESTEasy's context.
     **************************************************************************/
-    public TaskService(@Context HttpServletRequest httpRequest)
+    public TaskServiceV2(@Context HttpServletRequest httpRequest)
     {
         super(httpRequest);
     }
@@ -249,25 +247,5 @@ public class TaskService extends NdexService
         }
     }
 
-    
-	@GET
-	@Path("/task/{status}/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-	@ApiDoc("Returns an array of Task objects with the specified status")
-	public List<Task> getTasks(
-
-			@PathParam("status") final String status,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
-
-		logger.info("[start: Getting tasks for user {}]", getLoggedInUser().getUserName());
-		
-		try (TaskDAO dao = new TaskDAO ()){
-			Status taskStatus = Status.valueOf(status);
-			List<Task> tasks= dao.getTasksByUserId(this.getLoggedInUser().getExternalId(),taskStatus, skipBlocks, blockSize);
-			logger.info("[end: Returned {} tasks under user {}]", tasks.size(), getLoggedInUser().getUserName());
-			return tasks;
-		} 
-	}
     
 }

@@ -82,6 +82,7 @@ public class BatchServiceV2 extends NdexService {
 	@SuppressWarnings("static-method")
 	@POST
 	@PermitAll
+	@AuthenticationNotRequired
 	@Path("/user")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
@@ -108,6 +109,7 @@ public class BatchServiceV2 extends NdexService {
 	@SuppressWarnings("static-method")
 	@POST
 	@PermitAll
+	@AuthenticationNotRequired
 	@Path("/group")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of groups for the groups specified by the groupid list. Errors if any of the group id is not found. ")

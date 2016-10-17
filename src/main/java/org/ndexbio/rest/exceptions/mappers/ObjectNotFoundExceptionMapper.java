@@ -52,6 +52,7 @@ public class ObjectNotFoundExceptionMapper implements ExceptionMapper<ObjectNotF
         return Response
             .status(Status.NOT_FOUND)
             .entity(exception.getNdexExceptionInJason())
+            .header("WWW-Authenticate", "Basic")
             .type("application/json")
             .build();
     }

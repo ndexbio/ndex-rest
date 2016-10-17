@@ -52,6 +52,7 @@ public class UnauthorizedOperationExceptionMapper implements ExceptionMapper<Una
         return Response
             .status(Status.UNAUTHORIZED)
             .entity(exception.getNdexExceptionInJason())
+            .header("WWW-Authenticate", "Basic")
             .type("application/json")
             .build();
     }

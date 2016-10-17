@@ -36,8 +36,9 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -61,7 +62,6 @@ import javax.ws.rs.core.Response;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
-import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.Util;
@@ -69,11 +69,8 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
-import org.ndexbio.model.object.Status;
-import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -290,7 +287,7 @@ public class UserServiceV2 extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Deprecated. User should use either the user/account/{accountName} function or user/uuid/{uuid} function to get user information. "
 			+ "This function returns the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
-	public User getUser(@PathParam("userId") @Encoded final String userId)
+	public User getUser(@PathParam("userId") final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 		logger.info("[start: Getting user {}]", userId);
@@ -358,14 +355,7 @@ public class UserServiceV2 extends NdexService {
 	 * 
 	 * @param userId
 	 *            The UUID of the user.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to change the password in the database.
-	 * @throws IOException 
-	 * @throws SQLException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
+
 	 **************************************************************************/
 	@SuppressWarnings("static-method")
 	@GET
@@ -386,127 +376,7 @@ public class UserServiceV2 extends NdexService {
 		
 	}	
 	
-	@SuppressWarnings("static-method")
-	@POST
-	@PermitAll
-	@Path("/users")
-	@Produces("application/json")
-	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
-	public List<User> getUsersByUUIDs(
-			List<String> userIdStrs)
-			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
-		logger.info("[start: Getting users from UUIDs]");
-		
-		try (UserDAO dao = new UserDAO() ){
-			List<User> users = new LinkedList<>();
-			for ( String uuidStr : userIdStrs) {
-				User user = dao.getUserById(UUID.fromString(uuidStr),true);
-				users.add(user);
-			}
-		    logger.info("[end: User object returned for user uuids]");
-			return users;	
-		} 
-		
-	}	
-	
-	/**************************************************************************
-	 * Retrieves array of network membership objects
-	 * 
-	 * @param userId
-	 *            The user ID.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws ObjectNotFoundException
-	 *             The group doesn't exist.
-	 * @throws NdexException
-	 *             Failed to query the database.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
-	 **************************************************************************/
-	
-	@GET
-	@Path("/network/{permission}/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-	@ApiDoc("Get a list of memberships which contains networks that this this user has explicit permissions on. The result includes permissions directly"
-			+ " and in-directly ( through groups) granted to this user. ")
-	//TODO: need to review the spec. Should we remove userID from URL or remove this function and replace with a getNetworksByOwner function?
-	
-	public List<Membership> getUserNetworkMemberships(
-			@PathParam("permission") final String permissions ,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize,
-			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
-		
-		logger.info("[start: Getting {} networks ]", permissions);
-		
-		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
-		
-		try (UserDAO dao = new UserDAO ()) {
-			List<Membership> members= dao.getUserNetworkMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize, inclusive);
-			logger.info("[end: Returned {} members ]", members.size());			
-			return members;
-		} 
-	}
-	
-	/**************************************************************************
-	 * Retrieves array of group membership objects
-	 * 
-	 * @param userId
-	 *            The user ID.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws ObjectNotFoundException
-	 *             The group doesn't exist.
-	 * @throws NdexException
-	 *             Failed to query the database.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
-	 **************************************************************************/
-	
-	@GET
-	@Path("/group/{permission}/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-	@ApiDoc("Returns a list of membership of groups that the current user has the given permission on. skipBlocks <0 or blockSize <=0 means return all results in one list.")
-	public List<Membership> getUserGroupMemberships(
-			@PathParam("permission") final String permissions ,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize,
-			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) 
-					throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
-
-		logger.info("[start: Getting {} groups for user {}]", permissions, getLoggedInUser().getUserName());
-
-		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
-		
-		try (UserDAO dao = new UserDAO ()) {
-			List<Membership> result =
-					dao.getUserGroupMemberships(getLoggedInUserId(), permission, skipBlocks, blockSize, inclusive);
-			logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
-			return result;
-		} 
-	}
-
-
-
-	
-	/**************************************************************************
-	 * Authenticates a user trying to login.
-	 * 
-	 * @param username
-	 *            The AccountName.
-	 * @param password
-	 *            The password.
-	 * @throws SecurityException
-	 *             Invalid accountName or password.
-	 * @throws NdexException
-	 *             Can't authenticate users against the database.
-	 * @return The authenticated user's information.
-	*/
 	private User authenticateUser()
 			throws UnauthorizedOperationException {
 		
@@ -524,87 +394,6 @@ public class UserServiceV2 extends NdexService {
 	
 
 
-	/**************************************************************************
-	 * Authenticates a user from Google OAuth openID Connect
-	 * 
-	 * @return JWT object to the client
-	 * @throws NdexException 
-	 * @throws IOException 
-	 * @throws ClientProtocolException 
-	 * @throws SQLException 
-	 * @throws NoSuchAlgorithmException 
-	 * @throws IllegalArgumentException 
-	 **************************************************************************/
-	@GET
-	@PermitAll
-	@NdexOpenFunction
-	@Path("/google/authenticate")
-	@Produces("application/json")
-	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
-	public String authenticateFromGoogle()
-			throws NdexException, ClientProtocolException, IOException, IllegalArgumentException, NoSuchAlgorithmException, SQLException {
-		
-		logger.info("[start: Authenticate user using Google oauth endpoint]");
-
-		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
-		if ( authenticator ==null ) {
-			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
-			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
-		}
-		
-		String qStr = this._httpRequest.getQueryString();
-   	    System.out.println(qStr);
-
- 	    String theString =authenticator.getIDTokenFromQueryStr(qStr);
-		return theString;
-	}
-	
-	
-	@POST
-	@PermitAll
-	@NdexOpenFunction
-	@Path("/google/authenticate/renew")
-	@Produces("application/json")
-	@ApiDoc("renew the given accessToken on Ndex server.")
-	public String renewGoogleToken(OAuthTokenRenewRequest renewRequest)
-			throws NdexException, ClientProtocolException, IOException {
-		
-		logger.info("[start: renew Google access token by refresh token]");
-
-		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
-		if ( authenticator ==null ) {
-			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
-			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
-		}
-		
-		//String qStr = this._httpRequest.getQueryString();
-  
- 	    String theString =authenticator.getNewAccessTokenByRefreshToken(
- 	    		renewRequest.getAccessToken(), renewRequest.getRefreshToken());
- 	    
-		return theString;
-	}
-		
-
-	@GET
-	@PermitAll
-	@NdexOpenFunction
-	@Path("/google/authenticate/revoke/{accessToken}")
-	@Produces("application/json")
-	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
-	public void revokeGoogleAccessToken(@PathParam("accessToken") String accessToken)
-			throws NdexException, ClientProtocolException, IOException {
-		
-		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
-		if ( authenticator ==null ) {
-			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
-			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
-		}
-
-		authenticator.revokeAccessToken(accessToken);
- 	    
-	}
-	
 	
 	/**************************************************************************
 	 * Changes a user's password.
@@ -613,14 +402,7 @@ public class UserServiceV2 extends NdexService {
 	 *            The user ID.
 	 * @param password
 	 *            The new password.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to change the password in the database.
-	 * @throws SQLException 
-	 * @throws NoSuchAlgorithmException 
-	 * @throws MessagingException 
-	 * @throws IOException 
+
 	 **************************************************************************/
 	
 	@PUT
@@ -742,15 +524,7 @@ public class UserServiceV2 extends NdexService {
 	 * 
 	 * @param updatedUser
 	 *            The updated user information.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws ObjectNotFoundException
-	 *             Users trying to update someone else.
-	 * @throws NdexException
-	 *             Failed to update the user in the database.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws SolrServerException 
+
 	 **************************************************************************/
 	@PUT
 	@Path("/{userIdentifier}")
@@ -789,48 +563,100 @@ public class UserServiceV2 extends NdexService {
 	}
 	
 	@GET
-	@Path("/membership/group/{groupId}")
+	@Path("/{userId}/membership")
 	@Produces("application/json")
-	@ApiDoc("Returns the permission the current logged in user has on the given group. Returns null if the user is not a member of this group.")
-	public Permissions getGroupMembership(
-				@PathParam("groupId") final String groupId) 
-			throws IllegalArgumentException, SQLException {
+	@ApiDoc("Returns the group membership information of a user.")
+	public Map<String,String> getMembershipInfo(
+				@PathParam("userId") final String userIdStr,
+			    @QueryParam("groupid") String groupIdStr,
+			    @QueryParam("type") String membershipType,
+				@DefaultValue("0") @QueryParam("start") int skipBlocks,
+				@DefaultValue("100") @QueryParam("size") int blockSize
+				) 
+			throws IllegalArgumentException, SQLException, NdexException {
 
-		logger.info("[start: Getting membership of account {}]", groupId);
+		UUID userId = UUID.fromString(userIdStr);
 		
-		try (UserDAO dao = new UserDAO ()){
-			
-			Permissions m = dao.getUserMembershipTypeOnGroup(getLoggedInUserId(), UUID.fromString(groupId));
-			
-			if ( m==null)
-			   logger.info("[end: No membership found.]" );			
-			else 
-			   logger.info("[end: Membership {} found.]", m.toString());
-			return m;
+		if ( groupIdStr != null) {
+			UUID groupId = UUID.fromString(groupIdStr);
+
+			try (UserDAO dao = new UserDAO ()){
+				Map<String,String> result = new TreeMap<>();
+				Permissions m = dao.getUserMembershipTypeOnGroup(userId, groupId);
+				
+				if ( m==null)
+				   logger.info("[end: No membership found.]" );			
+				else {
+				   result.put(groupId.toString(), m.toString());
+				   logger.info("[end: Membership {} found.]", m.toString());
+				}
+				return result;
+			} 
+		}
+		
+		//
+		boolean inclusive = true;
+		Permissions permission = Permissions.MEMBER;
+		if ( membershipType != null) {
+			permission = Permissions.valueOf(membershipType.toUpperCase());
+		}
+		
+		try (UserDAO dao = new UserDAO ()) {
+			Map<String,String> result =
+					dao.getUserGroupMembershipMap(userId, permission, skipBlocks, blockSize, inclusive);
+			logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
+			return result;
 		} 
 	}
 	
 	@GET
-	@Path("/membership/network/{networkId}/{directOnly}")
+	@Path("/{userId}/permission")
 	@Produces("application/json")
 	@ApiDoc("Get the type of permission the logged in user has on the given network. If directOnly is set to true, permissions grant through groups are not included in the result.")
-	public Permissions getNetworkMembership(@PathParam("networkId") final String networkId, 
-				@PathParam("directOnly") final boolean directOnly) 
+	public Map<String,String> getNetworkPermissionInfo(
+			@PathParam("userId") final String userIdStr,
+		    @QueryParam("networkid") String networkIdStr,
+		    @QueryParam("permission") String permissionType,
+			@DefaultValue("0") @QueryParam("start") int skipBlocks,
+			@DefaultValue("100") @QueryParam("size") int blockSize,
+			@DefaultValue("false") @QueryParam("directOnly") final boolean directOnly) 
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
 
-		logger.info("[start: Getting membership of account {} on {}]", getLoggedInUser().getUserName(), networkId);
+		logger.info("[start: Getting membership of account {} on {}]", getLoggedInUser().getUserName(), networkIdStr);
+		UUID userId = UUID.fromString(userIdStr);
+		if ( !userId.equals(getLoggedInUserId()))
+			throw new NdexException("Checking other user's network permission is not allowed.");
 		
-		try (UserDAO dao = new UserDAO ()){
-			Permissions m = dao.getLoggedInUserPermissionOnNetwork(getLoggedInUserId(), UUID.fromString(networkId), directOnly);
-			if ( m==null)
-			   logger.info("[end: No membership found.]");			
-			else 
-			   logger.info("[end: Membership {} found.]",  m.name());
-			return m;
-		} 
+		if ( networkIdStr != null) {
+			UUID networkId = UUID.fromString(networkIdStr);
+			
+			Map<String,String> result = new TreeMap<>();
+			try (UserDAO dao = new UserDAO ()){
+				Permissions m = dao.getLoggedInUserPermissionOnNetwork(userId, networkId, directOnly);
+				if ( m!=null)
+					result.put(networkId.toString(), m.name());			
+				return result;
+			} 
+		}
+		
+		boolean inclusive = true;
+		Permissions permission = Permissions.READ;
+		if ( permissionType !=null )
+			permission = Permissions.valueOf(permissionType);
+		
+		try (UserDAO dao = new UserDAO ()) {
+			Map<String,String> members= dao.getUserNetworkPermissionMap(userId, permission, skipBlocks, blockSize, inclusive);
+			logger.info("[end: Returned {} members ]", members.size());			
+			return members;
+		} 	
 	}
 	
 	
+	
+	
+	
+	
+
 	@GET
 	@Path("/request/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
@@ -864,25 +690,85 @@ public class UserServiceV2 extends NdexService {
 		} 
 	}
 	
+	
+	// these are just prototypes not in production, 
+
+	/**************************************************************************
+	 * Authenticates a user from Google OAuth openID Connect
+	 * 
+	 * @return JWT object to the client
+
+	 **************************************************************************/
+	@GET
+	@PermitAll
+	@NdexOpenFunction
+	@Path("/google/authenticate")
+	@Produces("application/json")
+	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
+	public String authenticateFromGoogle()
+			throws NdexException, ClientProtocolException, IOException, IllegalArgumentException, NoSuchAlgorithmException, SQLException {
+		
+		logger.info("[start: Authenticate user using Google oauth endpoint]");
+
+		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+		if ( authenticator ==null ) {
+			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
+			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
+		}
+		
+		String qStr = this._httpRequest.getQueryString();
+   	    System.out.println(qStr);
+
+ 	    String theString =authenticator.getIDTokenFromQueryStr(qStr);
+		return theString;
+	}
+	
+	
+	@POST
+	@PermitAll
+	@NdexOpenFunction
+	@Path("/google/authenticate/renew")
+	@Produces("application/json")
+	@ApiDoc("renew the given accessToken on Ndex server.")
+	public String renewGoogleToken(OAuthTokenRenewRequest renewRequest)
+			throws NdexException, ClientProtocolException, IOException {
+		
+		logger.info("[start: renew Google access token by refresh token]");
+
+		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+		if ( authenticator ==null ) {
+			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
+			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
+		}
+		
+		//String qStr = this._httpRequest.getQueryString();
+  
+ 	    String theString =authenticator.getNewAccessTokenByRefreshToken(
+ 	    		renewRequest.getAccessToken(), renewRequest.getRefreshToken());
+ 	    
+		return theString;
+	}
+		
 
 	@GET
-	@Path("/task/{status}/{skipBlocks}/{blockSize}")
+	@PermitAll
+	@NdexOpenFunction
+	@Path("/google/authenticate/revoke/{accessToken}")
 	@Produces("application/json")
-	@ApiDoc("Returns an array of Task objects with the specified status")
-	public List<Task> getTasks(
-
-			@PathParam("status") final String status,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
-
-		logger.info("[start: Getting tasks for user {}]", getLoggedInUser().getUserName());
+	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
+	public void revokeGoogleAccessToken(@PathParam("accessToken") String accessToken)
+			throws NdexException, ClientProtocolException, IOException {
 		
-		try (TaskDAO dao = new TaskDAO ()){
-			Status taskStatus = Status.valueOf(status);
-			List<Task> tasks= dao.getTasksByUserId(this.getLoggedInUser().getExternalId(),taskStatus, skipBlocks, blockSize);
-			logger.info("[end: Returned {} tasks under user {}]", tasks.size(), getLoggedInUser().getUserName());
-			return tasks;
-		} 
+		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+		if ( authenticator ==null ) {
+			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
+			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
+		}
+
+		authenticator.revokeAccessToken(accessToken);
+ 	    
 	}
+	
+
 
 }

@@ -67,6 +67,7 @@ public class CrossOriginResourceSharingFilter implements Filter
 package org.ndexbio.rest.filters;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerResponseContext;
@@ -81,8 +82,12 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.ext.Provider;
 
+import org.jboss.resteasy.core.ResourceMethodInvoker;
+import org.ndexbio.rest.services.AuthenticationNotRequired;
+import org.ndexbio.rest.services.NdexOpenFunction;
+
 @Provider
-public class CrossOriginResourceSharingFilter implements ContainerResponseFilter, Filter
+public class CrossOriginResourceSharingFilter implements ContainerResponseFilter //, Filter
 {
 	//ContainerResponseFilter Implementation
 	@Override
@@ -95,9 +100,16 @@ public class CrossOriginResourceSharingFilter implements ContainerResponseFilter
 		headers.putSingle("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization, Content-Length, X-Requested-With");
 		headers.putSingle("Access_Control_Allow_Credentials", true);
 	
+		final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)arg0.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
+	      final Method method = methodInvoker.getMethod();
+	      
+	      if (!method.isAnnotationPresent(AuthenticationNotRequired.class) && 
+	    		  !method.isAnnotationPresent(NdexOpenFunction.class)  ) {
+	    	  headers.putSingle("WWW-Authenticate", "Basic");
+	      }
 	}
 	
-	//Filter Implementation
+/*	//Filter Implementation
 	@Override
     public void destroy()
     {
@@ -119,7 +131,7 @@ public class CrossOriginResourceSharingFilter implements ContainerResponseFilter
     @Override
     public void init(FilterConfig config) throws ServletException
     {
-    }
+    } */
 	
 }
 

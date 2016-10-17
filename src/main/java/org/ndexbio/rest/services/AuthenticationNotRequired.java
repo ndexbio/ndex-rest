@@ -39,16 +39,10 @@ import java.lang.annotation.Target;
 
 @Retention (RUNTIME)
 @Target({TYPE, METHOD})
-public @interface NdexOpenFunction {
-  // no content n this annotation because it is just a flag.
- /* If a network is annotated with this name. That function will still be accessible to un-authenticated users even
-	if the server is running in a more restricted mode:
-	eg AUTHENTICATED_USER_ONLY is set to true in the Ndex server configuration file.
-	
-	Functions without this annotation will not be accessible un-authenticated user no mater what 
-	other annotation it has ( @PermitAll, or @AuthenticationNotRequired)
-	
-	This annotation has no effect when AUTHENTICATED_USER_ONLY = false in the Ndex server configuration.
-	
-  */
+public @interface AuthenticationNotRequired {
+  // no content in this annotation because it is just a flag.
+	/*
+	 * Annotation a function with this name if that function is open to au-authenticated user 
+	 * and the server returns the same result regardless the caller is authenticated or not.
+	 */
 }

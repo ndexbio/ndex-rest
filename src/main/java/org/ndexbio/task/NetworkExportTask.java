@@ -22,7 +22,7 @@ public class NetworkExportTask extends NdexTask {
 		   
 		   String outFileName = Configuration.getInstance().getNdexRoot() + "/exported-networks/"
 				   + task.getExternalId() + "." +
-				   task.getAttribute("downloadFileExtension") + ".gz";
+				   task.getAttribute("downloadFileExtension").toString().toLowerCase() + ".gz";
            try (GZIPOutputStream out = new GZIPOutputStream(new FileOutputStream(outFileName)) ) {
         	
         	   try (FileInputStream in = new FileInputStream(Configuration.getInstance().getNdexRoot() +

@@ -54,6 +54,7 @@ import org.ndexbio.rest.services.NetworkServiceV2;
 import org.ndexbio.rest.services.RequestService;
 import org.ndexbio.rest.services.SearchServiceV2;
 import org.ndexbio.rest.services.TaskService;
+import org.ndexbio.rest.services.TaskServiceV2;
 import org.ndexbio.rest.services.UserService;
 import org.ndexbio.rest.services.UserServiceV2;
 
@@ -70,6 +71,7 @@ public class NdexRestApi extends Application
         _resources.add(UserServiceV2.class); 
         _resources.add(RequestService.class);
         _resources.add(TaskService.class); 
+        _resources.add(TaskServiceV2.class); 
         _resources.add(NetworkService.class);
         _resources.add(NetworkServiceV2.class);
         _resources.add(AdminService.class);

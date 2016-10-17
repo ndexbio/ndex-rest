@@ -30,11 +30,17 @@
  */
 package org.ndexbio.rest.services;
 
+import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -50,6 +56,10 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -67,6 +77,7 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NetworkSearchResult;
@@ -78,6 +89,7 @@ import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -132,6 +144,7 @@ public class SearchServiceV2 extends NdexService {
 	 **************************************************************************/
 	@POST
 	@PermitAll
+	@AuthenticationNotRequired
 	@Path("/user")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
@@ -171,6 +184,7 @@ public class SearchServiceV2 extends NdexService {
 	 **************************************************************************/
 	@POST
 	@PermitAll
+	@AuthenticationNotRequired
 	@Path("/group")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of groups found based on the searchOperator and the POSTed searchParameters.")
@@ -222,6 +236,51 @@ public class SearchServiceV2 extends NdexService {
 			e.printStackTrace();
         	throw new NdexException(e.getMessage());
         }
+	}
+
+	@PermitAll
+	@POST
+	@Path("/network/{networkId}/query")
+	@Produces("application/json")
+    @ApiDoc("Retrieves a 'neighborhood' subnetwork of the network specified by ‘networkId’. The query finds " +
+            "the subnetwork by a traversal of the network starting with nodes associated with identifiers " +
+            "specified in a POSTed JSON query object. " +
+            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#queryNetwork\">here</a>.")
+	public Response queryNetworkAsCX(
+			@PathParam("networkId") final String networkIdStr,
+			final CXSimplePathQuery queryParameters
+			) throws NdexException, SQLException   {
+		
+		UUID networkId = UUID.fromString(networkIdStr);
+
+		try (NetworkDAO dao = new NetworkDAO())  {
+			UUID userId = getLoggedInUserId();
+			if ( !dao.isReadable(networkId, userId)) {
+				throw new ObjectNotFoundException ("network", networkId);
+			}
+		}   
+		
+		Client client = ClientBuilder.newBuilder().build();
+		
+		Map<String, Object> queryEntity = new TreeMap<>();
+		queryEntity.put("terms", queryParameters.getSearchString());
+		queryEntity.put("depth", queryParameters.getSearchDepth());
+		queryEntity.put("edgeLimit", queryParameters.getEdgeLimit());
+		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
+        WebTarget target = client.target(prefix + networkId + "/query");
+        Response response = target.request().post(Entity.entity(queryEntity, "application/json"));
+        
+        if ( response.getStatus()!=200) {
+        	Object obj = response.readEntity(Object.class);
+        	throw new NdexException(obj.toString());
+        }
+        
+      //     String value = response.readEntity(String.class);
+       //    response.close();  
+        InputStream in = response.readEntity(InputStream.class);
+ 
+        return Response.ok().entity(in).build();
+		
 	}
 
 

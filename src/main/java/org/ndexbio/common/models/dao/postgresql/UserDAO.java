@@ -41,6 +41,8 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -614,6 +616,45 @@ public class UserDAO extends NdexDBDAO {
 		
 		return memberships;
 	}
+	
+	
+	public Map<String,String> getUserNetworkPermissionMap(UUID userId,
+			Permissions permission, int skipBlocks, int blockSize, boolean inclusive)
+			throws SQLException {
+	
+		String queryStr = "select \"UUID\" as network_id, 'ADMIN' :: ndex_permission_type as permission_type " + 
+						"from network n where owneruuid = '" + userId.toString() + "' :: uuid ";
+		
+		if ( permission == Permissions.READ || permission == Permissions.WRITE) {
+			
+			String permissionClause =  (inclusive? " >= '" : " = '" ) + permission + "' ";
+			queryStr = " select a.network_id, max(a.permission_type) as permission_type from (" + (inclusive ? (queryStr + " union ") : "" ) +
+					" select un.network_id, un.permission_type " + 
+					"from user_network_membership un where un.user_id = '"+ userId.toString() + "' :: uuid and un.permission_type " + permissionClause +
+					" union select gn.network_id, gn.permission_type from ndex_group_user ug, group_network_membership gn " + 
+					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid and gn.permission_type " + permissionClause +" ) a group by a.network_id ";
+					
+		}  else if ( permission == null || permission !=Permissions.ADMIN) {
+			throw new IllegalArgumentException("Valid permissions required.");
+		}
+		
+		if ( skipBlocks>=0 && blockSize>0) {
+			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+
+		Map<String,String> result = new TreeMap<>();
+
+		try (PreparedStatement st = db.prepareStatement(queryStr))  {		
+			try (ResultSet rs = st.executeQuery() ) {
+				while (rs.next()) {
+					result.put(rs.getObject(1).toString(), rs.getString(2));
+				} 
+			}
+		}
+		
+		return result;
+	}
+
 
 	/**************************************************************************
 	 * getUsergroupMemberships
@@ -641,10 +682,6 @@ public class UserDAO extends NdexDBDAO {
 	public List<Membership> getUserGroupMemberships(UUID userId,
 			Permissions permission, int skipBlocks, int blockSize, boolean inclusive)
 			throws ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, SQLException, IOException {
-
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(userId.toString()),
-				"A user UUID is required");
-
 
 		String queryStr = "select gu.group_id, g.group_name, gu.is_admin from  ndex_group_user gu, ndex_group g " + 
 		     " where gu.group_id = g.\"UUID\" and gu.user_id = ? ";
@@ -687,6 +724,42 @@ public class UserDAO extends NdexDBDAO {
 		return memberships;
 	}
 
+
+	public Map<String,String> getUserGroupMembershipMap(UUID userId,
+			Permissions permission, int skipBlocks, int blockSize, boolean inclusive)
+			throws ObjectNotFoundException, NdexException, IllegalArgumentException, SQLException {
+
+		Map <String,String> result = new TreeMap<>();
+		String queryStr = "select gu.group_id, gu.is_admin from ndex_group_user gu where gu.user_id = ? ";
+		
+		if ( permission == Permissions.GROUPADMIN) {
+			queryStr += " and gu.is_admin";
+		} else if ( permission == null || permission != Permissions.MEMBER) 
+			throw new NdexException ("Valid permissions required in getUserGroupMembership function.");
+		else {
+			if ( !inclusive)
+				queryStr += " and gu.is_admin = false";
+		}
+			
+		if ( skipBlocks>=0 && blockSize>0) {
+			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+		
+		try (PreparedStatement st = db.prepareStatement(queryStr))  {
+			st.setObject(1, userId);
+		
+			try (ResultSet rs = st.executeQuery() ) {
+				while (rs.next()) {
+					result.put(rs.getObject(1).toString(), 
+							(rs.getBoolean(3)? Permissions.GROUPADMIN.toString() : Permissions.MEMBER.toString()));					
+				} 
+			}
+		}
+
+		return result;
+	}
+	
+	
 	
 	/**************************************************************************
 	 * getMembership

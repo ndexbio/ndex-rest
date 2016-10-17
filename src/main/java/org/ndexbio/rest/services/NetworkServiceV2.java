@@ -142,8 +142,11 @@ public class NetworkServiceV2 extends NdexService {
 	
 	static private final String readOnlyParameter = "readOnly";
 
-	public NetworkServiceV2(@Context HttpServletRequest httpRequest) {
+	public NetworkServiceV2(@Context HttpServletRequest httpRequest
+		//	@Context org.jboss.resteasy.spi.HttpResponse response
+			) {
 		super(httpRequest);
+	//	response.getOutputHeaders().putSingle("WWW-Authenticate", "Basic");
 	}
 
 
@@ -361,7 +364,8 @@ public class NetworkServiceV2 extends NdexService {
             "method returns an error if the network is not found or if the authenticated user does not have " +
             "READ permission for the network.")
 	public NetworkSummary getNetworkSummary(
-			@PathParam("networkId") final String networkIdStr)
+			@PathParam("networkId") final String networkIdStr /*,
+			@Context org.jboss.resteasy.spi.HttpResponse response*/)
 
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
@@ -374,6 +378,7 @@ public class NetworkServiceV2 extends NdexService {
 				NetworkSummary summary = dao.getNetworkSummaryById(networkId);
 				logger.error("[end: Getting networkSummary of network {}.]", networkId);	
 
+			//	response.getOutputHeaders().putSingle("WWW-Authenticate", "Basic");
 				return summary;
 			}
 				
