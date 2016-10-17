@@ -101,12 +101,15 @@ public class CrossOriginResourceSharingFilter implements ContainerResponseFilter
 		headers.putSingle("Access_Control_Allow_Credentials", true);
 	
 		final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)arg0.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
-	      final Method method = methodInvoker.getMethod();
+	    if ( methodInvoker != null) {
+	    	final Method method = methodInvoker.getMethod();
+	    
 	      
-	      if (!method.isAnnotationPresent(AuthenticationNotRequired.class) && 
+	    	if (!method.isAnnotationPresent(AuthenticationNotRequired.class) && 
 	    		  !method.isAnnotationPresent(NdexOpenFunction.class)  ) {
-	    	  headers.putSingle("WWW-Authenticate", "Basic");
-	      }
+	    		headers.putSingle("WWW-Authenticate", "Basic");
+	    	}
+	    }
 	}
 	
 /*	//Filter Implementation
