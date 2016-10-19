@@ -987,7 +987,7 @@ public class NetworkService extends NdexService {
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
 			
-			networkDao.checkMembershipOperationPermission(networkUUID, user.getExternalId());
+			networkDao.checkPermissionOperationCondition(networkUUID, user.getExternalId());
 			
 			int count = networkDao.revokeUserPrivilege(UUID.fromString(networkId), UUID.fromString(userUUID));
             networkDao.commit();
@@ -1016,7 +1016,7 @@ public class NetworkService extends NdexService {
 		try (NetworkDAO networkDao = new NetworkDAO()){
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
-			networkDao.checkMembershipOperationPermission(networkUUID, user.getExternalId());
+			networkDao.checkPermissionOperationCondition(networkUUID, user.getExternalId());
 			
 			int count = networkDao.revokeGroupPrivilege(UUID.fromString(networkId), UUID.fromString(groupUUID));
             networkDao.commit();
@@ -1106,7 +1106,7 @@ public class NetworkService extends NdexService {
 			User user = getLoggedInUser();
 			UUID networkId = UUID.fromString(networkIdStr);
 			
-			networkDao.checkMembershipOperationPermission(networkId, user.getExternalId());
+			networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
 
 	        int count = networkDao.grantPrivilegeToUser(networkId, UUID.fromString(userIdStr), permission);
 	        			//networkDao.grantPrivilegeToGroup(networkId, membership.getMemberUUID(), membership.getPermissions());
@@ -1143,7 +1143,7 @@ public class NetworkService extends NdexService {
 			User user = getLoggedInUser();
 			UUID networkId = UUID.fromString(networkIdStr);
 			
-			networkDao.checkMembershipOperationPermission(networkId,user.getExternalId());
+			networkDao.checkPermissionOperationCondition(networkId,user.getExternalId());
 	        int count = networkDao.grantPrivilegeToGroup(networkId, UUID.fromString(groupIdStr), permission);
 			networkDao.commit();
 			logger.info("[end: Updated membership for network {}]", networkId);

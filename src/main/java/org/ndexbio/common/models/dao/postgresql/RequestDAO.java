@@ -46,6 +46,7 @@ import org.ndexbio.model.exceptions.*;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
+import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
 
@@ -88,60 +89,23 @@ public class RequestDAO extends NdexDBDAO  {
 	    *            Duplicate requests or failed to create the request in the
 	    *            database.
 	    * @return The newly created request.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
+
 	    **************************************************************************/
 	public Request createRequest(Request newRequest, User account)
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-		Preconditions.checkArgument(null != newRequest,
-				"A Request parameter is required");
-		Preconditions.checkArgument( newRequest.getSourceUUID() != null
-				&& !Strings.isNullOrEmpty( newRequest.getSourceUUID().toString() ),
-				"A source UUID is required");
-		Preconditions.checkArgument( newRequest.getDestinationUUID() != null
-				&& !Strings.isNullOrEmpty( newRequest.getDestinationUUID().toString() ),
-				"A destination UUID is required");
-		Preconditions.checkArgument( newRequest.getPermission() != null,
-				"A permission is required");
-		Preconditions.checkArgument(account != null,
-				"Must be logged in to make a request");
 		
-		if( newRequest.getPermission().equals(Permissions.GROUPADMIN) || newRequest.getPermission().equals(Permissions.MEMBER)) {
-			try (GroupDAO dao = new GroupDAO()) {
-				try {
-					dao.getGroupById(newRequest.getSourceUUID());
-					throw new NdexException("Group cannot request access to group");
-				} catch(ObjectNotFoundException e) {/* all good */}		
-				
-				try {
-					 dao.getGroupById(newRequest.getDestinationUUID());
-				} catch ( ObjectNotFoundException e) {
-					throw new NdexException ("Destination of group permission request has to be a group");
-				}	
+		if( newRequest.getRequestType() == RequestType.JoinGroup) {
+			try (GroupDAO dao = new GroupDAO()) {				
+				 dao.getGroupById(newRequest.getDestinationUUID());
 			}
-
 		} 
-	
-		try (GroupDAO dao = new GroupDAO()) {
-			try {
-				Group g = dao.getGroupById(newRequest.getSourceUUID());
-				if ( !dao.isGroupAdmin(g.getExternalId(), account.getExternalId()))
-					 new NdexException("Not admin of specified group");
-			} catch (ObjectNotFoundException e) {
-				if ( newRequest.getSourceUUID() !=null && !newRequest.getSourceUUID().equals(account.getExternalId())) {
-					throw new NdexException ("Creating request for other users are not allowed.");
-				} 
-			}
-		}
 		
 		//TODO: check if the same request exists.
 			
 		String insertStr = "insert into request (\"UUID\", creation_time, modification_time, is_deleted, sourceuuid,"
-				+ "destinationuuid,requestmessage,requestpermission, owner_id)"
-				+ "values ( ?,?,?,false,?, ?,?,?,?)";
+				+ "destinationuuid,requestmessage,requestpermission, owner_id, request_type, response)"
+				+ "values ( ?,?,?,false,?, ?,?,?,?,?,?)";
 		
 		Timestamp currentTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
 		newRequest.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
@@ -158,6 +122,8 @@ public class RequestDAO extends NdexDBDAO  {
 			pst.setObject(6, newRequest.getMessage());
 			pst.setString(7, newRequest.getPermission().toString());	
 			pst.setObject(8, account.getExternalId());
+			pst.setString(9, newRequest.getRequestType().name());
+			pst.setString(9, newRequest.getResponse().name());
 			pst.executeUpdate();
 		}
 		
@@ -171,12 +137,7 @@ public class RequestDAO extends NdexDBDAO  {
 	    *            The request ID.
 	    * @param account
 	    * 			User object
-	    * @throws IllegalArgumentException
-	    *            Bad input.
-	    * @throws ObjectNotFoundException
-	    *            The request doesn't exist.
-	    * @throws NdexException
-	    *            Failed to delete the request from the database.
+
 	 * @throws SQLException 
 	    **************************************************************************/
 	public void deleteRequest(UUID requestId, UUID ownerId)
@@ -199,6 +160,51 @@ public class RequestDAO extends NdexDBDAO  {
 		}
 		
 	}
+	
+	public void deleteMembershipRequest(UUID requestId, UUID ownerId)
+			throws IllegalArgumentException, ObjectNotFoundException,
+			NdexException, SQLException {
+		Preconditions.checkArgument( requestId != null,
+				"A request id is required");
+		Preconditions.checkArgument( ownerId != null,
+				"A user must be logged in");
+		
+		String updateStr = "update request set is_deleted = true where \"UUID\" = ? and owner_id = ? and request_type='" +
+					RequestType.JoinGroup.name() + "'";
+		try ( PreparedStatement pst = db.prepareStatement(updateStr)) {
+			pst.setObject(1, requestId);
+			pst.setObject(2, ownerId);
+			
+			int cnt = pst.executeUpdate();
+			if ( cnt != 1 ) {
+				throw new ObjectNotFoundException ("Request " + requestId + " not found for this user.");
+			}
+		}
+		
+	}
+	
+	public void deletePermissionRequest(UUID requestId, UUID ownerId)
+			throws IllegalArgumentException, ObjectNotFoundException,
+			NdexException, SQLException {
+		Preconditions.checkArgument( requestId != null,
+				"A request id is required");
+		Preconditions.checkArgument( ownerId != null,
+				"A user must be logged in");
+		
+		String updateStr = "update request set is_deleted = true where \"UUID\" = ? and owner_id = ? and is_deleted= false"
+			+ " and request_type <> '" + RequestType.JoinGroup.name() + "'";
+		
+		try ( PreparedStatement pst = db.prepareStatement(updateStr)) {
+			pst.setObject(1, requestId);
+			pst.setObject(2, ownerId);
+			
+			int cnt = pst.executeUpdate();
+			if ( cnt != 1 ) {
+				throw new ObjectNotFoundException ("Request " + requestId + " not found for this user.");
+			}
+		}
+		
+	}
 
 	/**************************************************************************
 	    * Gets a request by ID.
@@ -207,12 +213,8 @@ public class RequestDAO extends NdexDBDAO  {
 	    *           The request ID.
 	    * @param account
 	    * 			User object     
-	    * @throws IllegalArgumentException
-	    *           Bad input.
-	    * @throws NdexException
-	    *           Failed to query the database.
+
 	    * @return The request.
-	 * @throws SQLException 
 	    **************************************************************************/
 	public Request getRequest(UUID requestId, User account)
 			throws IllegalArgumentException, NdexException, SQLException {
@@ -261,6 +263,7 @@ public class RequestDAO extends NdexDBDAO  {
 			r.setResponse( ResponseType.valueOf( responseStr));
 		r.setResponseMessage(rs.getString("responseMessage"));
 		r.setResponseTime(rs.getTimestamp("responsetime"));
+		r.setRequestType(RequestType.valueOf(rs.getString("request_type")));
 		
 		//TODO: need to populate these 2 fields as well.
 		//	result.setSourceName((String) request.field(NdexClasses.Request_P_sourceName));
@@ -300,6 +303,62 @@ public class RequestDAO extends NdexDBDAO  {
 	
 	}
 	
+	public List<Request> getPendingNetworkAccessRequestByUserId(UUID userId, int skipBlocks,
+			int blockSize) throws SQLException {
+
+		final List<Request> requests = new ArrayList<>();
+
+		String queryStr = " select r.* from request r, network n "
+				+ "where r.request_type <> 'JoinGroup' and n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and "
+				+ "(r.response is null or r.response = '"+ ResponseType.PENDING.name()+ "') and r.is_deleted =false ";
+						
+		if ( skipBlocks>=0 && blockSize>0) {
+			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+		
+		try ( PreparedStatement pst = db.prepareStatement(queryStr)) {
+			pst.setObject(1, userId);
+			try ( ResultSet rs = pst.executeQuery()) {
+				while ( rs.next()) {
+					Request r = getRequestFromResultSet(rs);
+					requests.add(r);
+				}
+			}
+		}
+		
+		return requests;
+	
+	}
+	
+	
+	public List<Request> getPendingGroupMembershipRequestByUserId(UUID userId, int skipBlocks,
+			int blockSize) throws SQLException {
+
+		final List<Request> requests = new ArrayList<>();
+
+		String queryStr = "select r2.* from request r2, ndex_group_user gu "
+				+ "where gu.group_id = r2.destinationuuid and gu.user_id = ? and gu.is_admin and "
+				+ "( r2.response is null or r2.response = '"+ ResponseType.PENDING.name()+ "') and r2.is_deleted=false";
+						
+		if ( skipBlocks>=0 && blockSize>0) {
+			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+		
+		try ( PreparedStatement pst = db.prepareStatement(queryStr)) {
+			pst.setObject(1, userId);
+			try ( ResultSet rs = pst.executeQuery()) {
+				while ( rs.next()) {
+					Request r = getRequestFromResultSet(rs);
+					requests.add(r);
+				}
+			}
+		}
+		
+		return requests;
+	
+	}
+	
+	
 	/**************************************************************************
 	 * getSentRequest
 	 * 
@@ -309,19 +368,21 @@ public class RequestDAO extends NdexDBDAO  {
 	 *            amount of blocks to skip
 	 * @param blockSize
 	 *            The size of blocks to be skipped and retrieved
-	 * @throws NdexException
-	 *             An error occurred while accessing the database
-	 * @throws ObjectNotFoundException
-	 *             Invalid userId
-	 * @throws SQLException 
+
 	 **************************************************************************/
 
-	public List<Request> getSentRequestByUserId(UUID userId, int skipBlocks,
-			int blockSize) throws ObjectNotFoundException, NdexException, SQLException {
+	// if request type is null, return all types of request sent by this user.
+
+	public List<Request> getSentRequestByUserId(UUID userId, RequestType requestType, int skipBlocks,
+			int blockSize) throws SQLException {
 
 		final List<Request> requests = new ArrayList<>();
 
-		String queryStr = "select * from request where owner_id = ? and is_deleted = false order by creation_time desc";
+		String queryStr = "select * from request where owner_id = ? and is_deleted = false ";
+		if ( requestType !=null)
+			queryStr += " and request_type = '" + requestType.name() + "'";
+		
+		queryStr += " order by creation_time desc";
 		
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
@@ -340,7 +401,33 @@ public class RequestDAO extends NdexDBDAO  {
 		return requests;		
 		
 	}
+	
+	
+	public List<Request> getGroupPermissionRequest(UUID groupId, UUID networkId, Permissions permission)
+			throws SQLException {
 
+		final List<Request> requests = new ArrayList<>();
+		
+		String queryStr = "select * from request where is_deleted = false and permission_type = 'GroupNetworkAccess' and sourceuuid = '"
+				   + groupId.toString() + "' ";
+		if ( networkId != null)
+			queryStr += " and destinationuuid = '" + networkId.toString() + "' ";
+		if ( permission != null)
+			queryStr += " and requestpermission = '" + permission.name() + "'";
+		
+		try ( PreparedStatement pst = db.prepareStatement(queryStr)) {
+			try ( ResultSet rs = pst.executeQuery()) {
+				while ( rs.next()) {
+					Request r = getRequestFromResultSet(rs);
+					requests.add(r);
+				}
+			}
+		}
+		
+		return requests;		
+		
+	}
+	
 
 	/**************************************************************************
 	    * Updates a request. Should only be called by the users who are targets of this request.

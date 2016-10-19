@@ -32,8 +32,12 @@ package org.ndexbio.rest.services;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -43,15 +47,25 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
+import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Group;
+import org.ndexbio.model.object.NetworkExportRequest;
+import org.ndexbio.model.object.NetworkExportRequestV2;
+import org.ndexbio.model.object.Status;
+import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.FileFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.NetworkExportTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -154,7 +168,63 @@ public class BatchServiceV2 extends NdexService {
 	}
 	
 	
+	@POST
+	@Path("/network/export")
+	@Produces("application/json")
+    @ApiDoc("")
+	public Map<UUID,UUID> exportNetworks(NetworkExportRequestV2 exportRequest)
 
+			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
+		
+		    logger.info("exporting networks");
+		    if ( !exportRequest.getExportFormat().equals("cx"))
+		    	throw new NdexException("Networks can only be exported in cx fromat in this server.");
+		    
+		    Map<UUID,UUID> result = new TreeMap<>();
+			try (NetworkDAO networkDao = new NetworkDAO()) {
+				try (TaskDAO taskdao = new TaskDAO()) {
+
+					for ( UUID networkID : exportRequest.getNetworkIds()) {
+						Task t = new Task();
+						Timestamp currentTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
+						t.setCreationTime(currentTime);
+						t.setModificationTime(currentTime);
+						t.setStartTime(currentTime);
+						t.setFinishTime(currentTime);
+						t.setDescription("network export");
+						t.setTaskType(TaskType.EXPORT_NETWORK_TO_FILE);
+						t.setFormat(FileFormat.CX);
+						t.setTaskOwnerId(getLoggedInUserId());
+						t.setResource(networkID.toString());
+						if (! networkDao.isReadable(networkID, getLoggedInUserId())) {
+							t.setStatus(Status.COMPLETED_WITH_ERRORS);
+							t.setMessage("Network " + networkID + " is not found for user.");
+							//throw new NdexException ("Network " + networkID + " is not found.");
+						}	else {
+							t.setStatus(Status.QUEUED);
+							
+							NetworkSummary s = networkDao.getNetworkSummaryById(networkID);
+							t.setAttribute("downloadFileName", s.getName());
+							t.setAttribute("downloadFileExtension", "CX");
+						    
+
+						}
+						UUID taskId = taskdao.createTask(t);
+						taskdao.commit();
+						
+						result.put(networkID, taskId);
+						
+						if ( t.getStatus() == Status.QUEUED)
+						NdexServerQueue.INSTANCE.addUserTask(new NetworkExportTask(t));
+
+					}
+				}
+			}
+			
+			return result;
+		    
+	}
+	
 	
 
 }

@@ -61,6 +61,8 @@ import javax.ws.rs.core.Response;
 
 import org.apache.http.client.ClientProtocolException;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.ndexbio.common.models.dao.postgresql.GroupDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.UserIndexManager;
@@ -69,9 +71,12 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.MembershipRequest;
 import org.ndexbio.model.object.PermissionRequest;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
+import org.ndexbio.model.object.RequestType;
+import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -659,11 +664,51 @@ public class UserServiceV2 extends NdexService {
 	
 	   @POST
 	   @Path("/{userId}/permissionrequest")
-	   @Produces("application/json")
-		@ApiDoc("Create a new request based on a request JSON structure. Returns the JSON structure including the assigned UUID of this request."
-				+ "CreationDate, modificationDate, and sourceName fields will be ignored in the input object. A user can only create request for "
-				+ "himself or the group that he is a member of.")
-	    public Request createRequest(final PermissionRequest newRequest) 
+	   @Produces("text/plain")
+	   @ApiDoc("Create a user permission request.")
+	    public Response createPermissionRequest(
+	    		@PathParam("userId") final String userIdStr,
+	    		final MembershipRequest newRequest) 
+	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+
+			if ( newRequest.getGroupid() == null)
+					throw new NdexException("Groupid is required in the Posted object.");
+		
+			logger.info("[start: Creating membership request for {}]", getLoggedInUserId());
+			UUID userId = UUID.fromString(userIdStr);
+			
+			if ( !userId.equals(getLoggedInUserId()))
+				throw new NdexException ("Creating request for other users are not allowed.");
+			
+			try (RequestDAO dao = new RequestDAO ()){	
+				
+				Request r = new Request(newRequest);
+				r.setSourceUUID(userId);
+				Request request = dao.createRequest(r, this.getLoggedInUser());
+				dao.commit();
+				URI l = new URI (Configuration.getInstance().getHostURI()  + 
+			            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ userId.toString() + "/permissionrequest/"+
+						request.getExternalId());
+
+				return Response.created(l).entity(l).build();
+			} catch (URISyntaxException e) {
+				throw new NdexException ("Failed to create location URL: " + e.getMessage(), e);
+			} finally {
+				logger.info("[end: Request created]");
+			}
+	    	
+	    }
+	   
+	   
+	   
+
+	   @POST
+	   @Path("/{userId}/membershiprequest")
+	   @Produces("text/plain")
+	   @ApiDoc("Create a group membership request.")
+	    public Response createMembershipRequest(
+	    		@PathParam("userId") final String userIdStr,
+	    		final PermissionRequest newRequest) 
 	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 			if ( newRequest.getNetworkid() == null)
@@ -671,23 +716,351 @@ public class UserServiceV2 extends NdexService {
 			if ( newRequest.getPermission() == null)
 				throw new NdexException("permission is required in the Posted object.");
 
+			
 			logger.info("[start: Creating request for {}]", newRequest.getNetworkid());
+			UUID userId = UUID.fromString(userIdStr);
+			
+			if ( !userId.equals(getLoggedInUserId()))
+				throw new NdexException ("Creating request for other users are not allowed.");
+			
 			try (RequestDAO dao = new RequestDAO ()){	
 				
-				Request r = new Request(newRequest.getNetworkid(),newRequest.getPermission());
+				Request r = new Request(RequestType.UserNetworkAccess, newRequest);
+				r.setSourceUUID(userId);
 				Request request = dao.createRequest(r, this.getLoggedInUser());
 				dao.commit();
-				return request;
+				URI l = new URI (Configuration.getInstance().getHostURI()  + 
+			            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ userId.toString() + "/membershiprequest/"+
+						request.getExternalId());
+
+				return Response.created(l).entity(l).build();
+			} catch (URISyntaxException e) {
+				throw new NdexException ("Failed to create location URL: " + e.getMessage(), e);
 			} finally {
 				logger.info("[end: Request created]");
 			}
 	    	
 	    }
+	   
+	   
+	   	@GET
+		@Path("/{userId}/permissionrequest/{requestId}")
+		@Produces("application/json")
+		@ApiDoc("")
+		public Request getPermissionRequestById(@PathParam("userId") String userIdStr,
+				@PathParam("requestId") String requestIdStr) throws NdexException, SQLException {
+
+			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
+			
+			UUID userId = UUID.fromString(userIdStr);
+			UUID requestId = UUID.fromString(requestIdStr);
+			
+			if ( !userId.equals(getLoggedInUserId()))
+				throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
+			
+			
+			try (RequestDAO dao = new RequestDAO ()){
+				Request reqs= dao.getRequest(requestId, getLoggedInUser());
+				logger.info("[end: Returning request]");
+				return reqs;
+			}
+		}
+		
+	
+	   	@GET
+		@Path("/{userId}/permissionrequest")
+		@Produces("application/json")
+		@ApiDoc("")
+		public List<Request> getPermissionRequests (
+				 @PathParam("userId") String userIdStr,
+				  @QueryParam("type") String queryType
+				) throws NdexException, SQLException {
+
+			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
+			String qT = null;
+			if ( queryType !=null) {
+				qT = queryType.toLowerCase();
+				if ( !qT.equals("sent") && !qT.equals("received"))
+					throw new NdexException ("Type parameter of this function can only be 'sent' or 'received'.");
+			}
+			
+			UUID userId = UUID.fromString(userIdStr);
+			if ( !userId.equals(getLoggedInUserId()))
+				throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
+			
+			try (RequestDAO dao = new RequestDAO ()){
+				if (qT == null) {
+					List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(), RequestType.UserNetworkAccess,0, -1);
+					List<Request> reqs2= dao.getPendingNetworkAccessRequestByUserId(this.getLoggedInUserId(),0, -1);
+					 reqs.addAll(reqs2);
+					 return reqs;
+
+				}
+				
+				List<Request> reqs;
+				if ( qT.equals("sent")) {
+					 reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),RequestType.UserNetworkAccess,0, -1);
+				} else {
+					reqs= dao.getPendingNetworkAccessRequestByUserId(this.getLoggedInUserId(),0, -1);
+				}
+				
+				logger.info("[end: Returning {} requests]", reqs.size());
+				return reqs;
+
+			}
+		}   
+	   	
+
+	   	@GET
+		@Path("/{userId}/membershiprequest")
+		@Produces("application/json")
+		@ApiDoc("")
+		public List<Request> getMembershipRequests (
+				 @PathParam("userId") String userIdStr,
+				  @QueryParam("type") String queryType
+				) throws NdexException, SQLException {
+
+			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
+			String qT = null;
+			if ( queryType !=null) {
+				qT = queryType.toLowerCase();
+				if ( !qT.equals("sent") && !qT.equals("received"))
+					throw new NdexException ("Type parameter of this function can only be 'sent' or 'received'.");
+			}
+			
+			UUID userId = UUID.fromString(userIdStr);
+			if ( !userId.equals(getLoggedInUserId()))
+				throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
+			
+			try (RequestDAO dao = new RequestDAO ()){
+				if (qT == null) {
+					List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(), RequestType.UserNetworkAccess,0, -1);
+					List<Request> reqs2= dao.getPendingGroupMembershipRequestByUserId(this.getLoggedInUserId(),0, -1);
+					 reqs.addAll(reqs2);
+					 return reqs;
+
+				}
+				
+				List<Request> reqs;
+				if ( qT.equals("sent")) {
+					 reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),RequestType.JoinGroup,0, -1);
+				} else {
+					reqs= dao.getPendingGroupMembershipRequestByUserId(this.getLoggedInUserId(),0, -1);
+				}
+				
+				logger.info("[end: Returning {} requests]", reqs.size());
+				return reqs;
+
+			}
+		}   
+	   	
+	   	
+	   	@GET
+			@Path("/{userId}/membershiprequest/{requestId}")
+			@Produces("application/json")
+			@ApiDoc("")
+			public Request getMembershipRequestById(
+					 @PathParam("userId") String userIdStr,
+					 @PathParam("requestId") String requestIdStr
+					) throws NdexException, SQLException {
+
+				logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
+				
+				UUID userId = UUID.fromString(userIdStr);
+				if ( !userId.equals(getLoggedInUserId()))
+					throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
+				
+				UUID requestId = UUID.fromString(requestIdStr);
+				
+				try (RequestDAO dao = new RequestDAO ()){
+					Request reqs= dao.getRequest(requestId, getLoggedInUser());
+					logger.info("[end: Returning request]");
+					return reqs;
+				}
+				
+			}   
+	   	
+	   	@PUT
+		@Path("/{userId}/membershiprequest/{requestId}")
+		@Produces("application/json")
+		@ApiDoc("")
+		public void responseMembershipRequest(
+				 @PathParam("userId") String userIdStr,
+				 @PathParam("requestId") String requestIdStr,
+				 @QueryParam("action")  String action,
+				 @QueryParam("message") String message
+				) throws NdexException, SQLException {
+
+			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
+			
+			UUID userId = UUID.fromString(userIdStr);
+			if ( !userId.equals(getLoggedInUserId()))
+				throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
+			
+			UUID requestId = UUID.fromString(requestIdStr);
+			
+			if ( action == null)
+				throw new NdexException("Action parameter is required.");
+			String act = action.toLowerCase();
+			if ( !act.equals("accept") && !act.equals("deny"))
+				throw new NdexException("Value of action parameter can only be 'accept' or 'deny'.");
+			
+			Request reqs;
+			try (RequestDAO dao = new RequestDAO ()){
+				reqs= dao.getRequest(requestId, getLoggedInUser());
+			}
+			
+			if ( reqs.getRequestType() != RequestType.JoinGroup) {
+				throw new NdexException("This request is not a membership request.");
+			}
+			
+			// check if user is the group admin
+			try ( GroupDAO gdao = new GroupDAO()) {
+				if (!gdao.isGroupAdmin(reqs.getDestinationUUID(), getLoggedInUserId()))
+					throw new UnauthorizedOperationException("Authenticated user is not an admin of the group.");			
+			}
+			
+			// act on it
+			reqs.setMessage(message);
+			if ( act.equals("accept")) {
+				reqs.setResponse(ResponseType.ACCEPTED);
+				try ( GroupDAO gdao = new GroupDAO()) {
+					gdao.updateMember(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission(), getLoggedInUserId());
+					gdao.commit();
+				}
+			} else {
+				reqs.setResponse(ResponseType.DECLINED);
+			}
+				
+			try (RequestDAO dao = new RequestDAO ()){
+				dao.updateRequest(requestId,reqs, getLoggedInUser());	
+				dao.commit();
+			}
+			
+			
+		}   
+	   	
+	   	
+	   	@PUT
+		@Path("/{userId}/permissionrequest/{requestId}")
+		@Produces("application/json")
+		@ApiDoc("")
+		public void responsePermissionRequest(
+				 @PathParam("userId") String userIdStr,
+				 @PathParam("requestId") String requestIdStr,
+				 @QueryParam("action")  String action,
+				 @QueryParam("message") String message
+				) throws NdexException, SQLException, SolrServerException, IOException {
+
+			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
+			
+			UUID userId = UUID.fromString(userIdStr);
+			if ( !userId.equals(getLoggedInUserId()))
+				throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
+			
+			UUID requestId = UUID.fromString(requestIdStr);
+			
+			if ( action == null)
+				throw new NdexException("Action parameter is required.");
+			String act = action.toLowerCase();
+			if ( !act.equals("accept") && !act.equals("deny"))
+				throw new NdexException("Value of action parameter can only be 'accept' or 'deny'.");
+			
+			Request reqs;
+			try (RequestDAO dao = new RequestDAO ()){
+				reqs= dao.getRequest(requestId, getLoggedInUser());
+			}
+			
+			if ( reqs.getRequestType() == RequestType.JoinGroup) {
+				throw new NdexException("This request is not a permission request.");
+			}
+			
+			// check if user is the admin of network
+			try ( NetworkDAO ndao = new NetworkDAO()) {
+				if (!ndao.isAdmin(reqs.getDestinationUUID(), getLoggedInUserId()))
+					throw new UnauthorizedOperationException("Authenticated user is not an admin of the network.");			
+			}
+			
+			// act on it
+			reqs.setMessage(message);
+			if ( act.equals("accept")) {
+				reqs.setResponse(ResponseType.ACCEPTED);
+				try ( NetworkDAO ndao = new NetworkDAO()) {
+					if( reqs.getRequestType() == RequestType.UserNetworkAccess)
+						ndao.grantPrivilegeToUser(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission());
+					else 
+						ndao.grantPrivilegeToGroup(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission());
+					ndao.commit();
+				}
+			} else {
+				reqs.setResponse(ResponseType.DECLINED);
+			}
+				
+			try (RequestDAO dao = new RequestDAO ()){
+				dao.updateRequest(requestId,reqs, getLoggedInUser());	
+				dao.commit();
+			}
+			
+			
+		}   
+	   	
+	   	
+	   	@DELETE
+		@Path("/{userId}/membershiprequest/{requestId}")
+		@Produces("application/json")
+		@ApiDoc("")
+		public void deleteMembershipRequestById(
+					 @PathParam("userId") String userIdStr,
+					 @PathParam("requestId") String requestIdStr
+					) throws NdexException, SQLException {
+
+				logger.info("[start: Deleting requests sent by user {}]", getLoggedInUser().getUserName());
+				
+				UUID userId = UUID.fromString(userIdStr);
+				if ( !userId.equals(getLoggedInUserId()))
+					throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
+				
+				UUID requestId = UUID.fromString(requestIdStr);
+				
+				try (RequestDAO dao = new RequestDAO()) {
+					
+					dao.deleteMembershipRequest(requestId, this.getLoggedInUserId());
+					dao.commit();
+				} finally {
+					logger.info("[end: Request deleted]");
+				}
+				
+			}   
 
 	
-	
-	
+	   	@DELETE
+		@Path("/{userId}/permissionrequest/{requestId}")
+		@Produces("application/json")
+		@ApiDoc("")
+		public void deletePermissionRequestById(
+					 @PathParam("userId") String userIdStr,
+					 @PathParam("requestId") String requestIdStr
+					) throws NdexException, SQLException {
 
+				logger.info("[start: Deleting requests sent by user {}]", getLoggedInUser().getUserName());
+				
+				UUID userId = UUID.fromString(userIdStr);
+				if ( !userId.equals(getLoggedInUserId()))
+					throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
+				
+				UUID requestId = UUID.fromString(requestIdStr);
+				
+				try (RequestDAO dao = new RequestDAO()) {
+					
+					dao.deletePermissionRequest(requestId, this.getLoggedInUserId());
+					dao.commit();
+				} finally {
+					logger.info("[end: Request deleted]");
+				}
+				
+			}   
+
+/*
 	@GET
 	@Path("/request/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
@@ -720,7 +1093,7 @@ public class UserServiceV2 extends NdexService {
 			return reqs;
 		} 
 	}
-	
+*/	
 	
 	// these are just prototypes not in production, 
 

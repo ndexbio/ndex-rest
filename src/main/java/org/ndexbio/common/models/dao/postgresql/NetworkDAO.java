@@ -817,7 +817,7 @@ public class NetworkDAO extends NdexDBDAO {
 		    		sqlStr += entry.getKey() + " = ?";	
 		    		values.add(entry.getValue());
 		    }
-		    sqlStr += " where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false";
+		    sqlStr += ", modification_time = localtimestamp where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false";
 		    
 		    try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 		    	for ( int i = 0 ; i < values.size(); i++) {
@@ -1042,7 +1042,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	
-	public void checkMembershipOperationPermission(UUID networkId, UUID userId) throws SQLException, ObjectNotFoundException, NdexException {
+	public void checkPermissionOperationCondition(UUID networkId, UUID userId) throws SQLException, ObjectNotFoundException, NdexException {
 		if (!isAdmin(networkId,userId)) {
 			throw new UnauthorizedOperationException("Unable to update network membership: user is not an admin of this network.");
 		}

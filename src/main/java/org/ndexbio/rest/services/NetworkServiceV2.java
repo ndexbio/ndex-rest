@@ -170,21 +170,20 @@ public class NetworkServiceV2 extends NdexService {
 	        "history of the network. See the document NDEx Provenance History for a detailed description of " +
 	        "this structure and best practices for its use.")	
 	public ProvenanceEntity getProvenance(
-			@PathParam("networkId") final String networkId)
+			@PathParam("networkId") final String networkIdStr)
 
 			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException, NdexException, SQLException {
 		
-		logger.info("[start: Getting provenance of network {}]", networkId);
+		logger.info("[start: Getting provenance of network {}]", networkIdStr);
+		
+		UUID networkId = UUID.fromString(networkIdStr);
 		
 		try (NetworkDAO daoNew = new NetworkDAO()) {
-			String userAccountName =  (getLoggedInUser() == null ? null : getLoggedInUser().getUserName());
-		/*	if ( ! daoNew.networkSummaryIsReadable(userAccountName, networkId)) {
-				String userStr = this.getLoggedInUser() != null? this.getLoggedInUser().getUserName() : "anonymous";
-				logger.error("[end: Network {} not readable for user {} ]", networkId,  userStr);
-				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
-			} */
+			if ( !daoNew.isReadable(networkId, getLoggedInUserId()) )
+					throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
+
 			logger.info("[end: Got provenance of network {}]", networkId);
-			return daoNew.getProvenance(UUID.fromString(networkId));
+			return daoNew.getProvenance(networkId);
 
 		} 
 	}
@@ -865,7 +864,7 @@ public class NetworkServiceV2 extends NdexService {
 		} 
 	}
 
-	@DELETE
+/*	@DELETE
 	@Path("/{networkId}/member/user/{userUUID}")
 	@Produces("application/json")
     @ApiDoc("Removes any permission for the network specified by 'networkId' for the user specified by 'userUUID': it" +
@@ -886,17 +885,17 @@ public class NetworkServiceV2 extends NdexService {
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
 			
-			networkDao.checkMembershipOperationPermission(networkUUID, user.getExternalId());
+			networkDao.checkPermissionOperationCondition(networkUUID, user.getExternalId());
 			
 			int count = networkDao.revokeUserPrivilege(UUID.fromString(networkId), UUID.fromString(userUUID));
             networkDao.commit();
     		logger.info("[end: Removed any permissions for network {} for user {}]", networkId, userUUID);
             return count;
 		} 
-	}
+	} */
 	
 	@DELETE
-	@Path("/{networkId}/member/group/{groupUUID}")
+	@Path("/{networkId}/permission")
 	@Produces("application/json")
     @ApiDoc("Removes any permission for the network specified by 'networkId' for the user specified by 'userUUID': it" +
             " deletes any Membership object that specifies a permission for the user-network combination. This method" +
@@ -904,22 +903,41 @@ public class NetworkServiceV2 extends NdexService {
             "to make the deletion or if the network or user is not found. Removal is also denied if it would leave " +
             "the network without any user having ADMIN permissions: NDEx does not permit networks to become 'orphans'" +
             " without any owner.")
-	public int deleteNetworkGroupMembership(
-			@PathParam("networkId") final String networkId,
-			@PathParam("groupUUID") final String  groupUUID
+	public int deleteNetworkPermission(
+			@PathParam("networkId") final String networkIdStr,
+			@QueryParam("userid") String userIdStr,
+			@QueryParam("groupid") String groupIdStr		
 			)
 			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
 		
-		logger.info("[start: Removing any permissions for network {} for user {}]", networkId, groupUUID);
+		logger.info("[start: Removing any permissions for network {} for ....]", networkIdStr);
+		
+		UUID networkId = UUID.fromString(networkIdStr);
+
+		UUID userId = null;
+		if ( userIdStr != null)
+			userId = UUID.fromString(userIdStr);
+		UUID groupId = null;
+		if ( groupIdStr != null)
+			groupId = UUID.fromString(groupIdStr);
+		
+		if ( userId == null && groupId == null)
+			throw new NdexException ("Either userid or groupid parameter need to be set for this function.");
+		if ( userId !=null && groupId != null)
+			throw new NdexException ("userid and gorupid can't both be set for this function.");
+		
 		
 		try (NetworkDAO networkDao = new NetworkDAO()){
 			User user = getLoggedInUser();
-			UUID networkUUID = UUID.fromString(networkId);
-			networkDao.checkMembershipOperationPermission(networkUUID, user.getExternalId());
-			
-			int count = networkDao.revokeGroupPrivilege(UUID.fromString(networkId), UUID.fromString(groupUUID));
+			networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
+			int count;
+			if ( userId !=null)
+				count = networkDao.revokeUserPrivilege(networkId, userId);
+			else 
+				count = networkDao.revokeGroupPrivilege(networkId, groupId);
+
             networkDao.commit();
-    		logger.info("[end: Removed any permissions for network {} for group {}]", networkId, groupUUID);
+    		logger.info("[end: Removed any permissions for network {} ]", networkId);
             return count;
 		} 
 	}
@@ -979,8 +997,8 @@ public class NetworkServiceV2 extends NdexService {
 		}
 	} */
 
-	@POST
-	@Path("/{networkId}/member/user/{userId}")
+	@PUT
+	@Path("/{networkId}/permission")
 	@Produces("application/json")
     @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
             "specified by networkUUID. The permission is updated to the value specified in the 'permission' field of " +
@@ -991,69 +1009,53 @@ public class NetworkServiceV2 extends NdexService {
             "permit networks to become 'orphans' without any owner. Because we only allow user to be the administrator of a network, "
             + "Granting ADMIN permission to another user will move the admin privilege (ownership) from the network's"
             + " previous administrator (owner) to the new user.")
-	public int updateNetworkUserMembership(
+	public int updateNetworkPermission(
 			@PathParam("networkId") final String networkIdStr,
-			@PathParam("userId") final String userIdStr,
-			final Permissions permission
+			@QueryParam("userid") String userIdStr,
+			@QueryParam("groupid") String groupIdStr,			
+			@QueryParam("permission") final String permissions 
 			)
 			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
 
 		logger.info("[start: Updating membership for network {}]", networkIdStr);
+		UUID networkId = UUID.fromString(networkIdStr);
+		
+		UUID userId = null;
+		if ( userIdStr != null)
+			userId = UUID.fromString(userIdStr);
+		UUID groupId = null;
+		if ( groupIdStr != null)
+			groupId = UUID.fromString(groupIdStr);
+		
+		if ( userId == null && groupId == null)
+			throw new NdexException ("Either userid or groupid parameter need to be set for this function.");
+		if ( userId !=null && groupId != null)
+			throw new NdexException ("userid and gorupid can't both be set for this function.");
+		
+		if ( permissions == null)
+			throw new NdexException ("permission parameter is required in this function.");
+		Permissions p = Permissions.valueOf(permissions.toUpperCase());
 		
 		try (NetworkDAO networkDao = new NetworkDAO()){
 
 			User user = getLoggedInUser();
-			UUID networkId = UUID.fromString(networkIdStr);
 			
-			networkDao.checkMembershipOperationPermission(networkId, user.getExternalId());
-
-	        int count = networkDao.grantPrivilegeToUser(networkId, UUID.fromString(userIdStr), permission);
-	        			//networkDao.grantPrivilegeToGroup(networkId, membership.getMemberUUID(), membership.getPermissions());
-			networkDao.commit();
-			logger.info("[end: Updated membership for network {}]", networkId);
-	        return count;
-		} 
-	}	
-
-	
-	@POST
-	@Path("/{networkId}/member/group/{groupId}")
-	@Produces("application/json")
-    @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
-            "specified by networkUUID. The permission is updated to the value specified in the 'permission' field of " +
-            "the Membership. This method returns 1 if the update is performed and 0 if the update is redundant, " +
-            "where the user already has the specified permission. It also returns an error if the authenticated user " +
-            "making the request does not have sufficient permissions or if the network or user is not found. It also " +
-            "returns an error if it would leave the network without any user having ADMIN permissions: NDEx does not " +
-            "permit networks to become 'orphans' without any owner. Because we only allow user to be the administrator of a network, "
-            + "Granting ADMIN permission to another user will move the admin privilege (ownership) from the network's"
-            + " previous administrator (owner) to the new user.")
-	public int updateNetworkGroupMembership(
-			@PathParam("networkId") final String networkIdStr,
-			@PathParam("groupId") final String groupIdStr,
-			final Permissions permission
-			)
-			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
-
-		logger.info("[start: Updating membership for network {}]", networkIdStr);
-		
-		try (NetworkDAO networkDao = new NetworkDAO()){
-
-			User user = getLoggedInUser();
-			UUID networkId = UUID.fromString(networkIdStr);
+			networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
 			
-			networkDao.checkMembershipOperationPermission(networkId,user.getExternalId());
-	        int count = networkDao.grantPrivilegeToGroup(networkId, UUID.fromString(groupIdStr), permission);
+			int count;
+			if ( userId!=null)  {
+				count = networkDao.grantPrivilegeToUser(networkId, userId, p);
+			} else 
+				count = networkDao.grantPrivilegeToGroup(networkId, groupId, p);
 			networkDao.commit();
-			logger.info("[end: Updated membership for network {}]", networkId);
+			logger.info("[end: Updated permission for network {}]", networkId);
 	        return count;
 		} 
 	}	
 	
 	
-	
-	@POST
-	@Path("/{networkId}/summary")
+	@PUT
+	@Path("/{networkId}/profile")
 	@Produces("application/json")
 	@ApiDoc("This method updates the profile information of the network specified by networkId based on a " +
 	        "POSTed JSON object specifying the attributes to update. Any profile attributes specified will be " + 
@@ -1494,64 +1496,7 @@ public class NetworkServiceV2 extends NdexService {
 
 	
 	
-	@POST
-	@Path("/export")
-	@Produces("application/json")
-    @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
-	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
-	public Map<UUID,UUID> exportNetworks(NetworkExportRequest exportRequest)
 
-			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
-		
-		    logger.info("exporting networks");
-		    if ( !exportRequest.getNetworkFormat().toLowerCase().equals("cx"))
-		    	throw new NdexException("Networks can only be exported in cx fromat in this server.");
-		    
-		    Map<UUID,UUID> result = new TreeMap<>();
-			try (NetworkDAO networkDao = new NetworkDAO()) {
-				try (TaskDAO taskdao = new TaskDAO()) {
-
-					for ( UUID networkID : exportRequest.getNetworkIds()) {
-						Task t = new Task();
-						Timestamp currentTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
-						t.setCreationTime(currentTime);
-						t.setModificationTime(currentTime);
-						t.setStartTime(currentTime);
-						t.setFinishTime(currentTime);
-						t.setDescription("network export");
-						t.setTaskType(TaskType.EXPORT_NETWORK_TO_FILE);
-						t.setFormat(FileFormat.CX);
-						t.setTaskOwnerId(getLoggedInUserId());
-						t.setResource(networkID.toString());
-						if (! networkDao.isReadable(networkID, getLoggedInUserId())) {
-							t.setStatus(Status.COMPLETED_WITH_ERRORS);
-							t.setMessage("Network " + networkID + " is not found for user.");
-							//throw new NdexException ("Network " + networkID + " is not found.");
-						}	else {
-							t.setStatus(Status.QUEUED);
-							
-							NetworkSummary s = networkDao.getNetworkSummaryById(networkID);
-							t.setAttribute("downloadFileName", s.getName());
-							t.setAttribute("downloadFileExtension", "CX");
-						    
-
-						}
-						UUID taskId = taskdao.createTask(t);
-						taskdao.commit();
-						
-						result.put(networkID, taskId);
-						
-						if ( t.getStatus() == Status.QUEUED)
-						NdexServerQueue.INSTANCE.addUserTask(new NetworkExportTask(t));
-
-					}
-				}
-			}
-			
-			return result;
-		    
-	}
-	
 	
 	   @POST
 	//	@PermitAll

@@ -854,7 +854,7 @@ public class UserService extends NdexService {
 		logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 		
 		try (RequestDAO dao = new RequestDAO ()){
-			List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),skipBlocks, blockSize);
+			List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),null,skipBlocks, blockSize);
 			logger.info("[end: Returning {} requests]", reqs.size());
 			return reqs;
 		}
