@@ -123,7 +123,7 @@ public class RequestDAO extends NdexDBDAO  {
 			pst.setString(7, newRequest.getPermission().toString());	
 			pst.setObject(8, account.getExternalId());
 			pst.setString(9, newRequest.getRequestType().name());
-			pst.setString(9, newRequest.getResponse().name());
+			pst.setString(10, newRequest.getResponse().name());
 			pst.executeUpdate();
 		}
 		
@@ -263,7 +263,10 @@ public class RequestDAO extends NdexDBDAO  {
 			r.setResponse( ResponseType.valueOf( responseStr));
 		r.setResponseMessage(rs.getString("responseMessage"));
 		r.setResponseTime(rs.getTimestamp("responsetime"));
-		r.setRequestType(RequestType.valueOf(rs.getString("request_type")));
+		
+		String s = rs.getString("request_type");
+		if ( s!=null) 
+		   r.setRequestType(RequestType.valueOf(s));
 		
 		//TODO: need to populate these 2 fields as well.
 		//	result.setSourceName((String) request.field(NdexClasses.Request_P_sourceName));

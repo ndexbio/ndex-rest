@@ -270,7 +270,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
               NdexException e = new NdexException("No credentials to authenticate.");
                 requestContext.abortWith(
                			Response
-                           .status(Status.FORBIDDEN)
+                           .status(Status.UNAUTHORIZED)
                            .entity(e.getNdexExceptionInJason())
                            .header("WWW-Authenticate", "Basic")
                            .type("application/json")

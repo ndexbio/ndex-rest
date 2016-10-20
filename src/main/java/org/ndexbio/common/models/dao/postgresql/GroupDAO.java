@@ -748,7 +748,7 @@ public class GroupDAO extends NdexDBDAO {
 				throw new NdexException ("Cannot orphan group to have no admin.");
 		}
 		
-		String insertStr = "insert into ndex_group_user (group_id,user_id, is_admin) values ( ?,?,?) on conflict do update set is_admin = EXCLUDED.is_admin";
+		String insertStr = "insert into ndex_group_user (group_id,user_id, is_admin) values ( ?,?,?) on conflict on CONSTRAINT \"ndexGroupUser_pkey\" do update set is_admin = EXCLUDED.is_admin";
 		
 		try ( PreparedStatement pst = db.prepareStatement(insertStr)) {
 			pst.setObject(1, groupId);

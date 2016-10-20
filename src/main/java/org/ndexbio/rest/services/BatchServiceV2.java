@@ -174,7 +174,7 @@ public class BatchServiceV2 extends NdexService {
     @ApiDoc("")
 	public Map<UUID,UUID> exportNetworks(NetworkExportRequestV2 exportRequest)
 
-			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
+			throws IllegalArgumentException, NdexException, SQLException, IOException {
 		
 		    logger.info("exporting networks");
 		    if ( !exportRequest.getExportFormat().equals("cx"))

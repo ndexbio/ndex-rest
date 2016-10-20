@@ -934,7 +934,7 @@ public class NetworkService extends NdexService {
 	 **************************************************************************/
 
 	@GET
-	@PermitAll
+	//@PermitAll
 	@Path("/{networkId}/user/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
     @ApiDoc("Retrieves a list of Membership objects which specify user permissions for the network specified by " +
@@ -943,23 +943,27 @@ public class NetworkService extends NdexService {
             "be retrieved by permission = 'ALL'.   The maximum number of Membership objects to retrieve in the query " +
             "is set by 'blockSize' (which may be any number chosen by the user) while  'skipBlocks' specifies the " +
             "number of blocks that have already been read.")
-	public List<Membership> getNetworkUserMemberships(@PathParam("networkId") final String networkId,
+	public List<Membership> getNetworkUserMemberships(@PathParam("networkId") final String networkIdStr,
 			@PathParam("permission") final String permissions ,
 			@PathParam("skipBlocks") int skipBlocks,
 			@PathParam("blockSize") int blockSize) throws NdexException, SQLException {
 
 		logger.info("[start: Get {} accounts on network {}, skipBlocks {},  blockSize {}]", 
-				permissions, networkId, skipBlocks, blockSize);
+				permissions, networkIdStr, skipBlocks, blockSize);
 		
 		Permissions permission = null;
 		if ( ! permissions.toUpperCase().equals("ALL")) {
 			permission = Permissions.valueOf(permissions.toUpperCase());
 		} 
 		
+		UUID networkId = UUID.fromString(networkIdStr);
+		
 		try (NetworkDAO networkDao = new NetworkDAO()) {
+			if ( !networkDao.isAdmin(networkId, getLoggedInUserId())) 
+				throw new UnauthorizedOperationException("Authenticated user is not the admin of this network");
 
 			List<Membership> results = networkDao.getNetworkUserMemberships(
-					UUID.fromString(networkId), permission, skipBlocks, blockSize);
+					networkId, permission, skipBlocks, blockSize);
 			logger.info("[end: Got {} members returned for network {}]", 
 					results.size(), networkId);
 			return results;

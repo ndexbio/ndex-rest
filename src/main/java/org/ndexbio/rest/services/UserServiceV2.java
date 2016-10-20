@@ -663,10 +663,10 @@ public class UserServiceV2 extends NdexService {
  */
 	
 	   @POST
-	   @Path("/{userId}/permissionrequest")
+	   @Path("/{userId}/membershiprequest")
 	   @Produces("text/plain")
 	   @ApiDoc("Create a user permission request.")
-	    public Response createPermissionRequest(
+	    public Response createMembershipRequest(
 	    		@PathParam("userId") final String userIdStr,
 	    		final MembershipRequest newRequest) 
 	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
@@ -687,7 +687,7 @@ public class UserServiceV2 extends NdexService {
 				Request request = dao.createRequest(r, this.getLoggedInUser());
 				dao.commit();
 				URI l = new URI (Configuration.getInstance().getHostURI()  + 
-			            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ userId.toString() + "/permissionrequest/"+
+			            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ userId.toString() + "/membershiprequest/"+
 						request.getExternalId());
 
 				return Response.created(l).entity(l).build();
@@ -703,10 +703,10 @@ public class UserServiceV2 extends NdexService {
 	   
 
 	   @POST
-	   @Path("/{userId}/membershiprequest")
+	   @Path("/{userId}/permissionrequest")
 	   @Produces("text/plain")
 	   @ApiDoc("Create a group membership request.")
-	    public Response createMembershipRequest(
+	    public Response createPermissionRequest(
 	    		@PathParam("userId") final String userIdStr,
 	    		final PermissionRequest newRequest) 
 	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
@@ -730,7 +730,7 @@ public class UserServiceV2 extends NdexService {
 				Request request = dao.createRequest(r, this.getLoggedInUser());
 				dao.commit();
 				URI l = new URI (Configuration.getInstance().getHostURI()  + 
-			            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ userId.toString() + "/membershiprequest/"+
+			            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ userId.toString() + "/permissionrequest/"+
 						request.getExternalId());
 
 				return Response.created(l).entity(l).build();
@@ -834,7 +834,7 @@ public class UserServiceV2 extends NdexService {
 			
 			try (RequestDAO dao = new RequestDAO ()){
 				if (qT == null) {
-					List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(), RequestType.UserNetworkAccess,0, -1);
+					List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(), RequestType.JoinGroup,0, -1);
 					List<Request> reqs2= dao.getPendingGroupMembershipRequestByUserId(this.getLoggedInUserId(),0, -1);
 					 reqs.addAll(reqs2);
 					 return reqs;
@@ -884,7 +884,7 @@ public class UserServiceV2 extends NdexService {
 		@Path("/{userId}/membershiprequest/{requestId}")
 		@Produces("application/json")
 		@ApiDoc("")
-		public void responseMembershipRequest(
+		public void respondMembershipRequest(
 				 @PathParam("userId") String userIdStr,
 				 @PathParam("requestId") String requestIdStr,
 				 @QueryParam("action")  String action,
@@ -921,7 +921,7 @@ public class UserServiceV2 extends NdexService {
 			}
 			
 			// act on it
-			reqs.setMessage(message);
+			reqs.setResponseMessage(message);
 			if ( act.equals("accept")) {
 				reqs.setResponse(ResponseType.ACCEPTED);
 				try ( GroupDAO gdao = new GroupDAO()) {
@@ -945,7 +945,7 @@ public class UserServiceV2 extends NdexService {
 		@Path("/{userId}/permissionrequest/{requestId}")
 		@Produces("application/json")
 		@ApiDoc("")
-		public void responsePermissionRequest(
+		public void respondPermissionRequest(
 				 @PathParam("userId") String userIdStr,
 				 @PathParam("requestId") String requestIdStr,
 				 @QueryParam("action")  String action,
@@ -982,7 +982,7 @@ public class UserServiceV2 extends NdexService {
 			}
 			
 			// act on it
-			reqs.setMessage(message);
+			reqs.setResponseMessage(message);
 			if ( act.equals("accept")) {
 				reqs.setResponse(ResponseType.ACCEPTED);
 				try ( NetworkDAO ndao = new NetworkDAO()) {

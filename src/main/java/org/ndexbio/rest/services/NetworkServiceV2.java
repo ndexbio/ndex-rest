@@ -818,7 +818,7 @@ public class NetworkServiceV2 extends NdexService {
 	 **************************************************************************/
 
 	@GET
-	@PermitAll
+	//@PermitAll
 	@Path("/{networkId}/permission")
 	@Produces("application/json")
     @ApiDoc("Retrieves a list of Membership objects which specify user permissions for the network specified by " +
@@ -844,15 +844,20 @@ public class NetworkServiceV2 extends NdexService {
 		
 		UUID networkUUID = UUID.fromString(networkId);
 		
+		
 		boolean returnUsers = true;
 		if ( sourceType != null ) {
 			if ( sourceType.toLowerCase().equals("group")) 
 				returnUsers = false;
 			else if ( !sourceType.toLowerCase().equals("user"))
 				throw new NdexException("Invalid parameter 'type' " + sourceType + " received, it can only be 'user' or 'group'.");
-		}
+		} else 
+			throw new NdexException("Parameter 'type' is required in this function.");
 		
 		try (NetworkDAO networkDao = new NetworkDAO()) {
+			if ( !networkDao.isAdmin(networkUUID, getLoggedInUserId()) ) 
+				throw new UnauthorizedOperationException("Authenticate user is not the admin of this network.");
+			
 			Map<String,String> result = returnUsers?
 					networkDao.getNetworkUserPermissions(networkUUID, permission, skipBlocks, blockSize):
 					networkDao.getNetworkGroupPermissions(networkUUID,permission,skipBlocks,blockSize);
