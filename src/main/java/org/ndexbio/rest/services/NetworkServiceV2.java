@@ -35,6 +35,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -569,6 +570,33 @@ public class NetworkServiceV2 extends NdexService {
 	
 	
 	
+	@PUT
+	@Path("/{networkId}/sample")
+	@ApiDoc("This method enables an application to set the sample network as a CX " +
+	        "structure. The sample network should be small ( no more than 500 edges normally)")
+	public void setSampleNetwork(	@PathParam("networkId") final String networkId,
+			String CXString)
+			throws IllegalArgumentException, NdexException, SQLException {
+
+    	logger.info("[start: Getting sample network {}]", networkId);
+  	
+    	try (NetworkDAO dao = new NetworkDAO()) {
+    		if ( ! dao.isAdmin(UUID.fromString(networkId), getLoggedInUserId()))
+                throw new UnauthorizedOperationException("User is not admin of this network.");
+
+    	}
+    	  	
+		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/sample.cx";
+		
+		try (FileWriter w = new FileWriter(cxFilePath)){
+			w.write(CXString);
+		} catch (  IOException e) {
+				throw new NdexException("Failed to write sample network of " + networkId + ": " + e.getMessage(), e);
+		} 
+	}  
+	
+	
+/*	
 	private class CXNetworkWriterThread extends Thread {
 		private OutputStream o;
 		private String networkId;
@@ -578,7 +606,7 @@ public class NetworkServiceV2 extends NdexService {
 		}
 		
 		public void run() {
-		/*	try (CXNetworkExporter dao = new CXNetworkExporter (networkId) ) {
+			try (CXNetworkExporter dao = new CXNetworkExporter (networkId) ) {
 				    dao.writeNetworkInCX(o, true);
 			} catch (IOException e) {
 					logger.error("IOException in CXNetworkWriterThread: " + e.getMessage());
@@ -597,12 +625,12 @@ public class NetworkServiceV2 extends NdexService {
 					e.printStackTrace();
 					logger.error("Failed to close outputstream in CXNetworkWriterThread.");
 				}
-			} */
+			} 
 		}
 		
-	}
+	}  */
 	
-	private class CXNetworkQueryWriterThread extends Thread {
+/*	private class CXNetworkQueryWriterThread extends Thread {
 		private OutputStream o;
 		private String networkId;
 		private CXSimplePathQuery parameters;
@@ -614,7 +642,7 @@ public class NetworkServiceV2 extends NdexService {
 		}
 		
 		public void run() {
-	/*		try (CXNetworkExporter dao = new CXNetworkExporter (networkId) ) {
+			try (CXNetworkExporter dao = new CXNetworkExporter (networkId) ) {
 				    dao.exportSubnetworkInCX(o, parameters,true);   
 			} catch (IOException e) {
 					logger.error("IOException in CXNetworkWriterThread: " + e.getMessage());
@@ -633,11 +661,11 @@ public class NetworkServiceV2 extends NdexService {
 					e.printStackTrace();
 					logger.error("Failed to close outputstream in CXNetworkWriterThread.");
 				}
-			} */
+			} 
 		}
 		
 	}
-
+*/
 
 	private class CXAspectElementsWriterThread extends Thread {
 		private OutputStream o;
@@ -679,7 +707,7 @@ public class NetworkServiceV2 extends NdexService {
 		
 	}
 
-	
+/*	
 	private class CXNetworkAspectsWriterThread extends Thread {
 		private OutputStream o;
 		private String networkId;
@@ -692,7 +720,7 @@ public class NetworkServiceV2 extends NdexService {
 		}
 		
 		public void run() {
-	/*		try (CXNetworkExporter dao = new CXNetworkExporter (networkId)) {
+			try (CXNetworkExporter dao = new CXNetworkExporter (networkId)) {
 				    dao.writeAspectsInCX(o, aspects, true);
 			} catch (IOException e) {
 					logger.error("IOException in CXNetworkAspectsWriterThread: " + e.getMessage());
@@ -711,11 +739,13 @@ public class NetworkServiceV2 extends NdexService {
 					e.printStackTrace();
 					logger.error("Failed to close outputstream in CXNetworkAspectsWriterThread. " + e.getMessage());
 				} 
-			} */
+			} 
 		}
 		
-	}
-	private class CXNetworkLoadThread extends Thread {
+	}  */
+	
+	
+/*	private class CXNetworkLoadThread extends Thread {
 		private UUID networkId;
 		public CXNetworkLoadThread (UUID networkUUID  ) {
 			this.networkId = networkUUID;
@@ -724,7 +754,7 @@ public class NetworkServiceV2 extends NdexService {
 		public void run() {
             
 		}
-	}
+	} */
 
 	/*
 	
@@ -818,7 +848,6 @@ public class NetworkServiceV2 extends NdexService {
 	 **************************************************************************/
 
 	@GET
-	//@PermitAll
 	@Path("/{networkId}/permission")
 	@Produces("application/json")
     @ApiDoc("Retrieves a list of Membership objects which specify user permissions for the network specified by " +
@@ -953,54 +982,6 @@ public class NetworkServiceV2 extends NdexService {
 	 * 
 	 */
 
-/*	@POST
-	@Path("/{networkId}/member")
-	@Produces("application/json")
-    @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
-            "specified by networkUUID. The permission is updated to the value specified in the 'permission' field of " +
-            "the Membership. This method returns 1 if the update is performed and 0 if the update is redundant, " +
-            "where the user already has the specified permission. It also returns an error if the authenticated user " +
-            "making the request does not have sufficient permissions or if the network or user is not found. It also " +
-            "returns an error if it would leave the network without any user having ADMIN permissions: NDEx does not " +
-            "permit networks to become 'orphans' without any owner. Because we only allow user to be the administrator of a network, "
-            + "Granting ADMIN permission to another user will move the admin privilege (ownership) from the network's"
-            + " previous administrator (owner) to the new user.")
-	public int updateNetworkMembership(
-			@PathParam("networkId") final String networkIdStr,
-			final Membership membership
-			)
-			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
-
-		logger.info("[start: Updating membership for network {}]", networkIdStr);
-		
-		try (NetworkDAO networkDao = new NetworkDAO()){
-
-			User user = getLoggedInUser();
-			UUID networkId = UUID.fromString(networkIdStr);
-
-			if (!networkDao.isAdmin(networkId,user.getExternalId())) {
-
-				logger.error("[end: User {} is not an admin of network {}. Throwing  UnauthorizedOperationException ...]", 
-						user.getExternalId().toString(), networkId);
-				
-				throw new UnauthorizedOperationException("Unable to update network membership: user is not an admin of this network.");
-			}
-
-			if ( networkDao.networkIsLocked(networkId)) {
-				networkDao.close();
-				logger.info("[end: Can't update locked network {}]", networkId);
-				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
-			} 
-
-	        int count = membership.getMemberType().equals("USER")? 
-	        		networkDao.grantPrivilegeToUser(networkId, membership.getMemberUUID(), membership.getPermissions(), membership.getMemberAccountName()):
-	        			networkDao.grantPrivilegeToGroup(networkId, membership.getMemberUUID(), membership.getPermissions());
-			networkDao.commit();
-			logger.info("[end: Updated membership for network {}]", networkId);
-	        return count;
-		} finally {
-		}
-	} */
 
 	@PUT
 	@Path("/{networkId}/permission")

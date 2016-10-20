@@ -66,7 +66,7 @@ public abstract class NdexService
     private String requestsUniqueId;
     
 	static Logger logger = LoggerFactory.getLogger(NdexService.class);
-	static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS");
+//	static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS");
 	
 	private static final String basicAuthPrefix = "Basic ";
     
@@ -241,19 +241,9 @@ public abstract class NdexService
 
     private void setRequestsUniqueId() {
     	long currentSystemTimeInMs = System.currentTimeMillis();
-
-    	Calendar cal = Calendar.getInstance();
-    	cal.setTimeInMillis(currentSystemTimeInMs);
+    //	Calendar cal = Calendar.getInstance();
+    //	cal.setTimeInMillis(currentSystemTimeInMs);
     	
-    	//String s = dateFormat.format(cal.getTime());
-    	//System.out.println("s=" + s);
-    	
-    	// requests unique id is concatenation of (Timestamp + Thread Id);
-    	// the format of requests unique id is "yyyy-MM-dd-HH-mm-ss-SSS-thread_id", 
-    	// for example, 2015-06-25-12-21-436-30
-    	// This unique Id is the Id that will never be reused in future.
-    	this.requestsUniqueId = 
-    			dateFormat.format(cal.getTime()) + "-" + 
-    	        Thread.currentThread().getId();
+    	this.requestsUniqueId = currentSystemTimeInMs + "-" + Thread.currentThread().getId();
     }
 }
