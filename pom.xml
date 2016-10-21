@@ -318,7 +318,8 @@
 		</plugins>
 	</build>
 	<properties>
-		<jettyVersion>9.3.11.v20160721</jettyVersion>
+		<jettyVersion>9.3.13.v20161014</jettyVersion>
 		<resteasyVersion>3.0.19.Final</resteasyVersion>
+		<log4jVersion>2.7</log4jVersion>
 	</properties>
 </project>

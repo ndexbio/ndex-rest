@@ -78,10 +78,16 @@ import javax.ws.rs.ext.Provider;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.ndexbio.rest.services.AuthenticationNotRequired;
 import org.ndexbio.rest.services.NdexOpenFunction;
+import org.ndexbio.rest.services.NdexService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Provider
 public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Filter
 {
+	
+	static Logger logger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
+
 	//ContainerResponseFilter Implementation
 	@Override
 	public void filter(ContainerRequestContext arg0,
@@ -96,13 +102,16 @@ public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Fi
 		final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)arg0.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
 	    if ( methodInvoker != null) {
 	    	final Method method = methodInvoker.getMethod();
-	    
 	      
 	    	if (!method.isAnnotationPresent(AuthenticationNotRequired.class) && 
 	    		  !method.isAnnotationPresent(NdexOpenFunction.class)  ) {
 	    		headers.putSingle("WWW-Authenticate", "Basic");
 	    	}
+	    	
+	    	logger.info("[end]\t["+ method.getName() + "]");
 	    }
+	    
+	    
 	}
 	
 /*	//Filter Implementation

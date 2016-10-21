@@ -32,39 +32,41 @@ package org.ndexbio.rest.filters;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-import javax.annotation.security.DenyAll;
 import javax.annotation.security.PermitAll;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.ext.Provider;
 
-import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.jboss.resteasy.core.Headers;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
-import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.util.Base64;
-import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 //import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.rest.services.AuthenticationNotRequired;
 import org.ndexbio.rest.services.NdexOpenFunction;
-import org.ndexbio.security.DelegatedLDAPAuthenticator;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /*
  * class represents a RestEasy request filter that will validate
@@ -76,9 +78,16 @@ import org.slf4j.MDC;
 @Provider
 public class BasicAuthenticationFilter implements ContainerRequestFilter
 {
+	
+	 @Context
+	 private HttpServletRequest httpRequest;
+	 
 	private static final String basicAuthPrefix = "Basic "; 
+	protected static final String accessLoggerName = "accesslog";
 	
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
+    private static final Logger accessLogger = LoggerFactory.getLogger(accessLoggerName);
+
     //private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<>());
     //private static final ServerResponse ACCESS_DENIED_USER_NOT_FOUND = 
     //		new ServerResponse("User not found.", 401, new Headers<>());
@@ -132,6 +141,12 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         String[] authInfo = null;
         User authUser = null;
         boolean authenticated = false;
+        
+		// write the log context
+		MDC.put("RequestsUniqueId", 
+				"tid:"+System.currentTimeMillis() + "-" + Thread.currentThread().getId());
+
+		NdexException authorizationException = null;
         try
         {
             authInfo = parseCredentials(requestContext);
@@ -175,127 +190,102 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             			}
             		}
             	}
-            	if (authUser != null) {
-            		requestContext.setProperty("User", authUser);
-            		return;
-            	}
             	
+            	if (authUser != null) {   // user is authenticated
+            		requestContext.setProperty("User", authUser);
+       
+            	} else {   // not user can be found based on the credentials in the header.
+            		authorizationException = new UnauthorizedOperationException("Credentials in HTTP head is invalid.");
+            	}           	
             }
         } catch (SecurityException | UnauthorizedOperationException e2 ) {
             _logger.info("Failed to authenticate a user: " + (authInfo == null? "": authInfo[0]) + " Path:" +
             		requestContext.getUriInfo().getPath(), e2);
         	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
-            UnauthorizedOperationException e = 
-            		new UnauthorizedOperationException("Invalid password for user " + authInfo[0] + ".");
-        	requestContext.abortWith(
-        			Response
-                    .status(Status.UNAUTHORIZED)
-                    .entity(e.getNdexExceptionInJason())
-                    .type("application/json")
-                    .header("WWW-Authenticate", "Basic")
-                    .build());            
-             return;
+            authorizationException = 
+            		new UnauthorizedOperationException("Invalid password for user " + (authInfo == null? "": authInfo[0]) + ".");
         } catch (ObjectNotFoundException e0) {
             _logger.info("User: " + authInfo[0] +" not found in Ndex db." /*requestContext.getUriInfo().getPath()*/);
             String mName = method.getName();
             if ( !mName.equals("createUser")) {
             	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
-            	ObjectNotFoundException e = 
-            			new ObjectNotFoundException("User " + authInfo[0] + " is not known.");
-            	requestContext.abortWith(
-            			Response
-                        .status(Status.UNAUTHORIZED)
-                        .entity(e.getNdexExceptionInJason())
-                        .header("WWW-Authenticate", "Basic")
-                        .type("application/json")
-                        .build());
-
-                return;
+            	authorizationException = e0;
             }
         } catch (Exception e) {
-        	UnauthorizedOperationException uoe = null;
             if (authInfo != null && authInfo.length >= 2 && (! authenticated)) {
                 _logger.error("Failed to authenticate a user: " + authInfo[0] /*+ " Path:"+ requestContext.getUriInfo().getPath() */, e);
-                uoe = new UnauthorizedOperationException("Failed to authenticate user " + authInfo[0] + " : " + e.getMessage());
+                authorizationException = new UnauthorizedOperationException("Failed to authenticate user " + authInfo[0] + " : " + e.getMessage());
             } else {
                 _logger.error("Failed to authenticate a user; credential information unknown: " + e.getMessage() );
-                uoe = new UnauthorizedOperationException("Failed to authenticate user; credential information unknown: "
+                authorizationException = new UnauthorizedOperationException("Failed to authenticate user; credential information unknown: "
                 		 + e.getMessage() );
             }
-        	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
-       	    requestContext.abortWith(
-       			Response
-                   .status(Status.UNAUTHORIZED)
-                   .entity(uoe.getNdexExceptionInJason())
-                   .header("WWW-Authenticate", "Basic")
-                   .type("application/json")
-                   .build()); 
-            return ;
         } 
-        
-        if ( authenticatedUserOnly) {
-        	if ( !method.isAnnotationPresent(NdexOpenFunction.class) ) {
-                _logger.warn("Attempted to access resource requiring authentication.");
-                
-                UnauthorizedOperationException e = new UnauthorizedOperationException(
-                		"Attempted to access resource requiring authentication.");
-           	    requestContext.abortWith(
-               			Response
-                           .status(Status.UNAUTHORIZED)
-                           .entity(e.getNdexExceptionInJason())
-                           .header("WWW-Authenticate", "Basic")
-                           .type("application/json")
-                           .build());     
-        	}
-        } else if (!method.isAnnotationPresent(PermitAll.class)) {
-            if (method.isAnnotationPresent(DenyAll.class))
-            {
-                //requestContext.abortWith(FORBIDDEN);
-                NdexException e = new NdexException("No credentials to authenticate.");
-//                ForbiddenOperationException e = new ForbiddenOperationException("Forbidden");
-           	    requestContext.abortWith(
-               			Response
-                           .status(Status.FORBIDDEN)
-                           .entity(e.getNdexExceptionInJason())
-                           .type("application/json")
-                           .build()); 
-                return;
-            }
-            
-            if (authInfo == null)
-            {
-                _logger.warn("No credentials to authenticate.");
-                //requestContext.abortWith(FORBIDDEN);
-           //     ForbiddenOperationException e = new ForbiddenOperationException("No credentials to authenticate.");
-              NdexException e = new NdexException("No credentials to authenticate.");
-                requestContext.abortWith(
-               			Response
-                           .status(Status.UNAUTHORIZED)
-                           .entity(e.getNdexExceptionInJason())
-                           .header("WWW-Authenticate", "Basic")
-                           .type("application/json")
-                           .build()); 
-                return;
-            }
-            
-            if (authUser == null)
-            {
-                _logger.warn(authInfo[0] + " denied access to a resource.");
-                
-                UnauthorizedOperationException e = new UnauthorizedOperationException(
-                		authInfo[0] + " denied access to a resource.");
-           	    requestContext.abortWith(
-               			Response
-                           .status(Status.UNAUTHORIZED)
-                           .entity(e.getNdexExceptionInJason())
-                           .header("WWW-Authenticate", "Basic")
-                           .type("application/json")
-                           .build());
-            }
+         
+        if ( authorizationException == null ) {  // so far so good 
+        	if ( authUser != null ||    // is a authenticated user
+         		  method.isAnnotationPresent(NdexOpenFunction.class) ||  // functions that are open to anonymous users
+        				((!authenticatedUserOnly) && 
+        						(  method.isAnnotationPresent(PermitAll.class)
+        								|| method.isAnnotationPresent(AuthenticationNotRequired.class)) )) {
+        			//log the info in log and continue;         		
+
+                	accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method) );    
+        			return;
+        		}
+       
+        	authorizationException = new UnauthorizedOperationException(
+            		"Attempted to access resource requiring authentication.");
         }
         
-      
+        requestContext.abortWith(
+           			Response
+                       .status(Status.UNAUTHORIZED)
+                       .entity(authorizationException.getNdexExceptionInJason())
+                       .header("WWW-Authenticate", "Basic")
+                       .type("application/json")
+                       .build()); 
+        
+		accessLogger.info("[start/end]\t" + buildLogString(authUser,requestContext,method) + "[Unauthorized exception: "+ authorizationException.getMessage() + "]"  );
     }
+    
+    private String buildLogString(User authUser, ContainerRequestContext requestContext, Method method ) {
+        
+    	String clientIPs = (null == httpRequest.getHeader("X-FORWARDED-FOR")) ? 
+                httpRequest.getRemoteAddr() :
+                httpRequest.getHeader("X-FORWARDED-FOR");
+                
+        UriInfo uriInfo = requestContext.getUriInfo();
+        
+        String userAgent = httpRequest.getHeader("User-Agent");
+                
+        String result =  "[" + requestContext.getMethod() + "]\t["+ (authUser == null? "" : authUser.getUserName()) + "]\t["
+        		+ clientIPs.toString() + "]\t[" + (userAgent == null? "" : userAgent )+ "]\t[" + method.getName() + "]\t[" + 
+       
+        uriInfo.getPath(true)  + "]\t" ;
+        
+     //   ObjectMapper mapper = new ObjectMapper();
+        MultivaluedMap<String,String> f = uriInfo.getQueryParameters();
+        MultivaluedMap<String,String> f2 = uriInfo.getPathParameters();
+        try {
+        	result += "[" + buildJSONStringForLog(f) + "]\t[" + buildJSONStringForLog(f2) + "]";
+		//	System.out.println(mapper.writeValueAsString(f) + mapper.writeValueAsString(f2));
+		} catch (JsonProcessingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	return result;
+    }
+    
+    private static String buildJSONStringForLog(MultivaluedMap<String,String> m) throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        HashMap<String,String> m2 = new HashMap<>(m.size());
+        for (Map.Entry<String,List<String>> e:  m.entrySet()) {
+        	m2.put(e.getKey(), e.getValue() == null? "": e.getValue().get(0));
+        }
+        return mapper.writeValueAsString(m2).replaceAll("\n"," ");
+    }
+    
     
     /**************************************************************************
     * Base64-decodes and parses the Authorization header to get the username
