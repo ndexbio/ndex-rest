@@ -1227,6 +1227,7 @@ public class NetworkServiceV2 extends NdexService {
 
         UUID networkId = UUID.fromString(networkIdStr);
 
+        String ownerAccName = null;
         try ( NetworkDAO daoNew = new NetworkDAO() ) {
            User user = getLoggedInUser();
            
@@ -1250,6 +1251,8 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 			
+			ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
+			
 	        UUID tmpNetworkId = storeRawNetwork (input);
 
 	        daoNew.clearNetworkSummary(networkId);
@@ -1271,7 +1274,7 @@ public class NetworkServiceV2 extends NdexService {
 			
         }  
     	      
-	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, getLoggedInUser().getUserName(), true));
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
 	    // return networkIdStr; 
     }
 

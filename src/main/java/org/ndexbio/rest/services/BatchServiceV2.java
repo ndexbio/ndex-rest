@@ -75,9 +75,6 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 @Path("/v2/batch")
 public class BatchServiceV2 extends NdexService {
 	
-//	private static final String GOOGLE_OAUTH_FLAG = "USE_GOOGLE_AUTHENTICATION";
-//	private static final String GOOGLE_OATH_KEY = "GOOGLE_OATH_KEY";
-	
 	
 	static Logger logger = LoggerFactory.getLogger(BatchServiceV2.class);
 

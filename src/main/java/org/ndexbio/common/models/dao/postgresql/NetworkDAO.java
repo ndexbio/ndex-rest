@@ -140,6 +140,20 @@ public class NetworkDAO extends NdexDBDAO {
 		}	
 	}
 	
+	
+	public String getNetworkOwnerAcc(UUID networkId) throws SQLException, NdexException {
+		String sqlStr = "select owner from network where  is_deleted=false and  \"UUID\" = ? ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getString(1);
+				}
+				throw new ObjectNotFoundException("Network "+ networkId + " not found in NDEx.");
+			}
+		}	
+	}
+	
 	public Timestamp getNetworkCreationTime(UUID networkId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select creation_time from network where \"UUID\" = ? and is_deleted=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
