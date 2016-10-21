@@ -38,6 +38,7 @@ import javax.ws.rs.ext.Provider;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 @Provider
 public class ObjectNotFoundExceptionMapper implements ExceptionMapper<ObjectNotFoundException>
@@ -47,6 +48,7 @@ public class ObjectNotFoundExceptionMapper implements ExceptionMapper<ObjectNotF
     @Override
     public Response toResponse(ObjectNotFoundException exception)
     {
+    	MDC.put("error", exception.getMessage());
     	logger.error("SERVER ERROR:", exception);
     	exception.printStackTrace();
         return Response

@@ -38,6 +38,7 @@ import javax.ws.rs.ext.Provider;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 @Provider
 public class DuplicateObjectExceptionMapper implements ExceptionMapper<DuplicateObjectException>
@@ -47,6 +48,7 @@ public class DuplicateObjectExceptionMapper implements ExceptionMapper<Duplicate
     @Override
     public Response toResponse(DuplicateObjectException exception)
     {
+    	MDC.put("error", exception.getMessage());
     	logger.error("SERVER ERROR:", exception);
     	exception.printStackTrace();
         return Response

@@ -1501,13 +1501,15 @@ public class NetworkService extends NdexService {
             "errors if the Network object is larger than a maximum size for network creation set in the NDEx " +
             "server configuration. Network UUID is returned. This function also takes an optional 'provenance' field in the posted form."
             + " See createCXNetwork function for more details of this parameter.")
-    public String updateCXNetwork(final @PathParam("networkId") String networkIdStr,
+    public void updateCXNetwork(final @PathParam("networkId") String networkIdStr,
     		MultipartFormDataInput input) throws Exception 
     {
     	
 		logger.info("[start: Updating network {} using CX data]", networkIdStr);
 
         UUID networkId = UUID.fromString(networkIdStr);
+
+        String ownerAccName = null;
 
         try ( NetworkDAO daoNew = new NetworkDAO() ) {
            User user = getLoggedInUser();
@@ -1532,6 +1534,8 @@ public class NetworkService extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 			
+			ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
+			
 	        UUID tmpNetworkId = storeRawNetwork (input);
 
 	        daoNew.clearNetworkSummary(networkId);
@@ -1553,8 +1557,8 @@ public class NetworkService extends NdexService {
 			
         }  
     	      
-	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, getLoggedInUser().getUserName(), true));
-	     return networkIdStr; 
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
+	    // return networkIdStr; 
     }
 
     

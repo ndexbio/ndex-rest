@@ -81,6 +81,7 @@ import org.ndexbio.rest.services.NdexOpenFunction;
 import org.ndexbio.rest.services.NdexService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 @Provider
 public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Filter
@@ -108,7 +109,12 @@ public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Fi
 	    		headers.putSingle("WWW-Authenticate", "Basic");
 	    	}
 	    	
-	    	logger.info("[end]\t["+ method.getName() + "]");
+	    	int responseCode = responseContext.getStatus();
+	    	
+	    	String error = MDC.get("error");
+	    	
+	    	logger.info("[end]\t["+ method.getName() + "]\t[status: " + responseCode + "]" + 
+	    			(error !=null? "\t[error: "+ error + "]" : "" ));
 	    }
 	    
 	    

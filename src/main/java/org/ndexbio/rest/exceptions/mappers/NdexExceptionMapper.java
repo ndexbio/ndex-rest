@@ -38,6 +38,7 @@ import javax.ws.rs.ext.Provider;
 import org.ndexbio.model.exceptions.NdexException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 @Provider
 public class NdexExceptionMapper implements ExceptionMapper<NdexException>
@@ -48,6 +49,7 @@ public class NdexExceptionMapper implements ExceptionMapper<NdexException>
     public Response toResponse(NdexException exception)
     {
     	logger.error("SERVER ERROR:", exception);
+    	MDC.put("error", exception.getMessage());
     	exception.printStackTrace();
         return Response
             .status(Status.INTERNAL_SERVER_ERROR)
