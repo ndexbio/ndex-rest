@@ -367,13 +367,13 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public boolean isReadOnly(UUID networkID) throws SQLException, ObjectNotFoundException {
-		String sqlStr = "select roid,cacheid from network n where n.\"UUID\" = ? and n.is_deleted=false ";
+		String sqlStr = "select readonly from network n where n.\"UUID\" = ? and n.is_deleted=false ";
 			
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkID);
 			try ( ResultSet rs = pst.executeQuery()) {
 				if( rs.next() ) {
-					return rs.getLong(1)>0 && rs.getLong(1) == rs.getLong(2);
+					return rs.getBoolean(1);
 				}
 				throw new ObjectNotFoundException("Network", networkID );
 			}
