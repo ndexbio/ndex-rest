@@ -1832,7 +1832,9 @@ public class NetworkService extends NdexService {
 	//	@PermitAll
 
 	   @Path("/asCX")
-	   @Produces("application/json")
+//	   @Produces("application/json")
+	   @Produces("text/plain"
+	   		+ "")
 	   @Consumes("multipart/form-data")
 	   @ApiDoc("Create a network from the uploaded CX stream. The input cx data is expected to be in the CXNetworkStream field of posted multipart/form-data. "
 	   		+ "There is an optional 'provenance' field in the form. Users can use this field to pass in a JSON string of ProvenanceEntity object. When a user pass"
@@ -1855,7 +1857,8 @@ public class NetworkService extends NdexService {
 	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false));
 	       
 		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
-		   return "\"" + uuidStr + "\"";
+		   //return "\"" + uuidStr + "\"";
+		   return  uuidStr ;
 
 	   	}
 	   

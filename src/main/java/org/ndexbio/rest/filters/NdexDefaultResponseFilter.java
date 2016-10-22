@@ -78,7 +78,6 @@ import javax.ws.rs.ext.Provider;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.ndexbio.rest.services.AuthenticationNotRequired;
 import org.ndexbio.rest.services.NdexOpenFunction;
-import org.ndexbio.rest.services.NdexService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
