@@ -246,7 +246,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                        .type("application/json")
                        .build()); 
         
-		accessLogger.info("[start/end]\t" + buildLogString(authUser,requestContext,method) + "\t[Unauthorized exception: "+ authorizationException.getMessage() + "]"  );
+    	MDC.put("error", authorizationException.getMessage());
+
+		accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method) + "\t[Unauthorized exception: "+ authorizationException.getMessage() + "]"  );
     }
     
     private String buildLogString(User authUser, ContainerRequestContext requestContext, Method method ) {
