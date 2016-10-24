@@ -252,7 +252,7 @@ public class NetworkService extends NdexService {
     **************************************************************************/
 	@PermitAll
 	@GET
-	@Path("/{networkId}/provenance")
+	@Path("/{networkid}/provenance")
 	@Produces("application/json")
 	@ApiDoc("This method retrieves the 'provenance' attribute of the network specified by 'networkId', if it " +
 	        "exists. The returned value is a JSON ProvenanceEntity object which in turn contains a " +
@@ -260,7 +260,7 @@ public class NetworkService extends NdexService {
 	        "history of the network. See the document NDEx Provenance History for a detailed description of " +
 	        "this structure and best practices for its use.")	
 	public ProvenanceEntity getProvenance(
-			@PathParam("networkId") final String networkId)
+			@PathParam("networkid") final String networkId)
 
 			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException, NdexException, SQLException {
 		
@@ -285,13 +285,13 @@ public class NetworkService extends NdexService {
     *
     **************************************************************************/
     @PUT
-	@Path("/{networkId}/provenance")
+	@Path("/{networkid}/provenance")
 	@Produces("application/json")
     @ApiDoc("Updates the 'provenance' field of the network specified by 'networkId' to be the " +
             "ProvenanceEntity object in the PUT data. The ProvenanceEntity object is expected to represent " +
             "the current state of the network and to contain a tree-structure of ProvenanceEvent and " +
             "ProvenanceEntity objects that describe the networks provenance history.")
-    public ProvenanceEntity setProvenance(@PathParam("networkId")final String networkIdStr, final ProvenanceEntity provenance)
+    public ProvenanceEntity setProvenance(@PathParam("networkid")final String networkIdStr, final ProvenanceEntity provenance)
     		throws Exception {
 
     	logger.info("[start: Updating provenance of network {}]", networkIdStr);
@@ -339,12 +339,12 @@ public class NetworkService extends NdexService {
     *
     **************************************************************************/
     @PUT
-	@Path("/{networkId}/properties")
+	@Path("/{networkid}/properties")
 	@Produces("application/json")
     @ApiDoc("Updates the 'properties' field of the network specified by 'networkId' to be the list of " +
             "NdexPropertyValuePair  objects in the PUT data.")
     public int setNetworkProperties(
-    		@PathParam("networkId")final String networkId,
+    		@PathParam("networkid")final String networkId,
     		final List<NdexPropertyValuePair> properties)
     		throws Exception {
 
@@ -448,13 +448,13 @@ public class NetworkService extends NdexService {
 
 	@PermitAll
 	@GET
-	@Path("/{networkId}")
+	@Path("/{networkid}")
 	@Produces("application/json")
 	@ApiDoc("Retrieves a NetworkSummary object based on the network specified by 'networkId'. This " +
             "method returns an error if the network is not found or if the authenticated user does not have " +
             "READ permission for the network.")
 	public NetworkSummary getNetworkSummary(
-			@PathParam("networkId") final String networkIdStr)
+			@PathParam("networkid") final String networkIdStr)
 
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
@@ -504,11 +504,11 @@ public class NetworkService extends NdexService {
 	
 	@PermitAll
 	@POST
-	@Path("/{networkId}/aspects")
+	@Path("/{networkid}/aspects")
 	@ApiDoc("The getAspectsAsCX method enables an application to obtain aspects of a given network as a CX " +
 	        "structure.")
 	//TODO: handle cached network from hardDrive.
-	public Response getAspectsAsCX(	@PathParam("networkId") final String networkId,
+	public Response getAspectsAsCX(	@PathParam("networkid") final String networkId,
 			final List<String> aspectNames)
 			throws Exception {
 
@@ -548,9 +548,9 @@ public class NetworkService extends NdexService {
 
 	@PermitAll
 	@GET
-	@Path("/{networkId}/metadata")
+	@Path("/{networkid}/metadata")
 	@ApiDoc("The getAspectElement method returns elements in the specified aspect up to the given limit.")
-	public Response getNetworkCXMetadataCollection(	@PathParam("networkId") final String networkId)
+	public Response getNetworkCXMetadataCollection(	@PathParam("networkid") final String networkId)
 			throws Exception {
 
     	logger.info("[start: Getting CX metadata from network {}]", networkId);
@@ -579,11 +579,11 @@ public class NetworkService extends NdexService {
 	
 	@PermitAll
 	@GET
-	@Path("/{networkId}/aspect/{aspectName}/{limit}")
+	@Path("/{networkid}/aspect/{aspectname}/{limit}")
 	@ApiDoc("The getAspectElement method returns elements in the specified aspect up to the given limit.")
 	//TODO: handle cached network from hardDrive.
-	public Response getAspectElements(	@PathParam("networkId") final String networkId,
-			@PathParam("aspectName") final String aspectName,
+	public Response getAspectElements(	@PathParam("networkid") final String networkId,
+			@PathParam("aspectname") final String aspectName,
 			@PathParam("limit") final int limit)
 			throws Exception {
 
@@ -618,7 +618,7 @@ public class NetworkService extends NdexService {
 	
 	@PermitAll
 	@GET
-	@Path("/{networkId}/asCX")
+	@Path("/{networkid}/asCX")
 	@ApiDoc("The getCompleteNetwork method enables an application to obtain an entire network as a CX " +
 	        "structure. This is performed as a monolithic operation, so care should be taken when requesting " +
 	        "very large networks. Applications can use the getNetworkSummary method to check the node " +
@@ -627,7 +627,7 @@ public class NetworkService extends NdexService {
 	        "are cached by NDEx for rapid access. ")
 	// new Implmentation to handle cached network 
 	//TODO: handle cached network from hardDrive.
-	public Response getCompleteNetworkAsCX(	@PathParam("networkId") final String networkId)
+	public Response getCompleteNetworkAsCX(	@PathParam("networkid") final String networkId)
 			throws IllegalArgumentException, NdexException, SQLException {
 
     	logger.info("[start: Getting complete network {}]", networkId);
@@ -656,12 +656,12 @@ public class NetworkService extends NdexService {
 
 	@PermitAll
 	@GET
-	@Path("/{networkId}/sample")
+	@Path("/{networkid}/sample")
 	@ApiDoc("The getSampleNetworkAsCX method enables an application to obtain a sample of the given network as a CX " +
 	        "structure. The sample network is a 500 random edge subnetwork of the original network if it was created by the server automatically. "
 	        + "User can also upload their own sample network if they "
 	        + "")
-	public Response getSampleNetworkAsCX(	@PathParam("networkId") final String networkId)
+	public Response getSampleNetworkAsCX(	@PathParam("networkid") final String networkId)
 			throws IllegalArgumentException, NdexException, SQLException {
 
     	logger.info("[start: Getting sample network {}]", networkId);
@@ -935,7 +935,7 @@ public class NetworkService extends NdexService {
 
 	@GET
 	//@PermitAll
-	@Path("/{networkId}/user/{permission}/{skipBlocks}/{blockSize}")
+	@Path("/{networkid}/user/{permission}/{start}/{size}")
 	@Produces("application/json")
     @ApiDoc("Retrieves a list of Membership objects which specify user permissions for the network specified by " +
             "'networkId'. The value of the 'permission' parameter constrains the type of the returned Membership " +
@@ -943,10 +943,10 @@ public class NetworkService extends NdexService {
             "be retrieved by permission = 'ALL'.   The maximum number of Membership objects to retrieve in the query " +
             "is set by 'blockSize' (which may be any number chosen by the user) while  'skipBlocks' specifies the " +
             "number of blocks that have already been read.")
-	public List<Membership> getNetworkUserMemberships(@PathParam("networkId") final String networkIdStr,
+	public List<Membership> getNetworkUserMemberships(@PathParam("networkid") final String networkIdStr,
 			@PathParam("permission") final String permissions ,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException, SQLException {
+			@PathParam("start") int skipBlocks,
+			@PathParam("size") int blockSize) throws NdexException, SQLException {
 
 		logger.info("[start: Get {} accounts on network {}, skipBlocks {},  blockSize {}]", 
 				permissions, networkIdStr, skipBlocks, blockSize);
@@ -971,7 +971,7 @@ public class NetworkService extends NdexService {
 	}
 
 	@DELETE
-	@Path("/{networkId}/member/user/{userUUID}")
+	@Path("/{networkid}/member/user/{userid}")
 	@Produces("application/json")
     @ApiDoc("Removes any permission for the network specified by 'networkId' for the user specified by 'userUUID': it" +
             " deletes any Membership object that specifies a permission for the user-network combination. This method" +
@@ -980,8 +980,8 @@ public class NetworkService extends NdexService {
             "the network without any user having ADMIN permissions: NDEx does not permit networks to become 'orphans'" +
             " without any owner.")
 	public int deleteNetworkUserMembership(
-			@PathParam("networkId") final String networkId,
-			@PathParam("userUUID") final String  userUUID
+			@PathParam("networkid") final String networkId,
+			@PathParam("userid") final String  userUUID
 			)
 			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
 		
@@ -1001,7 +1001,7 @@ public class NetworkService extends NdexService {
 	}
 	
 	@DELETE
-	@Path("/{networkId}/member/group/{groupUUID}")
+	@Path("/{networkid}/member/group/{groupid}")
 	@Produces("application/json")
     @ApiDoc("Removes any permission for the network specified by 'networkId' for the user specified by 'userUUID': it" +
             " deletes any Membership object that specifies a permission for the user-network combination. This method" +
@@ -1010,8 +1010,8 @@ public class NetworkService extends NdexService {
             "the network without any user having ADMIN permissions: NDEx does not permit networks to become 'orphans'" +
             " without any owner.")
 	public int deleteNetworkGroupMembership(
-			@PathParam("networkId") final String networkId,
-			@PathParam("groupUUID") final String  groupUUID
+			@PathParam("networkid") final String networkId,
+			@PathParam("groupid") final String  groupUUID
 			)
 			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
 		
@@ -1085,7 +1085,7 @@ public class NetworkService extends NdexService {
 	} */
 
 	@POST
-	@Path("/{networkId}/member/user/{userId}")
+	@Path("/{networkid}/member/user/{userid}")
 	@Produces("application/json")
     @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
             "specified by networkUUID. The permission is updated to the value specified in the 'permission' field of " +
@@ -1097,8 +1097,8 @@ public class NetworkService extends NdexService {
             + "Granting ADMIN permission to another user will move the admin privilege (ownership) from the network's"
             + " previous administrator (owner) to the new user.")
 	public int updateNetworkUserMembership(
-			@PathParam("networkId") final String networkIdStr,
-			@PathParam("userId") final String userIdStr,
+			@PathParam("networkid") final String networkIdStr,
+			@PathParam("userid") final String userIdStr,
 			final Permissions permission
 			)
 			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
@@ -1122,7 +1122,7 @@ public class NetworkService extends NdexService {
 
 	
 	@POST
-	@Path("/{networkId}/member/group/{groupId}")
+	@Path("/{networkid}/member/group/{groupid}")
 	@Produces("application/json")
     @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
             "specified by networkUUID. The permission is updated to the value specified in the 'permission' field of " +
@@ -1134,8 +1134,8 @@ public class NetworkService extends NdexService {
             + "Granting ADMIN permission to another user will move the admin privilege (ownership) from the network's"
             + " previous administrator (owner) to the new user.")
 	public int updateNetworkGroupMembership(
-			@PathParam("networkId") final String networkIdStr,
-			@PathParam("groupId") final String groupIdStr,
+			@PathParam("networkid") final String networkIdStr,
+			@PathParam("groupid") final String groupIdStr,
 			final Permissions permission
 			)
 			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
@@ -1158,7 +1158,7 @@ public class NetworkService extends NdexService {
 	
 	
 	@POST
-	@Path("/{networkId}/summary")
+	@Path("/{networkid}/summary")
 	@Produces("application/json")
 	@ApiDoc("This method updates the profile information of the network specified by networkId based on a " +
 	        "POSTed JSON object specifying the attributes to update. Any profile attributes specified will be " + 
@@ -1166,7 +1166,7 @@ public class NetworkService extends NdexService {
 	        "not mean deletion of that attribute. The network profile attributes that can be updated by this " +
 	        "method are: 'name', 'description', 'version'. visibility are no longer updated by this function. It is managed by setNetworkFlag function from 2.0")
 	public void updateNetworkProfile(
-			@PathParam("networkId") final String networkId,
+			@PathParam("networkid") final String networkId,
 			final NetworkSummary partialSummary
 			)
             throws  NdexException, SQLException, SolrServerException , IOException, IllegalArgumentException 
@@ -1457,7 +1457,7 @@ public class NetworkService extends NdexService {
 
 	@POST
 	@PermitAll
-	@Path("/textsearch/{skipBlocks}/{blockSize}")
+	@Path("/textsearch/{start}/{size}")
 	@Produces("application/json")
 	@ApiDoc("This method returns a list of NetworkSummary objects based on a POSTed query JSON object. " +
             "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
@@ -1465,8 +1465,8 @@ public class NetworkService extends NdexService {
             "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
 	public NetworkSearchResult searchNetwork_solr(
 			final SimpleNetworkQuery query,
-			@PathParam("skipBlocks") final int skipBlocks,
-			@PathParam("blockSize") final int blockSize)
+			@PathParam("start") final int skipBlocks,
+			@PathParam("size") final int blockSize)
 			throws IllegalArgumentException, NdexException {
 		
 		logger.info("[start: Retrieving NetworkSummary objects using query \"{}\"]", 
@@ -1491,7 +1491,7 @@ public class NetworkService extends NdexService {
 
 	
     @PUT
-    @Path("/asCX/{networkId}")
+    @Path("/asCX/{networkid}")
     @Consumes("multipart/form-data")
     @Produces("application/json")
     @ApiDoc("This method updates an existing network with new content. The method takes a Network CX " +
@@ -1501,7 +1501,7 @@ public class NetworkService extends NdexService {
             "errors if the Network object is larger than a maximum size for network creation set in the NDEx " +
             "server configuration. Network UUID is returned. This function also takes an optional 'provenance' field in the posted form."
             + " See createCXNetwork function for more details of this parameter.")
-    public void updateCXNetwork(final @PathParam("networkId") String networkIdStr,
+    public void updateCXNetwork(final @PathParam("networkid") String networkIdStr,
     		MultipartFormDataInput input) throws Exception 
     {
     	
@@ -1564,11 +1564,11 @@ public class NetworkService extends NdexService {
     
     
 	@DELETE
-	@Path("/{UUID}")
+	@Path("/{networkid}")
 	@Produces("application/json")
     @ApiDoc("Deletes the network specified by networkId. There is no method to undo a deletion, so care " +
 	        "should be exercised. A user can only delete networks that they own.")
-	public void deleteNetwork(final @PathParam("UUID") String id) throws NdexException, IOException, SQLException, SolrServerException {
+	public void deleteNetwork(final @PathParam("networkid") String id) throws NdexException, IOException, SQLException, SolrServerException {
 
 		logger.info("[start: Deleting network {}]", id);
 		    
@@ -1725,12 +1725,12 @@ public class NetworkService extends NdexService {
 
 
 	@PUT
-	@Path("/{networkId}/setFlag/{parameter}={value}")
+	@Path("/{networkid}/setFlag/{parameter}={value}")
 	@Produces("application/json")
     @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
 	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
 	public void setNetworkFlag(
-			@PathParam("networkId") final String networkIdStr,
+			@PathParam("networkid") final String networkIdStr,
 			@PathParam("parameter") final String parameter,
 			@PathParam("value")     final String value)
 

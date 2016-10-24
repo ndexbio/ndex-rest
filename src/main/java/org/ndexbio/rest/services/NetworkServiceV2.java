@@ -1410,12 +1410,12 @@ public class NetworkServiceV2 extends NdexService {
 
 
 	@PUT
-	@Path("/{networkId}/systemproperty")
+	@Path("/{networkid}/systemproperty")
 	@Produces("application/json")
     @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
 	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
 	public void setNetworkFlag(
-			@PathParam("networkId") final String networkIdStr,
+			@PathParam("networkid") final String networkIdStr,
 			final Map<String,String> parameters)
 
 			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {

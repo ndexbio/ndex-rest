@@ -107,10 +107,10 @@ public class RequestService extends NdexService
     * 
     **************************************************************************/
     @DELETE
-    @Path("/{requestId}")
+    @Path("/{requestid}")
     @Produces("application/json")
 	@ApiDoc("Deletes the request specified by requestId. Errors if requestId not specified or if request not found.")
-    public void deleteRequest(@PathParam("requestId")final String requestId) 
+    public void deleteRequest(@PathParam("requestid")final String requestId) 
     		throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
 
 		logger.info("[start: Deleting request {}]", requestId);
@@ -138,10 +138,10 @@ public class RequestService extends NdexService
      * @throws SQLException 
     **************************************************************************/
     @GET
-    @Path("/{requestId}")
+    @Path("/{requestid}")
     @Produces("application/json")
 	@ApiDoc("Returns the request JSON structure for the request specified by requestId. Errors if requestId not specified or if request not found.")
-    public Request getRequest(@PathParam("requestId")final String requestId) 
+    public Request getRequest(@PathParam("requestid")final String requestId) 
     		throws IllegalArgumentException, NdexException, SQLException {
  
 		logger.info("[start: Getting request {}]", requestId);
@@ -160,13 +160,13 @@ public class RequestService extends NdexService
     * 
     **************************************************************************/
    @POST
-    @Path("/{requestId}")
+    @Path("/{requestid}")
     @Produces("application/json")
 	@ApiDoc("Updates a request corresponding to the POSTed request JSON structure. " +
 			"The request JSON must specify the request id. " +
 			"Errors if requestId is not specified or if request is not found." +
 			"If the response field of the request is updated such that the request is accepted, then the action associated with the request is performed.")
-    public void updateRequest(@PathParam("requestId")final String requestId, final Request updatedRequest)
+    public void updateRequest(@PathParam("requestid")final String requestId, final Request updatedRequest)
     		throws IllegalArgumentException, NdexException, SQLException {
   
 		logger.info("[start: Updating request {}]", requestId);

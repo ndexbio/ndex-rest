@@ -92,10 +92,10 @@ public class TaskServiceV2 extends NdexService
      * refactored for non-transactional database operations
      */
     @DELETE
-    @Path("/{taskId}")
+    @Path("/{taskid}")
     @Produces("application/json")
 	@ApiDoc("Delete the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public void deleteTask(@PathParam("taskId")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException
+    public void deleteTask(@PathParam("taskid")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException
     {
 		logger.info("[start: Start deleting task {}]", taskUUID);
 
@@ -156,10 +156,10 @@ public class TaskServiceV2 extends NdexService
 
     **************************************************************************/
     @GET
-    @Path("/{taskId}")
+    @Path("/{taskid}")
     @Produces("application/json")
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public Task getTask(@PathParam("taskId")final String taskIdStr) throws  UnauthorizedOperationException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException
+    public Task getTask(@PathParam("taskid")final String taskIdStr) throws  UnauthorizedOperationException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException
     {
     	logger.info("[start: get task {}] ", taskIdStr);
     	

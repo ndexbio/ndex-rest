@@ -133,11 +133,11 @@ public class UserService extends NdexService {
 	 */
 	@GET
 	@PermitAll
-	@Path("/{userId}/verify/{verificationCode}")
+	@Path("/{userid}/verify/{verificationCode}")
 	@NdexOpenFunction
 //	@Produces("application/json")
 	@ApiDoc("Verify the given user with UUID and verificationCode")
-	public String verifyUser(@PathParam("userId") String userUUID,
+	public String verifyUser(@PathParam("userid") String userUUID,
 //					@PathParam("accountName") String accountName, 
 					@PathParam("verificationCode") String verificationCode
 				
@@ -275,11 +275,11 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@GET
 	@PermitAll
-	@Path("/{userId}")
+	@Path("/{userid}")
 	@Produces("application/json")
 	@ApiDoc("Deprecated. User should use either the user/account/{accountName} function or user/uuid/{uuid} function to get user information. "
 			+ "This function returns the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
-	public User getUser(@PathParam("userId") @Encoded final String userId)
+	public User getUser(@PathParam("userid") @Encoded final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 		logger.info("[start: Getting user {}]", userId);
@@ -314,10 +314,10 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@GET
 	@PermitAll
-	@Path("/account/{accountName}")
+	@Path("/account/{username}")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to the given user account name. Error if this account is not found.")
-	public User getUserByAccountName(@PathParam("accountName") @Encoded final String accountName)
+	public User getUserByAccountName(@PathParam("username") @Encoded final String accountName)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: Getting user by account name {}]", accountName);
@@ -347,10 +347,10 @@ public class UserService extends NdexService {
 	@SuppressWarnings("static-method")
 	@GET
 	@PermitAll
-	@Path("/uuid/{userId}")
+	@Path("/uuid/{userid}")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
-	public User getUserByUUID(@PathParam("userId") @Encoded final String userId)
+	public User getUserByUUID(@PathParam("userid") @Encoded final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 		logger.info("[start: Getting user from UUID {}]", userId);
@@ -405,7 +405,7 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	
 	@GET
-	@Path("/network/{permission}/{skipBlocks}/{blockSize}")
+	@Path("/network/{permission}/{start}/{size}")
 	@Produces("application/json")
 	@ApiDoc("Get a list of memberships which contains networks that this this user has explicit permissions on. The result includes permissions directly"
 			+ " and in-directly ( through groups) granted to this user. ")
@@ -413,8 +413,8 @@ public class UserService extends NdexService {
 	
 	public List<Membership> getUserNetworkMemberships(
 			@PathParam("permission") final String permissions ,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize,
+			@PathParam("start") int skipBlocks,
+			@PathParam("size") int blockSize,
 			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 		
 		logger.info("[start: Getting {} networks ]", permissions);
@@ -446,14 +446,14 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	
 	@GET
-	@Path("/{userId}/group/{permission}/{skipBlocks}/{blockSize}")
+	@Path("/{userid}/group/{permission}/{start}/{size}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of membership of groups that the current user has the given permission on. skipBlocks <0 or blockSize <=0 means return all results in one list.")
 	public List<Membership> getUserGroupMemberships(
-			@PathParam("userId")	final String userIdStr,
+			@PathParam("userid")	final String userIdStr,
 			@PathParam("permission") final String permissions ,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize,
+			@PathParam("start") int skipBlocks,
+			@PathParam("size") int blockSize,
 			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) 
 					throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
@@ -729,11 +729,13 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@POST
 	@PermitAll
-	@Path("/search/{skipBlocks}/{blockSize}")
+	@Path("/search/{start}/{size}")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
 			+ "The searchParameters must contain a 'searchString' parameter. ")
-	public SolrSearchResult<User> findUsers(SimpleQuery simpleUserQuery, @PathParam("skipBlocks") final int skipBlocks, @PathParam("blockSize") final int blockSize)
+	public SolrSearchResult<User> findUsers(SimpleQuery simpleUserQuery, 
+			@PathParam("start") final int skipBlocks, 
+			@PathParam("size") final int blockSize)
 			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
 
 		logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
@@ -765,11 +767,11 @@ public class UserService extends NdexService {
 	 * @throws SolrServerException 
 	 **************************************************************************/
 	@POST
-	@Path("/{userIdentifier}")
+	@Path("/{userid}")
 	@Produces("application/json")
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. The userName and UUID fields in the posted object are ignored by the server."
 			+ " Errors if the user object references a different user.")
-	public User updateUser(@PathParam("userIdentifier") final String userId, final User updatedUser)
+	public User updateUser(@PathParam("userid") final String userId, final User updatedUser)
 			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, SolrServerException, IOException {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
@@ -802,11 +804,11 @@ public class UserService extends NdexService {
 	}
 	
 	@GET
-	@Path("/membership/group/{groupId}")
+	@Path("/membership/group/{groupid}")
 	@Produces("application/json")
 	@ApiDoc("Returns the permission the current logged in user has on the given group. Returns null if the user is not a member of this group.")
 	public Permissions getGroupMembership(
-				@PathParam("groupId") final String groupId) 
+				@PathParam("groupid") final String groupId) 
 			throws IllegalArgumentException, SQLException {
 
 		logger.info("[start: Getting membership of account {}]", groupId);
@@ -824,11 +826,11 @@ public class UserService extends NdexService {
 	}
 	
 	@GET
-	@Path("/membership/network/{networkId}/{directOnly}")
+	@Path("/membership/network/{networkid}/{directonly}")
 	@Produces("application/json")
 	@ApiDoc("Get the type of permission the logged in user has on the given network. If directOnly is set to true, permissions grant through groups are not included in the result.")
-	public Permissions getNetworkMembership(@PathParam("networkId") final String networkId, 
-				@PathParam("directOnly") final boolean directOnly) 
+	public Permissions getNetworkMembership(@PathParam("networkid") final String networkId, 
+				@PathParam("directonly") final boolean directOnly) 
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
 
 		logger.info("[start: Getting membership of account {} on {}]", getLoggedInUser().getUserName(), networkId);
@@ -845,11 +847,11 @@ public class UserService extends NdexService {
 	
 	
 	@GET
-	@Path("/request/{skipBlocks}/{blockSize}")
+	@Path("/request/{start}/{size}")
 	@Produces("application/json")
 	@ApiDoc("")
-	public List<Request> getSentRequest(@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException, SQLException {
+	public List<Request> getSentRequest(@PathParam("start") int skipBlocks,
+			@PathParam("size") int blockSize) throws NdexException, SQLException {
 
 		logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 		
@@ -861,12 +863,12 @@ public class UserService extends NdexService {
 	}
 	
 	@GET
-	@Path("/request/pending/{skipBlocks}/{blockSize}")
+	@Path("/request/pending/{start}/{size}")
 	@Produces("application/json")
 	@ApiDoc("")
 	public List<Request> getPendingRequests(
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException, SQLException {
+			@PathParam("start") int skipBlocks,
+			@PathParam("size") int blockSize) throws NdexException, SQLException {
 
 		logger.info("[start: Getting pending request for user {}]", getLoggedInUser().getUserName());
 		
@@ -879,14 +881,14 @@ public class UserService extends NdexService {
 	
 
 	@GET
-	@Path("/task/{status}/{skipBlocks}/{blockSize}")
+	@Path("/task/{status}/{start}/{size}")
 	@Produces("application/json")
 	@ApiDoc("Returns an array of Task objects with the specified status")
 	public List<Task> getTasks(
 
 			@PathParam("status") final String status,
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
+			@PathParam("start") int skipBlocks,
+			@PathParam("size") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: Getting tasks for user {}]", getLoggedInUser().getUserName());
 		

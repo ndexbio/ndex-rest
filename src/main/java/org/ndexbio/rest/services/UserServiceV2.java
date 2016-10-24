@@ -137,11 +137,11 @@ public class UserServiceV2 extends NdexService {
 	 */
 	@GET
 	@PermitAll
-	@Path("/{userId}/verification")
+	@Path("/{userid}/verification")
 	@NdexOpenFunction
 //	@Produces("application/json")
 	@ApiDoc("Verify the given user with UUID and verificationCode")
-	public String verifyUser(@PathParam("userId") String userUUID,
+	public String verifyUser(@PathParam("userid") String userUUID,
 					@QueryParam("verificationCode") String verificationCode		
 			)
 			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
@@ -289,11 +289,11 @@ public class UserServiceV2 extends NdexService {
 	 **************************************************************************/
 	@GET
 	@PermitAll
-	@Path("/{userId}")
+	@Path("/{userid}")
 	@Produces("application/json")
 	@ApiDoc("Deprecated. User should use either the user/account/{accountName} function or user/uuid/{uuid} function to get user information. "
 			+ "This function returns the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
-	public User getUser(@PathParam("userId") final String userId)
+	public User getUser(@PathParam("userid") final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 		logger.info("[start: Getting user {}]", userId);
@@ -366,10 +366,10 @@ public class UserServiceV2 extends NdexService {
 	@SuppressWarnings("static-method")
 	@GET
 	@PermitAll
-	@Path("/{userId}")
+	@Path("/{userid}")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
-	public User getUserByUUID(@PathParam("userId") final String userId)
+	public User getUserByUUID(@PathParam("userid") final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 		logger.info("[start: Getting user from UUID {}]", userId);
@@ -462,11 +462,11 @@ public class UserServiceV2 extends NdexService {
 	 * @throws SolrServerException 
 	 **************************************************************************/
 	@DELETE
-	@Path("/{userIdentifier}")
+	@Path("/{userid}")
 	@Produces("application/json")
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user. "
 			+ "If this operation orphans a network or group, an exception will be thrown.")
-	public void deleteUser(@PathParam("userIdentifier") final String userId)
+	public void deleteUser(@PathParam("userid") final String userId)
 			throws NdexException, ObjectNotFoundException, SQLException, SolrServerException, IOException {
 
 		logger.info("[start: Deleting user (self).]");
@@ -533,11 +533,11 @@ public class UserServiceV2 extends NdexService {
 
 	 **************************************************************************/
 	@PUT
-	@Path("/{userIdentifier}")
+	@Path("/{userid}")
 	@Produces("application/json")
 	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. The userName and UUID fields in the posted object are ignored by the server."
 			+ " Errors if the user object references a different user.")
-	public void updateUser(@PathParam("userIdentifier") final String userId, final User updatedUser)
+	public void updateUser(@PathParam("userid") final String userId, final User updatedUser)
 			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, SolrServerException, IOException {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
@@ -569,11 +569,11 @@ public class UserServiceV2 extends NdexService {
 	}
 	
 	@GET
-	@Path("/{userId}/membership")
+	@Path("/{userid}/membership")
 	@Produces("application/json")
 	@ApiDoc("Returns the group membership information of a user.")
 	public Map<String,String> getMembershipInfo(
-				@PathParam("userId") final String userIdStr,
+				@PathParam("userid") final String userIdStr,
 			    @QueryParam("groupid") String groupIdStr,
 			    @QueryParam("type") String membershipType,
 				@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -616,11 +616,11 @@ public class UserServiceV2 extends NdexService {
 	}
 	
 	@GET
-	@Path("/{userId}/permission")
+	@Path("/{userid}/permission")
 	@Produces("application/json")
 	@ApiDoc("Get the type of permission the logged in user has on the given network. If directOnly is set to true, permissions grant through groups are not included in the result.")
 	public Map<String,String> getNetworkPermissionInfo(
-			@PathParam("userId") final String userIdStr,
+			@PathParam("userid") final String userIdStr,
 		    @QueryParam("networkid") String networkIdStr,
 		    @QueryParam("permission") String permissionType,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -663,11 +663,11 @@ public class UserServiceV2 extends NdexService {
  */
 	
 	   @POST
-	   @Path("/{userId}/membershiprequest")
+	   @Path("/{userid}/membershiprequest")
 	   @Produces("text/plain")
 	   @ApiDoc("Create a user permission request.")
 	    public Response createMembershipRequest(
-	    		@PathParam("userId") final String userIdStr,
+	    		@PathParam("userid") final String userIdStr,
 	    		final MembershipRequest newRequest) 
 	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
@@ -703,11 +703,11 @@ public class UserServiceV2 extends NdexService {
 	   
 
 	   @POST
-	   @Path("/{userId}/permissionrequest")
+	   @Path("/{userid}/permissionrequest")
 	   @Produces("text/plain")
 	   @ApiDoc("Create a group membership request.")
 	    public Response createPermissionRequest(
-	    		@PathParam("userId") final String userIdStr,
+	    		@PathParam("userid") final String userIdStr,
 	    		final PermissionRequest newRequest) 
 	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
@@ -744,11 +744,11 @@ public class UserServiceV2 extends NdexService {
 	   
 	   
 	   	@GET
-		@Path("/{userId}/permissionrequest/{requestId}")
+		@Path("/{userid}/permissionrequest/{requestid}")
 		@Produces("application/json")
 		@ApiDoc("")
-		public Request getPermissionRequestById(@PathParam("userId") String userIdStr,
-				@PathParam("requestId") String requestIdStr) throws NdexException, SQLException {
+		public Request getPermissionRequestById(@PathParam("userid") String userIdStr,
+				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException {
 
 			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 			
@@ -768,11 +768,11 @@ public class UserServiceV2 extends NdexService {
 		
 	
 	   	@GET
-		@Path("/{userId}/permissionrequest")
+		@Path("/{userid}/permissionrequest")
 		@Produces("application/json")
 		@ApiDoc("")
 		public List<Request> getPermissionRequests (
-				 @PathParam("userId") String userIdStr,
+				 @PathParam("userid") String userIdStr,
 				  @QueryParam("type") String queryType
 				) throws NdexException, SQLException {
 
@@ -812,11 +812,11 @@ public class UserServiceV2 extends NdexService {
 	   	
 
 	   	@GET
-		@Path("/{userId}/membershiprequest")
+		@Path("/{userid}/membershiprequest")
 		@Produces("application/json")
 		@ApiDoc("")
 		public List<Request> getMembershipRequests (
-				 @PathParam("userId") String userIdStr,
+				 @PathParam("userid") String userIdStr,
 				  @QueryParam("type") String queryType
 				) throws NdexException, SQLException {
 
@@ -856,12 +856,12 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	
 	   	@GET
-			@Path("/{userId}/membershiprequest/{requestId}")
+			@Path("/{userid}/membershiprequest/{requestid}")
 			@Produces("application/json")
 			@ApiDoc("")
 			public Request getMembershipRequestById(
-					 @PathParam("userId") String userIdStr,
-					 @PathParam("requestId") String requestIdStr
+					 @PathParam("userid") String userIdStr,
+					 @PathParam("requestid") String requestIdStr
 					) throws NdexException, SQLException {
 
 				logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
@@ -881,12 +881,12 @@ public class UserServiceV2 extends NdexService {
 			}   
 	   	
 	   	@PUT
-		@Path("/{userId}/membershiprequest/{requestId}")
+		@Path("/{userid}/membershiprequest/{requestid}")
 		@Produces("application/json")
 		@ApiDoc("")
 		public void respondMembershipRequest(
-				 @PathParam("userId") String userIdStr,
-				 @PathParam("requestId") String requestIdStr,
+				 @PathParam("userid") String userIdStr,
+				 @PathParam("requestid") String requestIdStr,
 				 @QueryParam("action")  String action,
 				 @QueryParam("message") String message
 				) throws NdexException, SQLException {
@@ -942,12 +942,12 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	
 	   	@PUT
-		@Path("/{userId}/permissionrequest/{requestId}")
+		@Path("/{userid}/permissionrequest/{requestid}")
 		@Produces("application/json")
 		@ApiDoc("")
 		public void respondPermissionRequest(
-				 @PathParam("userId") String userIdStr,
-				 @PathParam("requestId") String requestIdStr,
+				 @PathParam("userid") String userIdStr,
+				 @PathParam("requestid") String requestIdStr,
 				 @QueryParam("action")  String action,
 				 @QueryParam("message") String message
 				) throws NdexException, SQLException, SolrServerException, IOException {
@@ -1006,12 +1006,12 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	
 	   	@DELETE
-		@Path("/{userId}/membershiprequest/{requestId}")
+		@Path("/{userid}/membershiprequest/{requestid}")
 		@Produces("application/json")
 		@ApiDoc("")
 		public void deleteMembershipRequestById(
-					 @PathParam("userId") String userIdStr,
-					 @PathParam("requestId") String requestIdStr
+					 @PathParam("userid") String userIdStr,
+					 @PathParam("requestid") String requestIdStr
 					) throws NdexException, SQLException {
 
 				logger.info("[start: Deleting requests sent by user {}]", getLoggedInUser().getUserName());
@@ -1034,12 +1034,12 @@ public class UserServiceV2 extends NdexService {
 
 	
 	   	@DELETE
-		@Path("/{userId}/permissionrequest/{requestId}")
+		@Path("/{userid}/permissionrequest/{requestid}")
 		@Produces("application/json")
 		@ApiDoc("")
 		public void deletePermissionRequestById(
-					 @PathParam("userId") String userIdStr,
-					 @PathParam("requestId") String requestIdStr
+					 @PathParam("userid") String userIdStr,
+					 @PathParam("requestid") String requestIdStr
 					) throws NdexException, SQLException {
 
 				logger.info("[start: Deleting requests sent by user {}]", getLoggedInUser().getUserName());
@@ -1060,40 +1060,7 @@ public class UserServiceV2 extends NdexService {
 				
 			}   
 
-/*
-	@GET
-	@Path("/request/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-	@ApiDoc("")
-	public List<Request> getSentRequest(@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException, SQLException {
 
-		logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
-		
-		try (RequestDAO dao = new RequestDAO ()){
-			List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),skipBlocks, blockSize);
-			logger.info("[end: Returning {} requests]", reqs.size());
-			return reqs;
-		}
-	}
-	
-	@GET
-	@Path("/request/pending/{skipBlocks}/{blockSize}")
-	@Produces("application/json")
-	@ApiDoc("")
-	public List<Request> getPendingRequests(
-			@PathParam("skipBlocks") int skipBlocks,
-			@PathParam("blockSize") int blockSize) throws NdexException, SQLException {
-
-		logger.info("[start: Getting pending request for user {}]", getLoggedInUser().getUserName());
-		
-		try (RequestDAO dao = new RequestDAO ()){
-			List<Request> reqs= dao.getPendingRequestByUserId(this.getLoggedInUserId(),skipBlocks, blockSize);
-			logger.info("[end: Returning {} pending request.]", reqs.size());
-			return reqs;
-		} 
-	}
-*/	
 	
 	// these are just prototypes not in production, 
 
