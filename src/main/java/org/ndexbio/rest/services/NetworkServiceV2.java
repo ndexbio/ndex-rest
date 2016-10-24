@@ -915,7 +915,7 @@ public class NetworkServiceV2 extends NdexService {
 			)
 			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
 		
-		logger.info("[start: Removing any permissions for network {} for ....]", networkIdStr);
+	//	logger.info("[start: Removing any permissions for network {} for ....]", networkIdStr);
 		
 		UUID networkId = UUID.fromString(networkIdStr);
 
@@ -933,8 +933,22 @@ public class NetworkServiceV2 extends NdexService {
 		
 		
 		try (NetworkDAO networkDao = new NetworkDAO()){
-			User user = getLoggedInUser();
-			networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
+		//	User user = getLoggedInUser();
+		//	networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
+			
+			if (!networkDao.isAdmin(networkId,getLoggedInUserId())) {
+				if ( userId != null && !userId.equals(getLoggedInUserId())) {
+					throw new UnauthorizedOperationException("Unable to delete network permisison: user need to be admin of this network or grantee of this permission.");
+				}
+				if ( groupId!=null ) {	
+					throw new UnauthorizedOperationException("Unable to delete network permission: user is not an admin of this network.");
+				}
+			}
+
+			if ( networkDao.networkIsLocked(networkId)) {
+				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+			} 
+			
 			int count;
 			if ( userId !=null)
 				count = networkDao.revokeUserPrivilege(networkId, userId);
@@ -942,7 +956,7 @@ public class NetworkServiceV2 extends NdexService {
 				count = networkDao.revokeGroupPrivilege(networkId, groupId);
 
             networkDao.commit();
-    		logger.info("[end: Removed any permissions for network {} ]", networkId);
+    	//	logger.info("[end: Removed any permissions for network {} ]", networkId);
             return count;
 		} 
 	}

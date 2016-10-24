@@ -73,6 +73,7 @@ import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.UserV1;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -264,14 +265,7 @@ public class UserService extends NdexService {
 	 * 
 	 * @param userId
 	 *            The ID or accountName of the user.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to change the password in the database.
-	 * @throws IOException 
-	 * @throws SQLException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
+
 	 **************************************************************************/
 	@GET
 	@PermitAll
@@ -279,13 +273,26 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Deprecated. User should use either the user/account/{accountName} function or user/uuid/{uuid} function to get user information. "
 			+ "This function returns the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
-	public User getUser(@PathParam("userid") @Encoded final String userId)
+	public User getUserV1(@PathParam("userid") @Encoded final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
-		logger.info("[start: Getting user {}]", userId);
+	//	logger.info("[start: Getting user {}]", userId);
+		
+	/*	try (UserDAO dao = new UserDAO())  {
+			try {
+				final User user = dao.getUserByAccountName(userId.toLowerCase(),true);
+				logger.info("[end: User object returned for user account {}]", userId);
+				return user;
+			} catch (ObjectNotFoundException e) {
+				final User user = dao.getUserById(UUID.fromString(userId),true);
+				logger.info("[end: User object returned for user account {}]", userId);
+				return user;
+			}
+		}  */
 		
 		try (UserDAO dao = new UserDAO()) {
 			try {
+							
 				UUID useruuid = UUID.fromString(userId);
 				final User user = dao.getUserById(useruuid,true);
 				logger.info("[end: User object returned for user account {}]", userId);
@@ -295,8 +302,8 @@ public class UserService extends NdexService {
 				logger.info("[end: User object returned for user account {}]", userId);
 				return user;
 			}
-		} 
-	}
+		}  
+	} 
 	
 	/**************************************************************************
 	 * Gets a user by accountName. 
@@ -491,7 +498,7 @@ public class UserService extends NdexService {
 	@Path("/authenticate")
 	@Produces("application/json")
 	@ApiDoc("Authenticates the combination of accountName and password supplied in the Auth header, returns the authenticated user if successful.")
-	public User authenticateUser()
+	public UserV1 authenticateUser()
 			throws UnauthorizedOperationException {
 		
 		logger.info("[start: Authenticate user from Auth header]");
@@ -503,8 +510,8 @@ public class UserService extends NdexService {
 		}	
 		
 		logger.info("[end: user {} autenticated from Auth header]",  u.getUserName());
-		return this.getLoggedInUser();
-	}
+		return new UserV1(this.getLoggedInUser());
+	} 
 	
 
 

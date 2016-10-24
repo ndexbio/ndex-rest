@@ -46,6 +46,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1489,6 +1490,23 @@ public class NetworkService extends NdexService {
         }
 	}
 
+	@POST
+	@PermitAll
+	@Path("/search/{start}/{size}")
+	@Produces("application/json")
+	@ApiDoc("This method returns a list of NetworkSummary objects based on a POSTed query JSON object. " +
+            "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
+            "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
+            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
+	public Collection<NetworkSummary> searchNetworkV1(
+			final SimpleNetworkQuery query,
+			@PathParam("start") final int skipBlocks,
+			@PathParam("size") final int blockSize)
+			throws IllegalArgumentException, NdexException {
+		
+		return searchNetwork_solr(query, skipBlocks, blockSize).getNetworks();
+	}
+	
 	
     @PUT
     @Path("/asCX/{networkid}")
