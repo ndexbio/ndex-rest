@@ -78,7 +78,7 @@ public class SingleNetworkSolrIdxManager {
 	private static final String ALIAS= "alias";
 //	private static final String RELATEDTO = "relatedTo";
 		
-	public SingleNetworkSolrIdxManager(String networkUUID) throws NdexException {
+	public SingleNetworkSolrIdxManager(String networkUUID) {
 		coreName = networkUUID;
 		solrUrl = Configuration.getInstance().getSolrURL();
 		client = new HttpSolrClient(solrUrl);
@@ -124,9 +124,15 @@ public class SingleNetworkSolrIdxManager {
 		commit();
 	}
 	
-	public void dropIndex() throws SolrServerException, IOException {
-		client.setBaseURL(solrUrl);
-		CoreAdminRequest.unloadCore(coreName, true, true, client);
+	public void dropIndex() throws IOException, SolrServerException, NdexException {
+		try {
+			client.setBaseURL(solrUrl);
+			CoreAdminRequest.unloadCore(coreName, true, true, client);
+		} catch (HttpSolrClient.RemoteSolrException e4) {
+			System.out.println(e4.getMessage());
+			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1)
+				throw new NdexException("Unexpected Exception: " + e4.getMessage());
+		} 
 	}
 	
 	private void addNodeIndex(Long id, String name, Collection<String> represents, Collection<String> alias) throws SolrServerException, IOException {

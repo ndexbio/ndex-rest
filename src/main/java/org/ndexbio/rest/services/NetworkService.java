@@ -1586,9 +1586,9 @@ public class NetworkService extends NdexService {
 	@Produces("application/json")
     @ApiDoc("Deletes the network specified by networkId. There is no method to undo a deletion, so care " +
 	        "should be exercised. A user can only delete networks that they own.")
-	public void deleteNetwork(final @PathParam("networkid") String id) throws NdexException, IOException, SQLException, SolrServerException {
+	public void deleteNetwork(final @PathParam("networkid") String id) throws NdexException, SQLException {
 
-		logger.info("[start: Deleting network {}]", id);
+//		logger.info("[start: Deleting network {}]", id);
 		    
 		try (NetworkDAO networkDao = new NetworkDAO()) {
 			UUID networkId = UUID.fromString(id);
@@ -1605,7 +1605,7 @@ public class NetworkService extends NdexService {
 						networkDao.deleteNetwork(UUID.fromString(id), getLoggedInUser().getExternalId());
 						networkDao.commit();
 										
-						logger.info("[end: Deleted network {}]", id);
+//						logger.info("[end: Deleted network {}]", id);
 						return;
 					}
 					throw new NdexException ("Network is locked by another updating process. Please try again.");
@@ -1613,6 +1613,8 @@ public class NetworkService extends NdexService {
 				  throw new NdexException("Can't delete a read-only network.");
 			}	
 			throw new NdexException("Only network owner can delete a network.");	
+		} catch (SolrServerException | IOException e ) {
+			throw new NdexException ("Error occurred when deleting network: " + e.getMessage(), e);
 		}
 			
 	}
