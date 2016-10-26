@@ -50,7 +50,7 @@ public class ObjectNotFoundExceptionMapper implements ExceptionMapper<ObjectNotF
     {
     	MDC.put("error", exception.getMessage());
     	logger.error("SERVER ERROR:", exception);
-    	exception.printStackTrace();
+//    	exception.printStackTrace();
         return Response
             .status(Status.NOT_FOUND)
             .entity(exception.getNdexExceptionInJason())

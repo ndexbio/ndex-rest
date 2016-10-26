@@ -343,7 +343,7 @@ public class GroupServiceV2 extends NdexService {
 		    @QueryParam("permission") String permissions,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize ) 
-					throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
+					throws NdexException, SQLException, IllegalArgumentException {
 
 		logger.info("[start: Getting {} networks of group {}]", permissions, groupIdStr);
 		
@@ -477,7 +477,7 @@ public class GroupServiceV2 extends NdexService {
 		@ApiDoc("For authenticated users, this function returns all the networks that the given group has direct access to and the authenticated user can see." + 
 				"For anonymous users, this function returns all publice networks that the specified group bas direct access to."
 				+ "")
-		private List<Request> getPermissionRequests(@PathParam("groupid") final String groupIdStr,
+		public List<Request> getPermissionRequests(@PathParam("groupid") final String groupIdStr,
 				@QueryParam("networkid") final String networkIdStr,
 				@QueryParam("permission") final String permissionStr) throws NdexException, SQLException {
 			

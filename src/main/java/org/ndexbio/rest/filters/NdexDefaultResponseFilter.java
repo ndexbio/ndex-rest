@@ -94,10 +94,10 @@ public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Fi
 			ContainerResponseContext responseContext) throws IOException {
 
 		MultivaluedMap<String, Object> headers = responseContext.getHeaders();
-		headers.putSingle("Access-Control-Allow-Origin", "*");
+	/*	headers.putSingle("Access-Control-Allow-Origin", "*");
 		headers.putSingle("Access-Control-Allow-Methods", "HEAD, DELETE,GET,OPTIONS,POST,PUT");
 		headers.putSingle("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization, Content-Length, X-Requested-With");
-		headers.putSingle("Access_Control_Allow_Credentials", true);
+		headers.putSingle("Access_Control_Allow_Credentials", true); */
 	
 		final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)arg0.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
 	    if ( methodInvoker != null) {

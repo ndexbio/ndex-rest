@@ -1511,7 +1511,7 @@ public class NetworkService extends NdexService {
     @PUT
     @Path("/asCX/{networkid}")
     @Consumes("multipart/form-data")
-    @Produces("application/json")
+    @Produces("text/plain")
     @ApiDoc("This method updates an existing network with new content. The method takes a Network CX " +
             "document as the PUT data. The Network's UUID is specified in the URL if this function. " +
             " This method errors if the Network object is not " +
@@ -1519,7 +1519,7 @@ public class NetworkService extends NdexService {
             "errors if the Network object is larger than a maximum size for network creation set in the NDEx " +
             "server configuration. Network UUID is returned. This function also takes an optional 'provenance' field in the posted form."
             + " See createCXNetwork function for more details of this parameter.")
-    public void updateCXNetwork(final @PathParam("networkid") String networkIdStr,
+    public String updateCXNetwork(final @PathParam("networkid") String networkIdStr,
     		MultipartFormDataInput input) throws Exception 
     {
     	
@@ -1576,7 +1576,7 @@ public class NetworkService extends NdexService {
         }  
     	      
 	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
-	    // return networkIdStr; 
+	     return networkIdStr; 
     }
 
     
