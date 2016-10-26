@@ -430,7 +430,7 @@ public class RequestDAO extends NdexDBDAO  {
 				" when r.request_type = 'GroupNetworkAccess' then " +
 				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
 				" end as source_name "		
-				+ " from r.request where r.owner_id = ? and r.is_deleted = false ";
+				+ " from request r where r.owner_id = ? and r.is_deleted = false ";
 		if ( requestType !=null)
 			queryStr += " and request_type = '" + requestType.name() + "'";
 		
