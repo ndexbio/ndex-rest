@@ -101,15 +101,24 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 
 	
-	public void CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName) throws SQLException {
+	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName) throws SQLException {
+		Timestamp t = new Timestamp(System.currentTimeMillis());
+		
 		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly) values"
-				+ "(?, localtimestamp, localtimestamp, false, false, 'PRIVATE',?,?,false) ";
+				+ "(?, ?, ?, false, false, 'PRIVATE',?,?,false) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkUUID);
-			pst.setObject(2, ownerId);
-			pst.setString(3, ownerUserName);
+			pst.setTimestamp(2, t);
+			pst.setTimestamp(3, t);
+			pst.setObject(4, ownerId);
+			pst.setString(5, ownerUserName);
 			pst.executeUpdate();
 		}
+		NetworkSummary result = new NetworkSummary();
+		result.setCreationTime(t);
+		result.setModificationTime(t);
+		result.setExternalId(networkUUID);
+		return result;
 	}
 	
 
@@ -218,9 +227,9 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws NdexException 
 	 * @throws JsonProcessingException 
 	 */
-	public void saveNetworkEntry(NetworkSummary networkSummary, ProvenanceEntity provenance, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
+	public void saveNetworkEntry(NetworkSummary networkSummary, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
-				+ "properties = ? ::jsonb, provenance = ? :: jsonb, cxmetadata = ? :: json, warnings = ?, "
+				+ "properties = ? ::jsonb, cxmetadata = ? :: json, warnings = ?, "
 				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setString(1,networkSummary.getName());
@@ -236,32 +245,26 @@ public class NetworkDAO extends NdexDBDAO {
 			} else {
 				pst.setString(6, null);
 			}
-			
-			if ( provenance != null ) {
-				ObjectMapper mapper = new ObjectMapper();
-		        String s = mapper.writeValueAsString( provenance);
-				pst.setString(7, s);
-			} else 
-				pst.setString(7, null);
-				
+					
 			if (metadata !=null) {
 				ObjectMapper mapper = new ObjectMapper();
 		        String s = mapper.writeValueAsString( metadata);
-				pst.setString(8, s);
+				pst.setString(7, s);
 			}	else 
-				pst.setString(8, null);
+				pst.setString(7, null);
 			
 			// set warnings
 			String[] warningArray = networkSummary.getWarnings().toArray(new String[0]);
 			Array arrayWarnings = db.createArrayOf("text", warningArray);
-			pst.setArray(9, arrayWarnings);
+			pst.setArray(8, arrayWarnings);
 			
-			pst.setObject(10, networkSummary.getExternalId());
+			pst.setObject(9, networkSummary.getExternalId());
 			int i = pst.executeUpdate();
 			if ( i != 1)
 				throw new NdexException ("Failed to update network summary entry in db.");
 		}
 	}
+
 
 	
 	/**
@@ -494,7 +497,11 @@ public class NetworkDAO extends NdexDBDAO {
 				e = new MetaDataElement ();
 				e.setName(Provenance.ASPECT_NAME);
 				e.setVersion("1.0");
-				e.setConsistencyGroup(metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup());
+				
+				long cg = 1;
+				if (metadata.getMetaDataElement(NodesElement.ASPECT_NAME) != null)
+					cg = metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup();
+				e.setConsistencyGroup(cg);
 				e.setElementCount(1L);
 				metadata.addAt(0, e);
 			}		
@@ -858,8 +865,11 @@ public class NetworkDAO extends NdexDBDAO {
 			try ( ResultSet rs = p.executeQuery()) {
 				if ( rs.next()) {
 					String s = rs.getString(1);
-					MetaDataCollection metadata = MetaDataCollection.createInstanceFromJson(s);
-					return metadata;
+					if ( s != null) {
+						MetaDataCollection metadata = MetaDataCollection.createInstanceFromJson(s);
+						return metadata;
+					}
+					return new MetaDataCollection();
 				}
 				throw new NdexException ("No metadata found for network " + networkId + " in database.");
 			}

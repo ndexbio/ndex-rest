@@ -1853,8 +1853,7 @@ public class NetworkService extends NdexService {
 
 	   @Path("/asCX")
 //	   @Produces("application/json")
-	   @Produces("text/plain"
-	   		+ "")
+	   @Produces("text/plain")
 	   @Consumes("multipart/form-data")
 	   @ApiDoc("Create a network from the uploaded CX stream. The input cx data is expected to be in the CXNetworkStream field of posted multipart/form-data. "
 	   		+ "There is an optional 'provenance' field in the form. Users can use this field to pass in a JSON string of ProvenanceEntity object. When a user pass"
@@ -1868,10 +1867,28 @@ public class NetworkService extends NdexService {
 		   UUID uuid = storeRawNetwork ( input);
 		   String uuidStr = uuid.toString();
 		   
+		   String urlStr = Configuration.getInstance().getHostURI()  + 
+		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
+
+		   ProvenanceEntity entity = new ProvenanceEntity();
+		   entity.setUri(urlStr + "/summary");
 		   // create entry in db. 
 	       try (NetworkDAO dao = new NetworkDAO()) {
-	    	   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName());
+	    	   NetworkSummary summary = dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName());
+	    	   
+       
+			   ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
+
+				List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+				Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+				event.setProperties(eventProperties);
+
+				entity.setCreationEvent(event);
+				dao.setProvenance(summary.getExternalId(), entity);
 	    	   dao.commit();
+	       } catch (Throwable e) {
+	    	   e.printStackTrace();
+	    	   throw e;
 	       }
 	       
 	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false));

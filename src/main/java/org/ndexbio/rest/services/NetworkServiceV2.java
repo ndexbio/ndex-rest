@@ -1491,18 +1491,30 @@ public class NetworkServiceV2 extends NdexService {
 		   String uuidStr = uuid.toString();
 		   
 		   
+		   String urlStr = Configuration.getInstance().getHostURI()  + 
+		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
+		   ProvenanceEntity entity = new ProvenanceEntity();
+		   entity.setUri(urlStr + "/summary");
 		   // create entry in db. 
 	       try (NetworkDAO dao = new NetworkDAO()) {
-	    	   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName());
-	    	   dao.commit();
+	    	   NetworkSummary summary = dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName());
+       
+			   ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
+
+				List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+				Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+				event.setProperties(eventProperties);
+
+				entity.setCreationEvent(event);
+				dao.setProvenance(summary.getExternalId(), entity);
+				dao.commit();
 	       }
 	       
 	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false));
 	       
 		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 		   
-		   URI l = new URI (Configuration.getInstance().getHostURI()  + 
-				            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr);
+		   URI l = new URI (urlStr);
 
 		   return Response.created(l).entity(l).build();
 

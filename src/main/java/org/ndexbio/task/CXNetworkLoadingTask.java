@@ -9,6 +9,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.ProvenanceEntity;
 
 public class CXNetworkLoadingTask implements NdexSystemTask {
 	

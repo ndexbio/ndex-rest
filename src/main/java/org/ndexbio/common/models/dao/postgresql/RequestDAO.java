@@ -233,7 +233,17 @@ public class RequestDAO extends NdexDBDAO  {
 	
 	
 	private Request getRequestById (UUID requestId) throws SQLException, ObjectNotFoundException {
-		String sqlStr = "select * from request where \"UUID\" = ? and is_deleted=false";
+		String sqlStr = "select r.*, " +
+				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
+				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
+				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) " +
+				" end as destination_name, " +
+				" case when r.request_type ='JoinGroup' or r.request_type ='UserNetworkAccess' " +
+				" then (select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) " +
+				" when r.request_type = 'GroupNetworkAccess' then " +
+				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
+				" end as source_name "		
+				+ "from request r where r.\"UUID\" = ? and r.is_deleted=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, requestId);
 			try (ResultSet rs = pst.executeQuery()) {
@@ -268,9 +278,8 @@ public class RequestDAO extends NdexDBDAO  {
 		if ( s!=null) 
 		   r.setRequestType(RequestType.valueOf(s));
 		
-		//TODO: need to populate these 2 fields as well.
-		//	result.setSourceName((String) request.field(NdexClasses.Request_P_sourceName));
-		//	result.setDestinationName((String) request.field("destinationName"));
+		r.setSourceName(rs.getString("source_name"));
+		r.setDestinationName(rs.getString("destination_name"));
 
 		return r;
 	}
@@ -280,7 +289,17 @@ public class RequestDAO extends NdexDBDAO  {
 
 		final List<Request> requests = new ArrayList<>();
 
-		String queryStr = "select a.* from ( select r.* from request r, network n "
+		String queryStr = "select a.*, " +
+				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
+				 "when  a.request_type ='UserNetworkAccess' or a.request_type = 'GroupNetworkAccess' then " +
+				"(select n.name from network n where n.\"UUID\"= a.destinationuuid) " +
+				" end as destination_name, " +
+				" case when a.request_type ='JoinGroup' or a.request_type ='UserNetworkAccess' " +
+				" then (select u.user_name from ndex_user u where u.\"UUID\" = a.sourceuuid) " +
+				" when a.request_type = 'GroupNetworkAccess' then " +
+				" (select g.group_name from ndex_group g where g.\"UUID\"= a.sourceuuid) " +
+				" end as source_name "		
+				+ "from ( select r.* from request r, network n "
 				+ "where n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and "
 				+ "(r.response is null or r.response = '"+ ResponseType.PENDING.name()+ "') and r.is_deleted =false "
 				+ "union select r2.* from request r2, ndex_group_user gu "
@@ -311,7 +330,17 @@ public class RequestDAO extends NdexDBDAO  {
 
 		final List<Request> requests = new ArrayList<>();
 
-		String queryStr = " select r.* from request r, network n "
+		String queryStr = " select r.*, " +
+				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
+				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
+				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) " +
+				" end as destination_name, " +
+				" case when r.request_type ='JoinGroup' or r.request_type ='UserNetworkAccess' " +
+				" then (select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) " +
+				" when r.request_type = 'GroupNetworkAccess' then " +
+				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
+				" end as source_name "		
+				+ "from request r, network n "
 				+ "where r.request_type <> 'JoinGroup' and n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and "
 				+ "(r.response is null or r.response = '"+ ResponseType.PENDING.name()+ "') and r.is_deleted =false ";
 						
@@ -339,9 +368,19 @@ public class RequestDAO extends NdexDBDAO  {
 
 		final List<Request> requests = new ArrayList<>();
 
-		String queryStr = "select r2.* from request r2, ndex_group_user gu "
-				+ "where gu.group_id = r2.destinationuuid and gu.user_id = ? and gu.is_admin and "
-				+ "( r2.response is null or r2.response = '"+ ResponseType.PENDING.name()+ "') and r2.is_deleted=false";
+		String queryStr = "select r.*, " +
+				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
+				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
+				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) " +
+				" end as destination_name, " +
+				" case when r.request_type ='JoinGroup' or r.request_type ='UserNetworkAccess' " +
+				" then (select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) " +
+				" when r.request_type = 'GroupNetworkAccess' then " +
+				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
+				" end as source_name "		
+				+ "from request r, ndex_group_user gu "
+				+ "where gu.group_id = r.destinationuuid and gu.user_id = ? and gu.is_admin and "
+				+ "( r.response is null or r.response = '"+ ResponseType.PENDING.name()+ "') and r.is_deleted=false";
 						
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
@@ -381,7 +420,17 @@ public class RequestDAO extends NdexDBDAO  {
 
 		final List<Request> requests = new ArrayList<>();
 
-		String queryStr = "select * from request where owner_id = ? and is_deleted = false ";
+		String queryStr = "select r.*, " +
+				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
+				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
+				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) " +
+				" end as destination_name, " +
+				" case when r.request_type ='JoinGroup' or r.request_type ='UserNetworkAccess' " +
+				" then (select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) " +
+				" when r.request_type = 'GroupNetworkAccess' then " +
+				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
+				" end as source_name "		
+				+ " from r.request where r.owner_id = ? and r.is_deleted = false ";
 		if ( requestType !=null)
 			queryStr += " and request_type = '" + requestType.name() + "'";
 		
@@ -411,7 +460,17 @@ public class RequestDAO extends NdexDBDAO  {
 
 		final List<Request> requests = new ArrayList<>();
 		
-		String queryStr = "select * from request where is_deleted = false and permission_type = 'GroupNetworkAccess' and sourceuuid = '"
+		String queryStr = "select r.*, " +
+				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
+				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
+				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) " +
+				" end as destination_name, " +
+				" case when r.request_type ='JoinGroup' or r.request_type ='UserNetworkAccess' " +
+				" then (select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) " +
+				" when r.request_type = 'GroupNetworkAccess' then " +
+				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
+				" end as source_name "		
+				+ "from request r where r.is_deleted = false and r.permission_type = 'GroupNetworkAccess' and r.sourceuuid = '"
 				   + groupId.toString() + "' ";
 		if ( networkId != null)
 			queryStr += " and destinationuuid = '" + networkId.toString() + "' ";

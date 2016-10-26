@@ -88,6 +88,7 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
+import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -118,7 +119,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 //	private Map<String, Long> namespaceMap;   // prefix to nsID mapping.
 	
-	private Provenance provenanceHistory;
+//	private Provenance provenanceHistory;    // comment out for now.
 	private Set<Long> subNetworkIds;
 		
 	long opaqueCounter ;
@@ -172,7 +173,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		aspectTable = new TreeMap<>();
 		this.subNetworkIds = new HashSet<>(10);
 	
-		provenanceHistory = null;
+//		provenanceHistory = null;
 		
 		networkName = null;
 		description = null;
@@ -235,7 +236,9 @@ public class CXNetworkLoader implements AutoCloseable {
 				summary.setVersion(this.version);
 				summary.setWarnings(warnings);
 				try {
-					dao.saveNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
+				//	dao.saveNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
+					dao.saveNetworkEntry(summary, metadata);
+						
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();	
@@ -267,7 +270,8 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 			  				
 				//recreate CX file
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, provenanceHistory);
+				ProvenanceEntity provenanceHistory = dao.getProvenance(networkId);
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, new Provenance(provenanceHistory));
 				String tmpFileName = g.createNetworkFile();
 				
 				java.nio.file.Path src = Paths.get(tmpFileName);
@@ -335,8 +339,9 @@ public class CXNetworkLoader implements AutoCloseable {
 					createFunctionTerm((FunctionTermElement)elmt);
 					break;
 					
-				case Provenance.ASPECT_NAME:   // we only save the provenance aspect in db not in the disk.
-					this.provenanceHistory = (Provenance)elmt;
+				case Provenance.ASPECT_NAME:   // we ignore the provenance aspect in the uploaded networ for now.
+												// uncomment the following line to save it.
+		//			this.provenanceHistory = (Provenance)elmt;
 					break;
 				default:    // opaque aspect
 					createAspectElement(elmt);
