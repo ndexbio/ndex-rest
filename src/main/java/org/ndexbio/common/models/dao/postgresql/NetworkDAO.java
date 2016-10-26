@@ -478,7 +478,7 @@ public class NetworkDAO extends NdexDBDAO {
 				        ProvenanceEntity o = mapper.readValue(s, ProvenanceEntity.class); 	
 				        return o;
 					}
-					return null;
+					return new ProvenanceEntity();
 				}
 				throw new ObjectNotFoundException ("network",networkId);
 			}
