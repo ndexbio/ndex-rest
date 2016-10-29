@@ -173,7 +173,7 @@ public class UserDAO extends NdexDBDAO {
 				    ","  + NdexClasses.User_firstName        + ", " + NdexClasses.User_password +
 				    ","  + NdexClasses.User_displayName      + ","  + NdexClasses.User_emailAddress + 
 				    "," + NdexClasses.User_isIndividual     +","  + NdexClasses.User_isVerified + 
-				    ") values ( ?,?,?,false,?, ?,?,? :: jsonb, ?,?, ?,?,?,?,?,?)";
+				    ") values ( ?,?,?,false,?,?, ?,? :: jsonb, ?,?, ?, ?,?,?,?,?)";
 		try (PreparedStatement st = db.prepareStatement(insertstmt) ) {
 				st.setObject(1, newUser.getExternalId());
 				st.setTimestamp(2, newUser.getCreationTime());
@@ -202,7 +202,6 @@ public class UserDAO extends NdexDBDAO {
 				st.setString(12, newUser.getDisplayName());
 				st.setString(13, newUser.getEmailAddress());
 				st.setBoolean(14, newUser.getIsIndividual());
-				
 				
 				int rowsInserted = st.executeUpdate();
 				if ( rowsInserted != 1)

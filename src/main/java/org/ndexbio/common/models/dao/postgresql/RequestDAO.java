@@ -39,23 +39,21 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 
-import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.model.exceptions.*;
-import org.ndexbio.model.object.Group;
+import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
 
-import java.util.logging.Logger;
-
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 
 public class RequestDAO extends NdexDBDAO  {
 	private static final Logger logger = Logger.getLogger(RequestDAO.class.getName());
@@ -280,7 +278,8 @@ public class RequestDAO extends NdexDBDAO  {
 		
 		r.setSourceName(rs.getString("source_name"));
 		r.setDestinationName(rs.getString("destination_name"));
-
+		r.setRequesterId((UUID)rs.getObject("owner_uuid"));
+		
 		return r;
 	}
 	

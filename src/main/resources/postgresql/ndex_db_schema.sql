@@ -211,7 +211,9 @@ CREATE TABLE network (
     version character varying(100),
     ndexdoi character varying(200),
     is_validated boolean DEFAULT false,
-    readonly boolean
+    readonly boolean,
+    error character varying(2000),
+    warnings text[]
 );
 
 
@@ -222,6 +224,34 @@ ALTER TABLE network OWNER TO ndexserver;
 --
 
 COMMENT ON TABLE network IS 'network info.';
+
+
+--
+-- Name: COLUMN network.iscomplete; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN network.iscomplete IS 'For server use only. When all the validation processes and indexes are created for this network, we will set iscomplete to true.';
+
+
+--
+-- Name: COLUMN network.is_validated; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN network.is_validated IS 'When we pass the CX validation process, this flag will be set to true.';
+
+
+--
+-- Name: COLUMN network.error; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN network.error IS 'store the last error message if server failed to do any validation or indexing on this network.';
+
+
+--
+-- Name: COLUMN network.warnings; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN network.warnings IS 'Stores warnings.';
 
 
 --
@@ -242,7 +272,8 @@ CREATE TABLE request (
     responsetime timestamp without time zone,
     other_attributes jsonb,
     responder character varying(200),
-    owner_id uuid
+    owner_id uuid,
+    request_type character varying(20)
 );
 
 
@@ -256,10 +287,27 @@ COMMENT ON TABLE request IS 'request info.';
 
 
 --
+-- Name: COLUMN request.response; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN request.response IS 'Valid response type are: DECLINED, ACCEPTED, PENDING;';
+
+
+--
 -- Name: COLUMN request.owner_id; Type: COMMENT; Schema: core; Owner: ndexserver
 --
 
 COMMENT ON COLUMN request.owner_id IS 'The owner of this request.';
+
+
+--
+-- Name: COLUMN request.request_type; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN request.request_type IS 'The valid request types are: 
+1. ''user'' which means user permission request on network; 
+2. ''group'' which means group permission request on network;
+3. ''membership'' which means user memebership request on group.';
 
 
 --
@@ -501,6 +549,14 @@ ALTER TABLE ONLY ndex_group_user
 
 
 --
+-- Name: group_network_membership_group_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: ndexserver
+--
+
+ALTER TABLE ONLY group_network_membership
+    ADD CONSTRAINT group_network_membership_group_id_fkey FOREIGN KEY (group_id) REFERENCES ndex_group("UUID");
+
+
+--
 -- Name: request_owner_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: ndexserver
 --
 
@@ -514,6 +570,22 @@ ALTER TABLE ONLY request
 
 ALTER TABLE ONLY task
     ADD CONSTRAINT "task_ownerUUID_fkey" FOREIGN KEY (owneruuid) REFERENCES ndex_user("UUID");
+
+
+--
+-- Name: user_network_membership_network_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: ndexserver
+--
+
+ALTER TABLE ONLY user_network_membership
+    ADD CONSTRAINT user_network_membership_network_id_fkey FOREIGN KEY (network_id) REFERENCES network("UUID") ON UPDATE CASCADE;
+
+
+--
+-- Name: user_network_membership_user_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: ndexserver
+--
+
+ALTER TABLE ONLY user_network_membership
+    ADD CONSTRAINT user_network_membership_user_id_fkey FOREIGN KEY (user_id) REFERENCES ndex_user("UUID");
 
 
 --
