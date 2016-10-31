@@ -30,31 +30,19 @@
  */
 package org.ndexbio.rest;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import java.util.Timer;
-import java.util.TreeMap;
 import java.util.logging.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
-import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.postgresql.Helper;
-import org.ndexbio.common.models.dao.postgresql.TaskDAO;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.Task;
-import org.ndexbio.model.object.TaskType;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
-import org.ndexbio.security.OAuthUserRecord;
 import org.ndexbio.task.ClientTaskProcessor;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SystemTaskProcessor;

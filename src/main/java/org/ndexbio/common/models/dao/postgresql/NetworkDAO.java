@@ -55,9 +55,7 @@ import org.cxio.aspects.datamodels.NodesElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.ndexbio.common.NdexClasses;
-//import org.ndexbio.common.models.dao.orientdb.NetworkSearchDAO.NetworkResultComparator;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
-import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -81,8 +79,6 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-
-import com.fasterxml.jackson.core.type.TypeReference;
 
 
 public class NetworkDAO extends NdexDBDAO {

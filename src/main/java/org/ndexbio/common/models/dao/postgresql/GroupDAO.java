@@ -772,7 +772,7 @@ public class GroupDAO extends NdexDBDAO {
 		
 		String chkStr = "select count(*) from ndex_group_user where group_id = ? and is_admin and user_id <> ?";
 		try ( PreparedStatement pst = db.prepareStatement(chkStr)) {
-			pst.setObject(1, adminId);
+			pst.setObject(1, groupId);
 			pst.setObject(2, adminId);
 			try (ResultSet rs = pst.executeQuery()) {
 				if ( rs.next()) {
