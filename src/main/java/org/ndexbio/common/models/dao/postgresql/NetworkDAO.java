@@ -262,6 +262,22 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 
 
+	public void saveNetworkMetaData(UUID networkId, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
+		String sqlStr = "update network set  cxmetadata = ? :: json where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+					
+			if (metadata !=null) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( metadata);
+				pst.setString(1, s);
+			}	else 
+				pst.setString(1, null);
+			pst.setObject(2, networkId);
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to update network metadata entry in db.");
+		}
+	}
 	
 	/**
 	 * Only update fields that relates to the network content. Permission related fields are not updated.
@@ -606,7 +622,7 @@ public class NetworkDAO extends NdexDBDAO {
 		    fullMembership.add(0, userMemberships);
 		    fullMembership.add(1,grpMemberships);
 
-		    String sqlStr = "select u.user_name, b.per from  (select a.user_id, max(a.per) from "+
+		    String sqlStr = "select u.user_name, b.per from  (select a.user_id, max(a.per) as per from "+
 		    		"(select owneruuid as user_id, 'ADMIN' :: ndex_permission_type as per from network where \"UUID\" = ? "+
 		    		 " union select user_id, permission_type as per from user_network_membership where network_id = ?) a "
 		    		 + "group by a.user_id) b, ndex_user u where u.\"UUID\"= b.user_id";

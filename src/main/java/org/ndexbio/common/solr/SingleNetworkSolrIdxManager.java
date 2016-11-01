@@ -133,6 +133,16 @@ public class SingleNetworkSolrIdxManager {
 			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1)
 				throw new NdexException("Unexpected Exception: " + e4.getMessage());
 		} 
+		
+		/**
+		 * One reference implementation to check if a core exists
+		 * CommonsHttpSolrServer adminServer = new
+			CommonsHttpSolrServer(solrRootUrl);
+			CoreAdminResponse status =
+			CoreAdminRequest.getStatus(coreName, adminServer);
+
+			return status.getCoreStatus(coreName).get("instanceDir") != null;
+		 */
 	}
 	
 	private void addNodeIndex(Long id, String name, Collection<String> represents, Collection<String> alias) throws SolrServerException, IOException {

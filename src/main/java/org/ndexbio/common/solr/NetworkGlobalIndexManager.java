@@ -61,7 +61,6 @@ import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.util.TermUtilities;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
@@ -90,7 +89,7 @@ public class NetworkGlobalIndexManager {
 	private static final String USER_ADMIN = "userAdmin";
 	private static final String GRP_READ = "grpRead";
 	private static final String GRP_EDIT = "grpEdit";
-	private static final String GRP_ADMIN = "grpAdmin";
+//	private static final String GRP_ADMIN = "grpAdmin";
 	
 	private static final String VISIBILITY = "visibility";
 	
@@ -186,7 +185,7 @@ public class NetworkGlobalIndexManager {
 		String adminFilter = "";		
 		if ( adminedBy !=null) {
 			adminedBy = "\"" + adminedBy + "\"";
-			adminFilter = " AND (" + USER_ADMIN + ":" + adminedBy + " OR " + GRP_ADMIN + ":" + adminedBy + ")";
+			adminFilter = " AND (" + USER_ADMIN + ":" + adminedBy +  ")";
 		}
 		
 		String resultFilter = "";
@@ -199,8 +198,7 @@ public class NetworkGlobalIndexManager {
 				if ( groupNames!=null) {
 					for (String groupName : groupNames) {
 					  groupName = "\"" + groupName + "\"";	
-					  resultFilter +=  " AND -(" + GRP_ADMIN + ":" + groupName + ") AND -(" +
-							  GRP_EDIT + ":" + groupName + ") AND -("+ GRP_READ + ":" + groupName + ")";
+					  resultFilter +=  " AND -(" + GRP_EDIT + ":" + groupName + ") AND -("+ GRP_READ + ":" + groupName + ")";
 					}
 				}
 				resultFilter = "-("+ resultFilter + ")";
@@ -211,7 +209,7 @@ public class NetworkGlobalIndexManager {
 				if ( groupNames!=null) {
 					for (String groupName : groupNames) {
 						  groupName = "\"" + groupName + "\"";	
-						  resultFilter +=  " OR (" + GRP_ADMIN + ":" + groupName + ") OR (" +
+						  resultFilter +=  " OR (" +
 							  GRP_EDIT + ":" + groupName + ") OR ("+ GRP_READ + ":" + groupName + ")";
 					}
 				}
@@ -221,7 +219,7 @@ public class NetworkGlobalIndexManager {
 				if ( groupNames !=null) {
 					for ( String groupName : groupNames )  {
 						  groupName = "\"" + groupName + "\"";	
-						  resultFilter += " OR (" + GRP_ADMIN + ":" + groupName + ") OR (" +
+						  resultFilter += " OR (" +
 							GRP_EDIT + ":" + groupName + ")" ;
 					}
 				} 
@@ -282,7 +280,8 @@ public class NetworkGlobalIndexManager {
 
 	} */
 	
-	public void createIndexDocFromSummary(NetworkSummary summary, String ownerUserName) {
+	public void createIndexDocFromSummary(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
+			Collection<String> grpReads, Collection<String> grpEdits) {
 		client.setBaseURL(solrUrl + "/" + coreName);
 	
 		doc.addField(UUID,  summary.getExternalId().toString() );
@@ -294,6 +293,28 @@ public class NetworkGlobalIndexManager {
 		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
 		
 		doc.addField(USER_ADMIN, ownerUserName);
+		
+		if( userReads != null) {
+			for(String userName : userReads) {
+				doc.addField(USER_READ, userName);
+			}
+		}
+		
+		if ( userEdits !=null) {
+			for ( String userName: userEdits) {
+				doc.addField(USER_EDIT, userName);
+			}
+		}
+		if ( grpReads !=null) {
+			for ( String grpName : grpReads) {
+				doc.addField(GRP_READ, grpName);
+			}
+		}
+		if(grpEdits !=null) {
+			for ( String grpName : grpEdits) {
+				doc.addField(GRP_EDIT, grpName);
+			}
+		}
 
 	}
 	
@@ -511,7 +532,9 @@ public class NetworkGlobalIndexManager {
 
 		switch ( p) {
 		case ADMIN : 
-			tmpdoc.addField( isUser? USER_ADMIN: GRP_ADMIN, cmd);
+			if ( !isUser)
+				throw new NdexException("Can't pass isUser=false for ADMIN permission when deleting Solr index.");
+			tmpdoc.addField( USER_ADMIN, cmd);
 			break;
 		case WRITE:
 			tmpdoc.addField( isUser? USER_EDIT: GRP_EDIT, cmd);
@@ -543,7 +566,9 @@ public class NetworkGlobalIndexManager {
 
 		switch ( newPermission) {
 		case ADMIN : 
-			tmpdoc.addField( isUser? USER_ADMIN: GRP_ADMIN, cmd);
+			if ( !isUser)
+				throw new NdexException("Can't pass isUser=false for ADMIN permission when creating Solr index.");
+			tmpdoc.addField(  USER_ADMIN, cmd);
 			break;
 		case WRITE:
 			tmpdoc.addField( isUser? USER_EDIT: GRP_EDIT, cmd);
@@ -562,7 +587,8 @@ public class NetworkGlobalIndexManager {
 
 			switch ( oldPermission) {
 			case ADMIN : 
-				tmpdoc.addField( isUser? USER_ADMIN: GRP_ADMIN, rmCmd);
+			
+				tmpdoc.addField(  USER_ADMIN, rmCmd);
 				break;
 			case WRITE:
 				tmpdoc.addField( isUser? USER_EDIT: GRP_EDIT, rmCmd);

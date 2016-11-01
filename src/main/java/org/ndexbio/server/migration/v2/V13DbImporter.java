@@ -1,11 +1,17 @@
 package org.ndexbio.server.migration.v2;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.Iterator;
@@ -13,16 +19,27 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.postgresql.GroupDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.object.Group;
+import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class V13DbImporter implements AutoCloseable {
@@ -71,34 +88,250 @@ public class V13DbImporter implements AutoCloseable {
 
 	}
 
-	private void migrateDBAndNetworks ( ) throws FileNotFoundException, IOException, SQLException {
+	private void migrateDBAndNetworks ( ) throws FileNotFoundException, IOException, SQLException, NdexException, IllegalArgumentException, SolrServerException {
 
-			importUsers();
+	/*		importUsers();
 			importGroups();
 			importTasks();
 			importRequests();
 			importNetworks();
 			
-			populateSupportTables();
+			try (Statement stmt = db.createStatement() ) {
+				stmt.executeUpdate("truncate table working_migrated_uuids");
+			} 
+			
+			populatingUserTable();
+			populatingGroupTable();  */
+			populatingNetworkTable();
+			
+			//loadCXNetworks();
 			
 	}
 	
-	private void populateSupportTables() {
-		String[] sqlStrs = {"insert into ndex_user (\"UUID\",creation_time,modification_time,user_name,first_name,last_name, image_url,website_url,email_addr, " +
-							 "password,is_individual,description,is_deleted,is_verified) " + 
-							 "select id, creation_time, modification_time, account_name, first_name,last_name,image_url,website_url,email,password,true,description,"+
-							 "false,true from v1_user on conflict on constraint user_pk do nothing",
-							 
-							};
+	/*private void loadCXNetworks() throws SQLException, NdexException, IOException, SolrServerException {
 		
-		String sqlStr1 = "insert into v1_user (rid, id, creation_time, modification_time, account_name, password,description,email,first_name,last_name,"
-				+ "image_url,website_url) values (?,?,?,?,?, ?,?,?,?,?, ?,?) on conflict (id) do nothing";
-		String sqlStr2 = "insert into v1_user_group (user_id,group_rid,type) values (?,?,?) on conflict on constraint v1_user_group_pkey do nothing";
-		String sqlStr3 = "insert into v1_user_network (user_id, network_rid,type) values (?,?,?) on conflict on constraint v1_user_network_pkey do nothing";
+		try (NetworkDAO dao = new NetworkDAO()) {
+			String sql = "select \"UUID\", owner from network where iscomplete is null and is_from_13 = true";
+			try (PreparedStatement pst = db.prepareStatement(sql)) {
+					try (ResultSet rs = pst.executeQuery() ) {
+						while (rs.next()) {
+							try (CXNetworkLoader loader = new CXNetworkLoader((UUID)rs.getObject(1),rs.getString(2), false,dao)) {
+								loader.importNetwork();		
+							}
+						}
+					}
+			}
+			dao.commit();	
+		}
+		
+	} */
+	
+	/* 
+	private void populateSupportTables() throws SQLException {
+		String[] sqlStrs = {"insert into ndex_user (\"UUID\",creation_time,modification_time,user_name,first_name,last_name, image_url,website_url,email_addr, " +
+							 "password,is_individual,description,is_deleted,is_verified, is_from_13) " + 
+							 "select id, creation_time, modification_time, account_name, first_name,last_name,image_url,website_url,email,password,true,description,"+
+							 "false,true,true from v1_user on conflict on constraint user_pk do nothing",
+							 "insert into ndex_group (\"UUID\",creation_time,modification_time,group_name,image_url,description,is_deleted,website_url,is_from_13) " +
+							 "select id, creation_time, modification_time, group_name,image_url,description, false,website_url, true"+
+							 " from v1_group on conflict on constraint group_pk do nothing",
+							 "insert into network (\"UUID\",creation_time,modification_time,is_deleted,name,description,edgecount,nodecount,islocked,visibility,owneruuid,"+
+							 "sourceformat,properties,provenance,version,readonly,is_from_13) " +
+							 "select id, creation_time, modification_time, false,name,description, edge_count,node_count, false,visibility, "+
+								"     (select user_id from v1_user_network un where un.network_rid = n.rid limit 1)," +
+								"   source_format,props,provenance,version,readonly , true from v1_network n on conflict on constraint network_pk do nothing",
+							"update network n set owner= (select user_name from ndex_user u where u.\"UUID\" = n.owneruuid) where  n.owner is null"  		      
+							};
+		for (String sqlStr : sqlStrs) {
+			try (Statement stmt = db.createStatement() ) {
+				stmt.executeUpdate("truncate table working_migrated_uuids");
+				int cnt = stmt.executeUpdate(
+								"insert into working_migrated_uuids select 'user', id "
+								+ "from v1_user u1 where not exists (select 1 from ndex_user u where u.\"UUID\" = u1.id)");
+				logger.info(cnt + " new users will be imported.");
+				
+			}
+			try (PreparedStatement pstUser = db.prepareStatement(sqlStr)) {
+				System.out.println("Executing statment: " + sqlStr);
+				pstUser.executeUpdate();
+			}
+		}
+		db.commit();
+		
+	} */
+	
+	
+	private void populatingUserTable() throws SQLException, JsonParseException, JsonMappingException,
+			IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
+		String sql = "insert into ndex_user (\"UUID\",creation_time,modification_time,user_name,first_name,last_name, image_url,website_url,email_addr, " +
+							 "password,is_individual,description,is_deleted,is_verified, is_from_13) " + 
+							 "select id, creation_time, modification_time, account_name, first_name,last_name,image_url,website_url,email,password,true,description,"+
+							 "false,true,true from v1_user on conflict on constraint user_pk do nothing";
+			
+		
+		try (Statement stmt = db.createStatement() ) {
+				int cnt = stmt.executeUpdate(
+								"insert into working_migrated_uuids select 'user', id "
+								+ "from v1_user u1 where not exists (select 1 from ndex_user u where u.\"UUID\" = u1.id)");
+				logger.info(cnt + " new users will be imported.");
+				
+		}
+			
+		try (PreparedStatement pstUser = db.prepareStatement(sql)) {
+				pstUser.executeUpdate();
+		}
+		
+		db.commit();
+		
+		String sql1 = "select id from working_migrated_uuids where table_name = 'user'";
+		try (PreparedStatement pst = db.prepareStatement(sql1)) {
+				try (ResultSet rs = pst.executeQuery() ) {
+					while (rs.next()) {
+						UUID userId = (UUID)rs.getObject(1);
+						try (UserDAO dao = new UserDAO()) {
+							User user = dao.getUserById(userId, true);
+							logger.info("adding user " + user.getUserName() + " to solr index.");
+							UserIndexManager mgr = new UserIndexManager();
+							mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
+						}
+					}
+				}
+		}
+		
+		db.commit();
 		
 	}
+
+	private void populatingGroupTable() throws SQLException, JsonParseException, JsonMappingException,
+		IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
+		
+		String sql = "insert into ndex_group (\"UUID\",creation_time,modification_time,group_name,image_url,description,is_deleted,website_url,is_from_13) " +
+				 "select id, creation_time, modification_time, group_name,image_url,description, false,website_url, true"+
+				 " from v1_group on conflict on constraint group_pk do nothing";
 	
 
+		try (Statement stmt = db.createStatement() ) {
+			int cnt = stmt.executeUpdate(
+						"insert into working_migrated_uuids select 'group', id "
+						+ "from v1_group u1 where not exists (select 1 from ndex_group u where u.\"UUID\" = u1.id)");
+			logger.info(cnt + " new groups will be imported.");
+		
+		}
+	
+		try (PreparedStatement pstUser = db.prepareStatement(sql)) {
+			pstUser.executeUpdate();
+		}
+
+		db.commit();
+		
+		String sql1 = "select id from working_migrated_uuids where table_name = 'group'";
+		try (PreparedStatement pst = db.prepareStatement(sql1)) {
+			try (ResultSet rs = pst.executeQuery() ) {
+				while (rs.next()) {
+					UUID groupId = (UUID)rs.getObject(1);
+					try (GroupDAO dao = new GroupDAO()) {
+						Group group = dao.getGroupById(groupId);
+						logger.info("adding group " + group.getGroupName() + " to solr index.");
+						GroupIndexManager m = new GroupIndexManager();
+						m.addGroup(group.getExternalId().toString(), group.getGroupName(), group.getDescription());
+						
+					}
+				}
+			}
+		}
+		
+
+		sql = "insert into ndex_group_user (group_id,user_id,is_admin)" +
+			  "	select g.id,ug.user_id, ug.type='groupadmin' "+
+			  "	from v1_user_group ug, v1_group g " + 
+			  " 	where ug.group_rid = g.rid on conflict on constraint \"ndexGroupUser_pkey\" do nothing";
+		try (PreparedStatement pstUser = db.prepareStatement(sql)) {
+			pstUser.executeUpdate();
+		}
+
+		db.commit();
+
+	}	
+	
+	
+	private void populatingNetworkTable() throws SQLException, JsonParseException, JsonMappingException,
+			IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
+	
+		String sql = "insert into network (\"UUID\",creation_time,modification_time,is_deleted,name,description,edgecount,nodecount,islocked,visibility,owneruuid,"+
+			 "sourceformat,properties,provenance,version,readonly,is_from_13) " +
+			 "select id, creation_time, modification_time, false,name,description, edge_count,node_count, false,visibility, "+
+				"     (select user_id from v1_user_network un where un.network_rid = n.rid limit 1)," +
+				"   source_format,props,provenance,version,readonly , true from v1_network n on conflict on constraint network_pk do nothing";
+
+
+		try (Statement stmt = db.createStatement() ) {
+			int cnt = stmt.executeUpdate(
+					"insert into working_migrated_uuids select 'network', id "
+					+ "from v1_network u1 where not exists (select 1 from network u where u.\"UUID\" = u1.id)");
+			logger.info(cnt + " new networks will be imported.");
+	
+		}
+
+		try (PreparedStatement pstUser = db.prepareStatement(sql)) {
+			pstUser.executeUpdate();
+		}
+
+		sql = "update network n set owner= (select user_name from ndex_user u where u.\"UUID\" = n.owneruuid) where  n.owner is null"  ;
+		try (PreparedStatement pstUser = db.prepareStatement(sql)) {
+			pstUser.executeUpdate();
+		}
+
+		
+		// populate permission tables.
+		sql = "insert into user_network_membership ( user_id,network_id, permission_type) " + 
+			" select s.* from  (select user_id, (select id from v1_network vn where vn.rid = un.network_rid), "+
+			" upper(un.type) :: ndex_permission_type from v1_user_network un where un.type <> 'admin' ) s where s.id is not null " +
+			"on conflict on constraint \"userNetworkMembership_pkey\" do nothing";
+		try (PreparedStatement pstUser = db.prepareStatement(sql)) {
+				pstUser.executeUpdate();
+		}
+		
+		sql = "insert into group_network_membership (group_id,network_id,permission_type) "+
+			" select s.* from (select group_id, (select id from v1_network vn where vn.rid = gn.network_rid), "+
+		    "  upper(gn.type) :: ndex_permission_type from v1_group_network gn ) s where s.id is not null " + 
+		    " on conflict on constraint \"groupNetworkMembership_pkey\" do nothing";
+		try (PreparedStatement pstUser = db.prepareStatement(sql)) {
+					pstUser.executeUpdate();
+		}	
+
+		db.commit();
+		
+		try (NetworkDAO dao = new NetworkDAO()) {
+			String sql1 = "select id, (select owner from network n where n.\"UUID\" = id) from working_migrated_uuids where table_name = 'network'";
+			try (PreparedStatement pst = db.prepareStatement(sql1)) {
+					try (ResultSet rs = pst.executeQuery() ) {
+						while (rs.next()) {
+							UUID uuid = (UUID)rs.getObject(1);
+							String uuidStr = uuid.toString();
+							String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr;
+							   
+							//Create dir
+							java.nio.file.Path dir = Paths.get(pathPrefix);
+							Files.createDirectory(dir);
+							
+							java.nio.file.Path src = Paths.get(importFilesPrefix  + "/" +  uuidStr + ".cx");
+							java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/network.cx");
+							Files.copy(src, tgt,StandardCopyOption.REPLACE_EXISTING);  
+							
+							try (CXNetworkLoader loader = new CXNetworkLoader(uuid,rs.getString(2), false,dao)) {
+								loader.importNetwork();		
+							}
+						}
+					}
+			}
+			dao.commit();	
+		}
+		
+
+		db.commit();
+
+	}	
+	
 	private void importUsers() throws IOException, JsonProcessingException, SQLException, FileNotFoundException {
 		//import users.
 		try (FileInputStream i = new FileInputStream(importFilesPrefix+"/user.json")) {
@@ -358,87 +591,37 @@ public class V13DbImporter implements AutoCloseable {
 	
 	private void importNetworks() throws IOException, JsonProcessingException, SQLException, FileNotFoundException {
 		//import users.
-		try (FileInputStream i = new FileInputStream(importFilesPrefix+"/group.json")) {
+		try (FileInputStream i = new FileInputStream(importFilesPrefix+"/network.json")) {
 			
-			String sqlStr1 = "insert into v1_network (rid, id, creation_time, modification_time, account_name, group_name,description,"
-					+ "image_url,website_url) values (?,?,?,?,?, ?,?,?,?) on conflict (id) do nothing";
-			String sqlStr2 = "insert into v1_group_network (group_id, network_rid,type) values (?,?,?) on conflict on constraint v1_group_network_pkey do nothing";
+			String sqlStr = "insert into v1_network (rid, id, creation_time, modification_time, visibility,  node_count,edge_count, description,"
+					+ "version,props, provenance,readonly,name,source_format) values (?,?,?,?,?, ?,?,?,?,? ::json, ? :: json,?,?,?) on conflict (id) do nothing";
 
-			try (PreparedStatement pstUser = db.prepareStatement(sqlStr1)) {
-				try (PreparedStatement pstUserGroup = db.prepareStatement(sqlStr2)) {
-					try (PreparedStatement pstUserNetwork = db.prepareStatement(sqlStr2)) {
+			try (PreparedStatement pstUser = db.prepareStatement(sqlStr)) {
 						Iterator<Map<String,Object>> it = new ObjectMapper().readerFor(typeRef).readValues(i);
 		        	
 						while (it.hasNext()) {
 							Map<String,Object> map = it.next();
-							String accName = (String)map.get("accountName");
-							logger.info("processing group " + accName );
-							UUID groupId = UUID.fromString((String) map.get("UUID"));
-							String imageURL = (String)map.get("imageURL");
-							
+							UUID networkId = UUID.fromString((String) map.get("uuid"));
+							logger.info("processing network " + networkId );							
 
-							// insert user rec
-							pstUser.setString(1, (String)map.get("@rid"));
-							pstUser.setObject(2, groupId);
-							pstUser.setTimestamp(3,Timestamp.valueOf((String)map.get("createdTime")));
-							pstUser.setTimestamp(4,Timestamp.valueOf((String)map.get("modificationTime")));
-							pstUser.setString(5, accName);
-							pstUser.setString(6, (String)map.get("groupName"));
-							pstUser.setString(7, (String)map.get("description"));
-
-							if ( imageURL !=null ) {
-								if ( imageURL.length() < 500 )
-									pstUser.setString(8, imageURL);
-								else  {
-									pstUser.setString(8, null);
-									logger.warning("image url length over limit, ignoring it.");
-								}
-							} else 
-								pstUser.setString(8, null);
-
-							pstUser.setString(9, (String)map.get("websiteURL"));
+							// insert network rec
+							pstUser.setString(1, (String)map.get("rid"));
+							pstUser.setObject(2, networkId);
+							pstUser.setTimestamp(3, new Timestamp((long)map.get("createdTime")));
+							pstUser.setTimestamp(4,new Timestamp((long)map.get("modificationTime")));
+							pstUser.setString(5, (String) map.get("visibility"));
+							pstUser.setLong(6, (Integer)map.get("nodeCount"));
+							pstUser.setLong(7, (Integer)map.get("edgeCount"));
+							pstUser.setString(8, (String) map.get("description"));
+							pstUser.setString(9, (String) map.get("version"));
+							pstUser.setString(10, mapper.writeValueAsString(map.get("props")));
+							pstUser.setString(11, (String)map.get("provenance"));
+							pstUser.setBoolean(12,(Boolean)map.get("readonly"));
+							pstUser.setString(13,(String)map.get("name"));
+							pstUser.setString(14,(String)map.get("sourceFormat"));
+						
 							pstUser.executeUpdate();
-							
-							// insert group network records
-							
-							Object o = map.get("out_write");
-							if ( o!=null) {
-								if (o instanceof String) {
-									pstUserNetwork.setObject(1, groupId);
-									pstUserNetwork.setString(2, (String)o);
-									pstUserNetwork.setString(3, "write");
-									pstUserNetwork.executeUpdate();
-								} else if ( o instanceof Collection<?>) {
-									for (String oe : (Collection<String>)o) {
-										pstUserNetwork.setObject(1, groupId);
-										pstUserNetwork.setString(2, (String)oe);
-										pstUserNetwork.setString(3, "write");
-										pstUserNetwork.executeUpdate();
-									}
-								}
-									
-							}
-							
-							o = map.get("out_read");
-							if ( o!=null) {
-								if (o instanceof String) {
-									pstUserNetwork.setObject(1, groupId);
-									pstUserNetwork.setString(2, (String)o);
-									pstUserNetwork.setString(3, "read");
-									pstUserNetwork.executeUpdate();
-								} else if ( o instanceof Collection<?>) {
-									for (String oe : (Collection<String>)o) {
-										pstUserNetwork.setObject(1, groupId);
-										pstUserNetwork.setString(2, (String)oe);
-										pstUserNetwork.setString(3, "read");
-										pstUserNetwork.executeUpdate();
-									}
-								}
-									
-							}
 						}
-					}
-				}
 			}
 			
 			db.commit();

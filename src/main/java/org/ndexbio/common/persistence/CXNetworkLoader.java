@@ -41,6 +41,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -88,6 +89,7 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -294,11 +296,12 @@ public class CXNetworkLoader implements AutoCloseable {
 	/**
 	 * This function is only for migrating db. It validates and creates network files in NDEx file store, but doesn't update the main network table record. Solr indexes
 	 * are not created either.
+	 * @throws SolrServerException 
 	 * 
 
 	 */
 
-	public void importNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException {
+	public void importNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {
 	    
 		 //   try {
 		    	
@@ -309,6 +312,16 @@ public class CXNetworkLoader implements AutoCloseable {
 			  persistNetworkData(); 
 			  
 			  logger.info("aspects have been stored.");
+			  
+			  NetworkSummary summary = dao.getNetworkSummaryById(networkId);
+			  SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString());
+				if ( isUpdate ) {
+					this.globalIdx.deleteNetwork(networkId.toString());
+					idx2.dropIndex();		
+				}	
+				
+				createSolrIndex(summary);
+				idx2.createIndex();
 			  			  
 			 // create the network sample if the network has more than 500 edges
 			 if (this.edgeIdTracker.getDefinedElementSize() > CXNetworkSampleGenerator.sampleSize)  {
@@ -325,6 +338,15 @@ public class CXNetworkLoader implements AutoCloseable {
 				  
 				}
 				  				
+			 
+
+				try {
+					dao.saveNetworkMetaData(this.networkId,metadata);
+					dao.commit();
+				} catch (SQLException e) {
+					dao.rollback();
+					throw new NdexException ("DB error when setting iscomplete flag: " + e.getMessage(), e);
+				}
 					//recreate CX file
 					ProvenanceEntity provenanceHistory = dao.getProvenance(networkId);
 					CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, new Provenance(provenanceHistory));
@@ -339,6 +361,7 @@ public class CXNetworkLoader implements AutoCloseable {
 					
 					try {
 						dao.setFlag(this.networkId, "iscomplete", true);
+						dao.setFlag(this.networkId, "is_validated", true);
 						dao.commit();
 					} catch (SQLException e) {
 						dao.rollback();
@@ -524,9 +547,17 @@ public class CXNetworkLoader implements AutoCloseable {
 	}
 	
 	
-	private void createSolrIndex(NetworkSummary summary) throws SolrServerException, IOException {
+	private void createSolrIndex(NetworkSummary summary) throws SolrServerException, IOException, ObjectNotFoundException, NdexException, SQLException {
 
-		globalIdx.createIndexDocFromSummary(summary,ownerName);
+		
+		List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkId);
+		Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
+		Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
+		globalIdx.createIndexDocFromSummary(summary,ownerName,
+				userMemberships.get(Permissions.READ),
+				userMemberships.get(Permissions.WRITE),
+				grpMemberships.get(Permissions.READ),
+				grpMemberships.get(Permissions.WRITE));
 		
 		globalIdx.commit();
    	
