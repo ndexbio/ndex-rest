@@ -60,13 +60,13 @@ public class CXNetworkSampleGenerator {
 	
 	private MetaDataElement getMetaDataElementTempleteFromSrc (String aspectName) throws NdexException {
 		MetaDataElement old = this.srcMetaDataCollection.getMetaDataElement(aspectName);
-		if ( old == null)
-			throw new NdexException("MetaData " + aspectName + " is missing in network " + this.networkId.toString());
+	//	if ( old == null)
+	//		throw new NdexException("MetaData " + aspectName + " is missing in network " + this.networkId.toString());
 		
 		MetaDataElement result = new MetaDataElement();
-		result.setConsistencyGroup(old.getConsistencyGroup());
+		result.setConsistencyGroup(old !=null? old.getConsistencyGroup() : Long.valueOf(1l));
 		result.setName(aspectName);
-		result.setVersion(old.getVersion());
+		result.setVersion(old!=null? old.getVersion() : "1.0");
 		result.setLastUpdate(currentTime);
 		return result;
 	}

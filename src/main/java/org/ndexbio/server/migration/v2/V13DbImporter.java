@@ -1,6 +1,5 @@
 package org.ndexbio.server.migration.v2;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -19,7 +18,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
@@ -32,7 +30,6 @@ import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Group;
-import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 
@@ -90,7 +87,7 @@ public class V13DbImporter implements AutoCloseable {
 
 	private void migrateDBAndNetworks ( ) throws FileNotFoundException, IOException, SQLException, NdexException, IllegalArgumentException, SolrServerException {
 
-	/*		importUsers();
+			importUsers();
 			importGroups();
 			importTasks();
 			importRequests();
@@ -101,64 +98,11 @@ public class V13DbImporter implements AutoCloseable {
 			} 
 			
 			populatingUserTable();
-			populatingGroupTable();  */
+			populatingGroupTable(); 
 			populatingNetworkTable();
-			
-			//loadCXNetworks();
-			
+						
 	}
 	
-	/*private void loadCXNetworks() throws SQLException, NdexException, IOException, SolrServerException {
-		
-		try (NetworkDAO dao = new NetworkDAO()) {
-			String sql = "select \"UUID\", owner from network where iscomplete is null and is_from_13 = true";
-			try (PreparedStatement pst = db.prepareStatement(sql)) {
-					try (ResultSet rs = pst.executeQuery() ) {
-						while (rs.next()) {
-							try (CXNetworkLoader loader = new CXNetworkLoader((UUID)rs.getObject(1),rs.getString(2), false,dao)) {
-								loader.importNetwork();		
-							}
-						}
-					}
-			}
-			dao.commit();	
-		}
-		
-	} */
-	
-	/* 
-	private void populateSupportTables() throws SQLException {
-		String[] sqlStrs = {"insert into ndex_user (\"UUID\",creation_time,modification_time,user_name,first_name,last_name, image_url,website_url,email_addr, " +
-							 "password,is_individual,description,is_deleted,is_verified, is_from_13) " + 
-							 "select id, creation_time, modification_time, account_name, first_name,last_name,image_url,website_url,email,password,true,description,"+
-							 "false,true,true from v1_user on conflict on constraint user_pk do nothing",
-							 "insert into ndex_group (\"UUID\",creation_time,modification_time,group_name,image_url,description,is_deleted,website_url,is_from_13) " +
-							 "select id, creation_time, modification_time, group_name,image_url,description, false,website_url, true"+
-							 " from v1_group on conflict on constraint group_pk do nothing",
-							 "insert into network (\"UUID\",creation_time,modification_time,is_deleted,name,description,edgecount,nodecount,islocked,visibility,owneruuid,"+
-							 "sourceformat,properties,provenance,version,readonly,is_from_13) " +
-							 "select id, creation_time, modification_time, false,name,description, edge_count,node_count, false,visibility, "+
-								"     (select user_id from v1_user_network un where un.network_rid = n.rid limit 1)," +
-								"   source_format,props,provenance,version,readonly , true from v1_network n on conflict on constraint network_pk do nothing",
-							"update network n set owner= (select user_name from ndex_user u where u.\"UUID\" = n.owneruuid) where  n.owner is null"  		      
-							};
-		for (String sqlStr : sqlStrs) {
-			try (Statement stmt = db.createStatement() ) {
-				stmt.executeUpdate("truncate table working_migrated_uuids");
-				int cnt = stmt.executeUpdate(
-								"insert into working_migrated_uuids select 'user', id "
-								+ "from v1_user u1 where not exists (select 1 from ndex_user u where u.\"UUID\" = u1.id)");
-				logger.info(cnt + " new users will be imported.");
-				
-			}
-			try (PreparedStatement pstUser = db.prepareStatement(sqlStr)) {
-				System.out.println("Executing statment: " + sqlStr);
-				pstUser.executeUpdate();
-			}
-		}
-		db.commit();
-		
-	} */
 	
 	
 	private void populatingUserTable() throws SQLException, JsonParseException, JsonMappingException,
@@ -260,7 +204,7 @@ public class V13DbImporter implements AutoCloseable {
 		String sql = "insert into network (\"UUID\",creation_time,modification_time,is_deleted,name,description,edgecount,nodecount,islocked,visibility,owneruuid,"+
 			 "sourceformat,properties,provenance,version,readonly,is_from_13) " +
 			 "select id, creation_time, modification_time, false,name,description, edge_count,node_count, false,visibility, "+
-				"     (select user_id from v1_user_network un where un.network_rid = n.rid limit 1)," +
+				"     (select user_id from v1_user_network un where type='admin' and un.network_rid = n.rid limit 1)," +
 				"   source_format,props,provenance,version,readonly , true from v1_network n on conflict on constraint network_pk do nothing";
 
 

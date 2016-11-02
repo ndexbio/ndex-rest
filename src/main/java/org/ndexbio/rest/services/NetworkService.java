@@ -489,8 +489,8 @@ public class NetworkService extends NdexService {
 
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
-		if (networkIdStrs.size() > 300) 
-			throw new NdexException ("You can only send up to 300 network ids in this function.");
+		if (networkIdStrs.size() > 1000) 
+			throw new NdexException ("You can only send up to 1000 network ids in this function.");
 		
     	logger.info("[start: Getting networkSummary of networks {}]", networkIdStrs);
 		
