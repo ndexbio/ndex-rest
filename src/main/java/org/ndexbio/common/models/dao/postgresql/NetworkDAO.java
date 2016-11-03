@@ -822,7 +822,8 @@ public class NetworkDAO extends NdexDBDAO {
 			ObjectMapper mapper = new ObjectMapper(); 
 			
 			List<NdexPropertyValuePair> o = mapper.readValue(proptiesStr, new TypeReference<List<NdexPropertyValuePair>>() {}); 		
-	        result.setProperties(o);  
+			if( o != null)
+	         result.setProperties(o);  
 		}
 		
 		result.setExternalId((UUID)rs.getObject(12));

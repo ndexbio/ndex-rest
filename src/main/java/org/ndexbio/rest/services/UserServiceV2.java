@@ -665,7 +665,7 @@ public class UserServiceV2 extends NdexService {
 	   @POST
 	   @Path("/{userid}/membershiprequest")
 	   @Produces("text/plain")
-	   @ApiDoc("Create a user permission request.")
+	   @ApiDoc("Create a group membership request.")
 	    public Response createMembershipRequest(
 	    		@PathParam("userid") final String userIdStr,
 	    		final MembershipRequest newRequest) 
@@ -674,7 +674,7 @@ public class UserServiceV2 extends NdexService {
 			if ( newRequest.getGroupid() == null)
 					throw new NdexException("Groupid is required in the Posted object.");
 		
-			logger.info("[start: Creating membership request for {}]", getLoggedInUserId());
+	//		logger.info("[start: Creating membership request for {}]", getLoggedInUserId());
 			UUID userId = UUID.fromString(userIdStr);
 			
 			if ( !userId.equals(getLoggedInUserId()))
@@ -693,9 +693,7 @@ public class UserServiceV2 extends NdexService {
 				return Response.created(l).entity(l).build();
 			} catch (URISyntaxException e) {
 				throw new NdexException ("Failed to create location URL: " + e.getMessage(), e);
-			} finally {
-				logger.info("[end: Request created]");
-			}
+			} 
 	    	
 	    }
 	   

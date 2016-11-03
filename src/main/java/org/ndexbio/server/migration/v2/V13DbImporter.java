@@ -98,8 +98,9 @@ public class V13DbImporter implements AutoCloseable {
 			} 
 			
 			populatingUserTable();
-			populatingGroupTable(); 
+			populatingGroupTable();   
 			populatingNetworkTable();
+			populateTaskNRequestTable();
 						
 	}
 	
@@ -146,6 +147,41 @@ public class V13DbImporter implements AutoCloseable {
 		
 	}
 
+	
+	private void populateTaskNRequestTable() throws SQLException, JsonParseException, JsonMappingException,
+		IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
+		
+		String sql = "insert into task (\"UUID\", creation_time,modification_time, status, start_time,end_time, " + 
+					"task_type, owneruuid, is_deleted, other_attributes, description,priority, progress, file_format, message, resource)" + 
+					" select id,creation_time,modification_time, status, start_time, end_time, "+
+					" task_type,owneruuid,false,attributes,description,'LOW', 0,format, null,resource "+
+					" from v1_task t on conflict on constraint task_pk do nothing";
+	
+		try (PreparedStatement pstUser = db.prepareStatement(sql)) {
+			pstUser.executeUpdate();	
+		}
+
+		sql = "insert into request (\"UUID\", creation_time,modification_time, is_deleted, sourceuuid,destinationuuid,requestmessage, " +
+			  "	response, responsemessage, requestpermission,responsetime, other_attributes, responder, owner_id, request_type) "+
+			  " select id, creation_time, modification_time, false, source_uuid, destination_uuid, message, response, response_message, "+
+			  " request_permission, response_time, null, responder,  (select id from v1_user where rid = in_request), "+ 
+              " case when request_permission = 'GROUPADMIN' or request_permission = 'MEMBER' then 'JoinGroup' "+
+              " else case when (select id from v1_user where rid = in_request) = source_uuid then 'UserNetworkAccess' "+
+              " else 'GroupNetworkAccess'  "+
+              " end "+
+              " end "+
+              " from v1_request on conflict on constraint request_pk do nothing";
+		
+		
+			try (PreparedStatement pstUser = db.prepareStatement(sql)) {
+				pstUser.executeUpdate();	
+			}
+
+		db.commit();
+
+
+}
+	
 	private void populatingGroupTable() throws SQLException, JsonParseException, JsonMappingException,
 		IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
 		
@@ -246,12 +282,15 @@ public class V13DbImporter implements AutoCloseable {
 		db.commit();
 		
 		try (NetworkDAO dao = new NetworkDAO()) {
-			String sql1 = "select id, (select owner from network n where n.\"UUID\" = id) from working_migrated_uuids where table_name = 'network'";
+			String sql1 = "select id, (select owner from network n where n.\"UUID\" = id) from working_migrated_uuids where table_name = 'network'" + 
+							" and exists ( select 1 from network n where n.\"UUID\"= id and n.iscomplete is null)" ;
+			
 			try (PreparedStatement pst = db.prepareStatement(sql1)) {
 					try (ResultSet rs = pst.executeQuery() ) {
 						while (rs.next()) {
 							UUID uuid = (UUID)rs.getObject(1);
 							String uuidStr = uuid.toString();
+							logger.info("Loading network "+ uuidStr );
 							String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr;
 							   
 							//Create dir
@@ -265,6 +304,7 @@ public class V13DbImporter implements AutoCloseable {
 							try (CXNetworkLoader loader = new CXNetworkLoader(uuid,rs.getString(2), false,dao)) {
 								loader.importNetwork();		
 							}
+							
 						}
 					}
 			}
@@ -558,7 +598,12 @@ public class V13DbImporter implements AutoCloseable {
 							pstUser.setLong(7, (Integer)map.get("edgeCount"));
 							pstUser.setString(8, (String) map.get("description"));
 							pstUser.setString(9, (String) map.get("version"));
-							pstUser.setString(10, mapper.writeValueAsString(map.get("props")));
+							
+							Object propObj = map.get("props");
+							if (propObj !=null)
+								pstUser.setString(10, mapper.writeValueAsString(map.get("props")));
+							else 
+								pstUser.setString(10, null);
 							pstUser.setString(11, (String)map.get("provenance"));
 							pstUser.setBoolean(12,(Boolean)map.get("readonly"));
 							pstUser.setString(13,(String)map.get("name"));
