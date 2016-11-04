@@ -57,7 +57,7 @@ public class DefaultExceptionMapper implements ExceptionMapper<Throwable>
         return Response
             .status(Status.INTERNAL_SERVER_ERROR)
             .entity(e.getNdexExceptionInJason())
-            .header("WWW-Authenticate", "Basic")
+     //       .header("WWW-Authenticate", "Basic")
             .type("application/json")
             .build();
     }

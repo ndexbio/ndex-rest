@@ -764,7 +764,7 @@ public class UserDAO extends NdexDBDAO {
 			try (ResultSet rs = st.executeQuery() ) {
 				while (rs.next()) {
 					result.put(rs.getObject(1).toString(), 
-							(rs.getBoolean(3)? Permissions.GROUPADMIN.toString() : Permissions.MEMBER.toString()));					
+							(rs.getBoolean(2)? Permissions.GROUPADMIN.toString() : Permissions.MEMBER.toString()));					
 				} 
 			}
 		}
