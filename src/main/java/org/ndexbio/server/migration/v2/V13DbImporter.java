@@ -148,8 +148,7 @@ public class V13DbImporter implements AutoCloseable {
 	}
 
 	
-	private void populateTaskNRequestTable() throws SQLException, JsonParseException, JsonMappingException,
-		IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
+	private void populateTaskNRequestTable() throws SQLException, IllegalArgumentException {
 		
 		String sql = "insert into task (\"UUID\", creation_time,modification_time, status, start_time,end_time, " + 
 					"task_type, owneruuid, is_deleted, other_attributes, description,priority, progress, file_format, message, resource)" + 

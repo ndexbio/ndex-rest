@@ -115,12 +115,12 @@ public class UserDAO extends NdexDBDAO {
 				|| Strings.isNullOrEmpty(password))
 			throw new UnauthorizedOperationException("No accountName or password entered.");
 
-		User user = getUserByAccountName(accountName, true);
-		if (!Security.authenticateUser(password, user.getPassword())) {
+		if (!Security.authenticateUser(password, getUserPasswordByAccountName(accountName))) {
 				throw new UnauthorizedOperationException("Invalid accountName or password.");
 		}
 	
-		user.setPassword("");
+		User user = getUserByAccountName(accountName, true);
+//		user.setPassword("");
 		return user;
 		
 	}
@@ -335,7 +335,7 @@ public class UserDAO extends NdexDBDAO {
 		user.setDisplayName(rs.getString(NdexClasses.User_displayName));
 		user.setIsIndividual(rs.getBoolean(NdexClasses.User_isIndividual));
 		user.setEmailAddress(rs.getString(NdexClasses.User_emailAddress));
-		user.setPassword(rs.getString(NdexClasses.User_password));
+	//	user.setPassword(rs.getString(NdexClasses.User_password));
 		user.setIsVerified(rs.getBoolean(NdexClasses.User_isVerified));
 		user.setUserName(rs.getString("user_name"));
 	}
@@ -345,12 +345,7 @@ public class UserDAO extends NdexDBDAO {
 	 * 
 	 * @param accountName
 	 *            accountName for User
-	 * @throws NdexException
-	 *             Attempting to query the database
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
+	
 	 * @returns User object, from the NDEx Object Model
 	 **************************************************************************/
 	public User getUserByAccountName(String accountName, boolean verifiedOnly) throws NdexException,
@@ -383,7 +378,26 @@ public class UserDAO extends NdexDBDAO {
 
 	}
 
-	
+	public String getUserPasswordByAccountName(String userName) throws NdexException,
+		IllegalArgumentException, ObjectNotFoundException, SQLException {
+
+		String queryStr = "SELECT password FROM " + NdexClasses.User + " where " + NdexClasses.User_userName + " = ? and is_deleted=false";
+
+		try (PreparedStatement st = db.prepareStatement(queryStr))  {
+			st.setString(1, userName);
+
+			try (ResultSet rs = st.executeQuery() ) {
+				if (rs.next()) {
+					// populate the user object;
+					return rs.getString(1);
+		
+			
+				} 
+				throw new ObjectNotFoundException("User " + userName + " doesn't exist.");
+			}
+		}
+
+	}
 	/**************************************************************************
 	 * Find users
 	 * 
