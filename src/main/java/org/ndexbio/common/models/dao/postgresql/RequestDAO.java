@@ -278,7 +278,7 @@ public class RequestDAO extends NdexDBDAO  {
 		
 		r.setSourceName(rs.getString("source_name"));
 		r.setDestinationName(rs.getString("destination_name"));
-		r.setRequesterId((UUID)rs.getObject("owner_uuid"));
+		r.setRequesterId((UUID)rs.getObject("owner_id"));
 		
 		return r;
 	}
