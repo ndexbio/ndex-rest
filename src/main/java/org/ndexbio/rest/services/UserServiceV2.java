@@ -466,10 +466,10 @@ public class UserServiceV2 extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user. "
 			+ "If this operation orphans a network or group, an exception will be thrown.")
-	public void deleteUser(@PathParam("userid") final String userId)
+	public void deleteUser(@PathParam("userid") final String userIdStr)
 			throws NdexException, ObjectNotFoundException, SQLException, SolrServerException, IOException {
 
-		logger.info("[start: Deleting user (self).]");
+		UUID userId = UUID.fromString(userIdStr);
 		if ( !userId.equals(getLoggedInUserId()) )
 			throw new NdexException ("An authenticated user can only delete himself.");
 		try (UserDAO dao = new UserDAO()) {
