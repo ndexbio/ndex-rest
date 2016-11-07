@@ -174,10 +174,10 @@ public class UserServiceV2 extends NdexService {
 	public Response createUser(final User newUser)
 			throws Exception {
 
-		logger.info("[start: Creating User {}]", newUser.getUserName());
+//		logger.info("[start: Creating User {}]", newUser.getUserName());
 		
 		if ( newUser.getUserName().indexOf(":")>=0) {
-			logger.warn("[end: Failed to create user, account name can't contain \":\" in it]");
+//			logger.warn("[end: Failed to create user, account name can't contain \":\" in it]");
 			throw new NdexException("User account name can't have \":\" in it.");
 		}
 		
@@ -185,12 +185,12 @@ public class UserServiceV2 extends NdexService {
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
 			if (!authenticator.authenticateUser(newUser.getUserName(), newUser.getPassword()) ) {
-				logger.error("[end: Unauthorized to create user {}. Throwing UnauthorizedOperationException.]", 
-						newUser.getUserName());
+//				logger.error("[end: Unauthorized to create user {}. Throwing UnauthorizedOperationException.]", 
+//						newUser.getUserName());
 				throw new UnauthorizedOperationException("Only valid AD users can have an account in NDEx.");
 			}
 			newUser.setPassword(Security.generateLongPassword());
-			logger.info("[User is a authenticated by AD.]");
+//			logger.info("[User is a authenticated by AD.]");
 		}
 
 		try (UserDAO userdao = new UserDAO()){
@@ -262,8 +262,8 @@ public class UserServiceV2 extends NdexService {
 				
 				user.setExternalId(null);
 			}	
-			logger.info("[end: User {} created with UUID {}]", 
-					newUser.getUserName(), user.getExternalId());
+	//		logger.info("[end: User {} created with UUID {}]", 
+	//				newUser.getUserName(), user.getExternalId());
 			
 			if ( user.getExternalId() != null) {
 			  URI l = new URI (Configuration.getInstance().getHostURI()  + 
@@ -302,7 +302,7 @@ public class UserServiceV2 extends NdexService {
 	public User getUser(@PathParam("userid") final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
-		logger.info("[start: Getting user {}]", userId);
+	//	logger.info("[start: Getting user {}]", userId);
 		
 		try (UserDAO dao = new UserDAO()) {
 			try {
@@ -312,7 +312,7 @@ public class UserServiceV2 extends NdexService {
 				return user;	
 			} catch (IllegalArgumentException e) {
 				final User user = dao.getUserByAccountName(userId.toLowerCase(),true);
-				logger.info("[end: User object returned for user account {}]", userId);
+//				logger.info("[end: User object returned for user account {}]", userId);
 				return user;
 			}
 		} 
@@ -349,14 +349,14 @@ public class UserServiceV2 extends NdexService {
 			return authenticateUser();
 		}
 		
-		logger.info("[start: Getting user by account name {}]", accountName);
+	//	logger.info("[start: Getting user by account name {}]", accountName);
 		if ( accountName == null || accountName.length() == 0)
 			throw new IllegalArgumentException("parameter username is required in the URL.");
 		
 		try (UserDAO dao = new UserDAO()){
 			
 			final User user = dao.getUserByAccountName(accountName.toLowerCase(),false);
-			logger.info("[end: User object returned for user account {}]", accountName);
+	//		logger.info("[end: User object returned for user account {}]", accountName);
 			return user;
 		} 
 		
@@ -378,11 +378,11 @@ public class UserServiceV2 extends NdexService {
 	public User getUserByUUID(@PathParam("userid") final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
-		logger.info("[start: Getting user from UUID {}]", userId);
+//		logger.info("[start: Getting user from UUID {}]", userId);
 		
 		try (UserDAO dao = new UserDAO() ){
 			final User user = dao.getUserById(UUID.fromString(userId),true);
-			logger.info("[end: User object returned for user uuid {}]", userId);
+//			logger.info("[end: User object returned for user uuid {}]", userId);
 			return user;	
 		} 
 		
@@ -392,15 +392,15 @@ public class UserServiceV2 extends NdexService {
 	private User authenticateUser()
 			throws UnauthorizedOperationException {
 		
-		logger.info("[start: Authenticate user from Auth header]");
+	//	logger.info("[start: Authenticate user from Auth header]");
        
 		User u = this.getLoggedInUser(); 
 		if ( u == null ) {
-			logger.error("[end: Unauthorized user. Throwing UnauthorizedOperationException...]");
+//			logger.error("[end: Unauthorized user. Throwing UnauthorizedOperationException...]");
 			throw new UnauthorizedOperationException("Unauthorized user.");
 		}	
 		
-		logger.info("[end: user {} autenticated from Auth header]",  u.getUserName());
+//		logger.info("[end: user {} autenticated from Auth header]",  u.getUserName());
 		return this.getLoggedInUser();
 	}
 	
@@ -429,7 +429,7 @@ public class UserServiceV2 extends NdexService {
 			throws IllegalArgumentException, NdexException, SQLException, NoSuchAlgorithmException, IOException, MessagingException {
 		
 		
-		logger.info("[start: Changing password for user {}]", getLoggedInUser().getUserName() );
+//		logger.info("[start: Changing password for user {}]", getLoggedInUser().getUserName() );
 		
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			logger.warn("[end: Changing password not allowed for AD authentication method]");
@@ -453,7 +453,7 @@ public class UserServiceV2 extends NdexService {
 		try (UserDAO dao = new UserDAO ()) {
 			dao.setNewPassword(getLoggedInUser().getUserName(),password);
 			dao.commit();
-			logger.info("[end: Password changed for user {}]", getLoggedInUser().getUserName());
+	//		logger.info("[end: Password changed for user {}]", getLoggedInUser().getUserName());
 		}
 	}
 
@@ -555,11 +555,11 @@ public class UserServiceV2 extends NdexService {
 		// Currently not using path param. We can already retrieve the id from the authentication
 		// However, this depends on the authentication method staying consistent?
 
-		logger.info("[start: Updating user {}]", updatedUser.getUserName());
+	//	logger.info("[start: Updating user {}]", updatedUser.getUserName());
 		
 		if ( Configuration.getInstance().getUseADAuthentication()) {
 			if ( !updatedUser.getUserName().equals(getLoggedInUser().getUserName())) {
-				logger.error("[end: Updating accountName is not allowed when NDEx server is running on AD authentication.]");
+	//			logger.error("[end: Updating accountName is not allowed when NDEx server is running on AD authentication.]");
 				throw new UnauthorizedOperationException(
 						"Updating accountName is not allowed when NDEx server is running on AD authentication.");
 			}
@@ -570,7 +570,7 @@ public class UserServiceV2 extends NdexService {
 			UserIndexManager mgr = new UserIndexManager();
 			mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
 			dao.commit();
-			logger.info("[end: User {} updated]", updatedUser.getUserName());
+	//		logger.info("[end: User {} updated]", updatedUser.getUserName());
 		} 
 	}
 	
