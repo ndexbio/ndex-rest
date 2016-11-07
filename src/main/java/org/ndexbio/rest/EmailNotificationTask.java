@@ -54,6 +54,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Email;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,7 +100,7 @@ public class EmailNotificationTask extends TimerTask {
 			
 		Map<String, Map<ResponseType, Integer>> tab = getNotificationTable();
 		
-		String senderAddress = Configuration.getInstance().getProperty("Feedback-Email");
+	//	String senderAddress = Configuration.getInstance().getProperty("Feedback-Email");
 		String emailSubject = "NDEx Notifications - ";
 		
 		for ( Map.Entry<String, Map<ResponseType,Integer>> rec : tab.entrySet()) {
@@ -114,8 +115,10 @@ public class EmailNotificationTask extends TimerTask {
 					
 				
 				// send email;
-				Email.sendHTMLEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Have Pending Request(s)",
-					  emailTemplate.replaceFirst("%%____%%",emailString));
+				 AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(), emailTemplate.replaceFirst("%%____%%",emailString),
+						 emailSubject + "You Have Pending Request(s)" , "html");
+				/*Email.sendHTMLEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Have Pending Request(s)",
+					  emailTemplate.replaceFirst("%%____%%",emailString)); */
 			}
 			if ( notifications.get(ResponseType.ACCEPTED)!=null)	{			
 				
@@ -124,8 +127,10 @@ public class EmailNotificationTask extends TimerTask {
 					"You can now log in to your account and access new networks and groups." ;
 				
 				// send email;
-				Email.sendHTMLEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Request Has Been Reviewed",
-						emailTemplate.replaceFirst("%%____%%",emailString));
+				 AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(), emailTemplate.replaceFirst("%%____%%",emailString),
+						 emailSubject + "You Request Has Been Reviewed" , "html");
+			/*	Email.sendHTMLEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Request Has Been Reviewed",
+						emailTemplate.replaceFirst("%%____%%",emailString)); */
 			}
 			
 		}
@@ -146,6 +151,9 @@ public class EmailNotificationTask extends TimerTask {
 		// TODO Auto-generated catch block
 		e.printStackTrace();
 	} catch (IOException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	} catch (Exception e) {
 		// TODO Auto-generated catch block
 		e.printStackTrace();
 	} 

@@ -81,6 +81,7 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
+import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
@@ -171,8 +172,7 @@ public class UserServiceV2 extends NdexService {
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. "
 			+ "Username and emailAddress must be unique in the database. If email verification is turned on on the server, the user uuid field will be set to null.")
 	public Response createUser(final User newUser)
-			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
-			NdexException, IOException, SQLException, NoSuchAlgorithmException, SolrServerException, URISyntaxException {
+			throws Exception {
 
 		logger.info("[start: Creating User {}]", newUser.getUserName());
 		
@@ -231,8 +231,13 @@ public class UserServiceV2 extends NdexService {
 				} else 
 					forwardedHost += "/rest/";
 				
-				String restURL = protocal + "://" + forwardedHost+ "user/" + user.getExternalId().toString() 
-						+ "/verify/" + verificationCode;
+				String restURL  = Configuration.getInstance().getHostURI()  + 
+			            Configuration.getInstance().getRestAPIPrefix()+"/user/" + user.getExternalId().toString() 
+						+ "/verification?verificationCode=" + verificationCode;
+						
+						
+					/*	protocal + "://" + forwardedHost+ "user/" + user.getExternalId().toString() 
+						+ "/verify/" + verificationCode; */
 						
 			
 		        // Now set the actual message
@@ -248,10 +253,11 @@ public class UserServiceV2 extends NdexService {
 							
 		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
 		        
-				Email.sendHTMLEmailUsingLocalhost(Configuration.getInstance().getProperty("Feedback-Email"),
+		        AmazonSESMailSender.getInstance().sendEmail(newUser.getEmailAddress(), htmlEmail, "Verify Your New NDEx Account", "html");
+			/*	Email.sendHTMLEmailUsingLocalhost(Configuration.getInstance().getProperty("Feedback-Email"),
 						newUser.getEmailAddress(),
 						"Verify Your New NDEx Account",
-						htmlEmail);
+						htmlEmail); */
 
 				
 				user.setExternalId(null);

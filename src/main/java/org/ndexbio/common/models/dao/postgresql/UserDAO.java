@@ -216,7 +216,7 @@ public class UserDAO extends NdexDBDAO {
 		
 		User user = getUserById(userUUID, false);		
 		
-		if ( !user.getIsVerified())
+		if ( user.getIsVerified())
 			throw new NdexException ( "User has already been verified.");
 		
 		String vCode = (String) user.getProperties().get(NdexClasses.User_verification_code) ;
@@ -228,7 +228,7 @@ public class UserDAO extends NdexDBDAO {
 			user.getProperties().remove(NdexClasses.User_verification_code);
 			String updateStr = "update " + NdexClasses.User + " set " + NdexClasses.Account_otherAttributes + 
 					" = ? :: jsonb, " + NdexClasses.User_isVerified + " = true, "  + 
-					NdexClasses.ExternalObj_mTime + "= ? where " + NdexClasses.ExternalObj_ID + "= \'" + user.getExternalId().toString() + "\' :: uuid" ;
+					NdexClasses.ExternalObj_mTime + "= ? where \"UUID\"= '" + user.getExternalId().toString() + "' :: uuid" ;
 			
 			try (PreparedStatement st = db.prepareStatement(updateStr) ) {
 					ObjectMapper mapper = new ObjectMapper();

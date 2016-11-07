@@ -138,7 +138,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			
 		} catch (NdexException | SolrServerException | IOException e) {
 			e.printStackTrace();
-			throw new javax.servlet.ServletException("Faied to start Ndex server. Cause: " + e.getMessage(), e);
+			throw new javax.servlet.ServletException("Failed to start Ndex server. Cause: " + e.getMessage(), e);
 		}
     	
 	}
