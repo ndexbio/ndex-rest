@@ -211,7 +211,7 @@ public class GroupServiceV2 extends NdexService {
 	 *            The updated group information.
 
 	 **************************************************************************/
-	@POST
+	@PUT
 	@Path("/{groupid}")
 	@Produces("application/json")
 	@ApiDoc("Updates the group metadata corresponding to the POSTed group JSON structure. " + 

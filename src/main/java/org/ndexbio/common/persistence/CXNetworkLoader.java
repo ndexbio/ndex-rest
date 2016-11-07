@@ -52,6 +52,7 @@ import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
+import org.cxio.aspects.datamodels.CyVisualPropertiesElement;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
@@ -419,7 +420,7 @@ public class CXNetworkLoader implements AutoCloseable {
 					createFunctionTerm((FunctionTermElement)elmt);
 					break;
 					
-				case Provenance.ASPECT_NAME:   // we ignore the provenance aspect in the uploaded networ for now.
+				case Provenance.ASPECT_NAME:   // we ignore the provenance aspect in the uploaded network for now.
 												// uncomment the following line to save it.
 		//			this.provenanceHistory = (Provenance)elmt;
 					break;
@@ -591,6 +592,8 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 	private void writeCXElement(AspectElement element) throws IOException {
 		String aspectName = element.getAspectName();
+//		if ( aspectName.equals("visualProperties"))
+//			aspectName =CyVisualPropertiesElement.ASPECT_NAME;
 		CXAspectWriter writer = aspectTable.get(aspectName);
 		if ( writer == null) {
 			logger.info("creating new file for aspect " + aspectName);
