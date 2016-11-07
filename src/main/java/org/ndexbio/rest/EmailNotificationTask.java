@@ -117,6 +117,9 @@ public class EmailNotificationTask extends TimerTask {
 				// send email;
 				 AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(), emailTemplate.replaceFirst("%%____%%",emailString),
 						 emailSubject + "You Have Pending Request(s)" , "html");
+				 
+				  logger.info("Notified " + u.getUserName() + " one pending request.");
+
 				/*Email.sendHTMLEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Have Pending Request(s)",
 					  emailTemplate.replaceFirst("%%____%%",emailString)); */
 			}
@@ -129,6 +132,8 @@ public class EmailNotificationTask extends TimerTask {
 				// send email;
 				 AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(), emailTemplate.replaceFirst("%%____%%",emailString),
 						 emailSubject + "You Request Has Been Reviewed" , "html");
+				  logger.info("Notified " + u.getUserName() + " one accepted request.");
+
 			/*	Email.sendHTMLEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Request Has Been Reviewed",
 						emailTemplate.replaceFirst("%%____%%",emailString)); */
 			}
