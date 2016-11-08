@@ -109,7 +109,7 @@ public class AmazonSESMailSender {
     		            // Close and terminate the connection.
     		            transport.close();        	
     		        }  
-    			    Thread.sleep(1001);
+    			    Thread.sleep(100);
     			  
     		  } finally {
     		    mutex.release();

@@ -140,7 +140,7 @@ public class UserServiceV2 extends NdexService {
 	@PermitAll
 	@Path("/{userid}/verification")
 	@NdexOpenFunction
-//	@Produces("application/json")
+	@Produces("text/plain")
 	@ApiDoc("Verify the given user with UUID and verificationCode")
 	public String verifyUser(@PathParam("userid") String userUUID,
 					@QueryParam("verificationCode") String verificationCode		
