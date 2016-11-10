@@ -40,7 +40,9 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -814,6 +816,19 @@ public class GroupDAO extends NdexDBDAO {
 	}
 	
 	
-
+	public Set<UUID> getGroupAdminIds(UUID groupId) throws SQLException {
+		Set<UUID> result = new TreeSet<>();
+		String chkStr = "select user_id from ndex_group_user where group_id = ? and is_admin";
+		try ( PreparedStatement pst = db.prepareStatement(chkStr)) {
+			pst.setObject(1, groupId);
+			try (ResultSet rs = pst.executeQuery()) {
+				while ( rs.next()) {
+					
+					result.add((UUID)rs.getObject(1));
+				}
+			}	
+		}
+		return result;
+	}
 	
 }

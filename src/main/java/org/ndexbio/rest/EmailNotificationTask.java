@@ -31,6 +31,9 @@
 package org.ndexbio.rest;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.Date;
@@ -43,6 +46,7 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
@@ -72,6 +76,8 @@ public class EmailNotificationTask extends TimerTask {
 	private String emailTemplate;
 	
    private final static int f12_AM = 0;
+   
+   private Exception error;
 
 	  protected static Date getTomorrowNotificationTime(){
 	    Calendar tomorrow = new GregorianCalendar();
@@ -88,7 +94,7 @@ public class EmailNotificationTask extends TimerTask {
 
 	public EmailNotificationTask() throws IOException {
 	 emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
-
+	 error = null;
 	}
 
 	@Override
@@ -98,14 +104,14 @@ public class EmailNotificationTask extends TimerTask {
 		// testing the email notification code.
 	  try (UserDAO userdao = new UserDAO()) {
 			
-		Map<String, Map<ResponseType, Integer>> tab = getNotificationTable();
+		Map<UUID, Map<ResponseType, Integer>> tab = getNotificationTable();
 		
 	//	String senderAddress = Configuration.getInstance().getProperty("Feedback-Email");
 		String emailSubject = "NDEx Notifications - ";
 		
-		for ( Map.Entry<String, Map<ResponseType,Integer>> rec : tab.entrySet()) {
-			String userUUIDStr = rec.getKey();
-			User u = userdao.getUserById(UUID.fromString(userUUIDStr),true);
+		for ( Map.Entry<UUID, Map<ResponseType,Integer>> rec : tab.entrySet()) {
+			UUID userUUID = rec.getKey();
+			User u = userdao.getUserById(userUUID,true);
 			Map<ResponseType,Integer> notifications = rec.getValue();
 			if ( notifications.get(ResponseType.PENDING)!=null)	{			
 			
@@ -143,9 +149,12 @@ public class EmailNotificationTask extends TimerTask {
 	  } catch (NdexException e) {
 		logger.error("Error occurred when sending email notifications. Cause:" + e.getMessage() );
 		e.printStackTrace();
+		setError(e);
 	} catch (SQLException e1) {
 		// TODO Auto-generated catch block
 		e1.printStackTrace();
+		setError(e1);
+
 	} catch (JsonParseException e) {
 		// TODO Auto-generated catch block
 		e.printStackTrace();
@@ -170,7 +179,7 @@ public class EmailNotificationTask extends TimerTask {
 	 * @return
 	 * @throws NdexException 
 	 */
-	private static Map<String, Map<ResponseType, Integer>> getNotificationTable() throws NdexException{
+	private static Map<UUID, Map<ResponseType, Integer>> getNotificationTable() throws NdexException{
 		  		
 	/*  			OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(
 	  						"SELECT FROM " + NdexClasses.Request +
@@ -179,66 +188,85 @@ public class EmailNotificationTask extends TimerTask {
 
 	  			List<ODocument> records = dbconn.command(query).execute(); */
 
-	  		    Map <String, Map<ResponseType, Integer>> result = new HashMap<> ();
-/*	  			for (ODocument request : records) {
-	  				Request r = RequestDAO.getRequestFromDocument(request);
-	  				if ( r.getResponse() == ResponseType.PENDING ) {  // pending request need to notify the destinations side.
-	  					if (r.getPermission() == Permissions.MEMBER || r.getPermission() == Permissions.GROUPADMIN ) {
-	  						// group request. need to notify all admins of the group
-	  						GroupDAO grpdao = new GroupDAO ( dbconn);
-	  						List<Membership> members = grpdao.getGroupUserMemberships(r.getDestinationUUID(), Permissions.GROUPADMIN, 0, 5);
-	  						for ( Membership member : members){
-	  							String uuidStr = member.getMemberUUID().toString();
-	  							Map<ResponseType, Integer> notifications = result.get(uuidStr);
-	  							if ( notifications == null) {
-	  								notifications = new HashMap<>();
-	  								result.put(uuidStr, notifications);
-	  							}  
-	  							Integer cnt = notifications.get(r.getResponse());
-	  							if ( cnt == null)
-	  								cnt = 1;
-	  							else 
-	  								cnt = cnt + 1;
-	  							notifications.put(ResponseType.PENDING, cnt);
-	  						}
-	  					} else {
-	  						// network request. need to notify all admins of the network
-	  						NetworkDocDAO networkdao = new NetworkDocDAO (dbconn);
-	  						Set<String> uuids = networkdao.getAdminUsersOnNetwork(r.getDestinationUUID().toString());
-	  						
-	  				//		UserDocDAO userdao = new UserDocDAO ( dbconn);
-	  						for ( String userUUIDStr : uuids){
-	  							Map<ResponseType, Integer> notifications = result.get(userUUIDStr);
-	  							if ( notifications == null) {
-	  								notifications = new HashMap<>();
-	  								result.put(userUUIDStr, notifications);
-	  							}  
-	  							Integer cnt = notifications.get(r.getResponse());
-	  							if ( cnt == null)
-	  								cnt = 1;
-	  							else 
-	  								cnt = cnt + 1;
-	  							notifications.put(ResponseType.PENDING, cnt);
-	  						}
-	  						
-	  					}
-	  					
-	  				} else { //accepted or denied request need to notify the source 
-						Map<ResponseType, Integer> notifications = result.get(r.getSourceUUID().toString());
-						if ( notifications == null) {
-							notifications = new HashMap<>();
-						    result.put(r.getSourceUUID().toString(), notifications);						
-						}
-	  					Integer cnt = notifications.get(ResponseType.ACCEPTED);
-	  					if ( cnt == null) 
-	  						cnt = 1;
-	  					else 
-	  						cnt = cnt+1;
-	  					notifications.put(ResponseType.ACCEPTED, cnt);
-	  				}
+	  		    Map <UUID, Map<ResponseType, Integer>> result = new HashMap<> ();
+	  		    
+	  			try (Connection db = NdexDatabase.getInstance().getConnection() ) {
+	  				String sql = "select destinationuuid, request_type, response,owner_id from request "
+	  						+ "where current_timestamp - modification_time < interval '1 day'";
 	  				
-	  			} */
+	  				try (PreparedStatement st = db.prepareStatement(sql))  {
+	  					try (ResultSet rs = st.executeQuery() ) {
+	  						while (rs.next()) {
+	  							String requestType = rs.getString(2);
+  								UUID destUUID = (UUID)rs.getObject(1);
+  								ResponseType responseType = ResponseType.valueOf(rs.getString(3));
+  								if ( responseType.equals(ResponseType.PENDING)) {  // notify the recipient.
+  									if ( requestType.equals("JoinGroup")) {
+	  								try (GroupDAO dao = new GroupDAO()) {
+	  									for (UUID userid :  dao.getGroupAdminIds(destUUID)) {
+	  										Map<ResponseType, Integer> notifications = result.get(userid);
+	  			  							if ( notifications == null) {
+	  			  								notifications = new HashMap<>();
+	  			  								result.put(userid, notifications);
+	  			  							}  
+	  			  							Integer cnt = notifications.get(ResponseType.PENDING);
+	  			  							if ( cnt == null)
+	  			  								cnt = 1;
+	  			  							else 
+	  			  								cnt = cnt + 1;
+	  			  							notifications.put(ResponseType.PENDING, cnt);
+	  									}
+	  								}
+	  								
+  									} else {    // network permission request, notify network admin
+	  								try (NetworkDAO dao = new NetworkDAO()) {
+	  									UUID userid = dao.getNetworkOwner(destUUID);
+	  									Map<ResponseType, Integer> notifications = result.get(userid);
+  			  							if ( notifications == null) {
+  			  								notifications = new HashMap<>();
+  			  								result.put(userid, notifications);
+  			  							}  
+  			  							Integer cnt = notifications.get(ResponseType.PENDING);
+  			  							if ( cnt == null)
+  			  								cnt = 1;
+  			  							else 
+  			  								cnt = cnt + 1;
+  			  							notifications.put(ResponseType.PENDING, cnt);
+	  								}
+  									}
+  								} else { //notify the requester
+  									UUID ownerId = (UUID) rs.getObject(4);
+  									Map<ResponseType, Integer> notifications = result.get(ownerId);
+			  						if ( notifications == null) {
+			  								notifications = new HashMap<>();
+			  								result.put(ownerId, notifications);
+			  						}  
+			  						Integer cnt = notifications.get(responseType);
+			  						if ( cnt == null)
+			  								cnt = 1;
+			  						else 
+			  								cnt = cnt + 1;
+			  						notifications.put(responseType, cnt);
+  								}
+	  						} 
+	  					}
+	  				}	
+	  				
+	  			} catch (SQLException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+
+	  		    
 	  		return result;	
+	}
+
+	public Exception getError() {
+		return error;
+	}
+
+	public void setError(Exception error) {
+		this.error = error;
 	}
 	
 

@@ -103,6 +103,7 @@ public class AmazonSESMailSender {
     		        catch (Exception ex) {
     		            System.out.println("The email was not sent.");
     		            System.out.println("Error message: " + ex.getMessage());
+    		            logger.error("Failed to send email using SES: " + ex.getLocalizedMessage());
     		        }
     		        finally
     		        {

@@ -135,8 +135,14 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			 timer.scheduleAtFixedRate(new EmailNotificationTask(), 
 					 EmailNotificationTask.getTomorrowNotificationTime(), 
 					 EmailNotificationTask.fONCE_PER_DAY);
+			 
+			 //just for testing comment out when done.
+		/*	 EmailNotificationTask e = new EmailNotificationTask();
+			 e.run();
+			 if ( e.getError() != null) 
+				 throw e.getError(); */
 			
-		} catch (NdexException | SolrServerException | IOException e) {
+		} catch ( Exception e) {
 			e.printStackTrace();
 			throw new javax.servlet.ServletException("Failed to start Ndex server. Cause: " + e.getMessage(), e);
 		}

@@ -288,6 +288,29 @@ public class CXNetworkSampleGenerator {
 		  }
 		}
 
+		//special case to support old visualProperty aspect
+		java.nio.file.Path cyVisPropAspectFileOld = Paths.get(pathPrefix + "visualProperties");
+		if ( Files.exists(cyVisPropAspectFileOld)) { 
+		  long vpropCount = 0;
+		  try (FileInputStream inputStream = new FileInputStream(pathPrefix + "visualProperties")) {
+
+			Iterator<CyVisualPropertiesElement> it = new ObjectMapper().readerFor(CyVisualPropertiesElement.class).readValues(inputStream);
+
+			while (it.hasNext()) {
+				CyVisualPropertiesElement elmt = it.next();
+				result.addOpapqueAspect(elmt);
+				vpropCount++;
+			}
+		  }
+		  
+		  if ( vpropCount > 0) {
+			  MetaDataElement nsmd = this.getMetaDataElementTempleteFromSrc(CyVisualPropertiesElement.ASPECT_NAME);
+			  nsmd.setElementCount(vpropCount);
+			  metadata.add(nsmd);
+		  }
+		}
+
+		
 		// process function terms
 		long aspElmtCount = 0;
 		try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId, FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {

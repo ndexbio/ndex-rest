@@ -89,6 +89,9 @@ public class RequestService extends NdexService
     		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: Creating request for {}]", newRequest.getDestinationName());
+		
+		if ( newRequest.getRequestType() == null)
+			throw new NdexException ("RequestType is missing in the posted request object.");
 				
 		try (RequestDAO dao = new RequestDAO ()){			
 			Request request = dao.createRequest(newRequest, this.getLoggedInUser());
