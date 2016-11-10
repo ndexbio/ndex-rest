@@ -511,8 +511,11 @@ public class NetworkDAO extends NdexDBDAO {
 				e.setVersion("1.0");
 				
 				long cg = 1;
-				if (metadata.getMetaDataElement(NodesElement.ASPECT_NAME) != null)
-					cg = metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup();
+				if (metadata.getMetaDataElement(NodesElement.ASPECT_NAME) != null) {
+					Long cgL = metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup();
+					if (cgL !=null)
+						cg = cgL.longValue();
+				}
 				e.setConsistencyGroup(cg);
 				e.setElementCount(1L);
 				metadata.addAt(0, e);

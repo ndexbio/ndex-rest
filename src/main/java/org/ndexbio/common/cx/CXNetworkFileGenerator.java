@@ -80,7 +80,9 @@ public class CXNetworkFileGenerator {
 				  e = new MetaDataElement();
 				  e.setName(NdexNetworkStatus.ASPECT_NAME);
 				  e.setVersion("1.0");
-				  e.setConsistencyGroup(metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup());
+				  if ( metadata.getMetaDataElement(NodesElement.ASPECT_NAME) != null && 
+						  metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup() !=null)
+					  e.setConsistencyGroup(metadata.getMetaDataElement(NodesElement.ASPECT_NAME).getConsistencyGroup());
 				  e.setElementCount(1L);
 				  metadata.addAt(0, e);
 			 }
