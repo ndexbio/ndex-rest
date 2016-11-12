@@ -657,7 +657,7 @@ public class UserServiceV2 extends NdexService {
 			permission = Permissions.valueOf(permissionType);
 		
 		try (UserDAO dao = new UserDAO ()) {
-			Map<String,String> members= dao.getUserNetworkPermissionMap(userId, permission, skipBlocks, blockSize, inclusive);
+			Map<String,String> members= dao.getUserNetworkPermissionMap(userId, permission, skipBlocks, blockSize, inclusive, directOnly);
 			logger.info("[end: Returned {} members ]", members.size());			
 			return members;
 		} 	

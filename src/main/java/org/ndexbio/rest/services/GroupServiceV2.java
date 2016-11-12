@@ -408,7 +408,7 @@ public class GroupServiceV2 extends NdexService {
 //		logger.info("[start: Getting {} users in group {}]", permissions, groupIdStr);
 
 		boolean inclusive = false;
-		Permissions permission = Permissions.MEMBER;
+		Permissions permission = null; //Permissions.MEMBER;
 		if ( permissions != null) {
 			permission = Permissions.valueOf(permissions.toUpperCase());
 		}

@@ -632,7 +632,7 @@ public class UserDAO extends NdexDBDAO {
 	
 	
 	public Map<String,String> getUserNetworkPermissionMap(UUID userId,
-			Permissions permission, int skipBlocks, int blockSize, boolean inclusive)
+			Permissions permission, int skipBlocks, int blockSize, boolean inclusive, boolean directOnly)
 			throws SQLException {
 	
 		String queryStr = "select \"UUID\" as network_id, 'ADMIN' :: ndex_permission_type as permission_type " + 
@@ -644,8 +644,9 @@ public class UserDAO extends NdexDBDAO {
 			queryStr = " select a.network_id, max(a.permission_type) as permission_type from (" + (inclusive ? (queryStr + " union ") : "" ) +
 					" select un.network_id, un.permission_type " + 
 					"from user_network_membership un where un.user_id = '"+ userId.toString() + "' :: uuid and un.permission_type " + permissionClause +
-					" union select gn.network_id, gn.permission_type from ndex_group_user ug, group_network_membership gn " + 
-					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid and gn.permission_type " + permissionClause +" ) a group by a.network_id ";
+					( directOnly ? "" :
+					(" union select gn.network_id, gn.permission_type from ndex_group_user ug, group_network_membership gn " + 
+					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid and gn.permission_type " + permissionClause) ) +" ) a group by a.network_id ";
 					
 		}  else if ( permission == null || permission !=Permissions.ADMIN) {
 			throw new IllegalArgumentException("Valid permissions required.");

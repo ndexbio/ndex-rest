@@ -415,20 +415,21 @@ public class GroupDAO extends NdexDBDAO {
 	public List<Membership> getGroupUserMemberships(UUID groupId, Permissions permission, int skipBlocks, int blockSize, boolean inclusive) 
 			throws ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, SQLException, IOException {
 		
-		Preconditions.checkArgument( (permission.equals( Permissions.GROUPADMIN) )
+	/*	Preconditions.checkArgument( (permission.equals( Permissions.GROUPADMIN) )
 				|| (permission.equals( Permissions.MEMBER )),
-				"Valid permissions required");
+				"Valid permissions required"); */
 		
 		String queryStr = "select user_id, is_admin, u.user_name from ndex_group_user gu, ndex_user u where u.\"UUID\" = gu.user_id and group_id = ?";
 		
-		if ( permission == Permissions.GROUPADMIN) 
-			queryStr += " and is_admin";
-		else {
-			if ( !inclusive) {
-				queryStr += " and is_admin = false";
+		if ( permission != null) {
+			if ( permission == Permissions.GROUPADMIN) 
+				queryStr += " and is_admin";
+			else {
+				if ( !inclusive) {
+					queryStr += " and is_admin = false";
+				}
 			}
-		}
-			
+		}	
 		
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
