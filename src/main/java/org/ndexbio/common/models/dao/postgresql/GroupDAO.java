@@ -641,7 +641,10 @@ public class GroupDAO extends NdexDBDAO {
 		String[] sqlCmds = {
 				"insert into ndex_group_user_arc (group_id,user_id, is_admin) " + 
 						" select group_id,user_id,is_admin from ndex_group_user where group_id = ?",
-				"delete from ndex_group_user where group_id = ?",
+				"delete from ndex_group_user where group_id = ?",	
+				"insert into group_network_membership_arc (group_id, network_id, permission_type) " + 
+						" select group_id, network_id, permission_type from group_network_membership where group_id = ?",
+				"delete from group_network_membership where group_id = ?",
 				"update ndex_group set is_deleted = true where \"UUID\" = ? and not is_deleted"
 			};
 		

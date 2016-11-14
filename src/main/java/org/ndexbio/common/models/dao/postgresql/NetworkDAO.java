@@ -118,17 +118,33 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 
-	public void deleteNetwork(UUID netowrkId, UUID userId) throws SQLException, NdexException {
+	public void deleteNetwork(UUID networkId, UUID userId) throws SQLException, NdexException {
 		String sqlStr = "update network set is_deleted=true,"
 				+ " modification_time = localtimestamp where \"UUID\" = ? and owneruuid = ? and is_deleted=false and isLocked = false and readonly=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setObject(1, netowrkId);
+			pst.setObject(1, networkId);
 			pst.setObject(2, userId);
 			int cnt = pst.executeUpdate();
 			if ( cnt !=1) {
 				throw new NdexException ("Failed to delete network. Reason could be invalid UUID, user is not the owner of the network, the network is Locked or the network is readonly.");
 			}
-		}	
+		}
+		
+		String[] sqlCmds = {
+				"insert into user_network_membership_arc (user_id, network_id, permission_type) " + 
+						" select user_id, network_id, permission_type from user_network_membership where network_id = ?",
+				"delete from user_network_membership where network_id = ?",
+				"insert into group_network_membership_arc (group_id, network_id, permission_type) " + 
+						" select group_id, network_id, permission_type from group_network_membership where network_id = ?",
+				"delete from group_network_membership where network_id = ?"
+			};
+
+		for (String cmd : sqlCmds) {
+			try (PreparedStatement st = db.prepareStatement(cmd) ) {
+				st.setObject(1, networkId);
+				st.executeUpdate();
+			}		
+		}
 	}
 	
 
