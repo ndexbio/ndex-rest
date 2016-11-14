@@ -130,14 +130,7 @@ public class UserDAO extends NdexDBDAO {
 	 * 
 	 * @param newUser
 	 *            A User object, from the NDEx Object Model
-	 * @throws IOException 
-	 * @throws SQLException 
-	 * @throws NdexException 
-	 * @throws IllegalArgumentException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
-	 * @throws NoSuchAlgorithmException 
-	 * @throws Exception 
+	 
 	 * @returns User object, from the NDEx Object Model
 	 **************************************************************************/
 	public User createNewUser(User newUser, String verificationCode ) throws JsonParseException, JsonMappingException, IllegalArgumentException, NdexException, SQLException, IOException, NoSuchAlgorithmException {
@@ -206,6 +199,11 @@ public class UserDAO extends NdexDBDAO {
 				int rowsInserted = st.executeUpdate();
 				if ( rowsInserted != 1)
 					throw new NdexException ( "Failed to save user " + newUser.getUserName() + " to database.");
+		} catch (SQLException ee) {
+			if ( ee.getMessage().startsWith("ERROR: duplicate key value violates unique constraint \"user_emailaddr_constraint\""))
+				throw new NdexException ("Email address '" + newUser.getEmailAddress() + "' is being used by another user." );
+			
+			throw ee;
 		}
 		return newUser;
 		
@@ -740,19 +738,20 @@ public class UserDAO extends NdexDBDAO {
 
 
 	public Map<String,String> getUserGroupMembershipMap(UUID userId,
-			Permissions permission, int skipBlocks, int blockSize, boolean inclusive)
+			Permissions permission, int skipBlocks, int blockSize)
 			throws ObjectNotFoundException, NdexException, IllegalArgumentException, SQLException {
 
 		Map <String,String> result = new TreeMap<>();
 		String queryStr = "select gu.group_id, gu.is_admin from ndex_group_user gu where gu.user_id = ? ";
 		
-		if ( permission == Permissions.GROUPADMIN) {
-			queryStr += " and gu.is_admin";
-		} else if ( permission == null || permission != Permissions.MEMBER) 
-			throw new NdexException ("Valid permissions required in getUserGroupMembership function.");
-		else {
-			if ( !inclusive)
-				queryStr += " and gu.is_admin = false";
+		if ( permission !=null) {
+			if ( permission == Permissions.GROUPADMIN) {
+				queryStr += " and gu.is_admin";
+			} else if ( permission != Permissions.MEMBER) 
+				throw new NdexException ("Valid permissions required in getUserGroupMembership function.");
+			else {
+				queryStr += " and not gu.is_admin ";
+			}
 		}
 			
 		if ( skipBlocks>=0 && blockSize>0) {

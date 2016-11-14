@@ -275,7 +275,7 @@ public class UserServiceV2 extends NdexService {
 			String url = Configuration.getInstance().getHostURI()  + 
 		            Configuration.getInstance().getRestAPIPrefix()+"/user?username=" + URLEncoder.encode(newUser.getUserName().toLowerCase(), "UTF-8");
 			return Response.accepted().location(new URI (url)).build();
-		}
+		} 
 	}
 	
 	
@@ -606,16 +606,14 @@ public class UserServiceV2 extends NdexService {
 			} 
 		}
 		
-		//
-		boolean inclusive = true;
-		Permissions permission = Permissions.MEMBER;
+		Permissions permission = null; // Permissions.MEMBER;
 		if ( membershipType != null) {
 			permission = Permissions.valueOf(membershipType.toUpperCase());
 		}
 		
 		try (UserDAO dao = new UserDAO ()) {
 			Map<String,String> result =
-					dao.getUserGroupMembershipMap(userId, permission, skipBlocks, blockSize, inclusive);
+					dao.getUserGroupMembershipMap(userId, permission, skipBlocks, blockSize);
 			logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
 			return result;
 		} 
