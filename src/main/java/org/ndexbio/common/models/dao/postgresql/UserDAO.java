@@ -899,6 +899,8 @@ public class UserDAO extends NdexDBDAO {
 				"insert into ndex_group_user_arc (user_id, group_id, is_admin) " + 
 						" select user_id, group_id, is_admin from ndex_group_user where user_id = ?",
 				"delete from ndex_group_user where user_id = ?",
+				"update task set is_deleted = true where owneruuid = ?",
+				"update request set is_deleted = true where owner_id =? ",
 				"update ndex_user set is_deleted = true where \"UUID\" = ? and not is_deleted"
 			};
 
