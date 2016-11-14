@@ -635,9 +635,6 @@ public class GroupDAO extends NdexDBDAO {
 			throw new NdexException ("User " + adminId + " doesn't have permission to delete group "
 		            + groupId);
 		
-		//TODO: check if there are pending requests.
-
-		
 		String[] sqlCmds = {
 				"insert into ndex_group_user_arc (group_id,user_id, is_admin) " + 
 						" select group_id,user_id,is_admin from ndex_group_user where group_id = ?",
@@ -654,6 +651,15 @@ public class GroupDAO extends NdexDBDAO {
 				st.executeUpdate();
 			}		
 		}
+		
+		// auto response to pending request.
+		String sql = "update request set response ='DECLINED', responsemessage = 'NDEx auto response: group has been deleted.', responsetime = localtimestamp, " +
+				" responder = ? where request_type = 'JoinGroup' and is_deleted=false and response ='PENDING' and destinationuuid = ?"; 
+		try (PreparedStatement st = db.prepareStatement(sql) ) {
+			st.setObject(1, adminId);
+			st.setObject(2, groupId);
+			st.executeUpdate();
+		}		
 		
 	}
 	

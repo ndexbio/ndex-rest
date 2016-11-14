@@ -910,6 +910,8 @@ public class UserDAO extends NdexDBDAO {
 				st.executeUpdate();
 			}		
 		}
+		
+
 	}
 
 }

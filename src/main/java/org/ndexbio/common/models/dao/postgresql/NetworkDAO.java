@@ -145,6 +145,16 @@ public class NetworkDAO extends NdexDBDAO {
 				st.executeUpdate();
 			}		
 		}
+		
+		//auto response to pending request.
+		String sql = "update request set response ='DECLINED', responsemessage = 'NDEx auto response: network has been deleted.', responsetime = localtimestamp, " +
+				" responder = ? where request_type <> 'JoinGroup' and is_deleted=false and response ='PENDING' and destinationuuid = ?"; 
+		try (PreparedStatement st = db.prepareStatement(sql) ) {
+			st.setObject(1, userId);
+			st.setObject(2, networkId);
+			st.executeUpdate();
+		}		
+		
 	}
 	
 
