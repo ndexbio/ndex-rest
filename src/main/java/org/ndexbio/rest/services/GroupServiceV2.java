@@ -308,20 +308,25 @@ public class GroupServiceV2 extends NdexService {
 			+ "Errors if the group or the user is not found. "
 			+ "Also errors if the authenticated user is not authorized to edit the group "
 			+ "or if removing the member would leave the group with no Admin member.")
-	public void removeUserMember(@PathParam("groupid") final String groupIdStr,
-			@QueryParam("userid") final String memberId) throws IllegalArgumentException,
+	public void removeGroupMember(@PathParam("groupid") final String groupIdStr,
+			@QueryParam("userid") final String memberIdStr) throws IllegalArgumentException,
 			ObjectNotFoundException, NdexException, SQLException {
 
-		logger.info("[start: Removing member {} from group {}]", memberId, groupIdStr);
+//		logger.info("[start: Removing member {} from group {}]", memberIdStr, groupIdStr);
 
+		UUID memberId = UUID.fromString(memberIdStr);
+		
 		UUID groupId = UUID.fromString(groupIdStr);
 		try (GroupDAO dao = new GroupDAO()){
-			if ( !dao.isGroupAdmin(groupId, getLoggedInUserId()))
-				throw new NdexException("Only group admin can update membership.");
-			
-			dao.removeMember(UUID.fromString(memberId), groupId, this.getLoggedInUser().getExternalId());
+			if ( !dao.isGroupAdmin(groupId, getLoggedInUserId())) {
+			    if (  !memberId.equals(getLoggedInUserId())) {
+					throw new UnauthorizedOperationException("Unable to delete group membership: user need to be an admin of this group or can only make himself leave this group.");
+				}
+			}
+			dao.removeMember(memberId, groupId, 
+					dao.isGroupAdmin(groupId, getLoggedInUserId()) ? this.getLoggedInUser().getExternalId(): null);
 			dao.commit();
-			logger.info("[start: Member {} removed from group {}]", memberId, groupId);
+//			logger.info("[start: Member {} removed from group {}]", memberId, groupId);
 		} 
 	}
 	

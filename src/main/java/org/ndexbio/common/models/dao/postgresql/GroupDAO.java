@@ -797,15 +797,9 @@ public class GroupDAO extends NdexDBDAO {
 
 	
 	public void removeMember(UUID memberId, UUID groupId, UUID adminId) 
-			throws ObjectNotFoundException, IllegalArgumentException, NdexException, SQLException {
-		Preconditions.checkArgument( memberId != null ,
-				"member UUID required");
-		Preconditions.checkArgument( groupId != null ,
-				"group UUID required");
-		Preconditions.checkArgument(adminId !=null ,
-				"admin UUID required");
+			throws ObjectNotFoundException, NdexException, SQLException {
 		
-		if ( adminId.equals(memberId) && isTheOnlyAdmin(groupId,adminId)) {
+		if ( adminId!=null && adminId.equals(memberId) && isTheOnlyAdmin(groupId,adminId)) {
 			throw new NdexException ("Cannot orphan group to have no admin.");	
 		}
 		

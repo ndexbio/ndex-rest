@@ -1177,7 +1177,15 @@ public class NetworkDAO extends NdexDBDAO {
     			pst.executeUpdate();
     		}
     		
-    		networkIdx.revokeNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.ADMIN, true);
+    		sql = "insert into user_network_membership (user_id,network_id, permission_type) values (?,?, '"+ Permissions.WRITE.toString() + "')";
+    		try ( PreparedStatement pst = db.prepareStatement(sql)) {
+    			pst.setObject(1, oldUser.getExternalId());
+    			pst.setObject(2, networkUUID);
+    			pst.executeUpdate();
+    		}
+    		
+    //		networkIdx.revokeNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.ADMIN, true);
+    		networkIdx.grantNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.WRITE, Permissions.ADMIN, true);
     		
     	} else {
     		String sql = "insert into user_network_membership ( user_id,network_id, permission_type) values (?,?,'"+ permission.toString() + "') "
