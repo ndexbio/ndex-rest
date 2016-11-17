@@ -1351,7 +1351,6 @@ public class NetworkDAO extends NdexDBDAO {
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
 				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage "
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? "; 
-				;
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, userId);

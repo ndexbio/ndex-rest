@@ -279,7 +279,7 @@ public class TaskDAO extends NdexDBDAO {
 			statusFilter = " and status = '" + status + "'";
 		}
 
-		String queryStr = "select * from  task where owneruuid = ? and not is_deleted" + statusFilter + limitStr;
+		String queryStr = "select * from  task where owneruuid = ? and not is_deleted" + statusFilter + " order by creation_time desc " +  limitStr;
 		
 		try (PreparedStatement st = db.prepareStatement(queryStr))  {
 			st.setObject(1, userID);
