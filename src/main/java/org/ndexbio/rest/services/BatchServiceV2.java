@@ -151,8 +151,8 @@ public class BatchServiceV2 extends NdexService {
 			List<String> networkIdStrs)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
-		if (networkIdStrs.size() > 1000) 
-			throw new NdexException ("You can only send up to 1000 network ids in this function.");
+		if (networkIdStrs.size() > 2000) 
+			throw new NdexException ("You can only send up to 2000 network ids in this function.");
 		
     	logger.info("[start: Getting networkSummary of networks {}]", networkIdStrs);
 		

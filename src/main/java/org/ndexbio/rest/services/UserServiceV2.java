@@ -78,6 +78,7 @@ import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -1044,8 +1045,6 @@ public class UserServiceV2 extends NdexService {
 					 @PathParam("requestid") String requestIdStr
 					) throws NdexException, SQLException {
 
-				logger.info("[start: Deleting requests sent by user {}]", getLoggedInUser().getUserName());
-				
 				UUID userId = UUID.fromString(userIdStr);
 				if ( !userId.equals(getLoggedInUserId()))
 					throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
@@ -1056,11 +1055,44 @@ public class UserServiceV2 extends NdexService {
 					
 					dao.deletePermissionRequest(requestId, this.getLoggedInUserId());
 					dao.commit();
-				} finally {
-					logger.info("[end: Request deleted]");
 				}
+			}   
+
+	   	
+	   	@GET
+		@Path("/{userid}/showcase")
+		@Produces("application/json")
+		@PermitAll
+		@ApiDoc("")
+		public List<NetworkSummary> getUserShowcaseNetworks(
+					 @PathParam("userid") String userIdStr
+					) throws SQLException, JsonParseException, JsonMappingException, IOException {
+
+				UUID userId = UUID.fromString(userIdStr);
+								
+				try (NetworkDAO dao = new NetworkDAO()) {
+					
+					return dao.getUserShowCaseNetworkSummaries(userId, this.getLoggedInUserId());
+				} 
 				
 			}   
+	   	
+	  	@GET
+		@Path("/{userid}/networksummary")
+		@Produces("application/json")
+		public List<NetworkSummary> getNetworkSummariesForMyAccountPage(
+						 @PathParam("userid") String userIdStr
+			) throws SQLException, JsonParseException, JsonMappingException, IOException, UnauthorizedOperationException {
+
+			UUID userId = UUID.fromString(userIdStr);
+			if ( !userId.equals(getLoggedInUserId()))
+				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
+			
+			try (NetworkDAO dao = new NetworkDAO()) {
+				return dao.getNetworkSummariesForMyAccountPage(userId);
+			} 
+					
+		}      	
 
 
 	

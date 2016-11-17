@@ -171,7 +171,7 @@ public class NetworkGlobalIndexManager {
 		
 	}
 	
-	public SolrDocumentList searchForNetworks (String searchTerms, String userAccount, int limit, int offset, String adminedBy, Permissions permission, boolean canReadOnly,
+	public SolrDocumentList searchForNetworks (String searchTerms, String userAccount, int limit, int offset, String adminedBy, Permissions permission,
 			   List<String> groupNames) 
 			throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl+ "/" + coreName);
@@ -179,22 +179,19 @@ public class NetworkGlobalIndexManager {
 		SolrQuery solrQuery = new SolrQuery();
 		
 		//create the result filter
-	//	String visibilityFilter = // canReadOnly? 
-//				/* (VISIBILITY + ":PUBLIC") :( "(NOT " + */ VISIBILITY + ":PRIVATE";
 		
 		String adminFilter = "";		
 		if ( adminedBy !=null) {
-			adminedBy = "\"" + adminedBy + "\"";
-			adminFilter = " AND (" + USER_ADMIN + ":" + adminedBy +  ")";
+			adminFilter = " AND (" + USER_ADMIN + ":\"" + adminedBy +  "\")";
 		}
 		
 		String resultFilter = "";
 		if ( userAccount !=null) {     // has a signed in user.
-			userAccount = "\"" + userAccount +"\"";
+			String userAccountStr = "\"" + userAccount +"\"";
 			if ( permission == null) {
 				resultFilter =  VISIBILITY + ":PRIVATE";
-				resultFilter += " AND -(" + USER_ADMIN + ":" + userAccount + ") AND -(" +
-						USER_EDIT + ":" + userAccount + ") AND -("+ USER_READ + ":" + userAccount + ")";
+				resultFilter += " AND -(" + USER_ADMIN + ":" + userAccountStr + ") AND -(" +
+						USER_EDIT + ":" + userAccountStr + ") AND -("+ USER_READ + ":" + userAccountStr + ")";
 				if ( groupNames!=null) {
 					for (String groupName : groupNames) {
 					  groupName = "\"" + groupName + "\"";	
@@ -204,8 +201,8 @@ public class NetworkGlobalIndexManager {
 				resultFilter = "-("+ resultFilter + ")";
 			} 
 			else if ( permission == Permissions.READ) {
-				resultFilter = "(" + USER_ADMIN + ":" + userAccount + ") OR (" +
-						USER_EDIT + ":" + userAccount + ") OR ("+ USER_READ + ":" + userAccount + ")";
+				resultFilter = "(" + USER_ADMIN + ":" + userAccountStr + ") OR (" +
+						USER_EDIT + ":" + userAccountStr + ") OR ("+ USER_READ + ":" + userAccountStr + ")";
 				if ( groupNames!=null) {
 					for (String groupName : groupNames) {
 						  groupName = "\"" + groupName + "\"";	
@@ -214,8 +211,8 @@ public class NetworkGlobalIndexManager {
 					}
 				}
 			} else if ( permission == Permissions.WRITE) {
-				resultFilter = "(" + USER_ADMIN + ":" + userAccount + ") OR (" +
-						USER_EDIT + ":" + userAccount + ")";
+				resultFilter = "(" + USER_ADMIN + ":" + userAccountStr + ") OR (" +
+						USER_EDIT + ":" + userAccountStr + ")";
 				if ( groupNames !=null) {
 					for ( String groupName : groupNames )  {
 						  groupName = "\"" + groupName + "\"";	
@@ -223,15 +220,7 @@ public class NetworkGlobalIndexManager {
 							GRP_EDIT + ":" + groupName + ")" ;
 					}
 				} 
-			}/* else if ( permission == Permissions.ADMIN)  {
-			resultFilter =  " -(" + USER_ADMIN + ":" + userAccount + ")";
-		    if ( groupNames!=null ) {
-		    	for ( String grpName : groupNames)
-		    	  resultFilter  +=  " AND -(" + GRP_ADMIN +":" + grpName  + ")";
-//		    	resultFilter = "(" + resultFilter + ")";
-		    }	
-//		    resultFilter = resultFilter + adminFilter;
-		} */
+			}
 		}  else {
 			resultFilter = VISIBILITY + ":PUBLIC";
 		}

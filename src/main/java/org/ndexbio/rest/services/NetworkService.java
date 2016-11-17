@@ -1769,13 +1769,17 @@ public class NetworkService extends NdexService {
 								  try (NetworkDAO daoNew = new NetworkDAO()) {
 									  daoNew.setFlag(networkId, "readonly",bv);
 									  daoNew.commit();
-									  logger.info("[end: Set {}={} for network {}]", parameter, value, networkId);
 									  return;
 								  }  
 							  } else if ( parameter.toLowerCase().equals("visibility")) {
 								  networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf(value));
 								  networkDao.commit();		
 								  return ;
+							  } else if ( parameter.toLowerCase().equals("display")) {
+								  boolean bv = Boolean.parseBoolean(value);
+								  networkDao.setShowcaseFlag(networkId, userId, bv);
+								  networkDao.commit();		
+								  return;
 							  }
 
 						}

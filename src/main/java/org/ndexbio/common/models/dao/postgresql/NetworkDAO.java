@@ -88,9 +88,9 @@ public class NetworkDAO extends NdexDBDAO {
 //	public static final String RESET_MOD_TIME = "resetMTime";
 
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
-	private static final String networkSummarySelectClause = "select creation_time, modification_time, name,description,version,"
-			+ "edgecount,nodecount,visibility,owner,owneruuid,"
-			+ " properties, \"UUID\", is_validated, error, readonly, warnings "; //sourceformat,is_validated, iscomplete, readonly,"
+	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
+			+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
+			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage "; 
 	
 	public NetworkDAO () throws  SQLException {
 	    super();
@@ -761,7 +761,7 @@ public class NetworkDAO extends NdexDBDAO {
 			
 		SolrDocumentList solrResults = networkIdx.searchForNetworks(queryStr, 
 				(loggedInUser == null? null: loggedInUser.getUserName()), top, skipBlocks * top, 
-						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), simpleNetworkQuery.getCanRead(), groupNames);
+						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), groupNames);
 		
 		List<NetworkSummary> results = new ArrayList<>(solrResults.size());
 		for ( SolrDocument d : solrResults) {
@@ -777,7 +777,7 @@ public class NetworkDAO extends NdexDBDAO {
 	
 	public NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
-		String sqlStr = networkSummarySelectClause + " from network where \"UUID\" = ? and is_deleted= false";
+		String sqlStr = networkSummarySelectClause + " from network n where n.\"UUID\" = ? and n.is_deleted= false";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, networkId);
 			try ( ResultSet rs = p.executeQuery()) {
@@ -865,6 +865,8 @@ public class NetworkDAO extends NdexDBDAO {
 			List<String> warningList = Arrays.asList(wA);  
 			result.setWarnings(warningList);
 		}  
+		
+		result.setIsShowcase(rs.getBoolean(17));
 			
 	}
 	
@@ -1282,4 +1284,86 @@ public class NetworkDAO extends NdexDBDAO {
     
     }
     
+    public void setShowcaseFlag(UUID networkId, UUID userId, boolean bv) throws SQLException, UnauthorizedOperationException {
+    	if ( isAdmin(networkId,userId)) {
+    		String sql = "update network set show_in_homepage = ? where \"UUID\"=? and is_deleted=false";
+        	try ( PreparedStatement pst = db.prepareStatement(sql)) {
+        		pst.setBoolean(1, bv);
+        		pst.setObject(2, networkId);
+        		int i = pst.executeUpdate();
+        		if ( i !=1)
+        			logger.severe("Update statement for network " + networkId + " returned 0 row count " + i + ". sql=" + sql);
+        	
+        	}	
+    	} else {
+    		String sql = "update user_network_membership set show_in_homepage = ? where network_id = ? and user_id = ?";
+        	try ( PreparedStatement pst = db.prepareStatement(sql)) {
+        		pst.setBoolean(1, bv);
+        		pst.setObject(2, networkId);
+        		pst.setObject(3, userId);
+        		int i = pst.executeUpdate();
+        		if ( i !=1) {
+        			logger.severe("Update statement for network " + networkId + " returned 0 row count " + i + ". sql=" + sql);
+        			throw new UnauthorizedOperationException("User doesn't have explicit permission on this network.");
+        		}
+        	}	
+    		
+    	}
+    	
+    }
+
+    
+	public List<NetworkSummary> getUserShowCaseNetworkSummaries (UUID userId, UUID signedInUserId) throws SQLException, JsonParseException, JsonMappingException, IOException {
+		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
+		
+		List<NetworkSummary> result = new ArrayList<>(50);
+				
+		String sqlStr = networkSummarySelectClause 
+				+ " from network n where n.owneruuid = ? and show_in_homepage = true and n.is_deleted= false and " + createIsReadableConditionStr(signedInUserId)
+				+ " union " + networkSummarySelectClause 
+				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? and un.show_in_homepage = true and " + createIsReadableConditionStr(signedInUserId)
+				;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, userId);
+			p.setObject(2, userId);
+			try ( ResultSet rs = p.executeQuery()) {
+				while ( rs.next()) {
+					NetworkSummary s = new NetworkSummary();
+					populateNetworkSummaryFromResultSet(s,rs);
+					result.add(s);
+				}
+			}
+		}
+		return result;
+	}
+     
+	
+	public List<NetworkSummary> getNetworkSummariesForMyAccountPage 
+			(UUID userId) throws SQLException, JsonParseException, JsonMappingException, IOException {
+		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
+		
+		List<NetworkSummary> result = new ArrayList<>(50);
+				
+		String sqlStr = networkSummarySelectClause 
+				+ " from network n where n.owneruuid = ? and n.is_deleted= false " 
+				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
+				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
+				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage "
+				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? "; 
+				;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, userId);
+			p.setObject(2, userId);
+			try ( ResultSet rs = p.executeQuery()) {
+				while ( rs.next()) {
+					NetworkSummary s = new NetworkSummary();
+					populateNetworkSummaryFromResultSet(s,rs);
+					result.add(s);
+				}
+			}
+		}
+		return result;
+	}
 }

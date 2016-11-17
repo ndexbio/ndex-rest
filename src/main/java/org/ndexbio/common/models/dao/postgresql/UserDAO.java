@@ -667,6 +667,7 @@ public class UserDAO extends NdexDBDAO {
 		return result;
 	}
 
+	
 
 	/**************************************************************************
 	 * getUsergroupMemberships

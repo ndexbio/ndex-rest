@@ -1432,37 +1432,34 @@ public class NetworkServiceV2 extends NdexService {
 	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
 	public void setNetworkFlag(
 			@PathParam("networkid") final String networkIdStr,
-			final Map<String,String> parameters)
+			final Map<String,Object> parameters)
 
 			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
 		
-		    logger.info("[start: Setting {} for network {}]", parameters.toString(), networkIdStr);
-		    
 			try (NetworkDAO networkDao = new NetworkDAO()) {
 				UUID networkId = UUID.fromString(networkIdStr);
 				UUID userId = getLoggedInUser().getExternalId();
-				if(networkDao.isAdmin(networkId, userId) ) {
-						if ( !networkDao.networkIsLocked(networkId)) {
-								
-							  if ( parameters.containsKey(readOnlyParameter)) {
-								  boolean bv = Boolean.parseBoolean(parameters.get(readOnlyParameter));
-								  try (NetworkDAO daoNew = new NetworkDAO()) {
-									  daoNew.setFlag(networkId, "readonly",bv);
-									  daoNew.commit();
-									  logger.info("Set readOnly={} for network {}]", bv, networkId);
-								  }  
-							  }
-							  if ( parameters.containsKey("visibility")) {
-								  networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf(parameters.get("visibility")));
-								  networkDao.commit();		
-							  }
-							  logger.info("[end: Set set system property for network {}]", networkId);
-							  return ;
-						}
-						throw new NdexException ("Network is locked by another updating process. Please try again.");
-					
-				}	
-				throw new NdexException("Only network owner can set network permissions.");	
+				if ( !networkDao.networkIsLocked(networkId)) {
+					if ( parameters.containsKey(readOnlyParameter)) {
+						if (!networkDao.isAdmin(networkId, userId))
+							throw new UnauthorizedOperationException("Only network owner can set readOnly Parameter.");
+						 boolean bv = ((Boolean)parameters.get(readOnlyParameter)).booleanValue();
+						 networkDao.setFlag(networkId, "readonly",bv);	 
+					}
+					if ( parameters.containsKey("visibility")) {
+						if (!networkDao.isAdmin(networkId, userId))
+							throw new UnauthorizedOperationException("Only network owner can set visibility Parameter.");
+						networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf((String)parameters.get("visibility")));
+					} 
+					if ( parameters.containsKey("showcase")) {
+						boolean bv = ((Boolean)parameters.get("showcase")).booleanValue();
+						networkDao.setShowcaseFlag(networkId, userId, bv);
+							
+					}
+				    networkDao.commit();
+					return;
+				}
+				throw new NdexException ("Network is locked by another updating process. Please try again.");
 			}
 		    
 	}
