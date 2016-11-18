@@ -347,7 +347,7 @@ public class V13DbImporter implements AutoCloseable {
 							pstUser.setString(7, (String)map.get("description"));
 							pstUser.setString(8, (String)map.get("emailAddress"));
 							pstUser.setString(9, (String)map.get("firstName"));
-							pstUser.setString(10, (String)map.get("firstName"));
+							pstUser.setString(10, (String)map.get("lastName"));
 							if ( imageURL !=null ) {
 								if ( imageURL.length() < 500 )
 									pstUser.setString(11, imageURL);
