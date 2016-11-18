@@ -533,8 +533,13 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
-				  if ( metadata.getMetaDataElement(aspectName) == null)
-					  warnings.add ("Aspect " + aspectName + " is not defined in MetaData section.");
+				  if ( metadata.getMetaDataElement(aspectName) == null) {
+					  warnings.add ("Aspect " + aspectName + " is not defined in MetaData section. NDEx is adding one without a consistencyGroupId and version in it.");
+					  MetaDataElement mElmt = new MetaDataElement();
+					  mElmt.setName(aspectName);
+					  mElmt.setElementCount(this.aspectTable.get(aspectName).getElementCount());
+					  metadata.add(mElmt);
+				  }	  
 			  }
 			  
 			  if (consistencyGrpIds.size()!=1) {
