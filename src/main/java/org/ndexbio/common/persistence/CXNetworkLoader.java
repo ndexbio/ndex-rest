@@ -515,7 +515,7 @@ public class CXNetworkLoader implements AutoCloseable {
 							  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because the element count is 0.");
 						  } else  // maybe this should be raised as an error?
 							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
-								  ", but only " + w.getElementCount() + " was received in CX.");
+								  ", but " + w.getElementCount() + " was received in CX.");
 				  } else {
 						  if ( this.aspectTable.get(e.getName()) == null || declaredCnt != this.aspectTable.get(e.getName()).getElementCount()) {
 							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadate declared element count " + e.getElementCount()+
