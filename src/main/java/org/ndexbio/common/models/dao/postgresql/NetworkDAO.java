@@ -867,7 +867,7 @@ public class NetworkDAO extends NdexDBDAO {
 		}  
 		
 		result.setIsShowcase(rs.getBoolean(17));
-			
+	
 	}
 	
 	

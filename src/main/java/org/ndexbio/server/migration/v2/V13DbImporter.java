@@ -240,7 +240,17 @@ public class V13DbImporter implements AutoCloseable {
 			 "sourceformat,properties,provenance,version,readonly,is_from_13) " +
 			 "select id, creation_time, modification_time, false,name,description, edge_count,node_count, false,visibility, "+
 				"     (select user_id from v1_user_network un where type='admin' and un.network_rid = n.rid limit 1)," +
-				"   source_format,props,provenance,version,readonly , true from v1_network n on conflict on constraint network_pk do nothing";
+				"   source_format," + "case when source_format is null " + 
+				 " then props :: jsonb " + 
+				 " else " + 
+			  	 " case when props is null " + 
+			     " then ('[{\"subNetworkId\":null,\"value\":\"' || source_format || '\",\"dataType\":\"string\",\"predicateString\":\"ndex:sourceFormat\"}]') ::jsonb " + 
+			     "  else ('[{\"subNetworkId\":null,\"value\":\"' || source_format || '\",\"dataType\":\"string\",\"predicateString\":\"ndex:sourceFormat\"}]') ::jsonb " + 
+			     "       || props :: jsonb " + 
+			   " end " + 
+			   "  end " 
+				+ 
+				", provenance,version,readonly , true from v1_network n on conflict on constraint network_pk do nothing";
 
 
 		try (Statement stmt = db.createStatement() ) {
