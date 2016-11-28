@@ -238,6 +238,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				summary.setDescription(this.description);
 				summary.setVersion(this.version);
 				summary.setWarnings(warnings);
+				summary.setSubnetworkIds(subNetworkIds);
 				try {
 				//	dao.saveNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
 					dao.saveNetworkEntry(summary, metadata);
@@ -343,6 +344,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 				try {
 					dao.saveNetworkMetaData(this.networkId,metadata);
+					dao.setWarning(networkId, warnings);
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();
@@ -519,7 +521,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				  } else {
 						  if ( this.aspectTable.get(e.getName()) == null || declaredCnt != this.aspectTable.get(e.getName()).getElementCount()) {
 							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadate declared element count " + e.getElementCount()+
-							  ", but only " + (this.aspectTable.get(e.getName()) == null ? 0:this.aspectTable.get(e.getName()).getElementCount()) + " was received in CX.");
+							  ", but " + (this.aspectTable.get(e.getName()) == null ? 0:this.aspectTable.get(e.getName()).getElementCount()) + " was received in CX.");
 						  }
 				  }
 				  

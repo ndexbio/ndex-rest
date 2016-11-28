@@ -42,6 +42,7 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -90,7 +91,7 @@ public class NetworkDAO extends NdexDBDAO {
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
 	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 			+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage "; 
+			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,n.subnetworkids "; 
 	
 	public NetworkDAO () throws  SQLException {
 	    super();
@@ -230,8 +231,8 @@ public class NetworkDAO extends NdexDBDAO {
 	public void clearNetworkSummary(UUID networkId) throws SQLException, NdexException {
 		String sqlStr = "update network set modification_time = localtimestamp, name = null,"
 				+ "description = null, edgeCount = null, nodeCount = null, isComplete=false,"
-				+ "cacheid = null, roid = null, sourceformat = null, properties = null, cxmetadata = null,"
-				+ "version = null, is_validated = false, error = null, warnings = null where \"UUID\" ='" +
+				+ " properties = null, cxmetadata = null,"
+				+ "version = null, is_validated = false, error = null, warnings = null,subnetworkids = null where \"UUID\" ='" +
 				 networkId.toString() + "' and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			int i = pst.executeUpdate();
@@ -251,7 +252,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 */
 	public void saveNetworkEntry(NetworkSummary networkSummary, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
-				+ "properties = ? ::jsonb, cxmetadata = ? :: json, warnings = ?, "
+				+ "properties = ? ::jsonb, cxmetadata = ? :: json, warnings = ?, subnetworkids = ?, "
 				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setString(1,networkSummary.getName());
@@ -280,7 +281,12 @@ public class NetworkDAO extends NdexDBDAO {
 			Array arrayWarnings = db.createArrayOf("text", warningArray);
 			pst.setArray(8, arrayWarnings);
 			
-			pst.setObject(9, networkSummary.getExternalId());
+			//set subnetworkIds
+			Long[] subNetIds = networkSummary.getSubnetworkIds().toArray(new Long[0]);
+			Array subNetworkIds = db.createArrayOf("bigint", subNetIds);
+			pst.setArray(9, subNetworkIds);
+			
+			pst.setObject(10, networkSummary.getExternalId());
 			int i = pst.executeUpdate();
 			if ( i != 1)
 				throw new NdexException ("Failed to update network summary entry in db.");
@@ -868,6 +874,11 @@ public class NetworkDAO extends NdexDBDAO {
 		
 		result.setIsShowcase(rs.getBoolean(17));
 	
+		Array subNetworkIds = rs.getArray(18);
+		if ( subNetworkIds != null) {
+			Long[] subNetIds = (Long[]) subNetworkIds.getArray();
+			result.setSubnetworkIds(new HashSet<> (Arrays.asList(subNetIds)));
+		}
 	}
 	
 	
@@ -1284,6 +1295,23 @@ public class NetworkDAO extends NdexDBDAO {
     
     }
     
+    public void setWarning(UUID networkId, List<String> warnings) throws SQLException, NdexException {
+    	String sqlStr = "update network set  warnings = ? where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			
+			// set warnings
+			String[] warningArray = warnings.toArray(new String[0]);
+			Array arrayWarnings = db.createArrayOf("text", warningArray);
+			pst.setArray(1, arrayWarnings);
+			
+			pst.setObject(2, networkId);
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to update network summary entry in db.");
+		}
+    
+    }
+    
     public void setShowcaseFlag(UUID networkId, UUID userId, boolean bv) throws SQLException, UnauthorizedOperationException {
     	if ( isAdmin(networkId,userId)) {
     		String sql = "update network set show_in_homepage = ? where \"UUID\"=? and is_deleted=false";
@@ -1349,7 +1377,7 @@ public class NetworkDAO extends NdexDBDAO {
 				+ " from network n where n.owneruuid = ? and n.is_deleted= false " 
 				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage "
+				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids "
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? "; 
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
