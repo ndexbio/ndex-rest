@@ -1346,11 +1346,12 @@ public class NetworkDAO extends NdexDBDAO {
 		
 		List<NetworkSummary> result = new ArrayList<>(50);
 				
-		String sqlStr = networkSummarySelectClause 
+		String sqlStr = " select * from (" + networkSummarySelectClause 
 				+ " from network n where n.owneruuid = ? and show_in_homepage = true and n.is_deleted= false and " + createIsReadableConditionStr(signedInUserId)
 				+ " union " + networkSummarySelectClause 
-				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? and un.show_in_homepage = true and " + createIsReadableConditionStr(signedInUserId)
-				;
+				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? and un.show_in_homepage = true and " + 
+				createIsReadableConditionStr(signedInUserId)
+				 + ") k order by k.modification_time desc";
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, userId);
@@ -1373,12 +1374,12 @@ public class NetworkDAO extends NdexDBDAO {
 		
 		List<NetworkSummary> result = new ArrayList<>(50);
 				
-		String sqlStr = networkSummarySelectClause 
+		String sqlStr = "select * from ( " + networkSummarySelectClause 
 				+ " from network n where n.owneruuid = ? and n.is_deleted= false " 
 				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
 				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids "
-				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? "; 
+				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? ) k order by k.modification_time desc"; 
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, userId);

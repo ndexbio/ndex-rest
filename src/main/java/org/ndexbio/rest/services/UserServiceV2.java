@@ -279,22 +279,7 @@ public class UserServiceV2 extends NdexService {
 		} 
 	}
 	
-	
-	/**************************************************************************
-	 * Gets a user by ID or accountName.(1.0 snapshot) 
-	 * 
-	 * @param userId
-	 *            The ID or accountName of the user.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to change the password in the database.
-	 * @throws IOException 
-	 * @throws SQLException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
-	 **************************************************************************/
-	@GET
+/*	@GET
 	@PermitAll
 	@Path("/{userid}")
 	@Produces("application/json")
@@ -318,7 +303,7 @@ public class UserServiceV2 extends NdexService {
 			}
 		} 
 	}
-	
+*/	
 	/**************************************************************************
 	 * Gets a user by accountName. 
 	 * 
