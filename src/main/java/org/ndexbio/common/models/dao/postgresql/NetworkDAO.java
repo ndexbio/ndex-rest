@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -1308,6 +1309,23 @@ public class NetworkDAO extends NdexDBDAO {
 			int i = pst.executeUpdate();
 			if ( i != 1)
 				throw new NdexException ("Failed to update network summary entry in db.");
+		}
+    
+    }
+    
+    public void setSubNetworkIds(UUID networkId, Set<Long> subNetworkIds) throws SQLException, NdexException {
+    	String sqlStr = "update network set  subnetworkids = ? where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			
+			// set warnings
+			Long[] subNetArray = subNetworkIds.toArray(new Long[0]);
+			Array arraysubNets = db.createArrayOf("bigint", subNetArray);
+			pst.setArray(1, arraysubNets);
+			
+			pst.setObject(2, networkId);
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to update subnetworkid in network table.");
 		}
     
     }

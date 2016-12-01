@@ -237,7 +237,7 @@ public class V13DbImporter implements AutoCloseable {
 			IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
 	
 		String sql = "insert into network (\"UUID\",creation_time,modification_time,is_deleted,name,description,edgecount,nodecount,islocked,visibility,owneruuid,"+
-			 "sourceformat,properties,provenance,version,readonly,is_from_13) " +
+			 "sourceformat,properties,provenance,version,readonly,is_from_13, show_in_homepage) " +
 			 "select id, creation_time, modification_time, false,name,description, edge_count,node_count, false,visibility, "+
 				"     (select user_id from v1_user_network un where type='admin' and un.network_rid = n.rid limit 1)," +
 				"   source_format," + "case when source_format is null " + 
@@ -250,7 +250,7 @@ public class V13DbImporter implements AutoCloseable {
 			   " end " + 
 			   "  end " 
 				+ 
-				", provenance,version,readonly , true from v1_network n on conflict on constraint network_pk do nothing";
+				", provenance,version,readonly , true, visibility = 'PUBLIC' from v1_network n on conflict on constraint network_pk do nothing";
 
 
 		try (Statement stmt = db.createStatement() ) {
@@ -312,6 +312,12 @@ public class V13DbImporter implements AutoCloseable {
 							
 							try (CXNetworkLoader loader = new CXNetworkLoader(uuid,rs.getString(2), false,dao)) {
 								loader.importNetwork();		
+							}
+							try {
+								Thread.sleep(2000);
+							} catch (InterruptedException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
 							}
 							
 						}

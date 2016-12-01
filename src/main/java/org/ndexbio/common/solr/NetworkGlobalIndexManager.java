@@ -646,5 +646,14 @@ public class NetworkGlobalIndexManager {
 		return result;
 			
 	}
+	
+	public void close () {
+		try {
+			client.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 
 }

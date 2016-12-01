@@ -324,6 +324,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 				createSolrIndex(summary);
 				idx2.createIndex();
+				idx2.close();
 			  			  
 			 // create the network sample if the network has more than 500 edges
 			 if (this.edgeIdTracker.getDefinedElementSize() > CXNetworkSampleGenerator.sampleSize)  {
@@ -345,6 +346,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				try {
 					dao.saveNetworkMetaData(this.networkId,metadata);
 					dao.setWarning(networkId, warnings);
+					dao.setSubNetworkIds(networkId, subNetworkIds);				
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();
@@ -753,6 +755,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		} catch (IOException e) {
 			logger.error("Failed to close input stream when closing CXNetworkLoader: " + e.getMessage());
 		}
+		
+		this.globalIdx.close();
 	}
 
 

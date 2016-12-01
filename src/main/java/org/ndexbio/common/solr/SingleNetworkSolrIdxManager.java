@@ -236,6 +236,15 @@ public class SingleNetworkSolrIdxManager {
 		}
 	}
 	
+	
+	public void close () {
+		try {
+			client.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 	private Map<Long,NodeIndexEntry> createIndexDocs() throws NdexException, JsonProcessingException, IOException {
 		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
 		
