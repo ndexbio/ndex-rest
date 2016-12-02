@@ -83,7 +83,7 @@ public class NetworkGlobalIndexManager {
 	private static final String NAME = "name";
 	private static final String DESC = "description";
 	private static final String VERSION = "version";
-	private static final String LABELS = "labels";
+	//private static final String LABELS = "labels";
 	private static final String USER_READ= "userRead";
 	private static final String USER_EDIT = "userEdit";
 	private static final String USER_ADMIN = "userAdmin";
@@ -122,7 +122,7 @@ public class NetworkGlobalIndexManager {
 	 "author",
 	 "createdAt",
 	 "methods",
-	 "subnetworkType","subnetworkFilter","graphHash","rights"));
+	 "subnetworkType","subnetworkFilter","graphHash","rights", "labels"));
 	
 //	private static  Map<String,String> attTable = null;
 		
@@ -368,36 +368,45 @@ public class NetworkGlobalIndexManager {
 	}
 
 	
-	public void addCXNetworkAttrToIndex(NetworkAttributesElement e)  {
+	public List<String> addCXNetworkAttrToIndex(NetworkAttributesElement e)  {
 		
-		if ( e.getName().equals(NdexClasses.Network_P_name) && e.getValue() !=null && e.getValue().length()>0) {
-			doc.addField(NAME, e.getValue());
-		} else if ( e.getName().equals(NdexClasses.Network_P_desc ) && e.getValue() !=null && e.getValue().length()>0 ) {
-			doc.addField(DESC, e.getValue());
-		} else if ( e.getName().equals(NdexClasses.Network_P_version) && e.getValue() !=null && e.getValue().length()>0 ) {
-			doc.addField(VERSION, e.getValue());
-		} else if (e.getName().equals(LABELS) && e.getValue() !=null && e.getValue().length()>0 ) {
-			doc.addField(LABELS, e.getValue());
-		} /* else if ( e.getName().equals("ndex:sourceFormat") && e.getValue() !=null && e.getValue().length()>0) {
-			//TODO: check if we really need to index sourceFormat.
-			try {
-				NetworkSourceFormat.valueOf(e.getValue());
-			} catch (IllegalArgumentException ex) {
-				throw new NdexException("Unsupported source format " + 
-						e.getValue() + 
-						" received in network attribute ndex:sourceFormat" );
-			}
-			
-		} */ else {
-			if ( otherAttributes.contains(e.getName()) && e.getValue() != null && e.getValue().length()>0 ) {
-				doc.addField(e.getName(), e.getValue());
-			}
-			
+		List<String> warnings = new ArrayList<>();
+		if ( e.getName().equals(NdexClasses.Network_P_name) ) {
+			addStringAttribute(e, NAME, warnings);
+		} else if ( e.getName().equals(NdexClasses.Network_P_desc ) ) {
+			addStringAttribute(e, DESC, warnings);
+		} else if ( e.getName().equals(NdexClasses.Network_P_version)  ) {
+			addStringAttribute(e, VERSION, warnings);			
+		} else {
+			if ( otherAttributes.contains(e.getName())  ) {
+				addStrinListgAttribute(e, e.getName(), warnings);
+			}			
 		}
+		
+		return warnings;
 		
 	}
 	
+	private void addStringAttribute(NetworkAttributesElement e, String solrFieldName, List<String>  warnings ) {
+		if (e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
+			if ( e.getValue() !=null && e.getValue().length()>0)
+				doc.addField(solrFieldName, e.getValue());
+		} else 
+			warnings.add("Network attribute " + e.getName() + " is not indexed because its data type is not 'string'.");
+	}
 	
+	private void addStrinListgAttribute(NetworkAttributesElement e, String solrFieldName, List<String>  warnings ) {
+		if (e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
+			if ( e.getValue() !=null && e.getValue().length()>0)
+				doc.addField(solrFieldName, e.getValue());
+		} else if (e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
+			for ( String value : e.getValues()) {
+				if ( value !=null && value.length()>0)
+					doc.addField(solrFieldName, value);
+			}
+		} else 
+			warnings.add("Network attribute " + e.getName() + " is not indexed because its data type is not 'string' or 'list_of_string'.");
+	}	
 	
 	public void deleteNetwork(String networkId) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);

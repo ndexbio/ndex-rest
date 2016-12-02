@@ -594,7 +594,9 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		writeCXElement(e);
 		
-		this.globalIdx.addCXNetworkAttrToIndex(e);	
+		List<String> indexWarnings = this.globalIdx.addCXNetworkAttrToIndex(e);	
+		if ( !indexWarnings.isEmpty())
+			warnings.addAll(indexWarnings);
 		tick();
 
 	}
