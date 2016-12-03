@@ -481,7 +481,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  if (networkNameIsAssigned) {
 				 Long l = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME).getElementCount();
 				 metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME).setElementCount(l + 1);
-				 writeCXElement(new NetworkAttributesElement(null, this.networkName, ATTRIBUTE_DATA_TYPE.STRING));
+				 writeCXElement(new NetworkAttributesElement(null, NdexClasses.Network_P_name, this.networkName));
 			  }
 			  
 			  //Remove the NdexNetworkStatus metadata if it exists
