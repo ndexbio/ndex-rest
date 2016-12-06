@@ -314,7 +314,7 @@ public class V13DbImporter implements AutoCloseable {
 								loader.importNetwork();		
 							}
 							try {
-								Thread.sleep(2000);
+								Thread.sleep(200);
 							} catch (InterruptedException e) {
 								// TODO Auto-generated catch block
 								e.printStackTrace();
