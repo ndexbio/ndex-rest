@@ -218,7 +218,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  java.nio.file.Path dir = Paths.get(rootPath);
 		  Files.createDirectory(dir);
 			    	
-		  persistNetworkData(); 
+		  persistNetworkData(false); 
 		  
 		  logger.info("aspects have been stored.");
 		  
@@ -311,7 +311,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  java.nio.file.Path dir = Paths.get(rootPath);
 			  Files.createDirectory(dir);
 				    	
-			  persistNetworkData(); 
+			  persistNetworkData(true); 
 			  
 			  logger.info("aspects have been stored.");
 			  
@@ -346,7 +346,8 @@ public class CXNetworkLoader implements AutoCloseable {
 				try {
 					dao.saveNetworkMetaData(this.networkId,metadata);
 					dao.setWarning(networkId, warnings);
-					dao.setSubNetworkIds(networkId, subNetworkIds);				
+					dao.setSubNetworkIds(networkId, subNetworkIds);		
+					dao.updateNetworkProperties(networkId, properties);
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();
@@ -376,7 +377,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		}
 
 	
-	private void persistNetworkData()
+	private void persistNetworkData(boolean isImport)
 			throws IOException, DuplicateObjectException, NdexException, ObjectNotFoundException {
 				
 		CxElementReader2 cxreader = createCXReader();
@@ -479,8 +480,19 @@ public class CXNetworkLoader implements AutoCloseable {
 		  if(metadata !=null) {
 			  
 			  if (networkNameIsAssigned) {
-				 Long l = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME).getElementCount();
-				 metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME).setElementCount(l + 1);
+				 MetaDataElement ee =   metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
+				 if ( ee != null ) {
+					 Long l = ee.getElementCount();
+					 metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME).setElementCount(l + 1);
+				 } else {
+					MetaDataElement ne = new MetaDataElement(); 
+					ne.setElementCount(1L);
+					ne.setConsistencyGroup(1L);
+					ne.setName(NetworkAttributesElement.ASPECT_NAME);
+					ne.setVersion("1.0");
+					metadata.add(ne);
+					
+				 }
 				 writeCXElement(new NetworkAttributesElement(null, NdexClasses.Network_P_name, this.networkName));
 			  }
 			  
@@ -514,7 +526,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				  long declaredCnt = e.getElementCount().longValue() ;
 				  if ( declaredCnt == 0) {
 						  CXAspectWriter w = this.aspectTable.get(e.getName());
-						  if (w == null)  { // no element found, remove the metadatEntry
+						  if (w == null && !isImport)  { // no element found, remove the metadatEntry
 							  metadata.remove(e.getName());
 							  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because the element count is 0.");
 						  } else  // maybe this should be raised as an error?

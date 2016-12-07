@@ -691,6 +691,46 @@ public class NetworkDAO extends NdexDBDAO {
 			return fullMembership;
 		}
 		
+		/**
+		 * This function only for importing network from ndex 1.3.
+		 * @param networkId
+		 * @param properties
+		 * @return
+		 * @throws ObjectNotFoundException
+		 * @throws NdexException
+		 * @throws SolrServerException
+		 * @throws IOException
+		 * @throws SQLException
+		 */
+		public int updateNetworkProperties (UUID networkId, Collection<NdexPropertyValuePair> properties
+				 ) throws ObjectNotFoundException, NdexException, SolrServerException, IOException, SQLException {
+
+			//filter out the source format attribute.
+			List<NdexPropertyValuePair> props = new ArrayList<>(properties.size());
+			for ( NdexPropertyValuePair p : properties ) {
+				if (!p.getPredicateString().equals(NdexClasses.Network_P_source_format))
+					props.add(p);
+			}
+						
+			String sqlStr = "update network set properties = ? ::jsonb where \"UUID\" = ? and is_deleted = false";
+			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+				
+				if ( props.size() > 0 ) {
+					ObjectMapper mapper = new ObjectMapper();
+			        String s = mapper.writeValueAsString( props);
+					pst.setString(1, s);
+				} else {
+					pst.setString(1, null);
+				}
+				
+				pst.setObject(2, networkId);
+				int i = pst.executeUpdate();
+				if ( i != 1)
+					throw new NdexException ("Failed to update network property in db.");
+			}
+
+			return props.size();
+		}
 
     /**
 	 * This function sets network properties using the given property list. All Existing properties
@@ -704,7 +744,7 @@ public class NetworkDAO extends NdexDBDAO {
      * @throws SolrServerException 
      * @throws SQLException 
 	 */
-	public int setNetworkProperties (UUID networkId, Collection<NdexPropertyValuePair> properties
+	public int setNetworkProperties (UUID networkId, Collection<NdexPropertyValuePair> properties, boolean ignoreIndex
 			 ) throws ObjectNotFoundException, NdexException, SolrServerException, IOException, SQLException {
 
 		//filter out the source format attribute.
@@ -735,11 +775,14 @@ public class NetworkDAO extends NdexDBDAO {
 
 		
 		// update the solr Index
-		NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
-		globalIdx.updateNetworkProperties(networkId.toString(), props, updateTime);
-		
+		if (!ignoreIndex) {
+			NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
+			globalIdx.updateNetworkProperties(networkId.toString(), props, updateTime);
+		}
 		return props.size();
 	}
+	
+	
 	
 	
 	public NetworkSearchResult findNetworks(SimpleNetworkQuery simpleNetworkQuery, int skipBlocks, int top, User loggedInUser) throws NdexException, SolrServerException, IOException, SQLException {

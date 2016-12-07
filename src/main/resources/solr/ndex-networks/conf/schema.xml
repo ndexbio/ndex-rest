@@ -145,8 +145,8 @@
    <field name="uuid" type="string" indexed="true" stored="true" required="true" multiValued="false" /> 
         
    <field name="name" type="text_general" indexed="true" stored="true" multiValued="true"/>
-   <field name="description" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="version" type="string" indexed="true" stored="false" multiValued="true"/>
+   <field name="description" type="text_general" indexed="true" stored="true" multiValued="true"/>
+   <field name="version" type="string" indexed="true" stored="true" multiValued="true"/>
    <field name="creationTime" type="date" indexed="true" stored="true"  />
    <field name="modificationTime" type="date" indexed="true" stored="true"  />
    <field name="edgeCount" type="int" indexed="true" stored="true"  />
@@ -161,30 +161,30 @@
    <field name="labels" type="text_general" indexed="true" stored="true" multiValued="true"/>
    
   <!-- some fields that should be useful for biological networks -->
-   <field name="nodeName" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="NCBIGeneID" type="string" indexed="true" stored="false" multiValued="true" />
-   <field name="geneSymbol" type="string" indexed="true" stored="false"  multiValued="true" />
-   <field name="represents" type="string" indexed="true" stored="false"  multiValued="true" />
-   <field name="alias" type="string" indexed="true" stored="false"  multiValued="true" />
+   <field name="nodeName" type="string" indexed="true" stored="true"  multiValued="true"/>
+   <field name="NCBIGeneID" type="string" indexed="true" stored="true" multiValued="true" />
+   <field name="geneSymbol" type="string" indexed="true" stored="true"  multiValued="true" />
+   <field name="represents" type="string" indexed="true" stored="true"  multiValued="true" />
+   <field name="alias" type="string" indexed="true" stored="true"  multiValued="true" />
 <!--  <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />   -->  
    
    
    <!-- Collaborator required index fields   -->
-   <field name="objectCategory" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="networkType" type="text_general" indexed="true" stored="false" multiValued="true"/>
+   <field name="objectCategory" type="text_general" indexed="true" stored="true" multiValued="true"/>
+   <field name="networkType" type="text_general" indexed="true" stored="true" multiValued="true"/>
    <field name="graphPropertiesHash" type="string" indexed="true" stored="true" multiValued="true"/>
    <field name="organism" type="text_general" indexed="true" stored="true" multiValued="true" />
-   <field name="platform" type="text_general" indexed="true" stored="false" multiValued="true" />
+   <field name="platform" type="text_general" indexed="true" stored="true" multiValued="true" />
    <field name="disease" type="text_general" indexed="true" stored="true"  multiValued="true"/>
    <field name="tissue" type="text_general" indexed="true" stored="true"  multiValued="true"/>
-   <field name="rightsHolder" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="author" type="text_general" indexed="true" stored="false" multiValued="true" />
-   <field name="createdAt" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="methods" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="subnetworkType" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="subnetworkFilter" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="graphHash" type="string" indexed="true" stored="false" multiValued="true" />
-   <field name="rights" type="text_general" indexed="true" stored="false" multiValued="true" />
+   <field name="rightsHolder" type="text_general" indexed="true" stored="true"  multiValued="true"/>
+   <field name="author" type="text_general" indexed="true" stored="true" multiValued="true" />
+   <field name="createdAt" type="text_general" indexed="true" stored="true"  multiValued="true"/>
+   <field name="methods" type="text_general" indexed="true" stored="true"  multiValued="true"/>
+   <field name="subnetworkType" type="text_general" indexed="true" stored="true"  multiValued="true"/>
+   <field name="subnetworkFilter" type="text_general" indexed="true" stored="true"  multiValued="true"/>
+   <field name="graphHash" type="string" indexed="true" stored="true" multiValued="true" />
+   <field name="rights" type="text_general" indexed="true" stored="true" multiValued="true" />
 
 
 

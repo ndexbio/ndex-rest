@@ -282,7 +282,7 @@ public class NetworkServiceV2 extends NdexService {
 				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
 			} 
 
-			int i = daoNew.setNetworkProperties(networkUUID, properties);
+			int i = daoNew.setNetworkProperties(networkUUID, properties, false);
 
             //DW: Handle provenance
 
