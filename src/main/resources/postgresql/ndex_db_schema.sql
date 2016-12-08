@@ -216,7 +216,9 @@ CREATE TABLE network (
     readonly boolean,
     error character varying(2000),
     warnings text[],
-    is_from_13 boolean
+    is_from_13 boolean,
+    show_in_homepage boolean DEFAULT false,
+    subnetworkids bigint[]
 );
 
 
@@ -234,6 +236,27 @@ COMMENT ON TABLE network IS 'network info.';
 --
 
 COMMENT ON COLUMN network.iscomplete IS 'For server use only. When all the validation processes and indexes are created for this network, we will set iscomplete to true.';
+
+
+--
+-- Name: COLUMN network.cacheid; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN network.cacheid IS 'deprecated';
+
+
+--
+-- Name: COLUMN network.roid; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN network.roid IS 'deprecated';
+
+
+--
+-- Name: COLUMN network.sourceformat; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN network.sourceformat IS 'deprecated. It is a property now in v2.';
 
 
 --
@@ -262,6 +285,13 @@ COMMENT ON COLUMN network.warnings IS 'Stores warnings.';
 --
 
 COMMENT ON COLUMN network.is_from_13 IS 'true means this network is migrated from Ndex 1.3';
+
+
+--
+-- Name: COLUMN network.show_in_homepage; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN network.show_in_homepage IS 'Indicate whether the owner of this network want to show this network in ''user page'' page.';
 
 
 --
@@ -360,11 +390,19 @@ COMMENT ON TABLE task IS 'Task info.';
 CREATE TABLE user_network_membership (
     user_id uuid NOT NULL,
     network_id uuid NOT NULL,
-    permission_type ndex_permission_type
+    permission_type ndex_permission_type,
+    show_in_homepage boolean DEFAULT false
 );
 
 
 ALTER TABLE user_network_membership OWNER TO ndexserver;
+
+--
+-- Name: COLUMN user_network_membership.show_in_homepage; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN user_network_membership.show_in_homepage IS 'For Supporting NDEx web app. tell if the gratee of this permssion want to show this network in his homepage when other users come to his home page.';
+
 
 --
 -- Name: user_network_membership_arc; Type: TABLE; Schema: core; Owner: ndexserver

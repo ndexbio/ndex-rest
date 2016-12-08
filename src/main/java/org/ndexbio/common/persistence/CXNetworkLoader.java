@@ -92,6 +92,7 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ProvenanceEntity;
+import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -287,6 +288,23 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 				try {
 					dao.setFlag(this.networkId, "iscomplete", true);
+					List<SimplePropertyValuePair> pProps =provenanceHistory.getProperties();
+					
+				    pProps.add( new SimplePropertyValuePair("edge count", Integer.toString( summary.getEdgeCount() )) );
+				    pProps.add( new SimplePropertyValuePair("node count", Integer.toString( summary.getNodeCount() )) );
+
+				    if ( summary.getName() != null)
+				       pProps.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
+
+				    if ( summary.getDescription() != null && summary.getDescription().length() >0 )
+				       pProps.add( new SimplePropertyValuePair("description", summary.getDescription()) );
+
+				    if ( summary.getVersion()!=null && summary.getVersion().length() > 0 )
+				       pProps.add( new SimplePropertyValuePair("version", summary.getVersion()) );
+
+				    provenanceHistory.setProperties(pProps);
+				    
+					dao.setProvenance(networkId, provenanceHistory);
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();
@@ -377,6 +395,14 @@ public class CXNetworkLoader implements AutoCloseable {
 		}
 
 	
+	/** 
+	 * If it is called from a network import function ( db migrator), we don't remove the provenance entry from the metadata.
+	 * @param isImport
+	 * @throws IOException
+	 * @throws DuplicateObjectException
+	 * @throws NdexException
+	 * @throws ObjectNotFoundException
+	 */
 	private void persistNetworkData(boolean isImport)
 			throws IOException, DuplicateObjectException, NdexException, ObjectNotFoundException {
 				
@@ -510,7 +536,7 @@ public class CXNetworkLoader implements AutoCloseable {
 						  &&  e.getIdCounter() == null ) 
  						   throw new NdexException ( "Idcounter value is not found in metadata of aspect " + e.getName());
 				  
-				  //check if elementCount matches between metadata and data
+				  //check if elementCount is missing in metadata
 				  Long cntObj = e.getElementCount();
 				  if ( cntObj == null) {
 					  warnings.add("ElementCount missing in Metadata of aspect " + e.getName());
@@ -523,20 +549,24 @@ public class CXNetworkLoader implements AutoCloseable {
 					  }
 				  } 
 					  
-				  long declaredCnt = e.getElementCount().longValue() ;
-				  if ( declaredCnt == 0) {
+				  //check if elementCount matches between metadata and data
+				  if ( !isImport || !e.getName().equals(Provenance.ASPECT_NAME)) {
+				  
+					  long declaredCnt = e.getElementCount().longValue() ;
+					  if ( declaredCnt == 0) {
 						  CXAspectWriter w = this.aspectTable.get(e.getName());
-						  if (w == null && !isImport)  { // no element found, remove the metadatEntry
-							  metadata.remove(e.getName());
-							  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because the element count is 0.");
+						  if (w == null)  { // no element found, remove the metadatEntry
+							    metadata.remove(e.getName());
+							    warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because the element count is 0.");
 						  } else  // maybe this should be raised as an error?
 							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
 								  ", but " + w.getElementCount() + " was received in CX.");
-				  } else {
+					  } else {
 						  if ( this.aspectTable.get(e.getName()) == null || declaredCnt != this.aspectTable.get(e.getName()).getElementCount()) {
 							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadate declared element count " + e.getElementCount()+
 							  ", but " + (this.aspectTable.get(e.getName()) == null ? 0:this.aspectTable.get(e.getName()).getElementCount()) + " was received in CX.");
 						  }
+					  }
 				  }
 				  
 				  //check consistencyGrp 
