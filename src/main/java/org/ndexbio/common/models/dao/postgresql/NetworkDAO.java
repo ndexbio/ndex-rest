@@ -88,6 +88,9 @@ public class NetworkDAO extends NdexDBDAO {
 	private static Logger logger = Logger.getLogger(NetworkDAO.class.getName());
 	
 //	public static final String RESET_MOD_TIME = "resetMTime";
+	
+	private  static List<String> emptyStringList = new ArrayList<>(1); 
+
 
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
 	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
@@ -813,12 +816,15 @@ public class NetworkDAO extends NdexDBDAO {
 				(loggedInUser == null? null: loggedInUser.getUserName()), top, skipBlocks * top, 
 						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), groupNames);
 		
+		
 		List<NetworkSummary> results = new ArrayList<>(solrResults.size());
 		for ( SolrDocument d : solrResults) {
 			String id = (String) d.get(NetworkGlobalIndexManager.UUID);
 			NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
-			if ( s !=null)
-				results .add(s); 
+			if ( s !=null) {
+				s.setWarnings(emptyStringList);
+				results .add(s);
+			}	
 		} 
 		
 		return new NetworkSearchResult ( solrResults.getNumFound(), solrResults.getStart(), results);

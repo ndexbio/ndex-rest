@@ -212,7 +212,7 @@ public class SearchServiceV2 extends NdexService {
             "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
             "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
             "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
-	public NetworkSearchResult searchNetwork_solr(
+	public NetworkSearchResult searchNetwork(
 			final SimpleNetworkQuery query,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize)

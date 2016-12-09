@@ -276,6 +276,25 @@ public class CXNetworkLoader implements AutoCloseable {
 			  				
 				//recreate CX file
 				ProvenanceEntity provenanceHistory = dao.getProvenance(networkId);
+				
+				List<SimplePropertyValuePair> pProps =provenanceHistory.getProperties();
+				
+			    pProps.add( new SimplePropertyValuePair("edge count", Integer.toString( summary.getEdgeCount() )) );
+			    pProps.add( new SimplePropertyValuePair("node count", Integer.toString( summary.getNodeCount() )) );
+
+			    if ( summary.getName() != null)
+			       pProps.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
+
+			    if ( summary.getDescription() != null && summary.getDescription().length() >0 )
+			       pProps.add( new SimplePropertyValuePair("description", summary.getDescription()) );
+
+			    if ( summary.getVersion()!=null && summary.getVersion().length() > 0 )
+			       pProps.add( new SimplePropertyValuePair("version", summary.getVersion()) );
+
+			    provenanceHistory.setProperties(pProps);
+			    
+				dao.setProvenance(networkId, provenanceHistory);
+				
 				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, new Provenance(provenanceHistory));
 				String tmpFileName = g.createNetworkFile();
 				
@@ -288,7 +307,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 				try {
 					dao.setFlag(this.networkId, "iscomplete", true);
-					List<SimplePropertyValuePair> pProps =provenanceHistory.getProperties();
+		/*			List<SimplePropertyValuePair> pProps =provenanceHistory.getProperties();
 					
 				    pProps.add( new SimplePropertyValuePair("edge count", Integer.toString( summary.getEdgeCount() )) );
 				    pProps.add( new SimplePropertyValuePair("node count", Integer.toString( summary.getNodeCount() )) );
@@ -302,7 +321,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				    if ( summary.getVersion()!=null && summary.getVersion().length() > 0 )
 				       pProps.add( new SimplePropertyValuePair("version", summary.getVersion()) );
 
-				    provenanceHistory.setProperties(pProps);
+				    provenanceHistory.setProperties(pProps);  */
 				    
 					dao.setProvenance(networkId, provenanceHistory);
 					dao.commit();
@@ -550,7 +569,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				  } 
 					  
 				  //check if elementCount matches between metadata and data
-				  if ( !isImport || !e.getName().equals(Provenance.ASPECT_NAME)) {
+				  if ( !e.getName().equals(Provenance.ASPECT_NAME)) {
 				  
 					  long declaredCnt = e.getElementCount().longValue() ;
 					  if ( declaredCnt == 0) {
@@ -563,7 +582,7 @@ public class CXNetworkLoader implements AutoCloseable {
 								  ", but " + w.getElementCount() + " was received in CX.");
 					  } else {
 						  if ( this.aspectTable.get(e.getName()) == null || declaredCnt != this.aspectTable.get(e.getName()).getElementCount()) {
-							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadate declared element count " + e.getElementCount()+
+							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
 							  ", but " + (this.aspectTable.get(e.getName()) == null ? 0:this.aspectTable.get(e.getName()).getElementCount()) + " was received in CX.");
 						  }
 					  }

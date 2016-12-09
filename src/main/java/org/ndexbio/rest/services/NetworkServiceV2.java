@@ -46,6 +46,9 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -231,6 +234,13 @@ public class NetworkServiceV2 extends NdexService {
 			} 
 			daoNew.setProvenance(networkId, provenance);
 			daoNew.commit();
+			
+			//Recreate the CX file 					
+			NetworkSummary fullSummary = daoNew.getNetworkSummaryById(networkId);
+			MetaDataCollection metadata = daoNew.getMetaDataCollection(networkId);
+			CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkId, fullSummary, metadata);
+			g.reCreateCXFile();
+			
 			return  provenance; //  daoNew.getProvenance(networkUUID);
 		} catch (Exception e) {
 			//if (null != daoNew) daoNew.rollback();
@@ -1533,7 +1543,11 @@ public class NetworkServiceV2 extends NdexService {
 				   
 				   //Create dir
 				   java.nio.file.Path dir = Paths.get(pathPrefix);
-				   Files.createDirectory(dir);
+				   Set<PosixFilePermission> perms =
+						    PosixFilePermissions.fromString("rwxrwxr-x");
+						FileAttribute<Set<PosixFilePermission>> attr =
+						    PosixFilePermissions.asFileAttribute(perms);
+				   Files.createDirectory(dir,attr);
 				   
 				   //write content to file
 				   String cxFilePath = pathPrefix + "/network.cx";
