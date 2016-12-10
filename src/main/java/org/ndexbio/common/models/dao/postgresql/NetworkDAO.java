@@ -106,7 +106,7 @@ public class NetworkDAO extends NdexDBDAO {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
 		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly) values"
-				+ "(?, ?, ?, false, false, 'PRIVATE',?,?,false) ";
+				+ "(?, ?, ?, false, true, 'PRIVATE',?,?,false) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkUUID);
 			pst.setTimestamp(2, t);

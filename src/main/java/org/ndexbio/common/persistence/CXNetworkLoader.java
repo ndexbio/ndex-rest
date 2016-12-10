@@ -123,7 +123,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 //	private Map<String, Long> namespaceMap;   // prefix to nsID mapping.
 	
-//	private Provenance provenanceHistory;    // comment out for now.
+	private Provenance provenanceHistory;    // comment out for now.
 	private Set<Long> subNetworkIds;
 		
 	long opaqueCounter ;
@@ -177,7 +177,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		aspectTable = new TreeMap<>();
 		this.subNetworkIds = new HashSet<>(10);
 	
-//		provenanceHistory = null;
+		provenanceHistory = null;
 		
 		networkName = null;
 		description = null;
@@ -275,9 +275,9 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 			  				
 				//recreate CX file
-				ProvenanceEntity provenanceHistory = dao.getProvenance(networkId);
+				ProvenanceEntity provenanceEntity = dao.getProvenance(networkId);
 				
-				List<SimplePropertyValuePair> pProps =provenanceHistory.getProperties();
+				List<SimplePropertyValuePair> pProps =provenanceEntity.getProperties();
 				
 			    pProps.add( new SimplePropertyValuePair("edge count", Integer.toString( summary.getEdgeCount() )) );
 			    pProps.add( new SimplePropertyValuePair("node count", Integer.toString( summary.getNodeCount() )) );
@@ -291,11 +291,16 @@ public class CXNetworkLoader implements AutoCloseable {
 			    if ( summary.getVersion()!=null && summary.getVersion().length() > 0 )
 			       pProps.add( new SimplePropertyValuePair("version", summary.getVersion()) );
 
-			    provenanceHistory.setProperties(pProps);
+			    provenanceEntity.setProperties(pProps);
 			    
-				dao.setProvenance(networkId, provenanceHistory);
+			    if (this.provenanceHistory != null) {
+			    	ProvenanceEntity oldEntity = this.provenanceHistory.getEntity();
+			    	provenanceEntity.getCreationEvent().addInput(oldEntity);
+			    }
+			    
+				dao.setProvenance(networkId, provenanceEntity);
 				
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, new Provenance(provenanceHistory));
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, new Provenance(provenanceEntity));
 				String tmpFileName = g.createNetworkFile();
 				
 				java.nio.file.Path src = Paths.get(tmpFileName);
@@ -307,6 +312,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 				try {
 					dao.setFlag(this.networkId, "iscomplete", true);
+					dao.setFlag(this.networkId, "islocked", false);
 		/*			List<SimplePropertyValuePair> pProps =provenanceHistory.getProperties();
 					
 				    pProps.add( new SimplePropertyValuePair("edge count", Integer.toString( summary.getEdgeCount() )) );
@@ -321,9 +327,9 @@ public class CXNetworkLoader implements AutoCloseable {
 				    if ( summary.getVersion()!=null && summary.getVersion().length() > 0 )
 				       pProps.add( new SimplePropertyValuePair("version", summary.getVersion()) );
 
-				    provenanceHistory.setProperties(pProps);  */
+				    provenanceHistory.setProperties(pProps);  
 				    
-					dao.setProvenance(networkId, provenanceHistory);
+					dao.setProvenance(networkId, provenanceHistory);  */
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();
@@ -472,7 +478,7 @@ public class CXNetworkLoader implements AutoCloseable {
 					
 				case Provenance.ASPECT_NAME:   // we ignore the provenance aspect in the uploaded network for now.
 												// uncomment the following line to save it.
-		//			this.provenanceHistory = (Provenance)elmt;
+					this.provenanceHistory = (Provenance)elmt;
 					break;
 				default:    // opaque aspect
 					createAspectElement(elmt);

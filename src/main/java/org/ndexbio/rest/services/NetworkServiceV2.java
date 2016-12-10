@@ -105,6 +105,7 @@ import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.cx.NdexNetworkStatus;
+import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -204,7 +205,7 @@ public class NetworkServiceV2 extends NdexService {
             "ProvenanceEntity object in the PUT data. The ProvenanceEntity object is expected to represent " +
             "the current state of the network and to contain a tree-structure of ProvenanceEvent and " +
             "ProvenanceEntity objects that describe the networks provenance history.")
-    public ProvenanceEntity setProvenance(@PathParam("networkid")final String networkIdStr, final ProvenanceEntity provenance)
+    public void setProvenance(@PathParam("networkid")final String networkIdStr, final ProvenanceEntity provenance)
     		throws Exception {
 
     	logger.info("[start: Updating provenance of network {}]", networkIdStr);
@@ -231,17 +232,20 @@ public class NetworkServiceV2 extends NdexService {
 				daoNew.close();
 				logger.info("[end: Can't update locked network {}]", networkId);
 				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
-			} 
+			}
+			daoNew.lockNetwork(networkId);
 			daoNew.setProvenance(networkId, provenance);
 			daoNew.commit();
 			
 			//Recreate the CX file 					
-			NetworkSummary fullSummary = daoNew.getNetworkSummaryById(networkId);
-			MetaDataCollection metadata = daoNew.getMetaDataCollection(networkId);
-			CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkId, fullSummary, metadata);
+		//	NetworkSummary fullSummary = daoNew.getNetworkSummaryById(networkId);
+		//	MetaDataCollection metadata = daoNew.getMetaDataCollection(networkId);
+			CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkId, daoNew, new Provenance(provenance));
 			g.reCreateCXFile();
+			daoNew.unlockNetwork(networkId);
 			
-			return  provenance; //  daoNew.getProvenance(networkUUID);
+			
+			return ; // provenance; //  daoNew.getProvenance(networkUUID);
 		} catch (Exception e) {
 			//if (null != daoNew) daoNew.rollback();
 			logger.error("[end: Updating provenance of network {}. Exception caught:]{}", networkIdStr, e);	
@@ -1256,6 +1260,23 @@ public class NetworkServiceV2 extends NdexService {
 			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId);
 			FileUtils.deleteDirectory(new File(Configuration.getInstance().getNdexRoot() + "/data/" + networkId));
 			Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
+			
+			String urlStr = Configuration.getInstance().getHostURI()  + 
+			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr;
+			ProvenanceEntity entity = new ProvenanceEntity();
+			entity.setUri(urlStr + "/summary");
+
+			ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE, new Timestamp(System.currentTimeMillis()));
+
+			List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+			Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+			event.setProperties(eventProperties);		
+			ProvenanceEntity inputEntity =daoNew.getProvenance(networkId);
+			event.addInput(inputEntity);
+			entity.setCreationEvent(event);
+
+			daoNew.setProvenance(networkId, entity);
+				
 			daoNew.commit();
 			daoNew.unlockNetwork(networkId);
 			

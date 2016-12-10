@@ -98,7 +98,7 @@ public class CXNetworkFileGenerator {
 			 stat.add(status);		 
 			 wtr.writeAspectFragment(new CXAspectFragment(NdexNetworkStatus.ASPECT_NAME, stat));
 			 
-			 //write provenance history seperately
+			 //write provenance history separately
 			 if ( metadata.getMetaDataElement(Provenance.ASPECT_NAME) != null ) {
 				 metadata.remove(Provenance.ASPECT_NAME);
 				 if (provenance !=null )  {
