@@ -403,6 +403,7 @@ public class GroupServiceV2 extends NdexService {
 	@GET
 	@Path("/{groupid}/membership")
 	@Produces("application/json")
+	@PermitAll
 	@ApiDoc("")
 	public List<Membership> getGroupUserMemberships(@PathParam("groupid") final String groupIdStr,
 			  @QueryParam("type") String permissions,

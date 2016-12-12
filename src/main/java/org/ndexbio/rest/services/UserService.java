@@ -614,7 +614,7 @@ public class UserService extends NdexService {
 	 * @throws NoSuchAlgorithmException 
 	 **************************************************************************/
 	
-	@POST
+/*	@POST
 	@Path("/password")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces("application/json")
@@ -637,7 +637,7 @@ public class UserService extends NdexService {
 			dao.commit();
 			logger.info("[end: Password changed for user {}]", getLoggedInUser().getUserName());
 		}
-	}
+	} */
 
 
 	/**************************************************************************
@@ -681,7 +681,7 @@ public class UserService extends NdexService {
 	 * @throws SQLException 
 	 * @throws NoSuchAlgorithmException 
 	 **************************************************************************/
-	@POST
+/*	@POST
 	@PermitAll
 	@NdexOpenFunction
 	@Path("/forgot-password")
@@ -721,7 +721,7 @@ public class UserService extends NdexService {
 			logger.info("[end: Emailed new password to {}]", accountName);
 			return Response.ok().build();
 		}
-	}
+	} */
 
 	/**************************************************************************
 	 * Finds users based on the search parameters.

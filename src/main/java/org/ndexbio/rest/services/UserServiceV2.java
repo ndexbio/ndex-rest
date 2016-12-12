@@ -400,19 +400,21 @@ public class UserServiceV2 extends NdexService {
 	 *            The user ID.
 	 * @param password
 	 *            The new password.
+	 * @throws Exception 
 
 	 **************************************************************************/
 	
 	@PUT
 	@Path("/{userid}/password")
-	@Consumes(MediaType.APPLICATION_JSON)
+//	@Consumes(MediaType.APPLICATION_JSON)
+	@PermitAll
 	@Produces("application/json")
 	@ApiDoc("Changes the authenticated user's password to the new password in the POST data.")
 	public void changePassword(
 				@PathParam("userid") final String userId,
 				@QueryParam("forgot") String booleanStr,
 				String password)
-			throws IllegalArgumentException, NdexException, SQLException, NoSuchAlgorithmException, IOException, MessagingException {
+			throws Exception {
 		
 		
 //		logger.info("[start: Changing password for user {}]", getLoggedInUser().getUserName() );
@@ -421,26 +423,30 @@ public class UserServiceV2 extends NdexService {
 			logger.warn("[end: Changing password not allowed for AD authentication method]");
 			throw new UnauthorizedOperationException("Emailing new password is not allowed when using AD authentication method");
 		}
-
+		
 		UUID userUUID = UUID.fromString(userId);
-		Preconditions.checkArgument(userId.equals(getLoggedInUserId().toString()), 
-				"Updating other user's password is not allowed.");
 
-		if ( booleanStr != null ) {
+		if ( booleanStr == null) {
+			UUID loggedInUserId = getLoggedInUserId() ;
+			if (loggedInUserId == null)
+				throw new UnauthorizedOperationException("Only authenticated users can their change passwords.");
+			if (!userUUID.equals(loggedInUserId))
+				throw new UnauthorizedOperationException("Updating other user's password is not allowed.");
+			Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
+					"A password is required");
+			
+			try (UserDAO dao = new UserDAO ()) {
+				dao.setNewPassword(loggedInUserId,password);
+				dao.commit();
+			}
+		} else  {
 			if ( !booleanStr.toLowerCase().equals("true"))
 				throw new IllegalArgumentException("Value of paramter forgot can only be true.");
-			emailNewPassword(getLoggedInUser());
+			emailNewPassword(userUUID);
 			return;
 		}
 
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(password), 
-				"A password is required");
 		
-		try (UserDAO dao = new UserDAO ()) {
-			dao.setNewPassword(getLoggedInUser().getUserName(),password);
-			dao.commit();
-	//		logger.info("[end: Password changed for user {}]", getLoggedInUser().getUserName());
-		}
 	}
 
 
@@ -478,21 +484,13 @@ public class UserServiceV2 extends NdexService {
 	 * 
 	 * @param user
 	 *            should be the current authenticated user.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to change the password in the database, or failed to
-	 *             send the email.
-	 * @throws IOException 
-	 * @throws MessagingException 
-	 * @throws SQLException 
-	 * @throws NoSuchAlgorithmException 
+	 * @throws Exception 
 	 **************************************************************************/
 
-	private static void emailNewPassword( final User user)
-			throws IllegalArgumentException, NdexException, IOException, MessagingException, SQLException, NoSuchAlgorithmException {
+	private static void emailNewPassword( UUID userId)
+			throws Exception {
 
-		logger.info("[start: Email new password for {}]", user.getUserName());
+	//	logger.info("[start: Email new password for {}]", user.getUserName());
 		
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			logger.warn("[end: Emailing new password is not allowed for AD authentication method]");
@@ -502,16 +500,23 @@ public class UserServiceV2 extends NdexService {
 		try (UserDAO dao = new UserDAO ()){
 
 		//	User authUser = dao.getUserById(userId, true);
-			String newPasswd = dao.setNewPassword(user.getUserName().toLowerCase(),null);
+			String newPasswd = dao.setNewPassword(userId,null);
 
 			dao.commit();
 			
+			User u = dao.getUserById(userId, true);
+			
+	        AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(),
+	        		"Your new password is:" + newPasswd, "Your NDEx Password Has Been Reset", "html");
+
+	        // this is the old method using local host. We are suing AmazonSES now. For enterprise users, we need to find out how to send emails.
+			/*
 			Email.sendHTMLEmailUsingLocalhost(Configuration.getInstance().getProperty("Forgot-Password-Email"), 
 					user.getEmailAddress(), 
 					"Your NDEx Password Has Been Reset", 
-					"Your new password is:" + newPasswd);
+					"Your new password is:" + newPasswd); */
 
-			logger.info("[end: Emailed new password to {}]", user.getUserName());
+	//		logger.info("[end: Emailed new password to {}]", user.getUserName());
 		}
 	}
 

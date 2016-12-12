@@ -447,12 +447,9 @@ public class UserDAO extends NdexDBDAO {
 	 * @throws NoSuchAlgorithmException 
 	 * @returns response
 	 **************************************************************************/
-	public String setNewPassword(String accountName, String password)
+	public String setNewPassword(UUID userId, String password)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			NdexException, SQLException, NoSuchAlgorithmException {
-
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(accountName),
-				"An accountName is required");
 		
 		String newPassword = password;
 		if ( password == null) { 
@@ -463,10 +460,10 @@ public class UserDAO extends NdexDBDAO {
 		if (newPassword.startsWith("\"") && newPassword.endsWith("\"") )
 			newPassword = newPassword.substring(1, newPassword.length() - 2);
 
-		String updateStr = "update " + NdexClasses.User + " set password = ? where user_name = ? and is_deleted = false";
+		String updateStr = "update " + NdexClasses.User + " set password = ? where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement st = db.prepareStatement(updateStr))  {
 			st.setString(1, Security.hashText(newPassword));
-			st.setString(2, accountName);
+			st.setObject(2, userId);
 			st.executeUpdate();
 		} 
 		return newPassword;		
