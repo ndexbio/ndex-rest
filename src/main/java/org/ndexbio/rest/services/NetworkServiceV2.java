@@ -1255,6 +1255,8 @@ public class NetworkServiceV2 extends NdexService {
 	        UUID tmpNetworkId = storeRawNetwork (input);
 
 	        daoNew.clearNetworkSummary(networkId);
+	        
+
 
 			java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId);
 			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId);

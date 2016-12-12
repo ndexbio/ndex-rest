@@ -227,7 +227,10 @@ public class CXNetworkLoader implements AutoCloseable {
 
 				//handle the network properties 
 				summary.setExternalId(this.networkId);
-				summary.setVisibility(VisibilityType.PRIVATE);
+				if ( isUpdate) {
+					summary.setVisibility(dao.getNetworkVisibility(networkId));
+				} else 
+					summary.setVisibility(VisibilityType.PRIVATE);
 				summary.setEdgeCount(this.edgeIdTracker.getDefinedElementSize());
 				summary.setNodeCount(this.nodeIdTracker.getDefinedElementSize());
 				
