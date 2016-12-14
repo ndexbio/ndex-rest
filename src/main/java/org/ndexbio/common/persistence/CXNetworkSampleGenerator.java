@@ -5,12 +5,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -59,7 +57,7 @@ public class CXNetworkSampleGenerator {
 		
 	}
 	
-	private MetaDataElement getMetaDataElementTempleteFromSrc (String aspectName) throws NdexException {
+	private MetaDataElement getMetaDataElementTempleteFromSrc (String aspectName) {
 		MetaDataElement old = this.srcMetaDataCollection.getMetaDataElement(aspectName);
 	//	if ( old == null)
 	//		throw new NdexException("MetaData " + aspectName + " is missing in network " + this.networkId.toString());
@@ -72,7 +70,7 @@ public class CXNetworkSampleGenerator {
 		return result;
 	}
 	
-	public void createSampleNetwork() throws IOException, NdexException {
+	public void createSampleNetwork() throws IOException {
 		
 		CXNetwork result = new CXNetwork();
 
@@ -83,8 +81,6 @@ public class CXNetworkSampleGenerator {
 	
 		// if sample is for a subNetwork, get ids of 500 edges from the subNetwork aspect
 		Set<Long> edgeIds = null; 
-
-		boolean oldCX = false;
 		
 		if ( subNetworkId != null) {
 			
@@ -109,7 +105,6 @@ public class CXNetworkSampleGenerator {
 			if (edgeIds.isEmpty()) {  // try the subNetworks aspect to be compatible with the old cyCX spec.
 				try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId,"subNetworks" , SubNetworkElement.class ) ) {
 					while ( subNetIterator.hasNext()) {
-						oldCX = true;
 						SubNetworkElement subNetwork = subNetIterator.next();
 						
 						if (subNetworkId.equals(subNetwork.getId())  )  {
@@ -225,7 +220,7 @@ public class CXNetworkSampleGenerator {
 				EdgeAttributesElement ea = it.next();
 				
 				Long id = ea.getPropertyOf();
-				if ( edgeIds.contains(id) && 
+				if ( result.getEdges().containsKey(id) && 
 						((subNetworkId == null && ea.getSubnetwork() == null) || 
 								 (subNetworkId != null && ea.getSubnetwork() !=null && subNetworkId.equals(ea.getSubnetwork()) ))) {
 					result.addEdgeAttribute(id, ea);
