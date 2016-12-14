@@ -266,7 +266,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				if (summary.getEdgeCount() > CXNetworkSampleGenerator.sampleSize)  {
 			  
 					Long subNetworkId = null;
-					if (subNetworkIds.size()>1 )  {
+					if (subNetworkIds.size()>0 )  {
 						for ( Long i : subNetworkIds) {
 							subNetworkId = i;
 							break;

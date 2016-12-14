@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -81,11 +82,13 @@ public class CXNetworkSampleGenerator {
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/"; 
 	
 		// if sample is for a subNetwork, get ids of 500 edges from the subNetwork aspect
-		List<Long> edgeIds = null; 
+		Set<Long> edgeIds = null; 
 
+		boolean oldCX = false;
+		
 		if ( subNetworkId != null) {
 			
-			edgeIds = new ArrayList<>(sampleSize);
+			edgeIds = new HashSet<>(sampleSize);
 			
 			try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId,SubNetworkElement.ASPECT_NAME , SubNetworkElement.class ) ) {
 				while ( subNetIterator.hasNext()) {
@@ -103,10 +106,29 @@ public class CXNetworkSampleGenerator {
 				}
 			}
 			
-			// add metadata entry
+			if (edgeIds.isEmpty()) {  // try the subNetworks aspect to be compatible with the old cyCX spec.
+				try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId,"subNetworks" , SubNetworkElement.class ) ) {
+					while ( subNetIterator.hasNext()) {
+						oldCX = true;
+						SubNetworkElement subNetwork = subNetIterator.next();
+						
+						if (subNetworkId.equals(subNetwork.getId())  )  {
+							int i = 0;
+							for (Long edgeId : subNetwork.getEdges() ) {
+								edgeIds.add(edgeId);
+								i++; 
+								if ( i >= sampleSize) break;
+		        			
+							}					
+						}
+					}
+				}
+			}
+			
+		/*	// add metadata entry
 			MetaDataElement mdElmt = getMetaDataElementTempleteFromSrc(SubNetworkElement.ASPECT_NAME);	
 			mdElmt.setElementCount(1L);
-			metadata.add(mdElmt);
+			metadata.add(mdElmt); */
 			
 		}
 			
@@ -115,10 +137,7 @@ public class CXNetworkSampleGenerator {
 		Set<Long> nodeIds = new TreeSet<>();
 		//go through Edge aspect
 		Long edgeIdCounter = null;
-		try (AspectIterator<EdgesElement> it = new AspectIterator<>(networkId,EdgesElement.ASPECT_NAME , EdgesElement.class )
-				/*FileInputStream inputStream = new FileInputStream(pathPrefix + EdgesElement.ASPECT_NAME)*/) {
-
-		//	Iterator<EdgesElement> it = new ObjectMapper().readerFor(EdgesElement.class).readValues(inputStream);
+		try (AspectIterator<EdgesElement> it = new AspectIterator<>(networkId,EdgesElement.ASPECT_NAME , EdgesElement.class )) {
 
 			while (it.hasNext()) {
 	        	EdgesElement edge = it.next();
@@ -178,7 +197,8 @@ public class CXNetworkSampleGenerator {
 				
 					Long id = na.getPropertyOf();
 					if ( nodeIds.contains(id) && 
-							(subNetworkId == null || na.getSubnetwork() == null || subNetworkId.equals(na.getSubnetwork()))) {
+							((subNetworkId == null && na.getSubnetwork() == null) || 
+							 (subNetworkId != null && na.getSubnetwork() !=null && subNetworkId.equals(na.getSubnetwork()) )) ) {
 						result.addNodeAttribute(id, na);
 						nodeAttrCounter ++;
 					}
@@ -202,12 +222,13 @@ public class CXNetworkSampleGenerator {
 			Iterator<EdgeAttributesElement> it = new ObjectMapper().readerFor(EdgeAttributesElement.class).readValues(inputStream);
 
 			while (it.hasNext()) {
-				EdgeAttributesElement na = it.next();
+				EdgeAttributesElement ea = it.next();
 				
-				Long id = na.getPropertyOf();
-				if ( nodeIds.contains(id) && 
-						(subNetworkId == null || na.getSubnetwork() == null || subNetworkId.equals(na.getSubnetwork()))) {
-					result.addEdgeAttribute(id, na);
+				Long id = ea.getPropertyOf();
+				if ( edgeIds.contains(id) && 
+						((subNetworkId == null && ea.getSubnetwork() == null) || 
+								 (subNetworkId != null && ea.getSubnetwork() !=null && subNetworkId.equals(ea.getSubnetwork()) ))) {
+					result.addEdgeAttribute(id, ea);
 					edgeAttrCounter ++;
 				}
 			        	
@@ -218,7 +239,7 @@ public class CXNetworkSampleGenerator {
 		if ( edgeAttrCounter >0) {
 			MetaDataElement edgeAttrmd = this.getMetaDataElementTempleteFromSrc(EdgeAttributesElement.ASPECT_NAME);
 			edgeAttrmd.setElementCount(Long.valueOf(edgeAttrCounter));
-			metadata.add(edgemd);
+			metadata.add(edgeAttrmd);
 		}
 	
 		//process network attribute aspect
@@ -232,7 +253,8 @@ public class CXNetworkSampleGenerator {
 			while (it.hasNext()) {
 				NetworkAttributesElement nAtt = it.next();
 				
-				if ( subNetworkId == null || nAtt.getSubnetwork() == null || subNetworkId.equals(nAtt.getSubnetwork())) {
+				if ((subNetworkId == null && nAtt.getSubnetwork() == null) || 
+								 (subNetworkId != null && nAtt.getSubnetwork() !=null && subNetworkId.equals(nAtt.getSubnetwork()) )) {
 					result.addNetworkAttribute(nAtt);
 					networkAttrCounter ++;
 				}

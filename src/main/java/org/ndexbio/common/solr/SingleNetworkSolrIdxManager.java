@@ -245,7 +245,7 @@ public class SingleNetworkSolrIdxManager {
 			e.printStackTrace();
 		}
 	}
-	private Map<Long,NodeIndexEntry> createIndexDocs() throws NdexException, JsonProcessingException, IOException {
+	private Map<Long,NodeIndexEntry> createIndexDocs() throws JsonProcessingException, IOException {
 		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
 		
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/aspects/"; 
