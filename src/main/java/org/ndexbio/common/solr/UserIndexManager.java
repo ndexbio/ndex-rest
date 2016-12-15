@@ -31,20 +31,10 @@
 package org.ndexbio.common.solr;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Date;
-import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
 
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrQuery.ORDER;
@@ -56,25 +46,16 @@ import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
-import org.cxio.aspects.datamodels.NetworkAttributesElement;
-import org.cxio.aspects.datamodels.NodeAttributesElement;
-import org.cxio.aspects.datamodels.NodesElement;
-import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.common.util.TermUtilities;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.NdexPropertyValuePair;
-import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 
 public class UserIndexManager {
 
 	private String solrUrl ;
 	
-	private static final String coreName = 
+	protected static final String coreName = 
 			"ndex-users" ; 
-	private HttpSolrClient client;
+	protected HttpSolrClient client;
 	
 	//private SolrInputDocument doc ;
 	
@@ -86,7 +67,7 @@ public class UserIndexManager {
 	private static final String DISPLAYNAME = "displayName";		
 	
 	
-	public UserIndexManager() throws NdexException {
+	public UserIndexManager() {
 		solrUrl = Configuration.getInstance().getSolrURL();
 		client = new HttpSolrClient(solrUrl);
 		//doc = new SolrInputDocument();

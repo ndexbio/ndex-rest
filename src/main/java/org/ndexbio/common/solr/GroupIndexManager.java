@@ -53,15 +53,15 @@ public class GroupIndexManager {
 
 	private String solrUrl ;
 	
-	private static final String coreName = 
+	protected static final String coreName = 
 			"ndex-groups" ; 
-	private HttpSolrClient client;
+	protected HttpSolrClient client;
 	
 	public static final String UUID = "uuid";
 	private static final String NAME = "groupName";
 	private static final String DESC = "description";
 	
-	public GroupIndexManager() throws NdexException {
+	public GroupIndexManager() {
 		solrUrl = Configuration.getInstance().getSolrURL();
 		client = new HttpSolrClient(solrUrl);
 	}
