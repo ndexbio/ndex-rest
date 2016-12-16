@@ -1562,6 +1562,22 @@ public class NetworkService extends NdexService {
 			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId);
 			FileUtils.deleteDirectory(new File(Configuration.getInstance().getNdexRoot() + "/data/" + networkId));
 			Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
+		
+			String urlStr = Configuration.getInstance().getHostURI()  + 
+			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr;
+			ProvenanceEntity entity = new ProvenanceEntity();
+			entity.setUri(urlStr + "/summary");
+			ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE, new Timestamp(System.currentTimeMillis()));
+
+			List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+			Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+			event.setProperties(eventProperties);		
+			ProvenanceEntity inputEntity =daoNew.getProvenance(networkId);
+			event.addInput(inputEntity);
+			entity.setCreationEvent(event);
+
+			daoNew.setProvenance(networkId, entity);
+			
 			daoNew.commit();
 			daoNew.unlockNetwork(networkId);
 			
