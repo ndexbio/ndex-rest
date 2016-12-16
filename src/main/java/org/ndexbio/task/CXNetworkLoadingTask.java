@@ -9,6 +9,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.ProvenanceEntity;
 
 public class CXNetworkLoadingTask implements NdexSystemTask {
@@ -35,6 +36,14 @@ public class CXNetworkLoadingTask implements NdexSystemTask {
 			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
 			e1.printStackTrace();
 			dao.setErrorMessage(networkId, e1.getMessage());
+			try {
+				dao.unlockNetwork(networkId);
+			} catch (ObjectNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				logger.severe("Can't find network " + networkId + " in the server to delete.");
+			}
+			
 			/*} catch (SQLException e) {
 				logger.severe("Error occurred when setting error message in network " + networkId + ": " + e1.getMessage());
 				e.printStackTrace();

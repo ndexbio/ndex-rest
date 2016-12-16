@@ -50,6 +50,7 @@ import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
+import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
@@ -302,7 +303,7 @@ public class SingleNetworkSolrIdxManager {
 			while (it.hasNext()) {
 	        	NodeAttributesElement attr = it.next();
 	        	if ( attr.getName().equals("alias")) {
-	        		List<String>  l = getIndexableTerms(attr.getValues());
+	        		List<String>  l = getIndexableTerms(attr);
 	        		if ( l.size() > 0 ) {
 	        			NodeIndexEntry e = result.get(attr.getPropertyOf());
 	        			if ( e == null) {
@@ -324,15 +325,22 @@ public class SingleNetworkSolrIdxManager {
 		return NetworkGlobalIndexManager.getIndexableString(originalString);
 	}
 	
-	private static List<String> getIndexableTerms (List<String> originalStrings) {		
+	private static List<String> getIndexableTerms (NodeAttributesElement e) {		
 		List<String> result = new ArrayList<>();
-		if (originalStrings != null ) {
-			for (String rawString : originalStrings) {
-				for ( String term : NetworkGlobalIndexManager.getIndexableString(rawString)) {
-					result.add(term);
+		
+		if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING 	&& !e.getValues().isEmpty()) {
+			for ( String v : e.getValues()) {
+				for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
+					result.add( indexableString);
 				}
 			}
+		} else if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
+			String v = e.getValue();
+			for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
+				result.add( indexableString);
+			}
 		}
+		
 		return result;
 	}
 }
