@@ -145,7 +145,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	private List<String> warnings;
 	private NetworkDAO dao;
 		
-	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate, NetworkDAO networkDao)  throws NdexException, FileNotFoundException {
+	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate, NetworkDAO networkDao)  throws NdexException, SolrServerException, IOException {
 		super();
 		
 		this.isUpdate = isUpdate;
@@ -160,7 +160,10 @@ public class CXNetworkLoader implements AutoCloseable {
 		serverElementLimit = Configuration.getInstance().getServerElementLimit();
 		
 		globalIdx = new NetworkGlobalIndexManager();
-		
+		if ( isUpdate ) {
+			this.globalIdx.deleteNetwork(networkId.toString());
+		}	
+
 		warnings = new ArrayList<> ();
 		networkNameIsAssigned = false;
 
@@ -253,15 +256,16 @@ public class CXNetworkLoader implements AutoCloseable {
 					throw new NdexException ("DB error when saving network summary: " + e.getMessage(), e);
 				}
 		  
-				SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString());
-				if ( isUpdate ) {
-					this.globalIdx.deleteNetwork(networkId.toString());
-					idx2.dropIndex();		
-				}	
+				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+					if ( isUpdate ) {
+						idx2.dropIndex();		
+					}	
 				
-				createSolrIndex(summary);
-				idx2.createIndex();
+					createSolrIndex(summary);
+					idx2.createIndex();
   
+				}
+				
 				// create the network sample if the network has more than 500 edges
 				if (summary.getEdgeCount() > CXNetworkSampleGenerator.sampleSize)  {
 			  
@@ -315,7 +319,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 				try {
 					dao.setFlag(this.networkId, "iscomplete", true);
-					dao.setFlag(this.networkId, "islocked", false);
+					dao.unlockNetwork(this.networkId);
 		/*			List<SimplePropertyValuePair> pProps =provenanceHistory.getProperties();
 					
 				    pProps.add( new SimplePropertyValuePair("edge count", Integer.toString( summary.getEdgeCount() )) );
@@ -362,7 +366,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  logger.info("aspects have been stored.");
 			  
 			  NetworkSummary summary = dao.getNetworkSummaryById(networkId);
-			  SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString());
+			  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
 				if ( isUpdate ) {
 					this.globalIdx.deleteNetwork(networkId.toString());
 					idx2.dropIndex();		
@@ -370,8 +374,8 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 				createSolrIndex(summary);
 				idx2.createIndex();
-				idx2.close();
-			  			  
+				//idx2.close();
+			  } 			  
 			 // create the network sample if the network has more than 500 edges
 			 if (this.edgeIdTracker.getDefinedElementSize() > CXNetworkSampleGenerator.sampleSize)  {
 				  

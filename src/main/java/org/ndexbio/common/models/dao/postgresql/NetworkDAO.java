@@ -527,6 +527,20 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 	}
 	
+	public boolean networkIsValid(UUID networkUUID) throws ObjectNotFoundException, SQLException {
+		String sql = "select is_validated from network where \"UUID\" = ? and is_deleted = false";
+		try(PreparedStatement p = db.prepareStatement(sql)){
+			p.setObject(1, networkUUID);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getBoolean(1);
+				}
+				throw new ObjectNotFoundException ("network",networkUUID);
+			}
+		}
+	}
+	
+	
 	public ProvenanceEntity getProvenance(UUID networkId) throws JsonParseException, JsonMappingException, IOException, ObjectNotFoundException, SQLException {
 		String sql = "select provenance from network where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement p = db.prepareStatement(sql)) {
@@ -1353,7 +1367,7 @@ public class NetworkDAO extends NdexDBDAO {
     			logger.severe("Update statement for network " + networkId + " doesn't returned row count " + i + ". sql=" + sql);
     		db.commit();
     	} catch (SQLException e) {
-    		logger.severe("Failed to set error messge for network " + networkId + ": " + e.getMessage());
+    		logger.severe("Failed to set error message for network " + networkId + ": " + e.getMessage());
     	}
     
     }
@@ -1427,9 +1441,11 @@ public class NetworkDAO extends NdexDBDAO {
 		List<NetworkSummary> result = new ArrayList<>(50);
 				
 		String sqlStr = " select * from (" + networkSummarySelectClause 
-				+ " from network n where n.owneruuid = ? and show_in_homepage = true and n.is_deleted= false and " + createIsReadableConditionStr(signedInUserId)
+				+ " from network n where n.owneruuid = ? and show_in_homepage = true and n.is_deleted= false and is_validated = true " 
+				+ createIsReadableConditionStr(signedInUserId)
 				+ " union " + networkSummarySelectClause 
-				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? and un.show_in_homepage = true and " + 
+				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? and un.show_in_homepage = true "
+				+ " and n.is_validated = true and n.is_deleted=false " + 
 				createIsReadableConditionStr(signedInUserId)
 				 + ") k order by k.modification_time desc";
 		

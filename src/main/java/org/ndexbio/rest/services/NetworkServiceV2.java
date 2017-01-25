@@ -106,7 +106,9 @@ import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.Provenance;
+import org.ndexbio.model.exceptions.InvalidNetworkException;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CXSimplePathQuery;
@@ -228,11 +230,14 @@ public class NetworkServiceV2 extends NdexService {
 				throw new NdexException ("Can't update readonly network.");
 			} 
 
+			if (!daoNew.networkIsValid(networkId))
+				throw new InvalidNetworkException();
+				
 			if ( daoNew.networkIsLocked(networkId)) {
 				daoNew.close();
-				logger.info("[end: Can't update locked network {}]", networkId);
-				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+				throw new NetworkConcurrentModificationException ();
 			}
+			
 			daoNew.lockNetwork(networkId);
 			daoNew.setProvenance(networkId, provenance);
 			daoNew.commit();
@@ -272,13 +277,12 @@ public class NetworkServiceV2 extends NdexService {
     		final List<NdexPropertyValuePair> properties)
     		throws Exception {
 
-    	logger.info("[start: Updating properties of network {}]", networkId);
+//    	logger.info("[start: Updating properties of network {}]", networkId);
 
+		User user = getLoggedInUser();
+		UUID networkUUID = UUID.fromString(networkId);
 
 		try (NetworkDAO daoNew = new NetworkDAO()) {
-			
-			User user = getLoggedInUser();
-			UUID networkUUID = UUID.fromString(networkId);
 			
 	  	    if(daoNew.isReadOnly(networkUUID)) {
 				logger.info("[end: Can't modify readonly network {}]", networkId);
@@ -292,66 +296,73 @@ public class NetworkServiceV2 extends NdexService {
 			} 
 			
 			if ( daoNew.networkIsLocked(networkUUID)) {
-				logger.info("[end: Can't update locked network {}]", networkId);
-				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+				throw new NetworkConcurrentModificationException ();
 			} 
-
-			int i = daoNew.setNetworkProperties(networkUUID, properties, false);
-
-            //DW: Handle provenance
-
-            ProvenanceEntity oldProv = daoNew.getProvenance(networkUUID);
-            ProvenanceEntity newProv = new ProvenanceEntity();
-            newProv.setUri( oldProv.getUri() );
-
-            NetworkSummary summary = daoNew.getNetworkSummaryById(networkUUID);
-            Helper.populateProvenanceEntity(newProv, summary);
-            ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_NETWORK_PROPERTIES, summary.getModificationTime());
-            List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
-            for( NdexPropertyValuePair vp : properties )
-            {
-                SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getPredicateString(), vp.getValue());
-                eventProperties.add(svp);
-            }
-            event.setProperties(eventProperties);
-            List<ProvenanceEntity> oldProvList = new ArrayList<>();
-            oldProvList.add(oldProv);
-            event.setInputs(oldProvList);
-
-            newProv.setCreationEvent(event);
-            daoNew.setProvenance(networkUUID, newProv); 
-
-            NetworkSummary fullSummary = daoNew.getNetworkSummaryById(networkUUID);
 			
-			//update the networkProperty aspect 
-			List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
-			if ( attrs.size() > 0 ) {					
-				try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
+			if ( !daoNew.networkIsValid(networkUUID))
+				throw new InvalidNetworkException();
+
+			daoNew.lockNetwork(networkUUID);
+			
+			try {
+				int i = daoNew.setNetworkProperties(networkUUID, properties, false);
+
+				//DW: Handle provenance
+
+				ProvenanceEntity oldProv = daoNew.getProvenance(networkUUID);
+				ProvenanceEntity newProv = new ProvenanceEntity();
+				newProv.setUri( oldProv.getUri() );
+
+				NetworkSummary summary = daoNew.getNetworkSummaryById(networkUUID);
+				Helper.populateProvenanceEntity(newProv, summary);
+				ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_NETWORK_PROPERTIES, summary.getModificationTime());
+				List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+				Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
+				for( NdexPropertyValuePair vp : properties )
+				{
+					SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getPredicateString(), vp.getValue());
+					eventProperties.add(svp);
+				}
+				event.setProperties(eventProperties);
+				List<ProvenanceEntity> oldProvList = new ArrayList<>();
+				oldProvList.add(oldProv);
+				event.setInputs(oldProvList);
+
+				newProv.setCreationEvent(event);
+				daoNew.setProvenance(networkUUID, newProv); 
+
+				NetworkSummary fullSummary = daoNew.getNetworkSummaryById(networkUUID);
+			
+				//update the networkProperty aspect 
+				List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
+				if ( attrs.size() > 0 ) {					
+					try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
 						+ NetworkAttributesElement.ASPECT_NAME) ) {
-					for ( NetworkAttributesElement e : attrs) {
-						writer.writeCXElement(e);	
-						writer.flush();
+						for ( NetworkAttributesElement e : attrs) {
+							writer.writeCXElement(e);	
+							writer.flush();
+						}
 					}
 				}
-			}
 			
-			//update metadata
-			MetaDataCollection metadata = daoNew.getMetaDataCollection(networkUUID);
-			MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
-			if ( elmt == null) {
-				elmt = new MetaDataElement();
-			}
-			elmt.setElementCount(Long.valueOf(attrs.size()));
-			daoNew.updateMetadataColleciton(networkUUID, metadata);
+				//update metadata
+				MetaDataCollection metadata = daoNew.getMetaDataCollection(networkUUID);
+				MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
+				if ( elmt == null) {
+					elmt = new MetaDataElement();
+				}
+				elmt.setElementCount(Long.valueOf(attrs.size()));
+				daoNew.updateMetadataColleciton(networkUUID, metadata);
 
-			//Recreate the CX file 					
-			CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, fullSummary, metadata);
-			g.reCreateCXFile();
+				//Recreate the CX file 					
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, fullSummary, metadata);
+				g.reCreateCXFile();
 			
-			daoNew.unlockNetwork(networkUUID);
             
-   			return i;
+				return i;
+			} finally {
+				daoNew.unlockNetwork(networkUUID);				
+			}
 		} catch (Exception e) {
 			//logger.severe("Error occurred when update network properties: " + e.getMessage());
 			//e.printStackTrace();
@@ -594,10 +605,16 @@ public class NetworkServiceV2 extends NdexService {
 
     	logger.info("[start: Getting sample network {}]", networkId);
   	
+    	UUID networkUUID = UUID.fromString(networkId);
     	try (NetworkDAO dao = new NetworkDAO()) {
-    		if ( ! dao.isAdmin(UUID.fromString(networkId), getLoggedInUserId()))
+    		if ( ! dao.isAdmin(networkUUID, getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User is not admin of this network.");
 
+    		if ( !dao.networkIsLocked(networkUUID))
+    			throw new NetworkConcurrentModificationException();
+    		
+    		if ( !dao.networkIsValid(networkUUID))
+    			throw new InvalidNetworkException();
     	}
     	  	
 		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/sample.cx";
@@ -928,9 +945,7 @@ public class NetworkServiceV2 extends NdexService {
 			@QueryParam("groupid") String groupIdStr		
 			)
 			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
-		
-	//	logger.info("[start: Removing any permissions for network {} for ....]", networkIdStr);
-		
+				
 		UUID networkId = UUID.fromString(networkIdStr);
 
 		UUID userId = null;
@@ -959,17 +974,21 @@ public class NetworkServiceV2 extends NdexService {
 				}
 			}
 
+			if( !networkDao.networkIsValid(networkId))
+				throw new InvalidNetworkException();
 			if ( networkDao.networkIsLocked(networkId)) {
-				throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+				throw new NetworkConcurrentModificationException ();
 			} 
 			
+			networkDao.lockNetwork(networkId);
+		
 			int count;
 			if ( userId !=null)
 				count = networkDao.revokeUserPrivilege(networkId, userId);
 			else 
 				count = networkDao.revokeGroupPrivilege(networkId, groupId);
 
-            networkDao.commit();
+            networkDao.unlockNetwork(networkId);
     	//	logger.info("[end: Removed any permissions for network {} ]", networkId);
             return count;
 		} 
@@ -1026,6 +1045,10 @@ public class NetworkServiceV2 extends NdexService {
 			User user = getLoggedInUser();
 			
 			networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
+			
+			if ( !networkDao.networkIsValid(networkId))
+    			throw new InvalidNetworkException();
+			
 			
 			int count;
 			if ( userId!=null)  {
@@ -1092,9 +1115,11 @@ public class NetworkServiceV2 extends NdexService {
 			if ( newValues.size() > 0 ) { 
 				
 				if ( networkDao.networkIsLocked(networkUUID)) {
-					logger.info("[end: Can't update locked network {}]", networkId);
-					throw new NdexException ("Can't modify locked network.");
+					throw new NetworkConcurrentModificationException ();
 				} 
+				
+				if (!networkDao.networkIsValid(networkUUID))
+					throw new InvalidNetworkException();
 				
 				try {
 					networkDao.lockNetwork(networkUUID);
@@ -1222,7 +1247,7 @@ public class NetworkServiceV2 extends NdexService {
     		MultipartFormDataInput input) throws Exception 
     {
     	
-		logger.info("[start: Updating network {} using CX data]", networkIdStr);
+	//	logger.info("[start: Updating network {} using CX data]", networkIdStr);
 
         UUID networkId = UUID.fromString(networkIdStr);
 
@@ -1244,8 +1269,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 			if ( daoNew.networkIsLocked(networkId)) {
 				daoNew.close();
-				logger.info("[end: Can't update locked network {}]", networkId);
-				throw new NdexException ("Can't modify locked network.");
+				throw new NetworkConcurrentModificationException ();
 			} 
 			
 			daoNew.lockNetwork(networkId);
@@ -1280,7 +1304,7 @@ public class NetworkServiceV2 extends NdexService {
 			daoNew.setProvenance(networkId, entity);
 				
 			daoNew.commit();
-			daoNew.unlockNetwork(networkId);
+	//		daoNew.unlockNetwork(networkId);
 			
            } catch (SQLException | NdexException | IOException e) {
         	  // e.printStackTrace();
@@ -1314,15 +1338,15 @@ public class NetworkServiceV2 extends NdexService {
 					
 						NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
 						globalIdx.deleteNetwork(id);
-						SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id);
-						idxManager.dropIndex();
-
+						try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
+							idxManager.dropIndex();
+						}	
 						networkDao.deleteNetwork(UUID.fromString(id), getLoggedInUser().getExternalId());
 						networkDao.commit();
 										
 						return;
 					}
-					throw new NdexException ("Network is locked by another updating process. Please try again.");
+					throw new NetworkConcurrentModificationException ();
 				}
 				  throw new NdexException("Can't delete a read-only network.");
 			}	
@@ -1473,6 +1497,9 @@ public class NetworkServiceV2 extends NdexService {
 				UUID networkId = UUID.fromString(networkIdStr);
 				UUID userId = getLoggedInUser().getExternalId();
 				if ( !networkDao.networkIsLocked(networkId)) {
+					if ( !networkDao.networkIsValid(networkId))
+						throw new InvalidNetworkException();
+					
 					if ( parameters.containsKey(readOnlyParameter)) {
 						if (!networkDao.isAdmin(networkId, userId))
 							throw new UnauthorizedOperationException("Only network owner can set readOnly Parameter.");
@@ -1492,7 +1519,7 @@ public class NetworkServiceV2 extends NdexService {
 				    networkDao.commit();
 					return;
 				}
-				throw new NdexException ("Network is locked by another updating process. Please try again.");
+				throw new NetworkConcurrentModificationException ();
 			}
 		    
 	}
@@ -1549,7 +1576,7 @@ public class NetworkServiceV2 extends NdexService {
 		   return Response.created(l).entity(l).build();
 
 	   	}
-	   
+	  
 
 	   private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException {
 		   Map<String, List<InputPart>> uploadForm = input.getFormDataMap();

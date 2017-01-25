@@ -53,8 +53,12 @@ public class AspectElementIdTracker {
 	public String checkUndefinedIds ()  {
 		if ( undefinedIds.size() > 0 ) {
 		  String errorMessage = undefinedIds.size() + " undefined ids found in aspect " + aspectName + ": [";
-		  for( Long sid : undefinedIds)
-			  errorMessage += sid + " ";	
+		  int i = 0;
+		  for( Long sid : undefinedIds) {
+			  if (i == 20) break;
+			  errorMessage += sid + " ";
+			  i++;
+		  }	  
 		  errorMessage +="]";
 		  return errorMessage;
 		} 

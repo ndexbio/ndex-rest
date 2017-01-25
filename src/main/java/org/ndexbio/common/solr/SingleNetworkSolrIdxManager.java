@@ -51,7 +51,6 @@ import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
-import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.common.cx.AspectIterator;
@@ -62,7 +61,7 @@ import org.ndexbio.rest.Configuration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class SingleNetworkSolrIdxManager {
+public class SingleNetworkSolrIdxManager implements AutoCloseable{
 
 	private String solrUrl;
 	
@@ -229,7 +228,7 @@ public class SingleNetworkSolrIdxManager {
 	} */
 
 	
-	public void commit() throws SolrServerException, IOException {
+	private void commit() throws SolrServerException, IOException {
 		if ( docs.size()>0 ) {
 			client.add(docs);
 			client.commit();
@@ -238,6 +237,7 @@ public class SingleNetworkSolrIdxManager {
 	}
 	
 	
+	@Override
 	public void close () {
 		try {
 			client.close();
