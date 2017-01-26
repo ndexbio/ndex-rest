@@ -1441,11 +1441,11 @@ public class NetworkDAO extends NdexDBDAO {
 		List<NetworkSummary> result = new ArrayList<>(50);
 				
 		String sqlStr = " select * from (" + networkSummarySelectClause 
-				+ " from network n where n.owneruuid = ? and show_in_homepage = true and n.is_deleted= false and is_validated = true " 
+				+ " from network n where n.owneruuid = ? and show_in_homepage = true and n.is_deleted= false and is_validated = true and " 
 				+ createIsReadableConditionStr(signedInUserId)
 				+ " union " + networkSummarySelectClause 
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? and un.show_in_homepage = true "
-				+ " and n.is_validated = true and n.is_deleted=false " + 
+				+ " and n.is_validated = true and n.is_deleted=false and " + 
 				createIsReadableConditionStr(signedInUserId)
 				 + ") k order by k.modification_time desc";
 		
