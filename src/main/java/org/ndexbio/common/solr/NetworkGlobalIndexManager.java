@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.TreeSet;
 
 import org.apache.solr.client.solrj.SolrQuery;
@@ -172,7 +173,7 @@ public class NetworkGlobalIndexManager {
 	}
 	
 	public SolrDocumentList searchForNetworks (String searchTerms, String userAccount, int limit, int offset, String adminedBy, Permissions permission,
-			   List<String> groupNames) 
+			   List<UUID> groupUUIDs) 
 			throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl+ "/" + coreName);
 
@@ -192,10 +193,9 @@ public class NetworkGlobalIndexManager {
 				resultFilter =  VISIBILITY + ":PRIVATE";
 				resultFilter += " AND -(" + USER_ADMIN + ":" + userAccountStr + ") AND -(" +
 						USER_EDIT + ":" + userAccountStr + ") AND -("+ USER_READ + ":" + userAccountStr + ")";
-				if ( groupNames!=null) {
-					for (String groupName : groupNames) {
-					  groupName = "\"" + groupName + "\"";	
-					  resultFilter +=  " AND -(" + GRP_EDIT + ":" + groupName + ") AND -("+ GRP_READ + ":" + groupName + ")";
+				if ( groupUUIDs!=null) {
+					for (UUID groupUUID : groupUUIDs) {
+					  resultFilter +=  " AND -(" + GRP_EDIT + ":\"" + groupUUID.toString() + "\") AND -("+ GRP_READ + ":\"" + groupUUID.toString() + "\")";
 					}
 				}
 				resultFilter = "-("+ resultFilter + ")";
@@ -203,21 +203,20 @@ public class NetworkGlobalIndexManager {
 			else if ( permission == Permissions.READ) {
 				resultFilter = "(" + USER_ADMIN + ":" + userAccountStr + ") OR (" +
 						USER_EDIT + ":" + userAccountStr + ") OR ("+ USER_READ + ":" + userAccountStr + ")";
-				if ( groupNames!=null) {
-					for (String groupName : groupNames) {
-						  groupName = "\"" + groupName + "\"";	
+				if ( groupUUIDs!=null) {
+					for (UUID groupUUID : groupUUIDs) {
 						  resultFilter +=  " OR (" +
-							  GRP_EDIT + ":" + groupName + ") OR ("+ GRP_READ + ":" + groupName + ")";
+							  GRP_EDIT + ":\"" + groupUUID.toString() + "\") OR ("+ GRP_READ + ":\"" + groupUUID.toString() + "\")";
 					}
 				}
 			} else if ( permission == Permissions.WRITE) {
 				resultFilter = "(" + USER_ADMIN + ":" + userAccountStr + ") OR (" +
 						USER_EDIT + ":" + userAccountStr + ")";
-				if ( groupNames !=null) {
-					for ( String groupName : groupNames )  {
-						  groupName = "\"" + groupName + "\"";	
+				if ( groupUUIDs !=null) {
+					for ( UUID groupUUID : groupUUIDs )  {
+						  String groupUUIDStr = "\"" + groupUUID.toString() + "\"";	
 						  resultFilter += " OR (" +
-							GRP_EDIT + ":" + groupName + ")" ;
+							GRP_EDIT + ":" + groupUUIDStr + ")" ;
 					}
 				} 
 			}

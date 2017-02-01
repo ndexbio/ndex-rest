@@ -830,18 +830,18 @@ public class NetworkDAO extends NdexDBDAO {
 	//	if (simpleNetworkQuery.getPermission() == null) 
 	//		simpleNetworkQuery.setPermission(Permissions.READ);
 
-		List<String> groupNames = new ArrayList<>();
+		List<UUID> groupUUIDs = new ArrayList<>();
 		if ( loggedInUser !=null && simpleNetworkQuery.getIncludeGroups()) {
 			try (UserDAO userDao = new UserDAO() ) {
 				for ( Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(), Permissions.MEMBER,0,0,true) ) {
-					groupNames.add(m.getResourceName());
+					groupUUIDs.add(m.getResourceUUID());
 				}
 			}
 		}
 			
 		SolrDocumentList solrResults = networkIdx.searchForNetworks(queryStr, 
 				(loggedInUser == null? null: loggedInUser.getUserName()), top, skipBlocks * top, 
-						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), groupNames);
+						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), groupUUIDs);
 		
 		
 		List<NetworkSummary> results = new ArrayList<>(solrResults.size());
