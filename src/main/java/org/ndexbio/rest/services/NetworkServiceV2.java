@@ -77,6 +77,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.ResponseBuilder;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -534,17 +535,26 @@ public class NetworkServiceV2 extends NdexService {
 	        "are cached by NDEx for rapid access. ")
 	// new Implmentation to handle cached network 
 	//TODO: handle cached network from hardDrive.
-	public Response getCompleteNetworkAsCX(	@PathParam("networkid") final String networkId)
-			throws IllegalArgumentException, NdexException, SQLException {
+	public Response getCompleteNetworkAsCX(	@PathParam("networkid") final String networkId,
+			@QueryParam("download") boolean isDownload)
+			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
     	logger.info("[start: Getting complete network {}]", networkId);
 
     	
+    	String title = null;
     	try (NetworkDAO dao = new NetworkDAO()) {
-    		if ( ! dao.isReadable(UUID.fromString(networkId), getLoggedInUserId()))
+    		UUID networkUUID = UUID.fromString(networkId);
+    		if ( ! dao.isReadable(networkUUID, getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-
+    		NetworkSummary s = dao.getNetworkSummaryById(networkUUID);
+    		title = s.getName();
     	}
+
+    	if ( title == null || title.length() < 1) {
+    		title = networkId;
+    	}
+    	title.replace('"', '_');
     	
 		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx";
 
@@ -553,7 +563,10 @@ public class NetworkServiceV2 extends NdexService {
 		
 		//	setZipFlag();
 			logger.info("[end: Return network {}]", networkId);
-			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+			ResponseBuilder r = Response.ok();
+			if ( isDownload)
+				r.header("Content-Disposition",  "attachment; filename=\"" + title + ".cx\"");
+			return 	r.type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 		} catch (IOException e) {
 			logger.error("[end: Ndex server can't find file: {}]", e.getMessage());
 			throw new NdexException ("Ndex server can't find file: " + e.getMessage());
