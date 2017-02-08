@@ -1792,25 +1792,26 @@ public class NetworkService extends NdexService {
 					
 						if ( !networkDao.networkIsValid(networkId))
 							throw new InvalidNetworkException();
+						if ( parameter.equals(readOnlyParameter) ) {
+							  boolean bv = Boolean.parseBoolean(value);
+							  try (NetworkDAO daoNew = new NetworkDAO()) {
+								  daoNew.setFlag(networkId, "readonly",bv);
+								  daoNew.commit();
+								  return;			
+							  }
+						}	
 						if ( !networkDao.networkIsLocked(networkId)) {
 							  networkDao.lockNetwork(networkId);
-							  if ( parameter.equals(readOnlyParameter)) {
-								  boolean bv = Boolean.parseBoolean(value);
-								  try (NetworkDAO daoNew = new NetworkDAO()) {
-									  daoNew.setFlag(networkId, "readonly",bv);
-									  daoNew.unlockNetwork(networkId);
-									  return;
-								  }  
-							  } else if ( parameter.toLowerCase().equals("visibility")) {
+							  if ( parameter.toLowerCase().equals("visibility")) {
 								  networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf(value));
 								  networkDao.unlockNetwork(networkId);		
 								  return ;
-							  } else if ( parameter.toLowerCase().equals("display")) {
+							  } /*else if ( parameter.toLowerCase().equals("display")) {
 								  boolean bv = Boolean.parseBoolean(value);
 								  networkDao.setShowcaseFlag(networkId, userId, bv);
 								  networkDao.unlockNetwork(networkId);		
 								  return;
-							  }
+							  }*/
 
 						}
 						throw new NetworkConcurrentModificationException ();
