@@ -1511,7 +1511,7 @@ public class NetworkServiceV2 extends NdexService {
 			try (NetworkDAO networkDao = new NetworkDAO()) {
 				UUID networkId = UUID.fromString(networkIdStr);
 				UUID userId = getLoggedInUser().getExternalId();
-				if ( !networkDao.networkIsLocked(networkId)) {
+		//		if ( !networkDao.networkIsLocked(networkId)) {
 					if ( !networkDao.networkIsValid(networkId))
 						throw new InvalidNetworkException();
 					
@@ -1533,8 +1533,8 @@ public class NetworkServiceV2 extends NdexService {
 					}
 				    networkDao.commit();
 					return;
-				}
-				throw new NetworkConcurrentModificationException ();
+		//		}
+		//		throw new NetworkConcurrentModificationException ();
 			}
 		    
 	}
