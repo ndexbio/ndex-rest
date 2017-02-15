@@ -974,7 +974,7 @@ public class NetworkServiceV2 extends NdexService {
 			throw new NdexException ("userid and gorupid can't both be set for this function.");
 		
 		
-		try (NetworkDAO networkDao = new NetworkDAO()){
+		try (NetworkDAO networkDao = new NetworkDAO()){  
 		//	User user = getLoggedInUser();
 		//	networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
 			
@@ -989,11 +989,11 @@ public class NetworkServiceV2 extends NdexService {
 
 			if( !networkDao.networkIsValid(networkId))
 				throw new InvalidNetworkException();
-			if ( networkDao.networkIsLocked(networkId)) {
+		/*	if ( networkDao.networkIsLocked(networkId)) {
 				throw new NetworkConcurrentModificationException ();
 			} 
 			
-			networkDao.lockNetwork(networkId);
+			networkDao.lockNetwork(networkId);*/
 		
 			int count;
 			if ( userId !=null)
@@ -1001,7 +1001,7 @@ public class NetworkServiceV2 extends NdexService {
 			else 
 				count = networkDao.revokeGroupPrivilege(networkId, groupId);
 
-            networkDao.unlockNetwork(networkId);
+          //  networkDao.unlockNetwork(networkId);
     	//	logger.info("[end: Removed any permissions for network {} ]", networkId);
             return count;
 		} 
@@ -1054,10 +1054,12 @@ public class NetworkServiceV2 extends NdexService {
 		Permissions p = Permissions.valueOf(permissions.toUpperCase());
 		
 		try (NetworkDAO networkDao = new NetworkDAO()){
-
+			
 			User user = getLoggedInUser();
 			
-			networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
+			if (!networkDao.isAdmin(networkId,user.getExternalId())) {
+				throw new UnauthorizedOperationException("Unable to update network permission: user is not an admin of this network.");
+			}
 			
 			if ( !networkDao.networkIsValid(networkId))
     			throw new InvalidNetworkException();
@@ -1068,7 +1070,7 @@ public class NetworkServiceV2 extends NdexService {
 				count = networkDao.grantPrivilegeToUser(networkId, userId, p);
 			} else 
 				count = networkDao.grantPrivilegeToGroup(networkId, groupId, p);
-			networkDao.commit();
+			//networkDao.commit();
 			logger.info("[end: Updated permission for network {}]", networkId);
 	        return count;
 		} 

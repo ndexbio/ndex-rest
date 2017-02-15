@@ -60,6 +60,7 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Group;
@@ -465,7 +466,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws InterruptedException 
 	 * @throws NdexException 
 	 */
-	public void lockNetwork(UUID networkId) throws SQLException, NdexException {
+	public void lockNetwork(UUID networkId) throws SQLException, NetworkConcurrentModificationException {
 		//setNetworkLock(networkId,true);
 		
 		String sql = "update network set islocked= true where \"UUID\" = ? and is_deleted=false and islocked =false";
@@ -485,7 +486,7 @@ public class NetworkDAO extends NdexDBDAO {
 					break;
 				}
 			}
-			throw new NdexException("Failed to lock network. ");
+			throw new NetworkConcurrentModificationException();
 		}
 	}
 	
@@ -1204,10 +1205,11 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 
 		if ( networkIsLocked(networkId)) {
-			throw new NdexException ("Can't modify locked network. The network is currently locked by another updating thread.");
+			throw new  NetworkConcurrentModificationException();
 		} 
 	}
 	
+	//This function commits the current transaction, be careful when using it.
     public int grantPrivilegeToGroup(UUID networkUUID, UUID groupUUID, Permissions permission) throws NdexException, SolrServerException, IOException, SQLException {
     
     	if (permission == Permissions.ADMIN)
@@ -1232,6 +1234,7 @@ public class NetworkDAO extends NdexDBDAO {
         	pst.executeUpdate();
         }
         
+        commit();
 		//update solr index
 		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
 		
@@ -1240,6 +1243,7 @@ public class NetworkDAO extends NdexDBDAO {
     	return 1;
     }
 	
+    // This function commits the current transaction, so be careful when using it.
     public int grantPrivilegeToUser(UUID networkUUID, UUID userUUID, Permissions permission) throws NdexException, SolrServerException, IOException, SQLException {
     	
     	UUID oldOwnerUUID = getNetworkOwner(networkUUID);
@@ -1259,6 +1263,7 @@ public class NetworkDAO extends NdexDBDAO {
     	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
     	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
     	if ( permission == Permissions.ADMIN) {
+    		// grant admin to this user.
     		String sql = "update network set owneruuid = ?, owner = ? where \"UUID\" = ? and is_deleted = false";
     		try ( PreparedStatement pst = db.prepareStatement(sql)) {
     			pst.setObject(1, userUUID);
@@ -1267,13 +1272,24 @@ public class NetworkDAO extends NdexDBDAO {
     			pst.executeUpdate();
     		}
     		
+    		// remove any previous permission this user had.
+    		if ( p != null) {
+    			sql = "delete from user_network_membership where user_id = ? and network_id = ?";
+    			try ( PreparedStatement pst = db.prepareStatement(sql)) {
+    				pst.setObject(1, userUUID);
+    				pst.setObject(2, networkUUID);
+    				pst.executeUpdate();
+    			}
+    		}
+    		
+    		// auto downgrade the old user with a write permission
     		sql = "insert into user_network_membership (user_id,network_id, permission_type) values (?,?, '"+ Permissions.WRITE.toString() + "')";
     		try ( PreparedStatement pst = db.prepareStatement(sql)) {
     			pst.setObject(1, oldUser.getExternalId());
     			pst.setObject(2, networkUUID);
     			pst.executeUpdate();
     		}
-    		
+    		commit();
     //		networkIdx.revokeNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.ADMIN, true);
     		networkIdx.grantNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.WRITE, Permissions.ADMIN, true);
     		
@@ -1285,6 +1301,7 @@ public class NetworkDAO extends NdexDBDAO {
     			pst.setObject(2, networkUUID);
     			pst.executeUpdate();
     		}
+    		commit();
     	}
 
 		//update solr index	
@@ -1309,6 +1326,7 @@ public class NetworkDAO extends NdexDBDAO {
         	pst.setObject(1, networkUUID);
         	pst.setObject(2,groupUUID);
         	int c = pst.executeUpdate();
+        	commit();
         	if ( c ==1 )  {
         		try (GroupDAO dao = new GroupDAO()) {
         			Group g = dao.getGroupById(groupUUID);
@@ -1338,6 +1356,7 @@ public class NetworkDAO extends NdexDBDAO {
         	pst.setObject(1, networkUUID);
         	pst.setObject(2,userUUID);
         	int c = pst.executeUpdate();
+        	commit();
         	if ( c ==1 )  {
         		try (UserDAO dao = new UserDAO()) {
         			User g = dao.getUserById(userUUID, true);
