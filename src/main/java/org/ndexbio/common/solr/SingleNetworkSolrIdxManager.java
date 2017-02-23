@@ -105,6 +105,9 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		creator.setCoreName(coreName);
 		creator.setConfigSet(
 				"ndex-nodes"); 
+		creator.setIsLoadOnStartup(Boolean.FALSE);
+		creator.setIsTransient(Boolean.TRUE);
+		
 	//	"data_driven_schema_configs");
 		CoreAdminResponse foo = creator.process(client);	
 			
@@ -168,7 +171,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		counter ++;
 		if ( counter % batchSize == 0 ) {
 			client.add(docs);
-			client.commit();
+		//	client.commit();
 			docs.clear();
 		}
 
@@ -231,7 +234,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private void commit() throws SolrServerException, IOException {
 		if ( docs.size()>0 ) {
 			client.add(docs);
-			client.commit();
+			client.commit(true,true);
 			docs.clear();
 		}
 	}

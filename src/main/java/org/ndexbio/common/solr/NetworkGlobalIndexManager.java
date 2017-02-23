@@ -271,7 +271,8 @@ public class NetworkGlobalIndexManager {
 	public void createIndexDocFromSummary(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
 			Collection<String> grpReads, Collection<String> grpEdits) {
 		client.setBaseURL(solrUrl + "/" + coreName);
-	
+		
+	  //  doc = new SolrInputDocument();
 		doc.addField(UUID,  summary.getExternalId().toString() );
 		doc.addField(EDGE_COUNT, summary.getEdgeCount());
 		doc.addField(NODE_COUNT, summary.getNodeCount());
@@ -410,7 +411,7 @@ public class NetworkGlobalIndexManager {
 	public void deleteNetwork(String networkId) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		client.deleteById(networkId);
-		client.commit();
+		client.commit(false,true,true);
 	}
 	
 	public void commit () throws SolrServerException, IOException {
@@ -418,9 +419,9 @@ public class NetworkGlobalIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(doc);
 		client.add(docs);
-		client.commit();
+		client.commit(false,true,true);
 		docs.clear();
-		doc = null;
+		doc = new SolrInputDocument();
 
 	}
 	
@@ -455,7 +456,7 @@ public class NetworkGlobalIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit();
+		client.commit(false, true,true);
 	}
 	
 	
@@ -494,7 +495,7 @@ public class NetworkGlobalIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit();
+		client.commit(false,true,true);
 
 	}
 	
@@ -512,7 +513,7 @@ public class NetworkGlobalIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit();
+		client.commit(false,true,true);
 
 	}
 	
@@ -547,7 +548,7 @@ public class NetworkGlobalIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit();
+		client.commit(false,true,true);
 
 	}
 	
@@ -602,7 +603,7 @@ public class NetworkGlobalIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit();
+		client.commit(false,true,true);
 
 	}
 	

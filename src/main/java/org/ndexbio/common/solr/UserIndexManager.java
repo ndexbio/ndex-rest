@@ -148,7 +148,7 @@ public class UserIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(doc);
 		client.add(docs);
-		client.commit();
+	//	client.commit();
 		docs.clear();
 		doc = null;
 
@@ -159,7 +159,7 @@ public class UserIndexManager {
 	public void deleteUser(String userId) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		client.deleteById(userId);
-		client.commit();
+	//	client.commit();
 	}
 	
 /*	public void commit () throws SolrServerException, IOException {
@@ -210,7 +210,7 @@ public class UserIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit();
+	//	client.commit();
 
 	}
 	

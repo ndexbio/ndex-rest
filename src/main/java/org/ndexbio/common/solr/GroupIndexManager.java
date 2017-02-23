@@ -132,7 +132,7 @@ public class GroupIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(doc);
 		client.add(docs);
-		client.commit();
+		//client.commit();
 		docs.clear();
 		doc = null;
 
@@ -143,7 +143,7 @@ public class GroupIndexManager {
 	public void deleteGroup(String grpId) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		client.deleteById(grpId);
-		client.commit();
+//		client.commit();
 	}	
 
 	
@@ -165,7 +165,7 @@ public class GroupIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit();
+	//	client.commit();
 
 	}
 	
