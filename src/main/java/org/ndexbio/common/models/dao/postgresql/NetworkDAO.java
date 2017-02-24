@@ -30,7 +30,11 @@
  */
 package org.ndexbio.common.models.dao.postgresql;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -50,6 +54,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.logging.Logger;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
@@ -74,6 +79,7 @@ import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -160,6 +166,33 @@ public class NetworkDAO extends NdexDBDAO {
 			st.setObject(2, networkId);
 			st.executeUpdate();
 		}		
+		
+		
+		// move the row network to archive folder and delete the folder
+	    String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId.toString();
+        String archivePath = Configuration.getInstance().getNdexRoot() + "/data/_archive/";
+        
+        File archiveDir = new File(archivePath);
+        if (!archiveDir.exists())
+        	archiveDir.mkdir();
+        
+        File srcFile = new File(pathPrefix+ "/network.arc");
+        java.nio.file.Path src;
+        if ( srcFile.exists())
+        	src = Paths.get(pathPrefix+ "/network.arc");
+        else 
+        	src = Paths.get(pathPrefix+ "/network.cx");
+        
+		java.nio.file.Path tgt = Paths.get(archivePath + "/" + networkId.toString() + ".cx");
+		
+		try {
+			Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE); 	
+		
+			FileUtils.deleteDirectory(new File(pathPrefix));
+		} catch (IOException e) {
+			logger.severe("Failed to move file and delete directory: "+ e.getMessage());
+			e.printStackTrace();
+		}
 		
 	}
 	

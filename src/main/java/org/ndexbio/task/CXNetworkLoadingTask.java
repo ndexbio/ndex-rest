@@ -10,9 +10,11 @@ import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.object.ProvenanceEntity;
+import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.TaskType;
 
-public class CXNetworkLoadingTask implements NdexSystemTask {
+
+public class CXNetworkLoadingTask extends NdexSystemTask {
 	
 	private static Logger logger = Logger.getLogger(CXNetworkLoadingTask.class.getName());
 	
@@ -20,7 +22,10 @@ public class CXNetworkLoadingTask implements NdexSystemTask {
 	private String ownerUserName;
 	private boolean isUpdate;
 	
+	private static final TaskType taskType = TaskType.SYS_LOAD_NETWORK;
+	
 	public CXNetworkLoadingTask (UUID networkUUID, String ownerName, boolean isUpdate) {
+		super();
 		this.networkId = networkUUID;
 		this.ownerUserName = ownerName;
 		this.isUpdate = isUpdate;
@@ -54,6 +59,21 @@ public class CXNetworkLoadingTask implements NdexSystemTask {
 		e.printStackTrace();
 		logger.severe("Failed to create NetworkDAO object: " + e.getMessage());
 	  }
+	}
+
+
+	@Override
+	public Task createTask() {
+		Task task = super.createTask();
+	    task.setResource(networkId.toString());
+			
+	    return task;	
+	
+	}
+
+	@Override
+	public TaskType getTaskType() {
+		return taskType;
 	}
 
 }

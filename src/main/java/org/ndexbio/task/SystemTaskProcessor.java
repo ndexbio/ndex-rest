@@ -30,7 +30,15 @@
  */
 package org.ndexbio.task;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.sql.SQLException;
 import java.util.logging.Logger;
+
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.Status;
 
 public class SystemTaskProcessor extends NdexTaskProcessor {
 
@@ -46,18 +54,40 @@ public class SystemTaskProcessor extends NdexTaskProcessor {
 			NdexSystemTask task = null;
 			try {
 				task = NdexServerQueue.INSTANCE.takeNextSystemTask();
-				if ( task == NdexServerQueue.endOfQueue) {
+				if ( task == NdexServerQueue.endOfSystemQueue) {
 					logger.info("End of queue signal received. Shutdown processor.");
 					return;
 				}
+				String msg = null;
+				String stacktrace = null;
+				Status status = Status.PROCESSING;
+			
 				try {
+					try (TaskDAO dao = new TaskDAO()) {
+						  dao.updateTaskStatus(task.getTaskId(), status);
+						  dao.commit();
+					}
 					task.run();
+					status = Status.COMPLETED;
 				} catch (Exception e) {
+					status = Status.FAILED;
 					logger.severe("Error occurred when executing task: " + e.getMessage());
 					e.printStackTrace();
+					StringWriter sw = new StringWriter();
+					PrintWriter pw = new PrintWriter(sw);
+					e.printStackTrace(pw);
+					msg = e.getMessage();
+					stacktrace = sw.toString();
+				} finally {
+					try {
+						saveTaskStatus(task.getTaskId(), status, msg, stacktrace );
+					} catch (NdexException | SQLException | IOException e1) {
+						logger.severe("Error occurred when saving task " + e1);
+						e1.printStackTrace();
+					} 
 				}
 			} catch (InterruptedException e1) {
-				logger.info("takeNextSystemTask Interrupted:" + e1.getMessage());
+				logger.info("NextSystemTask Interrupted:" + e1.getMessage());
 				return;
 			}
 		}

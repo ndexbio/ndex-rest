@@ -30,6 +30,17 @@
  */
 package org.ndexbio.task;
 
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.UUID;
+
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.Status;
+
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+
 public abstract class NdexTaskProcessor implements Runnable {
 
 	protected boolean shutdown;
@@ -41,6 +52,11 @@ public abstract class NdexTaskProcessor implements Runnable {
 	public void shutdown() {
 		shutdown = true;
 	}
-
 	
+	protected static  void saveTaskStatus (UUID taskID, Status status, String message, String stackTrace) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+		try (TaskDAO dao = new TaskDAO ()) {
+			dao.updateTaskStatus(taskID, status, message,stackTrace);
+			dao.commit();
+		}
+	}	
 }

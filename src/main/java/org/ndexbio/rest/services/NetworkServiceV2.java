@@ -136,6 +136,7 @@ import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NetworkExportTask;
+import org.ndexbio.task.SolrTaskDeleteNetwork;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1350,15 +1351,18 @@ public class NetworkServiceV2 extends NdexService {
 			if(networkDao.isAdmin(networkId, userId) ) {
 				if (!networkDao.isReadOnly(networkId) ) {
 					if ( !networkDao.networkIsLocked(networkId)) {
-					
+					/*
 						NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
 						globalIdx.deleteNetwork(id);
 						try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
 							idxManager.dropIndex();
 						}	
+					*/	
 						networkDao.deleteNetwork(UUID.fromString(id), getLoggedInUser().getExternalId());
 						networkDao.commit();
-										
+
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId));
+				
 						return;
 					}
 					throw new NetworkConcurrentModificationException ();
@@ -1366,7 +1370,7 @@ public class NetworkServiceV2 extends NdexService {
 				  throw new NdexException("Can't delete a read-only network.");
 			}	
 			throw new NdexException("Only network owner can delete a network.");	
-		} catch (SolrServerException | IOException e ) {
+		} catch ( IOException e ) {
 			throw new NdexException ("Error occurred when deleting network: " + e.getMessage(), e);
 		}
 			

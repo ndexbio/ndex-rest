@@ -188,13 +188,18 @@ public class TaskDAO extends NdexDBDAO {
     	
     	updateTaskStatus (taskID,newStatus, null,null);
     }
-
+    
 
 	public void updateTaskStatus (UUID taskID, Status status, String message, String stackTrace) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		String updateStr = " update " + NdexClasses.Task + " set status= ?, message = ? " ;	
 		String updateStr2 =  " where \"UUID\" = ? and is_deleted = false";
 			
+		if ( status == Status.PROCESSING)
+			updateStr += ", start_time = current_timestamp ";
+		else if ( status == Status.COMPLETED || status == Status.FAILED)
+			updateStr += ", end_time = current_timestamp ";
+		
 		if ( stackTrace == null) {
 			try (PreparedStatement st = db.prepareStatement(updateStr + updateStr2 ) ) {
 				st.setString ( 1, status.toString());

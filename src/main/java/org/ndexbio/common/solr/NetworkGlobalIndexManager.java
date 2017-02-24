@@ -411,7 +411,7 @@ public class NetworkGlobalIndexManager {
 	public void deleteNetwork(String networkId) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		client.deleteById(networkId);
-		client.commit(false,true,true);
+	//	client.commit(false,true,true);
 	}
 	
 	public void commit () throws SolrServerException, IOException {

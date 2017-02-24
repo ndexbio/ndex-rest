@@ -186,15 +186,15 @@ public class BatchServiceV2 extends NdexService {
 						Timestamp currentTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
 						t.setCreationTime(currentTime);
 						t.setModificationTime(currentTime);
-						t.setStartTime(currentTime);
-						t.setFinishTime(currentTime);
+				//		t.setStartTime(currentTime);
+				//		t.setFinishTime(currentTime);
 						t.setDescription("network export");
 						t.setTaskType(TaskType.EXPORT_NETWORK_TO_FILE);
 						t.setFormat(FileFormat.CX);
 						t.setTaskOwnerId(getLoggedInUserId());
 						t.setResource(networkID.toString());
 						if (! networkDao.isReadable(networkID, getLoggedInUserId())) {
-							t.setStatus(Status.COMPLETED_WITH_ERRORS);
+							t.setStatus(Status.FAILED);
 							t.setMessage("Network " + networkID + " is not found for user.");
 							//throw new NdexException ("Network " + networkID + " is not found.");
 						}	else {

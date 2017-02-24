@@ -94,12 +94,7 @@ public class ClientTaskProcessor extends NdexTaskProcessor {
 	}
 
 
-	private static  void saveTaskStatus (UUID taskID, Status status, String message, String stackTrace) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-		try (TaskDAO dao = new TaskDAO ()) {
-			dao.updateTaskStatus(taskID, status, message,stackTrace);
-			dao.commit();
-		}
-	}
+
 	
 	
 }

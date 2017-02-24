@@ -30,10 +30,18 @@
  */
 package org.ndexbio.task;
 
+import java.sql.SQLException;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.TaskType;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 public enum NdexServerQueue {
 	
@@ -48,8 +56,15 @@ public enum NdexServerQueue {
 		@Override 
 		protected Task call_aux() {return null;} } ;
 	
-	public static final NdexSystemTask endOfSystemQueue = new NdexSystemTask() { @Override
-	public void run () {/*We don't expect this to be run.*/}};
+	public static final NdexSystemTask endOfSystemQueue = new NdexSystemTask()  { @Override
+	  public void run () {/*We don't expect this to be run.*/}
+
+		@Override
+		public TaskType getTaskType() {
+			return null;
+	}
+ 	   
+	};
 
 	private NdexServerQueue () {
 		systemTaskQueue = new LinkedBlockingDeque<>();
@@ -65,7 +80,12 @@ public enum NdexServerQueue {
 		return userTaskQueue.take();
 	}
 	
-	public void addSystemTask (NdexSystemTask task)  {
+	public void addSystemTask (NdexSystemTask task) throws SQLException, ObjectNotFoundException, JsonProcessingException, NdexException  {
+		try (TaskDAO dao = new TaskDAO()) {
+		   dao.createTask(task.createTask());	
+		   dao.commit();
+		}
+		
 		systemTaskQueue.add(task);
 	}
 
