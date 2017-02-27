@@ -217,9 +217,10 @@ public class TaskDAO extends NdexDBDAO {
 				attrs = new HashMap<>();
 			attrs.put(TaskAttribute.NdexServerStackTrace, stackTrace);
 			ObjectMapper mapper = new ObjectMapper();
-		    String s = mapper.writeValueAsString( t.getAttributes());
+			
+		    String s = t.getAttributes() !=null ? mapper.writeValueAsString( t.getAttributes()) : null;
 		    
-			try (PreparedStatement st = db.prepareStatement(updateStr + ", other_attributes=? "+ updateStr2 ) ) {
+			try (PreparedStatement st = db.prepareStatement(updateStr + ", other_attributes=? :: jsonb "+ updateStr2 ) ) {
 				st.setString ( 1, status.toString());
 				st.setString(2, message);
 				st.setString(3, s);
