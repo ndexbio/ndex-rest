@@ -214,10 +214,17 @@ public class NetworkServiceV2 extends NdexService {
 
     	logger.info("[start: Updating provenance of network {}]", networkIdStr);
     
+		User user = getLoggedInUser();
 
+		setProvenance_aux(networkIdStr, provenance, user);
+    }
+
+
+
+	protected static void setProvenance_aux(final String networkIdStr, final ProvenanceEntity provenance, User user)
+			throws Exception {
 		try (NetworkDAO daoNew = new NetworkDAO()){
 			
-			User user = getLoggedInUser();
 			UUID networkId = UUID.fromString(networkIdStr);
 
 			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
@@ -260,7 +267,7 @@ public class NetworkServiceV2 extends NdexService {
 		} finally {
 			logger.info("[end: Updated provenance of network {}]", networkIdStr);
 		}
-    }
+	}
 
 
 

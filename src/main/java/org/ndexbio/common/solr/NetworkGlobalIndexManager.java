@@ -108,7 +108,7 @@ public class NetworkGlobalIndexManager {
 	
 	private static final String REPRESENTS = "represents";
 	private static final String ALIASES = "alias";
-	private static final String RELATED_TO = "relatedTo";
+//	private static final String RELATED_TO = "relatedTo";
 	
 	// user required indexing fields. hardcoded for now. Will turn them into configurable list in 1.4.
 	
@@ -130,8 +130,7 @@ public class NetworkGlobalIndexManager {
 //	private int counter;
 	
 	
-	public NetworkGlobalIndexManager() throws NdexException {
-		// TODO Auto-generated constructor stub
+	public NetworkGlobalIndexManager() {
 		solrUrl = Configuration.getInstance().getSolrURL();
 		client = new HttpSolrClient(solrUrl);
 		doc = new SolrInputDocument();
@@ -513,7 +512,7 @@ public class NetworkGlobalIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit(false,true,true);
+//		client.commit(false,true,true);
 
 	}
 	
@@ -548,7 +547,7 @@ public class NetworkGlobalIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit(false,true,true);
+	//	client.commit(false,true,true);
 
 	}
 	
@@ -603,10 +602,9 @@ public class NetworkGlobalIndexManager {
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
 		client.add(docs);
-		client.commit(false,true,true);
+	//	client.commit(false,true,true);
 
 	}
-	
 	
 	
 	protected static List<String> getIndexableString(String termString) {

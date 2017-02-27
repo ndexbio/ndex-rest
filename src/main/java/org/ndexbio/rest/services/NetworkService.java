@@ -300,39 +300,10 @@ public class NetworkService extends NdexService {
 
     	logger.info("[start: Updating provenance of network {}]", networkIdStr);
     
-
-		try (NetworkDAO daoNew = new NetworkDAO()){
-			
-			User user = getLoggedInUser();
-			UUID networkId = UUID.fromString(networkIdStr);
-
-			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
-				logger.error("[end: No write permissions for user account {} on network {}]", 
-						user.getUserName(), networkId);
-		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
-			}
-	
-			if(daoNew.isReadOnly(networkId)) {
-				daoNew.close();
-				logger.info("[end: Can't modify readonly network {}]", networkId);
-				throw new NdexException ("Can't update readonly network.");
-			} 
-
-			if ( daoNew.networkIsLocked(networkId)) {
-				daoNew.close();
-				throw new NetworkConcurrentModificationException ();
-			} 
-			daoNew.lockNetwork(networkId);
-			daoNew.setProvenance(networkId, provenance);
-			daoNew.unlockNetwork(networkId);
-			return  provenance; //  daoNew.getProvenance(networkUUID);
-		} catch (Exception e) {
-			//if (null != daoNew) daoNew.rollback();
-			logger.error("[end: Updating provenance of network {}. Exception caught:]{}", networkIdStr, e);	
-			throw e;
-		} finally {
-			logger.info("[end: Updated provenance of network {}]", networkIdStr);
-		}
+		User user = getLoggedInUser();
+    	NetworkServiceV2.setProvenance_aux(networkIdStr, provenance, user);
+    	return provenance;
+		
     }
 
 

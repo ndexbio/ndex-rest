@@ -176,13 +176,7 @@ public class NetworkDAO extends NdexDBDAO {
         if (!archiveDir.exists())
         	archiveDir.mkdir();
         
-        File srcFile = new File(pathPrefix+ "/network.arc");
-        java.nio.file.Path src;
-        if ( srcFile.exists())
-        	src = Paths.get(pathPrefix+ "/network.arc");
-        else 
-        	src = Paths.get(pathPrefix+ "/network.cx");
-        
+        java.nio.file.Path src = Paths.get(pathPrefix+ "/network.cx");     
 		java.nio.file.Path tgt = Paths.get(archivePath + "/" + networkId.toString() + ".cx");
 		
 		try {
