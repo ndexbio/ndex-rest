@@ -153,7 +153,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		SolrInputDocument doc = new SolrInputDocument();
 		doc.addField("id",  id );
 		
-		if ( name != null ) 
+		if ( name != null && name.length()>0 ) 
 			doc.addField(NAME, name);
 		if ( represents !=null && !represents.isEmpty()) {
 			for ( String rterm : represents )

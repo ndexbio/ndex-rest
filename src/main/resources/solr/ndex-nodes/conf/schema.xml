@@ -144,9 +144,9 @@
    -->   
    <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false" /> 
         
-   <field name="name" type="text_general" indexed="true" stored="false" required="false" multiValued="false" />
-   <field name="represents" type="text_general" indexed="true" stored="false" required="false" multiValued="true" />
-   <field name="alias" type="text_general" indexed="true" stored="false" required="false" multiValued="true" />
+   <field name="nodeName" type="text_ws" indexed="true" stored="false" required="false" multiValued="false" />
+   <field name="represents" type="text_ws" indexed="true" stored="false" required="false" multiValued="true" />
+   <field name="alias" type="text_ws" indexed="true" stored="false" required="false" multiValued="true" />
 
    <!-- Common metadata fields, named specifically to match up with
      SolrCell metadata when parsing rich documents such as Word, PDF.
@@ -361,6 +361,7 @@
     <fieldType name="text_ws" class="solr.TextField" positionIncrementGap="100">
       <analyzer>
         <tokenizer class="solr.WhitespaceTokenizerFactory"/>
+        <filter class="solr.LowerCaseFilterFactory"/>
       </analyzer>
     </fieldType>
 

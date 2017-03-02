@@ -103,8 +103,8 @@ public class NetworkGlobalIndexManager {
 	
 	private static final String NODE_NAME = "nodeName";
 	
-	public static final String NCBI_GENE_ID = "NCBIGeneID";
-	public static final String GENE_SYMBOL = "geneSymbol";
+//	public static final String NCBI_GENE_ID = "NCBIGeneID";
+//	public static final String GENE_SYMBOL = "geneSymbol";
 	
 	private static final String REPRESENTS = "represents";
 	private static final String ALIASES = "alias";
@@ -311,7 +311,7 @@ public class NetworkGlobalIndexManager {
 	
 	public void addCXNodeToIndex(NodesElement node)  {
 			
-		   if ( node.getNodeName() != null && node.getNodeName().length() >2 ) 
+		   if ( node.getNodeName() != null ) 
 			   doc.addField(NODE_NAME, node.getNodeName());
 		   if ( node.getNodeRepresents() !=null ) {
 			   for (String indexableString : getIndexableString(node.getNodeRepresents())) {

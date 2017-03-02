@@ -242,7 +242,7 @@ public class NetworkServiceV2 extends NdexService {
 			if (!daoNew.networkIsValid(networkId))
 				throw new InvalidNetworkException();
 				
-			if ( daoNew.networkIsLocked(networkId)) {
+			if ( daoNew.networkIsLocked(networkId,3)) {
 				daoNew.close();
 				throw new NetworkConcurrentModificationException ();
 			}
