@@ -594,9 +594,14 @@ public class CXNetworkLoader implements AutoCloseable {
 							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
 								  ", but " + w.getElementCount() + " was received in CX.");
 					  } else {
+						  long actualCount = this.aspectTable.get(e.getName()) == null ? 0:this.aspectTable.get(e.getName()).getElementCount();
 						  if ( this.aspectTable.get(e.getName()) == null || declaredCnt != this.aspectTable.get(e.getName()).getElementCount()) {
 							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
-							  ", but " + (this.aspectTable.get(e.getName()) == null ? 0:this.aspectTable.get(e.getName()).getElementCount()) + " was received in CX.");
+							  ", but " + actualCount + " was received in CX.");
+						  }
+						  if (actualCount == 0) {
+							  metadata.remove(e.getName());
+							  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because no element was found in the CX document.");
 						  }
 					  }
 				  }

@@ -51,12 +51,12 @@ public class CXNetworkFileGenerator {
 		provenance = provenanceHistory;
 	}
 	
-	public CXNetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao, MetaDataCollection metaDataCollection) 
+/*	public CXNetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao, MetaDataCollection metaDataCollection) 
 			throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
 		networkId = networkUUID;
 		fullSummary = networkDao.getNetworkSummaryById(networkUUID);
 		metadata = metaDataCollection;
-	}
+	}*/
 	
 	
 	public CXNetworkFileGenerator(UUID networkUUID, NetworkSummary summary, MetaDataCollection metaDataCollection) {
