@@ -875,11 +875,16 @@ public class NetworkDAO extends NdexDBDAO {
 		List<NetworkSummary> results = new ArrayList<>(solrResults.size());
 		for ( SolrDocument d : solrResults) {
 			String id = (String) d.get(NetworkGlobalIndexManager.UUID);
-			NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
-			if ( s !=null) {
-				s.setWarnings(emptyStringList);
-				results .add(s);
-			}	
+			try {
+				NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
+			
+				if ( s !=null) {
+					s.setWarnings(emptyStringList);
+					results .add(s);
+				}
+			} catch (ObjectNotFoundException ne) {
+				logger.warning("Network " + id + " was not found in db: " + ne.getMessage() );
+			}
 		} 
 		
 		return new NetworkSearchResult ( solrResults.getNumFound(), solrResults.getStart(), results);
