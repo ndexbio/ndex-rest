@@ -164,8 +164,8 @@
    <field name="nodeName" type="text_ws" indexed="true" stored="true"  multiValued="true"/>
    <field name="NCBIGeneID" type="string" indexed="true" stored="true" multiValued="true" />
    <field name="geneSymbol" type="string" indexed="true" stored="true"  multiValued="true" />
-   <field name="represents" type="string" indexed="true" stored="true"  multiValued="true" />
-   <field name="alias" type="string" indexed="true" stored="true"  multiValued="true" />
+   <field name="represents" type="string_ci" indexed="true" stored="true"  multiValued="true" />
+   <field name="alias" type="string_ci" indexed="true" stored="true"  multiValued="true" />
 <!--  <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />   -->  
    
    
@@ -467,6 +467,15 @@
          <filter class="solr.LowerCaseFilterFactory"/>
       </analyzer>
     </fieldType>
+
+    <!-- A case insensitive string for exact matching of words -->
+    <fieldType name="string_ci" class="solr.TextField" positionIncrementGap="100">
+      <analyzer>
+        <tokenizer class="solr.KeywordTokenizerFactory"/>
+        <filter class="solr.LowerCaseFilterFactory"/>
+      </analyzer>
+    </fieldType>
+
 
     <!-- A text type for English text where stopwords and synonyms are managed using the REST API -->
     <fieldType name="managed_en" class="solr.TextField" positionIncrementGap="100">

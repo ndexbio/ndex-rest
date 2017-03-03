@@ -73,7 +73,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private Collection<SolrInputDocument> docs ;
 	
 	public static final String ID = "id";
-	private static final String NAME = "name";
+	private static final String NAME = "nodeName";
 	private static final String REPRESENTS = "represents";
 	private static final String ALIAS= "alias";
 //	private static final String RELATEDTO = "relatedTo";

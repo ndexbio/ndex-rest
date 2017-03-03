@@ -145,8 +145,8 @@
    <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false" /> 
         
    <field name="nodeName" type="text_ws" indexed="true" stored="false" required="false" multiValued="false" />
-   <field name="represents" type="text_ws" indexed="true" stored="false" required="false" multiValued="true" />
-   <field name="alias" type="text_ws" indexed="true" stored="false" required="false" multiValued="true" />
+   <field name="represents" type="string_ci" indexed="true" stored="false" required="false" multiValued="true" />
+   <field name="alias" type="string_ci" indexed="true" stored="false" required="false" multiValued="true" />
 
    <!-- Common metadata fields, named specifically to match up with
      SolrCell metadata when parsing rich documents such as Word, PDF.
@@ -229,7 +229,7 @@
         is added to the index.  It's used either to index the same field differently,
         or to add multiple fields to the same field for easier/faster searching.  -->
 
-   <copyField source="name" dest="text"/>
+   <copyField source="nodeName" dest="text"/>
    <copyField source="represents" dest="text"/>
    <copyField source="alias" dest="text"/>
 
@@ -361,6 +361,14 @@
     <fieldType name="text_ws" class="solr.TextField" positionIncrementGap="100">
       <analyzer>
         <tokenizer class="solr.WhitespaceTokenizerFactory"/>
+        <filter class="solr.LowerCaseFilterFactory"/>
+      </analyzer>
+    </fieldType>
+
+    <!-- A case insensitive string for exact matching of words -->
+    <fieldType name="string_ci" class="solr.TextField" positionIncrementGap="100">
+      <analyzer>
+        <tokenizer class="solr.KeywordTokenizerFactory"/>
         <filter class="solr.LowerCaseFilterFactory"/>
       </analyzer>
     </fieldType>

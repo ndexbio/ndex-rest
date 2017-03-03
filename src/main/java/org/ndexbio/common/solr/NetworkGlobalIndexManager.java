@@ -641,7 +641,7 @@ public class NetworkGlobalIndexManager {
 		String[] termStringComponents = TermUtilities.getNdexQName(termString);
 		if (termStringComponents != null && termStringComponents.length == 2) {
 			// case 2: termString is of the form (NamespacePrefix:)*Identifier
-			if ( !termStringComponents[0].contains(" "))
+	//		if ( !termStringComponents[0].contains(" "))
 			  result.add(termString);
 			result.add(termStringComponents[1]);
 			return  result;

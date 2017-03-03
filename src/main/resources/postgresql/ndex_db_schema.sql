@@ -362,7 +362,7 @@ CREATE TABLE task (
     start_time timestamp without time zone,
     end_time timestamp without time zone,
     task_type character varying(100),
-    owneruuid uuid NOT NULL,
+    owneruuid uuid,
     is_deleted boolean,
     other_attributes jsonb,
     description text,
