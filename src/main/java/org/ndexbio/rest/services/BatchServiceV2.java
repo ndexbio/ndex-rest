@@ -48,6 +48,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.apache.solr.client.solrj.SolrServerException;
+import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
@@ -63,6 +64,7 @@ import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.FileFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NetworkExportTask;
@@ -174,8 +176,10 @@ public class BatchServiceV2 extends NdexService {
 			throws IllegalArgumentException, NdexException, SQLException, IOException {
 		
 		    logger.info("exporting networks");
-		    if ( !exportRequest.getExportFormat().equals("cx"))
-		    	throw new NdexException("Networks can only be exported in cx fromat in this server.");
+		    ImporterExporterEntry entry = Configuration.getInstance().getImpExpEntry(exportRequest.getExportFormat());
+		    if ( entry == null || entry.getExporterCmd() == null || 
+		    		entry.getExporterCmd().isEmpty())
+		    	throw new NdexException("No exporter was registered in this server for network format " + exportRequest.getExportFormat());
 		    
 		    Map<UUID,UUID> result = new TreeMap<>();
 			try (NetworkDAO networkDao = new NetworkDAO()) {
@@ -185,12 +189,12 @@ public class BatchServiceV2 extends NdexService {
 						Task t = new Task();
 						Timestamp currentTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
 						t.setCreationTime(currentTime);
-						t.setModificationTime(currentTime);
+				//		t.setModificationTime(currentTime);
 				//		t.setStartTime(currentTime);
 				//		t.setFinishTime(currentTime);
 						t.setDescription("network export");
 						t.setTaskType(TaskType.EXPORT_NETWORK_TO_FILE);
-						t.setFormat(FileFormat.CX);
+						//t.setFormat(FileFormat.CX);
 						t.setTaskOwnerId(getLoggedInUserId());
 						t.setResource(networkID.toString());
 						if (! networkDao.isReadable(networkID, getLoggedInUserId())) {
@@ -202,9 +206,8 @@ public class BatchServiceV2 extends NdexService {
 							
 							NetworkSummary s = networkDao.getNetworkSummaryById(networkID);
 							t.setAttribute("downloadFileName", s.getName());
-							t.setAttribute("downloadFileExtension", "CX");
-						    
-
+							t.setAttribute("name", entry.getName());
+							t.setAttribute("downloadFileExtension", entry.getFileExtension());
 						}
 						UUID taskId = taskdao.createTask(t);
 						taskdao.commit();

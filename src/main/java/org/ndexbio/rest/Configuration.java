@@ -31,17 +31,27 @@
 package org.ndexbio.rest;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
+import org.cxio.aspects.datamodels.NodesElement;
+import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.model.exceptions.NdexException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ch.qos.logback.classic.Level;
 
@@ -79,6 +89,8 @@ public class Configuration
 	private boolean useADAuthentication ;
 	
 	private long serverElementLimit;
+	
+	private Map<String,ImporterExporterEntry> impExpTable;
 	
 	// Possible values for Log-Level are:
     // trace, debug, info, warn, error, all, off
@@ -162,6 +174,39 @@ public class Configuration
             } else {
             	setUseADAuthentication(false);
             }
+            
+            // initialize the importer exporter table
+            this.impExpTable = new HashMap<>();
+            String impExpConfigFile = this.ndexRoot + "/conf/ndex_importer_exporter.json";
+	        try (FileInputStream i = new FileInputStream(impExpConfigFile)) {
+
+		      Iterator<ImporterExporterEntry> it = new ObjectMapper().readerFor(ImporterExporterEntry.class).readValues(i);
+		      
+		      while (it.hasNext()) {
+		    	  ImporterExporterEntry entry = it.next();
+		    	  entry.setDirectoryName(this.ndexRoot + "/importer_exporter/"+ entry.getDirectoryName());
+		    	  List<String> cmdList = entry.getImporterCmd();
+		    	  if (cmdList != null && !cmdList.isEmpty()) {
+		    		 String cmd = cmdList.get(0);
+		    		 if (!cmd.startsWith("/")) {
+		    			 cmd = entry.getDirectoryName() + "/"+ cmd;
+		    			 cmdList.set(0, cmd);
+		    		 }
+		    	  }
+		    	  
+		    	  cmdList = entry.getExporterCmd();
+		    	  if (cmdList != null && !cmdList.isEmpty()) {
+		    		 String cmd = cmdList.get(0);
+		    		 if (!cmd.startsWith("/")) {
+		    			 cmd = entry.getDirectoryName() + "/"+ cmd;
+		    			 cmdList.set(0, cmd);
+		    		 }
+		    	  }
+		          impExpTable.put(entry.getName(), entry);	
+		        }
+    		} catch (FileNotFoundException nfe) {
+    			_logger.warn("Importer/Exporter configuration not found at \"" + impExpConfigFile + "\". No import export function will be supported in this server" );
+    		}
    /*     } 
         catch (Exception e)
         {
@@ -202,6 +247,13 @@ public class Configuration
         return result;
     }
     
+	public ImporterExporterEntry getImpExpEntry(String name){
+		return impExpTable.get(name);
+	}
+	
+	public Collection<ImporterExporterEntry> getImporterExporters () {
+		return impExpTable.values();
+	}
     
     /**************************************************************************
     * Gets the singleton instance. 

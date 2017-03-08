@@ -8,6 +8,7 @@ import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.PropertiedObject;
 import org.ndexbio.model.object.network.VisibilityType;
 
+@Deprecated
 public class NetworkSummaryImp extends NdexExternalObject implements PropertiedObject {
 	
     private String _description;

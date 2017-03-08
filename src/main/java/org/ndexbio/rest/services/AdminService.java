@@ -92,7 +92,7 @@ public class AdminService extends NdexService {
 			status.setUserCount(AdminService.getClassCount(db,"ndex_user"));
 			status.setGroupCount(AdminService.getClassCount(db,"ndex_group")); 
 
-			Map<String,String> props = status.getProperties();
+			Map<String,Object> props = status.getProperties();
 			
 			String edgeLimit = Configuration.getInstance().getProperty(Configuration.networkPostEdgeLimit);
 			if ( edgeLimit != null ) {

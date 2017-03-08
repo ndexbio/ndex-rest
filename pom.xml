@@ -11,17 +11,7 @@
 	<url>http://maven.apache.org</url>
 	<inceptionYear>2013</inceptionYear>
 	<repositories>
-		<repository>
-			<id>oss.sonatype.org</id>
-			<name>OrientDB Maven2 Repository</name>
-			<url>https://oss.sonatype.org/content/groups/public/</url>
-			<releases>
-				<enabled>true</enabled>
-			</releases>
-			<snapshots>
-				<enabled>true</enabled>
-			</snapshots>
-		</repository>
+		
 	</repositories>
 
 	<dependencies>

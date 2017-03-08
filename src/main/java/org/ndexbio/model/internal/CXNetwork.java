@@ -5,11 +5,9 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.TreeMap;
 
 import org.cxio.aspects.datamodels.EdgeAttributesElement;
@@ -25,22 +23,15 @@ import org.cxio.aspects.writers.NodesFragmentWriter;
 import org.cxio.aspects.writers.VisualPropertiesFragmentWriter;
 import org.cxio.core.CxWriter;
 import org.cxio.core.interfaces.AspectElement;
-import org.cxio.core.interfaces.AspectFragmentWriter;
 import org.cxio.metadata.MetaDataCollection;
-import org.cxio.util.CxioUtil;
-import org.ndexbio.common.cx.GeneralAspectFragmentReader;
 import org.ndexbio.common.cx.GeneralAspectFragmentWriter;
-import org.ndexbio.model.cx.BELNamespaceElement;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.cx.NamespacesElement;
-import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.NodeCitationLinksElement;
 import org.ndexbio.model.cx.NodeSupportLinksElement;
-import org.ndexbio.model.cx.Provenance;
-import org.ndexbio.model.cx.ReifiedEdgeElement;
 import org.ndexbio.model.cx.SupportElement;
 
 

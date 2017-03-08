@@ -34,17 +34,23 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 
 import org.eclipse.jetty.server.Server;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
 import org.ndexbio.rest.Configuration;
@@ -81,9 +87,10 @@ public class AdminServiceV2 extends NdexService {
 	@NdexOpenFunction
 	@Path("/status")
 	@Produces("application/json")
-	public NdexStatus getStatus() throws NdexException, SQLException	{
+	public NdexStatus getStatus(
+			@DefaultValue("short") @QueryParam("format") String format) throws NdexException, SQLException	{
 
-		logger.info("[start: Getting status]");
+	//	logger.info("[start: Getting status]");
 		
 		try (Connection db =NdexDatabase.getInstance().getConnection()){
 			
@@ -92,7 +99,7 @@ public class AdminServiceV2 extends NdexService {
 			status.setUserCount(AdminServiceV2.getClassCount(db,"ndex_user"));
 			status.setGroupCount(AdminServiceV2.getClassCount(db,"ndex_group")); 
 
-			Map<String,String> props = status.getProperties();
+			Map<String,Object> props = status.getProperties();
 			
 			String edgeLimit = Configuration.getInstance().getProperty(Configuration.networkPostEdgeLimit);
 			if ( edgeLimit != null ) {
@@ -109,9 +116,25 @@ public class AdminServiceV2 extends NdexService {
 		    
 			props.put("ServerResultLimit", "10000");
 			props.put("ServerVersion", ndexServerVersion);
-			status.setProperties(props);
-			logger.info("[end: Got status]");
 			
+			if (format.toLowerCase().equals("full")) {
+				List<HashMap<String,Object>> impExpList = new ArrayList<>();	
+				for ( ImporterExporterEntry entry: Configuration.getInstance().getImporterExporters()){
+					HashMap<String,Object> importerExporter = new HashMap<>();
+					importerExporter.put("name", entry.getName());
+					importerExporter.put("description", entry.getDescription());
+					importerExporter.put("fileExtension",  entry.getFileExtension());
+					importerExporter.put("exporter", (entry.getExporterCmd()!=null && !entry.getExporterCmd().isEmpty()));
+					importerExporter.put("importer", (entry.getImporterCmd()!=null && !entry.getImporterCmd().isEmpty()));
+					impExpList.add(importerExporter);
+				}
+				if (!impExpList.isEmpty())
+					props.put("ImporterExporters", impExpList);
+			}
+			
+			status.setProperties(props);
+	//		logger.info("[end: Got status]");
+
 			
 			return status;
 		} 
