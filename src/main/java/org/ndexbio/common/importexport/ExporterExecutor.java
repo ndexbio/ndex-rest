@@ -65,12 +65,16 @@ public class ExporterExecutor {
 		
 		private InputStream inputStream;
 		private File targetFile ;
+		private String errorMessage;
 		
-		IOThreadHandler(InputStream inputStream, String outFilePath) throws FileNotFoundException {
+		IOThreadHandler(InputStream inputStream, String outFilePath) {
 		
 			  this.inputStream = inputStream;
 			  targetFile = new File (outFilePath);
+			  errorMessage = null;
 		}
+		
+		public String getErrorMessage() { return errorMessage;} 
 		
 		@Override
 		public void run() {
@@ -85,7 +89,7 @@ public class ExporterExecutor {
 				//	    IOUtils.closeQuietly(inputStream);
 		
 		    } catch (IOException e) {
-		    	
+		    	errorMessage = e.getMessage();
 		    }
 		}
 	}

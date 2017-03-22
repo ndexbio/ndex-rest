@@ -77,6 +77,7 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.network.query.EdgeCollectionQuery;
 import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
@@ -283,5 +284,52 @@ public class SearchServiceV2 extends NdexService {
 		
 	}
 
+	
+	@PermitAll
+	@POST
+	@Path("/network/{networkId}/advancequery")
+	@Produces("application/json")
+    @ApiDoc("Retrieves a subnetwork of the network specified by ‘networkId’. The query finds " +
+            "the subnetwork by a filtering the network on conditions defined in filter query object. " +
+            "specified in a POSTed JSON query object. " )
+	public Response advanceQuery(
+			@PathParam("networkId") final String networkIdStr,
+			final EdgeCollectionQuery queryParameters
+			) throws NdexException, SQLException   {
+		
+	/*	if ( networkIdStr.equals("0000"))
+			return Response.ok().build();*/
+		
+		UUID networkId = UUID.fromString(networkIdStr);
+
+		try (NetworkDAO dao = new NetworkDAO())  {
+			UUID userId = getLoggedInUserId();
+			if ( !dao.isReadable(networkId, userId)) {
+				throw new ObjectNotFoundException ("network", networkId);
+			}
+		}   
+		
+		Client client = ClientBuilder.newBuilder().build();
+		
+		/*Map<String, Object> queryEntity = new TreeMap<>();
+		queryEntity.put("terms", queryParameters.getSearchString());
+		queryEntity.put("depth", queryParameters.getSearchDepth());
+		queryEntity.put("edgeLimit", queryParameters.getEdgeLimit()); */
+		String prefix = Configuration.getInstance().getProperty("AdvanceQueryURL");
+        WebTarget target = client.target(prefix + networkId + "/query");
+        Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
+        
+        if ( response.getStatus()!=200) {
+        	Object obj = response.readEntity(Object.class);
+        	throw new NdexException(obj.toString());
+        }
+        
+      //     String value = response.readEntity(String.class);
+       //    response.close();  
+        InputStream in = response.readEntity(InputStream.class);
+ 
+        return Response.ok().entity(in).build();
+		
+	}
 
 }

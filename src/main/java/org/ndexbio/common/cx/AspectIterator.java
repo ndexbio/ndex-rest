@@ -3,15 +3,12 @@ package org.ndexbio.common.cx;
 import java.io.Closeable;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
-import org.cxio.aspects.datamodels.NodeAttributesElement;
-import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonProcessingException;

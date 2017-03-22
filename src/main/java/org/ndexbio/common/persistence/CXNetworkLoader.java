@@ -211,7 +211,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(new GeneralAspectFragmentReader (NodeCitationLinksElement.ASPECT_NAME,NodeCitationLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader (Provenance.ASPECT_NAME,Provenance.class));
-		  return  new CxElementReader2(inputStream, readers);
+		  return  new CxElementReader2(inputStream, readers,false);
 	}
 	
 	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {

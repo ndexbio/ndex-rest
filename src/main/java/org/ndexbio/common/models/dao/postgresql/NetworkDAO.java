@@ -555,6 +555,7 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 	}
 
+	// max retry is set at 10 by this function. Retry interval is 0.5 second
 	public boolean networkIsLocked(UUID networkUUID,int retry) throws ObjectNotFoundException, SQLException, InterruptedException {
 		String sql = "select islocked from network where \"UUID\" = ? and is_deleted = false";
 		try(PreparedStatement p = db.prepareStatement(sql)){
@@ -566,7 +567,7 @@ public class NetworkDAO extends NdexDBDAO {
 						return islocked;
 					} 
 					Thread.sleep(500);
-					return networkIsLocked(networkUUID, (retry>5 ? 5: retry -1));					
+					return networkIsLocked(networkUUID, (retry>10 ? 10: retry -1));					
 				}
 				throw new ObjectNotFoundException ("network",networkUUID);
 			}
