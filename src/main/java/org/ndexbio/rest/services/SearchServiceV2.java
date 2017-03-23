@@ -287,7 +287,7 @@ public class SearchServiceV2 extends NdexService {
 	
 	@PermitAll
 	@POST
-	@Path("/network/{networkId}/advancequery")
+	@Path("/network/{networkId}/advancedquery")
 	@Produces("application/json")
     @ApiDoc("Retrieves a subnetwork of the network specified by ‘networkId’. The query finds " +
             "the subnetwork by a filtering the network on conditions defined in filter query object. " +
@@ -315,8 +315,8 @@ public class SearchServiceV2 extends NdexService {
 		queryEntity.put("terms", queryParameters.getSearchString());
 		queryEntity.put("depth", queryParameters.getSearchDepth());
 		queryEntity.put("edgeLimit", queryParameters.getEdgeLimit()); */
-		String prefix = Configuration.getInstance().getProperty("AdvanceQueryURL");
-        WebTarget target = client.target(prefix + networkId + "/query");
+		String prefix = Configuration.getInstance().getProperty("AdvancedQueryURL");
+        WebTarget target = client.target(prefix + networkId + "/advancedquery");
         Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
         
         if ( response.getStatus()!=200) {
