@@ -239,6 +239,7 @@ public class NetworkServiceV2 extends NdexService {
 				throw new NdexException ("Can't update readonly network.");
 			} 
 
+
 			if (!daoNew.networkIsValid(networkId))
 				throw new InvalidNetworkException();
 				

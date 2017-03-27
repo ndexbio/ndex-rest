@@ -133,8 +133,10 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			CoreAdminRequest.unloadCore(coreName, true, true, client);
 		} catch (HttpSolrClient.RemoteSolrException e4) {
 			System.out.println(e4.getMessage());
-			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1)
+			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
+				e4.printStackTrace();
 				throw new NdexException("Unexpected Exception: " + e4.getMessage());
+			}	
 		} 
 		
 		/**

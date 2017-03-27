@@ -1567,7 +1567,7 @@ public class NetworkService extends NdexService {
 		//	daoNew.unlockNetwork(networkId);
 			
            } catch (SQLException | NdexException | IOException e) {
-        	  // e.printStackTrace();
+        	   e.printStackTrace();
         	   daoNew.rollback();
         	   daoNew.unlockNetwork(networkId);  
 
