@@ -60,6 +60,7 @@ import org.cxio.aspects.datamodels.NodesElement;
 import org.cxio.aspects.datamodels.SubNetworkElement;
 import org.cxio.aspects.readers.EdgeAttributesFragmentReader;
 import org.cxio.aspects.readers.EdgesFragmentReader;
+import org.cxio.aspects.readers.GeneralAspectFragmentReader;
 import org.cxio.aspects.readers.NetworkAttributesFragmentReader;
 import org.cxio.aspects.readers.NodeAttributesFragmentReader;
 import org.cxio.aspects.readers.NodesFragmentReader;
@@ -72,7 +73,6 @@ import org.cxio.misc.OpaqueElement;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXAspectWriter;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
-import org.ndexbio.common.cx.GeneralAspectFragmentReader;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
@@ -404,8 +404,8 @@ public class CXNetworkLoader implements AutoCloseable {
 					throw new NdexException ("DB error when setting iscomplete flag: " + e.getMessage(), e);
 				}
 					//recreate CX file
-					ProvenanceEntity provenanceHistory = dao.getProvenance(networkId);
-					CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, new Provenance(provenanceHistory));
+					ProvenanceEntity provenanceEntity = dao.getProvenance(networkId);
+					CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, new Provenance(provenanceEntity));
 					String tmpFileName = g.createNetworkFile();
 					
 					java.nio.file.Path src = Paths.get(tmpFileName);
