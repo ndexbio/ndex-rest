@@ -3,7 +3,6 @@ package org.ndexbio.common.cx;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.util.JsonWriter;
