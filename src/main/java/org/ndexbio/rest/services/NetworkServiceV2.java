@@ -365,7 +365,7 @@ public class NetworkServiceV2 extends NdexService {
 				daoNew.updateMetadataColleciton(networkUUID, metadata);
 
 				//Recreate the CX file 					
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, fullSummary, metadata);
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, fullSummary, metadata, newProv);
 				g.reCreateCXFile();
 			
             
@@ -1174,9 +1174,9 @@ public class NetworkServiceV2 extends NdexService {
 					String summaryDescription = partialSummary.getDescription() == null ? "" : partialSummary.getDescription().trim();
 					String summaryVersion = partialSummary.getVersion() == null ? "" : partialSummary.getVersion().trim();
 
+					ProvenanceEntity newProv = new ProvenanceEntity();
 					if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
 					{
-						ProvenanceEntity newProv = new ProvenanceEntity();
 						if ( oldProv !=null )   //TODO: initialize the URI properly when there is null.
 							newProv.setUri(oldProv.getUri());
 
@@ -1229,7 +1229,7 @@ public class NetworkServiceV2 extends NdexService {
 					networkDao.updateMetadataColleciton(networkUUID, metadata);
 
 					//Recreate the CX file 					
-					CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, fullSummary, metadata);
+					CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, fullSummary, metadata, newProv);
 					g.reCreateCXFile();
 					
 					networkDao.unlockNetwork(networkUUID);

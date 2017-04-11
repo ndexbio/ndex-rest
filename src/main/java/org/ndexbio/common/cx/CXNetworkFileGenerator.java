@@ -17,9 +17,11 @@ import org.cxio.core.interfaces.AspectElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 
@@ -59,10 +61,11 @@ public class CXNetworkFileGenerator {
 	}*/
 	
 	
-	public CXNetworkFileGenerator(UUID networkUUID, NetworkSummary summary, MetaDataCollection metaDataCollection) {
+	public CXNetworkFileGenerator(UUID networkUUID, NetworkSummary summary, MetaDataCollection metaDataCollection, ProvenanceEntity prov) {
 		networkId = networkUUID;
 		fullSummary = summary;
 		metadata = metaDataCollection;
+		provenance = new Provenance(prov);
 	}
 	
 	// create a CX network using a tmp file name and return the temp file name;
@@ -108,6 +111,14 @@ public class CXNetworkFileGenerator {
 				 }
 			 }
 				 
+			 //write namespace first
+			 if ( metadata.getMetaDataElement(NamespacesElement.ASPECT_NAME) != null ) {
+				 wtr.startAspectFragment(NamespacesElement.ASPECT_NAME);
+				 String aspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + NamespacesElement.ASPECT_NAME;
+			 	 wtr.writeAspectElementsFromNdexAspectFile(aspectFileName);
+				 wtr.endAspectFragment(); 
+				 metadata.remove(NamespacesElement.ASPECT_NAME);	 
+			 }
 			 
 			 //write all other aspects
 			 for ( MetaDataElement metaElmt: metadata) {
