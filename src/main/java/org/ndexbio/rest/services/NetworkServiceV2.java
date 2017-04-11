@@ -305,7 +305,7 @@ public class NetworkServiceV2 extends NdexService {
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			} 
 			
-			if ( daoNew.networkIsLocked(networkUUID)) {
+			if ( daoNew.networkIsLocked(networkUUID,10)) {
 				throw new NetworkConcurrentModificationException ();
 			} 
 			
@@ -1138,12 +1138,19 @@ public class NetworkServiceV2 extends NdexService {
 
 			if ( newValues.size() > 0 ) { 
 				
-				if ( networkDao.networkIsLocked(networkUUID)) {
-					throw new NetworkConcurrentModificationException ();
-				} 
-				
 				if (!networkDao.networkIsValid(networkUUID))
 					throw new InvalidNetworkException();
+
+				try {
+					if ( networkDao.networkIsLocked(networkUUID,10)) {
+						throw new NetworkConcurrentModificationException ();
+					}
+				} catch (InterruptedException e2) {
+					// TODO Auto-generated catch block
+					e2.printStackTrace();
+					throw new NdexException("Failed to check network lock: " + e2.getMessage());
+				} 
+				
 				
 				try {
 					networkDao.lockNetwork(networkUUID);
