@@ -25,7 +25,7 @@
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
-			<version>9.4.1209.jre7</version>
+			<version>42.0.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -33,25 +33,25 @@
 			<version>2.1.1</version>
 		</dependency>
 
-		<dependency>
+	<!-- 	<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 			<version>2.8.1</version>
-		</dependency>
+		</dependency> -->
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-annotations</artifactId>
-			<version>2.8.1</version>
+			<version>${jacksonVersion}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.jaxrs</groupId>
 			<artifactId>jackson-jaxrs-json-provider</artifactId>
-			<version>2.8.1</version>
+			<version>${jacksonVersion}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.jaxrs</groupId>
 			<artifactId>jackson-jaxrs-base</artifactId>
-			<version>2.8.1</version>
+			<version>${jacksonVersion}</version>
 		</dependency>
 
 		<dependency>
@@ -308,8 +308,9 @@
 		</plugins>
 	</build>
 	<properties>
-		<jettyVersion>9.3.13.v20161014</jettyVersion>
-		<resteasyVersion>3.0.19.Final</resteasyVersion>
-		<log4jVersion>2.7</log4jVersion>
+		<jettyVersion>9.3.18.v20170406</jettyVersion>
+		<resteasyVersion>3.0.22.Final</resteasyVersion>
+		<log4jVersion>2.8.2</log4jVersion>
+		<jacksonVersion>2.8.8</jacksonVersion>
 	</properties>
 </project>

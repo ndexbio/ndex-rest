@@ -42,7 +42,6 @@ import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.net.URI;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -52,14 +51,10 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -84,65 +79,48 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
-import org.cxio.aspects.datamodels.NodesElement;
-import org.cxio.core.interfaces.AspectElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
-import org.cxio.misc.OpaqueElement;
 import org.cxio.util.JsonWriter;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.cx.AspectIterator;
-import org.ndexbio.common.cx.CXAspectFragment;
 import org.ndexbio.common.cx.CXAspectWriter;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
-import org.ndexbio.common.cx.NdexCXNetworkWriter;
 import org.ndexbio.common.cx.OpaqueAspectIterator;
 import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
-import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.InvalidNetworkException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.CXSimplePathQuery;
-import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NdexProvenanceEventType;
-import org.ndexbio.model.object.NetworkExportRequest;
-import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Priority;
 import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.ProvenanceEvent;
-import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.network.FileFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
-import org.ndexbio.task.NetworkExportTask;
 import org.ndexbio.task.SolrTaskDeleteNetwork;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Path("/v2/network")
 public class NetworkServiceV2 extends NdexService {
@@ -1146,7 +1124,6 @@ public class NetworkServiceV2 extends NdexService {
 						throw new NetworkConcurrentModificationException ();
 					}
 				} catch (InterruptedException e2) {
-					// TODO Auto-generated catch block
 					e2.printStackTrace();
 					throw new NdexException("Failed to check network lock: " + e2.getMessage());
 				} 

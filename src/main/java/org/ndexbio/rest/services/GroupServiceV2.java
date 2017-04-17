@@ -220,7 +220,6 @@ public class GroupServiceV2 extends NdexService {
 							@PathParam("groupid") final String id)
 			throws ObjectNotFoundException, NdexException, SQLException {
 
-		logger.info("[start: Updating group {}]", id);
 		
 		try (GroupDAO dao = new GroupDAO ()){
 			
@@ -235,7 +234,6 @@ public class GroupServiceV2 extends NdexService {
 			GroupIndexManager m = new GroupIndexManager();
 			m.updateGrp(id, group.getGroupName(), group.getDescription());
 			dao.commit();
-			logger.info("[end: Updating group {}]", id);		
 			return ;
 		
 		} catch ( SolrServerException | IOException e) {

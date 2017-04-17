@@ -42,9 +42,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
-import javax.mail.MessagingException;
 import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.Encoded;
@@ -56,13 +54,13 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.apache.http.client.ClientProtocolException;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.UserIndexManager;
@@ -72,6 +70,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.MembershipRequest;
+import org.ndexbio.model.object.NetworkSet;
 import org.ndexbio.model.object.PermissionRequest;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
@@ -83,7 +82,6 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
-import org.ndexbio.rest.helpers.Email;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
@@ -279,31 +277,7 @@ public class UserServiceV2 extends NdexService {
 		} 
 	}
 	
-/*	@GET
-	@PermitAll
-	@Path("/{userid}")
-	@Produces("application/json")
-	@ApiDoc("Deprecated. User should use either the user/account/{accountName} function or user/uuid/{uuid} function to get user information. "
-			+ "This function returns the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
-	public User getUser(@PathParam("userid") final String userId)
-			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
-	//	logger.info("[start: Getting user {}]", userId);
-		
-		try (UserDAO dao = new UserDAO()) {
-			try {
-				UUID useruuid = UUID.fromString(userId);
-				final User user = dao.getUserById(useruuid,true);
-				logger.info("[end: User object returned for user account {}]", userId);
-				return user;	
-			} catch (IllegalArgumentException e) {
-				final User user = dao.getUserByAccountName(userId.toLowerCase(),true);
-//				logger.info("[end: User object returned for user account {}]", userId);
-				return user;
-			}
-		} 
-	}
-*/	
 	/**************************************************************************
 	 * Gets a user by accountName. 
 	 * 
@@ -1084,6 +1058,23 @@ public class UserServiceV2 extends NdexService {
 					
 		}      	
 
+	  	
+	   	@GET
+		@Path("/{userid}/networksets")
+		@Produces("application/json")
+		@PermitAll
+
+		public static List<NetworkSet> getNetworksetsByUserId(
+					 @PathParam("userid") String userIdStr) throws SQLException {
+				
+			UUID userId = UUID.fromString(userIdStr);
+					
+			try (NetworkSetDAO dao = new NetworkSetDAO ()){
+					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId);
+					return sets;
+				}
+				
+			}   
 
 	
 	// these are just prototypes not in production, 
@@ -1094,7 +1085,7 @@ public class UserServiceV2 extends NdexService {
 	 * @return JWT object to the client
 
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@PermitAll
 	@NdexOpenFunction
 	@Path("/google/authenticate")
@@ -1116,7 +1107,7 @@ public class UserServiceV2 extends NdexService {
 
  	    String theString =authenticator.getIDTokenFromQueryStr(qStr);
 		return theString;
-	}
+	} 
 	
 	
 	@POST
@@ -1164,6 +1155,6 @@ public class UserServiceV2 extends NdexService {
  	    
 	}
 	
-
+*/
 
 }

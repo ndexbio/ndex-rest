@@ -47,35 +47,7 @@ public abstract class NdexDBDAO implements AutoCloseable {
 		this.db = NdexDatabase.getInstance().getConnection();
 	}
 	
-	/*
-	 * resolving a user is a common requirement across all DAO classes
-	 * 
-	 */
-/*
-	@Deprecated
-	protected ResultSet getRecordByUUID(UUID id, String entityClass) 
-			throws ObjectNotFoundException, NdexException, SQLException {
-		return getRecordByUUIDStr(id.toString(), entityClass);
-		
-	}
-	
-	@Deprecated
-	private ResultSet getRecordByUUIDStr(String id, String entityClass) 
-			throws ObjectNotFoundException, NdexException, SQLException {
-		
 
-		Statement st = db.createStatement();
-		ResultSet rs = st.executeQuery("SELECT * FROM \"" + entityClass + "\" where \"UUID\" = " + id );
-		if (rs.next())
-			return rs;
-		rs.close();
-		st.close();
-		throw new ObjectNotFoundException("[Class "+ entityClass + "] Object with ID: " + id.toString() + " doesn't exist.");
-		
-		
-	}
-*/	
-	
 	public Connection getDBConnection() {
 		return db;
 	}

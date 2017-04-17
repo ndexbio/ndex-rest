@@ -892,7 +892,58 @@ ALTER TABLE ONLY user_network_membership
 ALTER TABLE ONLY user_network_membership
     ADD CONSTRAINT user_network_membership_user_id_fkey FOREIGN KEY (user_id) REFERENCES ndex_user("UUID");
 
+    
 
+CREATE TABLE network_set
+(
+  "UUID" uuid NOT NULL,
+  name character varying(80),
+  description text,
+  owner_id uuid,
+  creation_time timestamp without time zone,
+  modification_time timestamp without time zone,
+  is_deleted boolean,
+  CONSTRAINT network_set_pkey PRIMARY KEY ("UUID"),
+  CONSTRAINT network_set_owner_id_fkey FOREIGN KEY (owner_id)
+      REFERENCES ndex_user ("UUID") MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE network_set
+  OWNER TO ndexserver;
+
+-- Index: network_set_owner_id_idx
+
+-- DROP INDEX network_set_owner_id_idx;
+
+CREATE INDEX network_set_owner_id_idx
+  ON network_set
+  USING btree
+  (owner_id)
+  WHERE is_deleted = false;
+
+
+  CREATE TABLE network_set_member
+(
+  set_id uuid NOT NULL,
+  network_id uuid NOT NULL,
+  CONSTRAINT network_set_member_pkey PRIMARY KEY (set_id, network_id),
+  CONSTRAINT network_set_member_network_id_fkey FOREIGN KEY (network_id)
+      REFERENCES network ("UUID") MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT network_set_member_set_id_fkey FOREIGN KEY (set_id)
+      REFERENCES network_set (id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE network_set_member
+  OWNER TO ndexserver;
+
+  
 --
 -- Name: public; Type: ACL; Schema: -; Owner: postgres
 --

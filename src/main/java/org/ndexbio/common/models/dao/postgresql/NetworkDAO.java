@@ -142,13 +142,15 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 		
+		
 		String[] sqlCmds = {
 				"insert into user_network_membership_arc (user_id, network_id, permission_type) " + 
 						" select user_id, network_id, permission_type from user_network_membership where network_id = ?",
 				"delete from user_network_membership where network_id = ?",
 				"insert into group_network_membership_arc (group_id, network_id, permission_type) " + 
 						" select group_id, network_id, permission_type from group_network_membership where network_id = ?",
-				"delete from group_network_membership where network_id = ?"
+				"delete from group_network_membership where network_id = ?",
+				"delete from network_set_member where network_id = ?"
 			};
 
 		for (String cmd : sqlCmds) {

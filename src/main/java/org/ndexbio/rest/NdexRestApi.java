@@ -53,6 +53,7 @@ import org.ndexbio.rest.services.GroupService;
 import org.ndexbio.rest.services.GroupServiceV2;
 import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.NetworkServiceV2;
+import org.ndexbio.rest.services.NetworkSetServiceV2;
 import org.ndexbio.rest.services.RequestService;
 import org.ndexbio.rest.services.SearchServiceV2;
 import org.ndexbio.rest.services.TaskService;
@@ -80,6 +81,7 @@ public class NdexRestApi extends Application
         _resources.add(AdminServiceV2.class);
         _resources.add(BatchServiceV2.class);
         _resources.add(SearchServiceV2.class);
+        _resources.add(NetworkSetServiceV2.class);
         
         _providers.add(new BasicAuthenticationFilter());
         _providers.add(new NdexDefaultResponseFilter());

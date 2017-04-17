@@ -898,7 +898,8 @@ public class UserDAO extends NdexDBDAO {
 				"delete from ndex_group_user where user_id = ?",
 				"update task set is_deleted = true where owneruuid = ?",
 				"update request set is_deleted = true where owner_id =? ",
-				"update ndex_user set is_deleted = true where \"UUID\" = ? and not is_deleted"
+				"update ndex_user set is_deleted = true where \"UUID\" = ? and not is_deleted",
+				"update network_set set is_deleted = true where owner_id = ? and not is_deleted"
 			};
 
 		for (String cmd : sqlCmds) {

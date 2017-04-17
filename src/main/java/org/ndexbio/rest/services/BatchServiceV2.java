@@ -47,7 +47,6 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
-import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
@@ -56,13 +55,11 @@ import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Group;
-import org.ndexbio.model.object.NetworkExportRequest;
 import org.ndexbio.model.object.NetworkExportRequestV2;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.network.FileFormat;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -148,7 +145,7 @@ public class BatchServiceV2 extends NdexService {
 	@Path("/network/summary")
 	@Produces("application/json")
 	@ApiDoc("Retrieves a list of NetworkSummary objects based on the network uuids POSTed. This " +
-            "method only returns network summaries that the user is allowed to read. User can only post up to 300 uuids in this function.")
+            "method only returns network summaries that the user is allowed to read. User can only post up to 2000 uuids in this function.")
 	public List<NetworkSummary> getNetworkSummaries(
 			List<String> networkIdStrs)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
