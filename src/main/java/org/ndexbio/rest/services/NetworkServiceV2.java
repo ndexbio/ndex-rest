@@ -395,7 +395,7 @@ public class NetworkServiceV2 extends NdexService {
 				return summary;
 			}
 				
-			throw new ObjectNotFoundException ("network", networkId);
+			throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 		}  
 			
 			

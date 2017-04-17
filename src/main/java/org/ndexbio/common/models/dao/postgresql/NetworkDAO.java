@@ -426,14 +426,17 @@ public class NetworkDAO extends NdexDBDAO {
 		    + "and gn1.network_id = n.\"UUID\" and gu.user_id = '"+ userId + "' limit 1) )";
 	}
 	
-	public boolean isReadable(UUID networkID, UUID userId) throws SQLException {
-		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and " + createIsReadableConditionStr(userId);		
+	public boolean isReadable(UUID networkID, UUID userId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select (" + createIsReadableConditionStr(userId) + ") from network n where n.\"UUID\" = ? and n.is_deleted=false ";		
 			
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkID);
 
 			try ( ResultSet rs = pst.executeQuery()) {
-				return rs.next();
+				if ( rs.next()) 
+					return rs.getBoolean(1);
+				 
+				throw new ObjectNotFoundException("Network", networkID);
 			}
 		}
 	}

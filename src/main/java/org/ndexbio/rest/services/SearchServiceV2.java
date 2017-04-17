@@ -257,7 +257,7 @@ public class SearchServiceV2 extends NdexService {
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			if ( !dao.isReadable(networkId, userId)) {
-				throw new ObjectNotFoundException ("network", networkId);
+				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
 		}   
 		
@@ -305,7 +305,7 @@ public class SearchServiceV2 extends NdexService {
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			if ( !dao.isReadable(networkId, userId)) {
-				throw new ObjectNotFoundException ("network", networkId);
+				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
 		}   
 		

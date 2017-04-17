@@ -196,7 +196,7 @@ public class BatchServiceV2 extends NdexService {
 						t.setResource(networkID.toString());
 						if (! networkDao.isReadable(networkID, getLoggedInUserId())) {
 							t.setStatus(Status.FAILED);
-							t.setMessage("Network " + networkID + " is not found for user.");
+							t.setMessage("User doesn't have read access to network " + networkID + ".");
 							//throw new NdexException ("Network " + networkID + " is not found.");
 						}	else {
 							t.setStatus(Status.QUEUED);
