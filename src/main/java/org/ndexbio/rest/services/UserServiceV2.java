@@ -1064,13 +1064,13 @@ public class UserServiceV2 extends NdexService {
 		@Produces("application/json")
 		@PermitAll
 
-		public static List<NetworkSet> getNetworksetsByUserId(
+		public  List<NetworkSet> getNetworksetsByUserId(
 					 @PathParam("userid") String userIdStr) throws SQLException {
 				
 			UUID userId = UUID.fromString(userIdStr);
 					
 			try (NetworkSetDAO dao = new NetworkSetDAO ()){
-					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId);
+					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId());
 					return sets;
 				}
 				
