@@ -157,7 +157,8 @@ public class NetworkServiceV2 extends NdexService {
 	        "history of the network. See the document NDEx Provenance History for a detailed description of " +
 	        "this structure and best practices for its use.")	
 	public ProvenanceEntity getProvenance(
-			@PathParam("networkid") final String networkIdStr)
+			@PathParam("networkid") final String networkIdStr,
+			@QueryParam("accesskey") String accessKey)
 
 			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException, NdexException, SQLException {
 		
@@ -166,7 +167,7 @@ public class NetworkServiceV2 extends NdexService {
 		UUID networkId = UUID.fromString(networkIdStr);
 		
 		try (NetworkDAO daoNew = new NetworkDAO()) {
-			if ( !daoNew.isReadable(networkId, getLoggedInUserId()) )
+			if ( !daoNew.isReadable(networkId, getLoggedInUserId()) && (!daoNew.accessKeyIsValid(networkId, accessKey)))
 					throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
 
 			logger.info("[end: Got provenance of network {}]", networkId);
@@ -377,7 +378,8 @@ public class NetworkServiceV2 extends NdexService {
             "method returns an error if the network is not found or if the authenticated user does not have " +
             "READ permission for the network.")
 	public NetworkSummary getNetworkSummary(
-			@PathParam("networkid") final String networkIdStr /*,
+			@PathParam("networkid") final String networkIdStr ,
+			@QueryParam("accesskey") String accessKey /*,
 			@Context org.jboss.resteasy.spi.HttpResponse response*/)
 
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
@@ -387,7 +389,7 @@ public class NetworkServiceV2 extends NdexService {
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			UUID networkId = UUID.fromString(networkIdStr);
-			if ( dao.isReadable(networkId, userId)) {
+			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
 				NetworkSummary summary = dao.getNetworkSummaryById(networkId);
 				logger.error("[end: Getting networkSummary of network {}.]", networkId);	
 
@@ -407,7 +409,8 @@ public class NetworkServiceV2 extends NdexService {
 	@Path("/{networkid}/aspect")
 	
 	@ApiDoc("The getAspectElement method returns elements in the specified aspect up to the given limit.")
-	public Response getNetworkCXMetadataCollection(	@PathParam("networkid") final String networkId)
+	public Response getNetworkCXMetadataCollection(	@PathParam("networkid") final String networkId,
+			@QueryParam("accesskey") String accessKey)
 			throws Exception {
 
     	logger.info("[start: Getting CX metadata from network {}]", networkId);
@@ -415,7 +418,7 @@ public class NetworkServiceV2 extends NdexService {
     	UUID networkUUID = UUID.fromString(networkId);
 
 		try (NetworkDAO dao = new NetworkDAO() ) {
-			if ( dao.isReadable(networkUUID, getLoggedInUserId())) {
+			if ( dao.isReadable(networkUUID, getLoggedInUserId()) || dao.accessKeyIsValid(networkUUID, accessKey)) {
 				MetaDataCollection mdc = dao.getMetaDataCollection(networkUUID);
 		    	logger.info("[end: Return CX metadata from network {}]", networkId);
 		    	ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -514,16 +517,10 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}")
-	@ApiDoc("The getCompleteNetwork method enables an application to obtain an entire network as a CX " +
-	        "structure. This is performed as a monolithic operation, so care should be taken when requesting " +
-	        "very large networks. Applications can use the getNetworkSummary method to check the node " +
-	        "and edge counts for a network before attempting to use getCompleteNetwork. As an " +
-	        "optimization, networks that are designated read-only (see Make a Network Read-Only below) " +
-	        "are cached by NDEx for rapid access. ")
-	// new Implmentation to handle cached network 
-	//TODO: handle cached network from hardDrive.
+
 	public Response getCompleteNetworkAsCX(	@PathParam("networkid") final String networkId,
-			@QueryParam("download") boolean isDownload)
+			@QueryParam("download") boolean isDownload,
+			@QueryParam("accesskey") String accessKey)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
     	logger.info("[start: Getting complete network {}]", networkId);
@@ -532,8 +529,9 @@ public class NetworkServiceV2 extends NdexService {
     	String title = null;
     	try (NetworkDAO dao = new NetworkDAO()) {
     		UUID networkUUID = UUID.fromString(networkId);
-    		if ( ! dao.isReadable(networkUUID, getLoggedInUserId()))
+    		if ( ! dao.isReadable(networkUUID, getLoggedInUserId()) && (!dao.accessKeyIsValid(networkUUID, accessKey))) 
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+    		
     		NetworkSummary s = dao.getNetworkSummaryById(networkUUID);
     		title = s.getName();
     	}
@@ -568,13 +566,13 @@ public class NetworkServiceV2 extends NdexService {
 	        "structure. The sample network is a 500 random edge subnetwork of the original network if it was created by the server automatically. "
 	        + "User can also upload their own sample network if they "
 	        + "")
-	public Response getSampleNetworkAsCX(	@PathParam("networkid") final String networkId)
+	public Response getSampleNetworkAsCX(	@PathParam("networkid") final String networkIdStr ,
+			@QueryParam("accesskey") String accessKey)
 			throws IllegalArgumentException, NdexException, SQLException {
-
-    	logger.info("[start: Getting sample network {}]", networkId);
   	
+    	UUID networkId = UUID.fromString(networkIdStr);
     	try (NetworkDAO dao = new NetworkDAO()) {
-    		if ( ! dao.isReadable(UUID.fromString(networkId), getLoggedInUserId()))
+    		if ( ! dao.isReadable(networkId, getLoggedInUserId()) && (!dao.accessKeyIsValid(networkId, accessKey)))
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 
     	}
@@ -585,7 +583,6 @@ public class NetworkServiceV2 extends NdexService {
 			FileInputStream in = new FileInputStream(cxFilePath)  ;
 		
 			//	setZipFlag();
-			logger.info("[end: Return network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 		} catch ( FileNotFoundException e) {
 				throw new ObjectNotFoundException("Sample network of " + networkId + " not found");
@@ -593,6 +590,40 @@ public class NetworkServiceV2 extends NdexService {
 		
 	}  
 	
+	@GET
+	@Path("/{networkid}/accesskey")
+	@Produces("text/plain")
+	public String getNetworkAccessKey(@PathParam("networkid") final String networkIdStr)
+			throws IllegalArgumentException, NdexException, SQLException {
+  	
+		UUID networkId = UUID.fromString(networkIdStr);
+    	try (NetworkDAO dao = new NetworkDAO()) {
+    		if ( ! dao.isAdmin(networkId, getLoggedInUserId()))
+                throw new UnauthorizedOperationException("User is not admin of this network.");
+
+    		return dao.getNetworkAccessKey(networkId);
+    	}
+	}  
+		
+	@PUT
+	@Path("/{networkid}/accesskey")
+	
+	public void disableNetworkAccessKey(@PathParam("networkid") final String networkIdStr,
+			@QueryParam("action") String action)
+			throws IllegalArgumentException, NdexException, SQLException {
+  	
+		UUID networkId = UUID.fromString(networkIdStr);
+		if ( ! action.equalsIgnoreCase("disable"))
+			throw new NdexException("Value of 'action' paramter can only be 'disable'");
+		
+    	try (NetworkDAO dao = new NetworkDAO()) {
+    		if ( ! dao.isAdmin(networkId, getLoggedInUserId()))
+                throw new UnauthorizedOperationException("User is not admin of this network.");
+
+    		dao.disableNetworkAccessKey(networkId);
+    		dao.commit();
+    	}
+	}  
 	
 	
 	@PUT

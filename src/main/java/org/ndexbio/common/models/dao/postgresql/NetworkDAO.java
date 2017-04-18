@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.SecureRandom;
 import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -53,6 +54,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.logging.Logger;
+
+import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -1564,5 +1567,79 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 		return result;
+	}
+	
+	public String getNetworkAccessKey( UUID networkId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select access_key, access_key_is_on from network where \"UUID\" = ? and is_deleted=false";
+		
+		String oldKey = null;
+		boolean keyIsOn = false;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					oldKey = rs.getString(1);
+					keyIsOn = rs.getBoolean(2);
+				} else
+					throw new ObjectNotFoundException("Network" , networkId);
+				
+			}
+		}
+	
+		if ( oldKey !=null ) {
+			if ( keyIsOn)
+				return oldKey;
+				
+			//update db flag
+			sqlStr = "update network set access_key_is_on = true where \"UUID\"=?";
+			try ( PreparedStatement pst = db.prepareStatement(sqlStr)) {
+	        	pst.setObject(1, networkId);
+	        	pst.executeUpdate();
+	        }	
+			commit();
+			return oldKey;
+				
+		}
+		
+		// create new Key
+		 SecureRandom random = new SecureRandom();
+	     byte bytes[] = new byte[256/8];
+	     random.nextBytes(bytes);
+	     String newKey= DatatypeConverter.printHexBinary(bytes).toLowerCase();
+		
+	     //update db record
+		 sqlStr = "update network set access_key_is_on = true, access_key=? where \"UUID\"=?";
+		 try ( PreparedStatement pst = db.prepareStatement(sqlStr)) {
+				pst.setString(1, newKey);
+	        	pst.setObject(2, networkId);
+	        	pst.executeUpdate();
+	      }	
+	      commit();
+	     
+	     return newKey;
+	}
+	
+	public void disableNetworkAccessKey( UUID networkId) throws SQLException {
+		//update db flag
+		String sqlStr = "update network set access_key_is_on = false where \"UUID\"=?";
+		try ( PreparedStatement pst = db.prepareStatement(sqlStr)) {
+	        pst.setObject(1, networkId);
+	        pst.executeUpdate();
+	    }	
+	}
+	
+	public boolean accessKeyIsValid(UUID networkId, String accessKey) throws SQLException {
+		if ( accessKey ==null || accessKey.length() == 0)
+			return false;
+		
+		String sqlStr = "select 1 from network where \"UUID\"=? and access_key_is_on and access_key = ?";
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			p.setString(2, accessKey);
+			try ( ResultSet rs = p.executeQuery()) {
+				return  rs.next();
+			}		
+		}
 	}
 }
