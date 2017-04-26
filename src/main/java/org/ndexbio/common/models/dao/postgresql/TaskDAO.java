@@ -301,6 +301,24 @@ public class TaskDAO extends NdexDBDAO {
 		return tasks;
 		
 	}
+	
+	public List<Task> getQueuedTasks() throws SQLException, JsonParseException, JsonMappingException, IOException {
+		List <Task> result = new ArrayList<>(20);
+		String queryStr = "select * from  task where is_deleted = false and status ='QUEUED' order by creation_time desc ";
+		
+		try (PreparedStatement st = db.prepareStatement(queryStr))  {
+			try (ResultSet rs = st.executeQuery() ) {
+				while (rs.next()) {
+					Task t = new Task();
+					populateTaskFromResultSet(t,rs);
+					result.add(t);
+				} 
+			}
+		}
+		
+		return result;
+		
+	}
 
 
 }

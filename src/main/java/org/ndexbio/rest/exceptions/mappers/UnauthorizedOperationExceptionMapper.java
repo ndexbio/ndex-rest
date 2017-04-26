@@ -31,6 +31,7 @@
 package org.ndexbio.rest.exceptions.mappers;
 
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.ResponseBuilder;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
@@ -51,11 +52,16 @@ public class UnauthorizedOperationExceptionMapper implements ExceptionMapper<Una
     	logger.error("SERVER ERROR:", exception);
     	MDC.put("error", exception.getMessage());
     	exception.printStackTrace();
-        return Response
-            .status(Status.UNAUTHORIZED)
-            .entity(exception.getNdexExceptionInJason())
-            .header("WWW-Authenticate", "Basic")
-            .type("application/json")
-            .build();
+    	ResponseBuilder b = Response
+                .status(Status.UNAUTHORIZED)
+                .entity(exception.getNdexExceptionInJason());
+    	
+    	/*if( exception.getChallengeHeader())
+    		b = b.header("WWW-Authenticate", "Basic");*/
+    	
+    	Response r = b.type("application/json")
+                .build(); 
+    	
+        return r;
     }
 }

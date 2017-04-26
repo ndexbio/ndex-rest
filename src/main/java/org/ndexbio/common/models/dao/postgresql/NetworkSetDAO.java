@@ -134,7 +134,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 
 	public void addNetworksToNetworkSet(UUID setId, Collection<UUID> networkIds) throws SQLException {
 		
-		String sqlStr = "insert into network_set_member (set_id, network_id) values (?, ?)";
+		String sqlStr = "insert into network_set_member (set_id, network_id) values (?, ?) on conflict  on CONSTRAINT \"network_set_member_pkey\" do nothing";
 
 		for ( UUID networkId : networkIds) {
 			try (PreparedStatement p = db.prepareStatement(sqlStr)) {

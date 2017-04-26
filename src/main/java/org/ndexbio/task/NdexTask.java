@@ -38,6 +38,7 @@ import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.TaskType;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -78,5 +79,16 @@ public abstract class NdexTask implements Callable<Task> {
 	}
 	
 	protected abstract Task call_aux() throws Exception;
+	
+	
+	public static NdexTask createUserTask(Task t) throws NdexException {
+		switch (t.getTaskType()) {
+		case EXPORT_NETWORK_TO_FILE:
+			return new NetworkExportTask(t);
+		default:
+			throw new NdexException ("Unknow user task: " + t.getExternalId() + " - " + t.getTaskType());		
+		}
+		
+	}
 	
 }

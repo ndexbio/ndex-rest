@@ -256,15 +256,6 @@ public class CXNetworkLoader implements AutoCloseable {
 					throw new NdexException ("DB error when saving network summary: " + e.getMessage(), e);
 				}
 		  
-				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
-					if ( isUpdate ) {
-						idx2.dropIndex();		
-					}	
-				
-					createSolrIndex(summary);
-					idx2.createIndex();
-  
-				}
 				
 				// create the network sample if the network has more than 500 edges
 				if (summary.getEdgeCount() > CXNetworkSampleGenerator.sampleSize)  {
@@ -317,26 +308,20 @@ public class CXNetworkLoader implements AutoCloseable {
 				Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 				Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 				
+				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+					if ( isUpdate ) {
+						idx2.dropIndex();		
+					}	
+				
+					createSolrIndex(summary);
+					idx2.createIndex();
+  
+				}
+
 				try {
 					dao.setFlag(this.networkId, "iscomplete", true);
 					dao.unlockNetwork(this.networkId);
-		/*			List<SimplePropertyValuePair> pProps =provenanceHistory.getProperties();
-					
-				    pProps.add( new SimplePropertyValuePair("edge count", Integer.toString( summary.getEdgeCount() )) );
-				    pProps.add( new SimplePropertyValuePair("node count", Integer.toString( summary.getNodeCount() )) );
 
-				    if ( summary.getName() != null)
-				       pProps.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
-
-				    if ( summary.getDescription() != null && summary.getDescription().length() >0 )
-				       pProps.add( new SimplePropertyValuePair("description", summary.getDescription()) );
-
-				    if ( summary.getVersion()!=null && summary.getVersion().length() > 0 )
-				       pProps.add( new SimplePropertyValuePair("version", summary.getVersion()) );
-
-				    provenanceHistory.setProperties(pProps);  
-				    
-					dao.setProvenance(networkId, provenanceHistory);  */
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();

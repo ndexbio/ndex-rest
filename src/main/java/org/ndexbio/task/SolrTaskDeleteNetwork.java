@@ -2,7 +2,6 @@ package org.ndexbio.task;
 
 import java.io.IOException;
 import java.util.UUID;
-import java.util.logging.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;

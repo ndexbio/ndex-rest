@@ -135,7 +135,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			System.out.println(e4.getMessage());
 			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
 				e4.printStackTrace();
-				throw new NdexException("Unexpected Exception: " + e4.getMessage());
+				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
 			}	
 		} 
 		

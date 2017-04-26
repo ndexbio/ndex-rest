@@ -95,6 +95,7 @@ public class NdexRestApi extends Application
         _providers.add(new NdexPreZippedInterceptor());
         CorsFilter corsFilter = new CorsFilter();
         corsFilter.getAllowedOrigins().add("*");
+        corsFilter.setAllowCredentials(true);
         _providers.add( corsFilter);
     }
     

@@ -31,21 +31,30 @@
 package org.ndexbio.rest;
 
 import java.io.IOException;
+import java.sql.SQLException;
+import java.util.List;
 import java.util.Timer;
 import java.util.logging.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.task.ClientTaskProcessor;
 import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.NdexSystemTask;
+import org.ndexbio.task.NdexTask;
 import org.ndexbio.task.SystemTaskProcessor;
+
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 
 public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	
@@ -112,8 +121,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			} */
 			
 			// find tasks that needs to be processed in system queue
-	//		populateSystemQueue();
-			populateUserQueue();
+			populateQueuedTasksFromDB();
 
 			systemTaskProcessor = new SystemTaskProcessor();
 			clientTaskProcessor = new ClientTaskProcessor();
@@ -206,14 +214,20 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	} */
 
 	
-	private static void populateUserQueue() throws NdexException {
-	/*	try ( TaskDocDAO taskDAO = new TaskDocDAO(NdexDatabase.getInstance().getAConnection())) {
-			Collection<Task> list =taskDAO.getUnfinishedTasks(); 
+	private static void populateQueuedTasksFromDB() throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+		try ( TaskDAO taskDAO = new TaskDAO()) {
+			List<Task> list =taskDAO.getQueuedTasks(); 
 			for ( Task t : list) {
-				NdexServerQueue.INSTANCE.addUserTask(t);
+				if ( t.getTaskOwnerId()!=null)
+					NdexServerQueue.INSTANCE.addUserTask(NdexTask.createUserTask(t));
+				else {
+				   NdexSystemTask sysTask = NdexSystemTask.createSystemTask(t);
+				   if (sysTask !=null)
+					   NdexServerQueue.INSTANCE.addSystemTask(sysTask);
+				}
 			}
-			logger.info (list.size() + " unfinished user tasks found for user task queue.");
-		}  */
+			logger.info (list.size() + " previously queued tasks were added to the queue.");
+		}  
 	}
 	
 
