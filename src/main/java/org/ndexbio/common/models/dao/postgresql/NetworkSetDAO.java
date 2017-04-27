@@ -39,7 +39,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 
 	private void checkDuplicateName(String name, UUID ownerId) throws SQLException, DuplicateObjectException {
 		
-		String sqlStr = "select 1 from network_set where  owner_id = ? and name =?";
+		String sqlStr = "select 1 from network_set where  owner_id = ? and name =? and is_deleted = false";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, ownerId);
 			p.setString(2, name);
