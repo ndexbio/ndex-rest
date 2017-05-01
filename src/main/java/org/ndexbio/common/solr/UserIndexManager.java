@@ -69,7 +69,7 @@ public class UserIndexManager {
 	
 	public UserIndexManager() {
 		solrUrl = Configuration.getInstance().getSolrURL();
-		client = new HttpSolrClient(solrUrl);
+		client = new HttpSolrClient.Builder(solrUrl).build();
 		//doc = new SolrInputDocument();
 
 	}

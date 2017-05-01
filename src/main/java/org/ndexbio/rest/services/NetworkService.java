@@ -123,6 +123,7 @@ import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NetworkExportTask;
 import org.ndexbio.task.SolrTaskDeleteNetwork;
+import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -343,7 +344,7 @@ public class NetworkService extends NdexService {
 			if ( !daoNew.networkIsValid(networkUUID))
 				throw new InvalidNetworkException();
 			
-			int i = daoNew.setNetworkProperties(networkUUID, properties,false);
+			int i = daoNew.setNetworkProperties(networkUUID, properties);
 
             //DW: Handle provenance
 
@@ -398,6 +399,9 @@ public class NetworkService extends NdexService {
 			
 			daoNew.unlockNetwork(networkUUID);
             
+			// update the solr Index
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true));
+
    			return i;
 		} catch (Exception e) {
 			//logger.severe("Error occurred when update network properties: " + e.getMessage());
@@ -966,6 +970,9 @@ public class NetworkService extends NdexService {
 			
 			int count = networkDao.revokeUserPrivilege(UUID.fromString(networkId), UUID.fromString(userUUID));
             networkDao.commit();
+            
+			// update the solr Index
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(UUID.fromString(networkId),true));
     		logger.info("[end: Removed any permissions for network {} for user {}]", networkId, userUUID);
             return count;
 		} 
@@ -995,6 +1002,10 @@ public class NetworkService extends NdexService {
 			
 			int count = networkDao.revokeGroupPrivilege(UUID.fromString(networkId), UUID.fromString(groupUUID));
             networkDao.commit();
+            
+            // update the solr Index
+            NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(UUID.fromString(networkId),true));
+
     		logger.info("[end: Removed any permissions for network {} for group {}]", networkId, groupUUID);
             return count;
 		} 
@@ -1092,6 +1103,10 @@ public class NetworkService extends NdexService {
 	        int count = networkDao.grantPrivilegeToUser(networkId, UUID.fromString(userIdStr), permission);
 	        			//networkDao.grantPrivilegeToGroup(networkId, membership.getMemberUUID(), membership.getPermissions());
 			networkDao.commit();
+			
+			// update the solr Index
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true));
+
 			logger.info("[end: Updated membership for network {}]", networkId);
 	        return count;
 		} 
@@ -1132,6 +1147,10 @@ public class NetworkService extends NdexService {
 
 	        int count = networkDao.grantPrivilegeToGroup(networkId, UUID.fromString(groupIdStr), permission);
 			networkDao.commit();
+			
+			// update the solr Index
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true));
+			
 			logger.info("[end: Updated membership for network {}]", networkId);
 	        return count;
 		} 
@@ -1286,8 +1305,11 @@ public class NetworkService extends NdexService {
 					g.reCreateCXFile();
 					
 					networkDao.unlockNetwork(networkUUID);
-					//	networkDao.commit();
-				} catch ( SolrServerException | SQLException | IOException | IllegalArgumentException |NdexException e ) {
+					
+					// update the solr Index
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true));					
+					
+				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
 					try {
 						networkDao.unlockNetwork(networkUUID);
@@ -1756,7 +1778,7 @@ public class NetworkService extends NdexService {
 			@PathParam("parameter") final String parameter,
 			@PathParam("value")     final String value)
 
-			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
+			throws IllegalArgumentException, NdexException, SQLException, IOException {
 				    
 			try (NetworkDAO networkDao = new NetworkDAO()) {
 				UUID networkId = UUID.fromString(networkIdStr);
@@ -1778,6 +1800,8 @@ public class NetworkService extends NdexService {
 							  if ( parameter.toLowerCase().equals("visibility")) {
 								  networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf(value));
 								  networkDao.unlockNetwork(networkId);		
+									// update the solr Index
+									NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true));
 								  return ;
 							  } /*else if ( parameter.toLowerCase().equals("display")) {
 								  boolean bv = Boolean.parseBoolean(value);

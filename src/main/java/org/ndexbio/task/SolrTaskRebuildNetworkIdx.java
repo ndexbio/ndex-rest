@@ -27,11 +27,16 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 //private static Logger logger = Logger.getLogger(CXNetworkLoadingTask.class.getName());
 	
 	private UUID networkId;
-    private static final TaskType taskType = TaskType.SYS_SOLR_REBUILD_NETWORK_INDEX;
+	private boolean onlyGlobalIndex;
 	
-	public SolrTaskRebuildNetworkIdx (UUID networkUUID) {
+    private static final TaskType taskType = TaskType.SYS_SOLR_REBUILD_NETWORK_INDEX;
+    public static final String AttrGlobalOnly = "globalOnly";
+    
+	
+	public SolrTaskRebuildNetworkIdx (UUID networkUUID, boolean globalOnly) {
 		super();
 		this.networkId = networkUUID;
+		this.onlyGlobalIndex = globalOnly;
 	}
 	
 	@Override
@@ -40,29 +45,22 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 			NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
 			
 			try (NetworkDAO dao = new NetworkDAO()) {
-				  NetworkSummary summary = dao.getNetworkSummaryById(networkId);
+
+				NetworkSummary summary = dao.getNetworkSummaryById(networkId);
 				  if (summary == null)
 					  throw new NdexException ("Network "+ networkId + " not found in the server." );
-				  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+				  
+				  //drop the old ones.
+				  globalIdx.deleteNetwork(networkId.toString());
 
-					  //drop the old ones.
-					  globalIdx.deleteNetwork(networkId.toString());
-		  
-					  try {
-							idx2.dropIndex();
-					  } catch (IOException | SolrServerException | NdexException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-	//						logger.warn("Warning: Failed to delete node Index for network " + networkId.toString());
-					  }		
-					
-	//				  logger.info("Existing indexes deleted.");
-				  	
-					  idx2.createIndex();
-					  idx2.close();
+				  if ( !onlyGlobalIndex)  {
+					  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+						  idx2.dropIndex();
+						  idx2.createIndex();
+						  idx2.close();
+				  		}
 				  }
 				
-	//			  logger.info("Solr index for query created.");
 				  
 				  // build the solr document obj
 				  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkId);
@@ -114,7 +112,6 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 									
 					globalIdx.commit();
 					
-		//			logger.info("Solr index of network " + networkId + " created.");
 				} 
 
 	}
@@ -124,6 +121,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 	public Task createTask() {
 		Task t = super.createTask();
 		t.setResource(networkId.toString());
+		t.getAttributes().put(AttrGlobalOnly, this.onlyGlobalIndex);
 		return t;
 	}
 

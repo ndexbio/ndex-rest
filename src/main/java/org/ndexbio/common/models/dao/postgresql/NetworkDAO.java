@@ -829,8 +829,8 @@ public class NetworkDAO extends NdexDBDAO {
      * @throws SolrServerException 
      * @throws SQLException 
 	 */
-	public int setNetworkProperties (UUID networkId, Collection<NdexPropertyValuePair> properties, boolean ignoreIndex
-			 ) throws ObjectNotFoundException, NdexException, SolrServerException, IOException, SQLException {
+	public int setNetworkProperties (UUID networkId, Collection<NdexPropertyValuePair> properties
+			) throws ObjectNotFoundException, NdexException, SolrServerException, IOException, SQLException {
 
 		//filter out the source format attribute.
 		List<NdexPropertyValuePair> props = new ArrayList<>(properties.size());
@@ -860,10 +860,10 @@ public class NetworkDAO extends NdexDBDAO {
 
 		
 		// update the solr Index
-		if (!ignoreIndex) {
+	/*	if (!ignoreIndex) {
 			NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
 			globalIdx.updateNetworkProperties(networkId.toString(), props, updateTime);
-		}
+		} */
 		return props.size();
 	}
 	
@@ -1019,7 +1019,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	
-	public void updateNetworkProfile(UUID networkId, Map<String,String> newValues) throws NdexException, SolrServerException, IOException, SQLException {
+	public void updateNetworkProfile(UUID networkId, Map<String,String> newValues) throws NdexException, SQLException {
 	
 	    	 //update db
 		    String sqlStr = "update network set ";
@@ -1043,9 +1043,9 @@ public class NetworkDAO extends NdexDBDAO {
 		    }
 		    
 	    	//update solr index
-	    	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+	//    	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
 
-	    	networkIdx.updateNetworkProfile(networkId.toString(), newValues); 
+	//    	networkIdx.updateNetworkProfile(networkId.toString(), newValues); 
 		
 	}
 	
@@ -1082,7 +1082,7 @@ public class NetworkDAO extends NdexDBDAO {
 		 }
 	}
 	
-	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException, SolrServerException, IOException {
+	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException {
 		 String sqlStr = "update network set visibility = '" + v.toString() + "' where \"UUID\" = ? and is_deleted=false and islocked=false";
 		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			 pst.setObject(1, networkId);
@@ -1092,9 +1092,9 @@ public class NetworkDAO extends NdexDBDAO {
 		 }
 		    	  	
 		 //update solr index
-		 NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+	/*	 NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
 
-		 networkIdx.updateNetworkVisibility(networkId.toString(), v.toString()); 
+		 networkIdx.updateNetworkVisibility(networkId.toString(), v.toString()); */
 		    			
 	}
 	
@@ -1295,9 +1295,9 @@ public class NetworkDAO extends NdexDBDAO {
         
         commit();
 		//update solr index
-		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+	//	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
 		
-		networkIdx.grantNetworkPermission(networkUUID.toString(), groupUUID.toString(), permission, p, false); 
+	//	networkIdx.grantNetworkPermission(networkUUID.toString(), groupUUID.toString(), permission, p, false); 
                
     	return 1;
     }
@@ -1350,7 +1350,7 @@ public class NetworkDAO extends NdexDBDAO {
     		}
     		commit();
     //		networkIdx.revokeNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.ADMIN, true);
-    		networkIdx.grantNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.WRITE, Permissions.ADMIN, true);
+   // 		networkIdx.grantNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.WRITE, Permissions.ADMIN, true);
     		
     	} else {
     		String sql = "insert into user_network_membership ( user_id,network_id, permission_type) values (?,?,'"+ permission.toString() + "') "
@@ -1364,7 +1364,7 @@ public class NetworkDAO extends NdexDBDAO {
     	}
 
 		//update solr index	
-		networkIdx.grantNetworkPermission(networkUUID.toString(), newUser.getUserName(), permission, p,true); 
+	//	networkIdx.grantNetworkPermission(networkUUID.toString(), newUser.getUserName(), permission, p,true); 
                
     	return 1;
     }
@@ -1391,8 +1391,8 @@ public class NetworkDAO extends NdexDBDAO {
         			Group g = dao.getGroupById(groupUUID);
         			
         			//update solr index
-            		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getGroupName(), p, false);
+            /*		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getGroupName(), p, false); */
         		}               
         	} 
         	return c;	
@@ -1420,9 +1420,9 @@ public class NetworkDAO extends NdexDBDAO {
         		try (UserDAO dao = new UserDAO()) {
         			User g = dao.getUserById(userUUID, true);
         			
-        			//update solr index
+        	/*		//update solr index
             		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getUserName(), p, true);
+            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getUserName(), p, true); */
         		}               
         	} 
         	return c;	

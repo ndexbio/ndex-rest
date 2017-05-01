@@ -33,11 +33,8 @@ package org.ndexbio.common.solr;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Date;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.TreeSet;
 
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrQuery.ORDER;
@@ -65,7 +61,6 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.util.TermUtilities;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
@@ -132,7 +127,7 @@ public class NetworkGlobalIndexManager {
 	
 	public NetworkGlobalIndexManager() {
 		solrUrl = Configuration.getInstance().getSolrURL();
-		client = new HttpSolrClient(solrUrl);
+		client = new HttpSolrClient.Builder(solrUrl).build();
 		doc = new SolrInputDocument();
 /*		if ( attTable == null) { 
 			attTable = new HashMap<>(otherAttributes.size());
@@ -424,7 +419,7 @@ public class NetworkGlobalIndexManager {
 
 	}
 	
-	public void updateNetworkProperties (String networkId, Collection<NdexPropertyValuePair> props, Date updateTime) throws SolrServerException, IOException {
+/*	public void updateNetworkProperties (String networkId, Collection<NdexPropertyValuePair> props, Date updateTime) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		SolrInputDocument tmpdoc = new SolrInputDocument();
 		tmpdoc.addField(UUID, networkId);
@@ -456,10 +451,10 @@ public class NetworkGlobalIndexManager {
 		docs.add(tmpdoc);
 		client.add(docs);
 		client.commit(false, true,true);
-	}
+	} */
 	
 	
-	public void updateNetworkProfile(String networkId, Map<String,String> table) throws SolrServerException, IOException {
+/*	public void updateNetworkProfile(String networkId, Map<String,String> table) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		SolrInputDocument tmpdoc = new SolrInputDocument();
 		tmpdoc.addField(UUID, networkId);
@@ -496,9 +491,9 @@ public class NetworkGlobalIndexManager {
 		client.add(docs);
 		client.commit(false,true,true);
 
-	}
+	} */
 	
-	public void updateNetworkVisibility(String networkId, String vt) throws SolrServerException, IOException {
+/*	public void updateNetworkVisibility(String networkId, String vt) throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		SolrInputDocument tmpdoc = new SolrInputDocument();
 		tmpdoc.addField(UUID, networkId);
@@ -514,11 +509,11 @@ public class NetworkGlobalIndexManager {
 		client.add(docs);
 //		client.commit(false,true,true);
 
-	}
+	} */
 	
 		
 	
-	public void revokeNetworkPermission(String networkId, String accountName, Permissions p, boolean isUser) 
+/*	public void revokeNetworkPermission(String networkId, String accountName, Permissions p, boolean isUser) 
 			throws NdexException, SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		SolrInputDocument tmpdoc = new SolrInputDocument();
@@ -549,9 +544,9 @@ public class NetworkGlobalIndexManager {
 		client.add(docs);
 	//	client.commit(false,true,true);
 
-	}
+	} */
 	
-	public void grantNetworkPermission(String networkId, String accountName, Permissions newPermission, 
+/*	public void grantNetworkPermission(String networkId, String accountName, Permissions newPermission, 
 			 Permissions oldPermission, boolean isUser) 
 			throws NdexException, SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
@@ -605,7 +600,7 @@ public class NetworkGlobalIndexManager {
 	//	client.commit(false,true,true);
 
 	}
-	
+	*/
 	
 	protected static List<String> getIndexableString(String termString) {
 		

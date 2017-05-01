@@ -63,7 +63,7 @@ public class GroupIndexManager {
 	
 	public GroupIndexManager() {
 		solrUrl = Configuration.getInstance().getSolrURL();
-		client = new HttpSolrClient(solrUrl);
+		client = new HttpSolrClient.Builder(solrUrl).build();
 	}
 	
 	public void createCoreIfNotExists() throws SolrServerException, IOException, NdexException {

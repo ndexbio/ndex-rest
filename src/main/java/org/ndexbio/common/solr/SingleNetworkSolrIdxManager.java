@@ -81,7 +81,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	public SingleNetworkSolrIdxManager(String networkUUID) {
 		coreName = networkUUID;
 		solrUrl = Configuration.getInstance().getSolrURL();
-		client = new HttpSolrClient(solrUrl);
+		client = new HttpSolrClient.Builder(solrUrl).build();
 	}
 	
 	public SolrDocumentList getNodeIdsByQuery(String query, int limit) throws SolrServerException, IOException {
@@ -132,7 +132,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			client.setBaseURL(solrUrl);
 			CoreAdminRequest.unloadCore(coreName, true, true, client);
 		} catch (HttpSolrClient.RemoteSolrException e4) {
-			System.out.println(e4.getMessage());
+			System.out.println(e4.code() + " - " + e4.getMessage());
 			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
 				e4.printStackTrace();
 				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());

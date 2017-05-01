@@ -86,6 +86,8 @@ import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.security.OAuthTokenRenewRequest;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -958,6 +960,9 @@ public class UserServiceV2 extends NdexService {
 					else 
 						ndao.grantPrivilegeToGroup(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission());
 					ndao.commit();
+					
+					// update the solr Index
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),true));
 				}
 			} else {
 				reqs.setResponse(ResponseType.DECLINED);
