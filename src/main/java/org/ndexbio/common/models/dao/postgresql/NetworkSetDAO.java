@@ -55,7 +55,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 		
 		checkDuplicateName(name, ownerId);
 		
-		String sqlStr = "update network_set set modification_time = ?, name = ?, description = ?  where \"UUID\"=?";
+		String sqlStr = "update network_set set modification_time = ?, name = ?, description = ?  where \"UUID\"=? and is_deleted=false";
 				
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setTimestamp(1, t);
