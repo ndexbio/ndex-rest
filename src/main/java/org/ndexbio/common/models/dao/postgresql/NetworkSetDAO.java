@@ -14,6 +14,7 @@ import javax.xml.bind.DatatypeConverter;
 
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NetworkSet;
 
 public class NetworkSetDAO extends NdexDBDAO {
@@ -100,11 +101,13 @@ public class NetworkSetDAO extends NdexDBDAO {
 		
 	}
 	
-	public NetworkSet getNetworkSet(UUID setId, UUID userId) throws SQLException, ObjectNotFoundException {
+	public NetworkSet getNetworkSet(UUID setId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException {
 		
 		NetworkSet result = new NetworkSet();
-		String sqlStr = "select creation_time, modification_time, owner_id, name, description from network_set  where \"UUID\"=? and is_deleted=false";
-				
+		String sqlStr = "select creation_time, modification_time, owner_id, name, description, access_key, access_key_is_on from network_set  where \"UUID\"=? and is_deleted=false";
+		
+		String dbAccessKey = null;
+		boolean dbKeyIsOn;
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, setId);
 			try ( ResultSet rs = p.executeQuery()) {
@@ -115,12 +118,21 @@ public class NetworkSetDAO extends NdexDBDAO {
 					result.setOwnerId((UUID)rs.getObject(3));
 					result.setName(rs.getString(4));
 					result.setDescription(rs.getString(5));
+					dbAccessKey = rs.getString(6);
+					dbKeyIsOn = rs.getBoolean(7);
 				} else
 					throw new ObjectNotFoundException("Network set" + setId + " not found in db.");
 			}
 		}
 		
-		sqlStr = "select nm.network_id from network_set_member nm, network n where nm.set_id =? and n.\"UUID\"=nm.network_id and " + NetworkDAO.createIsReadableConditionStr(userId);
+		boolean keyIsValid = false;
+		if (dbKeyIsOn && accessKey!= null && dbAccessKey.equals(accessKey))
+			keyIsValid = true;
+		if (!keyIsValid && accessKey!=null)
+			throw new UnauthorizedOperationException("In valid network set access key.");
+		
+		sqlStr = "select nm.network_id from network_set_member nm, network n where nm.set_id =? and n.\"UUID\"=nm.network_id and " + 
+				( keyIsValid ? " true" : NetworkDAO.createIsReadableConditionStr(userId)) ;
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, setId);

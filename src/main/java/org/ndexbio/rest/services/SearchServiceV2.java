@@ -249,6 +249,7 @@ public class SearchServiceV2 extends NdexService {
             "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#queryNetwork\">here</a>.")
 	public Response queryNetworkAsCX(
 			@PathParam("networkId") final String networkIdStr,
+			@QueryParam("accesskey") String accessKey,
 			final CXSimplePathQuery queryParameters
 			) throws NdexException, SQLException   {
 		
@@ -256,7 +257,7 @@ public class SearchServiceV2 extends NdexService {
 
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
-			if ( !dao.isReadable(networkId, userId)) {
+			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
 		}   
@@ -294,6 +295,7 @@ public class SearchServiceV2 extends NdexService {
             "specified in a POSTed JSON query object. " )
 	public Response advanceQuery(
 			@PathParam("networkId") final String networkIdStr,
+			@QueryParam("accesskey") String accessKey,			
 			final EdgeCollectionQuery queryParameters
 			) throws NdexException, SQLException   {
 		
@@ -304,7 +306,7 @@ public class SearchServiceV2 extends NdexService {
 
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
-			if ( !dao.isReadable(networkId, userId)) {
+			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
 		}   

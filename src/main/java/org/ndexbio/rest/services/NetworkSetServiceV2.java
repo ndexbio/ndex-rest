@@ -18,8 +18,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
-
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
@@ -107,13 +105,14 @@ public class NetworkSetServiceV2 extends NdexService {
 	@PermitAll
 	@Path("/{networksetid}")
 	@Produces("application/json")
-	public NetworkSet getNetworkSet(@PathParam("networksetid") final String networkSetIdStr)
+	public NetworkSet getNetworkSet(@PathParam("networksetid") final String networkSetIdStr,
+			@QueryParam("accesskey") String accessKey)
 			throws ObjectNotFoundException, NdexException, SQLException {
 		
 		UUID setId = UUID.fromString(networkSetIdStr);
 		
 		try (NetworkSetDAO dao = new NetworkSetDAO()) {
-			NetworkSet nset = dao.getNetworkSet(setId, getLoggedInUserId());
+			NetworkSet nset = dao.getNetworkSet(setId, getLoggedInUserId(), accessKey);
 			return nset;
 		} 
 	}
