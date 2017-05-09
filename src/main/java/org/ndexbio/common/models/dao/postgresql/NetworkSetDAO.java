@@ -1,5 +1,6 @@
 package org.ndexbio.common.models.dao.postgresql;
 
+import java.security.SecureRandom;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -8,6 +9,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+
+import javax.xml.bind.DatatypeConverter;
 
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -200,5 +203,67 @@ public class NetworkSetDAO extends NdexDBDAO {
 		return result;
 	}
 
+	
+	public String getNetworkSetAccessKey( UUID networkSetId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select access_key, access_key_is_on from network_set where \"UUID\" = ? and is_deleted=false";
+		
+		String oldKey = null;
+		boolean keyIsOn = false;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkSetId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					oldKey = rs.getString(1);
+					keyIsOn = rs.getBoolean(2);
+				} else
+					throw new ObjectNotFoundException("Network" , networkSetId);
+				
+			}
+		}
+	
+		if ( oldKey !=null ) {
+			if ( keyIsOn)
+				return oldKey;
+				
+			//update db flag
+			sqlStr = "update network_set set access_key_is_on = true where \"UUID\"=?";
+			try ( PreparedStatement pst = db.prepareStatement(sqlStr)) {
+	        	pst.setObject(1, networkSetId);
+	        	pst.executeUpdate();
+	        }	
+			commit();
+			return oldKey;
+				
+		}
+		
+		// create new Key
+		 SecureRandom random = new SecureRandom();
+	     byte bytes[] = new byte[256/8];
+	     random.nextBytes(bytes);
+	     String newKey= DatatypeConverter.printHexBinary(bytes).toLowerCase();
+		
+	     //update db record
+		 sqlStr = "update network_set set access_key_is_on = true, access_key=? where \"UUID\"=?";
+		 try ( PreparedStatement pst = db.prepareStatement(sqlStr)) {
+				pst.setString(1, newKey);
+	        	pst.setObject(2, networkSetId);
+	        	pst.executeUpdate();
+	      }	
+	      commit();
+	     
+	     return newKey;
+	}
+
+	
+	public void disableNetworkSetAccessKey( UUID networkSetId) throws SQLException {
+		//update db flag
+		String sqlStr = "update network_set set access_key_is_on = false where \"UUID\"=?";
+		try ( PreparedStatement pst = db.prepareStatement(sqlStr)) {
+	        pst.setObject(1, networkSetId);
+	        pst.executeUpdate();
+	    }	
+	}
+	
 	
 }

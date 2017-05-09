@@ -15,9 +15,11 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
+import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
@@ -162,5 +164,41 @@ public class NetworkSetServiceV2 extends NdexService {
 			
 		} 
 	}
+	
+	
+	@GET
+	@Path("/{networksetid}/accesskey")
+	@Produces("text/plain")
+	public String getNetworkSetAccessKey(@PathParam("networksetid") final String networkSetIdStr)
+			throws IllegalArgumentException, NdexException, SQLException {
+  	
+		UUID networkSetId = UUID.fromString(networkSetIdStr);
+    	try (NetworkSetDAO dao = new NetworkSetDAO()) {
+    		if ( ! dao.isNetworkSetOwner(networkSetId,  getLoggedInUserId()))
+                throw new UnauthorizedOperationException("User is not the owner of this network set.");
+
+    		return dao.getNetworkSetAccessKey(networkSetId);
+    	}
+	}  
+		
+	@PUT
+	@Path("/{networksetid}/accesskey")
+	
+	public void disableNetworkAccessKey(@PathParam("networksetid") final String networkSetIdStr,
+			@QueryParam("action") String action)
+			throws IllegalArgumentException, NdexException, SQLException {
+  	
+		UUID networkSetId = UUID.fromString(networkSetIdStr);
+		if ( ! action.equalsIgnoreCase("disable"))
+			throw new NdexException("Value of 'action' paramter can only be 'disable'");
+		
+    	try (NetworkSetDAO dao = new NetworkSetDAO()) {
+    		if ( ! dao.isNetworkSetOwner(networkSetId, getLoggedInUserId()))
+                throw new UnauthorizedOperationException("User is not the owner of this network set.");
+
+    		dao.disableNetworkSetAccessKey(networkSetId);
+    		dao.commit();
+    	}
+	}  
 	
 }
