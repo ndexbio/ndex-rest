@@ -15,7 +15,6 @@ import java.util.UUID;
 
 import javax.xml.bind.DatatypeConverter;
 
-import org.ndexbio.common.NdexClasses;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
