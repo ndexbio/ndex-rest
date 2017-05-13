@@ -1070,7 +1070,7 @@ public class UserServiceV2 extends NdexService {
 		@PermitAll
 
 		public  List<NetworkSet> getNetworksetsByUserId(
-					 @PathParam("userid") String userIdStr) throws SQLException {
+					 @PathParam("userid") String userIdStr) throws SQLException, JsonParseException, JsonMappingException, IOException {
 				
 			UUID userId = UUID.fromString(userIdStr);
 					

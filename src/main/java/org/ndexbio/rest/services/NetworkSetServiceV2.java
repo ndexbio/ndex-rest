@@ -1,5 +1,6 @@
 package org.ndexbio.rest.services;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
@@ -27,6 +28,10 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NetworkSet;
 import org.ndexbio.rest.Configuration;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+
 
 @Path("/v2/networkset")
 public class NetworkSetServiceV2 extends NdexService {
@@ -41,14 +46,14 @@ public class NetworkSetServiceV2 extends NdexService {
 	@Produces("text/plain")
 	public Response createNetworkSet(final NetworkSet newNetworkSet)
 			throws  DuplicateObjectException,
-			NdexException,  SQLException {
+			NdexException,  SQLException, JsonProcessingException {
 	
 		if ( newNetworkSet.getName() == null || newNetworkSet.getName().length() == 0) 
 			throw new NdexException ("Network set name is required.");
 		
 		try (NetworkSetDAO dao = new NetworkSetDAO()){
 			UUID setId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-			dao.createNetworkSet(setId, newNetworkSet.getName(), newNetworkSet.getDescription(), getLoggedInUserId());
+			dao.createNetworkSet(setId, newNetworkSet.getName(), newNetworkSet.getDescription(), getLoggedInUserId(), newNetworkSet.getProperties());
 			dao.commit();	
 			
 			URI l = new URI (Configuration.getInstance().getHostURI()  + 
@@ -66,7 +71,7 @@ public class NetworkSetServiceV2 extends NdexService {
 	public void updateNetworkSet(final NetworkSet newNetworkSet,
 			@PathParam("networksetid") final String id)
 			throws  DuplicateObjectException,
-			NdexException,  SQLException {
+			NdexException,  SQLException, JsonProcessingException {
 	
 		if ( newNetworkSet.getName() == null || newNetworkSet.getName().length() == 0) 
 			throw new NdexException ("Network set name is required.");
@@ -76,7 +81,7 @@ public class NetworkSetServiceV2 extends NdexService {
 			if ( !dao.isNetworkSetOwner(setId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this network set.");
 			
-			dao.updateNetworkSet(setId, newNetworkSet.getName(), newNetworkSet.getDescription(), getLoggedInUserId());
+			dao.updateNetworkSet(setId, newNetworkSet.getName(), newNetworkSet.getDescription(), getLoggedInUserId(),newNetworkSet.getProperties());
 			dao.commit();	
 			return ;
 		} 
@@ -107,7 +112,7 @@ public class NetworkSetServiceV2 extends NdexService {
 	@Produces("application/json")
 	public NetworkSet getNetworkSet(@PathParam("networksetid") final String networkSetIdStr,
 			@QueryParam("accesskey") String accessKey)
-			throws ObjectNotFoundException, NdexException, SQLException {
+			throws ObjectNotFoundException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		UUID setId = UUID.fromString(networkSetIdStr);
 		

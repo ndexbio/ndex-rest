@@ -1,5 +1,6 @@
 package org.ndexbio.common.models.dao.postgresql;
 
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -7,15 +8,24 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.xml.bind.DatatypeConverter;
 
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NetworkSet;
+
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class NetworkSetDAO extends NdexDBDAO {
 
@@ -23,27 +33,34 @@ public class NetworkSetDAO extends NdexDBDAO {
 		super();
 	}
 
-	public void createNetworkSet(UUID setId, String name, String desc, UUID ownerId) throws SQLException, DuplicateObjectException {
+	public void createNetworkSet(UUID setId, String name, String desc, UUID ownerId, Map<String,Object> properties) throws SQLException, DuplicateObjectException, JsonProcessingException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
-		checkDuplicateName(name,ownerId);
+		checkDuplicateName(name,ownerId, null);
 				
-		String sqlStr = "insert into network_set (\"UUID\", creation_time, modification_time, is_deleted, owner_id, name, description) values"
-				+ "(?, ?, ?, false, ?,?, ?) ";
+		String sqlStr = "insert into network_set (\"UUID\", creation_time, modification_time, is_deleted, owner_id, name, description, other_attributes) values"
+				+ "(?, ?, ?, false, ?,?, ?,?  :: jsonb ) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, setId);
 			pst.setTimestamp(2, t);
 			pst.setTimestamp(3, t);
 			pst.setObject(4, ownerId);
 			pst.setString(5, name);
-			pst.setString(6, desc);			
+			pst.setString(6, desc);		
+			
+			ObjectMapper mapper = new ObjectMapper();
+	        String s = properties ==null ? null : mapper.writeValueAsString(properties);
+			pst.setString(7, s);
+
 			pst.executeUpdate();
 		}	
 	}
 
-	private void checkDuplicateName(String name, UUID ownerId) throws SQLException, DuplicateObjectException {
+	private void checkDuplicateName(String name, UUID ownerId, UUID setId) throws SQLException, DuplicateObjectException {
 		
 		String sqlStr = "select 1 from network_set where  owner_id = ? and name =? and is_deleted = false";
+		if (setId !=null)
+			sqlStr += " and \"UUID\" <> '" + setId + "' :: uuid";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, ownerId);
 			p.setString(2, name);
@@ -54,18 +71,23 @@ public class NetworkSetDAO extends NdexDBDAO {
 		}
 	}
 	
-	public void updateNetworkSet(UUID setId, String name, String desc, UUID ownerId) throws SQLException, DuplicateObjectException {
+	public void updateNetworkSet(UUID setId, String name, String desc, UUID ownerId, Map<String,Object> properties) throws SQLException, DuplicateObjectException, JsonProcessingException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
-		checkDuplicateName(name, ownerId);
+		checkDuplicateName(name, ownerId, setId);
 		
-		String sqlStr = "update network_set set modification_time = ?, name = ?, description = ?  where \"UUID\"=? and is_deleted=false";
+		String sqlStr = "update network_set set modification_time = ?, name = ?, description = ?, other_attributes=? :: jsonb where \"UUID\"=? and is_deleted=false";
 				
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setTimestamp(1, t);
 			pst.setString(2, name);
 			pst.setString(3, desc);
-			pst.setObject(4, setId);
+			
+			ObjectMapper mapper = new ObjectMapper();
+	        String s = properties ==null ? null : mapper.writeValueAsString(properties);
+			pst.setString(4, s);
+
+			pst.setObject(5, setId);
 			pst.executeUpdate();
 		}	
 	}
@@ -101,10 +123,10 @@ public class NetworkSetDAO extends NdexDBDAO {
 		
 	}
 	
-	public NetworkSet getNetworkSet(UUID setId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException {
+	public NetworkSet getNetworkSet(UUID setId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
 		NetworkSet result = new NetworkSet();
-		String sqlStr = "select creation_time, modification_time, owner_id, name, description, access_key, access_key_is_on from network_set  where \"UUID\"=? and is_deleted=false";
+		String sqlStr = "select creation_time, modification_time, owner_id, name, description, access_key, access_key_is_on, other_attributes from network_set  where \"UUID\"=? and is_deleted=false";
 		
 		String dbAccessKey = null;
 		boolean dbKeyIsOn;
@@ -120,6 +142,17 @@ public class NetworkSetDAO extends NdexDBDAO {
 					result.setDescription(rs.getString(5));
 					dbAccessKey = rs.getString(6);
 					dbKeyIsOn = rs.getBoolean(7);
+					
+					String propStr = rs.getString(8);
+					
+					if ( propStr != null) {
+						ObjectMapper mapper = new ObjectMapper(); 
+						TypeReference<HashMap<String,Object>> typeRef 
+				            = new TypeReference<HashMap<String,Object>>() {};
+
+				            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
+				            result.setProperties(o);
+					}
 				} else
 					throw new ObjectNotFoundException("Network set" + setId + " not found in db.");
 			}
@@ -176,11 +209,11 @@ public class NetworkSetDAO extends NdexDBDAO {
 	}
 
 	
-	public List<NetworkSet> getNetworkSetsByUserId(UUID userId, UUID signedInUserId) throws SQLException {
+	public List<NetworkSet> getNetworkSetsByUserId(UUID userId, UUID signedInUserId) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		List<NetworkSet> result = new ArrayList<>();
 		
-		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description from network_set  where owner_id=? and is_deleted=false";
+		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description, other_attributes from network_set  where owner_id=? and is_deleted=false";
 				
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, userId);
@@ -193,6 +226,17 @@ public class NetworkSetDAO extends NdexDBDAO {
 					entry.setOwnerId(userId);
 					entry.setName(rs.getString(4));
 					entry.setDescription(rs.getString(5));
+					
+					String propStr = rs.getString(8);
+					
+					if ( propStr != null) {
+						ObjectMapper mapper = new ObjectMapper(); 
+						TypeReference<HashMap<String,Object>> typeRef 
+				            = new TypeReference<HashMap<String,Object>>() {};
+
+				            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
+				            entry.setProperties(o);
+					}
 					result.add(entry);
 				} 
 			}
