@@ -226,7 +226,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 					entry.setName(rs.getString(4));
 					entry.setDescription(rs.getString(5));
 					
-					String propStr = rs.getString(8);
+					String propStr = rs.getString(6);
 					
 					if ( propStr != null) {
 						ObjectMapper mapper = new ObjectMapper(); 
