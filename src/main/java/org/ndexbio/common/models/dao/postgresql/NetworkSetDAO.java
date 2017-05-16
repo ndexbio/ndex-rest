@@ -214,7 +214,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 		
 		List<NetworkSet> result = new ArrayList<>();
 		
-		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description, other_attributes from network_set  where owner_id=? and is_deleted=false";
+		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description, other_attributes,showcased from network_set  where owner_id=? and is_deleted=false";
 				
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, userId);
@@ -238,6 +238,10 @@ public class NetworkSetDAO extends NdexDBDAO {
 				            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
 				            entry.setProperties(o);
 					}
+					
+					entry.setShowcased(rs.getBoolean(7));
+					entry.setOwnerId(userId);
+
 					result.add(entry);
 				} 
 			}
