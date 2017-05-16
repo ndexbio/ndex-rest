@@ -37,8 +37,8 @@ public class NetworkSetDAO extends NdexDBDAO {
 		
 		checkDuplicateName(name,ownerId, null);
 				
-		String sqlStr = "insert into network_set (\"UUID\", creation_time, modification_time, is_deleted, owner_id, name, description, other_attributes) values"
-				+ "(?, ?, ?, false, ?,?, ?,?  :: jsonb ) ";
+		String sqlStr = "insert into network_set (\"UUID\", creation_time, modification_time, is_deleted, owner_id, name, description, other_attributes, showcased) values"
+				+ "(?, ?, ?, false, ?,?, ?,?  :: jsonb, false ) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, setId);
 			pst.setTimestamp(2, t);
@@ -125,7 +125,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 	public NetworkSet getNetworkSet(UUID setId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
 		NetworkSet result = new NetworkSet();
-		String sqlStr = "select creation_time, modification_time, owner_id, name, description, access_key, access_key_is_on, other_attributes from network_set  where \"UUID\"=? and is_deleted=false";
+		String sqlStr = "select creation_time, modification_time, owner_id, name, description, access_key, access_key_is_on, other_attributes,showcased from network_set  where \"UUID\"=? and is_deleted=false";
 		
 		String dbAccessKey = null;
 		boolean dbKeyIsOn;
@@ -152,6 +152,8 @@ public class NetworkSetDAO extends NdexDBDAO {
 				            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
 				            result.setProperties(o);
 					}
+					
+					result.setShowcased(rs.getBoolean(9));
 				} else
 					throw new ObjectNotFoundException("Network set" + setId + " not found in db.");
 			}
@@ -320,5 +322,16 @@ public class NetworkSetDAO extends NdexDBDAO {
 	    }	
 	}
 	
+	
+	   public void setShowcaseFlag(UUID networkSetId, boolean bv) throws SQLException {
+	      String sql = "update network_set set showcased = ? where \"UUID\"=? and is_deleted=false";
+	      
+	      try ( PreparedStatement pst = db.prepareStatement(sql)) {
+	        	pst.setBoolean(1, bv);
+	        	pst.setObject(2, networkSetId);
+	        	pst.executeUpdate();
+	       }	
+	    	
+	    }
 	
 }

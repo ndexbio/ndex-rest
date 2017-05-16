@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -19,14 +20,21 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
+
+import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.InvalidNetworkException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NetworkSet;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -204,5 +212,36 @@ public class NetworkSetServiceV2 extends NdexService {
     		dao.commit();
     	}
 	}  
+	
+	
+	@PUT
+	@Path("/{networksetid}/systemproperty")
+	@Produces("application/json")
+  
+	public void setNetworkFlag(
+			@PathParam("networksetid") final String networkSetIdStr,
+			final Map<String,Object> parameters)
+
+			throws IllegalArgumentException, NdexException, SQLException {
+		
+			try (NetworkSetDAO dao = new NetworkSetDAO()) {
+				UUID networkSetId = UUID.fromString(networkSetIdStr);
+				
+				if ( ! dao.isNetworkSetOwner(networkSetId, getLoggedInUserId()))
+	                throw new UnauthorizedOperationException("User is not the owner of this network set.");
+			
+				if ( parameters.containsKey("showcase")) {
+						boolean bv = ((Boolean)parameters.get("showcase")).booleanValue();
+						dao.setShowcaseFlag(networkSetId, bv);
+				}
+				
+				dao.commit();
+				return;
+			}
+		    
+	}
+
+	
+	
 	
 }

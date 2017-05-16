@@ -37,9 +37,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -61,7 +65,10 @@ import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedHashMap;
+import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
 import org.apache.http.client.ClientProtocolException;
@@ -332,6 +339,95 @@ public class SearchServiceV2 extends NdexService {
  
         return Response.ok().entity(in).build();
 		
+	}
+	
+	
+	
+	@POST
+	@PermitAll
+	@Path("/network/genes")
+	@Produces("application/json")
+	@ApiDoc("This method returns a list of NetworkSummary objects based on a POSTed query JSON object. " +
+            "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
+            "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
+            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
+	public NetworkSearchResult searchNetworkByGenes(
+			final List<String> query)
+			throws IllegalArgumentException, NdexException {
+
+		Set<String> r = expandGeneSearchTerms(query);
+		StringBuilder lStr = new StringBuilder ();
+		for ( String i : r)  lStr.append( i + " ");
+		
+		SimpleNetworkQuery finalQuery = new SimpleNetworkQuery();
+		finalQuery.setSearchString(lStr.toString());
+		
+		try (NetworkDAO dao = new NetworkDAO()) {
+
+			NetworkSearchResult result = dao.findNetworks(finalQuery, 0, 1000, this.getLoggedInUser());
+			return result;
+
+        } catch (Exception e) {
+        	throw new NdexException(e.getMessage());
+        }
+	}
+	
+	private Set<String> expandGeneSearchTerms(Collection<String> geneSearchTerms) throws NdexException  {
+		
+		Client client = ClientBuilder.newBuilder().build();
+		
+		MultivaluedMap<String, String> formData = new MultivaluedHashMap<String, String>();
+		StringBuilder lStr = new StringBuilder ();
+		
+		for ( String i : geneSearchTerms)  lStr.append( i + ",");
+
+	    formData.add("q", lStr.toString());
+	    formData.add("scopes", "symbol,entrezgene,ensemblgene,alias,uniprot");
+	    formData.add("fields", "symbol,name,taxid,entrezgene,ensembl.gene,alias,uniprot");
+	    formData.add("dotfield", "true");
+
+	//    lStr.append("&scope=symbol,entrezgene,ensemblgene,alias,uniprot&fields=symbol,name,taxid,entrezgene,ensembl.gene,alias,uniprot&dotfield=true");
+		
+        WebTarget target = client.target("http://mygene.info/v3/query");
+        Response response = target.request().post(Entity.form(formData));
+        
+        if ( response.getStatus()!=200) {
+        	Object obj = response.readEntity(Object.class);
+        	throw new NdexException(obj.toString());
+        }
+        
+    //    Object expensionResult = response.readEntity(Object.class);
+   //     System.out.println(expensionResult);
+        List<Map<String,Object>> expensionResult = response.readEntity(new GenericType<List<Map<String,Object>>>() {});
+        Set<String> missList = new HashSet<> ();
+        Set<String> expendedTerms = new HashSet<> ();
+        for ( Map<String,Object> termObj : expensionResult) {
+        	Boolean notFound = (Boolean)termObj.get("notfound");
+        	if ( notFound!=null && notFound.booleanValue()) {
+        		missList.add((String)termObj.get("query"));
+        		continue;
+        	}
+        		
+        	String term = (String)termObj.get("ensembl.gene");
+        	if (term !=null)
+        		expendedTerms.add(term);
+        	
+        	term = (String)termObj.get("symbol");
+        	if ( term !=null)
+        		expendedTerms.add(term);
+        	
+        	Integer id = (Integer) termObj.get("entrezgene");
+        	if ( id !=null)
+        		expendedTerms.add(id.toString());
+        	
+        	List<String> aliases = (List<String>) termObj.get("alias");
+        	if ( aliases !=null) {
+        			expendedTerms.addAll(aliases);
+        	}
+        } 
+        
+        return expendedTerms;
+        
 	}
 
 }
