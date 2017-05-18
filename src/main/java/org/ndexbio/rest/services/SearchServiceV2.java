@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -352,19 +353,40 @@ public class SearchServiceV2 extends NdexService {
             "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
             "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
 	public NetworkSearchResult searchNetworkByGenes(
-			final List<String> query)
+			final SimpleQuery geneQuery,
+			@DefaultValue("0") @QueryParam("start") int skipBlocks,
+			@DefaultValue("100") @QueryParam("size") int blockSize)
 			throws IllegalArgumentException, NdexException {
 
-		Set<String> r = expandGeneSearchTerms(query);
-		StringBuilder lStr = new StringBuilder ();
-		for ( String i : r)  lStr.append( i + " ");
+        String[] query = geneQuery.getSearchString().split("(,|\\s)+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+		Set<String> processedTerms = new HashSet<>(query.length);
+		for ( String q : query) {
+			if ( q.startsWith("\"") && q.endsWith("\"") || q.startsWith("\'") && q.endsWith("\'") )
+				processedTerms.add(q.substring(1, q.length()-1));
+			else 
+				processedTerms.add(q);
+		}
+			
+		if ( processedTerms.size() == 0)
+			return new NetworkSearchResult();
 		
+		Set<String> r = expandGeneSearchTerms(processedTerms);
+		StringBuilder lStr = new StringBuilder ();
+		for ( String os : processedTerms) 
+			lStr.append("\"" + os + "\" ");
+		for ( String i : r) {
+			if (! processedTerms.contains(i))
+				lStr.append( "\"" + i + "\" ");
+			else 
+				System.out.println("term " + i + " is in query, ignoring it.");
+		}
 		SimpleNetworkQuery finalQuery = new SimpleNetworkQuery();
 		finalQuery.setSearchString(lStr.toString());
-		
+		System.out.println("Final search string is ("+ lStr.length()+"): " + lStr.toString());
+
 		try (NetworkDAO dao = new NetworkDAO()) {
 
-			NetworkSearchResult result = dao.findNetworks(finalQuery, 0, 1000, this.getLoggedInUser());
+			NetworkSearchResult result = dao.findNetworks(finalQuery, skipBlocks, blockSize, this.getLoggedInUser());
 			return result;
 
         } catch (Exception e) {
@@ -420,10 +442,20 @@ public class SearchServiceV2 extends NdexService {
         	if ( id !=null)
         		expendedTerms.add(id.toString());
         	
-        	List<String> aliases = (List<String>) termObj.get("alias");
-        	if ( aliases !=null) {
-        			expendedTerms.addAll(aliases);
+        	term = (String) termObj.get("uniprot.Swiss-Prot");
+        	if ( term !=null)
+        		expendedTerms.add(term);
+        	
+        	Object aliasesObj = termObj.get("alias");
+        	if ( aliasesObj !=null) {
+        		if (aliasesObj instanceof String) {
+        			expendedTerms.add((String)aliasesObj);
+        		} else {
+                	expendedTerms.addAll((List<String>) aliasesObj);
+        		}
         	}
+        	
+        	
         } 
         
         return expendedTerms;
