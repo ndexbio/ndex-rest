@@ -405,7 +405,7 @@ public class SearchServiceV2 extends NdexService {
 
 	    formData.add("q", lStr.toString());
 	    formData.add("scopes", "symbol,entrezgene,ensemblgene,alias,uniprot");
-	    formData.add("fields", "symbol,name,taxid,entrezgene,ensembl.gene,alias,uniprot");
+	    formData.add("fields", "symbol,name,taxid,entrezgene,ensembl.gene,alias,uniprot,MGI,RGD,HGNC");
 	    formData.add("dotfield", "true");
 
 	//    lStr.append("&scope=symbol,entrezgene,ensemblgene,alias,uniprot&fields=symbol,name,taxid,entrezgene,ensembl.gene,alias,uniprot&dotfield=true");
@@ -446,20 +446,42 @@ public class SearchServiceV2 extends NdexService {
         	if ( term !=null)
         		expendedTerms.add(term);
         	
-        	Object aliasesObj = termObj.get("alias");
-        	if ( aliasesObj !=null) {
-        		if (aliasesObj instanceof String) {
-        			expendedTerms.add((String)aliasesObj);
-        		} else {
-                	expendedTerms.addAll((List<String>) aliasesObj);
-        		}
-        	}
+        	addTermsToExpensionSet (termObj.get("alias"), expendedTerms);
+        	addTermsToExpensionSet (termObj.get("uniprot.TrEMBL"), expendedTerms);
         	
+        	addSingleTermToExpensionSet (termObj.get("entrezgene"), expendedTerms);
+
+        	addSingleTermToExpensionSet (termObj.get("name"), expendedTerms);
         	
+        	String hgnc = (String)termObj.get("HGNC");
+        	if ( hgnc !=null)
+        		expendedTerms.add("hgnc:" + hgnc);
+        	
+     //   	addSingleTermToExpensionSet (termObj.get("MGI"), expendedTerms);
+
         } 
         
         return expendedTerms;
         
 	}
+	
+	private void addTermsToExpensionSet(Object term, Set<String> expendedTerms) {
+		if ( term !=null) {
+    		if (term instanceof String) {
+    			expendedTerms.add((String)term);
+    		} else {
+            	expendedTerms.addAll((List<String>) term);
+    		}
+    	}
+	}
 
+	private void addSingleTermToExpensionSet(Object term, Set<String> expendedTerms) {
+		if ( term !=null) {
+    		if (term instanceof String) {
+    			expendedTerms.add((String)term);
+    		} else {
+            	expendedTerms.add(term.toString());
+    		}
+    	}
+	}
 }

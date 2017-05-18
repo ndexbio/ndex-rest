@@ -45,6 +45,7 @@ import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrQuery.ORDER;
+import org.apache.solr.client.solrj.SolrRequest.METHOD;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
@@ -168,7 +169,7 @@ public class NetworkGlobalIndexManager {
 	
 	public SolrDocumentList searchForNetworks (String searchTerms, String userAccount, int limit, int offset, String adminedBy, Permissions permission,
 			   List<UUID> groupUUIDs) 
-			throws SolrServerException, IOException {
+			throws SolrServerException, IOException, NdexException {
 		client.setBaseURL(solrUrl+ "/" + coreName);
 
 		SolrQuery solrQuery = new SolrQuery();
@@ -231,11 +232,10 @@ public class NetworkGlobalIndexManager {
 		
 		solrQuery.setFilterQueries(resultFilter) ;
 		
-		QueryResponse rsp = client.query(solrQuery);		
+			QueryResponse rsp = client.query(solrQuery, METHOD.POST);		
 			
-		SolrDocumentList  dds = rsp.getResults();
-		
-		return dds;	
+			SolrDocumentList  dds = rsp.getResults();
+			return dds;	
 		
 	}
 	
