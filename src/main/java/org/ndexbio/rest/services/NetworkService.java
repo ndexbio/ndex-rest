@@ -89,6 +89,7 @@ import org.ndexbio.common.cx.NdexCXNetworkWriter;
 import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
@@ -1562,8 +1563,10 @@ public class NetworkService extends NdexService {
 			ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			
 	        UUID tmpNetworkId = storeRawNetwork (input);
-
-	        daoNew.clearNetworkSummary(networkId);
+	        String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString() + "/network.cx";
+			long fileSize = new File(cxFileName).length();
+				
+	        daoNew.clearNetworkSummary(networkId, fileSize);
 
 			java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId);
 			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId);
@@ -1894,7 +1897,11 @@ public class NetworkService extends NdexService {
 	   public String createCXNetwork( MultipartFormDataInput input) throws Exception
 	   {
 
-		   logger.info("[start: Creating a new network based on a POSTed CX stream.]");
+//		   logger.info("[start: Creating a new network based on a POSTed CX stream.]");
+		   
+		   try (UserDAO dao = new UserDAO()) {
+			   dao.checkDiskSpace(getLoggedInUserId());
+		   }
 	   
 		   UUID uuid = storeRawNetwork ( input);
 		   String uuidStr = uuid.toString();
@@ -1904,9 +1911,13 @@ public class NetworkService extends NdexService {
 
 		   ProvenanceEntity entity = new ProvenanceEntity();
 		   entity.setUri(urlStr + "/summary");
+		   
+		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/network.cx";
+		   long fileSize = new File(cxFileName).length();
+
 		   // create entry in db. 
 	       try (NetworkDAO dao = new NetworkDAO()) {
-	    	   NetworkSummary summary = dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName());
+	    	   NetworkSummary summary = dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize);
 	    	   
        
 			   ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());

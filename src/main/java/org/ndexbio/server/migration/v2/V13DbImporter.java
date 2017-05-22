@@ -134,7 +134,7 @@ public class V13DbImporter implements AutoCloseable {
 					while (rs.next()) {
 						UUID userId = (UUID)rs.getObject(1);
 						try (UserDAO dao = new UserDAO()) {
-							User user = dao.getUserById(userId, true);
+							User user = dao.getUserById(userId, true,false);
 							logger.info("adding user " + user.getUserName() + " to solr index.");
 							UserIndexManager mgr = new UserIndexManager();
 							mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());

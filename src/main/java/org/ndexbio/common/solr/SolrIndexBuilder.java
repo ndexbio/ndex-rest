@@ -166,7 +166,7 @@ public class SolrIndexBuilder {
 					while (rs.next()) {
 					    UUID userId = (UUID)rs.getObject(1);
 					    try (UserDAO dao2 = new UserDAO()) {
-					    	User user = dao2.getUserById(userId, true);
+					    	User user = dao2.getUserById(userId, true, false);
 					    	if (user == null)
 					    		throw new NdexException ("User " + userId+ " can't be indexed because this account is not verified.");
 					    	logger.info("Adding user " + user.getUserName() + " to index.");

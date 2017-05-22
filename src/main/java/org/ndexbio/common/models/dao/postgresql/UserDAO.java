@@ -54,6 +54,7 @@ import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Security;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -76,6 +77,9 @@ public class UserDAO extends NdexDBDAO {
 	private static final Logger logger = Logger.getLogger(UserDAO.class
 			.getName());
 
+	public static long default_disk_quota = 10*1000000000l; //default disk quota for each user. -1 means no limit;
+
+	
 	/*
 	 * User operations can be achieved with Orient Document API methods. The
 	 * constructor will need to accept a OrientGraph object if we wish to use
@@ -119,7 +123,7 @@ public class UserDAO extends NdexDBDAO {
 				throw new UnauthorizedOperationException("Invalid accountName or password.");
 		}
 	
-		User user = getUserByAccountName(accountName, true);
+		User user = getUserByAccountName(accountName, true, true);
 //		user.setPassword("");
 		return user;
 		
@@ -149,7 +153,7 @@ public class UserDAO extends NdexDBDAO {
 				"A user email address is required");
 
 		try {
-			User existingAcct = getUserByAccountName(newUser.getUserName(),false);
+			User existingAcct = getUserByAccountName(newUser.getUserName(),false, false);
 			throw new DuplicateObjectException ( "User " + newUser.getUserName() + " already exists in NDEx.");
 		} catch ( ObjectNotFoundException e ) {}
 		
@@ -165,8 +169,8 @@ public class UserDAO extends NdexDBDAO {
 				    ","  +  NdexClasses.User_userName        + ", " +  NdexClasses.User_lastName + 		    
 				    ","  + NdexClasses.User_firstName        + ", " + NdexClasses.User_password +
 				    ","  + NdexClasses.User_displayName      + ","  + NdexClasses.User_emailAddress + 
-				    "," + NdexClasses.User_isIndividual     +","  + NdexClasses.User_isVerified + 
-				    ") values ( ?,?,?,false,?,?, ?,? :: jsonb, ?,?, ?, ?,?,?,?,?)";
+				    "," + NdexClasses.User_isIndividual     +","  + NdexClasses.User_isVerified + ",storage_usage"+
+				    ") values ( ?,?,?,false,?,?, ?,? :: jsonb, ?,?, ?, ?,?,?,?,?,0)";
 		try (PreparedStatement st = db.prepareStatement(insertstmt) ) {
 				st.setObject(1, newUser.getExternalId());
 				st.setTimestamp(2, newUser.getCreationTime());
@@ -212,7 +216,7 @@ public class UserDAO extends NdexDBDAO {
 	
 	public String verifyUser ( UUID userUUID, String verificationCode) throws ObjectNotFoundException, NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 		
-		User user = getUserById(userUUID, false);		
+		User user = getUserById(userUUID, false, true);		
 		
 		if ( user.getIsVerified())
 			throw new NdexException ( "User has already been verified.");
@@ -266,7 +270,7 @@ public class UserDAO extends NdexDBDAO {
 	 * @returns User object, from the NDEx Object Model
 	 **************************************************************************/
 
-	public User getUserById(UUID id, boolean currentUserOnly) throws NdexException,
+	public User getUserById(UUID id, boolean currentUserOnly, boolean fullRecord) throws NdexException,
 			IllegalArgumentException, ObjectNotFoundException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 		Preconditions.checkArgument(null != id, "UUID required");
@@ -281,7 +285,7 @@ public class UserDAO extends NdexDBDAO {
 					// populate the user object;
 					User result = new User();
 
-					populateUserFromResultSet(result, rs);
+					populateUserFromResultSet(result, rs, fullRecord);
 
 					return result;
 				} 
@@ -325,8 +329,8 @@ public class UserDAO extends NdexDBDAO {
 	}
 
 
-	private static void populateUserFromResultSet(User user, ResultSet rs) throws JsonParseException, JsonMappingException, SQLException, IOException {
-		Helper.populateAccountFromResultSet (user, rs);
+	private static void populateUserFromResultSet(User user, ResultSet rs, boolean fullRecord) throws JsonParseException, JsonMappingException, SQLException, IOException {
+		Helper.populateAccountFromResultSet (user, rs, fullRecord);
 
 		user.setFirstName(rs.getString(NdexClasses.User_firstName));
 		user.setLastName(rs.getString(NdexClasses.User_lastName));
@@ -336,6 +340,16 @@ public class UserDAO extends NdexDBDAO {
 	//	user.setPassword(rs.getString(NdexClasses.User_password));
 		user.setIsVerified(rs.getBoolean(NdexClasses.User_isVerified));
 		user.setUserName(rs.getString("user_name"));
+		if ( fullRecord) {
+			long limit = rs.getLong("disk_limit");
+			if ( limit == 0)
+				user.setDiskQuota(Long.valueOf(default_disk_quota));
+			else
+				user.setDiskQuota(limit);
+			
+			long used = rs.getLong("storage_usage");
+			user.setDiskUsed(Long.valueOf(used));
+		}
 	}
 	
 	/**************************************************************************
@@ -346,7 +360,7 @@ public class UserDAO extends NdexDBDAO {
 	
 	 * @returns User object, from the NDEx Object Model
 	 **************************************************************************/
-	public User getUserByAccountName(String accountName, boolean verifiedOnly) throws NdexException,
+	public User getUserByAccountName(String accountName, boolean verifiedOnly, boolean fullRecord) throws NdexException,
 			IllegalArgumentException, ObjectNotFoundException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 		String queryStr = "SELECT * FROM " + NdexClasses.User + " where " + NdexClasses.User_userName + " = ? and is_deleted=false";
@@ -363,7 +377,7 @@ public class UserDAO extends NdexDBDAO {
 					// populate the user object;
 					
 					User user = new User();
-					populateUserFromResultSet(user, rs);
+					populateUserFromResultSet(user, rs, fullRecord);
 					if ( !user.getIsVerified())
 						user.setExternalId(null);
 					return user;
@@ -424,7 +438,7 @@ public class UserDAO extends NdexDBDAO {
 			
 			List<User> results = new ArrayList<>(l.size());
 			for (SolrDocument d : l) {
-				results.add(getUserById(UUID.fromString((String)d.get(UserIndexManager.UUID)), true));
+				results.add(getUserById(UUID.fromString((String)d.get(UserIndexManager.UUID)), true, false));
 			}
 			return new SolrSearchResult<> (l.getNumFound(),l.getStart(), results);
 
@@ -603,7 +617,7 @@ public class UserDAO extends NdexDBDAO {
 
 		try (PreparedStatement st = db.prepareStatement(queryStr))  {		
 			try (ResultSet rs = st.executeQuery() ) {
-				User user = getUserById(userId, true );
+				User user = getUserById(userId, true ,false);
 				while (rs.next()) {
 					// populate the user object;
 					Membership membership = new Membership();
@@ -709,7 +723,7 @@ public class UserDAO extends NdexDBDAO {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
 		}
 		
-		User user = getUserById(userId, true);
+		User user = getUserById(userId, true,false);
 		List<Membership> memberships = new ArrayList<>();
 
 		try (PreparedStatement st = db.prepareStatement(queryStr))  {
@@ -910,6 +924,33 @@ public class UserDAO extends NdexDBDAO {
 		}
 		
 
+	}
+	
+	public void checkDiskSpace (UUID userId) throws SQLException, NdexException {
+		try (PreparedStatement st = db.prepareStatement("select disk_limit, storage_usage from ndex_user where \"UUID\" = ? and is_deleted = false")) {
+			st.setObject(1, userId);
+			try (ResultSet rs = st.executeQuery()) {
+				if ( rs.next()) {
+					long limit = rs.getLong(1);
+					long used_space = rs.getLong(2);
+					if ( limit <0 ) // no limit
+						return;
+					if ( limit == 0 ) {  // use default
+						if ( used_space < UserDAO.default_disk_quota)
+							return;
+						
+						throw new ForbiddenOperationException("You have used all allocated disk space (" 
+									+ UserDAO.default_disk_quota + "). Please contact support@ndexbio.org if you need more disk space.");
+					}	
+					if (  used_space < limit) 
+						return;
+					
+					throw new ForbiddenOperationException("You have used all allocated disk space (" 
+							+ limit + "). Please contact support@ndexbio.org if you need more disk space.");
+				}	
+			}
+		}
+		throw new NdexException("User + "+ userId + " not found in db");
 	}
 
 }

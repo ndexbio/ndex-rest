@@ -133,7 +133,7 @@ public class GroupDAO extends NdexDBDAO {
 	
 	
 	private static void populateGroupFromResultSet(Group group, ResultSet rs) throws JsonParseException, JsonMappingException, SQLException, IOException {
-		Helper.populateAccountFromResultSet (group, rs);
+		Helper.populateAccountFromResultSet (group, rs,true);
 
 		group.setGroupName(rs.getString("group_name"));
 	}

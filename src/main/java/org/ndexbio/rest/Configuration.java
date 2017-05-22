@@ -47,6 +47,7 @@ import javax.naming.NamingException;
 
 import org.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.common.importexport.ImporterExporterEntry;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -174,6 +175,12 @@ public class Configuration
             } else {
             	setUseADAuthentication(false);
             }
+            
+			String userDefaultStorageQuota = getProperty("NETWORK_POST_ELEMENT_LIMIT");
+			if ( userDefaultStorageQuota != null) {
+				Float limit = Float.valueOf(userDefaultStorageQuota);
+					UserDAO.default_disk_quota = limit.floatValue() > 0 ? (limit.intValue() * 1000000000l) : -1;
+			}
             
             // initialize the importer exporter table
             this.impExpTable = new HashMap<>();

@@ -83,20 +83,23 @@ public class Helper {
 	}
 
 	
-	public static Account populateAccountFromResultSet(Account accObj, ResultSet rs) throws SQLException, JsonParseException, JsonMappingException, IOException {
+	public static Account populateAccountFromResultSet(Account accObj, ResultSet rs, boolean fullRecord) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		populateExternalObjectFromResultSet(accObj,rs);
 		accObj.setImage(rs.getString(NdexClasses.Account_imageURL));
 		accObj.setWebsite(rs.getString(NdexClasses.Account_websiteURL));
 		accObj.setDescription(rs.getString(NdexClasses.Account_description));
-		String propStr = rs.getString(NdexClasses.Account_otherAttributes);
 		
-		if ( propStr != null) {
-			ObjectMapper mapper = new ObjectMapper(); 
-			TypeReference<HashMap<String,Object>> typeRef 
-	            = new TypeReference<HashMap<String,Object>>() {};
+		if ( fullRecord) {
+			String propStr = rs.getString(NdexClasses.Account_otherAttributes);
+		
+			if ( propStr != null) {
+				ObjectMapper mapper = new ObjectMapper(); 
+				TypeReference<HashMap<String,Object>> typeRef 
+	            	= new TypeReference<HashMap<String,Object>>() {};
 
 	            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
 	            accObj.setProperties(o);
+			}
 		}
 		
 		return accObj;
@@ -180,7 +183,7 @@ public class Helper {
      
 	public static void createUserIfnotExist(UserDAO dao, String accountName, String email, String password) throws NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, NoSuchAlgorithmException, SQLException, IOException {
 		try {
-			User u = dao.getUserByAccountName(accountName,true);
+			User u = dao.getUserByAccountName(accountName,true, false);
 			if ( u!= null) return;
 		} catch (IllegalArgumentException e) {
 			e.printStackTrace();

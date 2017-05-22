@@ -152,7 +152,7 @@ public class UserService extends NdexService {
 		try (UserDAO userdao = new UserDAO()){
 			UUID userId = UUID.fromString(userUUID);
 			String accountName = userdao.verifyUser(userId, verificationCode);
-			User u = userdao.getUserById(userId, true);
+			User u = userdao.getUserById(userId, true,false);
 			UserIndexManager mgr = new UserIndexManager();
 			mgr.addUser(userUUID, u.getUserName(), u.getFirstName(), u.getLastName(), u.getDisplayName(), u.getDescription());
 			userdao.commit();
@@ -296,11 +296,11 @@ public class UserService extends NdexService {
 			try {
 							
 				UUID useruuid = UUID.fromString(userId);
-				final User user = dao.getUserById(useruuid,true);
+				final User user = dao.getUserById(useruuid,true,false);
 				logger.info("[end: User object returned for user account {}]", userId);
 				return user;	
 			} catch (IllegalArgumentException e) {
-				final User user = dao.getUserByAccountName(userId.toLowerCase(),true);
+				final User user = dao.getUserByAccountName(userId.toLowerCase(),true,false);
 				logger.info("[end: User object returned for user account {}]", userId);
 				return user;
 			}
@@ -332,7 +332,7 @@ public class UserService extends NdexService {
 		logger.info("[start: Getting user by account name {}]", accountName);
 		try (UserDAO dao = new UserDAO()){
 			
-			final User user = dao.getUserByAccountName(accountName.toLowerCase(),true);
+			final User user = dao.getUserByAccountName(accountName.toLowerCase(),true,false);
 			logger.info("[end: User object returned for user account {}]", accountName);
 			return user;
 		} 
@@ -365,7 +365,7 @@ public class UserService extends NdexService {
 		logger.info("[start: Getting user from UUID {}]", userId);
 		
 		try (UserDAO dao = new UserDAO() ){
-			final User user = dao.getUserById(UUID.fromString(userId),true);
+			final User user = dao.getUserById(UUID.fromString(userId),true,false);
 			logger.info("[end: User object returned for user uuid {}]", userId);
 			return user;	
 		} 

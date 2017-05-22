@@ -39,6 +39,7 @@ import org.jboss.resteasy.plugins.interceptors.CorsFilter;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.mappers.DefaultExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.DuplicateObjectExceptionMapper;
+import org.ndexbio.rest.exceptions.mappers.ForbiddenExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.NdexExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.ObjectNotFoundExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
@@ -89,6 +90,7 @@ public class NdexRestApi extends Application
         _providers.add(new NdexExceptionMapper());
         _providers.add(new ObjectNotFoundExceptionMapper());
         _providers.add(new UnauthorizedOperationExceptionMapper());
+        _providers.add(new ForbiddenExceptionMapper());
         _providers.add(new DefaultExceptionMapper());
         
     //    _providers.add(new ForbiddenOperationExceptionMapper());

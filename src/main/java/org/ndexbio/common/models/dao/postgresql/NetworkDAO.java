@@ -112,17 +112,18 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 
 	
-	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName) throws SQLException {
+	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
-		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly) values"
-				+ "(?, ?, ?, false, true, 'PRIVATE',?,?,false) ";
+		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly, cx_file_size) values"
+				+ "(?, ?, ?, false, true, 'PRIVATE',?,?,false,?) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkUUID);
 			pst.setTimestamp(2, t);
 			pst.setTimestamp(3, t);
 			pst.setObject(4, ownerId);
 			pst.setString(5, ownerUserName);
+			pst.setLong(6, fileSize);
 			pst.executeUpdate();
 		}
 		NetworkSummary result = new NetworkSummary();
@@ -271,24 +272,26 @@ public class NetworkDAO extends NdexDBDAO {
 	
 	/**
 	 * Remove the network summary information for the given network. Modification_time will be updated and the network will be set to the un-validated 
-	 * state. All previous error and warnings are removed from db.
+	 * state. All previous error and warnings are removed from db. 
 	 * @param fieldName
 	 * @param value
 	 * @throws SQLException 
 	 * @throws NdexException 
 	 */
 	
-	public void clearNetworkSummary(UUID networkId) throws SQLException, NdexException {
+	public void clearNetworkSummary(UUID networkId, long fileSize) throws SQLException, NdexException {
 		String sqlStr = "update network set modification_time = localtimestamp, name = null,"
 				+ "description = null, edgeCount = null, nodeCount = null, isComplete=false,"
 				+ " properties = null, cxmetadata = null,"
-				+ "version = null, is_validated = false, error = null, warnings = null,subnetworkids = null where \"UUID\" ='" +
+				+ "version = null, is_validated = false, error = null, warnings = null,subnetworkids = null, cx_file_size = ? where \"UUID\" ='" +
 				 networkId.toString() + "' and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setLong(1, fileSize);
 			int i = pst.executeUpdate();
 			if ( i != 1)
 				throw new NdexException ("Failed to reset network "+ networkId + "'s entry in db.");
 		}
+	
 	}
 	
 	
@@ -1309,8 +1312,8 @@ public class NetworkDAO extends NdexDBDAO {
     	User oldUser ;
     	User newUser;
     	try ( UserDAO dao = new UserDAO ()) {
-    		oldUser = dao.getUserById(oldOwnerUUID, true);
-    		newUser = dao.getUserById(userUUID,true);
+    		oldUser = dao.getUserById(oldOwnerUUID, true,false);
+    		newUser = dao.getUserById(userUUID,true,false);
     	}
     	if ( oldOwnerUUID.equals(userUUID) ) {
     		if ( permission == Permissions.ADMIN)
@@ -1320,7 +1323,7 @@ public class NetworkDAO extends NdexDBDAO {
     	}
 
     	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
-    	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
+ //   	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
     	if ( permission == Permissions.ADMIN) {
     		// grant admin to this user.
     		String sql = "update network set owneruuid = ?, owner = ? where \"UUID\" = ? and is_deleted = false";
@@ -1416,15 +1419,15 @@ public class NetworkDAO extends NdexDBDAO {
         	pst.setObject(2,userUUID);
         	int c = pst.executeUpdate();
         	commit();
-        	if ( c ==1 )  {
-        		try (UserDAO dao = new UserDAO()) {
-        			User g = dao.getUserById(userUUID, true);
+        	//if ( c ==1 )  {
+        	//	try (UserDAO dao = new UserDAO()) {
+        	//		User g = dao.getUserById(userUUID, true,false);
         			
         	/*		//update solr index
             		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
             		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getUserName(), p, true); */
-        		}               
-        	} 
+        	//	}               
+        //	} 
         	return c;	
         }
     }

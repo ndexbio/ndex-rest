@@ -162,7 +162,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             	
             		try ( UserDAO dao = new UserDAO() ) {
             			UUID uuid = googleOAuthAuthenticator.GetUserUUIDFromAccessToke(token);
-            			authUser = dao.getUserById(uuid,true);
+            			authUser = dao.getUserById(uuid,true,true);
             		}	
             	} else {
             
@@ -172,7 +172,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             				_logger.debug("User {} authenticated by AD.", authInfo[0]);
             				try ( UserDAO dao = new UserDAO() ) {
             					try {
-            						authUser = dao.getUserByAccountName(authInfo[0],true);
+            						authUser = dao.getUserByAccountName(authInfo[0],true,true);
             					} catch (ObjectNotFoundException e) {
             						String autoCreateAccount = Configuration.getInstance().getProperty(AD_CREATE_USER_AUTOMATICALLY);
             						if ( autoCreateAccount !=null && Boolean.parseBoolean(autoCreateAccount)) {

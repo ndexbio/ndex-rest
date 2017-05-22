@@ -105,7 +105,7 @@ public class BatchServiceV2 extends NdexService {
 		try (UserDAO dao = new UserDAO() ){
 			List<User> users = new LinkedList<>();
 			for ( String uuidStr : userIdStrs) {
-				User user = dao.getUserById(UUID.fromString(uuidStr),true);
+				User user = dao.getUserById(UUID.fromString(uuidStr),true, false);
 				users.add(user);
 			}
 		    logger.info("[end: User object returned for user uuids]");

@@ -102,6 +102,7 @@ public class UserServiceV2 extends NdexService {
 	
 	
 	static Logger logger = LoggerFactory.getLogger(UserService.class);
+	
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -154,7 +155,7 @@ public class UserServiceV2 extends NdexService {
 		try (UserDAO userdao = new UserDAO()){
 			UUID userId = UUID.fromString(userUUID);
 			String accountName = userdao.verifyUser(userId, verificationCode);
-			User u = userdao.getUserById(userId, true);
+			User u = userdao.getUserById(userId, true,false);
 			UserIndexManager mgr = new UserIndexManager();
 			mgr.addUser(userUUID, u.getUserName(), u.getFirstName(), u.getLastName(), u.getDisplayName(), u.getDescription());
 			userdao.commit();
@@ -315,7 +316,8 @@ public class UserServiceV2 extends NdexService {
 		
 		try (UserDAO dao = new UserDAO()){
 			
-			final User user = dao.getUserByAccountName(accountName.toLowerCase(),false);
+			final User user = dao.getUserByAccountName(accountName.toLowerCase(),false,
+					getLoggedInUser() !=null && getLoggedInUser().getUserName().equalsIgnoreCase(accountName));
 	//		logger.info("[end: User object returned for user account {}]", accountName);
 			return user;
 		} 
@@ -335,13 +337,17 @@ public class UserServiceV2 extends NdexService {
 	@Path("/{userid}")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
-	public User getUserByUUID(@PathParam("userid") final String userId)
+	public User getUserByUUID(@PathParam("userid") final String userIdStr)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 //		logger.info("[start: Getting user from UUID {}]", userId);
 		
+		UUID userUUID = UUID.fromString(userIdStr);
+		if ( getLoggedInUserId() != null && getLoggedInUserId().equals(userUUID))
+			return getLoggedInUser();
+		
 		try (UserDAO dao = new UserDAO() ){
-			final User user = dao.getUserById(UUID.fromString(userId),true);
+			final User user = dao.getUserById(userUUID,true,false);
 //			logger.info("[end: User object returned for user uuid {}]", userId);
 			return user;	
 		} 
@@ -478,7 +484,7 @@ public class UserServiceV2 extends NdexService {
 
 			dao.commit();
 			
-			User u = dao.getUserById(userId, true);
+			User u = dao.getUserById(userId, true,false);
 			
 	        AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(),
 	        		"Your new password is:" + newPasswd, "Your NDEx Password Has Been Reset", "html");

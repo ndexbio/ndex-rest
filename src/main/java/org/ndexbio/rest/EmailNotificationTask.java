@@ -111,7 +111,7 @@ public class EmailNotificationTask extends TimerTask {
 		
 		for ( Map.Entry<UUID, Map<ResponseType,Integer>> rec : tab.entrySet()) {
 			UUID userUUID = rec.getKey();
-			User u = userdao.getUserById(userUUID,true);
+			User u = userdao.getUserById(userUUID,true,true);
 			Map<ResponseType,Integer> notifications = rec.getValue();
 			if ( notifications.get(ResponseType.PENDING)!=null)	{			
 			
