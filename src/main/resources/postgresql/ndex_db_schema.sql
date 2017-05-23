@@ -67,6 +67,73 @@ CREATE TYPE ndex_permission_type AS ENUM (
 
 ALTER TYPE ndex_permission_type OWNER TO ndexserver;
 
+--
+-- Name: update_user_when_delete(); Type: FUNCTION; Schema: core; Owner: ndexserver
+--
+
+CREATE FUNCTION update_user_when_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$   BEGIN
+	update ndex_user
+	 set storage_usage = storage_usage - NEW.cx_file_size
+	where 
+	   "UUID"= NEW.owneruuid and storage_usage is not null and 
+	      NEW.cx_file_size is not null;
+        RETURN NEW;
+    END;$$;
+
+
+ALTER FUNCTION core.update_user_when_delete() OWNER TO ndexserver;
+
+--
+-- Name: update_user_when_insert(); Type: FUNCTION; Schema: core; Owner: ndexserver
+--
+
+CREATE FUNCTION update_user_when_insert() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$   BEGIN
+        IF NEW.cx_file_size IS NULL THEN
+            RAISE EXCEPTION 'cx_file_size field cannot be null';
+        END IF;
+       
+	update ndex_user
+	 set storage_usage =  
+	    CASE WHEN storage_usage is null THEN NEW.cx_file_size
+		 ELSE  storage_usage + NEW.cx_file_size
+	    END
+	where 
+	   "UUID"= NEW.owneruuid;
+        RETURN NEW;
+    END;$$;
+
+
+ALTER FUNCTION core.update_user_when_insert() OWNER TO ndexserver;
+
+--
+-- Name: update_user_when_update(); Type: FUNCTION; Schema: core; Owner: ndexserver
+--
+
+CREATE FUNCTION update_user_when_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$   BEGIN
+        IF NEW.cx_file_size IS NULL THEN
+            RAISE EXCEPTION 'cx_file_size field cannot be null';
+        END IF;
+       
+	update ndex_user
+	 set storage_usage =  
+	    CASE WHEN storage_usage is null THEN NEW.cx_file_size
+		 WHEN OLD.cx_file_size is null then storage_usage + NEW.cx_file_size
+		 else storage_usage -OLD.cx_file_size + NEW.cx_file_size
+	    END
+	where 
+	   "UUID"= NEW.owneruuid;
+        RETURN NEW;
+    END;$$;
+
+
+ALTER FUNCTION core.update_user_when_update() OWNER TO ndexserver;
+
 SET default_tablespace = '';
 
 SET default_with_oids = false;
@@ -173,7 +240,9 @@ CREATE TABLE ndex_user (
     is_deleted boolean,
     other_attributes jsonb,
     is_verified boolean,
-    is_from_13 boolean
+    is_from_13 boolean,
+    disk_limit bigint,
+    storage_usage bigint
 );
 
 
@@ -184,6 +253,20 @@ ALTER TABLE ndex_user OWNER TO ndexserver;
 --
 
 COMMENT ON TABLE ndex_user IS 'User info.';
+
+
+--
+-- Name: COLUMN ndex_user.disk_limit; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN ndex_user.disk_limit IS 'storage limit for this user. Only cx networks are counted towards the limit. Invalid networks also counts.';
+
+
+--
+-- Name: COLUMN ndex_user.storage_usage; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN ndex_user.storage_usage IS 'Actual usage of this disk space, by this user. Only the raw CX file counts.';
 
 
 --
@@ -214,11 +297,14 @@ CREATE TABLE network (
     ndexdoi character varying(200),
     is_validated boolean DEFAULT false,
     readonly boolean,
-    error character varying(2000),
+    error text,
     warnings text[],
     is_from_13 boolean,
     show_in_homepage boolean DEFAULT false,
-    subnetworkids bigint[]
+    subnetworkids bigint[],
+    access_key character varying(500),
+    access_key_is_on boolean,
+    cx_file_size bigint
 );
 
 
@@ -293,6 +379,46 @@ COMMENT ON COLUMN network.is_from_13 IS 'true means this network is migrated fro
 
 COMMENT ON COLUMN network.show_in_homepage IS 'Indicate whether the owner of this network want to show this network in ''user page'' page.';
 
+
+--
+-- Name: COLUMN network.cx_file_size; Type: COMMENT; Schema: core; Owner: ndexserver
+--
+
+COMMENT ON COLUMN network.cx_file_size IS 'size of the CX network in bytes.';
+
+
+--
+-- Name: network_set; Type: TABLE; Schema: core; Owner: ndexserver
+--
+
+CREATE TABLE network_set (
+    "UUID" uuid NOT NULL,
+    name character varying(80),
+    description text,
+    owner_id uuid,
+    creation_time timestamp without time zone,
+    modification_time timestamp without time zone,
+    is_deleted boolean,
+    access_key character varying(500),
+    access_key_is_on boolean,
+    other_attributes jsonb,
+    showcased boolean
+);
+
+
+ALTER TABLE network_set OWNER TO ndexserver;
+
+--
+-- Name: network_set_member; Type: TABLE; Schema: core; Owner: ndexserver
+--
+
+CREATE TABLE network_set_member (
+    set_id uuid NOT NULL,
+    network_id uuid NOT NULL
+);
+
+
+ALTER TABLE network_set_member OWNER TO ndexserver;
 
 --
 -- Name: request; Type: TABLE; Schema: core; Owner: ndexserver
@@ -623,6 +749,22 @@ ALTER TABLE ONLY network
 
 
 --
+-- Name: network_set_member_pkey; Type: CONSTRAINT; Schema: core; Owner: ndexserver
+--
+
+ALTER TABLE ONLY network_set_member
+    ADD CONSTRAINT network_set_member_pkey PRIMARY KEY (set_id, network_id);
+
+
+--
+-- Name: network_set_pkey; Type: CONSTRAINT; Schema: core; Owner: ndexserver
+--
+
+ALTER TABLE ONLY network_set
+    ADD CONSTRAINT network_set_pkey PRIMARY KEY ("UUID");
+
+
+--
 -- Name: request_pk; Type: CONSTRAINT; Schema: core; Owner: ndexserver
 --
 
@@ -768,6 +910,13 @@ CREATE INDEX network_owneruuid_idx ON network USING btree (owneruuid);
 
 
 --
+-- Name: network_set_owner_id_idx; Type: INDEX; Schema: core; Owner: ndexserver
+--
+
+CREATE INDEX network_set_owner_id_idx ON network_set USING btree (owner_id) WHERE (is_deleted = false);
+
+
+--
 -- Name: request_destinationuuid_idx; Type: INDEX; Schema: core; Owner: ndexserver
 --
 
@@ -838,6 +987,27 @@ CREATE INDEX v1_user_network_network_rid_idx ON v1_user_network USING btree (net
 
 
 --
+-- Name: insert_trigger; Type: TRIGGER; Schema: core; Owner: ndexserver
+--
+
+CREATE TRIGGER insert_trigger AFTER INSERT ON network FOR EACH ROW EXECUTE PROCEDURE update_user_when_insert();
+
+
+--
+-- Name: logical_delete_trigger; Type: TRIGGER; Schema: core; Owner: ndexserver
+--
+
+CREATE TRIGGER logical_delete_trigger AFTER UPDATE OF is_deleted ON network FOR EACH ROW WHEN ((new.is_deleted = true)) EXECUTE PROCEDURE update_user_when_delete();
+
+
+--
+-- Name: update_network; Type: TRIGGER; Schema: core; Owner: ndexserver
+--
+
+CREATE TRIGGER update_network AFTER UPDATE OF cx_file_size ON network FOR EACH ROW WHEN ((new.is_deleted = false)) EXECUTE PROCEDURE update_user_when_update();
+
+
+--
 -- Name: groupUser_groupUUID_fkey; Type: FK CONSTRAINT; Schema: core; Owner: ndexserver
 --
 
@@ -859,6 +1029,30 @@ ALTER TABLE ONLY ndex_group_user
 
 ALTER TABLE ONLY group_network_membership
     ADD CONSTRAINT group_network_membership_group_id_fkey FOREIGN KEY (group_id) REFERENCES ndex_group("UUID");
+
+
+--
+-- Name: network_set_member_network_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: ndexserver
+--
+
+ALTER TABLE ONLY network_set_member
+    ADD CONSTRAINT network_set_member_network_id_fkey FOREIGN KEY (network_id) REFERENCES network("UUID");
+
+
+--
+-- Name: network_set_member_set_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: ndexserver
+--
+
+ALTER TABLE ONLY network_set_member
+    ADD CONSTRAINT network_set_member_set_id_fkey FOREIGN KEY (set_id) REFERENCES network_set("UUID");
+
+
+--
+-- Name: network_set_owner_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: ndexserver
+--
+
+ALTER TABLE ONLY network_set
+    ADD CONSTRAINT network_set_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES ndex_user("UUID");
 
 
 --
@@ -892,58 +1086,7 @@ ALTER TABLE ONLY user_network_membership
 ALTER TABLE ONLY user_network_membership
     ADD CONSTRAINT user_network_membership_user_id_fkey FOREIGN KEY (user_id) REFERENCES ndex_user("UUID");
 
-    
 
-CREATE TABLE network_set
-(
-  "UUID" uuid NOT NULL,
-  name character varying(80),
-  description text,
-  owner_id uuid,
-  creation_time timestamp without time zone,
-  modification_time timestamp without time zone,
-  is_deleted boolean,
-  CONSTRAINT network_set_pkey PRIMARY KEY ("UUID"),
-  CONSTRAINT network_set_owner_id_fkey FOREIGN KEY (owner_id)
-      REFERENCES ndex_user ("UUID") MATCH SIMPLE
-      ON UPDATE NO ACTION ON DELETE NO ACTION
-)
-WITH (
-  OIDS=FALSE
-);
-ALTER TABLE network_set
-  OWNER TO ndexserver;
-
--- Index: network_set_owner_id_idx
-
--- DROP INDEX network_set_owner_id_idx;
-
-CREATE INDEX network_set_owner_id_idx
-  ON network_set
-  USING btree
-  (owner_id)
-  WHERE is_deleted = false;
-
-
-  CREATE TABLE network_set_member
-(
-  set_id uuid NOT NULL,
-  network_id uuid NOT NULL,
-  CONSTRAINT network_set_member_pkey PRIMARY KEY (set_id, network_id),
-  CONSTRAINT network_set_member_network_id_fkey FOREIGN KEY (network_id)
-      REFERENCES network ("UUID") MATCH SIMPLE
-      ON UPDATE NO ACTION ON DELETE NO ACTION,
-  CONSTRAINT network_set_member_set_id_fkey FOREIGN KEY (set_id)
-      REFERENCES network_set (id) MATCH SIMPLE
-      ON UPDATE NO ACTION ON DELETE NO ACTION
-)
-WITH (
-  OIDS=FALSE
-);
-ALTER TABLE network_set_member
-  OWNER TO ndexserver;
-
-  
 --
 -- Name: public; Type: ACL; Schema: -; Owner: postgres
 --
