@@ -401,7 +401,7 @@ public class NetworkService extends NdexService {
 			daoNew.unlockNetwork(networkUUID);
             
 			// update the solr Index
-			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true));
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
 
    			return i;
 		} catch (Exception e) {
@@ -973,7 +973,7 @@ public class NetworkService extends NdexService {
             networkDao.commit();
             
 			// update the solr Index
-			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(UUID.fromString(networkId),true));
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(UUID.fromString(networkId),true,false));
     		logger.info("[end: Removed any permissions for network {} for user {}]", networkId, userUUID);
             return count;
 		} 
@@ -1005,7 +1005,7 @@ public class NetworkService extends NdexService {
             networkDao.commit();
             
             // update the solr Index
-            NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(UUID.fromString(networkId),true));
+            NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(UUID.fromString(networkId),true,false));
 
     		logger.info("[end: Removed any permissions for network {} for group {}]", networkId, groupUUID);
             return count;
@@ -1106,7 +1106,7 @@ public class NetworkService extends NdexService {
 			networkDao.commit();
 			
 			// update the solr Index
-			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true));
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
 
 			logger.info("[end: Updated membership for network {}]", networkId);
 	        return count;
@@ -1150,7 +1150,7 @@ public class NetworkService extends NdexService {
 			networkDao.commit();
 			
 			// update the solr Index
-			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true));
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
 			
 			logger.info("[end: Updated membership for network {}]", networkId);
 	        return count;
@@ -1308,7 +1308,7 @@ public class NetworkService extends NdexService {
 					networkDao.unlockNetwork(networkUUID);
 					
 					// update the solr Index
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true));					
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));					
 					
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
@@ -1804,7 +1804,7 @@ public class NetworkService extends NdexService {
 								  networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf(value));
 								  networkDao.unlockNetwork(networkId);		
 									// update the solr Index
-									NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true));
+									NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
 								  return ;
 							  } /*else if ( parameter.toLowerCase().equals("display")) {
 								  boolean bv = Boolean.parseBoolean(value);

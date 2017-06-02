@@ -96,6 +96,8 @@ import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -308,7 +310,20 @@ public class CXNetworkLoader implements AutoCloseable {
 				Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 				Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 				
-				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+
+				try {
+		//			dao.setFlag(this.networkId, "iscomplete", true);
+					dao.unlockNetwork(this.networkId);
+
+					dao.commit();
+				} catch (SQLException e) {
+					dao.rollback();
+					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
+				}
+
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,!isUpdate));
+
+/*				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
 					if ( isUpdate ) {
 						idx2.dropIndex();		
 					}	
@@ -316,18 +331,8 @@ public class CXNetworkLoader implements AutoCloseable {
 					createSolrIndex(summary);
 					idx2.createIndex();
   
-				}
+				} */
 
-				try {
-					dao.setFlag(this.networkId, "iscomplete", true);
-					dao.unlockNetwork(this.networkId);
-
-					dao.commit();
-				} catch (SQLException e) {
-					dao.rollback();
-					throw new NdexException ("DB error when setting iscomplete flag: " + e.getMessage(), e);
-				}
-       
 	}
 	
 	/**

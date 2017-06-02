@@ -51,6 +51,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +95,7 @@ import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
+import org.ndexbio.common.util.Util;
 import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.InvalidNetworkException;
@@ -114,6 +116,7 @@ import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.ndexbio.model.tools.ProvenanceHelpers;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.task.CXNetworkLoadingTask;
@@ -352,7 +355,7 @@ public class NetworkServiceV2 extends NdexService {
 				g.reCreateCXFile();
 				
 				// update the solr Index
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
 
 				return i;
 			} finally {
@@ -1021,7 +1024,7 @@ public class NetworkServiceV2 extends NdexService {
 				count = networkDao.revokeGroupPrivilege(networkId, groupId);
 
 			// update the solr Index
-			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true));
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
 
             return count;
 		} 
@@ -1093,7 +1096,7 @@ public class NetworkServiceV2 extends NdexService {
 			//networkDao.commit();
 			
 			// update the solr Index
-			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true));
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
 			
 			logger.info("[end: Updated permission for network {}]", networkId);
 	        return count;
@@ -1256,7 +1259,7 @@ public class NetworkServiceV2 extends NdexService {
 					networkDao.unlockNetwork(networkUUID);
 					
 					// update the solr Index
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true));
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
 					try {
@@ -1565,7 +1568,7 @@ public class NetworkServiceV2 extends NdexService {
 						networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf((String)parameters.get("visibility")));
 
 						// update the solr Index
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
 
 					} 
 					if ( parameters.containsKey("showcase")) {
@@ -1705,6 +1708,96 @@ public class NetworkServiceV2 extends NdexService {
 		}
 	   
 	   
+	   	@POST
+		   @Path("/{networkid}/copy")
+		   @Produces("text/plain")
+		   public Response cloneNetwork( @PathParam("networkid") final String srcNetworkUUIDStr) throws Exception
+		   {
 
-	   
+			   
+//			   logger.info("[start: Creating a new network based on a POSTed CX stream.]");
+		   
+			   try (UserDAO dao = new UserDAO()) {
+				   dao.checkDiskSpace(getLoggedInUserId());
+			   }
+			   
+			   UUID srcNetUUID = UUID.fromString(srcNetworkUUIDStr);
+			   
+			   try ( NetworkDAO dao = new NetworkDAO ()) {
+				   if (!dao.networkIsValid(srcNetUUID)) {
+					   throw new NdexException ("Invalid networks can not be copied.");
+				   }
+			   }
+			   
+			   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+			   String uuidStr = uuid.toString();
+			   
+			//	java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString());
+				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr);
+				
+				//Create dir
+				Set<PosixFilePermission> perms =
+						    PosixFilePermissions.fromString("rwxrwxr-x");
+				FileAttribute<Set<PosixFilePermission>> attr =
+						    PosixFilePermissions.asFileAttribute(perms);
+				Files.createDirectory(tgt,attr);
+
+			    File srcAspectDir = new File ( Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/aspects");
+			    File tgtAspectDir = new File ( Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/aspects");
+			    FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
+
+			    String urlStr = Configuration.getInstance().getHostURI()  + 
+			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
+			   // ProvenanceEntity entity = new ProvenanceEntity();
+			  //  entity.setUri(urlStr + "/summary");
+			   
+			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/network.cx";
+			   long fileSize = new File(cxFileName).length();
+
+			   // copy sample 
+			   
+			   
+			   // create entry in db. 
+		       try (NetworkDAO dao = new NetworkDAO()) {
+		    	   NetworkSummary summary = dao.CreateCloneNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize, srcNetUUID);
+		    	   ProvenanceEntity sourceProvenanceEntity = dao.getProvenance(srcNetUUID);
+		    	   
+		    	   ProvenanceEntity copyProv = ProvenanceHelpers.createProvenanceHistory(
+		    				summary,
+		    				Configuration.getInstance().getHostURI(),
+		    				NdexProvenanceEventType.CX_NETWORK_CLONE, 
+		    				new Timestamp(Calendar.getInstance().getTimeInMillis()),
+		    				sourceProvenanceEntity
+		    		);
+		    		
+					dao.setProvenance(uuid, copyProv);
+					CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao, new Provenance(copyProv));
+					g.reCreateCXFile();
+					dao.commit();
+		       }
+		       
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid,true,false));
+		       
+			   logger.info("[end: Created a new network based on a POSTed CX stream.]");
+			   
+			   URI l = new URI (urlStr);
+
+			   return Response.created(l).entity(l).build();
+
+		   	}
+		  
+
+	    @POST
+		@PermitAll
+		@Path("/properties/score")
+		@Produces("application/json")
+	    public static int getScoresFromProperties(
+	    		final List<NdexPropertyValuePair> properties)
+	    		throws Exception {
+
+			return Util.getNetworkScores (properties, true);
+	    }
+	  
+	   	
+	   	
 }

@@ -15,6 +15,7 @@ import org.ndexbio.common.cx.AspectIterator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.common.util.Util;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Permissions;
@@ -28,15 +29,18 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 	
 	private UUID networkId;
 	private boolean onlyGlobalIndex;
+	private boolean createOnly;
 	
     private static final TaskType taskType = TaskType.SYS_SOLR_REBUILD_NETWORK_INDEX;
     public static final String AttrGlobalOnly = "globalOnly";
+    public static final String AttrCreateOnly ="createOnly";
     
 	
-	public SolrTaskRebuildNetworkIdx (UUID networkUUID, boolean globalOnly) {
+	public SolrTaskRebuildNetworkIdx (UUID networkUUID, boolean globalOnly, boolean createOnly) {
 		super();
 		this.networkId = networkUUID;
 		this.onlyGlobalIndex = globalOnly;
+		this.createOnly = createOnly;
 	}
 	
 	@Override
@@ -51,11 +55,13 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 					  throw new NdexException ("Network "+ networkId + " not found in the server." );
 				  
 				  //drop the old ones.
-				  globalIdx.deleteNetwork(networkId.toString());
+				  if ( !createOnly)
+					  globalIdx.deleteNetwork(networkId.toString());
 
 				  if ( !onlyGlobalIndex)  {
 					  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
-						  idx2.dropIndex();
+						  if ( !createOnly) 
+							  idx2.dropIndex();
 						  idx2.createIndex();
 						  idx2.close();
 				  		}
@@ -112,8 +118,30 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 									
 					globalIdx.commit();
 					
+					try {
+						dao.setFlag(this.networkId, "iscomplete", true);
+						dao.commit();
+					} catch (SQLException e) {
+					  throw new NdexException ("DB error when setting iscomplete flag: " + e.getMessage(), e);
+					}	
 				} 
 
+	}
+	
+	private int getScoreFromSummary(NetworkSummary summary) {
+		int score = 0;
+		
+		if ( summary.getName()!=null && !summary.getName().isEmpty())
+			score +=10;
+		if ( summary.getDescription() !=null && !summary.getDescription().isEmpty())
+			score += 10;
+		if ( summary.getVersion() !=null && !summary.getVersion().isEmpty()){
+			score +=10;
+		}
+		
+		score += Util.getNetworkScores(summary.getProperties(), false);
+		
+		return score;
 	}
 
 
@@ -122,6 +150,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		Task t = super.createTask();
 		t.setResource(networkId.toString());
 		t.getAttributes().put(AttrGlobalOnly, this.onlyGlobalIndex);
+		t.getAttributes().put(AttrCreateOnly, this.createOnly);
 		return t;
 	}
 

@@ -34,6 +34,9 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
+
+import org.ndexbio.model.object.NdexPropertyValuePair;
 
 public class Util {
 	public static String readFile(String path) 
@@ -42,4 +45,35 @@ public class Util {
 			  byte[] encoded = Files.readAllBytes(Paths.get(path));
 			  return new String(encoded, Charset.forName("UTF-8"));
 			}
+	
+   	public static int getNetworkScores (List<NdexPropertyValuePair> properties, boolean includeNames) {
+   		int i = 0;
+    	for (NdexPropertyValuePair prop: properties) {
+    		switch ( prop.getPredicateString()) {
+    		case "name":
+    		case "description":
+    		case "version":
+    			if (includeNames)
+    				i +=10;
+    			break;
+    		case "reference":
+    		case "organism":
+    		case "author":
+    		case "networkType":
+    		 i +=10;
+    		 break;
+    		case "tissue":
+    		case "labels":
+    		case "rigths":
+    		case "rightHolder":
+    			i+=5;
+    			break;
+    		default: 
+    			i++;
+    			
+    		}
+    	}
+    	return i;
+   	}
+
 }

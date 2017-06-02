@@ -966,7 +966,7 @@ public class UserServiceV2 extends NdexService {
 					ndao.commit();
 					
 					// update the solr Index
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),true));
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),true,false));
 				}
 			} else {
 				reqs.setResponse(ResponseType.DECLINED);

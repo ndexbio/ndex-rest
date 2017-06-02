@@ -112,6 +112,28 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 
 	
+	public NetworkSummary CreateCloneNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize, UUID srcUUID) throws SQLException {
+		Timestamp t = new Timestamp(System.currentTimeMillis());
+		
+		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, name, description, edgecount,nodecount,"
+				+ " islocked, iscomplete, visibility,owneruuid,owner, sourceformat,properties,cxmetadata, version,is_validated, readonly, cx_file_size) "
+				+ "select ?, current_timestamp, current_timestamp, false, 'Copy of ' || n.name, n.description, n.edgecount, n.nodecount, "
+				+ "true, false, 'PRIVATE',?,?,n.sourceformat, n.properties, n.cxmetadata, n.version,true,false,? from network n where n.\"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkUUID);
+			pst.setObject(2, ownerId);
+			pst.setString(3, ownerUserName);
+			pst.setLong(4, fileSize);
+			pst.setObject(5, srcUUID);
+			pst.executeUpdate();
+		}
+		NetworkSummary result = new NetworkSummary();
+		result.setCreationTime(t);
+		result.setModificationTime(t);
+		result.setExternalId(networkUUID);
+		return result;
+	}
+	
 	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
@@ -133,7 +155,7 @@ public class NetworkDAO extends NdexDBDAO {
 		return result;
 	}
 	
-
+	
 	public void deleteNetwork(UUID networkId, UUID userId) throws SQLException, NdexException {
 		String sqlStr = "update network set is_deleted=true,"
 				+ " modification_time = localtimestamp where \"UUID\" = ? and owneruuid = ? and is_deleted=false and isLocked = false and readonly=false";
@@ -842,9 +864,9 @@ public class NetworkDAO extends NdexDBDAO {
 				props.add(p);
 		}
 		
-		Date updateTime = Calendar.getInstance().getTime();
+//		Date updateTime = Calendar.getInstance().getTime();
 		
-		String sqlStr = "update network set properties = ? ::jsonb, modification_time = localtimestamp where \"UUID\" = ? and is_deleted = false";
+		String sqlStr = "update network set properties = ? ::jsonb, modification_time = localtimestamp, iscomplete=false where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			
 			if ( props.size() > 0 ) {
@@ -1033,7 +1055,7 @@ public class NetworkDAO extends NdexDBDAO {
 		    		sqlStr += entry.getKey() + " = ?";	
 		    		values.add(entry.getValue());
 		    }
-		    sqlStr += ", modification_time = localtimestamp where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false";
+		    sqlStr += ", modification_time = localtimestamp, iscomplete=false where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false";
 		    
 		    try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 		    	for ( int i = 0 ; i < values.size(); i++) {
@@ -1086,7 +1108,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException {
-		 String sqlStr = "update network set visibility = '" + v.toString() + "' where \"UUID\" = ? and is_deleted=false and islocked=false";
+		 String sqlStr = "update network set visibility = '" + v.toString() + "', iscomplete=false where \"UUID\" = ? and is_deleted=false and islocked=false";
 		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			 pst.setObject(1, networkId);
 			 int i = pst.executeUpdate();
@@ -1296,6 +1318,8 @@ public class NetworkDAO extends NdexDBDAO {
         	pst.executeUpdate();
         }
         
+        setFlag(networkUUID, "iscomplete",false);
+        
         commit();
 		//update solr index
 	//	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
@@ -1326,7 +1350,7 @@ public class NetworkDAO extends NdexDBDAO {
  //   	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
     	if ( permission == Permissions.ADMIN) {
     		// grant admin to this user.
-    		String sql = "update network set owneruuid = ?, owner = ? where \"UUID\" = ? and is_deleted = false";
+    		String sql = "update network set owneruuid = ?, owner = ?, iscomplete=false where \"UUID\" = ? and is_deleted = false";
     		try ( PreparedStatement pst = db.prepareStatement(sql)) {
     			pst.setObject(1, userUUID);
     			pst.setString(2, newUser.getUserName());
@@ -1363,6 +1387,7 @@ public class NetworkDAO extends NdexDBDAO {
     			pst.setObject(2, networkUUID);
     			pst.executeUpdate();
     		}
+    		setFlag(networkUUID, "iscomplete", false);
     		commit();
     	}
 
@@ -1373,7 +1398,7 @@ public class NetworkDAO extends NdexDBDAO {
     }
 	
     
-    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws NdexException, SolrServerException, IOException, SQLException {
+    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws NdexException, IOException, SQLException {
     
     	Permissions p = getNetworkPermissionOnGroup(networkUUID, groupUUID);
 
@@ -1383,27 +1408,29 @@ public class NetworkDAO extends NdexDBDAO {
         	return 0;
         }
         
+        setFlag(networkUUID,"iscomplete",false);
+        
         String sql = "delete from group_network_membership where network_id = ? and group_id = ?" ;
         try ( PreparedStatement pst = db.prepareStatement(sql)) {
         	pst.setObject(1, networkUUID);
         	pst.setObject(2,groupUUID);
         	int c = pst.executeUpdate();
         	commit();
-        	if ( c ==1 )  {
-        		try (GroupDAO dao = new GroupDAO()) {
-        			Group g = dao.getGroupById(groupUUID);
+       // 	if ( c ==1 )  {
+      //  		try (GroupDAO dao = new GroupDAO()) {
+      //  			Group g = dao.getGroupById(groupUUID);
         			
         			//update solr index
             /*		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
             		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getGroupName(), p, false); */
-        		}               
-        	} 
+       // 		}               
+        //	} 
         	return c;	
         }
         		
     }
     
-    public int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws NdexException, SolrServerException, IOException, SQLException {
+    public int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws SQLException, NdexException {
     	
     	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
 
@@ -1412,6 +1439,8 @@ public class NetworkDAO extends NdexDBDAO {
         			 " and network " + networkUUID + ". Igore revoke request."); 
         	return 0;
         }
+        
+        setFlag(networkUUID, "iscomplete",false);
         
         String sql = "delete from user_network_membership where network_id = ? and user_id = ?" ;
         try ( PreparedStatement pst = db.prepareStatement(sql)) {

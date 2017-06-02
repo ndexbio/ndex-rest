@@ -276,7 +276,7 @@ public class NetworkGlobalIndexManager {
 		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
 		
 		doc.addField(USER_ADMIN, ownerUserName);
-		
+		//doc.setDocumentBoost(documentBoost);;
 		if( userReads != null) {
 			for(String userName : userReads) {
 				doc.addField(USER_READ, userName);
