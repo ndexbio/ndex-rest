@@ -43,6 +43,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileAttribute;
@@ -1755,7 +1756,11 @@ public class NetworkServiceV2 extends NdexService {
 			   long fileSize = new File(cxFileName).length();
 
 			   // copy sample 
-			   
+			   java.nio.file.Path srcSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/sample.cx");
+			   if ( Files.exists(srcSample, LinkOption.NOFOLLOW_LINKS)) {
+				   java.nio.file.Path tgtSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/sample.cx");
+				   Files.copy(srcSample, tgtSample);
+			   }
 			   
 			   // create entry in db. 
 		       try (NetworkDAO dao = new NetworkDAO()) {
@@ -1776,7 +1781,7 @@ public class NetworkServiceV2 extends NdexService {
 					dao.commit();
 		       }
 		       
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid,true,false));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid,true,true));
 		       
 			   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 			   

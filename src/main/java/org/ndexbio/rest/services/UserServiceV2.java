@@ -299,7 +299,7 @@ public class UserServiceV2 extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to the given user account name. Error if this account is not found.")
 	public User getUserByAccountNameOrAuthenticatUser(
-			@QueryParam("username") @Encoded final String accountName,
+			@QueryParam("username") /*@Encoded*/ final String accountName,
 			@QueryParam("valid") final String booleanStr
 			)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {

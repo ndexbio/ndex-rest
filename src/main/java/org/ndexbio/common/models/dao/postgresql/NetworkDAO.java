@@ -45,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -71,7 +70,6 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.NdexPropertyValuePair;
@@ -116,9 +114,9 @@ public class NetworkDAO extends NdexDBDAO {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
 		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, name, description, edgecount,nodecount,"
-				+ " islocked, iscomplete, visibility,owneruuid,owner, sourceformat,properties,cxmetadata, version,is_validated, readonly, cx_file_size) "
+				+ " islocked, iscomplete, visibility,owneruuid,owner, sourceformat,properties,cxmetadata, version,is_validated, readonly,subnetworkids, cx_file_size) "
 				+ "select ?, current_timestamp, current_timestamp, false, 'Copy of ' || n.name, n.description, n.edgecount, n.nodecount, "
-				+ "true, false, 'PRIVATE',?,?,n.sourceformat, n.properties, n.cxmetadata, n.version,true,false,? from network n where n.\"UUID\" = ? and is_deleted = false";
+				+ "false, false, 'PRIVATE',?,?,n.sourceformat, n.properties, n.cxmetadata, n.version,true,false,n.subnetworkids,? from network n where n.\"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkUUID);
 			pst.setObject(2, ownerId);

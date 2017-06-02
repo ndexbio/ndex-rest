@@ -272,6 +272,18 @@ public class NetworkGlobalIndexManager {
 		doc.addField(NODE_COUNT, summary.getNodeCount());
 		doc.addField(VISIBILITY, summary.getVisibility().toString());
 		
+		if ( summary.getName() !=null && summary.getName().length()>1) {
+			doc.addField(NAME, summary.getName());
+		}
+		
+		if (summary.getDescription() !=null && summary.getDescription().length()>1) {
+			doc.addField(DESC, summary.getDescription());
+		}
+		
+		if ( summary.getVersion() !=null && summary.getVersion().length()>1) {
+			doc.addField(VERSION, summary.getVersion());
+		}
+		
 		doc.addField(CREATION_TIME, summary.getCreationTime());
 		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
 		
