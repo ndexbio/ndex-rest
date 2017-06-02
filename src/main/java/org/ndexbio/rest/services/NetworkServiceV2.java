@@ -1725,6 +1725,9 @@ public class NetworkServiceV2 extends NdexService {
 			   UUID srcNetUUID = UUID.fromString(srcNetworkUUIDStr);
 			   
 			   try ( NetworkDAO dao = new NetworkDAO ()) {
+				   if ( ! dao.isReadable(srcNetUUID, getLoggedInUserId()) ) 
+		                throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+		    		
 				   if (!dao.networkIsValid(srcNetUUID)) {
 					   throw new NdexException ("Invalid networks can not be copied.");
 				   }
