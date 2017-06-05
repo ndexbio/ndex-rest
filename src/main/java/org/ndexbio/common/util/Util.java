@@ -60,14 +60,15 @@ public class Util {
     			break;
     		case "reference":
     		case "organism":
+    		case "disease":
     		case "author":
     		case "networkType":
     		 i +=10;
     		 break;
     		case "tissue":
     		case "labels":
-    		case "rigths":
-    		case "rightHolder":
+    		case "rights":
+    		case "rightsHolder":
     			i+=5;
     			break;
     		default: 

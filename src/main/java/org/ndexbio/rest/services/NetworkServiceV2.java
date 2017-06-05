@@ -1806,6 +1806,16 @@ public class NetworkServiceV2 extends NdexService {
 			return Util.getNetworkScores (properties, true);
 	    }
 	  
+	    @POST
+		@PermitAll
+		@Path("/summary/score")
+		@Produces("application/json")
+	    public static int getScoresFromNetworkSummary(
+	    		final NetworkSummary summary)
+	    		throws Exception {
+
+			return Util.getNdexScoreFromSummary(summary);
+	    }
 	   	
 	   	
 }
