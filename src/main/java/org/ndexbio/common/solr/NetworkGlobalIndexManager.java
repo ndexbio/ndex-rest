@@ -60,6 +60,7 @@ import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.util.TermUtilities;
+import org.ndexbio.common.util.Util;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Permissions;
@@ -83,7 +84,7 @@ public class NetworkGlobalIndexManager {
 	//private static final String LABELS = "labels";
 	private static final String USER_READ= "userRead";
 	private static final String USER_EDIT = "userEdit";
-	private static final String USER_ADMIN = "userAdmin";
+	private static final String USER_ADMIN = "owner";
 	private static final String GRP_READ = "grpRead";
 	private static final String GRP_EDIT = "grpEdit";
 //	private static final String GRP_ADMIN = "grpAdmin";
@@ -95,6 +96,7 @@ public class NetworkGlobalIndexManager {
 	private static final String NODE_COUNT = "nodeCount";
 	private static final String CREATION_TIME = "creationTime";
 	private static final String MODIFICATION_TIME = "modificationTime";
+	private static final String NDEX_SCORE = "ndexScore";
 	
 	
 	private static final String NODE_NAME = "nodeName";
@@ -169,7 +171,7 @@ public class NetworkGlobalIndexManager {
 	
 	public SolrDocumentList searchForNetworks (String searchTerms, String userAccount, int limit, int offset, String adminedBy, Permissions permission,
 			   List<UUID> groupUUIDs) 
-			throws SolrServerException, IOException, NdexException {
+			throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl+ "/" + coreName);
 
 		SolrQuery solrQuery = new SolrQuery();
@@ -222,9 +224,11 @@ public class NetworkGlobalIndexManager {
 		resultFilter = resultFilter + adminFilter;
 		
 			
-		solrQuery.setQuery(searchTerms).setFields(UUID);
 		if ( searchTerms.equalsIgnoreCase("*:*"))
 			solrQuery.setSort(MODIFICATION_TIME, ORDER.desc);
+
+//		solrQuery.setQuery( searchTerms ).setFields(UUID);
+		solrQuery.setQuery("( " + searchTerms + " ) AND _val_:\"div(" + NDEX_SCORE+ ",10)\"" ).setFields(UUID);
 		if ( offset >=0)
 		  solrQuery.setStart(offset);
 		if ( limit >0 )
@@ -286,6 +290,8 @@ public class NetworkGlobalIndexManager {
 		
 		doc.addField(CREATION_TIME, summary.getCreationTime());
 		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
+		
+		doc.addField(NDEX_SCORE, Util.getNdexScoreFromSummary(summary));
 		
 		doc.addField(USER_ADMIN, ownerUserName);
 		//doc.setDocumentBoost(documentBoost);;

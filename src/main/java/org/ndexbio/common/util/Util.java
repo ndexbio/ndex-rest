@@ -37,6 +37,7 @@ import java.nio.file.Paths;
 import java.util.List;
 
 import org.ndexbio.model.object.NdexPropertyValuePair;
+import org.ndexbio.model.object.network.NetworkSummary;
 
 public class Util {
 	public static String readFile(String path) 
@@ -48,6 +49,7 @@ public class Util {
 	
    	public static int getNetworkScores (List<NdexPropertyValuePair> properties, boolean includeNames) {
    		int i = 0;
+   		int j = 0;
     	for (NdexPropertyValuePair prop: properties) {
     		switch ( prop.getPredicateString()) {
     		case "name":
@@ -69,11 +71,31 @@ public class Util {
     			i+=5;
     			break;
     		default: 
-    			i++;
-    			
+    			if ( j <=15) {
+    				i++;
+    				j++;
+    			}
     		}
     	}
     	return i;
    	}
 
+   	
+ 	public static int getNdexScoreFromSummary (NetworkSummary summary) {
+   		int i = 0;
+   		
+		if ( summary.getName() !=null && summary.getName().length()>1) {
+			i += 10;
+		}
+		
+		if (summary.getDescription() !=null && summary.getDescription().length()>1) {
+			i += 10;
+		}
+		
+		if ( summary.getVersion() !=null && summary.getVersion().length()>1) {
+			i +=10;
+		}
+		return i + getNetworkScores(summary.getProperties(), false);
+   	}
+ 	
 }

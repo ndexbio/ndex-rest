@@ -60,7 +60,7 @@
     that avoids logging every request
 -->
 
-<schema name="ndex_neworks" version="1.5">
+<schema name="ndex_neworks" version="1.6">
   <!-- attribute "name" is the name of this schema and is only used for display purposes.
        version="x.y" is Solr's version number for the schema syntax and 
        semantics.  It should not normally be changed by applications.
@@ -153,7 +153,7 @@
    <field name="nodeCount" type="int" indexed="true" stored="false"  />
    <field name="userRead" type="string" indexed="true" stored="false"  multiValued="true"/>
    <field name="userEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="userAdmin" type="string" indexed="true" stored="false"  multiValued="true"/>
+   <field name="owner" type="string" indexed="true" stored="false"  multiValued="true"/>
    <field name="grpRead" type="string" indexed="true" stored="false"  multiValued="true"/>
    <field name="grpEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
    <field name="grpAdmin" type="string" indexed="true" stored="false"  multiValued="true"/>
@@ -186,8 +186,9 @@
    <field name="graphHash" type="string" indexed="true" stored="false" multiValued="true" />
    <field name="rights" type="text_general" indexed="true" stored="false" multiValued="true" />
 
+   <field name="ndexScore" type="int" indexed="true" stored="false" multiValued="false" />
 
-
+   
 
    <field name="_src_" type="string" indexed="false" stored="false"/>
 
