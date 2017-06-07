@@ -83,7 +83,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 	 private HttpServletRequest httpRequest;
 	 
 	private static final String basicAuthPrefix = "Basic "; 
-	protected static final String accessLoggerName = "accesslog";
+	public static final String accessLoggerName = "accesslog";
 	
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
     private static final Logger accessLogger = LoggerFactory.getLogger(accessLoggerName);
@@ -178,6 +178,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             						if ( autoCreateAccount !=null && Boolean.parseBoolean(autoCreateAccount)) {
             							User newUser = ADAuthenticator.getNewUser(authInfo[0], authInfo[1]);
             							authUser = dao.createNewUser(newUser,null);
+            							dao.commit();
             						} else 
             							throw e;
             					}	

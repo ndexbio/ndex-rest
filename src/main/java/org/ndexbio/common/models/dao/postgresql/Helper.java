@@ -181,7 +181,7 @@ public class Helper {
 
 
      
-	public static void createUserIfnotExist(UserDAO dao, String accountName, String email, String password) throws NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, NoSuchAlgorithmException, SQLException, IOException {
+/*	private static void createUserIfnotExist(UserDAO dao, String accountName, String email, String password) throws NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, NoSuchAlgorithmException, SQLException, IOException {
 		try {
 			User u = dao.getUserByAccountName(accountName,true, false);
 			if ( u!= null) return;
@@ -201,7 +201,7 @@ public class Helper {
         dao.createNewUser(newUser, null);
         
 
-	}
+	} */
 	
 	
 }

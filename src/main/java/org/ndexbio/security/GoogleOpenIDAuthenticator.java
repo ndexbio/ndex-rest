@@ -180,6 +180,7 @@ public class GoogleOpenIDAuthenticator {
 				 newUser.setPassword(Security.generatePassword());
 				 User user = userDao.createNewUser(newUser, null);
 				 userUUID = user.getExternalId();
+				 userDao.commit();
 			 }
 
 			 // store the token in in-memory table

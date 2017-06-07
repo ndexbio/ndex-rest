@@ -113,6 +113,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
@@ -124,6 +125,7 @@ public class SearchServiceV2 extends NdexService {
 	
 	
 	static Logger logger = LoggerFactory.getLogger(BatchServiceV2.class);
+	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -227,8 +229,10 @@ public class SearchServiceV2 extends NdexService {
 			@DefaultValue("100") @QueryParam("size") int blockSize)
 			throws IllegalArgumentException, NdexException {
 		
-		logger.info("[start: Retrieving NetworkSummary objects using query \"{}\"]", 
-				query.getSearchString());		
+		//logger.info("[start: Retrieving NetworkSummary objects using query \"{}\"]", 
+		//		query.getSearchString());		
+		
+		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
 		
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
@@ -236,12 +240,12 @@ public class SearchServiceV2 extends NdexService {
     	try (NetworkDAO dao = new NetworkDAO()) {
 
 			NetworkSearchResult result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
-			logger.info("[end: Retrieved {} NetworkSummary objects]", result.getNetworks().size());		
+	//		logger.info("[end: Retrieved {} NetworkSummary objects]", result.getNetworks().size());		
 			return result;
 
         } catch (Exception e) {
-			logger.error("[end: Retrieving NetworkSummary objects using query \"{}\". Exception caught:]{}", 
-					query.getSearchString(), e);	
+		//	logger.error("[end: Retrieving NetworkSummary objects using query \"{}\". Exception caught:]{}", 
+		//			query.getSearchString(), e);	
 			e.printStackTrace();
         	throw new NdexException(e.getMessage());
         }
@@ -260,6 +264,8 @@ public class SearchServiceV2 extends NdexService {
 			@QueryParam("accesskey") String accessKey,
 			final CXSimplePathQuery queryParameters
 			) throws NdexException, SQLException   {
+		
+		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
 		UUID networkId = UUID.fromString(networkIdStr);
 
@@ -301,7 +307,7 @@ public class SearchServiceV2 extends NdexService {
     @ApiDoc("Retrieves a subnetwork of the network specified by ‘networkId’. The query finds " +
             "the subnetwork by a filtering the network on conditions defined in filter query object. " +
             "specified in a POSTed JSON query object. " )
-	public Response advanceQuery(
+	public Response advancedQuery(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,			
 			final EdgeCollectionQuery queryParameters
@@ -309,7 +315,13 @@ public class SearchServiceV2 extends NdexService {
 		
 	/*	if ( networkIdStr.equals("0000"))
 			return Response.ok().build();*/
-		
+		ObjectMapper mapper = new ObjectMapper();
+		try {
+			accLogger.info("[data]\t[query:" + mapper.writeValueAsString(queryParameters)+ "]" );
+		} catch (JsonProcessingException ee) {
+			logger.info("Failed to generate json string for logging in function SearchServiceV2.advancedQuery:" + ee.getMessage());
+		}
+
 		UUID networkId = UUID.fromString(networkIdStr);
 
 		try (NetworkDAO dao = new NetworkDAO())  {
@@ -358,6 +370,8 @@ public class SearchServiceV2 extends NdexService {
 			@DefaultValue("100") @QueryParam("size") int blockSize)
 			throws IllegalArgumentException, NdexException {
 
+		accLogger.info("[data]\t[query:" +geneQuery.getSearchString() + "]" );
+
         String[] query = geneQuery.getSearchString().split("(,|\\s)+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
 		Set<String> processedTerms = new HashSet<>(query.length);
 		for ( String q : query) {
@@ -377,12 +391,12 @@ public class SearchServiceV2 extends NdexService {
 		for ( String i : r) {
 			if (! processedTerms.contains(i))
 				lStr.append( "\"" + i + "\" ");
-			else 
-				System.out.println("term " + i + " is in query, ignoring it.");
+			//else 
+			//	System.out.println("term " + i + " is in query, ignoring it.");
 		}
 		SimpleNetworkQuery finalQuery = new SimpleNetworkQuery();
 		finalQuery.setSearchString(lStr.toString());
-		System.out.println("Final search string is ("+ lStr.length()+"): " + lStr.toString());
+		logger.info("Final search string is ("+ lStr.length()+"): " + lStr.toString());
 
 		try (NetworkDAO dao = new NetworkDAO()) {
 

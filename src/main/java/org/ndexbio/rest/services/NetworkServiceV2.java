@@ -393,15 +393,12 @@ public class NetworkServiceV2 extends NdexService {
 			@Context org.jboss.resteasy.spi.HttpResponse response*/)
 
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-
-    	logger.info("[start: Getting networkSummary of network {}]", networkIdStr);
 		
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			UUID networkId = UUID.fromString(networkIdStr);
 			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
 				NetworkSummary summary = dao.getNetworkSummaryById(networkId);
-				logger.error("[end: Getting networkSummary of network {}.]", networkId);	
 
 			//	response.getOutputHeaders().putSingle("WWW-Authenticate", "Basic");
 				return summary;
@@ -602,7 +599,7 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{networkid}/accesskey")
-	@Produces("text/plain")
+	@Produces("text/plain; charset=utf-8")
 	public String getNetworkAccessKey(@PathParam("networkid") final String networkIdStr)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
