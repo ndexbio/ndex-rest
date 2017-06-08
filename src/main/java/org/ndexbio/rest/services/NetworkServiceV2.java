@@ -615,20 +615,25 @@ public class NetworkServiceV2 extends NdexService {
 	@PUT
 	@Path("/{networkid}/accesskey")
 	
-	public void disableNetworkAccessKey(@PathParam("networkid") final String networkIdStr,
+	public String disableEnableNetworkAccessKey(@PathParam("networkid") final String networkIdStr,
 			@QueryParam("action") String action)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
 		UUID networkId = UUID.fromString(networkIdStr);
-		if ( ! action.equalsIgnoreCase("disable"))
-			throw new NdexException("Value of 'action' paramter can only be 'disable'");
+		if ( ! action.equalsIgnoreCase("disable") && ! action.equalsIgnoreCase("enable"))
+			throw new NdexException("Value of 'action' paramter can only be 'disable' or 'enable'");
 		
     	try (NetworkDAO dao = new NetworkDAO()) {
     		if ( ! dao.isAdmin(networkId, getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User is not admin of this network.");
 
-    		dao.disableNetworkAccessKey(networkId);
+    		String key = null;
+    		if ( action.equalsIgnoreCase("disable"))
+    			dao.disableNetworkAccessKey(networkId);
+    		else 
+    			key = dao.enableNetworkAccessKey(networkId);
     		dao.commit();
+    		return key;
     	}
 	}  
 	

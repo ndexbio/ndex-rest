@@ -196,20 +196,26 @@ public class NetworkSetServiceV2 extends NdexService {
 	@PUT
 	@Path("/{networksetid}/accesskey")
 	
-	public void disableNetworkAccessKey(@PathParam("networksetid") final String networkSetIdStr,
+	public String disableNetworkAccessKey(@PathParam("networksetid") final String networkSetIdStr,
 			@QueryParam("action") String action)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
 		UUID networkSetId = UUID.fromString(networkSetIdStr);
-		if ( ! action.equalsIgnoreCase("disable"))
-			throw new NdexException("Value of 'action' paramter can only be 'disable'");
+		if ( ! action.equalsIgnoreCase("disable") && ! action.equalsIgnoreCase("enable"))
+			throw new NdexException("Value of 'action' paramter can only be 'disable' or 'enable'");
 		
     	try (NetworkSetDAO dao = new NetworkSetDAO()) {
     		if ( ! dao.isNetworkSetOwner(networkSetId, getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User is not the owner of this network set.");
 
-    		dao.disableNetworkSetAccessKey(networkSetId);
+    		String key = null;
+    		if ( action.equalsIgnoreCase("disable"))
+    			dao.disableNetworkSetAccessKey(networkSetId);
+    		else 
+    			key = dao.enableNetworkSetAccessKey(networkSetId);
     		dao.commit();
+    		
+    		return key;
     	}
 	}  
 	

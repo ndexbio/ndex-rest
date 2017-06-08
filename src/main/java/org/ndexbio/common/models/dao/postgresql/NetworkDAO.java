@@ -1617,6 +1617,32 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 	
+		if ( keyIsOn) {
+			return oldKey;
+		}
+		
+		return null;
+
+	}
+
+	public String enableNetworkAccessKey( UUID networkId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select access_key, access_key_is_on from network where \"UUID\" = ? and is_deleted=false";
+		
+		String oldKey = null;
+		boolean keyIsOn = false;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					oldKey = rs.getString(1);
+					keyIsOn = rs.getBoolean(2);
+				} else
+					throw new ObjectNotFoundException("Network" , networkId);
+				
+			}
+		}
+	
 		if ( oldKey !=null ) {
 			if ( keyIsOn)
 				return oldKey;
@@ -1627,7 +1653,6 @@ public class NetworkDAO extends NdexDBDAO {
 	        	pst.setObject(1, networkId);
 	        	pst.executeUpdate();
 	        }	
-			commit();
 			return oldKey;
 				
 		}
@@ -1645,10 +1670,10 @@ public class NetworkDAO extends NdexDBDAO {
 	        	pst.setObject(2, networkId);
 	        	pst.executeUpdate();
 	      }	
-	      commit();
 	     
 	     return newKey;
 	}
+
 	
 	public void disableNetworkAccessKey( UUID networkId) throws SQLException {
 		//update db flag

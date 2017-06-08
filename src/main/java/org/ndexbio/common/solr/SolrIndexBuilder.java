@@ -122,7 +122,7 @@ public class SolrIndexBuilder {
 				}
 			}
 							
-			globalIdx.commit();
+		//	globalIdx.commit();
 			
 			logger.info("Solr index of network " + networkid + " created.");
 		} 
@@ -133,13 +133,19 @@ public class SolrIndexBuilder {
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false";
 			
+			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
-					while (rs.next())
+					while (rs.next()) {
 					   rebuildNetworkIndex((UUID)rs.getObject(1));
+					   i ++;
+					   if ( i % 100 == 0 ) 
+						   globalIdx.commit();
+					}
 				}
 			}
 		}
+		globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
 	
@@ -245,6 +251,7 @@ public class SolrIndexBuilder {
 				break;
 			default:	
 				builder.rebuildNetworkIndex(UUID.fromString(args[0]));
+				builder.globalIdx.commit();
 				
 			}
 			logger.info("Index rebuid process finished.");
