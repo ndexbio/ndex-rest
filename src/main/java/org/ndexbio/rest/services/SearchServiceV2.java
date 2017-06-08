@@ -371,6 +371,19 @@ public class SearchServiceV2 extends NdexService {
 			throws IllegalArgumentException, NdexException {
 
 		accLogger.info("[data]\t[query:" +geneQuery.getSearchString() + "]" );
+		
+		if ( geneQuery.getSearchString().trim().length() == 0 || geneQuery.getSearchString().trim().equals("*")) {
+			try (NetworkDAO dao = new NetworkDAO()) {
+				SimpleNetworkQuery finalQuery = new SimpleNetworkQuery();
+				finalQuery.setSearchString(geneQuery.getSearchString());
+				NetworkSearchResult result = dao.findNetworks(finalQuery, skipBlocks, blockSize, this.getLoggedInUser());
+				return result;
+
+	        } catch (Exception e) {
+	        	throw new NdexException(e.getMessage());
+	        }
+			
+		}
 
         String[] query = geneQuery.getSearchString().split("(,|\\s)+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
 		Set<String> processedTerms = new HashSet<>(query.length);
@@ -411,13 +424,20 @@ public class SearchServiceV2 extends NdexService {
 	private Set<String> expandGeneSearchTerms(Collection<String> geneSearchTerms) throws NdexException  {
 		
 		Client client = ClientBuilder.newBuilder().build();
+        Set<String> expendedTerms = new HashSet<> ();
 		
 		MultivaluedMap<String, String> formData = new MultivaluedHashMap<String, String>();
 		StringBuilder lStr = new StringBuilder ();
 		
-		for ( String i : geneSearchTerms)  lStr.append( i + ",");
+		for ( String i : geneSearchTerms) 
+			if ( i.trim().length() != 0 ) 
+				lStr.append( i + ",");
 
-	    formData.add("q", lStr.toString());
+		if (lStr.length()<1)
+			return expendedTerms;
+		
+		String q = lStr.substring(0,lStr.length()-1);
+	    formData.add("q", q);
 	    formData.add("scopes", "symbol,entrezgene,ensemblgene,alias,uniprot");
 	    formData.add("fields", "symbol,name,taxid,entrezgene,ensembl.gene,alias,uniprot,MGI,RGD,HGNC");
 	    formData.add("dotfield", "true");
@@ -436,7 +456,6 @@ public class SearchServiceV2 extends NdexService {
    //     System.out.println(expensionResult);
         List<Map<String,Object>> expensionResult = response.readEntity(new GenericType<List<Map<String,Object>>>() {});
         Set<String> missList = new HashSet<> ();
-        Set<String> expendedTerms = new HashSet<> ();
         for ( Map<String,Object> termObj : expensionResult) {
         	Boolean notFound = (Boolean)termObj.get("notfound");
         	if ( notFound!=null && notFound.booleanValue()) {
