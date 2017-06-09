@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -180,8 +181,8 @@ public class NetworkSetServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{networksetid}/accesskey")
-	@Produces("text/plain")
-	public String getNetworkSetAccessKey(@PathParam("networksetid") final String networkSetIdStr)
+	@Produces("application/json")
+	public Map<String,String> getNetworkSetAccessKey(@PathParam("networksetid") final String networkSetIdStr)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
 		UUID networkSetId = UUID.fromString(networkSetIdStr);
@@ -189,14 +190,19 @@ public class NetworkSetServiceV2 extends NdexService {
     		if ( ! dao.isNetworkSetOwner(networkSetId,  getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User is not the owner of this network set.");
 
-    		return dao.getNetworkSetAccessKey(networkSetId);
+    		String key = dao.getNetworkSetAccessKey(networkSetId);
+    		if (key == null || key.length()==0)
+    			return null;
+    		Map<String,String> result = new HashMap<>(1);
+    		result.put("accessKey", key);
+    		return result;
     	}
 	}  
 		
 	@PUT
 	@Path("/{networksetid}/accesskey")
-	
-	public String disableNetworkAccessKey(@PathParam("networksetid") final String networkSetIdStr,
+	@Produces("application/json")	
+	public  Map<String,String> disableNetworkAccessKey(@PathParam("networksetid") final String networkSetIdStr,
 			@QueryParam("action") String action)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
@@ -215,7 +221,11 @@ public class NetworkSetServiceV2 extends NdexService {
     			key = dao.enableNetworkSetAccessKey(networkSetId);
     		dao.commit();
     		
-    		return key;
+    		if (key == null || key.length()==0)
+    			return null;
+    		Map<String,String> result = new HashMap<>(1);
+    		result.put("accessKey", key);
+    		return result;
     	}
 	}  
 	

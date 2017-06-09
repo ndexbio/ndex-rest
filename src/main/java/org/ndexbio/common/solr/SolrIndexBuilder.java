@@ -139,7 +139,8 @@ public class SolrIndexBuilder {
 					while (rs.next()) {
 					   rebuildNetworkIndex((UUID)rs.getObject(1));
 					   i ++;
-					   if ( i % 100 == 0 ) 
+					   if ( i % 400 == 0 ) 
+						   System.err.println("commiting to solr at " + i + " records.");
 						   globalIdx.commit();
 					}
 				}
