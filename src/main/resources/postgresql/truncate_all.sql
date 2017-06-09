@@ -5,8 +5,9 @@ truncate table group_network_membership cascade ;
 truncate table ndex_group cascade;
 truncate table user_network_membership cascade;
 truncate table network cascade;
+truncate table request cascade;
+truncate table task cascade;
 truncate table ndex_user cascade;
-
 
 truncate table v1_group;
 truncate table v1_group_network;
