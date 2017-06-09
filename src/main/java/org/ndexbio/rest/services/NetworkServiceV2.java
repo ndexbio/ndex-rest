@@ -599,8 +599,8 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{networkid}/accesskey")
-	@Produces("text/plain; charset=utf-8")
-	public String getNetworkAccessKey(@PathParam("networkid") final String networkIdStr)
+	@Produces("application/json")
+	public Map<String,String> getNetworkAccessKey(@PathParam("networkid") final String networkIdStr)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
 		UUID networkId = UUID.fromString(networkIdStr);
@@ -608,14 +608,19 @@ public class NetworkServiceV2 extends NdexService {
     		if ( ! dao.isAdmin(networkId, getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User is not admin of this network.");
 
-    		return dao.getNetworkAccessKey(networkId);
+    		String key = dao.getNetworkAccessKey(networkId);
+    		if (key == null || key.length()==0)
+    			return null;
+    		Map<String,String> result = new HashMap<>(1);
+    		result.put("accessKey", key);
+    		return result;
     	}
 	}  
 		
 	@PUT
 	@Path("/{networkid}/accesskey")
-	
-	public String disableEnableNetworkAccessKey(@PathParam("networkid") final String networkIdStr,
+	@Produces("application/json")
+	public Map<String,String> disableEnableNetworkAccessKey(@PathParam("networkid") final String networkIdStr,
 			@QueryParam("action") String action)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
@@ -633,7 +638,12 @@ public class NetworkServiceV2 extends NdexService {
     		else 
     			key = dao.enableNetworkAccessKey(networkId);
     		dao.commit();
-    		return key;
+    		
+     		if (key == null || key.length()==0)
+    			return null;
+    		Map<String,String> result = new HashMap<>(1);
+    		result.put("accessKey", key);
+    		return result;
     	}
 	}  
 	
