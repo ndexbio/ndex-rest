@@ -33,6 +33,8 @@ package org.ndexbio.rest.services;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
@@ -51,6 +53,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 
+import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
@@ -62,6 +65,7 @@ import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.task.NetworkExportTask;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -94,6 +98,10 @@ public class TaskServiceV2 extends NdexService
     * 
     * @param taskId
     *            The task ID.
+     * @throws SQLException 
+     * @throws IOException 
+     * @throws JsonMappingException 
+     * @throws JsonParseException 
 
     **************************************************************************/
     /*
@@ -103,9 +111,8 @@ public class TaskServiceV2 extends NdexService
     @Path("/{taskid}")
     @Produces("application/json")
 	@ApiDoc("Delete the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
-    public void deleteTask(@PathParam("taskid")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException
+    public void deleteTask(@PathParam("taskid")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException
     {
-		logger.info("[start: Start deleting task {}]", taskUUID);
 
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskUUID), 
     			"A task id is required");
@@ -116,14 +123,9 @@ public class TaskServiceV2 extends NdexService
             final Task taskToDelete = tdao.getTaskByUUID(taskId);
             
             if (taskToDelete == null) {
-        		logger.info("[end: Task {} not found. Throwing ObjectNotFoundException.]", 
-        				taskUUID);
                 throw new ObjectNotFoundException("Task with ID: " + taskUUID + " doesn't exist.");
             }    
             else if (!taskToDelete.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
-        		logger.info(
-        			"[end: You cannot delete task {} because you don't own it. Throwing UnauthorizedOperationException...]", 
-        			taskUUID);         		
                 throw new UnauthorizedOperationException("You cannot delete a task you don't own.");
             }
             if ( taskToDelete.getIsDeleted()) {
@@ -131,29 +133,23 @@ public class TaskServiceV2 extends NdexService
             			taskUUID,this.getLoggedInUser().getUserName());            
             } else {
             	tdao.deleteTask(taskToDelete.getExternalId());
-            
             	tdao.commit();
-            	logger.info("[end: Task {} is deleted by user {}]", 
-            			taskUUID,this.getLoggedInUser().getUserName());
+            	
+            	if (taskToDelete.getTaskType() == TaskType.EXPORT_NETWORK_TO_FILE) { //delete the exported file assume all exported files started with the taskId
+            		            		
+            		Files.list(Paths.get(Configuration.getInstance().getNdexRoot() + "/workspace/" +taskToDelete.getTaskOwnerId()))
+            		.filter(p -> p.toString().contains("/" + taskToDelete.getExternalId().toString() + ".")).forEach((p) -> {
+            		    try {
+            		        Files.deleteIfExists(p);
+            		    } catch (Exception e) {
+            		        e.printStackTrace();
+            		    }
+            		});
+
+            	}
             }
         }
-        catch (UnauthorizedOperationException | ObjectNotFoundException onfe)
-        {
-        	logger.error("[end: Failed to delete task {}. Exception caught:]{}", 
-        			taskUUID , onfe);
-            throw onfe;
-        }
-        catch (Exception e)
-        {
-        	logger.error("[end: Failed to delete task {}. Exception caught:]{}", 
-        			taskUUID , e);
-        	
-        	if (e.getMessage().indexOf("cluster: null") > -1) {	
-        		throw new ObjectNotFoundException("Task with ID: " + taskUUID + " doesn't exist.");
-            }
-	        
-            throw new NdexException("Failed to delete task " + taskUUID);
-        }
+
     }
 
     /**************************************************************************

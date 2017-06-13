@@ -116,7 +116,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 						}
 					}
 									
-					globalIdx.commit();
+		//			globalIdx.commit();
 					
 					try {
 						dao.setFlag(this.networkId, "iscomplete", true);

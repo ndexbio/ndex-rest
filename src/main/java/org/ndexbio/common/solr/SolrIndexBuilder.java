@@ -139,14 +139,21 @@ public class SolrIndexBuilder {
 					while (rs.next()) {
 					   rebuildNetworkIndex((UUID)rs.getObject(1));
 					   i ++;
-					   if ( i % 400 == 0 ) 
+					   if ( i % 50 == 0 ) {
 						   System.err.println("commiting to solr at " + i + " records.");
-						   globalIdx.commit();
+						//   globalIdx.commit();
+						   try {
+							  Thread.sleep(20000);
+						   } catch (InterruptedException e) {
+							  // TODO Auto-generated catch block
+							  e.printStackTrace();
+						   }
+					   }	   
 					}
 				}
 			}
 		}
-		globalIdx.commit();
+	//	globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
 	

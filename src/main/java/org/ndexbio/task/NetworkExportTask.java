@@ -16,6 +16,7 @@ public class NetworkExportTask extends NdexTask {
 		super(t);
 	}
 	
+	
 	@Override
 	public Task call_aux() throws Exception {
 		Map<String, Object> attrs = task.getAttributes();
