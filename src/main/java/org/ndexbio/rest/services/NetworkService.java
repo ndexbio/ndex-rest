@@ -452,7 +452,7 @@ public class NetworkService extends NdexService {
 			
 	}
 
-
+/*
 	@PermitAll
 	@POST
 	@Path("/summaries")
@@ -475,7 +475,7 @@ public class NetworkService extends NdexService {
 		}  finally {
 	    	logger.info("[end: Getting networkSummary of networks {}]", networkIdStrs);
 		}						
-	}
+	} */
 	
 	
 	@PermitAll

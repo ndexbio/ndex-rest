@@ -451,6 +451,7 @@ public class NetworkDAO extends NdexDBDAO {
 		    " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
 		    + "and gn1.network_id = n.\"UUID\" and gu.user_id = '"+ userId + "' limit 1) )";
 	}
+
 	
 	public boolean isReadable(UUID networkID, UUID userId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select (" + createIsReadableConditionStr(userId) + ") from network n where n.\"UUID\" = ? and n.is_deleted=false ";		
@@ -960,7 +961,7 @@ public class NetworkDAO extends NdexDBDAO {
 	
 	
 	
-	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId) throws SQLException, JsonParseException, JsonMappingException, IOException {
+	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId, String accessKey) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
 		
 		List<NetworkSummary> result = new ArrayList<>(networkIdstrList.size());
@@ -976,8 +977,13 @@ public class NetworkDAO extends NdexDBDAO {
 			cnd.append('\'');			
 		}
 		
-		String sqlStr = networkSummarySelectClause 
-				+ "from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false and " + createIsReadableConditionStr(userId) ;
+		String sqlStr = accessKey == null ? (networkSummarySelectClause 
+				+ " from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
+				  : ( networkSummarySelectClause 
+							+ "from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
+				            +  ") or ( n.access_key_is_on and n.access_key = '" + accessKey + "') or " + 
+					                 " exists (select 1 from network_set s, network_set_member sm where s.\"UUID\" = sm.set_id "
+							                 + "and sm.network_id = n.\"UUID\" and s.access_key_is_on and s.access_key = '"+ accessKey + "' and s.is_deleted=false))" );
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			try ( ResultSet rs = p.executeQuery()) {

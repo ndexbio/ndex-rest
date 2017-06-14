@@ -45,6 +45,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
@@ -147,6 +148,7 @@ public class BatchServiceV2 extends NdexService {
 	@ApiDoc("Retrieves a list of NetworkSummary objects based on the network uuids POSTed. This " +
             "method only returns network summaries that the user is allowed to read. User can only post up to 2000 uuids in this function.")
 	public List<NetworkSummary> getNetworkSummaries(
+			@QueryParam("accesskey") String accessKey,
 			List<String> networkIdStrs)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
@@ -157,7 +159,7 @@ public class BatchServiceV2 extends NdexService {
 		
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
-			return dao.getNetworkSummariesByIdStrList(networkIdStrs, userId);				
+			return dao.getNetworkSummariesByIdStrList(networkIdStrs, userId, accessKey);				
 		}  finally {
 	    	logger.info("[end: Getting networkSummary of networks {}]", networkIdStrs);
 		}						
