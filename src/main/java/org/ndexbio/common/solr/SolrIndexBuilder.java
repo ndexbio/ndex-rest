@@ -122,7 +122,7 @@ public class SolrIndexBuilder {
 				}
 			}
 							
-		//	globalIdx.commit();
+			globalIdx.commit();
 			
 			logger.info("Solr index of network " + networkid + " created.");
 		} 
