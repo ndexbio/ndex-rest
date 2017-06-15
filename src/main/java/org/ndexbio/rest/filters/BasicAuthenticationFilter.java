@@ -44,6 +44,7 @@ import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.ResponseBuilder;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.ext.Provider;
@@ -239,18 +240,27 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             		"Attempted to access resource requiring authentication.");
         }
         
+        ResponseBuilder rb = Response
+                .status(Status.UNAUTHORIZED)
+                .entity(authorizationException.getNdexExceptionInJason());
+        if (!setAuthHeaderIsFalse(requestContext))
+        	rb.header("WWW-Authenticate", "Basic");
+        
         requestContext.abortWith(
-           			Response
-                       .status(Status.UNAUTHORIZED)
-                       .entity(authorizationException.getNdexExceptionInJason())
-                       .header("WWW-Authenticate", "Basic")
-                       .type("application/json")
+           			rb.type("application/json")
                        .build()); 
         
     	MDC.put("error", authorizationException.getMessage());
 
 		accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method) + "\t[Unauthorized exception: "+ authorizationException.getMessage() + "]"  );
     }
+    
+    public static boolean setAuthHeaderIsFalse(ContainerRequestContext arg0) {
+        UriInfo uriInfo = arg0.getUriInfo();
+        MultivaluedMap<String,String> f = uriInfo.getQueryParameters();
+        return f !=null && f.get("setAuthHeader") !=null && f.get("setAuthHeader").get(0).equals("false") ;
+    }
+    
     
     private String buildLogString(User authUser, ContainerRequestContext requestContext, Method method ) {
         

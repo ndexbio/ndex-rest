@@ -73,6 +73,7 @@ import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerResponseContext;
 import javax.ws.rs.container.ContainerResponseFilter;
 import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.ext.Provider;
 
 import org.jboss.resteasy.core.ResourceMethodInvoker;
@@ -104,8 +105,9 @@ public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Fi
 	    	final Method method = methodInvoker.getMethod();
 	      
 	    	if (!method.isAnnotationPresent(AuthenticationNotRequired.class) && 
-	    		  !method.isAnnotationPresent(NdexOpenFunction.class)  ) {
-	    		headers.putSingle("WWW-Authenticate", "Basic");
+	    		  !method.isAnnotationPresent(NdexOpenFunction.class) && 
+	    		  !BasicAuthenticationFilter.setAuthHeaderIsFalse(arg0)) {
+	           	   headers.putSingle("WWW-Authenticate", "Basic");
 	    	}
 	    	
 	    	int responseCode = responseContext.getStatus();

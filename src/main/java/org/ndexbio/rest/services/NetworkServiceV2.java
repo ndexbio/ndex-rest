@@ -141,7 +141,6 @@ public class NetworkServiceV2 extends NdexService {
 		//	@Context org.jboss.resteasy.spi.HttpResponse response
 			) {
 		super(httpRequest);
-	//	response.getOutputHeaders().putSingle("WWW-Authenticate", "Basic");
 	}
 
 
@@ -400,7 +399,6 @@ public class NetworkServiceV2 extends NdexService {
 			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
 				NetworkSummary summary = dao.getNetworkSummaryById(networkId);
 
-			//	response.getOutputHeaders().putSingle("WWW-Authenticate", "Basic");
 				return summary;
 			}
 				
