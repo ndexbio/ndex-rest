@@ -1289,6 +1289,167 @@ public class NetworkServiceV2 extends NdexService {
 	}
 
 
+	@PUT
+	@Path("/{networkid}/summary")
+	@Produces("application/json")
+	@ApiDoc("This function use the name, description, version and properties in the payload to update those properties of the network on the server.")
+	public void updateNetworkSummary(
+			@PathParam("networkid") final String networkId,
+			final NetworkSummary summary
+			)
+            throws  NdexException, SQLException , IOException, IllegalArgumentException 
+    {
+		
+		try (NetworkDAO networkDao = new NetworkDAO()){
+
+			User user = getLoggedInUser();
+			UUID networkUUID = UUID.fromString(networkId);
+	
+	  	    if(networkDao.isReadOnly(networkUUID)) {
+	//			logger.info("[end: Can't modify readonly network {}]", networkId);
+				throw new NdexException ("Can't update readonly network.");				
+			} 
+			
+			if ( !networkDao.isWriteable(networkUUID, user.getExternalId())) {
+				logger.error("[end: No write permissions for user account {} on network {}]", 
+						user.getUserName(), networkId);
+		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
+			} 
+			
+			if (!networkDao.networkIsValid(networkUUID))
+				throw new InvalidNetworkException();
+
+			try {
+					if ( networkDao.networkIsLocked(networkUUID,10)) {
+						throw new NetworkConcurrentModificationException ();
+					}
+			} catch (InterruptedException e2) {
+					e2.printStackTrace();
+					throw new NdexException("Failed to check network lock: " + e2.getMessage());
+			} 
+				
+				
+			try {
+				networkDao.lockNetwork(networkUUID);
+				
+				networkDao.updateNetworkSummary(networkUUID, summary);
+
+		        List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
+
+				if ( summary.getName() != null) {
+				    entityProperties.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
+				}
+						
+				if ( summary.getDescription() != null) {
+			            entityProperties.add( new SimplePropertyValuePair("description", summary.getDescription()) );
+				}
+					
+				if ( summary.getVersion()!=null ) {
+			            entityProperties.add( new SimplePropertyValuePair("version", summary.getVersion()) );
+				}
+
+				
+				//DW: Handle provenance
+				//Special Logic. Test whether we should record provenance at all.
+				//If the only thing that has changed is the visibility, we should not add a provenance
+				//event.
+				ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
+				String oldName = "", oldDescription = "", oldVersion ="";
+				if ( oldProv != null ) {
+						for( SimplePropertyValuePair oldProperty : oldProv.getProperties() ) {
+							if( oldProperty.getName() == null )
+								continue;
+							if( oldProperty.getName().equals("dc:title") )
+								oldName = oldProperty.getValue().trim();
+							else if( oldProperty.getName().equals("description") )
+								oldDescription = oldProperty.getValue().trim();
+							else if( oldProperty.getName().equals("version") )
+								oldVersion = oldProperty.getValue().trim();
+						}
+				}
+
+				//Treat all summary values that are null like ""
+				String summaryName = summary.getName() == null ? "" : summary.getName().trim();
+				String summaryDescription = summary.getDescription() == null ? "" : summary.getDescription().trim();
+				String summaryVersion = summary.getVersion() == null ? "" : summary.getVersion().trim();
+
+				ProvenanceEntity newProv = new ProvenanceEntity();
+				if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
+				{
+					if ( oldProv !=null )   //TODO: initialize the URI properly when there is null.
+							newProv.setUri(oldProv.getUri());
+
+					newProv.setProperties(entityProperties);
+
+						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
+
+						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+						Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
+
+						if (summary.getName() != null)
+							eventProperties.add(new SimplePropertyValuePair("dc:title", summary.getName()));
+
+						if (summary.getDescription() != null)
+							eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
+
+						if (summary.getVersion() != null)
+							eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
+
+						event.setProperties(eventProperties);
+						List<ProvenanceEntity> oldProvList = new ArrayList<>();
+						oldProvList.add(oldProv);
+						event.setInputs(oldProvList);
+
+						newProv.setCreationEvent(event);
+						networkDao.setProvenance(networkUUID, newProv);
+					}
+				
+					NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
+					
+					//update the networkProperty aspect 
+					List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
+					if ( attrs.size() > 0 ) {					
+						try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
+								+ NetworkAttributesElement.ASPECT_NAME) ) {
+							for ( NetworkAttributesElement e : attrs) {
+								writer.writeCXElement(e);	
+								writer.flush();
+							}
+						}
+					}
+					
+					//update metadata
+					MetaDataCollection metadata = networkDao.getMetaDataCollection(networkUUID);
+					MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
+					if ( elmt == null) {
+						elmt = new MetaDataElement();
+					}
+					elmt.setElementCount(Long.valueOf(attrs.size()));
+					networkDao.updateMetadataColleciton(networkUUID, metadata);
+
+					//Recreate the CX file 					
+					CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, fullSummary, metadata, newProv);
+					g.reCreateCXFile();
+					
+					networkDao.unlockNetwork(networkUUID);
+					
+					// update the solr Index
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
+				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
+					networkDao.rollback();
+					try {
+						networkDao.unlockNetwork(networkUUID);
+					} catch (SQLException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
+					}
+					throw e;
+				}
+				
+			}
+		
+	}
+
 
 
 

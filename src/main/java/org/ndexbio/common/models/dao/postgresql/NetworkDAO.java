@@ -1077,6 +1077,33 @@ public class NetworkDAO extends NdexDBDAO {
 	//    	networkIdx.updateNetworkProfile(networkId.toString(), newValues); 
 		
 	}
+
+	public void updateNetworkSummary(UUID networkId, NetworkSummary summary) throws NdexException, SQLException, JsonProcessingException {
+		
+	    String sqlStr = "update network set name =?, description=?, version = ?, properties =? :: jsonb, "
+	    		+ "modification_time = localtimestamp, iscomplete=false where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false";
+	    
+	    try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+	    	p.setString(1, summary.getName());
+	    	p.setString(2, summary.getDescription());
+	    	p.setString(3, summary.getVersion());
+	    
+	    	if ( summary.getProperties() != null && summary.getProperties().size() > 0 ) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( summary.getProperties());
+				p.setString(4, s);
+			} else {
+				p.setString(4, null);
+			}
+			
+	    	int cnt = p.executeUpdate();
+	    	if ( cnt != 1 ) {
+	    		throw new NdexException ("Failed to update. Network " + networkId + " might have been locked.");
+	    	}
+	    }
+}
+	
+	
 	
 	public MetaDataCollection getMetaDataCollection(UUID networkId) throws SQLException, IOException, NdexException {
 		String sqlStr = "select cxmetadata from network n where n.\"UUID\" =? and n.is_deleted= false" ;

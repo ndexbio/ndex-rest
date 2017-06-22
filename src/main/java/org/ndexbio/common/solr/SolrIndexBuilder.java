@@ -140,10 +140,10 @@ public class SolrIndexBuilder {
 					   rebuildNetworkIndex((UUID)rs.getObject(1));
 					   i ++;
 					   if ( i % 50 == 0 ) {
-						   System.err.println("commiting to solr at " + i + " records.");
+						   System.err.println("Loaded " + i + " records to solr. sleep 20 seconds");
 						//   globalIdx.commit();
 						   try {
-							  Thread.sleep(20000);
+							  Thread.sleep(10000);
 						   } catch (InterruptedException e) {
 							  // TODO Auto-generated catch block
 							  e.printStackTrace();
