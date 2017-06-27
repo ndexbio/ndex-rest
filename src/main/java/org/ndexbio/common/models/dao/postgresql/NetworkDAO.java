@@ -1080,7 +1080,7 @@ public class NetworkDAO extends NdexDBDAO {
 
 	public void updateNetworkSummary(UUID networkId, NetworkSummary summary) throws NdexException, SQLException, JsonProcessingException {
 		
-	    String sqlStr = "update network set name =?, description=?, version = ?, properties =? :: jsonb, "
+	    String sqlStr = "update network set name =?, description=?, version = ?, properties =? :: jsonb, visibility = ?,"
 	    		+ "modification_time = localtimestamp, iscomplete=false where \"UUID\" = '" + networkId + "' ::uuid and is_deleted=false";
 	    
 	    try (PreparedStatement p = db.prepareStatement(sqlStr)) {
@@ -1096,6 +1096,7 @@ public class NetworkDAO extends NdexDBDAO {
 				p.setString(4, null);
 			}
 			
+	    	p.setString(5, summary.getVisibility().toString());
 	    	int cnt = p.executeUpdate();
 	    	if ( cnt != 1 ) {
 	    		throw new NdexException ("Failed to update. Network " + networkId + " might have been locked.");
