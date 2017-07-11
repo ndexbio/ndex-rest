@@ -46,7 +46,7 @@ public class CXNetworkSampleGenerator {
 	private Long currentTime;
 	
 	// size of sample is number of edges.
-	public static final int sampleSize = 500;
+	public static final int sampleSize = 300;
 	
 	
 	public CXNetworkSampleGenerator(UUID networkUUID, Long subNetworkID, MetaDataCollection srcMetaData) {
@@ -80,12 +80,10 @@ public class CXNetworkSampleGenerator {
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/"; 
 	
 		// if sample is for a subNetwork, get ids of 500 edges from the subNetwork aspect
-		Set<Long> edgeIds = null; 
+		Set<Long> edgeIds = new HashSet<>(sampleSize); 
 		
 		if ( subNetworkId != null) {
-			
-			edgeIds = new HashSet<>(sampleSize);
-			
+						
 			try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId,SubNetworkElement.ASPECT_NAME , SubNetworkElement.class ) ) {
 				while ( subNetIterator.hasNext()) {
 					SubNetworkElement subNetwork = subNetIterator.next();
@@ -137,12 +135,13 @@ public class CXNetworkSampleGenerator {
 			while (it.hasNext()) {
 	        	EdgesElement edge = it.next();
 	        	
-	        	if ( edgeIds == null ||  edgeIds.contains(edge.getId() )  )  {
+	        	if ( subNetworkId == null ||  edgeIds.contains(edge.getId() )  )  {
 					result.addEdge(edge);
 					nodeIds.add(edge.getSource());
 					nodeIds.add(edge.getTarget());
 					if ( edgeIdCounter == null ||edge.getId() > edgeIdCounter.longValue() )
 						edgeIdCounter = Long.valueOf(edge.getId());
+					edgeIds.add(edge.getId());
 					i++;
 				}
 	        	if (i == sampleSize)
@@ -293,8 +292,20 @@ public class CXNetworkSampleGenerator {
 
 			while (it.hasNext()) {
 				CyVisualPropertiesElement elmt = it.next();
-				result.addOpapqueAspect(elmt);
-				vpropCount++;
+				if ( elmt.getProperties_of().equals("nodes")) {
+					if ( nodeIds.contains(elmt.getApplies_to())) {
+						result.addOpapqueAspect(elmt);
+						vpropCount++;
+					}
+				} else if (elmt.getProperties_of().equals("edges")) {
+					if ( edgeIds.contains(elmt.getApplies_to())) {
+						result.addOpapqueAspect(elmt);
+						vpropCount++;
+					}
+				} else {
+					result.addOpapqueAspect(elmt);
+					vpropCount++;
+				}
 			}
 		  }
 		  

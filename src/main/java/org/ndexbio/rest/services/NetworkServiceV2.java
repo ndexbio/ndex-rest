@@ -1941,13 +1941,28 @@ public class NetworkServiceV2 extends NdexService {
 		    	   NetworkSummary summary = dao.CreateCloneNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize, srcNetUUID);
 		    	   ProvenanceEntity sourceProvenanceEntity = dao.getProvenance(srcNetUUID);
 		    	   
-		    	   ProvenanceEntity copyProv = ProvenanceHelpers.createProvenanceHistory(
+		    	   List<SimplePropertyValuePair> srcProv = sourceProvenanceEntity.getProperties();
+		    	   String newTitle = "Copy of Untitled Network";
+		    	   if (srcProv !=null) {
+		    		   for ( SimplePropertyValuePair p : srcProv) {
+		    			   if ( p.getName().equals("dc:title")) {
+		    				   newTitle = "Copy of " + p.getValue();
+		    				   break;
+		    			   }
+		    		   }
+		    	   }
+		    	   
+		    	   ProvenanceEntity copyProv = ProvenanceHelpers.createProvenanceHistoryWhithoutClone(
 		    				summary,
 		    				Configuration.getInstance().getHostURI(),
 		    				NdexProvenanceEventType.CX_NETWORK_CLONE, 
 		    				new Timestamp(Calendar.getInstance().getTimeInMillis()),
 		    				sourceProvenanceEntity
 		    		);
+		    	   
+		    	   List<SimplePropertyValuePair> props = new ArrayList<>(2);
+		    	   props.add(new SimplePropertyValuePair("dc:title", newTitle));
+		    	   copyProv.setProperties(props);
 		    		
 					dao.setProvenance(uuid, copyProv);
 					CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao, new Provenance(copyProv));
