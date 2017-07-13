@@ -360,10 +360,11 @@ public class SearchServiceV2 extends NdexService {
 	}
 	
 	
-	private void checkIfQueryIsAllowed(UUID networkId, NetworkDAO dao) throws ForbiddenOperationException, ObjectNotFoundException, SQLException {
+	private static void checkIfQueryIsAllowed(UUID networkId, NetworkDAO dao) throws ForbiddenOperationException, ObjectNotFoundException, SQLException {
 		
 		if ( dao.getNetworkEdgeCount(networkId) > networkQuerySizeLimit)
-			throw new ForbiddenOperationException("Query on networks that have over " + networkQuerySizeLimit + " edges is not supported in this version.");
+			throw new ForbiddenOperationException("Query on networks that have over " + networkQuerySizeLimit + " edges is not supported in this release. "
+					+ "You can download the network and process it on your own computer. Please email support@ndexbio.org if you need further assistance.");
 	}
 	
 	
