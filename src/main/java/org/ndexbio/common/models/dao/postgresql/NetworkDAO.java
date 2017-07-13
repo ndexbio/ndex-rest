@@ -959,7 +959,19 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 	}
 	
-	
+	public int getNetworkEdgeCount (UUID networkId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select n.edgecount from network n where n.\"UUID\" = ? and n.is_deleted= false";
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getInt(1);
+				}
+				throw new ObjectNotFoundException("Network " + networkId + " not found in db.");
+			}
+		}
+	}
+		
 	
 	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId, String accessKey) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.

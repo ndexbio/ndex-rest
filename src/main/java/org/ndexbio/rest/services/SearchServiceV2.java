@@ -82,6 +82,7 @@ import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -126,6 +127,8 @@ public class SearchServiceV2 extends NdexService {
 	
 	static Logger logger = LoggerFactory.getLogger(BatchServiceV2.class);
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
+	
+	static final int networkQuerySizeLimit = 500000;
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -274,6 +277,7 @@ public class SearchServiceV2 extends NdexService {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
+			checkIfQueryIsAllowed(networkId, dao);
 		}   
 		
 		Client client = ClientBuilder.newBuilder().build();
@@ -329,6 +333,7 @@ public class SearchServiceV2 extends NdexService {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
+			checkIfQueryIsAllowed(networkId, dao);
 		}   
 		
 		Client client = ClientBuilder.newBuilder().build();
@@ -354,6 +359,12 @@ public class SearchServiceV2 extends NdexService {
 		
 	}
 	
+	
+	private void checkIfQueryIsAllowed(UUID networkId, NetworkDAO dao) throws ForbiddenOperationException, ObjectNotFoundException, SQLException {
+		
+		if ( dao.getNetworkEdgeCount(networkId) > networkQuerySizeLimit)
+			throw new ForbiddenOperationException("Query on networks that have over " + networkQuerySizeLimit + " edges is not supported in this version.");
+	}
 	
 	
 	@POST
