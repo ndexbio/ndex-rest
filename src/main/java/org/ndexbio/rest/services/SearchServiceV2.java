@@ -475,19 +475,14 @@ public class SearchServiceV2 extends NdexService {
         		continue;
         	}
         		
-        	String term = (String)termObj.get("ensembl.gene");
-        	if (term !=null)
-        		expendedTerms.add(term);
-        	
-        	term = (String)termObj.get("symbol");
-        	if ( term !=null)
-        		expendedTerms.add(term);
+        	addTermsToExpensionSet(termObj.get("ensembl.gene"), expendedTerms);
+        	addTermsToExpensionSet(termObj.get("symbol"), expendedTerms);
         	
         	Integer id = (Integer) termObj.get("entrezgene");
         	if ( id !=null)
         		expendedTerms.add(id.toString());
         	
-        	term = (String) termObj.get("uniprot.Swiss-Prot");
+        	String term = (String) termObj.get("uniprot.Swiss-Prot");
         	if ( term !=null)
         		expendedTerms.add(term);
         	

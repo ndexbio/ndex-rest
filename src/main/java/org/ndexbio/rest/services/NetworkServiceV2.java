@@ -1470,7 +1470,10 @@ public class NetworkServiceV2 extends NdexService {
     {
     	
 	//	logger.info("[start: Updating network {} using CX data]", networkIdStr);
-
+    	try (UserDAO dao = new UserDAO()) {
+			   dao.checkDiskSpace(getLoggedInUserId());
+		}
+    	
         UUID networkId = UUID.fromString(networkIdStr);
 
         String ownerAccName = null;
@@ -1598,6 +1601,7 @@ public class NetworkServiceV2 extends NdexService {
 	 *             Failed to parse the file, or create the network in the
 	 *             database.
 	 * @throws IOException 
+	 * @throws SQLException 
 	 **************************************************************************/
 	/*
 	 * refactored to support non-transactional database operations
@@ -1611,10 +1615,13 @@ public class NetworkServiceV2 extends NdexService {
             "network is missing or if it has no filename or no file data.")
 	public Task uploadNetwork( MultipartFormDataInput input) 
                   //@MultipartForm UploadedFile uploadedNetwork)
-			throws IllegalArgumentException, SecurityException, NdexException, IOException {
+			throws IllegalArgumentException, SecurityException, NdexException, IOException, SQLException {
 
-		logger.info("[start: Uploading network file]");
 
+		 try (UserDAO dao = new UserDAO()) {
+			   dao.checkDiskSpace(getLoggedInUserId());
+		 }
+		  
 		Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
 
 		List<InputPart> foo = uploadForm.get("filename");
@@ -1633,7 +1640,6 @@ public class NetworkServiceV2 extends NdexService {
 
 		if ( !ext.equals("sif") && !ext.equals("xbel") && !ext.equals("xgmml") && !ext.equals("owl") && !ext.equals("cx")
 				&& !ext.equals("xls") && ! ext.equals("xlsx")) {
-			logger.error("[end: The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX cx, or XBEL.  Throwing  NdexException...]");
 			throw new NdexException(
 					"The uploaded file type is not supported; must be Excel, XGMML, SIF, BioPAX, cx or XBEL.");
 		}
@@ -1657,8 +1663,6 @@ public class NetworkServiceV2 extends NdexService {
 			try {
 				uploadedNetworkFile.createNewFile();
 			} catch (IOException e1) {
-				logger.error("[end: Failed to create file {} on server when uploading {}. Exception caught:]{}",
-						fileFullPath, fname, e1);
 				throw new NdexException ("Failed to create file " + fileFullPath + " on server when uploading " + 
 						fname + ": " + e1.getMessage());				
 			}
