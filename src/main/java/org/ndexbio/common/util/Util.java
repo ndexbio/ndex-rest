@@ -51,7 +51,8 @@ public class Util {
 		int i = 0;
 		int j = 0;
 		for (NdexPropertyValuePair prop : properties) {
-			if (prop.getValue() != null && prop.getValue().length() > 0) {
+			String value = prop.getValue();
+			if (value != null && value.replaceAll("(\\s|\\n)", "").length()>0 ) {
 				switch (prop.getPredicateString()) {
 				case "name":
 				case "description":
