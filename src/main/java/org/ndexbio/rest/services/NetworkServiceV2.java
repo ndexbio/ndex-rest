@@ -652,7 +652,7 @@ public class NetworkServiceV2 extends NdexService {
 	        "structure. The sample network should be small ( no more than 500 edges normally)")
 	public void setSampleNetwork(	@PathParam("networkid") final String networkId,
 			String CXString)
-			throws IllegalArgumentException, NdexException, SQLException {
+			throws IllegalArgumentException, NdexException, SQLException, InterruptedException {
 
     	logger.info("[start: Getting sample network {}]", networkId);
   	
@@ -661,7 +661,7 @@ public class NetworkServiceV2 extends NdexService {
     		if ( ! dao.isAdmin(networkUUID, getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User is not admin of this network.");
 
-    		if ( !dao.networkIsLocked(networkUUID))
+    		if ( dao.networkIsLocked(networkUUID,10))
     			throw new NetworkConcurrentModificationException();
     		
     		if ( !dao.networkIsValid(networkUUID))

@@ -678,7 +678,6 @@ public class UserServiceV2 extends NdexService {
 	   @POST
 	   @Path("/{userid}/permissionrequest")
 	   @Produces("text/plain")
-	   @ApiDoc("Create a group membership request.")
 	    public Response createPermissionRequest(
 	    		@PathParam("userid") final String userIdStr,
 	    		final PermissionRequest newRequest) 

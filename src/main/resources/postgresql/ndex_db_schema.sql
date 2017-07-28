@@ -2,8 +2,8 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 9.5.3
--- Dumped by pg_dump version 9.5.3
+-- Dumped from database version 9.5.7
+-- Dumped by pg_dump version 9.5.7
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -256,20 +256,6 @@ COMMENT ON TABLE ndex_user IS 'User info.';
 
 
 --
--- Name: COLUMN ndex_user.disk_limit; Type: COMMENT; Schema: core; Owner: ndexserver
---
-
-COMMENT ON COLUMN ndex_user.disk_limit IS 'storage limit for this user. Only cx networks are counted towards the limit. Invalid networks also counts.';
-
-
---
--- Name: COLUMN ndex_user.storage_usage; Type: COMMENT; Schema: core; Owner: ndexserver
---
-
-COMMENT ON COLUMN ndex_user.storage_usage IS 'Actual usage of this disk space, by this user. Only the raw CX file counts.';
-
-
---
 -- Name: network; Type: TABLE; Schema: core; Owner: ndexserver
 --
 
@@ -325,27 +311,6 @@ COMMENT ON COLUMN network.iscomplete IS 'For server use only. When all the valid
 
 
 --
--- Name: COLUMN network.cacheid; Type: COMMENT; Schema: core; Owner: ndexserver
---
-
-COMMENT ON COLUMN network.cacheid IS 'deprecated';
-
-
---
--- Name: COLUMN network.roid; Type: COMMENT; Schema: core; Owner: ndexserver
---
-
-COMMENT ON COLUMN network.roid IS 'deprecated';
-
-
---
--- Name: COLUMN network.sourceformat; Type: COMMENT; Schema: core; Owner: ndexserver
---
-
-COMMENT ON COLUMN network.sourceformat IS 'deprecated. It is a property now in v2.';
-
-
---
 -- Name: COLUMN network.is_validated; Type: COMMENT; Schema: core; Owner: ndexserver
 --
 
@@ -384,7 +349,8 @@ COMMENT ON COLUMN network.show_in_homepage IS 'Indicate whether the owner of thi
 -- Name: COLUMN network.cx_file_size; Type: COMMENT; Schema: core; Owner: ndexserver
 --
 
-COMMENT ON COLUMN network.cx_file_size IS 'size of the CX network in bytes.';
+COMMENT ON COLUMN network.cx_file_size IS 'size of the CX network in bytes.
+';
 
 
 --
@@ -393,7 +359,7 @@ COMMENT ON COLUMN network.cx_file_size IS 'size of the CX network in bytes.';
 
 CREATE TABLE network_set (
     "UUID" uuid NOT NULL,
-    name character varying(80),
+    name character varying(180),
     description text,
     owner_id uuid,
     creation_time timestamp without time zone,
@@ -524,13 +490,6 @@ CREATE TABLE user_network_membership (
 ALTER TABLE user_network_membership OWNER TO ndexserver;
 
 --
--- Name: COLUMN user_network_membership.show_in_homepage; Type: COMMENT; Schema: core; Owner: ndexserver
---
-
-COMMENT ON COLUMN user_network_membership.show_in_homepage IS 'For Supporting NDEx web app. tell if the gratee of this permssion want to show this network in his homepage when other users come to his home page.';
-
-
---
 -- Name: user_network_membership_arc; Type: TABLE; Schema: core; Owner: ndexserver
 --
 
@@ -595,7 +554,8 @@ CREATE TABLE v1_network (
     readonly boolean,
     name text,
     source_format character varying(100),
-    owner character varying(50)
+    owner character varying(50),
+    show_in_homepage boolean
 );
 
 
