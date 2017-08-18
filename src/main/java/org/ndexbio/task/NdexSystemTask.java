@@ -38,7 +38,8 @@ public abstract class NdexSystemTask {
 	public static NdexSystemTask createSystemTask(Task t) throws NdexException {
 		switch (t.getTaskType()) {
 			case SYS_SOLR_DELETE_NETWORK:
-				return new SolrTaskDeleteNetwork(UUID.fromString(t.getResource()));
+				return new SolrTaskDeleteNetwork(UUID.fromString(t.getResource()),
+						Boolean.getBoolean((String)t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr)));
 			case SYS_SOLR_REBUILD_NETWORK_INDEX:
 				return new SolrTaskRebuildNetworkIdx(UUID.fromString(t.getResource()),(boolean) t.getAttribute(SolrTaskRebuildNetworkIdx.AttrGlobalOnly), 
 						  (boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrCreateOnly));

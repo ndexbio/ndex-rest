@@ -147,7 +147,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	private List<String> warnings;
 	private NetworkDAO dao;
 		
-	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate, NetworkDAO networkDao)  throws NdexException, SolrServerException, IOException {
+	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate, NetworkDAO networkDao)  throws SolrServerException, IOException {
 		super();
 		
 		this.isUpdate = isUpdate;
@@ -192,7 +192,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 	}
 	
-	private CxElementReader2 createCXReader () throws IOException {
+	private static CxElementReader2 createCXReader (InputStream in) throws IOException {
 		HashSet<AspectFragmentReader> readers = new HashSet<>(20);
 		
 		  readers.add(EdgesFragmentReader.createInstance());
@@ -213,10 +213,10 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(new GeneralAspectFragmentReader (NodeCitationLinksElement.ASPECT_NAME,NodeCitationLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader (Provenance.ASPECT_NAME,Provenance.class));
-		  return  new CxElementReader2(inputStream, readers,false);
+		  return  new CxElementReader2(in, readers,false);
 	}
 	
-	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {
+	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException {
 		        	    
 	 //   try {
 	    	
@@ -224,7 +224,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  java.nio.file.Path dir = Paths.get(rootPath);
 		  Files.createDirectory(dir);
 			    	
-		  persistNetworkData(false); 
+		  persistNetworkData(inputStream,false); 
 		  
 		  logger.info("aspects have been stored.");
 		  
@@ -351,7 +351,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  java.nio.file.Path dir = Paths.get(rootPath);
 			  Files.createDirectory(dir);
 				    	
-			  persistNetworkData(true); 
+			  persistNetworkData(inputStream,true); 
 			  
 			  logger.info("aspects have been stored.");
 			  
@@ -425,10 +425,10 @@ public class CXNetworkLoader implements AutoCloseable {
 	 * @throws NdexException
 	 * @throws ObjectNotFoundException
 	 */
-	private void persistNetworkData(boolean isImport)
+	protected void persistNetworkData(InputStream in, boolean isImport)
 			throws IOException, DuplicateObjectException, NdexException, ObjectNotFoundException {
 				
-		CxElementReader2 cxreader = createCXReader();
+		CxElementReader2 cxreader = createCXReader(in);
 		  
 	    metadata = cxreader.getPreMetaData();
 		

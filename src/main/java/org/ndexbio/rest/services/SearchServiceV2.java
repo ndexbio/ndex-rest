@@ -136,13 +136,14 @@ public class SearchServiceV2 extends NdexService {
 			)
 			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
 
-		logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
+	//	logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
+		accLogger.info("[data]\t[query:" +simpleUserQuery.getSearchString() + "]" );
 		
 		try (UserDAO dao = new UserDAO ()){
 
 			final SolrSearchResult<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
 			
-			logger.info("[end: Returning {} users from search]", users.getNumFound());			
+	//		logger.info("[end: Returning {} users from search]", users.getNumFound());			
 			return users;
 		} 
 		
@@ -173,11 +174,12 @@ public class SearchServiceV2 extends NdexService {
 			@DefaultValue("100") @QueryParam("size") int blockSize)
 			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
 
-		logger.info("[start: Search group \"{}\"]", simpleQuery.getSearchString());
-		
+	//	logger.info("[start: Search group \"{}\"]", simpleQuery.getSearchString());
+		accLogger.info("[data]\t[query:" +simpleQuery.getSearchString() + "]" );
+
 		try (GroupDAO dao = new GroupDAO()) {
 			final SolrSearchResult<Group> groups = dao.findGroups(simpleQuery, skipBlocks, blockSize);
-			logger.info("[end: Search group \"{}\"]", simpleQuery.getSearchString());
+	//		logger.info("[end: Search group \"{}\"]", simpleQuery.getSearchString());
 			return groups;
 		} 
 	}

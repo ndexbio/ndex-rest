@@ -1482,13 +1482,13 @@ public class NetworkServiceV2 extends NdexService {
            
          try {
 	  	   if( daoNew.isReadOnly(networkId)) {
-				logger.info("[end: Can't modify readonly network {}]", networkId);
+		//		logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
 			} 
 			
 			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
-				logger.error("[end: No write permissions for user account {} on network {}]", 
-						user.getUserName(), networkId);
+		//		logger.error("[end: No write permissions for user account {} on network {}]", 
+		//				user.getUserName(), networkId); 
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			} 
 			
@@ -1548,6 +1548,94 @@ public class NetworkServiceV2 extends NdexService {
 	    // return networkIdStr; 
     }
 
+    
+    /**
+     * This function updates aspects of a network. The payload is a CX document which contains the aspects (and their metadata that we will use
+     *  to update the network). If an aspect only has metadata but no actual data, an Exception will be thrown.
+     * @param networkIdStr
+     * @param input
+     * @throws Exception
+     */
+    @PUT
+    @Path("/{networkid}/aspects")
+    @Consumes("multipart/form-data")
+    @Produces("application/json")
+    public void updateCXNetworkAspects(final @PathParam("networkid") String networkIdStr,
+    		MultipartFormDataInput input) throws Exception 
+    {
+    	
+    	try (UserDAO dao = new UserDAO()) {
+			   dao.checkDiskSpace(getLoggedInUserId());
+		}
+    	
+        UUID networkId = UUID.fromString(networkIdStr);
+
+        String ownerAccName = null;
+        try ( NetworkDAO daoNew = new NetworkDAO() ) {
+           User user = getLoggedInUser();
+           
+         try {
+	  	   if( daoNew.isReadOnly(networkId)) {
+				throw new NdexException ("Can't update readonly network.");				
+			} 
+			
+			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
+		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
+			} 
+			
+			if ( daoNew.networkIsLocked(networkId)) {
+				daoNew.close();
+				throw new NetworkConcurrentModificationException ();
+			} 
+			
+			daoNew.lockNetwork(networkId);
+			
+			ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
+			
+	        UUID tmpNetworkId = storeRawNetwork (input); //network stored as a temp network
+
+	        String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString() + "/network.cx";
+	 //		long fileSize = new File(cxFileName).length();
+
+	  //      daoNew.clearNetworkSummary(networkId, fileSize);
+	        
+			java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId);
+			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId);
+			FileUtils.deleteDirectory(new File(Configuration.getInstance().getNdexRoot() + "/data/" + networkId));
+			Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
+			
+			String urlStr = Configuration.getInstance().getHostURI()  + 
+			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr;
+			ProvenanceEntity entity = new ProvenanceEntity();
+			entity.setUri(urlStr + "/summary");
+
+			ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE, new Timestamp(System.currentTimeMillis()));
+
+			List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+			Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+			event.setProperties(eventProperties);		
+			ProvenanceEntity inputEntity =daoNew.getProvenance(networkId);
+			event.addInput(inputEntity);
+			entity.setCreationEvent(event);
+
+			daoNew.setProvenance(networkId, entity);
+				
+			daoNew.commit();
+	//		daoNew.unlockNetwork(networkId);
+			
+           } catch (SQLException | NdexException | IOException e) {
+        	  // e.printStackTrace();
+        	   daoNew.rollback();
+        	   daoNew.unlockNetwork(networkId);  
+
+        	   throw e;
+           } 
+			
+        }  
+    	      
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
+	    // return networkIdStr; 
+    }
     
     
 	@DELETE
@@ -1741,10 +1829,15 @@ public class NetworkServiceV2 extends NdexService {
 					if ( parameters.containsKey("visibility")) {
 						if (!networkDao.isAdmin(networkId, userId))
 							throw new UnauthorizedOperationException("Only network owner can set visibility Parameter.");
-						networkDao.updateNetworkVisibility(networkId, VisibilityType.valueOf((String)parameters.get("visibility")));
+						
+						VisibilityType visType = VisibilityType.valueOf((String)parameters.get("visibility"));
+						networkDao.updateNetworkVisibility(networkId, visType);
 
 						// update the solr Index
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
+						if (visType ==VisibilityType.PRIVATE_NOINDEX || visType == VisibilityType.PUBLIC_NOINDEX)
+							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true)); //delete the entry from global idx.
+						else
+							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
 
 					} 
 					if ( parameters.containsKey("showcase")) {

@@ -32,10 +32,12 @@ package org.ndexbio.security;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -55,6 +57,8 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
@@ -62,6 +66,11 @@ import org.ndexbio.rest.helpers.Security;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.apache.ApacheHttpTransport;
+import com.google.api.client.json.jackson2.JacksonFactory;
 
 public class GoogleOpenIDAuthenticator {
 
@@ -72,6 +81,7 @@ public class GoogleOpenIDAuthenticator {
 	private String apiState;
 	private String clientID;
 	private String clientSecret;
+	private GoogleIdTokenVerifier verifier;
 
 	// a table to support google OAuth authentication. a access_token -> user uuid mapping table
 	private Map<String,OAuthUserRecord> googleTokenTable ;  
@@ -79,7 +89,7 @@ public class GoogleOpenIDAuthenticator {
 	
 	public GoogleOpenIDAuthenticator(Configuration config) throws NdexException {
 		
-		apiState = config.getRequiredProperty(GOOGLE_OAUTH_KEY);
+	//	apiState = config.getRequiredProperty(GOOGLE_OAUTH_KEY);
 
 		clientID = config.getRequiredProperty(GOOGLE_OAUTH_CLIENT_ID);
 		clientSecret = config.getRequiredProperty(GOOGLE_OAUTH_CLIENT_SECRET);
@@ -100,6 +110,45 @@ public class GoogleOpenIDAuthenticator {
 		}
 	}
 	
+	public User getUserByIdToken(String idTokenString) throws GeneralSecurityException, IOException, IllegalArgumentException, ObjectNotFoundException, NdexException {
+		
+		ApacheHttpTransport.Builder builder = new ApacheHttpTransport.Builder();
+		
+		GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(builder.build(), new JacksonFactory())
+			    .setAudience(Collections.singletonList(clientID))
+			    // Or, if multiple clients access the backend:
+			    //.setAudience(Arrays.asList(CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3))
+			    .build();
+		
+		GoogleIdToken idToken = verifier.verify(idTokenString);
+		if (idToken != null) {
+		  Payload payload = idToken.getPayload();
+
+		  // Print user identifier
+		  String userId = payload.getSubject();
+		  System.out.println("User ID: " + userId);
+
+		  // Get profile information from payload
+		  String email = payload.getEmail();
+		  boolean emailVerified = Boolean.valueOf(payload.getEmailVerified());
+		  String name = (String) payload.get("name");
+		  String pictureUrl = (String) payload.get("picture");
+		  String locale = (String) payload.get("locale");
+		  String familyName = (String) payload.get("family_name");
+		  String givenName = (String) payload.get("given_name");
+
+			 try (UserDAO userDao = new UserDAO()) {
+				 User user = userDao.getUserByEmail(email.toLowerCase(),true);
+				 return user;	
+			 }	catch ( SQLException e1) {
+				 e1.printStackTrace();
+				  throw new UnauthorizedOperationException("SQL Error when getting user by email: " + e1.getMessage());
+			 }
+		} else {
+		  throw new UnauthorizedOperationException("Invalid OAuth ID token.");
+		}
+		
+	}
 	
 	public String getIDTokenFromQueryStr(String googleQueryString) throws NdexException, ClientProtocolException, IOException, SQLException, IllegalArgumentException, NoSuchAlgorithmException {
 		
@@ -188,7 +237,7 @@ public class GoogleOpenIDAuthenticator {
 		 }			 
 		return theString;
 	
-	}
+	} 
 	
 	private static Map<String,String> getGoogleUserProfileFromAccessToken(String accessToken) throws ClientProtocolException, IOException {
 		

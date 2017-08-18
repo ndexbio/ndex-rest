@@ -52,6 +52,7 @@ import javax.ws.rs.ext.Provider;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.util.Base64;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -160,11 +161,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             		}
   
             		String token = authInfo[0].substring(7);
-            	
-            		try ( UserDAO dao = new UserDAO() ) {
-            			UUID uuid = googleOAuthAuthenticator.GetUserUUIDFromAccessToke(token);
-            			authUser = dao.getUserById(uuid,true,true);
-            		}	
+            		authUser = googleOAuthAuthenticator.getUserByIdToken(token);
+            			
             	} else {
             
             		if (ADAuthenticator !=null ) {
@@ -178,6 +176,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             						String autoCreateAccount = Configuration.getInstance().getProperty(AD_CREATE_USER_AUTOMATICALLY);
             						if ( autoCreateAccount !=null && Boolean.parseBoolean(autoCreateAccount)) {
             							User newUser = ADAuthenticator.getNewUser(authInfo[0], authInfo[1]);
+            						//	User newUser = getNewUserSimulator(authInfo[0], authInfo[1]); // only use this line one debugging AD authentication using simulator functions.
             							authUser = dao.createNewUser(newUser,null);
             							dao.commit();
             						} else 
@@ -370,4 +369,24 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     }
     
     */
+    
+    
+	/**
+	 * This function simulates getting info from an AD server and creates a new user object from it.
+	 * @param username
+	 * @param passwork
+	 * @return
+	 */
+	private User getNewUserSimulator(String username, String password) {
+		User newUser = new User();
+		newUser.setUserName(username);
+		newUser.setPassword(password);
+		newUser.setFirstName("F"+NdexUUIDFactory.INSTANCE.createNewNDExUUID().toString().substring(8));
+		newUser.setFirstName("L"+NdexUUIDFactory.INSTANCE.createNewNDExUUID().toString().substring(8));
+		newUser.setEmailAddress("e" + NdexUUIDFactory.INSTANCE.createNewNDExUUID().toString()+ "@foo.com");
+		newUser.setDescription("Fake user created by AD simulator function.");
+		newUser.setIsIndividual(true);
+		return newUser;
+	}
+
 }

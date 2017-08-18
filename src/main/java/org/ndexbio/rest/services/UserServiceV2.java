@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
+import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
+import org.apache.http.client.ClientProtocolException;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
@@ -1093,7 +1095,7 @@ public class UserServiceV2 extends NdexService {
 	 * @return JWT object to the client
 
 	 **************************************************************************/
-/*	@GET
+	@GET
 	@PermitAll
 	@NdexOpenFunction
 	@Path("/google/authenticate")
@@ -1163,6 +1165,6 @@ public class UserServiceV2 extends NdexService {
  	    
 	}
 	
-*/
+
 
 }

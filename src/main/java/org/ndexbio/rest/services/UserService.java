@@ -528,7 +528,7 @@ public class UserService extends NdexService {
 	 * @throws NoSuchAlgorithmException 
 	 * @throws IllegalArgumentException 
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@PermitAll
 	@NdexOpenFunction
 	@Path("/google/authenticate")
@@ -550,7 +550,7 @@ public class UserService extends NdexService {
 
  	    String theString =authenticator.getIDTokenFromQueryStr(qStr);
 		return theString;
-	}
+	}*/
 	
 	
 	@POST

@@ -296,6 +296,30 @@ public class UserDAO extends NdexDBDAO {
 
 	}
 	
+	public User getUserByEmail(String email, boolean fullRecord) throws NdexException,
+	IllegalArgumentException, ObjectNotFoundException, SQLException, JsonParseException, JsonMappingException, IOException {
+
+			String sqlStr = "SELECT * FROM " + NdexClasses.User + " where email_addr = ? and is_deleted = false";
+
+			try (PreparedStatement st = db.prepareStatement(sqlStr)) {
+				st.setString(1, email);
+				try (ResultSet rs = st.executeQuery() ) {
+					if (rs.next()) {
+						// populate the user object;
+						User result = new User();
+
+						populateUserFromResultSet(result, rs, fullRecord);
+
+						return result;
+					} 
+					throw new ObjectNotFoundException("User with email " + email + " doesn't exist.");
+
+				}
+			}
+
+	}
+	
+	
 	public UUID getUUIDByEmail(String email) throws NdexException,
 		IllegalArgumentException, ObjectNotFoundException, SQLException {
 
@@ -304,7 +328,7 @@ public class UserDAO extends NdexDBDAO {
 
 		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
 			st.setString(1, email);
-			try (ResultSet rs = st.executeQuery(sqlStr) ) {
+			try (ResultSet rs = st.executeQuery() ) {
 				if (rs.next()) 
 					return (UUID)rs.getObject(1);
 			}
@@ -314,7 +338,7 @@ public class UserDAO extends NdexDBDAO {
 	}
 
 
-	public boolean isNetworkAdmin(UUID userId, UUID networkId) throws IllegalArgumentException, SQLException {
+/*	public boolean isNetworkAdmin(UUID userId, UUID networkId) throws IllegalArgumentException, SQLException {
 
 		String sqlStr = "SELECT 1 FROM network where owneruuid = ? and \"UUID\" = ? and is_deleted=false";
 
@@ -326,7 +350,7 @@ public class UserDAO extends NdexDBDAO {
 			}
 		} 
 
-	}
+	}*/
 
 
 	private static void populateUserFromResultSet(User user, ResultSet rs, boolean fullRecord) throws JsonParseException, JsonMappingException, SQLException, IOException {

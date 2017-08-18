@@ -93,7 +93,7 @@ public class LDAPAuthenticator {
 	private static final String AD_DELEGATED_ACCOUNT_PASSWORD="AD_DELEGATED_ACCOUNT_PASSWORD";
 //	private static final String AD_DELEGATED_ACCOUNT_USER_NAME_PATTERN="AD_DELEGATED_ACCOUNT_USER_NAME_PATTERN";
 	
-	private String delegatedUserName ;
+	protected String delegatedUserName ;
 	private String delegatedUserPassword;
 
 	
@@ -152,17 +152,22 @@ public class LDAPAuthenticator {
        	 userCredentials = CacheBuilder
 				.newBuilder().maximumSize(CACHE_SIZE)
 				.expireAfterAccess(10L, TimeUnit.MINUTES)
+				//.expireAfterWrite(1L, TimeUnit.HOURS)
 				.build(new CacheLoader<java.util.Map.Entry<String,String>, Boolean>() {
 				   @Override
 				   public Boolean load(java.util.Map.Entry<String,String> entry) throws NdexException, ExecutionException {
 					   String userName = entry.getKey();
 					   String pswd = entry.getValue();
-					   Boolean userIsInGrp = userIsInNdexGroup(userName, pswd);
+					   Boolean userIsInGrp = ( delegatedUserName !=null) ? 
+							   userIsInNdexGroup(getFullyQualifiedNameByUserId(userName),pswd)
+							      : userIsInNdexGroup(userName, pswd);
                    	   if ( userIsInGrp.booleanValue() ) {
                    		   userCredentials.put(new AbstractMap.SimpleImmutableEntry<>(userName, pswd), Boolean.TRUE);	
                    		   return Boolean.TRUE;
+                   	   } else {
+                   		   userCredentials.put(new AbstractMap.SimpleImmutableEntry<>(userName, pswd), Boolean.FALSE);
+                   		   throw new UnauthorizedOperationException("User " + userName + " is not in the required group." );
                    	   }
-                   	   throw new UnauthorizedOperationException("User " + userName + " is not in the required group." );
 				   }
 			    });
        } else {
@@ -189,6 +194,17 @@ public class LDAPAuthenticator {
 
 	}
 
+	/**
+	 * This is a simulotor function for debugging AD code logic without an real AD environment.
+	 * @param username
+	 * @param password
+	 * @return
+	 * @throws UnauthorizedOperationException
+	 */
+	private static Boolean userIsInNdexGroupSimulator (String username, String password) throws UnauthorizedOperationException  {
+		return  username.equals("chenjing") && password.equals("chenjing");
+		
+	}
 	
 	protected Boolean userIsInNdexGroup (String username, String password) throws UnauthorizedOperationException  {
       
@@ -249,6 +265,7 @@ public class LDAPAuthenticator {
       }
 	}
 
+	
 	
 	public User getNewUser (String username, String password) throws UnauthorizedOperationException  {
 	      
@@ -323,7 +340,7 @@ public class LDAPAuthenticator {
 
 	
 	
-	public boolean authenticateUser(String username, String password) throws UnauthorizedOperationException {
+	public synchronized boolean authenticateUser(String username, String password) throws UnauthorizedOperationException {
 		if ( !useCache) {
 			if ( delegatedUserName !=null) {  
 				return userIsInNdexGroup(getFullyQualifiedNameByUserId(username),password).booleanValue();
@@ -341,7 +358,7 @@ public class LDAPAuthenticator {
 	}
 	
 	
-	private String getFullyQualifiedNameByUserId(String userId) throws UnauthorizedOperationException {
+	protected String getFullyQualifiedNameByUserId(String userId) throws UnauthorizedOperationException {
 		
 		  env.put(Context.SECURITY_PRINCIPAL, ctxPrinciplePattern.replaceAll(userNamePattern, delegatedUserName));	
 	      env.put(Context.SECURITY_CREDENTIALS, delegatedUserPassword);

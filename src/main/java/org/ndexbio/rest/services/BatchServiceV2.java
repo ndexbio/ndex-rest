@@ -64,6 +64,7 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NetworkExportTask;
 import org.slf4j.Logger;
@@ -76,7 +77,8 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 public class BatchServiceV2 extends NdexService {
 	
 	
-	static Logger logger = LoggerFactory.getLogger(BatchServiceV2.class);
+//	static Logger logger = LoggerFactory.getLogger(BatchServiceV2.class);
+	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -101,15 +103,16 @@ public class BatchServiceV2 extends NdexService {
 			List<String> userIdStrs)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
-		logger.info("[start: Getting users from UUIDs]");
-		
+	//	logger.info("[start: Getting users from UUIDs]");
+		accLogger.info("[data]\t[uuidcounts:" +userIdStrs.size() + "]" );
+
 		try (UserDAO dao = new UserDAO() ){
 			List<User> users = new LinkedList<>();
 			for ( String uuidStr : userIdStrs) {
 				User user = dao.getUserById(UUID.fromString(uuidStr),true, false);
 				users.add(user);
 			}
-		    logger.info("[end: User object returned for user uuids]");
+//		    logger.info("[end: User object returned for user uuids]");
 			return users;	
 		} 
 		
@@ -127,7 +130,8 @@ public class BatchServiceV2 extends NdexService {
 	public List<Group> getGroupsByUUIDs(List<String> groupIdStrs)
 			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 		
-		logger.info("[start: Getting groups by uuids]");
+//		logger.info("[start: Getting groups by uuids]");
+		accLogger.info("[data]\t[uuidcounts:" +groupIdStrs.size() + "]" );
 
 		try (GroupDAO dao = new GroupDAO()) {
 			List<Group> groups = new LinkedList<>();
@@ -135,7 +139,7 @@ public class BatchServiceV2 extends NdexService {
 			  final Group group = dao.getGroupById(UUID.fromString(groupId));
 			  groups.add(group);
 			}
-			logger.info("[end: Getting groups by uuids]");
+//			logger.info("[end: Getting groups by uuids]");
 			return groups;
 		} 
 	}
@@ -155,13 +159,14 @@ public class BatchServiceV2 extends NdexService {
 		if (networkIdStrs.size() > 2000) 
 			throw new NdexException ("You can only send up to 2000 network ids in this function.");
 		
-    	logger.info("[start: Getting networkSummary of networks {}]", networkIdStrs);
-		
+  //  	logger.info("[start: Getting networkSummary of networks {}]", networkIdStrs);
+		accLogger.info("[data]\t[uuidcounts:" +networkIdStrs.size() + "]" );
+
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			return dao.getNetworkSummariesByIdStrList(networkIdStrs, userId, accessKey);				
 		}  finally {
-	    	logger.info("[end: Getting networkSummary of networks {}]", networkIdStrs);
+//	    	logger.info("[end: Getting networkSummary of networks {}]", networkIdStrs);
 		}						
 	}
 	

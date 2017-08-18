@@ -16,10 +16,17 @@ public class SolrTaskDeleteNetwork extends NdexSystemTask {
 	
 	private UUID networkId;
     private static final TaskType taskType = TaskType.SYS_SOLR_DELETE_NETWORK;
+    private boolean globalIdxOnly;
+    public final static String globalIdxAttr = "globalIdxOnly";
 	
 	public SolrTaskDeleteNetwork (UUID networkUUID) {
+		this(networkUUID, false);
+	}
+	
+	public SolrTaskDeleteNetwork (UUID networkUUID, boolean globalOnly) {
 		super();
 		this.networkId = networkUUID;
+		this.globalIdxOnly = globalOnly;
 	}
 	
 	@Override
@@ -28,9 +35,11 @@ public class SolrTaskDeleteNetwork extends NdexSystemTask {
 		
 			NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
 			globalIdx.deleteNetwork(id);
-			try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
-				idxManager.dropIndex();
-			}		
+			if (!globalIdxOnly) {
+				try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
+					idxManager.dropIndex();
+				}		
+			}
 		
 	}
 
@@ -39,6 +48,7 @@ public class SolrTaskDeleteNetwork extends NdexSystemTask {
 	public Task createTask() {
 		Task t = super.createTask();
 		t.setResource(networkId.toString());
+		t.setAttribute(globalIdxAttr, Boolean.valueOf(globalIdxOnly));
 		return t;
 	}
 
