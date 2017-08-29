@@ -504,6 +504,27 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 	}
 	
+	/** 
+	 * return true if the network is showcased in the owner's account.
+	 * @param networkID
+	 * @return
+	 * @throws SQLException
+	 * @throws ObjectNotFoundException
+	 */
+	public boolean isShowCased(UUID networkID) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select show_in_homepage from network n where n.\"UUID\" = ? and n.is_deleted=false ";
+			
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkID);
+			try ( ResultSet rs = pst.executeQuery()) {
+				if( rs.next() ) {
+					return rs.getBoolean(1);
+				}
+				throw new ObjectNotFoundException("Network", networkID );
+			}
+		}
+	}
+	
 	public boolean isAdmin(UUID networkID, UUID userId) throws SQLException {
 		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and n.owneruuid= ?";
 			
@@ -1374,7 +1395,7 @@ public class NetworkDAO extends NdexDBDAO {
     }
 	
     // This function commits the current transaction, so be careful when using it.
-    public int grantPrivilegeToUser(UUID networkUUID, UUID userUUID, Permissions permission) throws NdexException, SolrServerException, IOException, SQLException {
+    public int grantPrivilegeToUser(UUID networkUUID, UUID userUUID, Permissions permission) throws NdexException, IOException, SQLException {
     	
     	UUID oldOwnerUUID = getNetworkOwner(networkUUID);
     	User oldUser ;
@@ -1391,6 +1412,7 @@ public class NetworkDAO extends NdexDBDAO {
     	}
 
     	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
+    	boolean showcased = isShowCased(networkUUID);
  //   	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
     	if ( permission == Permissions.ADMIN) {
     		// grant admin to this user.
@@ -1413,12 +1435,15 @@ public class NetworkDAO extends NdexDBDAO {
     		}
     		
     		// auto downgrade the old user with a write permission
-    		sql = "insert into user_network_membership (user_id,network_id, permission_type) values (?,?, '"+ Permissions.WRITE.toString() + "')";
+    		sql = "insert into user_network_membership (user_id,network_id, permission_type,show_in_homepage) values (?,?, '"+ Permissions.WRITE.toString() + "', ?)";
     		try ( PreparedStatement pst = db.prepareStatement(sql)) {
     			pst.setObject(1, oldUser.getExternalId());
     			pst.setObject(2, networkUUID);
+    			pst.setBoolean(3, showcased);
     			pst.executeUpdate();
     		}
+    		
+    		// keep the old 
     		commit();
     //		networkIdx.revokeNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.ADMIN, true);
    // 		networkIdx.grantNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.WRITE, Permissions.ADMIN, true);
