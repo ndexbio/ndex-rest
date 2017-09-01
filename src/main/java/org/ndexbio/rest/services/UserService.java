@@ -860,7 +860,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("")
 	public List<Request> getSentRequest(@PathParam("start") int skipBlocks,
-			@PathParam("size") int blockSize) throws NdexException, SQLException {
+			@PathParam("size") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 		
@@ -877,7 +877,7 @@ public class UserService extends NdexService {
 	@ApiDoc("")
 	public List<Request> getPendingRequests(
 			@PathParam("start") int skipBlocks,
-			@PathParam("size") int blockSize) throws NdexException, SQLException {
+			@PathParam("size") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: Getting pending request for user {}]", getLoggedInUser().getUserName());
 		

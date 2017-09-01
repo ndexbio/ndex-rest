@@ -96,6 +96,15 @@ public class CXNetworkFileGenerator {
 			 
 			 metadata.remove(NdexNetworkStatus.ASPECT_NAME);
 			
+			 //write namespace first
+			 if ( metadata.getMetaDataElement(NamespacesElement.ASPECT_NAME) != null ) {
+				 wtr.startAspectFragment(NamespacesElement.ASPECT_NAME);
+				 String aspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + NamespacesElement.ASPECT_NAME;
+			 	 wtr.writeAspectElementsFromNdexAspectFile(aspectFileName);
+				 wtr.endAspectFragment(); 
+				 metadata.remove(NamespacesElement.ASPECT_NAME);	 
+			 }
+
 			 //write the NdexNetworkstatus aspect.
 			 List<AspectElement> stat = new ArrayList<> (1);
 			 stat.add(status);		 
@@ -111,14 +120,6 @@ public class CXNetworkFileGenerator {
 				 }
 			 }
 				 
-			 //write namespace first
-			 if ( metadata.getMetaDataElement(NamespacesElement.ASPECT_NAME) != null ) {
-				 wtr.startAspectFragment(NamespacesElement.ASPECT_NAME);
-				 String aspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + NamespacesElement.ASPECT_NAME;
-			 	 wtr.writeAspectElementsFromNdexAspectFile(aspectFileName);
-				 wtr.endAspectFragment(); 
-				 metadata.remove(NamespacesElement.ASPECT_NAME);	 
-			 }
 			 
 			 //write all other aspects
 			 for ( MetaDataElement metaElmt: metadata) {

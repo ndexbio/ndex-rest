@@ -32,36 +32,30 @@ package org.ndexbio.rest.services;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
-import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
-import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
-
-@Path("/request")
-@Deprecated
-public class RequestService extends NdexService
+@Path("/v2/request")
+public class RequestServiceV2 extends NdexService
 {
-	static Logger logger = LoggerFactory.getLogger(RequestService.class);
+	//static Logger logger = LoggerFactory.getLogger(RequestServiceV2.class);
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -70,7 +64,7 @@ public class RequestService extends NdexService
     * @param httpRequest
     *            The HTTP request injected by RESTEasy's context.
     **************************************************************************/
-    public RequestService(@Context HttpServletRequest httpRequest) {
+    public RequestServiceV2(@Context HttpServletRequest httpRequest) {
         super(httpRequest);
     }
     
@@ -83,7 +77,7 @@ public class RequestService extends NdexService
      * @throws JsonMappingException 
      * @throws JsonParseException 
     **************************************************************************/
-    @POST
+/*    @POST
     @Produces("application/json")
 	@ApiDoc("Create a new request based on a request JSON structure. Returns the JSON structure including the assigned UUID of this request."
 			+ "CreationDate, modificationDate, and sourceName fields will be ignored in the input object. A user can only create request for "
@@ -104,7 +98,7 @@ public class RequestService extends NdexService
 			logger.info("[end: Request created]");
 		}
     	
-    }
+    } */
 
     /**************************************************************************
     * Deletes a request.
@@ -112,7 +106,7 @@ public class RequestService extends NdexService
     * 
     * 
     **************************************************************************/
-    @DELETE
+/*    @DELETE
     @Path("/{requestid}")
     @Produces("application/json")
 	@ApiDoc("Deletes the request specified by requestId. Errors if requestId not specified or if request not found.")
@@ -129,7 +123,7 @@ public class RequestService extends NdexService
 			logger.info("[end: Request deleted]");
 		}
     	
-    }
+    } */
 
     /**************************************************************************
     * Gets a request by ID.
@@ -152,15 +146,11 @@ public class RequestService extends NdexService
 	@ApiDoc("Returns the request JSON structure for the request specified by requestId. Errors if requestId not specified or if request not found.")
     public Request getRequest(@PathParam("requestid")final String requestId) 
     		throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
- 
-		logger.info("[start: Getting request {}]", requestId);
-				
+ 				
 		try (RequestDAO dao = new RequestDAO()){
 			final Request request = dao.getRequest(UUID.fromString(requestId), this.getLoggedInUser());
 			return request;
-		} finally {
-			logger.info("[end: Got request {}]", requestId);
-		}
+		} 
     }
 
     /**************************************************************************
@@ -169,7 +159,7 @@ public class RequestService extends NdexService
      * @throws JsonProcessingException 
     * 
     **************************************************************************/
-   @POST
+ /*   @PUT
     @Path("/{requestid}")
     @Produces("application/json")
 	@ApiDoc("Updates a request corresponding to the POSTed request JSON structure. " +
@@ -187,6 +177,29 @@ public class RequestService extends NdexService
 		} finally {
 			logger.info("[end: Updated request {}]", requestId);
 		}
-    }
-        
+    } */
+
+    
+    /**************************************************************************
+    * Updates a request.
+     * @throws SQLException 
+     * @throws JsonProcessingException 
+    * 
+    **************************************************************************/
+    @PUT
+    @Path("/{requestid}/properties")
+    @Produces("application/json")
+	@ApiDoc("Updates a request corresponding to the POSTed request JSON structure. " +
+			"The request JSON must specify the request id. " +
+			"Errors if requestId is not specified or if request is not found." +
+			"If the response field of the request is updated such that the request is accepted, then the action associated with the request is performed.")
+    public void updateRequestProperties(@PathParam("requestid")final String requestId, final Map<String,Object> properties)
+    		throws IllegalArgumentException, NdexException, SQLException, JsonProcessingException {
+  
+		try (RequestDAO dao = new RequestDAO()) {
+			dao.updateRequestProperties(UUID.fromString(requestId), properties, this.getLoggedInUser());
+			dao.commit();
+		}
+	}
+
 }

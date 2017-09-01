@@ -357,7 +357,8 @@ public class NetworkService extends NdexService {
             Helper.populateProvenanceEntity(newProv, summary);
             ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_NETWORK_PROPERTIES, summary.getModificationTime());
             List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-            Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
+			eventProperties.add( new SimplePropertyValuePair("user name", user.getUserName()) ) ;
+
             for( NdexPropertyValuePair vp : properties )
             {
                 SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getPredicateString(), vp.getValue());
@@ -1235,10 +1236,10 @@ public class NetworkService extends NdexService {
 								continue;
 							if( oldProperty.getName().equals("dc:title") )
 								oldName = oldProperty.getValue().trim();
-							else if( oldProperty.getName().equals("description") )
+						/*	else if( oldProperty.getName().equals("description") )
 								oldDescription = oldProperty.getValue().trim();
 							else if( oldProperty.getName().equals("version") )
-								oldVersion = oldProperty.getValue().trim();
+								oldVersion = oldProperty.getValue().trim(); */
 						}
 					}
 
@@ -1258,16 +1259,16 @@ public class NetworkService extends NdexService {
 						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, partialSummary.getModificationTime());
 
 						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-						Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
+						eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
 
 						if (partialSummary.getName() != null)
 							eventProperties.add(new SimplePropertyValuePair("dc:title", partialSummary.getName()));
 
-						if (partialSummary.getDescription() != null)
+				/*		if (partialSummary.getDescription() != null)
 							eventProperties.add(new SimplePropertyValuePair("description", partialSummary.getDescription()));
 
 						if (partialSummary.getVersion() != null)
-							eventProperties.add(new SimplePropertyValuePair("version", partialSummary.getVersion()));
+							eventProperties.add(new SimplePropertyValuePair("version", partialSummary.getVersion())); */
 
 						event.setProperties(eventProperties);
 						List<ProvenanceEntity> oldProvList = new ArrayList<>();
@@ -1580,7 +1581,8 @@ public class NetworkService extends NdexService {
 			ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE, new Timestamp(System.currentTimeMillis()));
 
 			List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-			Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+			eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
+
 			event.setProperties(eventProperties);		
 			ProvenanceEntity inputEntity =daoNew.getProvenance(networkId);
 			event.addInput(inputEntity);
@@ -1923,7 +1925,7 @@ public class NetworkService extends NdexService {
 			   ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
 
 				List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-				Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+				eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
 				event.setProperties(eventProperties);
 
 				entity.setCreationEvent(event);

@@ -37,13 +37,14 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
-import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -53,27 +54,23 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 
-import org.ndexbio.common.importexport.ImporterExporterEntry;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
-import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.ndexbio.task.NetworkExportTask;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-
-import org.slf4j.Logger;
 
 @Path("/v2/task")
 public class TaskServiceV2 extends NdexService
@@ -114,9 +111,6 @@ public class TaskServiceV2 extends NdexService
     public void deleteTask(@PathParam("taskid")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException
     {
 
-    	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskUUID), 
-    			"A task id is required");
-  
     	UUID taskId = UUID.fromString(taskUUID);
     	try (TaskDAO tdao= new TaskDAO()) {
             
@@ -214,6 +208,30 @@ public class TaskServiceV2 extends NdexService
 			return tasks;
 		} 
 	}
+	
+	
+	   	@PUT
+	    @Path("/{taskid}/ownerProperties")
+	    @Produces("application/json")
+	    public void updateTaskOwnerProperties(
+	    		@PathParam("taskid")final String taskUUID,
+	    		Map<String,Object> props) throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException
+	    {
+
+	    	UUID taskId = UUID.fromString(taskUUID);
+	    	try (TaskDAO tdao= new TaskDAO()) {
+	            
+	            UUID ownerId = tdao.getTaskOwnerId(taskId);
+	            
+	            if ( !ownerId.equals(this.getLoggedInUserId()))
+	            	throw new ForbiddenOperationException("You are not the owner of the task.");
+	            
+	            tdao.updateTaskOwnerProperties(taskId,props);
+	            tdao.commit();
+	        }
+
+	    }
+
 
 	@GET
 	@Path("/{taskid}/file")

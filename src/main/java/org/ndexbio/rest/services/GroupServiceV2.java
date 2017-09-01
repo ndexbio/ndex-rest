@@ -483,7 +483,7 @@ public class GroupServiceV2 extends NdexService {
 				+ "")
 		public List<Request> getPermissionRequests(@PathParam("groupid") final String groupIdStr,
 				@QueryParam("networkid") final String networkIdStr,
-				@QueryParam("permission") final String permissionStr) throws NdexException, SQLException {
+				@QueryParam("permission") final String permissionStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 			
 			logger.info("[start: Getting network membership for groupId {}]", 
 					groupIdStr);
@@ -517,7 +517,7 @@ public class GroupServiceV2 extends NdexService {
 		@Produces("application/json")
 		@ApiDoc("")
 		public Request getPermissionRequestById(@PathParam("groupid") String groupIdStr,
-				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException {
+				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
 		//	logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 			

@@ -26,13 +26,15 @@ public class CXAspectWriter implements AutoCloseable{
 	private static final byte[] comma = {','};
 	private static final byte[] end = {']'};
 	
+	@SuppressWarnings("resource")
 	public CXAspectWriter(String aspectFileName) throws IOException {
-		out = new FileOutputStream(aspectFileName);
+		this(new FileOutputStream(aspectFileName,false));
+		/*out = new FileOutputStream(aspectFileName,false);
 		jwriter = JsonWriter.createInstance(out,true);
 	    jwriter.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
 	    jwriter.configure(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM, false);
 		count = 0;
-		isClosed=false;
+		isClosed=false;*/
 	}
 
 	public CXAspectWriter(OutputStream output) throws IOException {

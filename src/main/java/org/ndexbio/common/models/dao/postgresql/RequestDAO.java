@@ -37,12 +37,16 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Permissions;
@@ -52,7 +56,10 @@ import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 
 public class RequestDAO extends NdexDBDAO  {
@@ -102,8 +109,8 @@ public class RequestDAO extends NdexDBDAO  {
 		//TODO: check if the same request exists.
 			
 		String insertStr = "insert into request (\"UUID\", creation_time, modification_time, is_deleted, sourceuuid,"
-				+ "destinationuuid,requestmessage,requestpermission, owner_id, request_type, response)"
-				+ "values ( ?,?,?,false,?, ?,?,?,?,?,?)";
+				+ "destinationuuid,requestmessage,requestpermission, owner_id, request_type, response, other_attributes)"
+				+ "values ( ?,?,?,false,?, ?,?,?,?,?,?, ? :: jsonb)";
 		
 		Timestamp currentTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
 		newRequest.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
@@ -122,6 +129,9 @@ public class RequestDAO extends NdexDBDAO  {
 			pst.setObject(8, account.getExternalId());
 			pst.setString(9, newRequest.getRequestType().name());
 			pst.setString(10, newRequest.getResponse().name());
+			ObjectMapper mapper = new ObjectMapper();
+	        String s = mapper.writeValueAsString( newRequest.getProperties());
+			pst.setString(11, s);
 			pst.executeUpdate();
 		}
 		
@@ -213,9 +223,12 @@ public class RequestDAO extends NdexDBDAO  {
 	    * 			User object     
 
 	    * @return The request.
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 	    **************************************************************************/
 	public Request getRequest(UUID requestId, User account)
-			throws IllegalArgumentException, NdexException, SQLException {
+			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		Preconditions.checkArgument(requestId != null,
 				"A request id is required");
 		Preconditions.checkArgument(account != null,
@@ -230,7 +243,7 @@ public class RequestDAO extends NdexDBDAO  {
 	}
 	
 	
-	private Request getRequestById (UUID requestId) throws SQLException, ObjectNotFoundException {
+	private Request getRequestById (UUID requestId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
 		String sqlStr = "select r.*, " +
 				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
 				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
@@ -255,7 +268,7 @@ public class RequestDAO extends NdexDBDAO  {
 		}
 	}
 	
-	private static Request getRequestFromResultSet(ResultSet rs) throws SQLException {
+	private static Request getRequestFromResultSet(ResultSet rs) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		if (rs == null) return null;
 		
 		Request r = new Request();
@@ -280,11 +293,24 @@ public class RequestDAO extends NdexDBDAO  {
 		r.setDestinationName(rs.getString("destination_name"));
 		r.setRequesterId((UUID)rs.getObject("owner_id"));
 		
+		String propStr = rs.getString("other_attributes");
+		
+		if ( propStr != null) {
+			ObjectMapper mapper = new ObjectMapper(); 
+			TypeReference<HashMap<String,Object>> typeRef 
+            	= new TypeReference<HashMap<String,Object>>() {};
+
+            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
+            r.setProperties(o);
+		} else {
+			r.setProperties(null);
+		}
+		
 		return r;
 	}
 	
 	public List<Request> getPendingRequestByUserId(UUID userId, int skipBlocks,
-			int blockSize) throws SQLException {
+			int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
 		final List<Request> requests = new ArrayList<>();
 
@@ -325,7 +351,7 @@ public class RequestDAO extends NdexDBDAO  {
 	}
 	
 	public List<Request> getPendingNetworkAccessRequestByUserId(UUID userId, int skipBlocks,
-			int blockSize) throws SQLException {
+			int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
 		final List<Request> requests = new ArrayList<>();
 
@@ -363,7 +389,7 @@ public class RequestDAO extends NdexDBDAO  {
 	
 	
 	public List<Request> getPendingGroupMembershipRequestByUserId(UUID userId, int skipBlocks,
-			int blockSize) throws SQLException {
+			int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
 		final List<Request> requests = new ArrayList<>();
 
@@ -409,13 +435,16 @@ public class RequestDAO extends NdexDBDAO  {
 	 *            amount of blocks to skip
 	 * @param blockSize
 	 *            The size of blocks to be skipped and retrieved
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonParseException 
 
 	 **************************************************************************/
 
 	// if request type is null, return all types of request sent by this user.
 
 	public List<Request> getSentRequestByUserId(UUID userId, RequestType requestType, int skipBlocks,
-			int blockSize) throws SQLException {
+			int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
 		final List<Request> requests = new ArrayList<>();
 
@@ -455,7 +484,7 @@ public class RequestDAO extends NdexDBDAO  {
 	
 	
 	public List<Request> getGroupPermissionRequest(UUID groupId, UUID networkId, Permissions permission)
-			throws SQLException {
+			throws SQLException, JsonParseException, JsonMappingException, IOException {
 
 		final List<Request> requests = new ArrayList<>();
 		
@@ -498,9 +527,10 @@ public class RequestDAO extends NdexDBDAO  {
 	    * @throws NdexException
 	    *            Failed to update the request in the database.
 	 * @throws SQLException 
+	 * @throws JsonProcessingException 
 	    **************************************************************************/
 	public void updateRequest(UUID requestId, Request updatedRequest, User account)
-			throws IllegalArgumentException, NdexException, SQLException {
+			throws IllegalArgumentException, NdexException, SQLException, JsonProcessingException {
 		Preconditions.checkArgument(null != updatedRequest,
 				"A Request object is required");
 		Preconditions.checkArgument(updatedRequest.getResponse().equals(ResponseType.ACCEPTED)
@@ -511,13 +541,16 @@ public class RequestDAO extends NdexDBDAO  {
 
 					
 		if (userIsRequestDestination(requestId,account.getExternalId())) {
-			String sql = "update request set responder = ? , response = ?, responsemessage = ?, responsetime = localtimestamp "
-					+ "where \"UUID\" = ? and is_deleted=false ";
+			String sql = "update request set responder = ? , response = ?, responsemessage = ?, responsetime = localtimestamp, other_attributes =? ::jsonb "
+					+ " where \"UUID\" = ? and is_deleted=false ";
 			try ( PreparedStatement p = db.prepareStatement(sql)) {
 				p.setString(1, account.getUserName() );
 				p.setString(2, updatedRequest.getResponse().name());
 				p.setString(3, updatedRequest.getResponseMessage());
-				p.setObject(4, requestId);
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( updatedRequest.getProperties());
+				p.setString(4, s);
+				p.setObject(5, requestId);
 				p.executeUpdate();
 			}
 			
@@ -554,6 +587,40 @@ public class RequestDAO extends NdexDBDAO  {
 		}
 	}
 	
+	private UUID getRequestOwnerId (UUID requestId) throws SQLException, ObjectNotFoundException {
+		String sql = "select r.owner_id from request r where r.\"UUID\" = ? and r.is_deleted =false";
+		try (PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, requestId);
+			try ( ResultSet rs = p.executeQuery()) {
+					if (rs.next()) {
+						return (UUID)rs.getObject("owner_id");
+					}
+					throw new ObjectNotFoundException("Request " + requestId.toString() + " not found.");
+			}
+		}
+	}	
+	
+	public void updateRequestProperties(UUID requestId, Map<String, Object> properties, User account)
+			throws IllegalArgumentException, NdexException, SQLException, JsonProcessingException {
+
+		Preconditions.checkArgument(account != null,
+				"Must be logged in to update a request");
+
+		UUID owner = getRequestOwnerId(requestId);
+		if (!owner.equals(account.getExternalId())) {
+			throw new ForbiddenOperationException("You are not the owner (creator) of this request.");
+		}
+					
+		String sql = "update request set other_attributes =? ::jsonb where \"UUID\" = ? and is_deleted=false ";
+		try ( PreparedStatement p = db.prepareStatement(sql)) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( properties);
+				p.setString(1, s);
+				p.setObject(2, requestId);
+				p.executeUpdate();
+		}
+						
+	} 
 	
 
 /*	

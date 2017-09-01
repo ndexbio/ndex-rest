@@ -159,7 +159,7 @@ public class Helper {
     }
 
     //Added by David Welker
-    public static void addUserInfoToProvenanceEventProperties(List<SimplePropertyValuePair> eventProperties, User user)
+ /*   public static void addUserInfoToProvenanceEventProperties(List<SimplePropertyValuePair> eventProperties, User user)
     {
         String firstName = user.getFirstName();
         String lastName = user.getLastName();
@@ -173,11 +173,11 @@ public class Helper {
             else
                 name = firstName + " " + lastName;
             eventProperties.add( new SimplePropertyValuePair("user", name));
-        }
+        } 
 
-        if( user.getUserName() != null )
+       // if( user.getUserName() != null )
             eventProperties.add( new SimplePropertyValuePair("user name", user.getUserName()) );
-    }
+    } */
 
 
      

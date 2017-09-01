@@ -94,6 +94,8 @@ import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.persistence.CXNetworkAspectsUpdater;
+import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Util;
@@ -313,7 +315,8 @@ public class NetworkServiceV2 extends NdexService {
 				Helper.populateProvenanceEntity(newProv, summary);
 				ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_NETWORK_PROPERTIES, summary.getModificationTime());
 				List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-				Helper.addUserInfoToProvenanceEventProperties( eventProperties, user);
+				eventProperties.add( new SimplePropertyValuePair("user name", user.getUserName()) ) ;
+
 				for( NdexPropertyValuePair vp : properties )
 				{
 					SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getPredicateString(), vp.getValue());
@@ -509,7 +512,7 @@ public class NetworkServiceV2 extends NdexService {
 				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
 			}
 				
-			new CXAspectElementsWriterThread(out,in, aspectName, limit).start();
+			new CXAspectElementsWriterThread(out,in, /*aspectName,*/ limit).start();
 			logger.info("[end: Return get one aspect in network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 		
@@ -755,7 +758,7 @@ public class NetworkServiceV2 extends NdexService {
 		private FileInputStream in;
 	//	private String aspect;
 		private int limit;
-		public CXAspectElementsWriterThread (OutputStream out, FileInputStream inputStream, String aspectName, int limit) {
+		public CXAspectElementsWriterThread (OutputStream out, FileInputStream inputStream, /*String aspectName,*/ int limit) {
 			o = out;
 		//	this.networkId = networkId;
 		//	aspect = aspectName;
@@ -1220,17 +1223,17 @@ public class NetworkServiceV2 extends NdexService {
 						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, partialSummary.getModificationTime());
 
 						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-						Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
+						eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
 
 						if (partialSummary.getName() != null)
 							eventProperties.add(new SimplePropertyValuePair("dc:title", partialSummary.getName()));
 
-						if (partialSummary.getDescription() != null)
+/*						if (partialSummary.getDescription() != null)
 							eventProperties.add(new SimplePropertyValuePair("description", partialSummary.getDescription()));
 
 						if (partialSummary.getVersion() != null)
 							eventProperties.add(new SimplePropertyValuePair("version", partialSummary.getVersion()));
-
+*/
 						event.setProperties(eventProperties);
 						List<ProvenanceEntity> oldProvList = new ArrayList<>();
 						oldProvList.add(oldProv);
@@ -1384,16 +1387,16 @@ public class NetworkServiceV2 extends NdexService {
 						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
 
 						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-						Helper.addUserInfoToProvenanceEventProperties(eventProperties, user);
+						eventProperties.add( new SimplePropertyValuePair("user name", user.getUserName()) ) ;
 
 						if (summary.getName() != null)
 							eventProperties.add(new SimplePropertyValuePair("dc:title", summary.getName()));
 
-						if (summary.getDescription() != null)
+			/*			if (summary.getDescription() != null)
 							eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
 
 						if (summary.getVersion() != null)
-							eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion()));
+							eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion())); */
 
 						event.setProperties(eventProperties);
 						List<ProvenanceEntity> oldProvList = new ArrayList<>();
@@ -1517,13 +1520,15 @@ public class NetworkServiceV2 extends NdexService {
 			
 			String urlStr = Configuration.getInstance().getHostURI()  + 
 			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr;
+			
 			ProvenanceEntity entity = new ProvenanceEntity();
 			entity.setUri(urlStr + "/summary");
 
 			ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE, new Timestamp(System.currentTimeMillis()));
 
 			List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-			Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+			
+			eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
 			event.setProperties(eventProperties);		
 			ProvenanceEntity inputEntity =daoNew.getProvenance(networkId);
 			event.addInput(inputEntity);
@@ -1574,7 +1579,6 @@ public class NetworkServiceV2 extends NdexService {
         try ( NetworkDAO daoNew = new NetworkDAO() ) {
            User user = getLoggedInUser();
            
-         try {
 	  	   if( daoNew.isReadOnly(networkId)) {
 				throw new NdexException ("Can't update readonly network.");				
 			} 
@@ -1594,36 +1598,48 @@ public class NetworkServiceV2 extends NdexService {
 			
 	        UUID tmpNetworkId = storeRawNetwork (input); //network stored as a temp network
 
-	        String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString() + "/network.cx";
-	 //		long fileSize = new File(cxFileName).length();
-
-	  //      daoNew.clearNetworkSummary(networkId, fileSize);
+	   //     String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString() + "/network.cx";
 	        
-			java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId);
-			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId);
-			FileUtils.deleteDirectory(new File(Configuration.getInstance().getNdexRoot() + "/data/" + networkId));
-			Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
-			
-			String urlStr = Configuration.getInstance().getHostURI()  + 
+	    	try ( CXNetworkAspectsUpdater aspectUpdater = new CXNetworkAspectsUpdater(networkId, ownerAccName,daoNew, tmpNetworkId) ) {
+	    		
+	    		String urlStr = Configuration.getInstance().getHostURI()  + 
 			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr;
-			ProvenanceEntity entity = new ProvenanceEntity();
-			entity.setUri(urlStr + "/summary");
+	    		ProvenanceEntity entity = new ProvenanceEntity();
+				entity.setUri(urlStr + "/summary");
 
-			ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE, new Timestamp(System.currentTimeMillis()));
+				ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_ASPECTS_UPDATE, new Timestamp(System.currentTimeMillis()));
 
-			List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-			Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
-			event.setProperties(eventProperties);		
-			ProvenanceEntity inputEntity =daoNew.getProvenance(networkId);
-			event.addInput(inputEntity);
-			entity.setCreationEvent(event);
-
-			daoNew.setProvenance(networkId, entity);
+				List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+				eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
+				event.setProperties(eventProperties);		
 				
-			daoNew.commit();
-	//		daoNew.unlockNetwork(networkId);
+				ProvenanceEntity inputEntity =daoNew.getProvenance(networkId);
+				event.addInput(inputEntity);
+				entity.setCreationEvent(event);
+
+				daoNew.setProvenance(networkId, entity);
+	    			
+				aspectUpdater.update();
+
+	    	} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
+	    			logger.error("Error occurred when updating aspects of network " + networkId + ": " + e1.getMessage());
+	    			e1.printStackTrace();
+	    			daoNew.setErrorMessage(networkId, e1.getMessage());
+	    			try {
+	    				daoNew.unlockNetwork(networkId);
+	    			} catch (ObjectNotFoundException e) {
+	    				// TODO Auto-generated catch block
+	    				e.printStackTrace();
+	    				logger.error("Can't find network " + networkId + " in the server to delete.");
+	    			}
+	    				    		
+	    	} 
+        	     
+			FileUtils.deleteDirectory(new File(Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString()));
+        	 
+			daoNew.unlockNetwork(networkId);
 			
-           } catch (SQLException | NdexException | IOException e) {
+           } /*catch (SQLException | NdexException | IOException e) {
         	  // e.printStackTrace();
         	   daoNew.rollback();
         	   daoNew.unlockNetwork(networkId);  
@@ -1631,9 +1647,9 @@ public class NetworkServiceV2 extends NdexService {
         	   throw e;
            } 
 			
-        }  
+       // }  
     	      
-	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true)); */
 	    // return networkIdStr; 
     }
     
@@ -1896,7 +1912,7 @@ public class NetworkServiceV2 extends NdexService {
 			   ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
 
 				List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-				Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
+				eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
 				event.setProperties(eventProperties);
 
 				entity.setCreationEvent(event);

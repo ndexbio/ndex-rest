@@ -722,7 +722,7 @@ public class UserServiceV2 extends NdexService {
 		@Produces("application/json")
 		@ApiDoc("")
 		public Request getPermissionRequestById(@PathParam("userid") String userIdStr,
-				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException {
+				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
 			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 			
@@ -748,7 +748,7 @@ public class UserServiceV2 extends NdexService {
 		public List<Request> getPermissionRequests (
 				 @PathParam("userid") String userIdStr,
 				  @QueryParam("type") String queryType
-				) throws NdexException, SQLException {
+				) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 			String qT = null;
@@ -792,7 +792,7 @@ public class UserServiceV2 extends NdexService {
 		public List<Request> getMembershipRequests (
 				 @PathParam("userid") String userIdStr,
 				  @QueryParam("type") String queryType
-				) throws NdexException, SQLException {
+				) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
 			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 			String qT = null;
@@ -836,7 +836,7 @@ public class UserServiceV2 extends NdexService {
 			public Request getMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
 					 @PathParam("requestid") String requestIdStr
-					) throws NdexException, SQLException {
+					) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
 				logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 				
@@ -863,7 +863,7 @@ public class UserServiceV2 extends NdexService {
 				 @PathParam("requestid") String requestIdStr,
 				 @QueryParam("action")  String action,
 				 @QueryParam("message") String message
-				) throws NdexException, SQLException {
+				) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
 			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 			

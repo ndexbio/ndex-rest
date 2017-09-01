@@ -120,12 +120,19 @@ public class TaskDAO extends NdexDBDAO {
 		String str = rs.getString("file_format");		
 		if ( str != null) task.setFormat(FileFormat.valueOf(str));
 
+		ObjectMapper mapper = new ObjectMapper(); 
 		String o = rs.getString("other_attributes");
 		if ( o != null) {
-			ObjectMapper mapper = new ObjectMapper(); 
 			Map<String, Object> attr = mapper.readValue(o, new TypeReference<Map<String,Object>>() {}); 					
 			task.setAttributes(attr);
-		}
+		} 
+		
+		o = rs.getString("user_properties");
+		if ( o != null) {
+			Map<String, Object> attr = mapper.readValue(o, new TypeReference<Map<String,Object>>() {}); 					
+			task.setOwnerProperties(attr);
+		} else
+			task.setOwnerProperties(null);
 	}
 	
 
@@ -137,7 +144,7 @@ public class TaskDAO extends NdexDBDAO {
 		
 		String insertStr = "insert into task (\"UUID\", creation_time, modification_time," + 
 					"status, start_time,end_time,task_type,owneruuid,is_deleted,other_attributes,"+
-				   "description,priority, progress,file_format, message, resource) values ( ?,?,?,?,?,?,?,?,false,? ::jsonb,?,?,?,?,?,?)";
+				   "description,priority, progress,file_format, message, resource, user_properties) values ( ?,?,?,?,?,?,?,?,false,? ::jsonb,?,?,?,?,?,?, ? ::Jsonb)";
 		
 		try (PreparedStatement st = db.prepareStatement(insertStr) ) {
 			st.setObject(1, newTask.getExternalId());		
@@ -149,8 +156,8 @@ public class TaskDAO extends NdexDBDAO {
 			st.setString(7, newTask.getTaskType().toString());
 			st.setObject(8, newTask.getTaskOwnerId());
 			
+			ObjectMapper mapper = new ObjectMapper();
 			if ( newTask.getAttributes() !=null && newTask.getAttributes().size() >0 ) {
-				ObjectMapper mapper = new ObjectMapper();
 			    String s = mapper.writeValueAsString( newTask.getAttributes());
 		    	st.setString(9, s);
 			} else 
@@ -162,6 +169,9 @@ public class TaskDAO extends NdexDBDAO {
 			st.setString(13, (newTask.getFormat() != null ? newTask.getFormat().toString(): null));
 			st.setString(14, newTask.getMessage());
 			st.setString(15, newTask.getResource());
+			
+			String s = mapper.writeValueAsString( newTask.getOwnerProperties());
+		    st.setString(16, s);
 			
 			int rowsInserted = st.executeUpdate();
 			if ( rowsInserted != 1)
@@ -231,6 +241,41 @@ public class TaskDAO extends NdexDBDAO {
 					throw new NdexException ( "Failed to update task status for " + taskID + " in database.");
 			}
 
+		}
+
+	}
+
+	public UUID getTaskOwnerId(UUID taskId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "SELECT owneruuid FROM " + NdexClasses.Task + " where \"UUID\" = ? and not is_deleted ";
+		
+		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
+			st.setObject(1, taskId);
+			try (ResultSet rs = st.executeQuery() ) {
+				if (rs.next()) {
+
+					return (UUID)rs.getObject(1);
+				} 
+				throw new ObjectNotFoundException("Task with UUID: " + taskId.toString() + " doesn't exist.");
+
+			}
+		}		
+	}
+
+	public void updateTaskOwnerProperties (UUID taskID, Map<String, Object> ownerProps) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+		
+		String updateStr = " update " + NdexClasses.Task + " set user_properties = ? :: jsonb where \"UUID\" = ? and is_deleted = false";
+			
+		    
+		try (PreparedStatement st = db.prepareStatement(updateStr) ) {
+
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( ownerProps);
+				st.setString(1, s);
+				st.setObject(2, taskID);			
+						
+				int rowsInserted = st.executeUpdate();
+				if ( rowsInserted != 1)
+					throw new NdexException ( "Failed to update task status for " + taskID + " in database.");
 		}
 
 	}
