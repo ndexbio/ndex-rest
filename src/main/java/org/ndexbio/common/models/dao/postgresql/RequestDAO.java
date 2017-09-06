@@ -459,9 +459,12 @@ public class RequestDAO extends NdexDBDAO  {
 				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
 				" end as source_name "		
 				+ " from request r where r.owner_id = ? and r.is_deleted = false ";
-		if ( requestType !=null)
-			queryStr += " and request_type = '" + requestType.name() + "'";
-		
+		if ( requestType !=null) {
+			if (requestType == RequestType.AllNetworkAccess) {
+				queryStr += " and request_type <> '" + RequestType.JoinGroup.name() + "'";
+			} else 
+				queryStr += " and request_type = '" + requestType.name() + "'";
+		}
 		queryStr += " order by creation_time desc";
 		
 		if ( skipBlocks>=0 && blockSize>0) {

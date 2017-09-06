@@ -316,7 +316,8 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 
 				try {
-		//			dao.setFlag(this.networkId, "iscomplete", true);
+					if ( !isUpdate)
+						dao.setFlag(this.networkId, "iscomplete", true);
 					dao.unlockNetwork(this.networkId);
 
 				//	dao.commit();
@@ -325,7 +326,8 @@ public class CXNetworkLoader implements AutoCloseable {
 					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
 				}
 
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,false,!isUpdate));
+				if ( isUpdate && dao.hasSolrIndex(networkId))
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,false,false));
 		  }
 /*				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
 					if ( isUpdate ) {

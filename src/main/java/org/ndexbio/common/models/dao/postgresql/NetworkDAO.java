@@ -103,7 +103,7 @@ public class NetworkDAO extends NdexDBDAO {
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
 	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 			+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,n.subnetworkids "; 
+			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,n.subnetworkids,n.solr_indexed, n.iscomplete "; 
 	
 	public NetworkDAO () throws  SQLException {
 	    super();
@@ -505,7 +505,11 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public boolean isReadOnly(UUID networkID) throws SQLException, ObjectNotFoundException {
-		String sqlStr = "select readonly from network n where n.\"UUID\" = ? and n.is_deleted=false ";
+		return getBooleanFlag (networkID, "readonly");		
+	}
+	
+	private boolean getBooleanFlag(UUID networkID, String fieldName) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select " + fieldName + " from network n where n.\"UUID\" = ? and n.is_deleted=false ";
 			
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkID);
@@ -516,7 +520,7 @@ public class NetworkDAO extends NdexDBDAO {
 				throw new ObjectNotFoundException("Network", networkID );
 			}
 		}
-	}
+	}	
 	
 	/** 
 	 * return true if the network is showcased in the owner's account.
@@ -526,18 +530,13 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws ObjectNotFoundException
 	 */
 	public boolean isShowCased(UUID networkID) throws SQLException, ObjectNotFoundException {
-		String sqlStr = "select show_in_homepage from network n where n.\"UUID\" = ? and n.is_deleted=false ";
-			
-		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setObject(1, networkID);
-			try ( ResultSet rs = pst.executeQuery()) {
-				if( rs.next() ) {
-					return rs.getBoolean(1);
-				}
-				throw new ObjectNotFoundException("Network", networkID );
-			}
-		}
+		return getBooleanFlag(networkID, "show_in_homepage");
+		
 	}
+	
+	public boolean hasSolrIndex(UUID networkID) throws SQLException, ObjectNotFoundException {
+		return getBooleanFlag(networkID, "solr_indexed");
+	}	
 	
 	public boolean isAdmin(UUID networkID, UUID userId) throws SQLException {
 		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and n.owneruuid= ?";
@@ -610,16 +609,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public boolean networkIsLocked(UUID networkUUID) throws ObjectNotFoundException, SQLException {
-		String sql = "select islocked from network where \"UUID\" = ? and is_deleted = false";
-		try(PreparedStatement p = db.prepareStatement(sql)){
-			p.setObject(1, networkUUID);
-			try ( ResultSet rs = p.executeQuery()) {
-				if ( rs.next()) {
-					return rs.getBoolean(1);
-				}
-				throw new ObjectNotFoundException ("network",networkUUID);
-			}
-		}
+		return getBooleanFlag(networkUUID, "islocked");
 	}
 
 	// max retry is set at 10 by this function. Retry interval is 0.5 second
@@ -642,16 +632,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public boolean networkIsValid(UUID networkUUID) throws ObjectNotFoundException, SQLException {
-		String sql = "select is_validated from network where \"UUID\" = ? and is_deleted = false";
-		try(PreparedStatement p = db.prepareStatement(sql)){
-			p.setObject(1, networkUUID);
-			try ( ResultSet rs = p.executeQuery()) {
-				if ( rs.next()) {
-					return rs.getBoolean(1);
-				}
-				throw new ObjectNotFoundException ("network",networkUUID);
-			}
-		}
+		return getBooleanFlag(networkUUID,"is_validated");
 	}
 	
 	
@@ -1092,6 +1073,9 @@ public class NetworkDAO extends NdexDBDAO {
 			Long[] subNetIds = (Long[]) subNetworkIds.getArray();
 			result.setSubnetworkIds(new HashSet<> (Arrays.asList(subNetIds)));
 		}
+		
+		result.setIndexed(rs.getBoolean(19));
+		result.setCompleted(rs.getBoolean(20));
 	}
 	
 	
@@ -1187,7 +1171,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException {
-		 String sqlStr = "update network set visibility = '" + v.toString() + "', iscomplete=false where \"UUID\" = ? and is_deleted=false and islocked=false";
+		 String sqlStr = "update network set visibility = '" + v.toString() + " where \"UUID\" = ? and is_deleted=false and islocked=false";
 		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			 pst.setObject(1, networkId);
 			 int i = pst.executeUpdate();
@@ -1658,7 +1642,7 @@ public class NetworkDAO extends NdexDBDAO {
      
 	
 	public List<NetworkSummary> getNetworkSummariesForMyAccountPage 
-			(UUID userId) throws SQLException, JsonParseException, JsonMappingException, IOException {
+			(UUID userId, int skipBlocks, int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
 		
 		List<NetworkSummary> result = new ArrayList<>(50);
@@ -1667,8 +1651,12 @@ public class NetworkDAO extends NdexDBDAO {
 				+ " from network n where n.owneruuid = ? and n.is_deleted= false " 
 				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids "
+				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_indexed, n.iscomplete "
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? ) k order by k.modification_time desc"; 
+
+		if ( skipBlocks>=0 && blockSize>0) {
+			sqlStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, userId);
@@ -1682,6 +1670,26 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 		return result;
+	}
+	
+	
+	public int getNumNetworksForMyAccountPage (UUID userId) throws SQLException, NdexException {
+
+		
+		String sqlStr = "select count(*) from ( select n.\"UUID\" " 
+		+ " from network n where n.owneruuid = ? and n.is_deleted= false " 
+		+ " union select n2.\"UUID\" from network n2, user_network_membership un where un.network_id = n2.\"UUID\" and un.user_id = ? ) k"; 
+
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, userId);
+			p.setObject(2, userId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getInt(1);
+				}  
+				throw new NdexException("Failed to get network count for user " + userId);	
+			}
+		}
 	}
 	
 	public String getNetworkAccessKey( UUID networkId) throws SQLException, ObjectNotFoundException {

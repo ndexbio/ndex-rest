@@ -764,7 +764,7 @@ public class UserServiceV2 extends NdexService {
 			
 			try (RequestDAO dao = new RequestDAO ()){
 				if (qT == null) {
-					List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(), RequestType.UserNetworkAccess,0, -1);
+					List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(), RequestType.AllNetworkAccess,0, -1);
 					List<Request> reqs2= dao.getPendingNetworkAccessRequestByUserId(this.getLoggedInUserId(),0, -1);
 					 reqs.addAll(reqs2);
 					 return reqs;
@@ -773,7 +773,7 @@ public class UserServiceV2 extends NdexService {
 				
 				List<Request> reqs;
 				if ( qT.equals("sent")) {
-					 reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),RequestType.UserNetworkAccess,0, -1);
+					 reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),RequestType.AllNetworkAccess,0, -1);
 				} else {
 					reqs= dao.getPendingNetworkAccessRequestByUserId(this.getLoggedInUserId(),0, -1);
 				}
@@ -1055,7 +1055,9 @@ public class UserServiceV2 extends NdexService {
 		@Path("/{userid}/networksummary")
 		@Produces("application/json")
 		public List<NetworkSummary> getNetworkSummariesForMyAccountPage(
-						 @PathParam("userid") String userIdStr
+						@PathParam("userid") String userIdStr,
+						@DefaultValue("0") @QueryParam("start") int skipBlocks,
+						@DefaultValue("0") @QueryParam("size") int blockSize
 			) throws SQLException, JsonParseException, JsonMappingException, IOException, UnauthorizedOperationException {
 
 			UUID userId = UUID.fromString(userIdStr);
@@ -1063,11 +1065,29 @@ public class UserServiceV2 extends NdexService {
 				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
 			
 			try (NetworkDAO dao = new NetworkDAO()) {
-				return dao.getNetworkSummariesForMyAccountPage(userId);
+				return dao.getNetworkSummariesForMyAccountPage(userId, skipBlocks, blockSize);
 			} 
 					
 		}      	
 
+
+	  	@GET
+		@Path("/{userid}/networkcount")
+		@Produces("application/json")
+		public int getNumNetworksForMyAccountPage(
+						 @PathParam("userid") String userIdStr
+			) throws SQLException, NdexException {
+
+			UUID userId = UUID.fromString(userIdStr);
+			if ( !userId.equals(getLoggedInUserId()))
+				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
+			
+			try (NetworkDAO dao = new NetworkDAO()) {
+				return dao.getNumNetworksForMyAccountPage(userId);
+			} 
+					
+		}      	
+	  	
 	  	
 	   	@GET
 		@Path("/{userid}/networksets")

@@ -146,10 +146,11 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
 				}
 
-				if ( aspectTable.containsKey(NetworkAttributesElement.ASPECT_NAME) || 
+				if ( dao.hasSolrIndex(networkUUID) && 
+						(aspectTable.containsKey(NetworkAttributesElement.ASPECT_NAME) || 
 						aspectTable.containsKey(NodesElement.ASPECT_NAME) ||
 						aspectTable.containsKey(NodeAttributesElement.ASPECT_NAME)||
-						aspectTable.containsKey(FunctionTermElement.ASPECT_NAME))
+						aspectTable.containsKey(FunctionTermElement.ASPECT_NAME)))
 					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
 							(!aspectTable.containsKey(NodesElement.ASPECT_NAME) &&
 							!aspectTable.containsKey(NodeAttributesElement.ASPECT_NAME) &&

@@ -47,7 +47,6 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -75,25 +74,18 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
-import org.cxio.aspects.datamodels.NodesElement;
-import org.cxio.core.interfaces.AspectElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.cx.CXAspectFragment;
 import org.ndexbio.common.cx.CXAspectWriter;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
-import org.ndexbio.common.cx.NdexCXNetworkWriter;
 import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
-import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.exceptions.InvalidNetworkException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
@@ -130,7 +122,6 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Path("/network")
 public class NetworkService extends NdexService {
@@ -402,7 +393,8 @@ public class NetworkService extends NdexService {
 			daoNew.unlockNetwork(networkUUID);
             
 			// update the solr Index
-			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
+			if ( daoNew.hasSolrIndex(networkUUID))
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
 
    			return i;
 		} catch (Exception e) {
@@ -1603,7 +1595,7 @@ public class NetworkService extends NdexService {
 			
         }  
     	      
-	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
+	 //    NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
 	     return networkIdStr; 
     }
 

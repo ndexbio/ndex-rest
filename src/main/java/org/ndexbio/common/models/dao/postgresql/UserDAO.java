@@ -153,7 +153,7 @@ public class UserDAO extends NdexDBDAO {
 				"A user email address is required");
 
 		try {
-			User existingAcct = getUserByAccountName(newUser.getUserName(),false, false);
+			getUserByAccountName(newUser.getUserName(),false, false);
 			throw new DuplicateObjectException ( "User " + newUser.getUserName() + " already exists in NDEx.");
 		} catch ( ObjectNotFoundException e ) {}
 		
@@ -224,7 +224,7 @@ public class UserDAO extends NdexDBDAO {
 		String vCode = (String) user.getProperties().get(NdexClasses.User_verification_code) ;
 		
 		long t2 = Calendar.getInstance().getTimeInMillis();
-		boolean within = (t2 - user.getCreationTime().getTime()) < 8 * 3600 * 1000;  // within 8 hours
+		boolean within = (t2 - user.getCreationTime().getTime()) < 24 * 3600 * 1000;  // within 24 hours
 		
 		if ( vCode != null  && verificationCode.equals(vCode) && within) {
 			user.getProperties().remove(NdexClasses.User_verification_code);
