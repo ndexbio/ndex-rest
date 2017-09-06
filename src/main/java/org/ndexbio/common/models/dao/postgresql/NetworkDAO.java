@@ -1171,7 +1171,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException {
-		 String sqlStr = "update network set visibility = '" + v.toString() + " where \"UUID\" = ? and is_deleted=false and islocked=false";
+		 String sqlStr = "update network set visibility = '" + v.toString() + "' where \"UUID\" = ? and is_deleted=false and islocked=false";
 		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			 pst.setObject(1, networkId);
 			 int i = pst.executeUpdate();

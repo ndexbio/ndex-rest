@@ -330,7 +330,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				if ( isUpdate && dao.hasSolrIndex(networkId)) 
 						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false));
 				else
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,false));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,!isUpdate));
 				
 		  }
 

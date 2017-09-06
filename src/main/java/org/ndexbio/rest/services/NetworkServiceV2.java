@@ -1840,6 +1840,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PUT
 	@Path("/{networkid}/systemproperty")
 	@Produces("application/json")
+//    @Consumes("application/json")
     @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
 	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
 	public void setNetworkFlag(
