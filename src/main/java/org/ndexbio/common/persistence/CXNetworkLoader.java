@@ -96,6 +96,7 @@ import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrIndexScope;
 import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -326,18 +327,12 @@ public class CXNetworkLoader implements AutoCloseable {
 					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
 				}
 
-				if ( isUpdate && dao.hasSolrIndex(networkId))
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,false,false));
-		  }
-/*				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
-					if ( isUpdate ) {
-						idx2.dropIndex();		
-					}	
+				if ( isUpdate && dao.hasSolrIndex(networkId)) 
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false));
+				else
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,false));
 				
-					createSolrIndex(summary);
-					idx2.createIndex();
-  
-				} */
+		  }
 
 	}
 	

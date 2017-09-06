@@ -13,17 +13,15 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
 import org.cxio.aspects.datamodels.SubNetworkElement;
-import org.ndexbio.common.cx.CXAspectWriter;
+import org.cxio.metadata.MetaDataCollection;
+import org.cxio.metadata.MetaDataElement;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.model.cx.FunctionTermElement;
@@ -31,13 +29,12 @@ import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.object.NdexProvenanceEventType;
 import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.ProvenanceEvent;
 import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrIndexScope;
 import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 
 public class CXNetworkAspectsUpdater extends CXNetworkLoader {
@@ -60,7 +57,13 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 			  NetworkDAO dao = getDAO();
 			  //handle the network properties 
 			  NetworkSummary summary = dao.getNetworkSummaryById(networkUUID);
+			  MetaDataCollection fullMetaData = dao.getMetaDataCollection(networkUUID);
 			 
+			  for ( MetaDataElement newMetaElement: this.metadata) {
+				  fullMetaData.remove(newMetaElement.getName());
+				  fullMetaData.add(newMetaElement);
+			  }
+			  
 			  if (aspectTable.containsKey(EdgesElement.ASPECT_NAME) )
 				  summary.setEdgeCount((int)aspectTable.get(EdgesElement.ASPECT_NAME).getElementCount());
 			  if ( aspectTable.containsKey(NodesElement.ASPECT_NAME))
@@ -80,7 +83,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				}
 				try {
 				//	dao.saveNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
-					dao.saveNetworkEntry(summary, metadata);
+					dao.saveNetworkEntry(summary, fullMetaData);
 						
 					dao.commit();
 				} catch (SQLException e) {
@@ -146,16 +149,21 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
 				}
 
-				if ( dao.hasSolrIndex(networkUUID) && 
-						(aspectTable.containsKey(NetworkAttributesElement.ASPECT_NAME) || 
+				if ( (aspectTable.containsKey(NetworkAttributesElement.ASPECT_NAME) || 
 						aspectTable.containsKey(NodesElement.ASPECT_NAME) ||
 						aspectTable.containsKey(NodeAttributesElement.ASPECT_NAME)||
-						aspectTable.containsKey(FunctionTermElement.ASPECT_NAME)))
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
-							(!aspectTable.containsKey(NodesElement.ASPECT_NAME) &&
-							!aspectTable.containsKey(NodeAttributesElement.ASPECT_NAME) &&
-							! aspectTable.containsKey(FunctionTermElement.ASPECT_NAME))
-							,false));
+						aspectTable.containsKey(FunctionTermElement.ASPECT_NAME))) {
+					if (dao.hasSolrIndex(networkUUID))
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
+							SolrIndexScope.both,false));
+					else
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
+								SolrIndexScope.individual,false));
+					dao.setFlag(networkUUID, "iscomplete", false);
+				} else {
+					dao.setFlag(networkUUID, "iscomplete", true);
+				}
+				dao.commit();
 		  }
 		
 	}

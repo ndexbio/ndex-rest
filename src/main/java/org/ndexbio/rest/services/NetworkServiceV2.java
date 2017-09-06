@@ -124,6 +124,7 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrIndexScope;
 import org.ndexbio.task.SolrTaskDeleteNetwork;
 import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
@@ -358,9 +359,11 @@ public class NetworkServiceV2 extends NdexService {
 				g.reCreateCXFile();
 				
 				// update the solr Index
-				if ( daoNew.hasSolrIndex(networkUUID))
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
-
+				if ( daoNew.hasSolrIndex(networkUUID)) {
+					daoNew.setFlag(networkUUID, "iscomplete",false);
+					daoNew.commit();
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+				}	
 				return i;
 			} finally {
 				daoNew.unlockNetwork(networkUUID);				
@@ -1039,8 +1042,11 @@ public class NetworkServiceV2 extends NdexService {
 				count = networkDao.revokeGroupPrivilege(networkId, groupId);
 
 			// update the solr Index
-			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
-
+			if ( networkDao.hasSolrIndex(networkId)) {
+				networkDao.setFlag(networkId, "iscomplete", false); 
+				networkDao.commit();
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false));
+			}
             return count;
 		} 
 	}
@@ -1111,8 +1117,11 @@ public class NetworkServiceV2 extends NdexService {
 			//networkDao.commit();
 			
 			// update the solr Index
-			if ( networkDao.hasSolrIndex(networkId))
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
+			if ( networkDao.hasSolrIndex(networkId)) {
+				networkDao.setFlag(networkId, "iscomplete", false);
+				networkDao.commit();
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false));
+			}
 			
 			logger.info("[end: Updated permission for network {}]", networkId);
 	        return count;
@@ -1275,8 +1284,11 @@ public class NetworkServiceV2 extends NdexService {
 					networkDao.unlockNetwork(networkUUID);
 					
 					// update the solr Index 
-					if ( networkDao.hasSolrIndex(networkUUID))
-					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
+					if ( networkDao.hasSolrIndex(networkUUID)) {
+					  networkDao.setFlag(networkUUID, "iscomplete", false);
+					  networkDao.commit();
+					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+					}
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
 					try {
@@ -1440,8 +1452,11 @@ public class NetworkServiceV2 extends NdexService {
 					networkDao.unlockNetwork(networkUUID);
 					
 					// update the solr Index
-					if ( networkDao.hasSolrIndex(networkUUID))
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
+					if ( networkDao.hasSolrIndex(networkUUID)) {
+						  networkDao.setFlag(networkUUID, "iscomplete", false);
+						  networkDao.commit();
+						  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+					}
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
 					try {
@@ -1836,7 +1851,6 @@ public class NetworkServiceV2 extends NdexService {
 			try (NetworkDAO networkDao = new NetworkDAO()) {
 				UUID networkId = UUID.fromString(networkIdStr);
 				UUID userId = getLoggedInUser().getExternalId();
-		//		if ( !networkDao.networkIsLocked(networkId)) {
 					if ( !networkDao.networkIsValid(networkId))
 						throw new InvalidNetworkException();
 					
@@ -1857,8 +1871,9 @@ public class NetworkServiceV2 extends NdexService {
 						boolean bv = ((Boolean)parameters.get("index")).booleanValue();
 						networkDao.setFlag(networkId, "solr_indexed",bv);	 
 						if (bv) {
-							networkDao.setFlag(networkId, "iscomplete",false);	 							
-							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,true,false));
+							networkDao.setFlag(networkId, "iscomplete",false);	 				
+							networkDao.commit();
+							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false));
 						} else
 							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true)); //delete the entry from global idx.
 														
@@ -1870,8 +1885,6 @@ public class NetworkServiceV2 extends NdexService {
 					}
 				    networkDao.commit();
 					return;
-		//		}
-		//		throw new NetworkConcurrentModificationException ();
 			}
 		    
 	}
@@ -2087,6 +2100,7 @@ public class NetworkServiceV2 extends NdexService {
 					dao.setProvenance(uuid, copyProv);
 					CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao, new Provenance(copyProv));
 					g.reCreateCXFile();
+					dao.setFlag(uuid, "iscomplete", true);
 					dao.commit();
 		       }
 		       

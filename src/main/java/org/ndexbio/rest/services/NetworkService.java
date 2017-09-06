@@ -115,6 +115,7 @@ import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NetworkExportTask;
+import org.ndexbio.task.SolrIndexScope;
 import org.ndexbio.task.SolrTaskDeleteNetwork;
 import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
@@ -393,9 +394,11 @@ public class NetworkService extends NdexService {
 			daoNew.unlockNetwork(networkUUID);
             
 			// update the solr Index
-			if ( daoNew.hasSolrIndex(networkUUID))
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));
-
+			if ( daoNew.hasSolrIndex(networkUUID)) {
+				daoNew.setFlag(networkUUID, "iscomplete", false);
+				daoNew.commit();
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+			}	
    			return i;
 		} catch (Exception e) {
 			//logger.severe("Error occurred when update network properties: " + e.getMessage());
@@ -939,7 +942,7 @@ public class NetworkService extends NdexService {
 		} 
 	}
 
-	@DELETE
+/*	@DELETE
 	@Path("/{networkid}/member/user/{userid}")
 	@Produces("application/json")
     @ApiDoc("Removes any permission for the network specified by 'networkId' for the user specified by 'userUUID': it" +
@@ -970,9 +973,9 @@ public class NetworkService extends NdexService {
     		logger.info("[end: Removed any permissions for network {} for user {}]", networkId, userUUID);
             return count;
 		} 
-	}
+	} */
 	
-	@DELETE
+/*	@DELETE
 	@Path("/{networkid}/member/group/{groupid}")
 	@Produces("application/json")
     @ApiDoc("Removes any permission for the network specified by 'networkId' for the user specified by 'userUUID': it" +
@@ -1003,7 +1006,7 @@ public class NetworkService extends NdexService {
     		logger.info("[end: Removed any permissions for network {} for group {}]", networkId, groupUUID);
             return count;
 		} 
-	}
+	} */
 	
 	/*
 	 *
@@ -1060,7 +1063,7 @@ public class NetworkService extends NdexService {
 		}
 	} */
 
-	@POST
+/*	@POST
 	@Path("/{networkid}/member/user/{userid}")
 	@Produces("application/json")
     @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
@@ -1104,9 +1107,9 @@ public class NetworkService extends NdexService {
 			logger.info("[end: Updated membership for network {}]", networkId);
 	        return count;
 		} 
-	}	
+	}	*/
 
-	
+/*	
 	@POST
 	@Path("/{networkid}/member/group/{groupid}")
 	@Produces("application/json")
@@ -1150,7 +1153,7 @@ public class NetworkService extends NdexService {
 		} 
 	}	
 	
-	
+	*/
 	
 	@POST
 	@Path("/{networkid}/summary")
@@ -1301,7 +1304,12 @@ public class NetworkService extends NdexService {
 					networkDao.unlockNetwork(networkUUID);
 					
 					// update the solr Index
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,true,false));					
+					// update the solr Index
+					if ( networkDao.hasSolrIndex(networkUUID)) {
+						networkDao.setFlag(networkUUID, "iscomplete", false);
+						networkDao.commit();
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+					}	
 					
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
@@ -1765,7 +1773,7 @@ public class NetworkService extends NdexService {
 
 
 
-	@PUT
+/*	@PUT
 	@Path("/{networkid}/setFlag/{parameter}={value}")
 	@Produces("application/json")
     @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
@@ -1807,14 +1815,14 @@ public class NetworkService extends NdexService {
 								  return;
 							  }*/
 
-						}
+	/*					}
 						throw new NetworkConcurrentModificationException ();
 					
 				}	
 				throw new NdexException("Only network owner can set network permissions.");	
 			}
 		    
-	}
+	} */
 
 	
 	
