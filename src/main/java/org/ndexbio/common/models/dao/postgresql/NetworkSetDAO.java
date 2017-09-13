@@ -16,6 +16,7 @@ import java.util.UUID;
 import javax.xml.bind.DatatypeConverter;
 
 import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NetworkSet;
@@ -210,12 +211,16 @@ public class NetworkSetDAO extends NdexDBDAO {
 	}
 
 	
-	public List<NetworkSet> getNetworkSetsByUserId(UUID userId, UUID signedInUserId) throws SQLException, JsonParseException, JsonMappingException, IOException {
+	public List<NetworkSet> getNetworkSetsByUserId(UUID userId, UUID signedInUserId, int skipBlocks, int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		List<NetworkSet> result = new ArrayList<>();
 		
 		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description, other_attributes,showcased from network_set  where owner_id=? and is_deleted=false";
-				
+	
+		if ( skipBlocks>=0 && blockSize>0) {
+			sqlStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		}
+		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, userId);
 			try ( ResultSet rs = p.executeQuery()) {
@@ -234,7 +239,6 @@ public class NetworkSetDAO extends NdexDBDAO {
 						ObjectMapper mapper = new ObjectMapper(); 
 						TypeReference<HashMap<String,Object>> typeRef 
 				            = new TypeReference<HashMap<String,Object>>() {};
-
 				            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
 				            entry.setProperties(o);
 					}
@@ -264,7 +268,22 @@ public class NetworkSetDAO extends NdexDBDAO {
 		return result;
 	}
 
-
+	
+	public int getNetworkSetCountByUserId(UUID userId) throws SQLException, NdexException {
+		
+		String sqlStr = "select count(*) from network_set  where owner_id=? and is_deleted=false";
+				
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, userId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getInt(1);
+				} 
+			}
+		}
+		throw new NdexException ("Failed to get network set count.");
+	}	
+	
 	public String getNetworkSetAccessKey( UUID networkSetId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select access_key, access_key_is_on from network_set where \"UUID\" = ? and is_deleted=false";
 		

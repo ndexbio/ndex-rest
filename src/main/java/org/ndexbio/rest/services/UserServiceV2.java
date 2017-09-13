@@ -36,6 +36,7 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -1079,7 +1080,7 @@ public class UserServiceV2 extends NdexService {
 	  	@GET
 		@Path("/{userid}/networkcount")
 		@Produces("application/json")
-		public int getNumNetworksForMyAccountPage(
+		public Map<String,Integer> getNumNetworksForMyAccountPage(
 						 @PathParam("userid") String userIdStr
 			) throws SQLException, NdexException {
 
@@ -1087,10 +1088,15 @@ public class UserServiceV2 extends NdexService {
 			if ( !userId.equals(getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
 			
+			Map<String, Integer> result = new HashMap<>(2);
 			try (NetworkDAO dao = new NetworkDAO()) {
-				return dao.getNumNetworksForMyAccountPage(userId);
+				result.put("networkCount",  dao.getNumNetworksForMyAccountPage(userId));
+				try (NetworkSetDAO dao2 = new NetworkSetDAO()) {
+					result.put("networkSetCount", dao2.getNetworkSetCountByUserId(userId));
+				}
 			} 
-					
+
+			return result;
 		}      	
 	  	
 	  	
@@ -1100,12 +1106,15 @@ public class UserServiceV2 extends NdexService {
 		@PermitAll
 
 		public  List<NetworkSet> getNetworksetsByUserId(
-					 @PathParam("userid") String userIdStr) throws SQLException, JsonParseException, JsonMappingException, IOException {
+					 @PathParam("userid") String userIdStr,
+						@DefaultValue("0") @QueryParam("start") int skipBlocks,
+						@DefaultValue("0") @QueryParam("size") int blockSize
+						) throws SQLException, JsonParseException, JsonMappingException, IOException {
 				
 			UUID userId = UUID.fromString(userIdStr);
 					
 			try (NetworkSetDAO dao = new NetworkSetDAO ()){
-					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId());
+					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId(), skipBlocks, blockSize);
 					return sets;
 				}
 				

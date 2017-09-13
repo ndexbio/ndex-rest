@@ -1691,6 +1691,7 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 	}
+
 	
 	public String getNetworkAccessKey( UUID networkId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select access_key, access_key_is_on from network where \"UUID\" = ? and is_deleted=false";
