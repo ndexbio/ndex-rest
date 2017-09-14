@@ -594,6 +594,8 @@ public class UserServiceV2 extends NdexService {
 		} 
 	}
 	
+	/* to be deleted. This is a function specific for web-app. It seems that it is no-longer needed by web-app */
+	@Deprecated
 	@GET
 	@Path("/{userid}/permission")
 	@Produces("application/json")
@@ -1129,7 +1131,7 @@ public class UserServiceV2 extends NdexService {
 	 * @return JWT object to the client
 
 	 **************************************************************************/
-	@GET
+/*	@GET
 	@PermitAll
 	@NdexOpenFunction
 	@Path("/google/authenticate")
@@ -1151,9 +1153,9 @@ public class UserServiceV2 extends NdexService {
 
  	    String theString =authenticator.getIDTokenFromQueryStr(qStr);
 		return theString;
-	} 
+	} */
 	
-	
+/*	
 	@POST
 	@PermitAll
 	@NdexOpenFunction
@@ -1199,6 +1201,6 @@ public class UserServiceV2 extends NdexService {
  	    
 	}
 	
-
+*/
 
 }

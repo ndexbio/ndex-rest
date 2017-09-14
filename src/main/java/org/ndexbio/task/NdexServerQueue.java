@@ -89,6 +89,10 @@ public enum NdexServerQueue {
 		systemTaskQueue.add(task);
 	}
 
+	public void addSystemTaskToQueue (NdexSystemTask task)  {
+		systemTaskQueue.add(task);
+	}
+
 	public void addFirstSystemTask (NdexSystemTask task)  {
 		systemTaskQueue.addFirst(task);
 	}

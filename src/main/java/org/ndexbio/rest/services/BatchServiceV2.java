@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
@@ -159,7 +160,6 @@ public class BatchServiceV2 extends NdexService {
 		if (networkIdStrs.size() > 2000) 
 			throw new NdexException ("You can only send up to 2000 network ids in this function.");
 		
-  //  	logger.info("[start: Getting networkSummary of networks {}]", networkIdStrs);
 		accLogger.info("[data]\t[uuidcounts:" +networkIdStrs.size() + "]" );
 
 		try (NetworkDAO dao = new NetworkDAO())  {
@@ -170,6 +170,24 @@ public class BatchServiceV2 extends NdexService {
 		}						
 	}
 	
+	
+	@POST
+	@Path("/network/permission")
+	@Produces("application/json")
+	public Map<String,String> getNetworkPermissions(
+			List<String> networkIdStrs)
+			throws IllegalArgumentException, NdexException, SQLException {
+
+		if (networkIdStrs.size() > 500) 
+			throw new NdexException ("You can only send up to 500 network ids in this function.");
+		
+		accLogger.info("[data]\t[uuidcounts:" +networkIdStrs.size() + "]" );
+
+		try (NetworkDAO dao = new NetworkDAO())  {
+			UUID userId = getLoggedInUserId();
+			return dao.getNetworkPermissionMapByNetworkIds(userId, networkIdStrs.stream().map( UUID::fromString).collect(Collectors.toList()));				
+		}  					
+	}
 	
 	@POST
 	@Path("/network/export")

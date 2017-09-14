@@ -989,6 +989,49 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 		
 	
+	private String cvtUUIDListToStr (List<UUID> uuids) {
+		if (uuids == null) return null;
+		
+		StringBuffer cnd = new StringBuffer() ;
+		for ( UUID id : uuids ) {
+			if (cnd.length()>1)
+				cnd.append(',');
+			cnd.append('\'');
+			cnd.append(id);
+			cnd.append('\'');			
+		}
+		return cnd.toString();
+	}
+	
+	public Map<String,String> getNetworkPermissionMapByNetworkIds(UUID userId, List<UUID> networkIds)
+			throws SQLException {
+	
+		String uuidListStr = cvtUUIDListToStr(networkIds);
+		String queryStr = "select \"UUID\" as network_id, 'ADMIN' :: ndex_permission_type as permission_type " + 
+						"from network n where owneruuid = '" + userId.toString() + "' :: uuid and n.\"UUID\" in ( " + uuidListStr + ")";
+					
+			queryStr = " select a.network_id, max(a.permission_type) as permission_type from (" +  queryStr + " union "   +
+					" select un.network_id, un.permission_type " + 
+					"from user_network_membership un where un.user_id = '"+ userId.toString() + "' :: uuid " +
+					" union select gn.network_id, gn.permission_type from ndex_group_user ug, group_network_membership gn " + 
+					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid " +" ) a where a.network_id in (" + 
+					  uuidListStr + ") group by a.network_id ";
+					
+		Map<String,String> result = new TreeMap<>();
+
+		try (PreparedStatement st = db.prepareStatement(queryStr))  {		
+			try (ResultSet rs = st.executeQuery() ) {
+				while (rs.next()) {
+					result.put(rs.getObject(1).toString(), rs.getString(2));
+				} 
+			}
+		}
+		
+		return result;
+	}
+	
+	
+	
 	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId, String accessKey) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
 		

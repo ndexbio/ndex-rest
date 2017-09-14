@@ -94,7 +94,16 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			} catch (NumberFormatException e) {
 				logger.warning("NdexDBConnectionPoolSize doesn't have a numeric value in configuration. Using default setting " + defaultPoolSize + " instead.");
 			}
-			
+
+			//and initialize the db connections
+	    	
+			NdexDatabase db = NdexDatabase.createNdexDatabase(
+					configuration.getDBURL(),
+	    			configuration.getDBUser(),
+	    			configuration.getDBPasswd(), size);
+    	
+			logger.info("Db created for " + configuration.getDBURL());
+
 			// create solr core for network indexes if needed.
 			NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager();
 			mgr.createCoreIfNotExists();
@@ -103,14 +112,6 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			GroupIndexManager gmgr = new GroupIndexManager();
 			gmgr.createCoreIfNotExists();
 			
-			//and initialize the db connections
-    	
-			NdexDatabase db = NdexDatabase.createNdexDatabase(
-					configuration.getDBURL(),
-	    			configuration.getDBUser(),
-	    			configuration.getDBPasswd(), size);
-    	
-			logger.info("Db created for " + configuration.getDBURL());
     	
 		/*	try (UserDocDAO dao = new UserDocDAO(db.getAConnection())) {
     	
@@ -187,12 +188,12 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
         
         // revoke the googleTokens 
         
-        GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+      /*  GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
         try {
           authenticator.revokeAllTokens();
         } catch (Exception e)  {
         	logger.severe("Error occurred when revoking Google access tokens." + e.getMessage());
-        }
+        } */
 		super.destroy();
 	}
 	
@@ -223,7 +224,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 				else {
 				   NdexSystemTask sysTask = NdexSystemTask.createSystemTask(t);
 				   if (sysTask !=null)
-					   NdexServerQueue.INSTANCE.addSystemTask(sysTask);
+					   NdexServerQueue.INSTANCE.addSystemTaskToQueue(sysTask);
 				}
 			}
 			logger.info (list.size() + " previously queued tasks were added to the queue.");
