@@ -218,7 +218,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description, other_attributes,showcased from network_set  where owner_id=? and is_deleted=false";
 	
 		if ( offset>=0 && limit>0) {
-			sqlStr += " limit " +offset + " offset " + limit;
+			sqlStr += " limit " +limit + " offset " + offset;
 		}
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
