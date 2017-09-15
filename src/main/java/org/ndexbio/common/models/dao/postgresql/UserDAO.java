@@ -669,7 +669,7 @@ public class UserDAO extends NdexDBDAO {
 			throws SQLException {
 	
 		String queryStr = "select \"UUID\" as network_id, 'ADMIN' :: ndex_permission_type as permission_type " + 
-						"from network n where and n.is_deleted =false owneruuid = '" + userId.toString() + "' :: uuid ";
+						"from network n where n.is_deleted =false and owneruuid = '" + userId.toString() + "' :: uuid ";
 		
 		if ( permission == Permissions.READ || permission == Permissions.WRITE) {
 			
