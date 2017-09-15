@@ -1685,7 +1685,7 @@ public class NetworkDAO extends NdexDBDAO {
      
 	
 	public List<NetworkSummary> getNetworkSummariesForMyAccountPage 
-			(UUID userId, int skipBlocks, int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
+			(UUID userId, int offset, int limit) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
 		
 		List<NetworkSummary> result = new ArrayList<>(50);
@@ -1697,8 +1697,8 @@ public class NetworkDAO extends NdexDBDAO {
 				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_indexed, n.iscomplete "
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? ) k order by k.modification_time desc"; 
 
-		if ( skipBlocks>=0 && blockSize>0) {
-			sqlStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		if ( offset >=0 && limit >0) {
+			sqlStr += " limit " + limit + " offset " + offset;
 		}
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {

@@ -1064,8 +1064,8 @@ public class UserServiceV2 extends NdexService {
 		@Produces("application/json")
 		public List<NetworkSummary> getNetworkSummariesForMyAccountPage(
 						@PathParam("userid") String userIdStr,
-						@DefaultValue("0") @QueryParam("start") int skipBlocks,
-						@DefaultValue("0") @QueryParam("size") int blockSize
+						@DefaultValue("0") @QueryParam("offset") int offset,
+						@DefaultValue("0") @QueryParam("limit") int limit
 			) throws SQLException, JsonParseException, JsonMappingException, IOException, UnauthorizedOperationException {
 
 			UUID userId = UUID.fromString(userIdStr);
@@ -1073,7 +1073,7 @@ public class UserServiceV2 extends NdexService {
 				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
 			
 			try (NetworkDAO dao = new NetworkDAO()) {
-				return dao.getNetworkSummariesForMyAccountPage(userId, skipBlocks, blockSize);
+				return dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
 			} 
 					
 		}      	
@@ -1109,14 +1109,14 @@ public class UserServiceV2 extends NdexService {
 
 		public  List<NetworkSet> getNetworksetsByUserId(
 					 @PathParam("userid") String userIdStr,
-						@DefaultValue("0") @QueryParam("start") int skipBlocks,
-						@DefaultValue("0") @QueryParam("size") int blockSize
+						@DefaultValue("0") @QueryParam("offset") int offset,
+						@DefaultValue("0") @QueryParam("limit") int limit
 						) throws SQLException, JsonParseException, JsonMappingException, IOException {
 				
 			UUID userId = UUID.fromString(userIdStr);
 					
 			try (NetworkSetDAO dao = new NetworkSetDAO ()){
-					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId(), skipBlocks, blockSize);
+					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId(), offset, limit);
 					return sets;
 				}
 				

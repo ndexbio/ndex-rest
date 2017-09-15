@@ -211,14 +211,14 @@ public class NetworkSetDAO extends NdexDBDAO {
 	}
 
 	
-	public List<NetworkSet> getNetworkSetsByUserId(UUID userId, UUID signedInUserId, int skipBlocks, int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
+	public List<NetworkSet> getNetworkSetsByUserId(UUID userId, UUID signedInUserId, int offset, int limit) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		List<NetworkSet> result = new ArrayList<>();
 		
 		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description, other_attributes,showcased from network_set  where owner_id=? and is_deleted=false";
 	
-		if ( skipBlocks>=0 && blockSize>0) {
-			sqlStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
+		if ( offset>=0 && limit>0) {
+			sqlStr += " limit " +offset + " offset " + limit;
 		}
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
