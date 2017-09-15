@@ -1008,7 +1008,7 @@ public class NetworkDAO extends NdexDBDAO {
 	
 		String uuidListStr = cvtUUIDListToStr(networkIds);
 		String queryStr = "select \"UUID\" as network_id, 'ADMIN' :: ndex_permission_type as permission_type " + 
-						"from network n where owneruuid = '" + userId.toString() + "' :: uuid and n.\"UUID\" in ( " + uuidListStr + ")";
+						"from network n where n.is_deleted=false owneruuid = '" + userId.toString() + "' :: uuid and n.\"UUID\" in ( " + uuidListStr + ")";
 					
 			queryStr = " select a.network_id, max(a.permission_type) as permission_type from (" +  queryStr + " union "   +
 					" select un.network_id, un.permission_type " + 
