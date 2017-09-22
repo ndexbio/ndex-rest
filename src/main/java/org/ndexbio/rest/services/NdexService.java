@@ -54,6 +54,7 @@ import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -64,6 +65,7 @@ public abstract class NdexService
 	
     protected HttpServletRequest _httpRequest;
     private String requestsUniqueId;
+    private static GoogleOpenIDAuthenticator googleAuthtenticator = null;
     
 	static Logger logger = LoggerFactory.getLogger(NdexService.class);
 //	static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS");
@@ -245,5 +247,10 @@ public abstract class NdexService
     //	cal.setTimeInMillis(currentSystemTimeInMs);
     	
     	this.requestsUniqueId = currentSystemTimeInMs + "-" + Thread.currentThread().getId();
+    }
+    
+    protected static GoogleOpenIDAuthenticator getGoogleAuthenticator() {return googleAuthtenticator;}
+    public static void setGoogleAuthenticator(GoogleOpenIDAuthenticator a) {
+    	googleAuthtenticator = a;
     }
 }

@@ -49,6 +49,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.GeneralSecurityException;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -532,8 +533,9 @@ public class NetworkServiceV2 extends NdexService {
 
 	public Response getCompleteNetworkAsCX(	@PathParam("networkid") final String networkId,
 			@QueryParam("download") boolean isDownload,
-			@QueryParam("accesskey") String accessKey)
-			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+			@QueryParam("accesskey") String accessKey,
+			@QueryParam("id_token") String id_token )
+			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException, GeneralSecurityException {
 
     	logger.info("[start: Getting complete network {}]", networkId);
 
@@ -541,18 +543,20 @@ public class NetworkServiceV2 extends NdexService {
     	String title = null;
     	try (NetworkDAO dao = new NetworkDAO()) {
     		UUID networkUUID = UUID.fromString(networkId);
-    		if ( ! dao.isReadable(networkUUID, getLoggedInUserId()) && (!dao.accessKeyIsValid(networkUUID, accessKey))) 
+    		UUID userId = getLoggedInUserId();
+    		if ( userId == null && id_token !=null) {
+    			if ( getGoogleAuthenticator() == null)
+    				throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
+    			User user = getGoogleAuthenticator().getUserByIdToken(id_token);
+    			userId = user.getExternalId();
+    		}
+    		if ( ! dao.isReadable(networkUUID, userId) && (!dao.accessKeyIsValid(networkUUID, accessKey))) 
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
     		
-    		NetworkSummary s = dao.getNetworkSummaryById(networkUUID);
-    		title = s.getName();
+    	//	NetworkSummary s = dao.getNetworkSummaryById(networkUUID);
+    		title = dao.getNetworkName(networkUUID);
     	}
-
-    	if ( title == null || title.length() < 1) {
-    		title = networkId;
-    	}
-    	title.replace('"', '_');
-    	
+  
 		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx";
 
     	try {
@@ -561,8 +565,13 @@ public class NetworkServiceV2 extends NdexService {
 		//	setZipFlag();
 			logger.info("[end: Return network {}]", networkId);
 			ResponseBuilder r = Response.ok();
-			if ( isDownload)
-				r.header("Content-Disposition",  "attachment; filename=\"" + title + ".cx\"");
+			if ( isDownload) {
+			  	if ( title == null || title.length() < 1) {
+		    		title = networkId;
+		    	}
+		    	title.replace('"', '_');
+		    	r.header("Content-Disposition",  "attachment; filename=\"" + title + ".cx\"");
+			}	
 			return 	r.type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 		} catch (IOException e) {
 			logger.error("[end: Ndex server can't find file: {}]", e.getMessage());

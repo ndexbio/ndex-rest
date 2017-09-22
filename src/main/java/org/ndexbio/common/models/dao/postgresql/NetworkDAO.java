@@ -244,6 +244,19 @@ public class NetworkDAO extends NdexDBDAO {
 		}	
 	}
 	
+	public String getNetworkName(UUID networkId) throws SQLException, NdexException {
+		String sqlStr = "select name from network where  is_deleted=false and  \"UUID\" = ? ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getString(1);
+				}
+				throw new ObjectNotFoundException("Network "+ networkId + " not found in NDEx.");
+			}
+		}	
+	}
+	
 	public VisibilityType getNetworkVisibility(UUID networkId) throws SQLException, NdexException {
 		String sqlStr = "select n.visibility from network n where  is_deleted=false and  \"UUID\" = ? ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {

@@ -61,6 +61,7 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.AuthenticationNotRequired;
 import org.ndexbio.rest.services.NdexOpenFunction;
+import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.slf4j.Logger;
@@ -120,6 +121,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 		String useGoogleOAuth = config.getProperty(USE_GOOGLE_OAUTH);
 		if ( useGoogleOAuth !=null && useGoogleOAuth.equalsIgnoreCase("true")) {
 			googleOAuthAuthenticator = new GoogleOpenIDAuthenticator(config);
+			NdexService.setGoogleAuthenticator(googleOAuthAuthenticator);
 		}
 
     	if ( value !=null && Boolean.parseBoolean(value)) {
