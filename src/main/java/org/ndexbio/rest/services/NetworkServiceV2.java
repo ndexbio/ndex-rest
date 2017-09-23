@@ -547,8 +547,7 @@ public class NetworkServiceV2 extends NdexService {
     		if ( userId == null && id_token !=null) {
     			if ( getGoogleAuthenticator() == null)
     				throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
-    			User user = getGoogleAuthenticator().getUserByIdToken(id_token);
-    			userId = user.getExternalId();
+    			userId = getGoogleAuthenticator().getUserUUIDByIdToken(id_token);
     		}
     		if ( ! dao.isReadable(networkUUID, userId) && (!dao.accessKeyIsValid(networkUUID, accessKey))) 
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");

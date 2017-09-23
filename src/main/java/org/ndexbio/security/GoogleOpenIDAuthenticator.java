@@ -114,13 +114,13 @@ public class GoogleOpenIDAuthenticator {
 		
 		ApacheHttpTransport.Builder builder = new ApacheHttpTransport.Builder();
 		
-		GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(builder.build(), new JacksonFactory())
+		GoogleIdTokenVerifier localVerifier = new GoogleIdTokenVerifier.Builder(builder.build(), new JacksonFactory())
 			    .setAudience(Collections.singletonList(clientID))
 			    // Or, if multiple clients access the backend:
 			    //.setAudience(Arrays.asList(CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3))
 			    .build();
 		
-		GoogleIdToken idToken = verifier.verify(idTokenString);
+		GoogleIdToken idToken = localVerifier.verify(idTokenString);
 		if (idToken != null) {
 		  Payload payload = idToken.getPayload();
 
@@ -130,12 +130,12 @@ public class GoogleOpenIDAuthenticator {
 
 		  // Get profile information from payload
 		  String email = payload.getEmail();
-		  boolean emailVerified = Boolean.valueOf(payload.getEmailVerified());
+	/*	  boolean emailVerified = Boolean.valueOf(payload.getEmailVerified());
 		  String name = (String) payload.get("name");
 		  String pictureUrl = (String) payload.get("picture");
 		  String locale = (String) payload.get("locale");
 		  String familyName = (String) payload.get("family_name");
-		  String givenName = (String) payload.get("given_name");
+		  String givenName = (String) payload.get("given_name"); */
 
 			 try (UserDAO userDao = new UserDAO()) {
 				 User user = userDao.getUserByEmail(email.toLowerCase(),true);
@@ -144,9 +144,43 @@ public class GoogleOpenIDAuthenticator {
 				 e1.printStackTrace();
 				  throw new UnauthorizedOperationException("SQL Error when getting user by email: " + e1.getMessage());
 			 }
-		} else {
+		} 
 		  throw new UnauthorizedOperationException("Invalid OAuth ID token.");
+		
+	}
+	
+	public UUID getUserUUIDByIdToken(String idTokenString) throws GeneralSecurityException, IOException, IllegalArgumentException, ObjectNotFoundException, NdexException {
+		
+		ApacheHttpTransport.Builder builder = new ApacheHttpTransport.Builder();
+		
+		GoogleIdTokenVerifier localVerifier = new GoogleIdTokenVerifier.Builder(builder.build(), new JacksonFactory())
+			    .setAudience(Collections.singletonList(clientID))
+			    // Or, if multiple clients access the backend:
+			    //.setAudience(Arrays.asList(CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3))
+			    .build();
+		
+		GoogleIdToken idToken = localVerifier.verify(idTokenString);
+		if (idToken != null) {
+		  Payload payload = idToken.getPayload();
+
+		  // Print user identifier
+		  String userId = payload.getSubject();
+		  System.out.println("User ID: " + userId);
+
+		  // Get profile information from payload
+		  String email = payload.getEmail();
+	
+			 try (UserDAO userDao = new UserDAO()) {
+				 UUID userUUID = userDao.getUUIDByEmail(email.toLowerCase());
+				 return userUUID;	
+			 }	catch ( SQLException e1) {
+				 e1.printStackTrace();
+				  throw new UnauthorizedOperationException("SQL Error when getting user by email: " + e1.getMessage());
+			 }
 		}
+		 
+		throw new UnauthorizedOperationException("Invalid OAuth ID token.");
+		
 		
 	}
 	
