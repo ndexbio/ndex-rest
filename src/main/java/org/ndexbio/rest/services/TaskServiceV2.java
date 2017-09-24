@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
@@ -234,7 +235,7 @@ public class TaskServiceV2 extends NdexService
 
 	    }
 
-
+	@PermitAll
 	@GET
 	@Path("/{taskid}/file")
 	@ApiDoc("")
@@ -273,7 +274,7 @@ public class TaskServiceV2 extends NdexService
     	}
     	title.replace('"', '_');
     	
-		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/workspace/" +this.getLoggedInUser().getExternalId() + 
+		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/workspace/" +userId + 
 			"/"+ taskId +	(extension != null ? "." + extension : "");
 
     	try {
