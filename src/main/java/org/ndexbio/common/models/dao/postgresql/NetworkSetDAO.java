@@ -126,7 +126,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 	public NetworkSet getNetworkSet(UUID setId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
 		NetworkSet result = new NetworkSet();
-		String sqlStr = "select creation_time, modification_time, owner_id, name, description, access_key, access_key_is_on, other_attributes,showcased from network_set  where \"UUID\"=? and is_deleted=false";
+		String sqlStr = "select creation_time, modification_time, owner_id, name, description, access_key, access_key_is_on, other_attributes,showcased, ndexdoi from network_set  where \"UUID\"=? and is_deleted=false";
 		
 		String dbAccessKey = null;
 		boolean dbKeyIsOn;
@@ -155,6 +155,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 					}
 					
 					result.setShowcased(rs.getBoolean(9));
+					result.setDoi(rs.getString(10));
 				} else
 					throw new ObjectNotFoundException("Network set" + setId + " not found in db.");
 			}

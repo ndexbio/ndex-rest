@@ -1859,6 +1859,8 @@ public class NetworkServiceV2 extends NdexService {
 		
 			try (NetworkDAO networkDao = new NetworkDAO()) {
 				UUID networkId = UUID.fromString(networkIdStr);
+				if ( networkDao.hasDOI(networkId))
+					throw new ForbiddenOperationException("Network with DOI can't be modified.");	
 				UUID userId = getLoggedInUser().getExternalId();
 					if ( !networkDao.networkIsValid(networkId))
 						throw new InvalidNetworkException();
@@ -1866,8 +1868,8 @@ public class NetworkServiceV2 extends NdexService {
 					if ( parameters.containsKey(readOnlyParameter)) {
 						if (!networkDao.isAdmin(networkId, userId))
 							throw new UnauthorizedOperationException("Only network owner can set readOnly Parameter.");
-						 boolean bv = ((Boolean)parameters.get(readOnlyParameter)).booleanValue();
-						 networkDao.setFlag(networkId, "readonly",bv);	 
+						boolean bv = ((Boolean)parameters.get(readOnlyParameter)).booleanValue();
+						networkDao.setFlag(networkId, "readonly",bv);	 
 					}
 					if ( parameters.containsKey("visibility")) {
 						if (!networkDao.isAdmin(networkId, userId))
