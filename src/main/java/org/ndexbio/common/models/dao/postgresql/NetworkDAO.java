@@ -1829,6 +1829,24 @@ public class NetworkDAO extends NdexDBDAO {
 	     return newKey;
 	}
 
+	public void setDOI (UUID networkId, String DOIStr) throws SQLException, NdexException {
+		String sqlStr = "update network set ndexdoi= ? where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setString(1, DOIStr);
+			pst.setObject(2, networkId);
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to set network DOI in db.");
+		}
+	}
+	
+	public String requestDOI(UUID networkId) throws SQLException, NdexException {
+		String accessKey = enableNetworkAccessKey(networkId);
+		setFlag(networkId,"readonly",true); 
+		setDOI (networkId, "Pending");
+		return accessKey;
+	}
+	
 	
 	public void disableNetworkAccessKey( UUID networkId) throws SQLException {
 		//update db flag

@@ -36,8 +36,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -58,6 +60,8 @@ import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
+import org.ndexbio.model.object.Request;
+import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
@@ -163,19 +167,37 @@ public class AdminServiceV2 extends NdexService {
 			String networkIdStr = (String)request.get("networkId");
 			if (networkIdStr == null)
 				throw new ForbiddenOperationException("Attribute 'networkId' is missing in the request");
-		
+			
 			UUID networkId = UUID.fromString(networkIdStr);
 			String adminEmailAddress = Configuration.getInstance().getProperty("NdexSystemUserEmail");
 		
 			try (NetworkDAO dao = new NetworkDAO() ) {
+				if (!dao.isAdmin(networkId, user.getExternalId())) 
+					throw new ForbiddenOperationException("You are not the owner of this network.");
+				
+				String key = dao.requestDOI(networkId);
+				
+				dao.commit();
 				String name = dao.getNetworkName(networkId);
-				String url = Configuration.getInstance().getHostURI() + "/#/network/"+ networkId;
+				String url = Configuration.getInstance().getHostURI() + "/#/network/"+ networkId + "?accesskey=" + key;
 				
 				//Reading in the email template
 				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
 
 				String messageBody = "Dear NDEx Administrator,<p>User " + user.getUserName() + " requests a DOI on network '" +
 				        name + "' (UUID: " + networkId + "). Please follow this <a href=\""+ url + "\">link</a> to access this network.<br>";
+				
+				if (request.get("properties") !=null ) {
+					  Map<String,Object> objMap =  (Map<String,Object>)request.get("properties");
+					  StringBuilder stringMapTable = new StringBuilder();
+					  stringMapTable.append("<table>");
+
+					  for (Map.Entry<String,Object> pair : objMap.entrySet()) {
+					     stringMapTable.append("<tr><td><b>" + pair.getKey() + ":</b></td><td>" +pair.getValue() + "</td></tr>");
+					  }
+					  stringMapTable.append("</table>");
+					  messageBody += "<p>Additional information: <br>" + stringMapTable.toString() ;
+				}
 				
 		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
 

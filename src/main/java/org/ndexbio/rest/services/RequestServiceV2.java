@@ -189,10 +189,7 @@ public class RequestServiceV2 extends NdexService
     @PUT
     @Path("/{requestid}/properties")
     @Produces("application/json")
-	@ApiDoc("Updates a request corresponding to the POSTed request JSON structure. " +
-			"The request JSON must specify the request id. " +
-			"Errors if requestId is not specified or if request is not found." +
-			"If the response field of the request is updated such that the request is accepted, then the action associated with the request is performed.")
+	
     public void updateRequestProperties(@PathParam("requestid")final String requestId, final Map<String,Object> properties)
     		throws IllegalArgumentException, NdexException, SQLException, JsonProcessingException {
   
