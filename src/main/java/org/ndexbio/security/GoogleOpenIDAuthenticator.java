@@ -125,8 +125,8 @@ public class GoogleOpenIDAuthenticator {
 		  Payload payload = idToken.getPayload();
 
 		  // Print user identifier
-		  String userId = payload.getSubject();
-		  System.out.println("User ID: " + userId);
+		//  String userId = payload.getSubject();
+		//  System.out.println("User ID: " + userId);
 
 		  // Get profile information from payload
 		  String email = payload.getEmail();
@@ -183,12 +183,12 @@ public class GoogleOpenIDAuthenticator {
 		
 		
 	}
-	
+/*	
 	public String getIDTokenFromQueryStr(String googleQueryString) throws NdexException, ClientProtocolException, IOException, SQLException, IllegalArgumentException, NoSuchAlgorithmException {
 		
-	
-		 Pattern p = Pattern.compile("state=(.*)url%3D(http://.*/user/google/authenticate)&code=(.*)");
-		 Matcher m = p.matcher(googleQueryString);
+*/	
+	//	 Pattern p = Pattern.compile("state=(.*)url%3D(http://.*/user/google/authenticate)&code=(.*)");
+/*		 Matcher m = p.matcher(googleQueryString);
 		 if ( !m.matches())
 			 throw new NdexException("Incorrect URL format received from Google Oauth.");
 		 String state = m.group(1);
@@ -271,7 +271,7 @@ public class GoogleOpenIDAuthenticator {
 		 }			 
 		return theString;
 	
-	} 
+	} */
 	
 	private static Map<String,String> getGoogleUserProfileFromAccessToken(String accessToken) throws ClientProtocolException, IOException {
 		

@@ -145,6 +145,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         String[] authInfo = null;
         User authUser = null;
         boolean authenticated = false;
+        String authType = "";
         
 		// write the log context
 		MDC.put("RequestsUniqueId", 
@@ -164,7 +165,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
   
             		String token = authInfo[0].substring(7);
             		authUser = googleOAuthAuthenticator.getUserByIdToken(token);
-            			
+            		authType = "G";	
             	} else {
             
             		if (ADAuthenticator !=null ) {
@@ -190,6 +191,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             			authInfo[0] = authInfo[0].toLowerCase();
             			try ( UserDAO dao = new UserDAO() ) {
             				authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
+            				authType = "B";
             			}
             		}
             	}
@@ -233,7 +235,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         								|| method.isAnnotationPresent(AuthenticationNotRequired.class)) )) {
         			//log the info in log and continue;         		
 
-                	accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method) );    
+                	accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method,authType) );    
         			return;
         		}
        
@@ -253,7 +255,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         
     	MDC.put("error", authorizationException.getMessage());
 
-		accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method) + "\t[Unauthorized exception: "+ authorizationException.getMessage() + "]"  );
+		accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method, authType) + "\t[Unauthorized exception: "+ authorizationException.getMessage() + "]"  );
     }
     
     public static boolean setAuthHeaderIsFalse(ContainerRequestContext arg0) {
@@ -263,7 +265,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     }
     
     
-    private String buildLogString(User authUser, ContainerRequestContext requestContext, Method method ) {
+    private String buildLogString(User authUser, ContainerRequestContext requestContext, Method method, String authorizationType ) {
         
     	String clientIPs = (null == httpRequest.getHeader("X-FORWARDED-FOR")) ? 
                 httpRequest.getRemoteAddr() :
@@ -273,7 +275,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         
         String userAgent = httpRequest.getHeader("User-Agent");
                 
-        String result =  "[" + requestContext.getMethod() + "]\t["+ (authUser == null? "" : authUser.getUserName()) + "]\t["
+        String result =  "[" + requestContext.getMethod() + "]\t["+ (authUser == null? "" :(authorizationType + ":" +authUser.getUserName())) + "]\t["
         		+ clientIPs.toString() + "]\t[" + (userAgent == null? "" : userAgent )+ "]\t[" + method.getName() + "]\t[" + 
        
         uriInfo.getPath(true)  + "]\t" ;
@@ -347,7 +349,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             return result;
         }
         
-        throw new UnauthorizedOperationException("Authorization is not using Basic auth.");
+        throw new UnauthorizedOperationException("Authorization is not using Basic auth or OAuth.");
     }
     
 /*
