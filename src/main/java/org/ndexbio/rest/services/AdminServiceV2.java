@@ -64,6 +64,7 @@ import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.server.StandaloneServer;
 import org.slf4j.Logger;
@@ -78,7 +79,7 @@ public class AdminServiceV2 extends NdexService {
 	
 	private static final String postElementLimitProp = "ServerPostElementLimit";
 	
-	private static final String ndexServerVersion = "2.0";
+//	private static final String ndexServerVersion = "2.0";
 
 	public AdminServiceV2(@Context HttpServletRequest httpRequest)
     {
@@ -126,7 +127,8 @@ public class AdminServiceV2 extends NdexService {
 			} */
 		    
 			props.put("ServerResultLimit", "10000");
-			props.put("ServerVersion", ndexServerVersion);
+			props.put("ServerVersion", NdexHttpServletDispatcher.getNdexVersion());
+			props.put("Build" , NdexHttpServletDispatcher.getBuildNumber() );
 			
 			if (format.toLowerCase().equals("full")) {
 				List<HashMap<String,Object>> impExpList = new ArrayList<>();	

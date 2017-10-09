@@ -31,10 +31,17 @@
 package org.ndexbio.rest;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Timer;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 import java.util.logging.Logger;
+
+import javax.servlet.ServletContext;
+import javax.ws.rs.core.Application;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
@@ -70,12 +77,19 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	private SystemTaskProcessor systemTaskProcessor;
 	private ClientTaskProcessor clientTaskProcessor;
 	
+	private static String ndexVersion = "";
+	private static String buildNumber  = "";
+	
 	private final static String backupDB = "BACKUP_DATABASE";
+	
 	
 	public NdexHttpServletDispatcher() {
 		super();
 	}
 
+	
+	
+	
 	@Override
 	public void init(javax.servlet.ServletConfig servletConfig)
 	          throws javax.servlet.ServletException {
@@ -155,7 +169,34 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			e.printStackTrace();
 			throw new javax.servlet.ServletException("Failed to start Ndex server. Cause: " + e.getMessage(), e);
 		}
-    	
+		
+		
+		ServletContext application = getServletConfig().getServletContext();
+		InputStream inputStream = application.getResourceAsStream("/META-INF/MANIFEST.MF");
+		if ( inputStream !=null) {
+		try {
+			Manifest manifest = new Manifest(inputStream);
+	/*		Map<String,Attributes> attr = manifest.getEntries();
+		    System.out.println(" ------   total entries:" + attr.size() );
+			for (String name: attr.keySet()) {
+				System.out.println("Attr-name:"+name);
+			} */
+			Attributes aa = manifest.getMainAttributes();	
+	/*		System.out.println( "---------- total main:" + aa.size());
+			for (Map.Entry<Object, Object> e : aa.entrySet() ){
+				System.out.println("key:"+e.getKey() + "="+e.getValue());
+			} */
+			String ver = aa.getValue("NDEx-Version");
+			String bui = aa.getValue("NDEx-Build"); 
+			System.out.println("NDEx-Version: " + ver + ",Build:" + bui);
+			buildNumber= bui.substring(0, 5);
+			ndexVersion = ver;
+		} catch (IOException e) {
+			System.out.println("failed to read MANIFEST.MF");
+			e.printStackTrace();
+			System.exit(1);
+		}     
+		}    
 	}
 	
 	
@@ -230,6 +271,15 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			logger.info (list.size() + " previously queued tasks were added to the queue.");
 		}  
 	}
-	
+
+
+	public static String getNdexVersion() {
+		return ndexVersion;
+	}
+
+
+	public static String getBuildNumber() {
+		return buildNumber;
+	}
 
 }
