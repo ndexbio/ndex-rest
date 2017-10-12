@@ -194,7 +194,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 		} catch (IOException e) {
 			System.out.println("failed to read MANIFEST.MF");
 			e.printStackTrace();
-			System.exit(1);
+		//	System.exit(1);
 		}     
 		}    
 	}

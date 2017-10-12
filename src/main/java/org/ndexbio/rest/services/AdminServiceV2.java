@@ -101,8 +101,6 @@ public class AdminServiceV2 extends NdexService {
 	@Produces("application/json")
 	public NdexStatus getStatus(
 			@DefaultValue("short") @QueryParam("format") String format) throws NdexException, SQLException	{
-
-	//	logger.info("[start: Getting status]");
 		
 		try (Connection db =NdexDatabase.getInstance().getConnection()){
 			
