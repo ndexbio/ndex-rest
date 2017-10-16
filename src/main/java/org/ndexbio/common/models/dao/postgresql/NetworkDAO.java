@@ -1023,6 +1023,10 @@ public class NetworkDAO extends NdexDBDAO {
 	public Map<String,String> getNetworkPermissionMapByNetworkIds(UUID userId, List<UUID> networkIds)
 			throws SQLException {
 	
+		Map<String,String> result = new TreeMap<>();
+		if ( networkIds.isEmpty())
+			return result;
+
 		String uuidListStr = cvtUUIDListToStr(networkIds);
 		String queryStr = "select \"UUID\" as network_id, 'ADMIN' :: ndex_permission_type as permission_type " + 
 						"from network n where n.is_deleted=false and owneruuid = '" + userId.toString() + "' :: uuid and n.\"UUID\" in ( " + uuidListStr + ")";
@@ -1034,7 +1038,6 @@ public class NetworkDAO extends NdexDBDAO {
 					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid " +" ) a where a.network_id in (" + 
 					  uuidListStr + ") group by a.network_id ";
 					
-		Map<String,String> result = new TreeMap<>();
 
 		try (PreparedStatement st = db.prepareStatement(queryStr))  {		
 			try (ResultSet rs = st.executeQuery() ) {

@@ -105,7 +105,9 @@ public class BatchServiceV2 extends NdexService {
 			List<String> userIdStrs)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
-	//	logger.info("[start: Getting users from UUIDs]");
+		if ( userIdStrs == null )
+			throw new ForbiddenOperationException("A user id list is required.");
+		
 		accLogger.info("[data]\t[uuidcounts:" +userIdStrs.size() + "]" );
 
 		try (UserDAO dao = new UserDAO() ){
@@ -114,7 +116,6 @@ public class BatchServiceV2 extends NdexService {
 				User user = dao.getUserById(UUID.fromString(uuidStr),true, false);
 				users.add(user);
 			}
-//		    logger.info("[end: User object returned for user uuids]");
 			return users;	
 		} 
 		
@@ -132,7 +133,9 @@ public class BatchServiceV2 extends NdexService {
 	public List<Group> getGroupsByUUIDs(List<String> groupIdStrs)
 			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 		
-//		logger.info("[start: Getting groups by uuids]");
+		if ( groupIdStrs == null )
+			throw new ForbiddenOperationException("A group id list is required.");
+		
 		accLogger.info("[data]\t[uuidcounts:" +groupIdStrs.size() + "]" );
 
 		try (GroupDAO dao = new GroupDAO()) {
@@ -141,7 +144,6 @@ public class BatchServiceV2 extends NdexService {
 			  final Group group = dao.getGroupById(UUID.fromString(groupId));
 			  groups.add(group);
 			}
-//			logger.info("[end: Getting groups by uuids]");
 			return groups;
 		} 
 	}
@@ -158,6 +160,9 @@ public class BatchServiceV2 extends NdexService {
 			List<String> networkIdStrs)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
+		if ( networkIdStrs == null )
+			throw new ForbiddenOperationException("A network UUID list is required.");
+		
 		if (networkIdStrs.size() > 2000) 
 			throw new NdexException ("You can only send up to 2000 network ids in this function.");
 		
@@ -166,9 +171,7 @@ public class BatchServiceV2 extends NdexService {
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			return dao.getNetworkSummariesByIdStrList(networkIdStrs, userId, accessKey);				
-		}  finally {
-//	    	logger.info("[end: Getting networkSummary of networks {}]", networkIdStrs);
-		}						
+		}  				
 	}
 	
 	
@@ -179,8 +182,8 @@ public class BatchServiceV2 extends NdexService {
 			List<String> networkIdStrs)
 			throws IllegalArgumentException, NdexException, SQLException {
 
-		if ( networkIdStrs == null || networkIdStrs.isEmpty())
-			throw new ForbiddenOperationException("An non-empty network UUID list is required");
+		if ( networkIdStrs == null )
+			throw new ForbiddenOperationException("A network UUID list is required.");
 		
 		if (networkIdStrs.size() > 500) 
 			throw new ForbiddenOperationException ("You can only send up to 500 network ids in this function.");
