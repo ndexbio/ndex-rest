@@ -54,6 +54,7 @@ import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Group;
@@ -178,8 +179,11 @@ public class BatchServiceV2 extends NdexService {
 			List<String> networkIdStrs)
 			throws IllegalArgumentException, NdexException, SQLException {
 
+		if ( networkIdStrs == null || networkIdStrs.isEmpty())
+			throw new ForbiddenOperationException("An non-empty network UUID list is required");
+		
 		if (networkIdStrs.size() > 500) 
-			throw new NdexException ("You can only send up to 500 network ids in this function.");
+			throw new ForbiddenOperationException ("You can only send up to 500 network ids in this function.");
 		
 		accLogger.info("[data]\t[uuidcounts:" +networkIdStrs.size() + "]" );
 

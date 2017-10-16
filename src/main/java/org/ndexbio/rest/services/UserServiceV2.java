@@ -516,8 +516,7 @@ public class UserServiceV2 extends NdexService {
 	@PUT
 	@Path("/{userid}")
 	@Produces("application/json")
-	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. The userName and UUID fields in the posted object are ignored by the server."
-			+ " Errors if the user object references a different user.")
+
 	public void updateUser(@PathParam("userid") final String userId, final User updatedUser)
 			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, SolrServerException, IOException {
 		Preconditions.checkArgument(null != updatedUser, 
@@ -526,15 +525,13 @@ public class UserServiceV2 extends NdexService {
 				"UUID in updated user data doesn't match user ID in the URL.");
 		Preconditions.checkArgument(updatedUser.getExternalId().equals(getLoggedInUserId()), 
 				"UUID in URL doesn't match the user ID of the signed in user's.");
+		Preconditions.checkArgument(null != updatedUser.getEmailAddress() && 
+				   updatedUser.getEmailAddress().length()>=6, 
+				"A valid email address is required.");
 		
-		// Currently not using path param. We can already retrieve the id from the authentication
-		// However, this depends on the authentication method staying consistent?
-
-	//	logger.info("[start: Updating user {}]", updatedUser.getUserName());
 		
 		if ( Configuration.getInstance().getUseADAuthentication()) {
 			if ( !updatedUser.getUserName().equals(getLoggedInUser().getUserName())) {
-	//			logger.error("[end: Updating accountName is not allowed when NDEx server is running on AD authentication.]");
 				throw new UnauthorizedOperationException(
 						"Updating accountName is not allowed when NDEx server is running on AD authentication.");
 			}
