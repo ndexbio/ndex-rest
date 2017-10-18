@@ -1576,7 +1576,7 @@ public class NetworkServiceV2 extends NdexService {
 			
         }  
     	      
-//	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
 	    // return networkIdStr; 
     }
 
