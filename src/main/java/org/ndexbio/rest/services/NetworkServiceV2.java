@@ -2115,7 +2115,7 @@ public class NetworkServiceV2 extends NdexService {
 					dao.commit();
 		       }
 		       
-		//		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid,false,true));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true));
 		       
 			   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 			   
