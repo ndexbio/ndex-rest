@@ -364,7 +364,10 @@ public class NetworkServiceV2 extends NdexService {
 					daoNew.setFlag(networkUUID, "iscomplete",false);
 					daoNew.commit();
 					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
-				}	
+				} else {
+					daoNew.setFlag(networkUUID, "iscomplete", true);
+				}
+				
 				return i;
 			} finally {
 				daoNew.unlockNetwork(networkUUID);				
