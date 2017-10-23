@@ -1299,6 +1299,9 @@ public class NetworkServiceV2 extends NdexService {
 					  networkDao.setFlag(networkUUID, "iscomplete", false);
 					  networkDao.commit();
 					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+					} else {
+						  networkDao.setFlag(networkUUID, "iscomplete", true);
+						  networkDao.commit();
 					}
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
@@ -1467,6 +1470,9 @@ public class NetworkServiceV2 extends NdexService {
 						  networkDao.setFlag(networkUUID, "iscomplete", false);
 						  networkDao.commit();
 						  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+					} else {
+						  networkDao.setFlag(networkUUID, "iscomplete", true);
+						  networkDao.commit();
 					}
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
