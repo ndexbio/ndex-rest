@@ -131,7 +131,7 @@ public class SolrIndexBuilder {
 	private  void rebuildAll() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (NetworkDAO dao = new NetworkDAO ()) {
 			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false";
+			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.solr_indexed=true";
 			
 			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
