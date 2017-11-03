@@ -139,8 +139,8 @@ public class SolrIndexBuilder {
 					while (rs.next()) {
 					   rebuildNetworkIndex((UUID)rs.getObject(1));
 					   i ++;
-					   if ( i % 50 == 0 ) {
-						   System.err.println("Loaded " + i + " records to solr. sleep 20 seconds");
+					   if ( i % 100 == 0 ) {
+						   System.err.println("Loaded " + i + " records to solr. sleep 10 seconds");
 						//   globalIdx.commit();
 						   try {
 							  Thread.sleep(10000);

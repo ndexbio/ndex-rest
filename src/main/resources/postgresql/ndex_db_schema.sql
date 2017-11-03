@@ -290,7 +290,8 @@ CREATE TABLE network (
     subnetworkids bigint[],
     access_key character varying(500),
     access_key_is_on boolean,
-    cx_file_size bigint
+    cx_file_size bigint, -- size of the CX network in bytes.
+  solr_indexed boolean DEFAULT false -- true if this network is indexed in Solr.
 );
 
 
@@ -368,7 +369,9 @@ CREATE TABLE network_set (
     access_key character varying(500),
     access_key_is_on boolean,
     other_attributes jsonb,
-    showcased boolean
+    showcased boolean,
+    ndexdoi character varying(100)
+
 );
 
 
