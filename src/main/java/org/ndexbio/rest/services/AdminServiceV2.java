@@ -168,14 +168,23 @@ public class AdminServiceV2 extends NdexService {
 			if (networkIdStr == null)
 				throw new ForbiddenOperationException("Attribute 'networkId' is missing in the request");
 			
+			boolean isCertified = false;
+			Boolean isCertifiedObj = (Boolean)request.get("isCertified");
+			if ( isCertifiedObj !=null && isCertifiedObj.booleanValue()) {
+				isCertified = true;
+			}
+			
 			UUID networkId = UUID.fromString(networkIdStr);
 			String adminEmailAddress = Configuration.getInstance().getProperty("NdexSystemUserEmail");
 		
 			try (NetworkDAO dao = new NetworkDAO() ) {
 				if (!dao.isAdmin(networkId, user.getExternalId())) 
 					throw new ForbiddenOperationException("You are not the owner of this network.");
+				if ( dao.hasDOI(networkId)) {
+					throw new ForbiddenOperationException("This network already has a DOI or a pending DOI request.");
+				}
 				
-				String key = dao.requestDOI(networkId);
+				String key = dao.requestDOI(networkId, isCertified);
 				
 				dao.commit();
 				String name = dao.getNetworkName(networkId);

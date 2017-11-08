@@ -103,7 +103,7 @@ public class NetworkDAO extends NdexDBDAO {
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
 	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 			+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,n.subnetworkids,n.solr_indexed, n.iscomplete, n.ndexdoi "; 
+			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,n.subnetworkids,n.solr_indexed, n.iscomplete, n.ndexdoi, n.certified "; 
 	
 	public NetworkDAO () throws  SQLException {
 	    super();
@@ -523,6 +523,10 @@ public class NetworkDAO extends NdexDBDAO {
 	
 	public boolean hasDOI(UUID networkID) throws SQLException, ObjectNotFoundException {
 		return getBooleanFlag (networkID, "ndexdoi is not null");		
+	}
+	
+	public boolean isCertified (UUID networkID) throws ObjectNotFoundException, SQLException {
+		return getBooleanFlag (networkID, "certified");		
 	}
 	
 	private boolean getBooleanFlag(UUID networkID, String fieldName) throws SQLException, ObjectNotFoundException {
@@ -1140,6 +1144,7 @@ public class NetworkDAO extends NdexDBDAO {
 		result.setIndexed(rs.getBoolean(19));
 		result.setCompleted(rs.getBoolean(20));
 		result.setDoi(rs.getString(21));
+		result.setIsCertified(rs.getBoolean(22));
 	}
 	
 	
@@ -1715,7 +1720,7 @@ public class NetworkDAO extends NdexDBDAO {
 				+ " from network n where n.owneruuid = ? and n.is_deleted= false " 
 				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_indexed, n.iscomplete, n.ndexdoi "
+				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_indexed, n.iscomplete, n.ndexdoi, n.certified "
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? ) k order by k.modification_time desc"; 
 
 		if ( offset >=0 && limit >0) {
@@ -1843,10 +1848,11 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 	}
 	
-	public String requestDOI(UUID networkId) throws SQLException, NdexException {
+	public String requestDOI(UUID networkId, boolean isCertified) throws SQLException, NdexException {
 		String accessKey = enableNetworkAccessKey(networkId);
 		setFlag(networkId,"readonly",true); 
 		setDOI (networkId, "Pending");
+		setFlag(networkId, "certified", isCertified);
 		return accessKey;
 	}
 	

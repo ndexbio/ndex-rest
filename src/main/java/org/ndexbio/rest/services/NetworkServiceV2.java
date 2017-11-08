@@ -101,6 +101,7 @@ import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.cx.Provenance;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.InvalidNetworkException;
 import org.ndexbio.model.exceptions.NdexException;
@@ -1072,15 +1073,6 @@ public class NetworkServiceV2 extends NdexService {
 	@PUT
 	@Path("/{networkid}/permission")
 	@Produces("application/json")
-    @ApiDoc("POSTs a Membership object to update the permission of a user specified by userUUID for the network " +
-            "specified by networkUUID. The permission is updated to the value specified in the 'permission' field of " +
-            "the Membership. This method returns 1 if the update is performed and 0 if the update is redundant, " +
-            "where the user already has the specified permission. It also returns an error if the authenticated user " +
-            "making the request does not have sufficient permissions or if the network or user is not found. It also " +
-            "returns an error if it would leave the network without any user having ADMIN permissions: NDEx does not " +
-            "permit networks to become 'orphans' without any owner. Because we only allow user to be the administrator of a network, "
-            + "Granting ADMIN permission to another user will move the admin privilege (ownership) from the network's"
-            + " previous administrator (owner) to the new user.")
 	public int updateNetworkPermission(
 			@PathParam("networkid") final String networkIdStr,
 			@QueryParam("userid") String userIdStr,
@@ -1138,16 +1130,56 @@ public class NetworkServiceV2 extends NdexService {
 	        return count;
 		} 
 	}	
+
 	
+	@PUT
+	@Path("/{networkid}/reference")
+	@Produces("application/json")
+	public void updateReferenceOnPreCertifiedNetwork(@PathParam("networkid") final String networkId,
+			Map<String,String> reference) throws SQLException, NdexException, SolrServerException, IOException {
+
+		UUID networkUUID = UUID.fromString(networkId);
+		UUID userId = getLoggedInUser().getExternalId();
+		
+		if ( reference.get("reference") == null) {
+			throw new BadRequestException("Field reference is missing in the object.");
+		}
+
+		try (NetworkDAO networkDao = new NetworkDAO()){
+			if(networkDao.isAdmin(networkUUID, userId) ) {
+
+				if ( networkDao.hasDOI(networkUUID) && (!networkDao.isCertified(networkUUID)) ) {
+					List<NdexPropertyValuePair> props = networkDao.getNetworkSummaryById(networkUUID).getProperties();
+					boolean updated= false;
+					for ( NdexPropertyValuePair p : props ) {
+						if ( p.getPredicateString().equals("reference")) {
+							p.setValue(reference.get("reference"));
+							updated=true;
+							break;
+						}
+					}
+					if ( !updated) {
+						props.add(new NdexPropertyValuePair("reference", reference.get("reference")));
+					}
+					networkDao.updateNetworkProperties(networkUUID,props);
+					networkDao.setFlag(networkUUID, "certified", true);
+					networkDao.commit();
+				} else {
+					if ( networkDao.isCertified(networkUUID))
+						throw new ForbiddenOperationException("This network has already been certified, updating reference is not allowed.");
+					
+					throw new ForbiddenOperationException("This network doesn't have a DOI or a pending DOI request.");
+				}
+			}
+		
+		}	
+		
+	}
 	
 	@PUT
 	@Path("/{networkid}/profile")
 	@Produces("application/json")
-	@ApiDoc("This method updates the profile information of the network specified by networkId based on a " +
-	        "POSTed JSON object specifying the attributes to update. Any profile attributes specified will be " + 
-	        "updated but attributes that are not specified will have no effect - omission of an attribute does " +
-	        "not mean deletion of that attribute. The network profile attributes that can be updated by this " +
-	        "method are: 'name', 'description', 'version'. visibility are no longer updated by this function. It is managed by setNetworkFlag function from 2.0")
+
 	public void updateNetworkProfile(
 			@PathParam("networkid") final String networkId,
 			final NetworkSummary partialSummary
