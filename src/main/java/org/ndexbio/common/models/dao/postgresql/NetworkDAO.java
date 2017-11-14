@@ -1239,8 +1239,11 @@ public class NetworkDAO extends NdexDBDAO {
 		 }
 	}
 	
-	public void updateNetworkVisibility (UUID networkId, VisibilityType v) throws SQLException, NdexException {
-		 String sqlStr = "update network set visibility = '" + v.toString() + "' where \"UUID\" = ? and is_deleted=false and islocked=false";
+	public void updateNetworkVisibility (UUID networkId, VisibilityType v, boolean force) throws SQLException, NdexException {
+		 String sqlStr = "update network set visibility = '" + v.toString() + "' where \"UUID\" = ? and is_deleted=false";
+		 
+		 if ( !force) 
+			 sqlStr = " and islocked=false";
 		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			 pst.setObject(1, networkId);
 			 int i = pst.executeUpdate();
@@ -1254,6 +1257,8 @@ public class NetworkDAO extends NdexDBDAO {
 		 networkIdx.updateNetworkVisibility(networkId.toString(), v.toString()); */
 		    			
 	}
+	
+
 	
 	
 	/**************************************************************************
@@ -1854,7 +1859,7 @@ public class NetworkDAO extends NdexDBDAO {
 		setDOI (networkId, "Pending");
 		setFlag(networkId, "certified", isCertified);
 		if ( isCertified)
-			updateNetworkVisibility(networkId, VisibilityType.PUBLIC);
+			updateNetworkVisibility(networkId, VisibilityType.PUBLIC, true);
 		return accessKey;
 	}
 	

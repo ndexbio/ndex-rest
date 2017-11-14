@@ -1933,7 +1933,7 @@ public class NetworkServiceV2 extends NdexService {
 							throw new UnauthorizedOperationException("Only network owner can set visibility Parameter.");
 						
 						VisibilityType visType = VisibilityType.valueOf((String)parameters.get("visibility"));
-						networkDao.updateNetworkVisibility(networkId, visType);
+						networkDao.updateNetworkVisibility(networkId, visType, false);
 					}
 					if ( parameters.containsKey("index")) {
 						boolean bv = ((Boolean)parameters.get("index")).booleanValue();

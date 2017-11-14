@@ -325,7 +325,7 @@ public class CXNetworkLoader implements AutoCloseable {
 						dao.setFlag(this.networkId, "iscomplete", true);
 					} 
 					if (visibility != null) {
-						dao.updateNetworkVisibility(networkId, visibility);
+						dao.updateNetworkVisibility(networkId, visibility, true);
 					}
 					
 					dao.unlockNetwork(this.networkId);
