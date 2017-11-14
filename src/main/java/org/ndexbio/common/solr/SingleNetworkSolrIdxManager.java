@@ -37,17 +37,23 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.request.CollectionAdminRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
+import org.apache.solr.client.solrj.request.schema.SchemaRequest;
+import org.apache.solr.client.solrj.response.CollectionAdminResponse;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.client.solrj.response.schema.SchemaResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
@@ -65,7 +71,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 
 	private String solrUrl;
 	
-	private String coreName; 
+	private String collectionName; 
 	private HttpSolrClient client;
 	
 	static private final  int batchSize = 2000;
@@ -79,19 +85,20 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 //	private static final String RELATEDTO = "relatedTo";
 		
 	public SingleNetworkSolrIdxManager(String networkUUID) {
-		coreName = networkUUID;
+		collectionName = networkUUID;
 		solrUrl = Configuration.getInstance().getSolrURL();
 		client = new HttpSolrClient.Builder(solrUrl).build();
 	}
 	
 	public SolrDocumentList getNodeIdsByQuery(String query, int limit) throws SolrServerException, IOException {
-		client.setBaseURL(solrUrl+ "/" + coreName);
+		client.setBaseURL(solrUrl+ "/" + collectionName);
 
 		SolrQuery solrQuery = new SolrQuery();
 		
 		solrQuery.setQuery(query).setFields(ID);
 		solrQuery.setStart(0);
-		solrQuery.setRows(limit);
+		if (limit >0)
+			solrQuery.setRows(limit);
 		QueryResponse rsp = client.query(solrQuery);
 		
 		SolrDocumentList  dds = rsp.getResults();
@@ -100,24 +107,46 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 	}
 	
-	public void createIndex() throws SolrServerException, IOException, NdexException {
+	public void createIndex(Set<String> extraIndexFields) throws SolrServerException, IOException, NdexException {
+		//CollectionAdminRequest.Create creator = CollectionAdminRequest.createCollection(collectionName,"ndex-nodes",1 , 1); 
 		CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
-		creator.setCoreName(coreName);
+		creator.setCoreName(collectionName);
 		creator.setConfigSet(
 				"ndex-nodes"); 
 		creator.setIsLoadOnStartup(Boolean.FALSE);
-		creator.setIsTransient(Boolean.TRUE);
+		creator.setIsTransient(Boolean.TRUE); 
 		
 	//	"data_driven_schema_configs");
 		CoreAdminResponse foo = creator.process(client);	
-			
+	
 		if ( foo.getStatus() != 0 ) {
-			throw new NdexException ("Failed to create solrIndex for network " + coreName + ". Error: " + foo.getResponseHeader().toString());
+			throw new NdexException ("Failed to create solrIndex for network " + collectionName + ". Error: " + foo.getResponseHeader().toString());
 		}
+		
+		client.setBaseURL(solrUrl + "/" + collectionName);
+
+		//extend the schema
+	/*	if  ( extraIndexFields !=null ) {
+			for (String fieldName: extraIndexFields ) {
+				 Map<String, Object> fieldAttributes = new LinkedHashMap<>();
+				 fieldAttributes.put("name", fieldName);
+				 fieldAttributes.put("type", "text_ws");
+				 fieldAttributes.put("stored", false);
+				 fieldAttributes.put("required", false);
+				 SchemaRequest.AddField addFieldUpdateSchemaRequest = new SchemaRequest.AddField(fieldAttributes);
+				 SchemaResponse.UpdateResponse addFieldResponse = addFieldUpdateSchemaRequest.process(client);
+				 System.out.println(addFieldResponse.getStatus());
+			}
+		}
+		
+		 SchemaRequest.Fields fieldsSchemaRequest = new SchemaRequest.Fields();
+		 SchemaResponse.FieldsResponse currentFieldsResponse = fieldsSchemaRequest.process(client);
+		 List<Map<String, Object>> currentFields = currentFieldsResponse.getFields();
+		 System.out.println(currentFields);
+	*/	
 		counter = 0;
 		docs = new ArrayList<>(batchSize);
 		
-		client.setBaseURL(solrUrl + "/" + coreName);
 		
 		Map<Long,NodeIndexEntry> tab = createIndexDocs();
 		for ( NodeIndexEntry e : tab.values()) {
@@ -130,7 +159,9 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	public void dropIndex() throws IOException, SolrServerException, NdexException {
 		try {
 			client.setBaseURL(solrUrl);
-			CoreAdminRequest.unloadCore(coreName, true, true, client);
+		//	CollectionAdminRequest.deleteCollection(collectionName).process(client);
+			
+			CoreAdminRequest.unloadCore(collectionName, true, true, client);
 		} catch (HttpSolrClient.RemoteSolrException e4) {
 			System.out.println(e4.code() + " - " + e4.getMessage());
 			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
@@ -254,7 +285,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private Map<Long,NodeIndexEntry> createIndexDocs() throws JsonProcessingException, IOException {
 		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
 		
-		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/aspects/"; 
+		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + collectionName + "/aspects/"; 
 	
 		//go through node aspect
 		try (FileInputStream inputStream = new FileInputStream(pathPrefix + "nodes")) {
@@ -300,7 +331,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		}
 		
 		//go through node attributes to find aliases
-		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(UUID.fromString(coreName),NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
+		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(UUID.fromString(collectionName),NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
 	//	try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeAttributesElement.ASPECT_NAME)) {
 
 	//		Iterator<NodeAttributesElement> it = new ObjectMapper().readerFor(NodeAttributesElement.class).readValues(inputStream);

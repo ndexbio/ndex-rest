@@ -1,6 +1,7 @@
 package org.ndexbio.task;
 
 import java.sql.Timestamp;
+import java.util.Set;
 import java.util.UUID;
 
 import org.ndexbio.common.util.NdexUUIDFactory;
@@ -8,6 +9,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
+import org.ndexbio.model.object.network.VisibilityType;
 
 
 public abstract class NdexSystemTask {
@@ -42,9 +44,12 @@ public abstract class NdexSystemTask {
 						Boolean.getBoolean((String)t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr)));
 			case SYS_SOLR_REBUILD_NETWORK_INDEX:
 				return new SolrTaskRebuildNetworkIdx(UUID.fromString(t.getResource()), SolrIndexScope.valueOf((String)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrScope)), 
-						  ((Boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrCreateOnly)).booleanValue());
+						  ((Boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrCreateOnly)).booleanValue(),
+						  (Set<String>)t.getAttribute("fields"));
 			case SYS_LOAD_NETWORK:
-				return null;
+				return new CXNetworkLoadingTask (UUID.fromString(t.getResource()),(String)t.getAttribute("owner"),
+						(Boolean)t.getAttribute("isUpdate"), VisibilityType.valueOf((String)t.getAttribute("visibility")),
+						(Set<String>)t.getAttribute("nodeIndexes"));
 			default:
 				throw new NdexException("Unknow system task: " + t.getExternalId() + " - " + t.getTaskType());
 			

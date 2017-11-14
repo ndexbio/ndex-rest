@@ -2,6 +2,7 @@ package org.ndexbio.task;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -12,6 +13,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
+import org.ndexbio.model.object.network.VisibilityType;
 
 
 public class CXNetworkLoadingTask extends NdexSystemTask {
@@ -21,21 +23,25 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 	private UUID networkId;
 	private String ownerUserName;
 	private boolean isUpdate;
-	
+	private VisibilityType visibility;
+	private Set<String> nodeAttributeIndexList; 
 	private static final TaskType taskType = TaskType.SYS_LOAD_NETWORK;
 	
-	public CXNetworkLoadingTask (UUID networkUUID, String ownerName, boolean isUpdate) {
+	public CXNetworkLoadingTask (UUID networkUUID, String ownerName, boolean isUpdate, 
+			VisibilityType visibility, Set<String> nodeAttributeIndexList) {
 		super();
 		this.networkId = networkUUID;
 		this.ownerUserName = ownerName;
 		this.isUpdate = isUpdate;
+		this.visibility = visibility;
+		this.nodeAttributeIndexList = nodeAttributeIndexList;
 	}
 	
 	@Override
 	public void run()  {
 		
 	  try (NetworkDAO dao = new NetworkDAO ()) {
-		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, ownerUserName, isUpdate,dao) ) {
+		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, ownerUserName, isUpdate,dao, visibility, nodeAttributeIndexList) ) {
 				loader.persistCXNetwork();
 		} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
 			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
@@ -44,15 +50,9 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 			try {
 				dao.unlockNetwork(networkId);
 			} catch (ObjectNotFoundException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 				logger.severe("Can't find network " + networkId + " in the server to delete.");
 			}
-			
-			/*} catch (SQLException e) {
-				logger.severe("Error occurred when setting error message in network " + networkId + ": " + e1.getMessage());
-				e.printStackTrace();
-			} */
 		
 		} 
 	  } catch (SQLException e) {
@@ -66,7 +66,10 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 	public Task createTask() {
 		Task task = super.createTask();
 	    task.setResource(networkId.toString());
-			
+		task.setAttribute("visibility", visibility);
+		task.setAttribute("nodeIndexes", this.nodeAttributeIndexList);
+		task.setAttribute("owner", ownerUserName);
+		task.setAttribute("isUpdate", Boolean.valueOf(isUpdate));
 	    return task;	
 	
 	}

@@ -55,6 +55,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -364,7 +365,7 @@ public class NetworkServiceV2 extends NdexService {
 				if ( daoNew.hasSolrIndex(networkUUID)) {
 					daoNew.setFlag(networkUUID, "iscomplete",false);
 					daoNew.commit();
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
 				} else {
 					daoNew.setFlag(networkUUID, "iscomplete", true);
 				}
@@ -1057,7 +1058,7 @@ public class NetworkServiceV2 extends NdexService {
 			if ( networkDao.hasSolrIndex(networkId)) {
 				networkDao.setFlag(networkId, "iscomplete", false); 
 				networkDao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
 			}
             return count;
 		} 
@@ -1123,7 +1124,7 @@ public class NetworkServiceV2 extends NdexService {
 			if ( networkDao.hasSolrIndex(networkId)) {
 				networkDao.setFlag(networkId, "iscomplete", false);
 				networkDao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
 			}
 			
 			logger.info("[end: Updated permission for network {}]", networkId);
@@ -1163,7 +1164,14 @@ public class NetworkServiceV2 extends NdexService {
 					}
 					networkDao.updateNetworkProperties(networkUUID,props);
 					networkDao.setFlag(networkUUID, "certified", true);
+					
+					if ( networkDao.hasSolrIndex(networkUUID)) {
+						  networkDao.setFlag(networkUUID, "iscomplete", false);
+						  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
+					} 
+					
 					networkDao.commit();
+					
 				} else {
 					if ( networkDao.isCertified(networkUUID))
 						throw new ForbiddenOperationException("This network has already been certified, updating reference is not allowed.");
@@ -1330,7 +1338,7 @@ public class NetworkServiceV2 extends NdexService {
 					if ( networkDao.hasSolrIndex(networkUUID)) {
 					  networkDao.setFlag(networkUUID, "iscomplete", false);
 					  networkDao.commit();
-					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
 					} else {
 						  networkDao.setFlag(networkUUID, "iscomplete", true);
 						  networkDao.commit();
@@ -1501,7 +1509,7 @@ public class NetworkServiceV2 extends NdexService {
 					if ( networkDao.hasSolrIndex(networkUUID)) {
 						  networkDao.setFlag(networkUUID, "iscomplete", false);
 						  networkDao.commit();
-						  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+						  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
 					} else {
 						  networkDao.setFlag(networkUUID, "iscomplete", true);
 						  networkDao.commit();
@@ -1537,11 +1545,24 @@ public class NetworkServiceV2 extends NdexService {
             "server configuration. Network UUID is returned. This function also takes an optional 'provenance' field in the posted form."
             + " See createCXNetwork function for more details of this parameter.")
     public void updateCXNetwork(final @PathParam("networkid") String networkIdStr,
+    		 @QueryParam("visibility") String visibilityStr,
+		 @QueryParam("extranodeindex") String fieldListStr, // comma seperated list		
     		MultipartFormDataInput input) throws Exception 
     {
-    	
-	//	logger.info("[start: Updating network {} using CX data]", networkIdStr);
-    	try (UserDAO dao = new UserDAO()) {
+    	  VisibilityType visibility = null;
+		   if ( visibilityStr !=null) {
+			   visibility = VisibilityType.valueOf(visibilityStr);
+		   }
+		   
+		   Set<String> extraIndexOnNodes = null;
+		   if ( fieldListStr != null) {
+			   extraIndexOnNodes = new HashSet<>(10);
+			   for ( String f: fieldListStr.split("\\s*,\\s*") ) {
+				   extraIndexOnNodes.add(f);
+			   }
+		   }
+		
+		try (UserDAO dao = new UserDAO()) {
 			   dao.checkDiskSpace(getLoggedInUserId());
 		}
     	
@@ -1553,13 +1574,10 @@ public class NetworkServiceV2 extends NdexService {
            
          try {
 	  	   if( daoNew.isReadOnly(networkId)) {
-		//		logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
 			} 
 			
 			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
-		//		logger.error("[end: No write permissions for user account {} on network {}]", 
-		//				user.getUserName(), networkId); 
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			} 
 			
@@ -1578,8 +1596,6 @@ public class NetworkServiceV2 extends NdexService {
 			long fileSize = new File(cxFileName).length();
 
 	        daoNew.clearNetworkSummary(networkId, fileSize);
-	        
-
 
 			java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId);
 			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId);
@@ -1617,7 +1633,7 @@ public class NetworkServiceV2 extends NdexService {
 			
         }  
     	      
-	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true, visibility,extraIndexOnNodes));
 	    // return networkIdStr; 
     }
 
@@ -1900,8 +1916,10 @@ public class NetworkServiceV2 extends NdexService {
 		
 			try (NetworkDAO networkDao = new NetworkDAO()) {
 				UUID networkId = UUID.fromString(networkIdStr);
-				if ( networkDao.hasDOI(networkId))
-					throw new ForbiddenOperationException("Network with DOI can't be modified.");	
+				if ( networkDao.hasDOI(networkId)) {
+					if ( parameters.size() >1 || !parameters.containsKey("showcase"))
+						throw new ForbiddenOperationException("Network with DOI can't be modified.");	
+				}	
 				UUID userId = getLoggedInUser().getExternalId();
 					if ( !networkDao.networkIsValid(networkId))
 						throw new InvalidNetworkException();
@@ -1925,7 +1943,7 @@ public class NetworkServiceV2 extends NdexService {
 						if (bv) {
 							networkDao.setFlag(networkId, "iscomplete",false);	 				
 							networkDao.commit();
-							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false));
+							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
 						} else
 							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true)); //delete the entry from global idx.
 														
@@ -1955,16 +1973,28 @@ public class NetworkServiceV2 extends NdexService {
 	   		+ "There is an optional 'provenance' field in the form. Users can use this field to pass in a JSON string of ProvenanceEntity object. When a user pass"
 	   		+ " in this object, NDEx server will add this object to the provenance history of the CX network. Otherwise NDEx server will create a ProvenanceEntity "
 	   		+ "object and add it to the provenance history of the CX network.")
-	   public Response createCXNetwork( MultipartFormDataInput input
+	   public Response createCXNetwork( MultipartFormDataInput input,
+			   @QueryParam("visibility") String visibilityStr,
+				@QueryParam("indexedfields") String fieldListStr // comma seperated list		
 			   ) throws Exception
 	   {
-
-		   
-//		   logger.info("[start: Creating a new network based on a POSTed CX stream.]");
 	   
+		   VisibilityType visibility = null;
+		   if ( visibilityStr !=null) {
+			   visibility = VisibilityType.valueOf(visibilityStr);
+		   }
+		   
+		   Set<String> extraIndexOnNodes = null;
+		   if ( fieldListStr != null) {
+			   extraIndexOnNodes = new HashSet<>(10);
+			   for ( String f: fieldListStr.split("\\s*,\\s*") ) {
+				   extraIndexOnNodes.add(f);
+			   }
+		   }
 		   try (UserDAO dao = new UserDAO()) {
 			   dao.checkDiskSpace(getLoggedInUserId());
 		   }
+		   
 		   
 		   UUID uuid = storeRawNetwork ( input);
 		   String uuidStr = uuid.toString();
@@ -1992,7 +2022,7 @@ public class NetworkServiceV2 extends NdexService {
 				dao.commit();
 	       }
 	       
-	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false));
+	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false, visibility, extraIndexOnNodes));
 	       
 		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 		   
@@ -2156,7 +2186,7 @@ public class NetworkServiceV2 extends NdexService {
 					dao.commit();
 		       }
 		       
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null));
 		       
 			   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 			   

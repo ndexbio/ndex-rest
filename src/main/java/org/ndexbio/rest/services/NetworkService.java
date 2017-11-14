@@ -397,7 +397,7 @@ public class NetworkService extends NdexService {
 			if ( daoNew.hasSolrIndex(networkUUID)) {
 				daoNew.setFlag(networkUUID, "iscomplete", false);
 				daoNew.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
 			}	
    			return i;
 		} catch (Exception e) {
@@ -1308,7 +1308,7 @@ public class NetworkService extends NdexService {
 					if ( networkDao.hasSolrIndex(networkUUID)) {
 						networkDao.setFlag(networkUUID, "iscomplete", false);
 						networkDao.commit();
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
 					}	
 					
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
@@ -1519,13 +1519,7 @@ public class NetworkService extends NdexService {
     @Path("/asCX/{networkid}")
     @Consumes("multipart/form-data")
     @Produces("text/plain")
-    @ApiDoc("This method updates an existing network with new content. The method takes a Network CX " +
-            "document as the PUT data. The Network's UUID is specified in the URL if this function. " +
-            " This method errors if the Network object is not " +
-            "provided or if its UUID does not correspond to an existing network on the NDEx Server. It also " +
-            "errors if the Network object is larger than a maximum size for network creation set in the NDEx " +
-            "server configuration. Network UUID is returned. This function also takes an optional 'provenance' field in the posted form."
-            + " See createCXNetwork function for more details of this parameter.")
+ 
     public String updateCXNetwork(final @PathParam("networkid") String networkIdStr,
     		MultipartFormDataInput input) throws Exception 
     {
@@ -1603,7 +1597,7 @@ public class NetworkService extends NdexService {
 			
         }  
     	      
-	 //    NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true));
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true,null,null));
 	     return networkIdStr; 
     }
 
@@ -1936,7 +1930,7 @@ public class NetworkService extends NdexService {
 	    	   throw e;
 	       }
 	       
-	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false));
+	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false, null,null));
 	       
 		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 		   //return "\"" + uuidStr + "\"";

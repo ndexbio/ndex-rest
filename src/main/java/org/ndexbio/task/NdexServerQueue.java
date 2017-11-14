@@ -31,7 +31,6 @@
 package org.ndexbio.task;
 
 import java.sql.SQLException;
-import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 

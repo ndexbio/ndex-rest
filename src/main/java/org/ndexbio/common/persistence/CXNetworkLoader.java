@@ -146,10 +146,12 @@ public class CXNetworkLoader implements AutoCloseable {
 	private NetworkGlobalIndexManager globalIdx ;
 	protected List<String> warnings;
 	private NetworkDAO dao;
+	private VisibilityType visibility;
+	private Set<String> indexedFields;
 		
 //	protected String updatedBy;
 	
-	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate, NetworkDAO networkDao) {
+	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields) {
 		super();
 		
 		this.isUpdate = isUpdate;
@@ -189,6 +191,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		properties = new ArrayList<>();
 		dao = networkDao;
 	//	updatedBy = updaterUserName;
+		this.visibility = visibility;
+		this.indexedFields = IndexedFields;
 	}
 	
 	protected UUID getNetworkId() {return this.networkId;}
@@ -203,18 +207,18 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(NodesFragmentReader.createInstance());
 		  readers.add(NodeAttributesFragmentReader.createInstance());
 		  
-		  readers.add(new GeneralAspectFragmentReader (NdexNetworkStatus.ASPECT_NAME,
+		  readers.add(new GeneralAspectFragmentReader<> (NdexNetworkStatus.ASPECT_NAME,
 				NdexNetworkStatus.class));
-		  readers.add(new GeneralAspectFragmentReader (NamespacesElement.ASPECT_NAME,NamespacesElement.class));
-		  readers.add(new GeneralAspectFragmentReader (FunctionTermElement.ASPECT_NAME,FunctionTermElement.class));
-		  readers.add(new GeneralAspectFragmentReader (CitationElement.ASPECT_NAME,CitationElement.class));
-		  readers.add(new GeneralAspectFragmentReader (SupportElement.ASPECT_NAME,SupportElement.class));
+		  readers.add(new GeneralAspectFragmentReader<> (NamespacesElement.ASPECT_NAME,NamespacesElement.class));
+		  readers.add(new GeneralAspectFragmentReader<> (FunctionTermElement.ASPECT_NAME,FunctionTermElement.class));
+		  readers.add(new GeneralAspectFragmentReader<> (CitationElement.ASPECT_NAME,CitationElement.class));
+		  readers.add(new GeneralAspectFragmentReader<> (SupportElement.ASPECT_NAME,SupportElement.class));
 //		  readers.add(new GeneralAspectFragmentReader (ReifiedEdgeElement.ASPECT_NAME,ReifiedEdgeElement.class));
-		  readers.add(new GeneralAspectFragmentReader (EdgeCitationLinksElement.ASPECT_NAME,EdgeCitationLinksElement.class));
-		  readers.add(new GeneralAspectFragmentReader (EdgeSupportLinksElement.ASPECT_NAME,EdgeSupportLinksElement.class));
-		  readers.add(new GeneralAspectFragmentReader (NodeCitationLinksElement.ASPECT_NAME,NodeCitationLinksElement.class));
-		  readers.add(new GeneralAspectFragmentReader (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
-		  readers.add(new GeneralAspectFragmentReader (Provenance.ASPECT_NAME,Provenance.class));
+		  readers.add(new GeneralAspectFragmentReader<> (EdgeCitationLinksElement.ASPECT_NAME,EdgeCitationLinksElement.class));
+		  readers.add(new GeneralAspectFragmentReader<> (EdgeSupportLinksElement.ASPECT_NAME,EdgeSupportLinksElement.class));
+		  readers.add(new GeneralAspectFragmentReader<> (NodeCitationLinksElement.ASPECT_NAME,NodeCitationLinksElement.class));
+		  readers.add(new GeneralAspectFragmentReader<> (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
+		  readers.add(new GeneralAspectFragmentReader<> (Provenance.ASPECT_NAME,Provenance.class));
 		  return  new CxElementReader2(in, readers,false);
 	}
 	
@@ -317,8 +321,13 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 
 				try {
-					if ( !isUpdate)
+					if ( !isUpdate) {
 						dao.setFlag(this.networkId, "iscomplete", true);
+					} 
+					if (visibility != null) {
+						dao.updateNetworkVisibility(networkId, visibility);
+					}
+					
 					dao.unlockNetwork(this.networkId);
 
 				//	dao.commit();
@@ -328,9 +337,9 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 
 				if ( isUpdate && dao.hasSolrIndex(networkId)) 
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields));
 				else
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,!isUpdate));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,!isUpdate, indexedFields));
 				
 		  }
 
@@ -343,7 +352,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	 * 
 
 	 */
-
+/*
 	public void importNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {
 	    
 		 //   try {
@@ -368,7 +377,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				}	
 				
 				createSolrIndex(summary);
-				idx2.createIndex();
+				idx2.createIndex(null);
 				//idx2.close();
 			  } 			  
 			 // create the network sample if the network has more than 500 edges
@@ -420,7 +429,7 @@ public class CXNetworkLoader implements AutoCloseable {
 					}
 			  }
 		}
-
+*/
 	
 	/** 
 	 * If it is called from a network import function ( db migrator), we don't remove the provenance entry from the metadata.

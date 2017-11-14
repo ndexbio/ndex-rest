@@ -68,7 +68,7 @@ public class SolrIndexBuilder {
 			
 			  logger.info("Existing indexes deleted.");
 		  	
-			  idx2.createIndex();
+			  idx2.createIndex(null);
 			  idx2.close();
 		  }
 		

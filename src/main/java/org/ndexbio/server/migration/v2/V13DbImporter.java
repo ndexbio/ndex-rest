@@ -232,7 +232,7 @@ public class V13DbImporter implements AutoCloseable {
 
 	}	
 	
-	
+	/*this function no doesn't work any more. If you wan to to use it uncomment the importNetwork statment in this function */
 	private void populatingNetworkTable() throws SQLException, JsonParseException, JsonMappingException,
 			IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
 	
@@ -310,9 +310,9 @@ public class V13DbImporter implements AutoCloseable {
 							java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/network.cx");
 							Files.copy(src, tgt,StandardCopyOption.REPLACE_EXISTING);  
 							
-							try (CXNetworkLoader loader = new CXNetworkLoader(uuid,rs.getString(2), false,dao)) {
+			/*				try (CXNetworkLoader loader = new CXNetworkLoader(uuid,rs.getString(2), false,dao, null,null)) {
 								loader.importNetwork();		
-							}
+							} */
 							try {
 								Thread.sleep(200);
 							} catch (InterruptedException e) {

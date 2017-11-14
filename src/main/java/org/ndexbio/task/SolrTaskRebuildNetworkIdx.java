@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
@@ -35,13 +36,15 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
     private static final TaskType taskType = TaskType.SYS_SOLR_REBUILD_NETWORK_INDEX;
     public static final String AttrScope = "scope";
     public static final String AttrCreateOnly ="createOnly";
+    private Set<String> indexedFields;
     
 	
-	public SolrTaskRebuildNetworkIdx (UUID networkUUID, SolrIndexScope scope, boolean createOnly) {
+	public SolrTaskRebuildNetworkIdx (UUID networkUUID, SolrIndexScope scope, boolean createOnly, Set<String> indexedFields) {
 		super();
 		this.networkId = networkUUID;
 		this.idxScope = scope;
 		this.createOnly = createOnly;
+		this.indexedFields =indexedFields;
 	}
 	
 	@Override
@@ -67,7 +70,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 
 				  if ( this.idxScope != SolrIndexScope.global) {
 					  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
-						  idx2.createIndex();
+						  idx2.createIndex(indexedFields);
 						  idx2.close();
 			  			}
 				  }
@@ -168,6 +171,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		t.setResource(networkId.toString());
 		t.getAttributes().put(AttrScope, this.idxScope);
 		t.getAttributes().put(AttrCreateOnly, this.createOnly);
+		t.setAttribute("fields", indexedFields);
 		return t;
 	}
 

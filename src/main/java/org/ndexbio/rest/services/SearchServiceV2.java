@@ -60,9 +60,11 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -222,6 +224,59 @@ public class SearchServiceV2 extends NdexService {
         }
 	}
 
+	@PermitAll
+	@POST
+	@Path("/network/{networkId}/nodes")
+	@Produces("application/json")
+   
+	public SolrDocumentList queryNetworkNodes(
+			@PathParam("networkId") final String networkIdStr,
+			@QueryParam("accesskey") String accessKey,
+			@DefaultValue("100") @QueryParam("limit") int limit,			
+			final SimpleQuery queryParameters
+			) throws NdexException, SQLException, SolrServerException, IOException   {
+		
+		accLogger.info("[data]\t[query:" + queryParameters.getSearchString() + "]" );		
+		
+		UUID networkId = UUID.fromString(networkIdStr);
+
+		try (NetworkDAO dao = new NetworkDAO())  {
+			UUID userId = getLoggedInUserId();
+			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
+				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
+			}
+			checkIfQueryIsAllowed(networkId, dao);
+		}   
+		
+		SingleNetworkSolrIdxManager solr = new SingleNetworkSolrIdxManager(networkId.toString());
+		SolrDocumentList r = solr.getNodeIdsByQuery(queryParameters.getSearchString(), limit);
+		return r;
+		
+	/*	Client client = ClientBuilder.newBuilder().build();
+		
+		Map<String, Object> queryEntity = new TreeMap<>();
+		queryEntity.put("terms", queryParameters.getSearchString());
+		queryEntity.put("depth", queryParameters.getSearchDepth());
+		queryEntity.put("edgeLimit", queryParameters.getEdgeLimit());
+		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
+        WebTarget target = client.target(prefix + networkId + "/query");
+        Response response = target.request().post(Entity.entity(queryEntity, "application/json"));
+        
+        if ( response.getStatus()!=200) {
+        	Object obj = response.readEntity(Object.class);
+        	throw new NdexException(obj.toString());
+        }
+        
+      //     String value = response.readEntity(String.class);
+       //    response.close();  
+        InputStream in = response.readEntity(InputStream.class);
+ 
+        return Response.ok().entity(in).build(); */
+		
+	}
+	
+	
+	
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/query")

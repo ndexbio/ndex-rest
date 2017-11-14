@@ -42,7 +42,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 	private UUID aspectsCXNetworkID;
 	
 	public CXNetworkAspectsUpdater(UUID networkUUID, String ownerUserName, NetworkDAO networkDao, UUID aspectsCXUUID) {
-		super(networkUUID, ownerUserName, true, networkDao);
+		super(networkUUID, ownerUserName, true, networkDao, null,null);
 		
 		this.aspectsCXNetworkID = aspectsCXUUID;
 	}
@@ -155,10 +155,10 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 						aspectTable.containsKey(FunctionTermElement.ASPECT_NAME))) {
 					if (dao.hasSolrIndex(networkUUID))
 						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
-							SolrIndexScope.both,false));
+							SolrIndexScope.both,false,null));
 					else
 						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
-								SolrIndexScope.individual,false));
+								SolrIndexScope.individual,false,null));
 					dao.setFlag(networkUUID, "iscomplete", false);
 				} else {
 					dao.setFlag(networkUUID, "iscomplete", true);
