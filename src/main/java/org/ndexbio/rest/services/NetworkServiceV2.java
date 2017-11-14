@@ -97,8 +97,6 @@ import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CXNetworkAspectsUpdater;
-import org.ndexbio.common.persistence.CXNetworkLoader;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.cx.Provenance;
