@@ -36,10 +36,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
@@ -60,9 +58,8 @@ import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
-import org.ndexbio.model.object.Request;
-import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
@@ -188,7 +185,10 @@ public class AdminServiceV2 extends NdexService {
 				
 				dao.commit();
 				String name = dao.getNetworkName(networkId);
-				String url = Configuration.getInstance().getHostURI() + "/#/network/"+ networkId + "?accesskey=" + key;
+				String url = Configuration.getInstance().getHostURI() + "/#/network/"+ networkId ;
+				
+				if ( dao.getNetworkVisibility(networkId) == VisibilityType.PRIVATE) 
+					url += "?accesskey=" + key;
 				
 				//Reading in the email template
 				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");

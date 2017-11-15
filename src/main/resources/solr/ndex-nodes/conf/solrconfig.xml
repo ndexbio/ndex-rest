@@ -50,7 +50,7 @@
        that you fully re-index after changing this setting as it can
        affect both how text is indexed and queried.
   -->
-  <luceneMatchVersion>6.5.1</luceneMatchVersion>
+  <luceneMatchVersion>5.3.1</luceneMatchVersion>
 
   <!-- <lib/> directives can be used to instruct Solr to load any Jars
        identified and use them to resolve any "plugins" specified in
@@ -145,7 +145,7 @@
   -->
   <codecFactory class="solr.SchemaCodecFactory"/>
 
-  <!-- To enable dynamic schema REST APIs, use the following for <schemaFactory>:
+  <!-- To enable dynamic schema REST APIs, use the following for <schemaFactory>: 
   
        <schemaFactory class="ManagedIndexSchemaFactory">
          <bool name="mutable">true</bool>
@@ -163,8 +163,7 @@
 
        When ManagedIndexSchemaFactory is specified with mutable = true, schema
        modification REST API calls will be allowed; otherwise, error responses will be
-       sent back for these requests. 
-  -->
+       sent back for these requests.  -->
   <schemaFactory class="ClassicIndexSchemaFactory"/>
 
   <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1703,18 +1702,6 @@
   <!-- The following response writers are implicitly configured unless
        overridden...
     -->
-  <!--
-     <queryResponseWriter name="xml" 
-                          default="true"
-                          class="solr.XMLResponseWriter" />
-     <queryResponseWriter name="json" class="solr.JSONResponseWriter"/>
-     <queryResponseWriter name="python" class="solr.PythonResponseWriter"/>
-     <queryResponseWriter name="ruby" class="solr.RubyResponseWriter"/>
-     <queryResponseWriter name="php" class="solr.PHPResponseWriter"/>
-     <queryResponseWriter name="phps" class="solr.PHPSerializedResponseWriter"/>
-     <queryResponseWriter name="csv" class="solr.CSVResponseWriter"/>
-     <queryResponseWriter name="schema.xml" class="solr.SchemaXmlResponseWriter"/>
-    -->
 
   <queryResponseWriter name="json" class="solr.JSONResponseWriter">
      <!-- For the purposes of the tutorial, JSON responses are written as
@@ -1723,13 +1710,6 @@
      -->
     <str name="content-type">text/plain; charset=UTF-8</str>
   </queryResponseWriter>
-  
-  <!--
-     Custom response writers can be declared as needed...
-    -->
-    <queryResponseWriter name="velocity" class="solr.VelocityResponseWriter" startup="lazy">
-      <str name="template.base.dir">${velocity.template.base.dir:}</str>
-    </queryResponseWriter>
   
 
   <!-- XSLT response writer transforms the XML output by any xslt file found

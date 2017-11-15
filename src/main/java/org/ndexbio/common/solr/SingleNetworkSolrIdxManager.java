@@ -146,8 +146,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	*/	
 		counter = 0;
 		docs = new ArrayList<>(batchSize);
-		
-		
+			
 		Map<Long,NodeIndexEntry> tab = createIndexDocs();
 		for ( NodeIndexEntry e : tab.values()) {
 			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
