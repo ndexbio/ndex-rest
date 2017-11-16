@@ -1858,8 +1858,10 @@ public class NetworkDAO extends NdexDBDAO {
 		setFlag(networkId,"readonly",true); 
 		setDOI (networkId, "Pending");
 		setFlag(networkId, "certified", isCertified);
-		if ( isCertified)
+		if ( isCertified) {
 			updateNetworkVisibility(networkId, VisibilityType.PUBLIC, true);
+			setFlag(networkId, "solr_indexed",true);
+		}	
 		return accessKey;
 	}
 	

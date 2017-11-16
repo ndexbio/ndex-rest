@@ -64,6 +64,9 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.server.StandaloneServer;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrIndexScope;
+import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -183,7 +186,11 @@ public class AdminServiceV2 extends NdexService {
 				
 				String key = dao.requestDOI(networkId, isCertified);
 				
+				dao.setFlag(networkId, "iscomplete", false);
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
+				
 				dao.commit();
+				
 				String name = dao.getNetworkName(networkId);
 				String url = Configuration.getInstance().getHostURI() + "/#/network/"+ networkId ;
 				
