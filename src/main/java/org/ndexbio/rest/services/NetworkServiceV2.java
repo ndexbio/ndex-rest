@@ -1161,12 +1161,14 @@ public class NetworkServiceV2 extends NdexService {
 						props.add(new NdexPropertyValuePair("reference", reference.get("reference")));
 					}
 					networkDao.updateNetworkProperties(networkUUID,props);
+					networkDao.updateNetworkVisibility(networkUUID, VisibilityType.PUBLIC, true);
+					networkDao.setFlag(networkUUID, "solr_indexed", true);
 					networkDao.setFlag(networkUUID, "certified", true);
 					
-					if ( networkDao.hasSolrIndex(networkUUID)) {
+			//		if ( networkDao.hasSolrIndex(networkUUID)) {
 						  networkDao.setFlag(networkUUID, "iscomplete", false);
 						  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
-					} 
+			//		} 
 					
 					networkDao.commit();
 					
