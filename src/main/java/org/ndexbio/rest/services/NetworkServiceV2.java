@@ -1934,6 +1934,11 @@ public class NetworkServiceV2 extends NdexService {
 						
 						VisibilityType visType = VisibilityType.valueOf((String)parameters.get("visibility"));
 						networkDao.updateNetworkVisibility(networkId, visType, false);
+						if ( !parameters.containsKey("index")) {
+							if ( networkDao.hasSolrIndex(networkId)) {
+								NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
+							} 
+						}
 					}
 					if ( parameters.containsKey("index")) {
 						boolean bv = ((Boolean)parameters.get("index")).booleanValue();

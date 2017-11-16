@@ -1243,7 +1243,7 @@ public class NetworkDAO extends NdexDBDAO {
 		 String sqlStr = "update network set visibility = '" + v.toString() + "' where \"UUID\" = ? and is_deleted=false";
 		 
 		 if ( !force) 
-			 sqlStr = " and islocked=false";
+			 sqlStr += " and islocked=false";
 		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			 pst.setObject(1, networkId);
 			 int i = pst.executeUpdate();
