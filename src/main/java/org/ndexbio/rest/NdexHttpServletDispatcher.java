@@ -264,8 +264,10 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 					NdexServerQueue.INSTANCE.addUserTask(NdexTask.createUserTask(t));
 				else {
 				   NdexSystemTask sysTask = NdexSystemTask.createSystemTask(t);
-				   if (sysTask !=null)
+				   if (sysTask !=null) {
+					   sysTask.setTaskId(t.getExternalId());
 					   NdexServerQueue.INSTANCE.addSystemTaskToQueue(sysTask);
+				   }	   
 				}
 			}
 			logger.info (list.size() + " previously queued tasks were added to the queue.");

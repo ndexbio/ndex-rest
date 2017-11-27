@@ -21,6 +21,7 @@ public abstract class NdexSystemTask {
 	}
 	
 	public final UUID getTaskId() {return taskId;}
+	public void setTaskId(UUID taskID) {taskId = taskID;}
 	
 	public abstract void run () throws Exception;
 	public abstract TaskType getTaskType();
