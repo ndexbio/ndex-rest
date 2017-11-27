@@ -48,7 +48,8 @@ public abstract class NdexSystemTask {
 						  (Set<String>)t.getAttribute("fields"));
 			case SYS_LOAD_NETWORK:
 				return new CXNetworkLoadingTask (UUID.fromString(t.getResource()),(String)t.getAttribute("owner"),
-						(Boolean)t.getAttribute("isUpdate"), VisibilityType.valueOf((String)t.getAttribute("visibility")),
+						(Boolean)t.getAttribute("isUpdate"), 
+						(t.getAttribute("visibility") != null ? VisibilityType.valueOf((String)t.getAttribute("visibility")): null),
 						(Set<String>)t.getAttribute("nodeIndexes"));
 			default:
 				throw new NdexException("Unknow system task: " + t.getExternalId() + " - " + t.getTaskType());
