@@ -116,13 +116,7 @@ public class SearchServiceV2 extends NdexService {
 	 * 
 	 * @param searchParameters
 	 *            The search parameters.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to query the database.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws SolrServerException 
+	 * @throws Exception 
 	 **************************************************************************/
 	@POST
 	@PermitAll
@@ -136,7 +130,7 @@ public class SearchServiceV2 extends NdexService {
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize
 			)
-			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
+			throws Exception {
 
 	//	logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
 		accLogger.info("[data]\t[query:" +simpleUserQuery.getSearchString() + "]" );
@@ -156,14 +150,8 @@ public class SearchServiceV2 extends NdexService {
 	 * Find Groups based on search parameters - string matching for now
 	 * 
 	 * @params searchParameters The search parameters.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to query the database.
 	 * @return Groups that match the search criteria.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws SolrServerException 
+	 * @throws Exception 
 	 **************************************************************************/
 	@POST
 	@PermitAll
@@ -174,7 +162,7 @@ public class SearchServiceV2 extends NdexService {
 	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize)
-			throws IllegalArgumentException, NdexException, SQLException, SolrServerException, IOException {
+			throws Exception {
 
 	//	logger.info("[start: Search group \"{}\"]", simpleQuery.getSearchString());
 		accLogger.info("[data]\t[query:" +simpleQuery.getSearchString() + "]" );
@@ -461,7 +449,7 @@ public class SearchServiceV2 extends NdexService {
 		Client client = ClientBuilder.newBuilder().build();
         Set<String> expendedTerms = new HashSet<> ();
 		
-		MultivaluedMap<String, String> formData = new MultivaluedHashMap<String, String>();
+		MultivaluedMap<String, String> formData = new MultivaluedHashMap<>();
 		StringBuilder lStr = new StringBuilder ();
 		
 		for ( String i : geneSearchTerms) 

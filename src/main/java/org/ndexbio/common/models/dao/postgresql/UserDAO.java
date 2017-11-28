@@ -443,29 +443,25 @@ public class UserDAO extends NdexDBDAO {
 	 *            amount of blocks to skip
 	 * @param top
 	 *            block size
-	 * @throws NdexException
-	 *             Attempting to query the database
-	 * @throws IOException 
-	 * @throws SolrServerException 
-	 * @throws SQLException 
+	 * @throws Exception 
 	 * @returns User object, from the NDEx Object Model
 	 **************************************************************************/
 	public SolrSearchResult<User> findUsers(SimpleQuery simpleQuery, int skipBlock, int top)
-			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
+			throws Exception {
 		Preconditions.checkArgument(simpleQuery != null,
 				"Search parameters are required");
 
 		    if ( simpleQuery.getSearchString().length()==0)
 		    	simpleQuery.setSearchString("*:*");
-			UserIndexManager indexManager = new UserIndexManager();
-			SolrDocumentList l = indexManager.searchUsers(simpleQuery.getSearchString(), top, skipBlock*top);
-			
+		try (UserIndexManager indexManager = new UserIndexManager()) {
+			SolrDocumentList l = indexManager.searchUsers(simpleQuery.getSearchString(), top, skipBlock * top);
+
 			List<User> results = new ArrayList<>(l.size());
 			for (SolrDocument d : l) {
-				results.add(getUserById(UUID.fromString((String)d.get(UserIndexManager.UUID)), true, false));
+				results.add(getUserById(UUID.fromString((String) d.get(UserIndexManager.UUID)), true, false));
 			}
-			return new SolrSearchResult<> (l.getNumFound(),l.getStart(), results);
-
+			return new SolrSearchResult<>(l.getNumFound(), l.getStart(), results);
+		}
 			//return results;
 			
 	}

@@ -6,7 +6,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 
-import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;

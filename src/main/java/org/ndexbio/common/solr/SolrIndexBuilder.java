@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
-public class SolrIndexBuilder {
+public class SolrIndexBuilder implements AutoCloseable {
 
     protected static Logger logger = LoggerFactory.getLogger(SolrIndexBuilder.class);
 	
@@ -157,9 +157,9 @@ public class SolrIndexBuilder {
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
 	
-	private static void rebuildUserIndex() throws NdexException, SolrServerException, IOException, SQLException {
+	private static void rebuildUserIndex() throws Exception {
 		logger.info("Start rebuild user index.");
-		UserIndexManager umgr = new UserIndexManager();
+		try(UserIndexManager umgr = new UserIndexManager()) {
 		String coreName = UserIndexManager.coreName; 
 		CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
 		creator.setCoreName(coreName);
@@ -193,57 +193,61 @@ public class SolrIndexBuilder {
 				}
 			}
 		}
-		
+		}
 		logger.info("User index has been rebuilt.");
 	}
 	
-	private static void rebuildGroupIndex() throws NdexException, SolrServerException, IOException, SQLException {
+	private static void rebuildGroupIndex() throws Exception {
 		logger.info("Start rebuild group index.");
-		GroupIndexManager umgr = new GroupIndexManager();
-		String coreName = GroupIndexManager.coreName; 
-		CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
-		creator.setCoreName(coreName);
-		creator.setConfigSet( coreName); 
-		CoreAdminResponse foo = creator.process(umgr.client);		
-		
-		if ( foo.getStatus() != 0 ) {
-			throw new NdexException ("Failed to create solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
-		}
-		logger.info("Solr core " + coreName + " created.");		
+		try (GroupIndexManager umgr = new GroupIndexManager()) {
+			String coreName = GroupIndexManager.coreName;
+			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
+			creator.setCoreName(coreName);
+			creator.setConfigSet(coreName);
+			CoreAdminResponse foo = creator.process(umgr.client);
 
-		try (GroupDAO dao = new GroupDAO ()) {
-			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\" from ndex_group n where n.is_deleted=false";
-			
-			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-				try ( ResultSet rs = pst.executeQuery()) {
-					while (rs.next()) {
-					    UUID groupId = (UUID)rs.getObject(1);
-					    try (GroupDAO dao2 = new GroupDAO()) {
-					    	Group group = dao2.getGroupById(groupId);
-					    	if (group == null)
-					    		throw new NdexException ("Group " + groupId + " can't be indexed because this account is not verified.");
-					    	logger.info("Adding Group " + group.getGroupName() + " to index.");
-							umgr.addGroup(group.getExternalId().toString(), group.getGroupName(), group.getDescription());
+			if (foo.getStatus() != 0) {
+				throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
+						+ foo.getResponseHeader().toString());
+			}
+			logger.info("Solr core " + coreName + " created.");
 
-					    	logger.info("Group " + group.getGroupName() + " added to index.");
-					    }
+			try (GroupDAO dao = new GroupDAO()) {
+				Connection db = dao.getDBConnection();
+				String sqlStr = "select \"UUID\" from ndex_group n where n.is_deleted=false";
 
-					}   
+				try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+					try (ResultSet rs = pst.executeQuery()) {
+						while (rs.next()) {
+							UUID groupId = (UUID) rs.getObject(1);
+							try (GroupDAO dao2 = new GroupDAO()) {
+								Group group = dao2.getGroupById(groupId);
+								if (group == null)
+									throw new NdexException("Group " + groupId
+											+ " can't be indexed because this account is not verified.");
+								logger.info("Adding Group " + group.getGroupName() + " to index.");
+								umgr.addGroup(group.getExternalId().toString(), group.getGroupName(),
+										group.getDescription());
+
+								logger.info("Group " + group.getGroupName() + " added to index.");
+							}
+
+						}
+					}
 				}
 			}
+			logger.info("Group index has been rebuilt.");
 		}
-		logger.info("Group index has been rebuilt.");
 	}
 	
-	public static void main(String[] args) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException, SolrServerException {
+	public static void main(String[] args) throws Exception {
 	//	SolrIndexBuilder i = new SolrIndexBuider();
 		Configuration configuration = Configuration.createInstance();
 
 		NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
 				configuration.getDBPasswd(), 10);
 	
-		SolrIndexBuilder builder = new SolrIndexBuilder();
+		try (SolrIndexBuilder builder = new SolrIndexBuilder()) {
 		if ( args.length == 1) {
 			switch ( args[0]) {
 			case "all":
@@ -267,6 +271,14 @@ public class SolrIndexBuilder {
 			System.out.println("Supported argument: all/user/group/networkid");
 		}
 		
+		}
+		
+	}
+
+
+	@Override
+	public void close() throws Exception {
+		this.globalIdx.close();
 	}
 
 }

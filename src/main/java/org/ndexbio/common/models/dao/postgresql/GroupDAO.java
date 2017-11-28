@@ -192,31 +192,26 @@ public class GroupDAO extends NdexDBDAO {
 	    *            amount of blocks to skip
 	    * @param blockSize
 	    * 			the size of a block
-	    * @throws NdexException
-	    *            Attempting to access and delete an ODocument from the database
-	    * @throws IllegalArgumentException
-	    * 			Group object cannot be null
-	 * @throws IOException 
-	 * @throws SolrServerException 
-	 * @throws SQLException 
+	 * @throws Exception 
 	    **************************************************************************/
 	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery, int skipBlocks, int blockSize) 
-			throws NdexException, IllegalArgumentException, SolrServerException, IOException, SQLException {
+			throws Exception {
 		
 		Preconditions.checkArgument(null != simpleQuery, "Search parameters are required");
 
 		 if ( simpleQuery.getSearchString().length()==0)
 		    	simpleQuery.setSearchString("*:*");
 		 
-		GroupIndexManager indexManager = new GroupIndexManager();
-		SolrDocumentList l = indexManager.searchGroups(simpleQuery.getSearchString(), blockSize, skipBlocks*blockSize);	
-		List<Group> results = new ArrayList<>(l.size());
-		for (SolrDocument d : l) {
-			results.add(getGroupById(UUID.fromString((String)d.get(GroupIndexManager.UUID))));
+		try (GroupIndexManager indexManager = new GroupIndexManager()) {
+			SolrDocumentList l = indexManager.searchGroups(simpleQuery.getSearchString(), blockSize,
+					skipBlocks * blockSize);
+			List<Group> results = new ArrayList<>(l.size());
+			for (SolrDocument d : l) {
+				results.add(getGroupById(UUID.fromString((String) d.get(GroupIndexManager.UUID))));
+			}
+
+			return new SolrSearchResult<>(l.getNumFound(), l.getStart(), results);
 		}
-		
-		return new SolrSearchResult<> (l.getNumFound(),l.getStart(), results);
-		
 	}
 	
 	

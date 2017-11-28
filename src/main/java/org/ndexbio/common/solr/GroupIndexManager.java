@@ -49,7 +49,7 @@ import org.apache.solr.common.util.NamedList;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
 
-public class GroupIndexManager {
+public class GroupIndexManager implements AutoCloseable{
 
 	private String solrUrl ;
 	
@@ -167,6 +167,11 @@ public class GroupIndexManager {
 		client.add(docs);
 	//	client.commit();
 
+	}
+
+	@Override
+	public void close() throws Exception {
+		this.client.close();
 	}
 	
 		

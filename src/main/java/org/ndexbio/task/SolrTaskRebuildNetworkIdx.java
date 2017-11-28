@@ -16,10 +16,8 @@ import org.ndexbio.common.cx.AspectIterator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
-import org.ndexbio.common.util.Util;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
@@ -59,8 +57,9 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 				  //drop the old ones.
 				  if ( !createOnly) {
 					  if ( idxScope != SolrIndexScope.individual) {
-							NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
-						  globalIdx.deleteNetwork(networkId.toString());
+							try (NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
+								globalIdx.deleteNetwork(networkId.toString());
+							}
 					  } 	  
 					  if ( idxScope != SolrIndexScope.global)
 						  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
@@ -77,57 +76,60 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 				  
 				  if ( this.idxScope != SolrIndexScope.individual) {
 					  
-					  NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
+				try (NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
 
-					  // build the solr document obj
-					  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkId);
-					  Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
-					  Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
-					  globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
-							userMemberships.get(Permissions.READ),
-							userMemberships.get(Permissions.WRITE),
-							grpMemberships.get(Permissions.READ),
-							grpMemberships.get(Permissions.WRITE));
+					// build the solr document obj
+					List<Map<Permissions, Collection<String>>> permissionTable = dao
+							.getAllMembershipsOnNetwork(networkId);
+					Map<Permissions, Collection<String>> userMemberships = permissionTable.get(0);
+					Map<Permissions, Collection<String>> grpMemberships = permissionTable.get(1);
+					globalIdx.createIndexDocFromSummary(summary, summary.getOwner(),
+							userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE),
+							grpMemberships.get(Permissions.READ), grpMemberships.get(Permissions.WRITE));
 
-					  //process node attribute aspect and add to solr doc
-					
-					  try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId, NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class)) {
+					// process node attribute aspect and add to solr doc
+
+					try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId,
+							NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class)) {
 						while (it.hasNext()) {
 							NetworkAttributesElement e = it.next();
-							
-							List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);	
-							if ( !indexWarnings.isEmpty())
-								for (String warning : indexWarnings) 
-									System.err.println("Warning: " + warning);
-							
-						}
-					  }
 
-					
-					  try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId, FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
+							List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
+							if (!indexWarnings.isEmpty())
+								for (String warning : indexWarnings)
+									System.err.println("Warning: " + warning);
+
+						}
+					}
+
+					try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId,
+							FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
 						while (it.hasNext()) {
 							FunctionTermElement fun = it.next();
-							
+
 							globalIdx.addFunctionTermToIndex(fun);
 
 						}
-					  }
+					}
 
-					  try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkId, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
+					try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkId,
+							NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
 						while (it.hasNext()) {
-							NodeAttributesElement e = it.next();					
-							globalIdx.addCXNodeAttrToIndex(e);	
+							NodeAttributesElement e = it.next();
+							globalIdx.addCXNodeAttrToIndex(e);
 						}
-					  }
+					}
 
-					  try (AspectIterator<NodesElement> it = new AspectIterator<>(networkId, NodesElement.ASPECT_NAME, NodesElement.class)) {
+					try (AspectIterator<NodesElement> it = new AspectIterator<>(networkId, NodesElement.ASPECT_NAME,
+							NodesElement.class)) {
 						while (it.hasNext()) {
-							NodesElement e = it.next();					
-							globalIdx.addCXNodeToIndex(e);	
+							NodesElement e = it.next();
+							globalIdx.addCXNodeToIndex(e);
 						}
-					  }
-									
-					  globalIdx.commit();
+					}
+
+					globalIdx.commit();
+				}
 				  }
 					
 				  try {
@@ -148,6 +150,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 
 	}
 	
+	/*
 	private int getScoreFromSummary(NetworkSummary summary) {
 		int score = 0;
 		
@@ -162,7 +165,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		score += Util.getNetworkScores(summary.getProperties(), false);
 		
 		return score;
-	}
+	} */
 
 
 	@Override
@@ -170,7 +173,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		Task t = super.createTask();
 		t.setResource(networkId.toString());
 		t.getAttributes().put(AttrScope, this.idxScope);
-		t.getAttributes().put(AttrCreateOnly, this.createOnly);
+		t.getAttributes().put(AttrCreateOnly, Boolean.valueOf(this.createOnly));
 		t.setAttribute("fields", indexedFields);
 		return t;
 	}

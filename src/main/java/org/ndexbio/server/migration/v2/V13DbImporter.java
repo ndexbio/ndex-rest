@@ -23,7 +23,6 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.UserIndexManager;
@@ -53,17 +52,19 @@ public class V13DbImporter implements AutoCloseable {
 	private 			ObjectMapper mapper ;
 
 	
-	public V13DbImporter(String srcFilesPath) throws NdexException, SolrServerException, IOException, SQLException {
+	public V13DbImporter(String srcFilesPath) throws Exception {
 		Configuration configuration = Configuration.createInstance();
 
 		// create solr core for network indexes if needed.
-		NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager();
-		mgr.createCoreIfNotExists();
-		UserIndexManager umgr = new UserIndexManager();
-		umgr.createCoreIfNotExists();
-		GroupIndexManager gmgr = new GroupIndexManager();
-		gmgr.createCoreIfNotExists();
-
+		try (NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager()) {
+			mgr.createCoreIfNotExists();
+		}
+		try (UserIndexManager umgr = new UserIndexManager()) {
+			umgr.createCoreIfNotExists();
+		}
+		try (GroupIndexManager gmgr = new GroupIndexManager()) {
+			gmgr.createCoreIfNotExists();
+		}
 		// and initialize the db connections
 
 		ndexDB = NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
@@ -72,9 +73,9 @@ public class V13DbImporter implements AutoCloseable {
 		this.db = ndexDB.getConnection();
 
 		this.importFilesPrefix = srcFilesPath;
-		typeRef = new TypeReference<Map<String,Object>>() {   };
+		typeRef = new TypeReference<Map<String, Object>>() {
+		};
 		mapper = new ObjectMapper();
-
 
 	}
 
@@ -85,7 +86,7 @@ public class V13DbImporter implements AutoCloseable {
 
 	}
 
-	private void migrateDBAndNetworks ( ) throws FileNotFoundException, IOException, SQLException, NdexException, IllegalArgumentException, SolrServerException {
+	private void migrateDBAndNetworks ( ) throws Exception {
 
 			importUsers();
 			importGroups();
@@ -106,8 +107,7 @@ public class V13DbImporter implements AutoCloseable {
 	
 	
 	
-	private void populatingUserTable() throws SQLException, JsonParseException, JsonMappingException,
-			IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
+	private void populatingUserTable() throws Exception {
 		String sql = "insert into ndex_user (\"UUID\",creation_time,modification_time,user_name,first_name,last_name, image_url,website_url,email_addr, " +
 							 "password,is_individual,description,is_deleted,is_verified, is_from_13) " + 
 							 "select id, creation_time, modification_time, account_name, first_name,last_name,image_url,website_url,email,password,true,description,"+
@@ -136,8 +136,10 @@ public class V13DbImporter implements AutoCloseable {
 						try (UserDAO dao = new UserDAO()) {
 							User user = dao.getUserById(userId, true,false);
 							logger.info("adding user " + user.getUserName() + " to solr index.");
-							UserIndexManager mgr = new UserIndexManager();
-							mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
+							try (UserIndexManager mgr = new UserIndexManager()) {
+							mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), 
+									user.getLastName(), user.getDisplayName(), user.getDescription());
+							}
 						}
 					}
 				}
@@ -181,8 +183,7 @@ public class V13DbImporter implements AutoCloseable {
 
 }
 	
-	private void populatingGroupTable() throws SQLException, JsonParseException, JsonMappingException,
-		IllegalArgumentException, ObjectNotFoundException, NdexException, IOException, SolrServerException {
+	private void populatingGroupTable() throws Exception {
 		
 		String sql = "insert into ndex_group (\"UUID\",creation_time,modification_time,group_name,image_url,description,is_deleted,website_url,is_from_13) " +
 				 "select id, creation_time, modification_time, group_name,image_url,description, false,website_url, true"+
@@ -204,21 +205,21 @@ public class V13DbImporter implements AutoCloseable {
 		db.commit();
 		
 		String sql1 = "select id from working_migrated_uuids where table_name = 'group'";
-		try (PreparedStatement pst = db.prepareStatement(sql1)) {
-			try (ResultSet rs = pst.executeQuery() ) {
-				while (rs.next()) {
-					UUID groupId = (UUID)rs.getObject(1);
-					try (GroupDAO dao = new GroupDAO()) {
-						Group group = dao.getGroupById(groupId);
-						logger.info("adding group " + group.getGroupName() + " to solr index.");
-						GroupIndexManager m = new GroupIndexManager();
-						m.addGroup(group.getExternalId().toString(), group.getGroupName(), group.getDescription());
-						
+		try (GroupIndexManager m = new GroupIndexManager()) {
+			try (PreparedStatement pst = db.prepareStatement(sql1)) {
+				try (ResultSet rs = pst.executeQuery()) {
+					while (rs.next()) {
+						UUID groupId = (UUID) rs.getObject(1);
+						try (GroupDAO dao = new GroupDAO()) {
+							Group group = dao.getGroupById(groupId);
+							logger.info("adding group " + group.getGroupName() + " to solr index.");
+							m.addGroup(group.getExternalId().toString(), group.getGroupName(), group.getDescription());
+
+						}
 					}
 				}
 			}
 		}
-		
 
 		sql = "insert into ndex_group_user (group_id,user_id,is_admin)" +
 			  "	select g.id,ug.user_id, ug.type='groupadmin' "+
@@ -671,7 +672,8 @@ public class V13DbImporter implements AutoCloseable {
 							pstUser.executeUpdate();
 
 						}
-			
+						
+						
 			}
 			
 			db.commit();

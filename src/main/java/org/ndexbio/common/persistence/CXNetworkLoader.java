@@ -40,7 +40,6 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -49,9 +48,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
 
-import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
-import org.cxio.aspects.datamodels.CyVisualPropertiesElement;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
@@ -73,8 +70,6 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXAspectWriter;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
-import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
@@ -89,7 +84,6 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
-import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -112,7 +106,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	private long counter;
 	
 //	private InputStream inputStream;
-	private String ownerName;
+//	private String ownerName;
 	private UUID networkId;
 
     private String rootPath;
@@ -122,9 +116,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	private AspectElementIdTracker edgeIdTracker;
 	private AspectElementIdTracker citationIdTracker;
 	private AspectElementIdTracker supportIdTracker;
-	
-//	private Map<String, Long> namespaceMap;   // prefix to nsID mapping.
-	
+		
 	protected Provenance provenanceHistory;    // comment out for now.
 	protected Set<Long> subNetworkIds;
 		
@@ -143,7 +135,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	protected List<NdexPropertyValuePair> properties;
 		
 	protected Map<String,CXAspectWriter> aspectTable;
-	private NetworkGlobalIndexManager globalIdx ;
+//	private NetworkGlobalIndexManager globalIdx ;
 	protected List<String> warnings;
 	private NetworkDAO dao;
 	private VisibilityType visibility;
@@ -156,7 +148,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		this.isUpdate = isUpdate;
 		
-		this.ownerName = ownerUserName;
+//		this.ownerName = ownerUserName;
 		this.networkId = networkUUID;
 		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/";
 		this.networkName = null;
@@ -165,7 +157,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 		serverElementLimit = Configuration.getInstance().getServerElementLimit();
 		
-		globalIdx = null;
+	//	globalIdx = null;
 
 		warnings = new ArrayList<> ();
 		networkNameIsAssigned = false;
@@ -638,7 +630,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  closeAspectStreams();
 	}
 	
-	
+	/*
 	private void createSolrIndex(NetworkSummary summary) throws SolrServerException, IOException, ObjectNotFoundException, NdexException, SQLException {
 
 		
@@ -653,7 +645,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		globalIdx.commit();
    	
-	}
+	} */
 
 
     
@@ -676,11 +668,11 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		writeCXElement(e);
 		
-		if (globalIdx !=null) {
+	/*	if (globalIdx !=null) {
 			List<String> indexWarnings = this.globalIdx.addCXNetworkAttrToIndex(e);	
 			if ( !indexWarnings.isEmpty())
 				warnings.addAll(indexWarnings);
-		}
+		} */
 		
 		tick();
 
@@ -706,9 +698,9 @@ public class CXNetworkLoader implements AutoCloseable {
 		nodeIdTracker.addDefinedElementId(node.getId());
 		writeCXElement(node);
 		
-		if (globalIdx !=null) {
+	/*	if (globalIdx !=null) {
 			this.globalIdx.addCXNodeToIndex(node);	
-		}   
+		}   */
 		
 		tick();   
 	}	 
@@ -724,10 +716,10 @@ public class CXNetworkLoader implements AutoCloseable {
 
 		nodeIdTracker.addReferenceId(funcTerm.getNodeID());
 		writeCXElement(funcTerm);		   
-		if (globalIdx !=null) {
+	/*	if (globalIdx !=null) {
 
 			globalIdx.addFunctionTermToIndex(funcTerm);
-		}	
+		}	*/
 		tick();   
 	}	 
 
@@ -813,10 +805,10 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		writeCXElement(e);
 		
-		if (globalIdx !=null) {
+	/*	if (globalIdx !=null) {
 
 			this.globalIdx.addCXNodeAttrToIndex(e);	
-		}
+		} */
 		
 		tick();
 		
@@ -851,8 +843,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		} catch (IOException e) {
 			logger.error("Failed to close input stream when closing CXNetworkLoader: " + e.getMessage());
 		} */
-		if (globalIdx !=null) 
-			this.globalIdx.close();
+	/*	if (globalIdx !=null) 
+			this.globalIdx.close(); */
 	}
 
 

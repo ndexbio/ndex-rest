@@ -88,6 +88,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();	
+					dao.close();
 					throw new NdexException ("DB error when saving network summary: " + e.getMessage(), e);
 				}
 		  
@@ -146,6 +147,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 		//			dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();
+					dao.close();
 					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
 				}
 

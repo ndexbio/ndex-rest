@@ -34,16 +34,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Map;
 import java.util.Timer;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.logging.Logger;
 
 import javax.servlet.ServletContext;
-import javax.ws.rs.core.Application;
 
-import org.apache.solr.client.solrj.SolrServerException;
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
@@ -52,8 +49,6 @@ import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
-import org.ndexbio.rest.filters.BasicAuthenticationFilter;
-import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.task.ClientTaskProcessor;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NdexSystemTask;
@@ -88,8 +83,6 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	}
 
 	
-	
-	
 	@Override
 	public void init(javax.servlet.ServletConfig servletConfig)
 	          throws javax.servlet.ServletException {
@@ -106,12 +99,13 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 					size = Integer.parseInt(poolSize);
 				} 
 			} catch (NumberFormatException e) {
-				logger.warning("NdexDBConnectionPoolSize doesn't have a numeric value in configuration. Using default setting " + defaultPoolSize + " instead.");
+				logger.warning("NdexDBConnectionPoolSize doesn't have a numeric value in configuration ("+ 
+			e.getMessage() + "). Using default setting " + defaultPoolSize + " instead.");
 			}
 
 			//and initialize the db connections
 	    	
-			NdexDatabase db = NdexDatabase.createNdexDatabase(
+			NdexDatabase.createNdexDatabase(
 					configuration.getDBURL(),
 	    			configuration.getDBUser(),
 	    			configuration.getDBPasswd(), size);
@@ -119,13 +113,15 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			logger.info("Db created for " + configuration.getDBURL());
 
 			// create solr core for network indexes if needed.
-			NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager();
-			mgr.createCoreIfNotExists();
-			UserIndexManager umgr = new UserIndexManager();
-			umgr.createCoreIfNotExists();
-			GroupIndexManager gmgr = new GroupIndexManager();
-			gmgr.createCoreIfNotExists();
-			
+			try (NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager()) {
+				mgr.createCoreIfNotExists();
+			}
+			try (UserIndexManager umgr = new UserIndexManager()) {
+				umgr.createCoreIfNotExists();
+			}
+			try (GroupIndexManager gmgr = new GroupIndexManager()) {
+				gmgr.createCoreIfNotExists();
+			}
     	
 		/*	try (UserDocDAO dao = new UserDocDAO(db.getAConnection())) {
     	
@@ -172,31 +168,27 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 		
 		
 		ServletContext application = getServletConfig().getServletContext();
-		InputStream inputStream = application.getResourceAsStream("/META-INF/MANIFEST.MF");
+		try(InputStream inputStream = application.getResourceAsStream("/META-INF/MANIFEST.MF")) {
 		if ( inputStream !=null) {
 		try {
 			Manifest manifest = new Manifest(inputStream);
-	/*		Map<String,Attributes> attr = manifest.getEntries();
-		    System.out.println(" ------   total entries:" + attr.size() );
-			for (String name: attr.keySet()) {
-				System.out.println("Attr-name:"+name);
-			} */
+	
 			Attributes aa = manifest.getMainAttributes();	
-	/*		System.out.println( "---------- total main:" + aa.size());
-			for (Map.Entry<Object, Object> e : aa.entrySet() ){
-				System.out.println("key:"+e.getKey() + "="+e.getValue());
-			} */
+	
 			String ver = aa.getValue("NDEx-Version");
 			String bui = aa.getValue("NDEx-Build"); 
 			System.out.println("NDEx-Version: " + ver + ",Build:" + bui);
 			buildNumber= bui.substring(0, 5);
 			ndexVersion = ver;
 		} catch (IOException e) {
-			System.out.println("failed to read MANIFEST.MF");
+			System.out.println("failed to read MANIFEST.MF:" + e.getMessage());
 			e.printStackTrace();
-		//	System.exit(1);
 		}     
 		}    
+		} catch (IOException e1) {
+			System.out.println("Failed to close InputStream from MANIFEST.MF: " + e1.getMessage());
+			e1.printStackTrace();
+		}
 	}
 	
 	

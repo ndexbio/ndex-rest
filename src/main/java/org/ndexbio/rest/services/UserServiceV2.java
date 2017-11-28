@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
-import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -46,7 +45,6 @@ import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
-import javax.ws.rs.Encoded;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
@@ -57,7 +55,6 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
-import org.apache.http.client.ClientProtocolException;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
@@ -84,9 +81,7 @@ import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Security;
-import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
-import org.ndexbio.security.OAuthTokenRenewRequest;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrIndexScope;
 import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
@@ -124,18 +119,8 @@ public class UserServiceV2 extends NdexService {
 	 * 
 	 * @param newUser
 	 *            The user to create.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws DuplicateObjectException
-	 *             A user with the same accountName/email address already exists.
-	 * @throws NdexException
-	 *             Failed to create the user in the database.
 	 * @return The new user's profile.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
-	 * @throws SolrServerException 
+	 * @throws Exception 
 	 **************************************************************************/
 	/*
 	 * refactored to accommodate non-transactional database operations
@@ -149,10 +134,9 @@ public class UserServiceV2 extends NdexService {
 	public String verifyUser(@PathParam("userid") String userUUID,
 					@QueryParam("verificationCode") String verificationCode		
 			)
-			throws IllegalArgumentException, DuplicateObjectException,UnauthorizedOperationException,
-			NdexException, SQLException, JsonParseException, JsonMappingException, IOException, SolrServerException {
+			throws Exception {
 
-		logger.info("[start: verifing User {}]", userUUID);
+	//	logger.info("[start: verifing User {}]", userUUID);
 		if ( verificationCode == null || verificationCode.length()== 0) 
 			throw new IllegalArgumentException("Parameter verificationCode can not be empty");
 		
@@ -160,12 +144,14 @@ public class UserServiceV2 extends NdexService {
 			UUID userId = UUID.fromString(userUUID);
 			String accountName = userdao.verifyUser(userId, verificationCode);
 			User u = userdao.getUserById(userId, true,false);
-			UserIndexManager mgr = new UserIndexManager();
-			mgr.addUser(userUUID, u.getUserName(), u.getFirstName(), u.getLastName(), u.getDisplayName(), u.getDescription());
-			userdao.commit();
-			logger.info("[end: User {} verified ]", userUUID);
-			return // userdao.getUserById(UUID.fromString(userUUID));
-					"User account " + accountName + " has been activated."; 
+			try (UserIndexManager mgr = new UserIndexManager()) {
+				mgr.addUser(userUUID, u.getUserName(), u.getFirstName(), u.getLastName(), u.getDisplayName(),
+						u.getDescription());
+				userdao.commit();
+				// logger.info("[end: User {} verified ]", userUUID);
+				return // userdao.getUserById(UUID.fromString(userUUID));
+				"User account " + accountName + " has been activated.";
+			}
 		}
 	}
 
@@ -209,8 +195,10 @@ public class UserServiceV2 extends NdexService {
 			User user = userdao.createNewUser(newUser, verificationCode);
 			
 			if ( verificationCode == null) {
-				UserIndexManager mgr = new UserIndexManager();
-				mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
+				try (UserIndexManager mgr = new UserIndexManager()) {
+					mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(),
+							user.getLastName(), user.getDisplayName(), user.getDescription());
+				}
 			}
 			
 			userdao.commit();
@@ -335,7 +323,6 @@ public class UserServiceV2 extends NdexService {
 	 *            The UUID of the user.
 
 	 **************************************************************************/
-	@SuppressWarnings("static-method")
 	@GET
 	@PermitAll
 	@Path("/{userid}")
@@ -436,12 +423,7 @@ public class UserServiceV2 extends NdexService {
 
 	/**************************************************************************
 	 * Deletes a user.
-	 * 
-	 * @throws NdexException
-	 *             Failed to delete the user from the database.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws SolrServerException 
+	 * @throws Exception 
 	 **************************************************************************/
 	@DELETE
 	@Path("/{userid}")
@@ -449,17 +431,18 @@ public class UserServiceV2 extends NdexService {
 	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user. "
 			+ "If this operation orphans a network or group, an exception will be thrown.")
 	public void deleteUser(@PathParam("userid") final String userIdStr)
-			throws NdexException, ObjectNotFoundException, SQLException, SolrServerException, IOException {
+			throws Exception {
 
 		UUID userId = UUID.fromString(userIdStr);
 		if ( !userId.equals(getLoggedInUserId()) )
 			throw new NdexException ("An authenticated user can only delete himself.");
 		try (UserDAO dao = new UserDAO()) {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
-			UserIndexManager mgr = new UserIndexManager();
+			try (UserIndexManager mgr = new UserIndexManager()) {
 			mgr.deleteUser(getLoggedInUser().getExternalId().toString());
 			dao.commit();
-			logger.info("[end: User {} deleted]", getLoggedInUser().getUserName());
+	//		logger.info("[end: User {} deleted]", getLoggedInUser().getUserName());
+			}
 		} 
 	}
 
@@ -511,6 +494,7 @@ public class UserServiceV2 extends NdexService {
 	 * 
 	 * @param updatedUser
 	 *            The updated user information.
+	 * @throws Exception 
 
 	 **************************************************************************/
 	@PUT
@@ -518,7 +502,7 @@ public class UserServiceV2 extends NdexService {
 	@Produces("application/json")
 
 	public void updateUser(@PathParam("userid") final String userId, final User updatedUser)
-			throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, SolrServerException, IOException {
+			throws Exception {
 		Preconditions.checkArgument(null != updatedUser, 
 				"Updated user data are required");
 		Preconditions.checkArgument(UUID.fromString(userId).equals(updatedUser.getExternalId()), 
@@ -539,10 +523,11 @@ public class UserServiceV2 extends NdexService {
 		
 		try (UserDAO dao = new UserDAO ()){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
-			UserIndexManager mgr = new UserIndexManager();
+			try (UserIndexManager mgr = new UserIndexManager()) {
 			mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
 			dao.commit();
 	//		logger.info("[end: User {} updated]", updatedUser.getUserName());
+			}
 		} 
 	}
 	
@@ -568,12 +553,12 @@ public class UserServiceV2 extends NdexService {
 				Map<String,String> result = new TreeMap<>();
 				Permissions m = dao.getUserMembershipTypeOnGroup(userId, groupId);
 				
-				if ( m==null)
+		/*		if ( m==null)
 				   logger.info("[end: No membership found.]" );			
-				else {
+				else { */
 				   result.put(groupId.toString(), m.toString());
-				   logger.info("[end: Membership {} found.]", m.toString());
-				}
+				//   logger.info("[end: Membership {} found.]", m.toString());
+		//		}
 				return result;
 			} 
 		}
@@ -586,7 +571,7 @@ public class UserServiceV2 extends NdexService {
 		try (UserDAO dao = new UserDAO ()) {
 			Map<String,String> result =
 					dao.getUserGroupMembershipMap(userId, permission, skipBlocks, blockSize);
-			logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
+		//	logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
 			return result;
 		} 
 	}
@@ -925,7 +910,7 @@ public class UserServiceV2 extends NdexService {
 				 @PathParam("requestid") String requestIdStr,
 				 @QueryParam("action")  String action,
 				 @QueryParam("message") String message
-				) throws NdexException, SQLException, SolrServerException, IOException {
+				) throws NdexException, SQLException, IOException {
 
 			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 			

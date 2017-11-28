@@ -49,7 +49,7 @@ import org.apache.solr.common.util.NamedList;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
 
-public class UserIndexManager {
+public class UserIndexManager implements AutoCloseable{
 
 	private String solrUrl ;
 	
@@ -213,10 +213,10 @@ public class UserIndexManager {
 	//	client.commit();
 
 	}
-	
+
+	@Override
+	public void close() throws Exception {
+		this.client.close();
+	}
 		
-	
-
-	
-
 }
