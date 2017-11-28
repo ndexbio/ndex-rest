@@ -33,13 +33,14 @@ public class SolrTaskDeleteNetwork extends NdexSystemTask {
 	public void run() throws NdexException, SolrServerException, IOException  {
 		String id = networkId.toString();
 		
-			NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
+		try(	NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
 			globalIdx.deleteNetwork(id);
 			if (!globalIdxOnly) {
 				try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
 					idxManager.dropIndex();
 				}		
 			}
+		}	
 		
 	}
 

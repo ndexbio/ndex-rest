@@ -248,10 +248,10 @@ public class SearchServiceV2 extends NdexService {
 			checkIfQueryIsAllowed(networkId, dao);
 		}   
 		
-		SingleNetworkSolrIdxManager solr = new SingleNetworkSolrIdxManager(networkId.toString());
-		SolrDocumentList r = solr.getNodeIdsByQuery(queryParameters.getSearchString(), limit);
-		return r;
-		
+		try (SingleNetworkSolrIdxManager solr = new SingleNetworkSolrIdxManager(networkId.toString())) {
+			SolrDocumentList r = solr.getNodeIdsByQuery(queryParameters.getSearchString(), limit);
+			return r;
+		}
 	/*	Client client = ClientBuilder.newBuilder().build();
 		
 		Map<String, Object> queryEntity = new TreeMap<>();

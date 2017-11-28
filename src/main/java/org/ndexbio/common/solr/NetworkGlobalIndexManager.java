@@ -67,7 +67,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 
-public class NetworkGlobalIndexManager {
+public class NetworkGlobalIndexManager implements AutoCloseable{
 
 	private String solrUrl ;
 	
@@ -667,11 +667,11 @@ public class NetworkGlobalIndexManager {
 			
 	}
 	
+	@Override
 	public void close () {
 		try {
 			client.close();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}

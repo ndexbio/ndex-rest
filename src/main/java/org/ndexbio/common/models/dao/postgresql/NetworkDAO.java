@@ -214,7 +214,8 @@ public class NetworkDAO extends NdexDBDAO {
         
         File archiveDir = new File(archivePath);
         if (!archiveDir.exists())
-        	archiveDir.mkdir();
+        		archiveDir.mkdir();
+        
         
         java.nio.file.Path src = Paths.get(pathPrefix+ "/network.cx");     
 		java.nio.file.Path tgt = Paths.get(archivePath + "/" + networkId.toString() + ".cx");
@@ -227,7 +228,6 @@ public class NetworkDAO extends NdexDBDAO {
 			logger.severe("Failed to move file and delete directory: "+ e.getMessage());
 			e.printStackTrace();
 		}
-		
 	}
 	
 
@@ -934,48 +934,49 @@ public class NetworkDAO extends NdexDBDAO {
 	public NetworkSearchResult findNetworks(SimpleNetworkQuery simpleNetworkQuery, int skipBlocks, int top, User loggedInUser) throws NdexException, SolrServerException, IOException, SQLException {
 	
 		String queryStr = simpleNetworkQuery.getSearchString().trim();
-		if (queryStr.equals("*")  || queryStr.length() == 0 )
+		if (queryStr.equals("*") || queryStr.length() == 0)
 			queryStr = "*:*";
-		
-		if ( simpleNetworkQuery.getPermission() !=null && simpleNetworkQuery.getPermission() == Permissions.ADMIN)
-			throw new NdexException("Permission can only be WRITE or READ in this function.");
-		
-		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-		
-		//prepare the query.
-	//	if (simpleNetworkQuery.getPermission() == null) 
-	//		simpleNetworkQuery.setPermission(Permissions.READ);
 
-		List<UUID> groupUUIDs = new ArrayList<>();
-		if ( loggedInUser !=null && simpleNetworkQuery.getIncludeGroups()) {
-			try (UserDAO userDao = new UserDAO() ) {
-				for ( Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(), Permissions.MEMBER,0,0,true) ) {
-					groupUUIDs.add(m.getResourceUUID());
+		if (simpleNetworkQuery.getPermission() != null && simpleNetworkQuery.getPermission() == Permissions.ADMIN)
+			throw new NdexException("Permission can only be WRITE or READ in this function.");
+
+		try (NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager()) {
+
+			// prepare the query.
+			// if (simpleNetworkQuery.getPermission() == null)
+			// simpleNetworkQuery.setPermission(Permissions.READ);
+
+			List<UUID> groupUUIDs = new ArrayList<>();
+			if (loggedInUser != null && simpleNetworkQuery.getIncludeGroups()) {
+				try (UserDAO userDao = new UserDAO()) {
+					for (Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(),
+							Permissions.MEMBER, 0, 0, true)) {
+						groupUUIDs.add(m.getResourceUUID());
+					}
 				}
 			}
+
+			SolrDocumentList solrResults = networkIdx.searchForNetworks(queryStr,
+					(loggedInUser == null ? null : loggedInUser.getUserName()), top, skipBlocks * top,
+					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), groupUUIDs);
+
+			List<NetworkSummary> results = new ArrayList<>(solrResults.size());
+			for (SolrDocument d : solrResults) {
+				String id = (String) d.get(NetworkGlobalIndexManager.UUID);
+				try {
+					NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
+
+					if (s != null) {
+						s.setWarnings(emptyStringList);
+						results.add(s);
+					}
+				} catch (ObjectNotFoundException ne) {
+					logger.warning("Network " + id + " was not found in db: " + ne.getMessage());
+				}
+			}
+
+			return new NetworkSearchResult(solrResults.getNumFound(), solrResults.getStart(), results);
 		}
-			
-		SolrDocumentList solrResults = networkIdx.searchForNetworks(queryStr, 
-				(loggedInUser == null? null: loggedInUser.getUserName()), top, skipBlocks * top, 
-						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), groupUUIDs);
-		
-		
-		List<NetworkSummary> results = new ArrayList<>(solrResults.size());
-		for ( SolrDocument d : solrResults) {
-			String id = (String) d.get(NetworkGlobalIndexManager.UUID);
-			try {
-				NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
-			
-				if ( s !=null) {
-					s.setWarnings(emptyStringList);
-					results .add(s);
-				}
-			} catch (ObjectNotFoundException ne) {
-				logger.warning("Network " + id + " was not found in db: " + ne.getMessage() );
-			}
-		} 
-		
-		return new NetworkSearchResult ( solrResults.getNumFound(), solrResults.getStart(), results);
 	}
 
 	
@@ -1431,7 +1432,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	//This function commits the current transaction, be careful when using it.
-    public int grantPrivilegeToGroup(UUID networkUUID, UUID groupUUID, Permissions permission) throws NdexException, SolrServerException, IOException, SQLException {
+    public int grantPrivilegeToGroup(UUID networkUUID, UUID groupUUID, Permissions permission) throws NdexException, SQLException {
     
     	if (permission == Permissions.ADMIN)
     		throw new NdexException ("Groups are not allowed to administer a network, only users are allowed.");
@@ -1539,7 +1540,7 @@ public class NetworkDAO extends NdexDBDAO {
     }
 	
     
-    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws NdexException, IOException, SQLException {
+    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws NdexException, SQLException {
     
     	Permissions p = getNetworkPermissionOnGroup(networkUUID, groupUUID);
 
