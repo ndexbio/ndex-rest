@@ -496,11 +496,11 @@ public class NetworkServiceV2 extends NdexService {
 				in = new FileInputStream(
 						Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + aspectName);
 			} catch (FileNotFoundException e) {
-					throw new ObjectNotFoundException("Aspect "+ aspectName + " not found in this network.");
+					throw new ObjectNotFoundException("Aspect "+ aspectName + " not found in this network: " + e.getMessage());
 			}
 	    	
 			if ( limit <= 0) {
-				logger.info("[end: Return cached network {}]", networkId);
+		//		logger.info("[end: Return cached network {}]", networkId);
 				return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 	    	} 
 			
@@ -521,7 +521,7 @@ public class NetworkServiceV2 extends NdexService {
 			}
 				
 			new CXAspectElementsWriterThread(out,in, /*aspectName,*/ limit).start();
-			logger.info("[end: Return get one aspect in network {}]", networkId);
+		//	logger.info("[end: Return get one aspect in network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 		
 		

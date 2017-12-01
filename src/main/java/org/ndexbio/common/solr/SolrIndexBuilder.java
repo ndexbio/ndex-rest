@@ -130,6 +130,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	
 	private  void rebuildAll() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (NetworkDAO dao = new NetworkDAO ()) {
+			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.solr_indexed=true";
 			
@@ -172,6 +173,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 		logger.info("Solr core " + coreName + " created.");		
 
 		try (UserDAO dao = new UserDAO ()) {
+			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from ndex_user n where n.is_deleted=false and n.is_verified=true";
 			
@@ -213,6 +215,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 			logger.info("Solr core " + coreName + " created.");
 
 			try (GroupDAO dao = new GroupDAO()) {
+				@SuppressWarnings("resource")
 				Connection db = dao.getDBConnection();
 				String sqlStr = "select \"UUID\" from ndex_group n where n.is_deleted=false";
 

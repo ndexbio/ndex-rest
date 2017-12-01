@@ -53,6 +53,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.xml.bind.DatatypeConverter;
 
@@ -98,6 +100,11 @@ public class NetworkDAO extends NdexDBDAO {
 //	public static final String RESET_MOD_TIME = "resetMTime";
 	
 	private  static List<String> emptyStringList = new ArrayList<>(1); 
+	
+	private static Pattern uuidSearchPattern = 
+			Pattern.compile("^(uuid: *)?(([0-9A-F]{8}-[0-9A-F]{4}-[1-5][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12})|(\\\"([0-9A-F]{8}-[0-9A-F]{4}-[1-5][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12})\\\"))$",
+			Pattern.CASE_INSENSITIVE);
+
 
 
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
@@ -934,6 +941,24 @@ public class NetworkDAO extends NdexDBDAO {
 	public NetworkSearchResult findNetworks(SimpleNetworkQuery simpleNetworkQuery, int skipBlocks, int top, User loggedInUser) throws NdexException, SolrServerException, IOException, SQLException {
 	
 		String queryStr = simpleNetworkQuery.getSearchString().trim();
+		
+		// special check for UUID search
+		UUID uuid = getUUIDFromQuery(queryStr);
+		if ( uuid != null ) {
+			NetworkSearchResult r = new NetworkSearchResult(); 
+			r.setStart(0);
+			try {
+			if ( isReadable(uuid, (loggedInUser ==null? null : loggedInUser.getExternalId()))) {
+					NetworkSummary s = getNetworkSummaryById(uuid);
+					r.setNumFound(1);
+					r.getNetworks().add(s);
+					return r;
+			} 
+			} catch (@SuppressWarnings("unused") ObjectNotFoundException e) {}
+			r.setNumFound(0);
+			return r;
+		}
+		
 		if (queryStr.equals("*") || queryStr.length() == 0)
 			queryStr = "*:*";
 
@@ -978,7 +1003,26 @@ public class NetworkDAO extends NdexDBDAO {
 			return new NetworkSearchResult(solrResults.getNumFound(), solrResults.getStart(), results);
 		}
 	}
+	
 
+	private static UUID getUUIDFromQuery(String query) {
+		//Pattern p = Pattern.compile("^(uuid: *)?([0-9A-F]{8}-[0-9A-F]{4}-[1-5][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12})$", Pattern.CASE_INSENSITIVE);
+		 Matcher m = uuidSearchPattern.matcher(query);
+		 if( m.matches() ) {
+			String uuidStr = m.group(5);
+			if ( uuidStr == null) 
+				uuidStr = m.group(2);
+			//for ( int i = 0 ; i <= m.groupCount(); i++)
+			// System.out.println(m.group(i));
+			try {
+				return UUID.fromString(uuidStr);
+			} catch( @SuppressWarnings("unused") IllegalArgumentException e ) {
+				// just to be safe 
+				return null;
+			}
+		 }
+		 return null;
+	}
 	
 	public NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
