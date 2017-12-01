@@ -954,7 +954,7 @@ public class NetworkDAO extends NdexDBDAO {
 					r.getNetworks().add(s);
 					return r;
 			} 
-			} catch (@SuppressWarnings("unused") ObjectNotFoundException e) {}
+			} catch (@SuppressWarnings("unused") ObjectNotFoundException e) {/*do nothing*/}
 			r.setNumFound(0);
 			return r;
 		}
@@ -1006,14 +1006,11 @@ public class NetworkDAO extends NdexDBDAO {
 	
 
 	private static UUID getUUIDFromQuery(String query) {
-		//Pattern p = Pattern.compile("^(uuid: *)?([0-9A-F]{8}-[0-9A-F]{4}-[1-5][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12})$", Pattern.CASE_INSENSITIVE);
 		 Matcher m = uuidSearchPattern.matcher(query);
 		 if( m.matches() ) {
 			String uuidStr = m.group(5);
 			if ( uuidStr == null) 
 				uuidStr = m.group(2);
-			//for ( int i = 0 ; i <= m.groupCount(); i++)
-			// System.out.println(m.group(i));
 			try {
 				return UUID.fromString(uuidStr);
 			} catch( @SuppressWarnings("unused") IllegalArgumentException e ) {
@@ -1055,7 +1052,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 		
 	
-	private String cvtUUIDListToStr (List<UUID> uuids) {
+	private static String cvtUUIDListToStr (List<UUID> uuids) {
 		if (uuids == null) return null;
 		
 		StringBuffer cnd = new StringBuffer() ;
@@ -1162,7 +1159,7 @@ public class NetworkDAO extends NdexDBDAO {
 		if ( proptiesStr != null) {
 			ObjectMapper mapper = new ObjectMapper(); 
 			
-			List<NdexPropertyValuePair> o = mapper.readValue(proptiesStr, new TypeReference<List<NdexPropertyValuePair>>() {}); 		
+			List<NdexPropertyValuePair> o = mapper.readValue(proptiesStr, new TypeReference<List<NdexPropertyValuePair>>() {/*do nothing*/}); 		
 			if( o != null)
 	         result.setProperties(o);  
 		}
