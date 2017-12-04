@@ -38,7 +38,6 @@ import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Task;
-import org.ndexbio.model.object.TaskType;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;

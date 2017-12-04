@@ -108,6 +108,7 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.FileFormat;
+import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -394,10 +395,11 @@ public class NetworkService extends NdexService {
 			daoNew.unlockNetwork(networkUUID);
             
 			// update the solr Index
-			if ( daoNew.hasSolrIndex(networkUUID)) {
+			NetworkIndexLevel idxLvl = daoNew.getIndexLevel(networkUUID);
+			if ( idxLvl != NetworkIndexLevel.NONE) {
 				daoNew.setFlag(networkUUID, "iscomplete", false);
 				daoNew.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl));
 			}	
    			return i;
 		} catch (Exception e) {
@@ -1304,11 +1306,11 @@ public class NetworkService extends NdexService {
 					networkDao.unlockNetwork(networkUUID);
 					
 					// update the solr Index
-					// update the solr Index
-					if ( networkDao.hasSolrIndex(networkUUID)) {
+					NetworkIndexLevel idxLvl = networkDao.getIndexLevel(networkUUID);
+					if ( idxLvl != NetworkIndexLevel.NONE) {
 						networkDao.setFlag(networkUUID, "iscomplete", false);
 						networkDao.commit();
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl));
 					}	
 					
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {

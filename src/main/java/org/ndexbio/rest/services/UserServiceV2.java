@@ -75,6 +75,7 @@ import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -549,18 +550,13 @@ public class UserServiceV2 extends NdexService {
 		if ( groupIdStr != null) {
 			UUID groupId = UUID.fromString(groupIdStr);
 
-			try (UserDAO dao = new UserDAO ()){
-				Map<String,String> result = new TreeMap<>();
+			try (UserDAO dao = new UserDAO()) {
+				Map<String, String> result = new TreeMap<>();
 				Permissions m = dao.getUserMembershipTypeOnGroup(userId, groupId);
-				
-		/*		if ( m==null)
-				   logger.info("[end: No membership found.]" );			
-				else { */
-				   result.put(groupId.toString(), m.toString());
-				//   logger.info("[end: Membership {} found.]", m.toString());
-		//		}
+
+				result.put(groupId.toString(), m.toString());
 				return result;
-			} 
+			}
 		}
 		
 		Permissions permission = null; // Permissions.MEMBER;
@@ -615,7 +611,6 @@ public class UserServiceV2 extends NdexService {
 		
 		try (UserDAO dao = new UserDAO ()) {
 			Map<String,String> members= dao.getUserNetworkPermissionMap(userId, permission, skipBlocks, blockSize, inclusive, directOnly);
-			logger.info("[end: Returned {} members ]", members.size());			
 			return members;
 		} 	
 	}
@@ -764,7 +759,6 @@ public class UserServiceV2 extends NdexService {
 					reqs= dao.getPendingNetworkAccessRequestByUserId(this.getLoggedInUserId(),0, -1);
 				}
 				
-				logger.info("[end: Returning {} requests]", reqs.size());
 				return reqs;
 
 			}
@@ -808,7 +802,6 @@ public class UserServiceV2 extends NdexService {
 					reqs= dao.getPendingGroupMembershipRequestByUserId(this.getLoggedInUserId(),0, -1);
 				}
 				
-				logger.info("[end: Returning {} requests]", reqs.size());
 				return reqs;
 
 			}
@@ -953,10 +946,11 @@ public class UserServiceV2 extends NdexService {
 					ndao.commit();
 					
 					// update the solr Index
-					if(ndao.hasSolrIndex(reqs.getDestinationUUID())) {
+					NetworkIndexLevel idxLvl = ndao.getIndexLevel(reqs.getDestinationUUID());
+					if(idxLvl != NetworkIndexLevel.NONE) {
 						ndao.setFlag(reqs.getDestinationUUID(), "iscomplete", false);
 						ndao.commit();
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),SolrIndexScope.global,false,null));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),SolrIndexScope.global,false,null,idxLvl));
 					}
 				}
 			} else {

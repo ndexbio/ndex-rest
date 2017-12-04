@@ -59,6 +59,7 @@ import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
@@ -187,7 +188,7 @@ public class AdminServiceV2 extends NdexService {
 				String key = dao.requestDOI(networkId, isCertified);
 				
 				dao.setFlag(networkId, "iscomplete", false);
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL));
 				
 				dao.commit();
 				

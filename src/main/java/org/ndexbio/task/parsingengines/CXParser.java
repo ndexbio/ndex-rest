@@ -30,23 +30,9 @@
  */
 package org.ndexbio.task.parsingengines;
 
-import java.io.FileInputStream;
-import java.util.List;
 import java.util.UUID;
 
-import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.postgresql.Helper;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.NdexProvenanceEventType;
-import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.SimplePropertyValuePair;
-import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.network.NetworkSummary;
-import org.ndexbio.model.tools.ProvenanceHelpers;
-import org.ndexbio.rest.Configuration;
 
 public class CXParser implements IParsingEngine {
 	

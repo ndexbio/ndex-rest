@@ -17,20 +17,19 @@ import java.util.UUID;
 
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
-import org.cxio.aspects.datamodels.NodeAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
 import org.cxio.aspects.datamodels.SubNetworkElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.SimplePropertyValuePair;
+import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.task.NdexServerQueue;
@@ -142,30 +141,25 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 				
 
-				try {
-					dao.unlockNetwork(networkUUID);
-		//			dao.commit();
-				} catch (SQLException e) {
-					dao.rollback();
-					dao.close();
-					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
-				}
+			try {
+				dao.unlockNetwork(networkUUID);
+				// dao.commit();
+			} catch (SQLException e) {
+				dao.rollback();
+				dao.close();
+				throw new NdexException("DB error when setting unlock flag: " + e.getMessage(), e);
+			}
 
-				if ( (aspectTable.containsKey(NetworkAttributesElement.ASPECT_NAME) || 
-						aspectTable.containsKey(NodesElement.ASPECT_NAME) ||
-						aspectTable.containsKey(NodeAttributesElement.ASPECT_NAME)||
-						aspectTable.containsKey(FunctionTermElement.ASPECT_NAME))) {
-					if (dao.hasSolrIndex(networkUUID))
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
-							SolrIndexScope.both,false,null));
-					else
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
-								SolrIndexScope.individual,false,null));
-					dao.setFlag(networkUUID, "iscomplete", false);
-				} else {
-					dao.setFlag(networkUUID, "iscomplete", true);
-				}
-				dao.commit();
+			NetworkIndexLevel indexLevel = dao.getIndexLevel(networkUUID);
+			if (indexLevel != NetworkIndexLevel.NONE)
+				NdexServerQueue.INSTANCE.addSystemTask(
+						new SolrTaskRebuildNetworkIdx(networkUUID, SolrIndexScope.both, false, null, indexLevel));
+			else
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
+						SolrIndexScope.individual, false, null, NetworkIndexLevel.NONE));
+			dao.setFlag(networkUUID, "iscomplete", false);
+
+			dao.commit();
 		  }
 		
 	}

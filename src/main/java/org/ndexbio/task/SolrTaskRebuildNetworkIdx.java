@@ -21,11 +21,10 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
+import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 
 public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
-
-//private static Logger logger = Logger.getLogger(CXNetworkLoadingTask.class.getName());
 	
 	private UUID networkId;
 	private SolrIndexScope idxScope;
@@ -35,47 +34,49 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
     public static final String AttrScope = "scope";
     public static final String AttrCreateOnly ="createOnly";
     private Set<String> indexedFields;
+    private NetworkIndexLevel indexLevel;
     
 	
-	public SolrTaskRebuildNetworkIdx (UUID networkUUID, SolrIndexScope scope, boolean createOnly, Set<String> indexedFields) {
+	public SolrTaskRebuildNetworkIdx (UUID networkUUID, SolrIndexScope scope, boolean createOnly, Set<String> indexedFields, NetworkIndexLevel level) {
 		super();
 		this.networkId = networkUUID;
 		this.idxScope = scope;
 		this.createOnly = createOnly;
 		this.indexedFields =indexedFields;
+		this.indexLevel = level;
 	}
 	
 	@Override
-	public void run() throws Exception { //throws NdexException, SolrServerException, IOException, SQLException  {
+	public void run() throws Exception { // throws NdexException, SolrServerException, IOException, SQLException {
 
 		try (NetworkDAO dao = new NetworkDAO()) {
 
-				NetworkSummary summary = dao.getNetworkSummaryById(networkId);
-				  if (summary == null)
-					  throw new NdexException ("Network "+ networkId + " not found in the server." );
-				  
-				  //drop the old ones.
-				  if ( !createOnly) {
-					  if ( idxScope != SolrIndexScope.individual) {
-							try (NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
-								globalIdx.deleteNetwork(networkId.toString());
-							}
-					  } 	  
-					  if ( idxScope != SolrIndexScope.global)
-						  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
-							  idx2.dropIndex();
-					  	  }
-				  }
+			NetworkSummary summary = dao.getNetworkSummaryById(networkId);
+			if (summary == null)
+				throw new NdexException("Network " + networkId + " not found in the server.");
 
-				  if ( this.idxScope != SolrIndexScope.global) {
-					  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
-						  idx2.createIndex(indexedFields);
-						  idx2.close();
-			  			}
-				  }
-				  
-				  if ( this.idxScope != SolrIndexScope.individual) {
-					  
+			// drop the old ones.
+			if (!createOnly) {
+				if (idxScope != SolrIndexScope.individual) {
+					try (NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
+						globalIdx.deleteNetwork(networkId.toString());
+					}
+				}
+				if (idxScope != SolrIndexScope.global)
+					try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+						idx2.dropIndex();
+					}
+			}
+
+			if (this.idxScope != SolrIndexScope.global) {
+				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+					idx2.createIndex(indexedFields);
+					idx2.close();
+				}
+			}
+
+			if (this.idxScope != SolrIndexScope.individual && indexLevel != NetworkIndexLevel.NONE) {
+
 				try (NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
 
 					// build the solr document obj
@@ -87,66 +88,70 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 							userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE),
 							grpMemberships.get(Permissions.READ), grpMemberships.get(Permissions.WRITE));
 
+					if (indexLevel == NetworkIndexLevel.META || indexLevel == NetworkIndexLevel.ALL) {
+						try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId,
+								NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class)) {
+							while (it.hasNext()) {
+								NetworkAttributesElement e = it.next();
+
+								List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
+								if (!indexWarnings.isEmpty())
+									for (String warning : indexWarnings)
+										System.err.println("Warning: " + warning);
+
+							}
+						}
+					}
+					
 					// process node attribute aspect and add to solr doc
+					if (indexLevel == NetworkIndexLevel.ALL) {
+						try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId,
+								FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
+							while (it.hasNext()) {
+								FunctionTermElement fun = it.next();
 
-					try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId,
-							NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class)) {
-						while (it.hasNext()) {
-							NetworkAttributesElement e = it.next();
+								globalIdx.addFunctionTermToIndex(fun);
 
-							List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
-							if (!indexWarnings.isEmpty())
-								for (String warning : indexWarnings)
-									System.err.println("Warning: " + warning);
+							}
+						}
 
+						try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkId,
+								NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
+							while (it.hasNext()) {
+								NodeAttributesElement e = it.next();
+								globalIdx.addCXNodeAttrToIndex(e);
+							}
+						}
+
+						try (AspectIterator<NodesElement> it = new AspectIterator<>(networkId, NodesElement.ASPECT_NAME,
+								NodesElement.class)) {
+							while (it.hasNext()) {
+								NodesElement e = it.next();
+								globalIdx.addCXNodeToIndex(e);
+							}
 						}
 					}
-
-					try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId,
-							FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
-						while (it.hasNext()) {
-							FunctionTermElement fun = it.next();
-
-							globalIdx.addFunctionTermToIndex(fun);
-
-						}
-					}
-
-					try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkId,
-							NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
-						while (it.hasNext()) {
-							NodeAttributesElement e = it.next();
-							globalIdx.addCXNodeAttrToIndex(e);
-						}
-					}
-
-					try (AspectIterator<NodesElement> it = new AspectIterator<>(networkId, NodesElement.ASPECT_NAME,
-							NodesElement.class)) {
-						while (it.hasNext()) {
-							NodesElement e = it.next();
-							globalIdx.addCXNodeToIndex(e);
-						}
-					}
-
+					
 					globalIdx.commit();
 				}
-				  }
-					
-				  try {
-						  dao.setFlag(this.networkId, "iscomplete", true);
-						  dao.commit();
-				  } catch (SQLException e) {
-						  throw new NdexException ("DB error when setting iscomplete flag: " + e.getMessage(), e);
-				  }	
-				  	
-			} catch (SQLException | IOException | NdexException | SolrServerException e1) {
-				e1.printStackTrace();
-				try (NetworkDAO dao = new NetworkDAO()) {
-					dao.setErrorMessage(networkId, "Failed to create Index on network. Index type: " + this.idxScope + ". Cause: " + e1.getMessage());
-					dao.commit();
-				}
-				throw e1;
-			}	 
+			}
+
+			try {
+				dao.setFlag(this.networkId, "iscomplete", true);
+				dao.commit();
+			} catch (SQLException e) {
+				throw new NdexException("DB error when setting iscomplete flag: " + e.getMessage(), e);
+			}
+
+		} catch (SQLException | IOException | NdexException | SolrServerException e1) {
+			e1.printStackTrace();
+			try (NetworkDAO dao = new NetworkDAO()) {
+				dao.setErrorMessage(networkId, "Failed to create Index on network. Index type: " + this.idxScope
+						+ ". Cause: " + e1.getMessage());
+				dao.commit();
+			}
+			throw e1;
+		}
 
 	}
 	
@@ -175,6 +180,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		t.getAttributes().put(AttrScope, this.idxScope);
 		t.getAttributes().put(AttrCreateOnly, Boolean.valueOf(this.createOnly));
 		t.setAttribute("fields", indexedFields);
+		t.setAttribute("indexLevel", this.indexLevel);
 		return t;
 	}
 

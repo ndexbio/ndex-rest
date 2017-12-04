@@ -80,6 +80,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -110,7 +111,7 @@ public class NetworkDAO extends NdexDBDAO {
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
 	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 			+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,n.subnetworkids,n.solr_indexed, n.iscomplete, n.ndexdoi, n.certified "; 
+			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified "; 
 	
 	public NetworkDAO () throws  SQLException {
 	    super();
@@ -562,9 +563,38 @@ public class NetworkDAO extends NdexDBDAO {
 		
 	}
 	
+	@Deprecated
 	public boolean hasSolrIndex(UUID networkID) throws SQLException, ObjectNotFoundException {
 		return getBooleanFlag(networkID, "solr_indexed");
 	}	
+	
+	public NetworkIndexLevel getIndexLevel (UUID networkId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select solr_idx_lvl from network n where n.\"UUID\" = ? and n.is_deleted=false ";
+		
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try ( ResultSet rs = pst.executeQuery()) {
+				if( rs.next() ) {
+					return NetworkIndexLevel.valueOf(rs.getString(1));
+				}
+				throw new ObjectNotFoundException("Network", networkId );
+			}
+		}
+	}
+	
+	public void setIndexLevel(UUID networkId, NetworkIndexLevel lvl) throws SQLException, NdexException {
+		String sqlStr = "update network set solr_idx_lvl =? where \"UUID\" = ? and is_deleted=false and readonly=false";
+		
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(2, networkId);
+			pst.setString(1, lvl.toString());
+			int cnt = pst.executeUpdate();
+			if ( cnt !=1) {
+				throw new NdexException ("Failed to Update network index level in db. Reason could be invalid UUID or the network is readonly.");
+			}
+		}
+	}
+	
 	
 	public boolean isAdmin(UUID networkID, UUID userId) throws SQLException {
 		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and n.owneruuid= ?";
@@ -1183,7 +1213,7 @@ public class NetworkDAO extends NdexDBDAO {
 			result.setSubnetworkIds(new HashSet<> (Arrays.asList(subNetIds)));
 		}
 		
-		result.setIndexed(rs.getBoolean(19));
+		result.setIndexLevel(NetworkIndexLevel.valueOf(rs.getString(19)));
 		result.setCompleted(rs.getBoolean(20));
 		result.setDoi(rs.getString(21));
 		result.setIsCertified(rs.getBoolean(22));
@@ -1767,7 +1797,7 @@ public class NetworkDAO extends NdexDBDAO {
 				+ " from network n where n.owneruuid = ? and n.is_deleted= false " 
 				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_indexed, n.iscomplete, n.ndexdoi, n.certified "
+				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified "
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? ) k order by k.modification_time desc"; 
 
 		if ( offset >=0 && limit >0) {
@@ -1902,7 +1932,7 @@ public class NetworkDAO extends NdexDBDAO {
 		setFlag(networkId, "certified", isCertified);
 		if ( isCertified) {
 			updateNetworkVisibility(networkId, VisibilityType.PUBLIC, true);
-			setFlag(networkId, "solr_indexed",true);
+			setIndexLevel(networkId, NetworkIndexLevel.ALL);
 		}	
 		return accessKey;
 	}
