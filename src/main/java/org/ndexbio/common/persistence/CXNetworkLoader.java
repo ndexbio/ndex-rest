@@ -557,7 +557,7 @@ public class CXNetworkLoader implements AutoCloseable {
 						  e.setElementCount(0L);
 					  else {
 						  warnings.add("ElementCount in Metadata of aspect " + e.getName() + " is set to " + w.getElementCount() +" by NDEx server.");
-						  e.setElementCount(w.getElementCount());
+						  e.setElementCount(Long.valueOf(w.getElementCount()));
 					  }
 				  } 
 					  
@@ -569,7 +569,6 @@ public class CXNetworkLoader implements AutoCloseable {
 						  CXAspectWriter w = this.aspectTable.get(e.getName());
 						  if (w == null)  { // no element found, remove the metadatEntry
 							    metadata.remove(e.getName());
-							    warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because the element count is 0.");
 						  } else  // maybe this should be raised as an error?
 							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
 								  ", but " + w.getElementCount() + " was received in CX.");

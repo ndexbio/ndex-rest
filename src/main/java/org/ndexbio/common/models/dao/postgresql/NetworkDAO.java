@@ -583,14 +583,14 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public void setIndexLevel(UUID networkId, NetworkIndexLevel lvl) throws SQLException, NdexException {
-		String sqlStr = "update network set solr_idx_lvl =? where \"UUID\" = ? and is_deleted=false and readonly=false";
+		String sqlStr = "update network set solr_idx_lvl =? where \"UUID\" = ? and is_deleted=false";
 		
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(2, networkId);
 			pst.setString(1, lvl.toString());
 			int cnt = pst.executeUpdate();
 			if ( cnt !=1) {
-				throw new NdexException ("Failed to Update network index level in db. Reason could be invalid UUID or the network is readonly.");
+				throw new NdexException ("Failed to Update network index level in db. Invalid network UUID.");
 			}
 		}
 	}

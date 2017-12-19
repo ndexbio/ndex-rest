@@ -124,6 +124,7 @@ import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.tools.ProvenanceHelpers;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrIndexScope;
@@ -139,6 +140,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 public class NetworkServiceV2 extends NdexService {
 	
 	static Logger logger = LoggerFactory.getLogger(NetworkService.class);
+	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 	
 	static private final String readOnlyParameter = "readOnly";
 
@@ -1913,6 +1915,12 @@ public class NetworkServiceV2 extends NdexService {
 			final Map<String,Object> parameters)
 
 			throws IllegalArgumentException, NdexException, SQLException, IOException {
+		
+			accLogger.info("[data]\t[" + parameters.entrySet()
+	        .stream()
+	        .map(entry -> entry.getKey() + ":" + entry.getValue()).reduce(null, ((r,e) -> {String rr = r==null? e:r+"," +e; return rr;}))
+					 + "]" );		
+
 		
 			try (NetworkDAO networkDao = new NetworkDAO()) {
 				UUID networkId = UUID.fromString(networkIdStr);

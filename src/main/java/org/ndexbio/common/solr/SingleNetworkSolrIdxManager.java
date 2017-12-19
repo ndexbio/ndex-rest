@@ -48,9 +48,11 @@ import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
+import org.apache.solr.client.solrj.request.ConfigSetAdminRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.request.schema.SchemaRequest;
 import org.apache.solr.client.solrj.response.CollectionAdminResponse;
+import org.apache.solr.client.solrj.response.ConfigSetAdminResponse;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.schema.SchemaResponse;
@@ -82,7 +84,6 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private static final String NAME = "nodeName";
 	private static final String REPRESENTS = "represents";
 	private static final String ALIAS= "alias";
-//	private static final String RELATEDTO = "relatedTo";
 		
 	public SingleNetworkSolrIdxManager(String networkUUID) {
 		collectionName = networkUUID;
@@ -108,6 +109,72 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	}
 	
 	public void createIndex(Set<String> extraIndexFields) throws SolrServerException, IOException, NdexException {
+		
+		if ( extraIndexFields == null) {
+			 createDefaultIndex();
+			 return;
+		}
+		
+		//create a configSet from template first.
+		ConfigSetAdminRequest.Create confSetCreator = new ConfigSetAdminRequest.Create();
+		confSetCreator.setBaseConfigSetName("ndex-nodes-template");
+		confSetCreator.setConfigSetName(collectionName);
+		
+		ConfigSetAdminResponse cr = confSetCreator.process(client);
+		
+		if ( cr.getStatus() != 0 ) {
+			throw new NdexException("Failed to create Solr ConfigSet " + collectionName);
+		}
+		
+		//CollectionAdminRequest.Create creator = CollectionAdminRequest.createCollection(collectionName,"ndex-nodes",1 , 1); 
+		CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
+		creator.setCoreName(collectionName);
+		creator.setConfigSet(
+				collectionName); 
+		creator.setIsLoadOnStartup(Boolean.FALSE);
+		creator.setIsTransient(Boolean.TRUE); 
+		
+	//	"data_driven_schema_configs");
+		CoreAdminResponse foo = creator.process(client);	
+	
+		if ( foo.getStatus() != 0 ) {
+			throw new NdexException ("Failed to create solrIndex for network " + collectionName + ". Error: " + foo.getResponseHeader().toString());
+		}
+		
+		client.setBaseURL(solrUrl + "/" + collectionName);
+
+		//extend the schema
+	/*	if  ( extraIndexFields !=null ) {
+			for (String fieldName: extraIndexFields ) {
+				 Map<String, Object> fieldAttributes = new LinkedHashMap<>();
+				 fieldAttributes.put("name", fieldName);
+				 fieldAttributes.put("type", "text_ws");
+				 fieldAttributes.put("stored", false);
+				 fieldAttributes.put("required", false);
+				 SchemaRequest.AddField addFieldUpdateSchemaRequest = new SchemaRequest.AddField(fieldAttributes);
+				 SchemaResponse.UpdateResponse addFieldResponse = addFieldUpdateSchemaRequest.process(client);
+				 System.out.println(addFieldResponse.getStatus());
+			}
+		}
+		
+		 SchemaRequest.Fields fieldsSchemaRequest = new SchemaRequest.Fields();
+		 SchemaResponse.FieldsResponse currentFieldsResponse = fieldsSchemaRequest.process(client);
+		 List<Map<String, Object>> currentFields = currentFieldsResponse.getFields();
+		 System.out.println(currentFields);
+	*/	
+		counter = 0;
+		docs = new ArrayList<>(batchSize);
+			
+		Map<Long,NodeIndexEntry> tab = createIndexDocs();
+		for ( NodeIndexEntry e : tab.values()) {
+			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
+		}
+		
+		commit();
+	}
+	
+	
+	private void createDefaultIndex() throws SolrServerException, IOException, NdexException {
 		//CollectionAdminRequest.Create creator = CollectionAdminRequest.createCollection(collectionName,"ndex-nodes",1 , 1); 
 		CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
 		creator.setCoreName(collectionName);
@@ -154,6 +221,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 		commit();
 	}
+	
 	
 	public void dropIndex() throws IOException, SolrServerException, NdexException {
 		try {
