@@ -213,13 +213,13 @@ public class CXNetwork {
 		cxwtr.endAspectFragment();
     }
     
-    
+   /* 
     private MetaDataCollection computeMetadatqCollection() {
     	MetaDataCollection mdc = new MetaDataCollection();
     	
     	
     	return mdc;
-    }
+    } */
 
 	public void write(OutputStream out) throws IOException {
 		
