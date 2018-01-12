@@ -47,7 +47,7 @@ def load_log_file_to_db (file_name, holder):
 
 
     # Define our connection string
-    conn_string = "host='52.43.75.12' port='5432' dbname='xxxx' user='xxxx' password='xxx'"
+    conn_string = "host='xxx' port='5432' dbname='xxxx' user='xxxx' password='xxx'"
 
     with open(file_name) as fp:
         line = fp.readline()
