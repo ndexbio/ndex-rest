@@ -537,7 +537,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  //Remove the NdexNetworkStatus metadata if it exists
 			  metadata.remove(NdexNetworkStatus.ASPECT_NAME);
 			  
-			  Set<Long> consistencyGrpIds = new TreeSet<>();
+	//		  Set<Long> consistencyGrpIds = new TreeSet<>();
 			  
 			  for ( MetaDataElement e: metadata.toCollection()) {
 
@@ -551,12 +551,12 @@ public class CXNetworkLoader implements AutoCloseable {
 				  //check if elementCount is missing in metadata
 				  Long cntObj = e.getElementCount();
 				  if ( cntObj == null) {
-					  warnings.add("ElementCount missing in Metadata of aspect " + e.getName());
+//					  warnings.add("ElementCount missing in Metadata of aspect " + e.getName());
 					  CXAspectWriter w = this.aspectTable.get(e.getName());
 					  if ( w == null)
 						  e.setElementCount(0L);
 					  else {
-						  warnings.add("ElementCount in Metadata of aspect " + e.getName() + " is set to " + w.getElementCount() +" by NDEx server.");
+//						  warnings.add("ElementCount in Metadata of aspect " + e.getName() + " is set to " + w.getElementCount() +" by NDEx server.");
 						  e.setElementCount(Long.valueOf(w.getElementCount()));
 					  }
 				  } 
@@ -580,17 +580,17 @@ public class CXNetworkLoader implements AutoCloseable {
 						  }
 						  if (actualCount == 0) {
 							  metadata.remove(e.getName());
-							  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because no element was found in the CX document.");
+						//	  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because no element was found in the CX document.");
 						  }
 					  }
 				  }
 				  
 				  //check consistencyGrp 
-				  Long cGrpIds = e.getConsistencyGroup();
+				/*  Long cGrpIds = e.getConsistencyGroup();
 				  if ( cGrpIds == null) 
 					  warnings.add("Aspect " + e.getName() + " doesn't have consistencyGroupId defined in metadata.");
 				  else
-				     consistencyGrpIds.add(cGrpIds);
+				     consistencyGrpIds.add(cGrpIds); */
 			  }
 			  
 			  // check if all the aspects has metadata
@@ -621,9 +621,9 @@ public class CXNetworkLoader implements AutoCloseable {
 			  if ( errMsg !=null)
 				  warnings.add(errMsg);
 			  
-			  if (consistencyGrpIds.size()!=1) {
+			/*  if (consistencyGrpIds.size()!=1) {
 				  warnings.add("Unmatching consisencyGroupIds found in Metadata: " + Arrays.toString(consistencyGrpIds.toArray()));
-			  }
+			  } */
 			  			  
 		  } else 
 			  throw new NdexException ("No CX metadata found in this CX stream.");
