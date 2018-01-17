@@ -165,8 +165,8 @@ public class NetworkDAO extends NdexDBDAO {
 	public void setNetworkFileSize(UUID networkID, long fileSize) throws SQLException, NdexException {
 		String sqlStr = "update network set cx_file_size =? where \"UUID\" = ? and is_deleted=false and readonly=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setObject(1, networkID);
-			pst.setLong(2, fileSize);
+			pst.setObject(2, networkID);
+			pst.setLong(1, fileSize);
 			int cnt = pst.executeUpdate();
 			if ( cnt !=1) {
 				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID, the network is Locked or the network is readonly.");

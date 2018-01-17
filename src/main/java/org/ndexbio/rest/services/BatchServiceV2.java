@@ -74,6 +74,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Path("/v2/batch")
 public class BatchServiceV2 extends NdexService {
@@ -204,7 +205,10 @@ public class BatchServiceV2 extends NdexService {
 
 			throws IllegalArgumentException, NdexException, SQLException, IOException {
 		
-		    logger.info("exporting networks");
+		    
+    			String rr = (new ObjectMapper()).writeValueAsString(exportRequest.getNetworkIds());
+			accLogger.info("[data]\t[format:" +exportRequest.getExportFormat() + "][NetworkIds:"+ rr+ "]" );
+
 		    ImporterExporterEntry entry = Configuration.getInstance().getImpExpEntry(exportRequest.getExportFormat());
 		    if ( entry == null || entry.getExporterCmd() == null || 
 		    		entry.getExporterCmd().isEmpty())
