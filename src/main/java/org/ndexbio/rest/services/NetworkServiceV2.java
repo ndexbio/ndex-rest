@@ -571,14 +571,16 @@ public class NetworkServiceV2 extends NdexService {
 		//	setZipFlag();
 			logger.info("[end: Return network {}]", networkId);
 			ResponseBuilder r = Response.ok();
-			if ( isDownload) {
-			  	if ( title == null || title.length() < 1) {
-		    		title = networkId;
-		    	}
-		    	title.replace('"', '_');
-		    	r.header("Content-Disposition",  "attachment; filename=\"" + title + ".cx\"");
-			}	
-			return 	r.type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+			if (isDownload) {
+				if (title == null || title.length() < 1) {
+					title = networkId;
+				}
+				title.replace('"', '_');
+				r.header("Content-Disposition", "attachment; filename=\"" + title + ".cx\"");
+				r.header("Access-Control-Expose-Headers", "Content-Disposition");
+			}
+			return 	r.type(isDownload ? MediaType.APPLICATION_OCTET_STREAM_TYPE : MediaType.APPLICATION_JSON_TYPE)
+					.entity(in).build();
 		} catch (IOException e) {
 			logger.error("[end: Ndex server can't find file: {}]", e.getMessage());
 			throw new NdexException ("Ndex server can't find file: " + e.getMessage());
