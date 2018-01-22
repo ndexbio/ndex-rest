@@ -2027,7 +2027,8 @@ public class NetworkServiceV2 extends NdexService {
 		   
 		   UUID uuid = storeRawNetwork ( input);
 		   String uuidStr = uuid.toString();
-		   
+		   accLogger.info("[data]\t[uuid:" +uuidStr + "]" );
+	   
 		   String urlStr = Configuration.getInstance().getHostURI()  + 
 		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
 		   ProvenanceEntity entity = new ProvenanceEntity();
@@ -2053,7 +2054,7 @@ public class NetworkServiceV2 extends NdexService {
 	       
 	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false, visibility, extraIndexOnNodes));
 	       
-		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
+//		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 		   
 		   URI l = new URI (urlStr);
 

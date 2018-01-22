@@ -113,6 +113,7 @@ import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NetworkExportTask;
@@ -129,6 +130,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 public class NetworkService extends NdexService {
 	
 	static Logger logger = LoggerFactory.getLogger(NetworkService.class);
+	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 	
 	static private final String readOnlyParameter = "readOnly";
 
@@ -1904,6 +1906,9 @@ public class NetworkService extends NdexService {
 		   UUID uuid = storeRawNetwork ( input);
 		   String uuidStr = uuid.toString();
 		   
+			accLogger.info("[data]\t[uuid:" +uuidStr + "]" );
+
+		   
 		   String urlStr = Configuration.getInstance().getHostURI()  + 
 		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
 
@@ -1934,7 +1939,7 @@ public class NetworkService extends NdexService {
 	       
 	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false, null,null));
 	       
-		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
+	//	   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 		   //return "\"" + uuidStr + "\"";
 		   return  uuidStr ;
 
