@@ -93,7 +93,7 @@ public class TaskService extends NdexService
      * refactored for non-transactional database operation
      */
 
-    @POST
+ /*   @POST
     @Produces("application/json")
 	@ApiDoc("Create a new task owned by the authenticated user based on the supplied JSON task object.")
     public UUID createTask(final Task newTask) throws IllegalArgumentException, NdexException
@@ -124,7 +124,7 @@ public class TaskService extends NdexService
         }
     }
     
-
+*/
 
     /**************************************************************************
     * Deletes a task. 

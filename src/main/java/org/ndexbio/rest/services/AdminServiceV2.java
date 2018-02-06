@@ -145,8 +145,6 @@ public class AdminServiceV2 extends NdexService {
 			}
 			
 			status.setProperties(props);
-	//		logger.info("[end: Got status]");
-
 			
 			return status;
 		} 

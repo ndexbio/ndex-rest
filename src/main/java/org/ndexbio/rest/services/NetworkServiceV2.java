@@ -1948,6 +1948,7 @@ public class NetworkServiceV2 extends NdexService {
 						networkDao.updateNetworkVisibility(networkId, visType, false);
 						if ( !parameters.containsKey("index_level")) {
 							NetworkIndexLevel lvl = networkDao.getIndexLevel(networkId);
+							networkDao.commit();
 							if ( lvl != NetworkIndexLevel.NONE) {
 								NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl));
 							} 

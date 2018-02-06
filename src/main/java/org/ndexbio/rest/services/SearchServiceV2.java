@@ -65,6 +65,7 @@ import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -281,6 +282,9 @@ public class SearchServiceV2 extends NdexService {
 		
 		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
+		if ( queryParameters.getSearchDepth() <1) {
+			throw new BadRequestException("Query depth should be a positive integer.");
+		}
 		UUID networkId = UUID.fromString(networkIdStr);
 
 		try (NetworkDAO dao = new NetworkDAO())  {
