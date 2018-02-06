@@ -186,9 +186,9 @@ public class AdminServiceV2 extends NdexService {
 				String key = dao.requestDOI(networkId, isCertified);
 				
 				dao.setFlag(networkId, "iscomplete", false);
+				dao.commit();
 				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL));
 				
-				dao.commit();
 				
 				String name = dao.getNetworkName(networkId);
 				String url = Configuration.getInstance().getHostURI() + "/#/network/"+ networkId ;
