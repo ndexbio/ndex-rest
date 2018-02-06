@@ -562,11 +562,12 @@ public class NetworkDAO extends NdexDBDAO {
 		return getBooleanFlag(networkID, "show_in_homepage");
 		
 	}
-	
+
+	/*
 	@Deprecated
-	public boolean hasSolrIndex(UUID networkID) throws SQLException, ObjectNotFoundException {
+	private boolean hasSolrIndex(UUID networkID) throws SQLException, ObjectNotFoundException {
 		return getBooleanFlag(networkID, "solr_indexed");
-	}	
+	} */	
 	
 	public NetworkIndexLevel getIndexLevel (UUID networkId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select solr_idx_lvl from network n where n.\"UUID\" = ? and n.is_deleted=false ";
