@@ -66,7 +66,7 @@ public class CXNetworkSampleGenerator {
 		result.setConsistencyGroup(old !=null? old.getConsistencyGroup() : Long.valueOf(1l));
 		result.setName(aspectName);
 		result.setVersion(old!=null? old.getVersion() : "1.0");
-		result.setLastUpdate(currentTime);
+//		result.setLastUpdate(currentTime);
 		return result;
 	}
 	

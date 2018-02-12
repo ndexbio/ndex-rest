@@ -500,7 +500,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  if( metadata == null) {
 				  metadata = postmetadata;
 			  } else {
-				  for (MetaDataElement e : postmetadata.toCollection()) {
+				  for (MetaDataElement e : postmetadata) {
 					  Long cnt = e.getIdCounter();
 					  if ( cnt !=null) {
 						 metadata.setIdCounter(e.getName(),cnt);
@@ -539,7 +539,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 	//		  Set<Long> consistencyGrpIds = new TreeSet<>();
 			  
-			  for ( MetaDataElement e: metadata.toCollection()) {
+			  for ( MetaDataElement e: metadata) {
 
 				  // check if idCounter is defined in certain espects.
 				  if (  (e.getName().equals(NodesElement.ASPECT_NAME) || e.getName().equals(EdgesElement.ASPECT_NAME) || 

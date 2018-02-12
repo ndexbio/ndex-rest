@@ -737,7 +737,7 @@ public class NetworkDAO extends NdexDBDAO {
 				e.setElementCount(1L);
 				metadata.addAt(0, e);
 			}		
-			metadata.setLastUpdate(Provenance.ASPECT_NAME, Calendar.getInstance().getTimeInMillis());
+//			metadata.setLastUpdate(Provenance.ASPECT_NAME, Calendar.getInstance().getTimeInMillis());
 		}
 			
 		// get the network document
