@@ -274,9 +274,15 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         UriInfo uriInfo = requestContext.getUriInfo();
         
         String userAgent = httpRequest.getHeader("User-Agent");
+        String additionalUserAgent = httpRequest.getHeader("NDEx-application");
+
+        if ( userAgent == null)
+        	 	userAgent = "";
+        if ( additionalUserAgent != null)
+        		userAgent += " " + additionalUserAgent;
                 
         String result =  "[" + requestContext.getMethod() + "]\t["+ (authUser == null? "" :(authorizationType + ":" +authUser.getUserName())) + "]\t["
-        		+ clientIPs.toString() + "]\t[" + (userAgent == null? "" : userAgent )+ "]\t[" + method.getName() + "]\t[" + 
+        		+ clientIPs.toString() + "]\t[" + userAgent + "]\t[" + method.getName() + "]\t[" + 
        
         uriInfo.getPath(true)  + "]\t" ;
         

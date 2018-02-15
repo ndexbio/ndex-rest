@@ -91,7 +91,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		client = new HttpSolrClient.Builder(solrUrl).build();
 	}
 	
-	public SolrDocumentList getNodeIdsByQuery(String query, int limit) throws SolrServerException, IOException {
+	public SolrDocumentList getNodeIdsByQuery(String query, int limit) throws SolrServerException, IOException, NdexException {
 		client.setBaseURL(solrUrl+ "/" + collectionName);
 
 		SolrQuery solrQuery = new SolrQuery();
@@ -100,12 +100,14 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		solrQuery.setStart(0);
 		if (limit >0)
 			solrQuery.setRows(limit);
-		QueryResponse rsp = client.query(solrQuery);
 		
-		SolrDocumentList  dds = rsp.getResults();
-		
-		return dds;
-		
+		try {
+			QueryResponse rsp = client.query(solrQuery);
+			SolrDocumentList dds = rsp.getResults();
+			return dds;
+		} catch (HttpSolrClient.RemoteSolrException e) {
+			throw NetworkGlobalIndexManager.convertException(e, collectionName);
+		}
 	}
 	
 	public void createIndex(Set<String> extraIndexFields) throws SolrServerException, IOException, NdexException {

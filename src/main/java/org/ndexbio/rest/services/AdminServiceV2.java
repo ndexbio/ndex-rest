@@ -246,7 +246,7 @@ public class AdminServiceV2 extends NdexService {
 		if (null != jettyServer) {			
 			stopJettyServer(jettyServer);			
 			// the following log entry will not log since the server will be down; but let's still have it
-			logger.info("[end: shutdown server]");			
+			logger.info("[end: shutdown server]");
 			System.exit(0);
 		}
 	}

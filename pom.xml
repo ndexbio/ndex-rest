@@ -383,6 +383,6 @@
 		<jettyVersion>9.3.18.v20170406</jettyVersion>
 		<resteasyVersion>3.0.22.Final</resteasyVersion>
 		<log4jVersion>2.8.2</log4jVersion>
-		<jacksonVersion>2.8.8</jacksonVersion>
+		<jacksonVersion>2.9.4</jacksonVersion>
 	</properties>
 </project>

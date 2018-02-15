@@ -192,10 +192,13 @@ public class GroupDAO extends NdexDBDAO {
 	    *            amount of blocks to skip
 	    * @param blockSize
 	    * 			the size of a block
-	 * @throws Exception 
+	 * @throws IOException 
+	 * @throws NdexException 
+	 * @throws SolrServerException 
+	 * @throws SQLException 
 	    **************************************************************************/
-	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery, int skipBlocks, int blockSize) 
-			throws Exception {
+	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery, int skipBlocks, int blockSize) throws IOException, SolrServerException, NdexException, SQLException 
+			 {
 		
 		Preconditions.checkArgument(null != simpleQuery, "Search parameters are required");
 

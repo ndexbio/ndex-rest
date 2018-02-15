@@ -104,7 +104,7 @@ public class UserIndexManager implements AutoCloseable{
 	}
 	
 	public SolrDocumentList searchUsers (String searchTerms, int limit, int offset) 
-			throws SolrServerException, IOException {
+			throws SolrServerException, IOException, NdexException {
 		client.setBaseURL(solrUrl+ "/" + coreName);
 
 		SolrQuery solrQuery = new SolrQuery();	
@@ -119,12 +119,15 @@ public class UserIndexManager implements AutoCloseable{
 		
 	//	solrQuery.setFilterQueries(resultFilter) ;
 		
-		QueryResponse rsp = client.query(solrQuery);		
-			
-		SolrDocumentList  dds = rsp.getResults();
-		
-		return dds;	
-		
+		try {
+			QueryResponse rsp = client.query(solrQuery);
+
+			SolrDocumentList dds = rsp.getResults();
+
+			return dds;
+		} catch (HttpSolrClient.RemoteSolrException e) {
+			throw NetworkGlobalIndexManager.convertException(e, coreName);
+		}
 	}
 	
 	

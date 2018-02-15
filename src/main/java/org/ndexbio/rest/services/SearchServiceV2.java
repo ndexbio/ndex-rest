@@ -152,7 +152,10 @@ public class SearchServiceV2 extends NdexService {
 	 * 
 	 * @params searchParameters The search parameters.
 	 * @return Groups that match the search criteria.
-	 * @throws Exception 
+	 * @throws SQLException 
+	 * @throws NdexException 
+	 * @throws SolrServerException 
+	 * @throws IOException 
 	 **************************************************************************/
 	@POST
 	@PermitAll
@@ -162,8 +165,7 @@ public class SearchServiceV2 extends NdexService {
 	@ApiDoc("Returns a list of groups found based on the searchOperator and the POSTed searchParameters.")
 	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
-			@DefaultValue("100") @QueryParam("size") int blockSize)
-			throws Exception {
+			@DefaultValue("100") @QueryParam("size") int blockSize) throws SQLException, IOException, SolrServerException, NdexException  {
 
 	//	logger.info("[start: Search group \"{}\"]", simpleQuery.getSearchString());
 		accLogger.info("[data]\t[query:" +simpleQuery.getSearchString() + "]" );
@@ -205,11 +207,13 @@ public class SearchServiceV2 extends NdexService {
 	//		logger.info("[end: Retrieved {} NetworkSummary objects]", result.getNetworks().size());		
 			return result;
 
-        } catch (Exception e) {
+        } catch (NdexException e1) {
+        		throw e1;
+		} catch (Exception e) {
 		//	logger.error("[end: Retrieving NetworkSummary objects using query \"{}\". Exception caught:]{}", 
 		//			query.getSearchString(), e);	
 			e.printStackTrace();
-        	throw new NdexException(e.getMessage());
+        		throw new NdexException(e.getMessage());
         }
 	}
 

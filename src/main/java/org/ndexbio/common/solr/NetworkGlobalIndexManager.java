@@ -40,6 +40,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrQuery.ORDER;
@@ -60,6 +62,7 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.util.TermUtilities;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.cx.FunctionTermElement;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -169,7 +172,7 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 	
 	public SolrDocumentList searchForNetworks (String searchTerms, String userAccount, int limit, int offset, String adminedBy, Permissions permission,
 			   List<UUID> groupUUIDs) 
-			throws SolrServerException, IOException {
+			throws  IOException, SolrServerException, NdexException {
 		client.setBaseURL(solrUrl+ "/" + coreName);
 
 		SolrQuery solrQuery = new SolrQuery();
@@ -234,13 +237,29 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		
 		solrQuery.setFilterQueries(resultFilter) ;
 		
+		try {
 			QueryResponse rsp = client.query(solrQuery, METHOD.POST);		
 			
 			SolrDocumentList  dds = rsp.getResults();
-			return dds;	
+			return dds;
+		} catch (HttpSolrClient.RemoteSolrException e) {
+			throw convertException(e, "ndex-networks");
+		}
 		
 	}
 	
+	protected static NdexException convertException(HttpSolrClient.RemoteSolrException e, String core_name) {
+		if (e.code() == 400) {
+			String err = e.getMessage();
+			Pattern p = Pattern.compile("Error from server at .*/" + core_name +": (.*)");
+			Matcher m = p.matcher(e.getMessage());
+			if ( m.matches()) {
+				err = m.group(1);
+			} 
+			return new BadRequestException(err);
+		}	
+		return new NdexException("Error from NDEx Solr server: " + e.getMessage());
+	}
 	
 /*	public void createIndexDocFromSummary(NetworkSummary summary) throws SolrServerException, IOException, NdexException, SQLException {
 		client.setBaseURL(solrUrl + "/" + coreName);

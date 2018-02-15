@@ -109,27 +109,27 @@ public class GroupServiceV2 extends NdexService {
 	public Response createGroup(final Group newGroup)
 			throws  Exception {
 	
-		try (GroupDAO dao = new GroupDAO()){
-		//	newGroup.setGroupName(newGroup.getGroupName().toLowerCase());
+		try (GroupDAO dao = new GroupDAO()) {
+			// newGroup.setGroupName(newGroup.getGroupName().toLowerCase());
 			Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId());
 			try (GroupIndexManager m = new GroupIndexManager()) {
 				m.addGroup(group.getExternalId().toString(), group.getGroupName(), group.getDescription());
 			}
-			dao.commit();	
-			
-			URI l = new URI (Configuration.getInstance().getHostURI()  + 
-			            Configuration.getInstance().getRestAPIPrefix()+"/group/"+ group.getExternalId());
+			dao.commit();
+
+			URI l = new URI(Configuration.getInstance().getHostURI() + Configuration.getInstance().getRestAPIPrefix()
+					+ "/group/" + group.getExternalId());
 
 			return Response.created(l).entity(l).build();
-			//return group;
+			// return group;
 		} catch (URISyntaxException e) {
 			throw new NdexException("Server Error, can create URL for the new resource: " + e.getMessage(), e);
 		} catch (SolrServerException e) {
-			throw new NdexException("Failed to create Solr Index for new group: " + e.getMessage(),e );
+			throw new NdexException("Failed to create Solr Index for new group: " + e.getMessage(), e);
 		} catch (IOException e) {
-			throw new NdexException("Failed to create group: " + e.getMessage(),e );
+			throw new NdexException("Failed to create group: " + e.getMessage(), e);
 
-		} 
+		}
 	}
 
 

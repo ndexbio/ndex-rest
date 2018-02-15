@@ -96,7 +96,7 @@ public class GroupIndexManager implements AutoCloseable{
 	}
 	
 	public SolrDocumentList searchGroups (String searchTerms, int limit, int offset) 
-			throws SolrServerException, IOException {
+			throws SolrServerException, IOException, NdexException {
 		client.setBaseURL(solrUrl+ "/" + coreName);
 
 		SolrQuery solrQuery = new SolrQuery();	
@@ -109,11 +109,14 @@ public class GroupIndexManager implements AutoCloseable{
 		if ( limit >0 )
 			solrQuery.setRows(limit);
 				
-		QueryResponse rsp = client.query(solrQuery);		
 			
-		SolrDocumentList  dds = rsp.getResults();
-		
-		return dds;	
+		try {
+			QueryResponse rsp = client.query(solrQuery);		
+			SolrDocumentList dds = rsp.getResults();
+			return dds;
+		} catch (HttpSolrClient.RemoteSolrException e) {
+			throw NetworkGlobalIndexManager.convertException(e, coreName);
+		}
 		
 	}
 	
@@ -170,7 +173,7 @@ public class GroupIndexManager implements AutoCloseable{
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void close() throws IOException  {
 		this.client.close();
 	}
 	
