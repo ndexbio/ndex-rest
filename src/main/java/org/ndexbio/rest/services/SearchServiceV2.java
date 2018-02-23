@@ -274,10 +274,7 @@ public class SearchServiceV2 extends NdexService {
 	@POST
 	@Path("/network/{networkId}/query")
 	@Produces("application/json")
-    @ApiDoc("Retrieves a 'neighborhood' subnetwork of the network specified by ‘networkId’. The query finds " +
-            "the subnetwork by a traversal of the network starting with nodes associated with identifiers " +
-            "specified in a POSTed JSON query object. " +
-            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#queryNetwork\">here</a>.")
+
 	public Response queryNetworkAsCX(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
@@ -323,6 +320,55 @@ public class SearchServiceV2 extends NdexService {
 		
 	}
 
+	@PermitAll
+	@POST
+	@Path("/network/{networkId}/interconnectquery")
+	@Produces("application/json")
+
+	public Response interconnectQuery(
+			@PathParam("networkId") final String networkIdStr,
+			@QueryParam("accesskey") String accessKey,
+			final CXSimplePathQuery queryParameters
+			) throws NdexException, SQLException   {
+		
+		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
+		
+/*		if ( queryParameters.getSearchDepth() <1) {
+			throw new BadRequestException("Query depth should be a positive integer.");
+		} */
+		UUID networkId = UUID.fromString(networkIdStr);
+
+		try (NetworkDAO dao = new NetworkDAO())  {
+			UUID userId = getLoggedInUserId();
+			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
+				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
+			}
+		//	checkIfQueryIsAllowed(networkId, dao);
+		}   
+		
+		Client client = ClientBuilder.newBuilder().build();
+		
+		/*Map<String, Object> queryEntity = new TreeMap<>();
+		queryEntity.put("terms", queryParameters.getSearchString());
+		queryEntity.put("searchDepth", queryParameters.getSearchDepth());
+		queryEntity.put("edgeLimit", queryParameters.getEdgeLimit());
+		queryEntity */
+		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
+        WebTarget target = client.target(prefix + networkId + "/interconnectquery");
+        Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
+        
+        if ( response.getStatus()!=200) {
+        	Object obj = response.readEntity(Object.class);
+        	throw new NdexException(obj.toString());
+        }
+        
+      //     String value = response.readEntity(String.class);
+       //    response.close();  
+        InputStream in = response.readEntity(InputStream.class);
+ 
+        return Response.ok().entity(in).build();
+		
+	}
 	
 	@PermitAll
 	@POST
