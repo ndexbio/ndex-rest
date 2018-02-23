@@ -13,10 +13,12 @@ import java.util.List;
 import java.util.UUID;
 
 import org.cxio.aspects.datamodels.NodesElement;
+import org.cxio.core.NdexCXNetworkWriter;
 import org.cxio.core.interfaces.AspectElement;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.model.cx.CXAspectFragment;
 import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.Provenance;

@@ -296,18 +296,19 @@ public class SearchServiceV2 extends NdexService {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
-			checkIfQueryIsAllowed(networkId, dao);
+		//	checkIfQueryIsAllowed(networkId, dao);
 		}   
 		
 		Client client = ClientBuilder.newBuilder().build();
 		
-		Map<String, Object> queryEntity = new TreeMap<>();
+		/*Map<String, Object> queryEntity = new TreeMap<>();
 		queryEntity.put("terms", queryParameters.getSearchString());
-		queryEntity.put("depth", queryParameters.getSearchDepth());
+		queryEntity.put("searchDepth", queryParameters.getSearchDepth());
 		queryEntity.put("edgeLimit", queryParameters.getEdgeLimit());
+		queryEntity */
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
         WebTarget target = client.target(prefix + networkId + "/query");
-        Response response = target.request().post(Entity.entity(queryEntity, "application/json"));
+        Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
         
         if ( response.getStatus()!=200) {
         	Object obj = response.readEntity(Object.class);

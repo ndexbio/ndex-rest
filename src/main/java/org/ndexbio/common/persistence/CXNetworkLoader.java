@@ -539,6 +539,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 	//		  Set<Long> consistencyGrpIds = new TreeSet<>();
 			  
+			  Set<String> tobeRemovedMetaData = new HashSet<>();
 			  for ( MetaDataElement e: metadata) {
 
 				  // check if idCounter is defined in certain espects.
@@ -568,7 +569,8 @@ public class CXNetworkLoader implements AutoCloseable {
 					  if ( declaredCnt == 0) {
 						  CXAspectWriter w = this.aspectTable.get(e.getName());
 						  if (w == null)  { // no element found, remove the metadatEntry
-							    metadata.remove(e.getName());
+							    //metadata.remove(e.getName());
+							    tobeRemovedMetaData.add(e.getName());
 						  } else  // maybe this should be raised as an error?
 							  warnings.add ("Element count mismatch in aspect " + e.getName() + ". Metadata declared element count " + e.getElementCount()+
 								  ", but " + w.getElementCount() + " was received in CX.");
@@ -579,7 +581,9 @@ public class CXNetworkLoader implements AutoCloseable {
 							  ", but " + actualCount + " was received in CX.");
 						  }
 						  if (actualCount == 0) {
-							  metadata.remove(e.getName());
+							  //metadata.remove(e.getName());
+						    tobeRemovedMetaData.add(e.getName());
+
 						//	  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because no element was found in the CX document.");
 						  }
 					  }
@@ -592,6 +596,9 @@ public class CXNetworkLoader implements AutoCloseable {
 				  else
 				     consistencyGrpIds.add(cGrpIds); */
 			  }
+			  
+			  for (String name : tobeRemovedMetaData)
+				  metadata.remove(name);
 			  
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
@@ -736,7 +743,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		edgeIdTracker.addDefinedElementId(ee.getId());
 		
-		nodeIdTracker.addReferenceId(Long.valueOf(ee.getSource()));
+		nodeIdTracker.addReferenceId(ee.getSource());
 		nodeIdTracker.addReferenceId(Long.valueOf(ee.getTarget()));
 		
 		writeCXElement(ee);
