@@ -1999,10 +1999,6 @@ public class NetworkServiceV2 extends NdexService {
 	   @Path("")
 	   @Produces("text/plain")
 	   @Consumes("multipart/form-data")
-	   @ApiDoc("Create a network from the uploaded CX stream. The input cx data is expected to be in the CXNetworkStream field of posted multipart/form-data. "
-	   		+ "There is an optional 'provenance' field in the form. Users can use this field to pass in a JSON string of ProvenanceEntity object. When a user pass"
-	   		+ " in this object, NDEx server will add this object to the provenance history of the CX network. Otherwise NDEx server will create a ProvenanceEntity "
-	   		+ "object and add it to the provenance history of the CX network.")
 	   public Response createCXNetwork( MultipartFormDataInput input,
 			   @QueryParam("visibility") String visibilityStr,
 				@QueryParam("indexedfields") String fieldListStr // comma seperated list		

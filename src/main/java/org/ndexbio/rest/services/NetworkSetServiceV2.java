@@ -70,7 +70,7 @@ public class NetworkSetServiceV2 extends NdexService {
 
 			return Response.created(l).entity(l).build();
 		} catch (URISyntaxException e) {
-			throw new NdexException("Server Error, can create URL for the new resource: " + e.getMessage(), e);
+			throw new NdexException("Server Error, can't create URL for the new resource: " + e.getMessage(), e);
 		} 
 	}
 	
@@ -153,7 +153,7 @@ public class NetworkSetServiceV2 extends NdexService {
 
 			return Response.created(l).entity(l).build();
 		} catch (URISyntaxException e) {
-			throw new NdexException("Server Error, can create URL for the new resource: " + e.getMessage(), e);
+			throw new NdexException("Server Error, can't create URL for the new resource: " + e.getMessage(), e);
 		} 
 	}
 	
