@@ -65,6 +65,7 @@ import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.model.errorcodes.NDExError;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
@@ -308,8 +309,8 @@ public class SearchServiceV2 extends NdexService {
         Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
         
         if ( response.getStatus()!=200) {
-        	Object obj = response.readEntity(Object.class);
-        	throw new NdexException(obj.toString());
+        	NDExError obj = response.readEntity(NDExError.class);
+        		throw new NdexException(obj.getMessage());
         }
         
       //     String value = response.readEntity(String.class);
@@ -358,8 +359,8 @@ public class SearchServiceV2 extends NdexService {
         Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
         
         if ( response.getStatus()!=200) {
-        	Object obj = response.readEntity(Object.class);
-        	throw new NdexException(obj.toString());
+        		NDExError obj = response.readEntity(NDExError.class);
+        		throw new NdexException(obj.getMessage());
         }
         
       //     String value = response.readEntity(String.class);
