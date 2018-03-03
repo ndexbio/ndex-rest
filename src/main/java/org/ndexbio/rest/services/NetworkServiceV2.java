@@ -2036,7 +2036,7 @@ public class NetworkServiceV2 extends NdexService {
 
 		   // create entry in db. 
 	       try (NetworkDAO dao = new NetworkDAO()) {
-	    	   NetworkSummary summary = dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize);
+	    	   NetworkSummary summary = dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null);
        
 			   ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
 

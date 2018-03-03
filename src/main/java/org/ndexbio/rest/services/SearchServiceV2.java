@@ -30,9 +30,19 @@
  */
 package org.ndexbio.rest.services;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -59,12 +69,14 @@ import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.errorcodes.NDExError;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
@@ -74,14 +86,22 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.EdgeCollectionQuery;
 import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.Group;
+import org.ndexbio.model.object.NdexProvenanceEventType;
 import org.ndexbio.model.object.NetworkSearchResult;
+import org.ndexbio.model.object.ProvenanceEntity;
+import org.ndexbio.model.object.ProvenanceEvent;
 import org.ndexbio.model.object.SimpleNetworkQuery;
+import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.SimpleQuery;
 import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
+import org.ndexbio.task.CXNetworkLoadingTask;
+import org.ndexbio.task.NdexServerQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -271,6 +291,7 @@ public class SearchServiceV2 extends NdexService {
 	
 	
 	
+	@SuppressWarnings("resource")
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/query")
@@ -279,8 +300,9 @@ public class SearchServiceV2 extends NdexService {
 	public Response queryNetworkAsCX(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
+			@DefaultValue("false") @QueryParam("saveasnetwork") boolean saveAsNetwork,
 			final CXSimplePathQuery queryParameters
-			) throws NdexException, SQLException   {
+			) throws NdexException, SQLException, IOException, URISyntaxException   {
 		
 		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
@@ -289,21 +311,25 @@ public class SearchServiceV2 extends NdexService {
 		}
 		UUID networkId = UUID.fromString(networkIdStr);
 
+		UUID userId = getLoggedInUserId();
+		if ( userId == null && saveAsNetwork)
+			throw new BadRequestException("Only authenticated users can save query results.");
+		
+		String networkName;
 		try (NetworkDAO dao = new NetworkDAO())  {
-			UUID userId = getLoggedInUserId();
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
-		//	checkIfQueryIsAllowed(networkId, dao);
+			networkName = dao.getNetworkName(networkId);
 		}   
+		
+		if (networkName == null)
+			networkName = "Query result of unnamed network";
+		else
+			networkName = "Query result of network - " + networkName;
 		
 		Client client = ClientBuilder.newBuilder().build();
 		
-		/*Map<String, Object> queryEntity = new TreeMap<>();
-		queryEntity.put("terms", queryParameters.getSearchString());
-		queryEntity.put("searchDepth", queryParameters.getSearchDepth());
-		queryEntity.put("edgeLimit", queryParameters.getEdgeLimit());
-		queryEntity */
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
         WebTarget target = client.target(prefix + networkId + "/query");
         Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
@@ -313,12 +339,96 @@ public class SearchServiceV2 extends NdexService {
         		throw new NdexException(obj.getMessage());
         }
         
-      //     String value = response.readEntity(String.class);
-       //    response.close();  
-        InputStream in = response.readEntity(InputStream.class);
- 
-        return Response.ok().entity(in).build();
+		InputStream in = response.readEntity(InputStream.class);
+
+        if (saveAsNetwork) {
+        		ProvenanceEntity entity = new ProvenanceEntity();
+        		return saveQueryResult(networkName, userId, getLoggedInUser().getUserName(), in, entity);
+        }  
+        
+        	return Response.ok().entity(in).build();
+        
+	}
+	
+	private Response saveQueryResult(String networkName, UUID ownerUUID,String ownerName,
+			InputStream in, ProvenanceEntity entity) throws SQLException, NdexException, IOException, URISyntaxException {
+		// create a network entry in db
+		UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+
+	    try (NetworkDAO dao = new NetworkDAO()) {
+	    	   NetworkSummary summary = dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName);
+       
+		   ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
+
+		   List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
+		   eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
+		   event.setProperties(eventProperties);
+
+		   entity.setCreationEvent(event);
+		   dao.setProvenance(uuid, entity);
+		   dao.commit();
+	    }
+
+	    // start the saving thread.
+	    NetworkStreamSaverThread worker = new NetworkStreamSaverThread(uuid, in, ownerName);
+	    worker.start();
+	    
+	    // return the URL as resource
+	    String urlStr = Configuration.getInstance().getHostURI()  + 
+	            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuid;
+		URI l = new URI (urlStr);
+		return Response.created(l).entity(l).build();
+
+	}
+	
+	private class  NetworkStreamSaverThread extends Thread 
+	{
+		UUID networkUUID;
+		InputStream input;
+		String owner;
 		
+		public NetworkStreamSaverThread(UUID networkId, InputStream in, String ownerName) {
+			this.networkUUID = networkId;
+			this.input = in;
+			this.owner = ownerName;
+		}
+		
+		@Override
+		public void run() {
+			   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkUUID.toString();
+			   
+			   //Create dir
+			   java.nio.file.Path dir = Paths.get(pathPrefix);
+			   Set<PosixFilePermission> perms =
+					    PosixFilePermissions.fromString("rwxrwxr-x");
+					FileAttribute<Set<PosixFilePermission>> attr =
+					    PosixFilePermissions.asFileAttribute(perms);
+
+			  try {
+				   Files.createDirectory(dir,attr);
+				   
+				   //write content to file
+				   File cxFile = new File(pathPrefix + "/network.cx");
+				java.nio.file.Files.copy(
+					      input, 
+					      cxFile.toPath(), 
+					      StandardCopyOption.REPLACE_EXISTING);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+				 
+		       IOUtils.closeQuietly(input);
+		       
+		    try {
+				NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkUUID,
+						owner, false, VisibilityType.PRIVATE, null));
+			} catch (JsonProcessingException | SQLException | NdexException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		}
 	}
 
 	@PermitAll
@@ -329,6 +439,7 @@ public class SearchServiceV2 extends NdexService {
 	public Response interconnectQuery(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
+			@DefaultValue("false") @QueryParam("saveasnetwork") boolean saveAsNetwork,
 			final CXSimplePathQuery queryParameters
 			) throws NdexException, SQLException   {
 		
@@ -339,8 +450,11 @@ public class SearchServiceV2 extends NdexService {
 		} */
 		UUID networkId = UUID.fromString(networkIdStr);
 
+		UUID userId = getLoggedInUserId();
+		if ( userId == null && saveAsNetwork)
+			throw new BadRequestException("Only authenticated users can save query results.");		
+		
 		try (NetworkDAO dao = new NetworkDAO())  {
-			UUID userId = getLoggedInUserId();
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}

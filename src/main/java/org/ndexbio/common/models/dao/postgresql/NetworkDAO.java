@@ -140,11 +140,11 @@ public class NetworkDAO extends NdexDBDAO {
 		return result;
 	}
 	
-	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize) throws SQLException {
+	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize, String networkName) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
-		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly, cx_file_size) values"
-				+ "(?, ?, ?, false, true, 'PRIVATE',?,?,false,?) ";
+		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly, cx_file_size, name) values"
+				+ "(?, ?, ?, false, true, 'PRIVATE',?,?,false,?,?) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkUUID);
 			pst.setTimestamp(2, t);
@@ -152,6 +152,7 @@ public class NetworkDAO extends NdexDBDAO {
 			pst.setObject(4, ownerId);
 			pst.setString(5, ownerUserName);
 			pst.setLong(6, fileSize);
+			pst.setString(7, networkName);
 			pst.executeUpdate();
 		}
 		NetworkSummary result = new NetworkSummary();
@@ -161,6 +162,7 @@ public class NetworkDAO extends NdexDBDAO {
 		return result;
 	}
 	
+
 	
 	public void setNetworkFileSize(UUID networkID, long fileSize) throws SQLException, NdexException {
 		String sqlStr = "update network set cx_file_size =? where \"UUID\" = ? and is_deleted=false and readonly=false";
