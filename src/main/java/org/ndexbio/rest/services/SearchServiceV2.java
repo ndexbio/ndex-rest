@@ -300,7 +300,7 @@ public class SearchServiceV2 extends NdexService {
 	public Response queryNetworkAsCX(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
-			@DefaultValue("false") @QueryParam("saveasnetwork") boolean saveAsNetwork,
+			@DefaultValue("false") @QueryParam("save") boolean saveAsNetwork,
 			final CXSimplePathQuery queryParameters
 			) throws NdexException, SQLException, IOException, URISyntaxException   {
 		
@@ -312,8 +312,13 @@ public class SearchServiceV2 extends NdexService {
 		UUID networkId = UUID.fromString(networkIdStr);
 
 		UUID userId = getLoggedInUserId();
-		if ( userId == null && saveAsNetwork)
-			throw new BadRequestException("Only authenticated users can save query results.");
+		if (  saveAsNetwork) {
+			if (userId == null)
+				throw new BadRequestException("Only authenticated users can save query results.");
+			try (UserDAO dao = new UserDAO()) {
+				   dao.checkDiskSpace(userId);
+			}
+		}
 		
 		String networkName;
 		try (NetworkDAO dao = new NetworkDAO())  {
@@ -324,9 +329,9 @@ public class SearchServiceV2 extends NdexService {
 		}   
 		
 		if (networkName == null)
-			networkName = "Query result of unnamed network";
+			networkName = "Neighborhood query result on unnamed network";
 		else
-			networkName = "Query result of network - " + networkName;
+			networkName = "Neighborhood query result on network - " + networkName;
 		
 		Client client = ClientBuilder.newBuilder().build();
 		
@@ -395,37 +400,57 @@ public class SearchServiceV2 extends NdexService {
 		
 		@Override
 		public void run() {
-			   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkUUID.toString();
-			   
-			   //Create dir
-			   java.nio.file.Path dir = Paths.get(pathPrefix);
-			   Set<PosixFilePermission> perms =
-					    PosixFilePermissions.fromString("rwxrwxr-x");
-					FileAttribute<Set<PosixFilePermission>> attr =
-					    PosixFilePermissions.asFileAttribute(perms);
+			String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkUUID.toString();
 
-			  try {
-				   Files.createDirectory(dir,attr);
-				   
-				   //write content to file
-				   File cxFile = new File(pathPrefix + "/network.cx");
-				java.nio.file.Files.copy(
-					      input, 
-					      cxFile.toPath(), 
-					      StandardCopyOption.REPLACE_EXISTING);
+			// Create dir
+			java.nio.file.Path dir = Paths.get(pathPrefix);
+			Set<PosixFilePermission> perms = PosixFilePermissions.fromString("rwxrwxr-x");
+			FileAttribute<Set<PosixFilePermission>> attr = PosixFilePermissions.asFileAttribute(perms);
+
+			try {
+				Files.createDirectory(dir, attr);
+
+				// write content to file
+				File cxFile = new File(pathPrefix + "/network.cx");
+				java.nio.file.Files.copy(input, cxFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+				long fileSize = cxFile.length();
+				try (NetworkDAO dao = new NetworkDAO()) {
+					dao.setNetworkFileSize(networkUUID, fileSize);
+					dao.commit();
+				} catch (SQLException | NdexException e2) {
+					e2.printStackTrace();
+					try (NetworkDAO dao = new NetworkDAO()) {
+						dao.setErrorMessage(networkUUID, "Failed to set network file size: " + e2.getMessage());
+						dao.commit();
+					} catch (SQLException e3) {
+						e3.printStackTrace();
+					}
+				}
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
+				try (NetworkDAO dao = new NetworkDAO()) {
+					dao.setErrorMessage(networkUUID, "Failed to create network file on the server: " + e.getMessage());
+					dao.commit();
+				} catch (SQLException e2) {
+					e2.printStackTrace();
+				}
+
 			}
-				 
-		       IOUtils.closeQuietly(input);
+
+			IOUtils.closeQuietly(input);
 		       
 		    try {
 				NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkUUID,
 						owner, false, VisibilityType.PRIVATE, null));
 			} catch (JsonProcessingException | SQLException | NdexException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
+				try (NetworkDAO dao = new NetworkDAO()) {
+					dao.setErrorMessage(networkUUID, "Failed to process network: "+ e.getMessage());
+					dao.commit();
+				} catch (SQLException e2) {
+					e.printStackTrace();
+				}
 			}
 
 		}
@@ -439,9 +464,9 @@ public class SearchServiceV2 extends NdexService {
 	public Response interconnectQuery(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
-			@DefaultValue("false") @QueryParam("saveasnetwork") boolean saveAsNetwork,
+			@DefaultValue("false") @QueryParam("save") boolean saveAsNetwork,
 			final CXSimplePathQuery queryParameters
-			) throws NdexException, SQLException   {
+			) throws NdexException, SQLException, IOException, URISyntaxException   {
 		
 		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
@@ -451,16 +476,28 @@ public class SearchServiceV2 extends NdexService {
 		UUID networkId = UUID.fromString(networkIdStr);
 
 		UUID userId = getLoggedInUserId();
-		if ( userId == null && saveAsNetwork)
-			throw new BadRequestException("Only authenticated users can save query results.");		
+		if (  saveAsNetwork) {
+			if (userId == null)
+				throw new BadRequestException("Only authenticated users can save query results.");
+			try (UserDAO dao = new UserDAO()) {
+				   dao.checkDiskSpace(userId);
+			}
+		}
 		
+		String networkName;
+
 		try (NetworkDAO dao = new NetworkDAO())  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
-		//	checkIfQueryIsAllowed(networkId, dao);
+			networkName = dao.getNetworkName(networkId);
 		}   
 		
+		if (networkName == null)
+			networkName = "Interconnect query result on unnamed network";
+		else
+			networkName = "Interconnect query result on network - " + networkName;
+				
 		Client client = ClientBuilder.newBuilder().build();
 		
 		/*Map<String, Object> queryEntity = new TreeMap<>();
@@ -480,7 +517,10 @@ public class SearchServiceV2 extends NdexService {
       //     String value = response.readEntity(String.class);
        //    response.close();  
         InputStream in = response.readEntity(InputStream.class);
- 
+        if (saveAsNetwork) {
+    			ProvenanceEntity entity = new ProvenanceEntity();
+    			return saveQueryResult(networkName, userId, getLoggedInUser().getUserName(), in, entity);
+        }  
         return Response.ok().entity(in).build();
 		
 	}
