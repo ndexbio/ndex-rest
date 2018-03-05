@@ -650,7 +650,7 @@ public class NetworkDAO extends NdexDBDAO {
 		try ( PreparedStatement p = db.prepareStatement(sql)) {
 			p.setBoolean(1, lock);
 			p.setObject(2, networkId);
-			//int i = p.executeUpdate();
+			p.executeUpdate();
 			//if ( i !=1)
 			//	throw new ObjectNotFoundException("network",networkId);
 		}
