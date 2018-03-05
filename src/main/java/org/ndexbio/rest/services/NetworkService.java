@@ -1323,7 +1323,7 @@ public class NetworkService extends NdexService {
 
         UUID networkId = UUID.fromString(networkIdStr);
 
-        String ownerAccName = null;
+     //   String ownerAccName = null;
 
         try ( NetworkDAO daoNew = new NetworkDAO() ) {
            User user = getLoggedInUser();
@@ -1348,7 +1348,7 @@ public class NetworkService extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 			
-			ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
+		//	ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			
 	        UUID tmpNetworkId = storeRawNetwork (input);
 	        String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString() + "/network.cx";
@@ -1390,7 +1390,7 @@ public class NetworkService extends NdexService {
 			
         }  
     	      
-	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true,null,null));
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, /*ownerAccName,*/ true,null,null));
 	     return networkIdStr; 
     }
 
@@ -1675,7 +1675,7 @@ public class NetworkService extends NdexService {
 	    	   throw e;
 	       }
 	       
-	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false, null,null));
+	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, /*getLoggedInUser().getUserName(),*/ false, null,null));
 	       
 	//	   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 		   //return "\"" + uuidStr + "\"";

@@ -40,8 +40,8 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 
 	private UUID aspectsCXNetworkID;
 	
-	public CXNetworkAspectsUpdater(UUID networkUUID, String ownerUserName, NetworkDAO networkDao, UUID aspectsCXUUID) {
-		super(networkUUID, ownerUserName, true, networkDao, null,null);
+	public CXNetworkAspectsUpdater(UUID networkUUID, /*String ownerUserName,*/ NetworkDAO networkDao, UUID aspectsCXUUID) {
+		super(networkUUID,/* ownerUserName,*/ true, networkDao, null,null);
 		
 		this.aspectsCXNetworkID = aspectsCXUUID;
 	}

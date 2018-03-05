@@ -42,7 +42,9 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -75,6 +77,7 @@ import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.errorcodes.NDExError;
@@ -115,7 +118,7 @@ public class SearchServiceV2 extends NdexService {
 //	private static final String GOOGLE_OATH_KEY = "GOOGLE_OATH_KEY";
 	
 	
-	static Logger logger = LoggerFactory.getLogger(BatchServiceV2.class);
+	//static Logger logger = LoggerFactory.getLogger(BatchServiceV2.class);
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 	
 	static final int networkQuerySizeLimit = 500000;
@@ -327,7 +330,11 @@ public class SearchServiceV2 extends NdexService {
 			}
 			networkName = dao.getNetworkName(networkId);
 		}   
-		
+		ProvenanceEntity ei = new ProvenanceEntity();
+		ei.setUri(Configuration.getInstance().getHostURI()  + 
+	            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr + "/summary" );
+		ei.addProperty("dc:title", networkName);
+	
 		if (networkName == null)
 			networkName = "Neighborhood query result on unnamed network";
 		else
@@ -348,6 +355,12 @@ public class SearchServiceV2 extends NdexService {
 
         if (saveAsNetwork) {
         		ProvenanceEntity entity = new ProvenanceEntity();
+        		ProvenanceEvent evt = new ProvenanceEvent("Neighborhood query",new Timestamp(Calendar.getInstance().getTimeInMillis()));
+        		evt.addProperty("Query terms", queryParameters.getSearchString());
+        		evt.addProperty("Query depth", String.valueOf(queryParameters.getSearchDepth()));
+     		evt.addProperty( "user name", this.getLoggedInUser().getUserName());
+        		evt.addInput(ei);
+        		entity.setCreationEvent(evt);
         		return saveQueryResult(networkName, userId, getLoggedInUser().getUserName(), in, entity);
         }  
         
@@ -361,21 +374,13 @@ public class SearchServiceV2 extends NdexService {
 		UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
 	    try (NetworkDAO dao = new NetworkDAO()) {
-	    	   NetworkSummary summary = dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName);
-       
-		   ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
-
-		   List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-		   eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
-		   event.setProperties(eventProperties);
-
-		   entity.setCreationEvent(event);
-		   dao.setProvenance(uuid, entity);
+	    	   dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName);
+     	   dao.setProvenance(uuid, entity);
 		   dao.commit();
 	    }
 
 	    // start the saving thread.
-	    NetworkStreamSaverThread worker = new NetworkStreamSaverThread(uuid, in, ownerName);
+	    NetworkStreamSaverThread worker = new NetworkStreamSaverThread(uuid, in);
 	    worker.start();
 	    
 	    // return the URL as resource
@@ -390,12 +395,11 @@ public class SearchServiceV2 extends NdexService {
 	{
 		UUID networkUUID;
 		InputStream input;
-		String owner;
 		
-		public NetworkStreamSaverThread(UUID networkId, InputStream in, String ownerName) {
+		public NetworkStreamSaverThread(UUID networkId, InputStream in) {
 			this.networkUUID = networkId;
 			this.input = in;
-			this.owner = ownerName;
+		//	this.owner = ownerName;
 		}
 		
 		@Override
@@ -422,7 +426,7 @@ public class SearchServiceV2 extends NdexService {
 					e2.printStackTrace();
 					try (NetworkDAO dao = new NetworkDAO()) {
 						dao.setErrorMessage(networkUUID, "Failed to set network file size: " + e2.getMessage());
-						dao.commit();
+						dao.unlockNetwork(networkUUID);
 					} catch (SQLException e3) {
 						e3.printStackTrace();
 					}
@@ -431,7 +435,7 @@ public class SearchServiceV2 extends NdexService {
 				e.printStackTrace();
 				try (NetworkDAO dao = new NetworkDAO()) {
 					dao.setErrorMessage(networkUUID, "Failed to create network file on the server: " + e.getMessage());
-					dao.commit();
+					dao.unlockNetwork(networkUUID);
 				} catch (SQLException e2) {
 					e2.printStackTrace();
 				}
@@ -439,8 +443,26 @@ public class SearchServiceV2 extends NdexService {
 			}
 
 			IOUtils.closeQuietly(input);
-		       
-		    try {
+		      
+			try (NetworkDAO dao = new NetworkDAO ()) {
+				try ( CXNetworkLoader loader = new CXNetworkLoader(networkUUID, false,dao, VisibilityType.PRIVATE, null) ) {
+							loader.persistCXNetwork();
+				} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
+					e1.printStackTrace();
+					try {
+						dao.setErrorMessage(networkUUID, e1.getMessage());
+						dao.unlockNetwork(networkUUID);
+					} catch (SQLException e) {
+						System.out.println("Failed to set Error for network " + networkUUID);
+						e.printStackTrace();
+					}
+					
+				} 
+			} catch (SQLException e) {
+					e.printStackTrace();
+			}			
+			
+/*		    try {
 				NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkUUID,
 						owner, false, VisibilityType.PRIVATE, null));
 			} catch (JsonProcessingException | SQLException | NdexException e) {
@@ -452,7 +474,7 @@ public class SearchServiceV2 extends NdexService {
 					e.printStackTrace();
 				}
 			}
-
+*/
 		}
 	}
 
@@ -493,6 +515,11 @@ public class SearchServiceV2 extends NdexService {
 			networkName = dao.getNetworkName(networkId);
 		}   
 		
+		ProvenanceEntity ei = new ProvenanceEntity();
+		ei.setUri(Configuration.getInstance().getHostURI()  + 
+	            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr + "/summary" );
+		ei.addProperty("dc:title", networkName);
+		
 		if (networkName == null)
 			networkName = "Interconnect query result on unnamed network";
 		else
@@ -519,6 +546,11 @@ public class SearchServiceV2 extends NdexService {
         InputStream in = response.readEntity(InputStream.class);
         if (saveAsNetwork) {
     			ProvenanceEntity entity = new ProvenanceEntity();
+        		ProvenanceEvent evt = new ProvenanceEvent("Interconnect query",new Timestamp(Calendar.getInstance().getTimeInMillis()));
+        		evt.addProperty("Query terms", queryParameters.getSearchString());
+     		evt.addProperty( "user name", this.getLoggedInUser().getUserName());
+        		evt.addInput(ei);
+        		entity.setCreationEvent(evt);
     			return saveQueryResult(networkName, userId, getLoggedInUser().getUserName(), in, entity);
         }  
         return Response.ok().entity(in).build();

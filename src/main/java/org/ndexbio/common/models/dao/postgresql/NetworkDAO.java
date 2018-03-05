@@ -645,14 +645,14 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	
-	private void setNetworkLock(UUID networkId, boolean lock) throws SQLException, ObjectNotFoundException {
+	private void setNetworkLock(UUID networkId, boolean lock) throws SQLException {
 		String sql = "update network set islocked=? where \"UUID\" = ? and is_deleted=false";
 		try ( PreparedStatement p = db.prepareStatement(sql)) {
 			p.setBoolean(1, lock);
 			p.setObject(2, networkId);
-			int i = p.executeUpdate();
-			if ( i !=1)
-				throw new ObjectNotFoundException("network",networkId);
+			//int i = p.executeUpdate();
+			//if ( i !=1)
+			//	throw new ObjectNotFoundException("network",networkId);
 		}
 	}
 	
@@ -661,10 +661,9 @@ public class NetworkDAO extends NdexDBDAO {
 	 * Set the islocked flag to false in the db.
 	 * This is an atomic operation. Will commit the current transaction.
 	 * @param networkID
-	 * @throws ObjectNotFoundException 
 	 * @throws SQLException 
 	 */
-	public void unlockNetwork (UUID networkId) throws ObjectNotFoundException, SQLException {
+	public void unlockNetwork (UUID networkId) throws  SQLException {
 		setNetworkLock(networkId,false);
 		db.commit(); 
 	}

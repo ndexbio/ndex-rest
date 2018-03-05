@@ -139,7 +139,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 @Path("/v2/network")
 public class NetworkServiceV2 extends NdexService {
 	
-	static Logger logger = LoggerFactory.getLogger(NetworkService.class);
+//	static Logger logger = LoggerFactory.getLogger(NetworkService.class);
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 	
 	static private final String readOnlyParameter = "readOnly";
@@ -1572,7 +1572,7 @@ public class NetworkServiceV2 extends NdexService {
     	
         UUID networkId = UUID.fromString(networkIdStr);
 
-        String ownerAccName = null;
+   //     String ownerAccName = null;
         try ( NetworkDAO daoNew = new NetworkDAO() ) {
            User user = getLoggedInUser();
            
@@ -1592,7 +1592,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 			
-			ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
+	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			
 	        UUID tmpNetworkId = storeRawNetwork (input);
 
@@ -1637,7 +1637,7 @@ public class NetworkServiceV2 extends NdexService {
 			
         }  
     	      
-	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, ownerAccName, true, visibility,extraIndexOnNodes));
+	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, /* ownerAccName,*/ true, visibility,extraIndexOnNodes));
 	    // return networkIdStr; 
     }
 
@@ -1663,7 +1663,7 @@ public class NetworkServiceV2 extends NdexService {
     	
         UUID networkId = UUID.fromString(networkIdStr);
 
-        String ownerAccName = null;
+     //   String ownerAccName = null;
         try ( NetworkDAO daoNew = new NetworkDAO() ) {
            User user = getLoggedInUser();
            
@@ -1682,13 +1682,13 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 			
-			ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
+	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			
 	        UUID tmpNetworkId = storeRawNetwork (input); //network stored as a temp network
 
 	   //     String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString() + "/network.cx";
 	        
-	    	try ( CXNetworkAspectsUpdater aspectUpdater = new CXNetworkAspectsUpdater(networkId, ownerAccName,daoNew, tmpNetworkId) ) {
+	    	try ( CXNetworkAspectsUpdater aspectUpdater = new CXNetworkAspectsUpdater(networkId, /*ownerAccName,*/daoNew, tmpNetworkId) ) {
 	    		
 	    		String urlStr = Configuration.getInstance().getHostURI()  + 
 			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr;
@@ -1713,14 +1713,7 @@ public class NetworkServiceV2 extends NdexService {
 	    			logger.error("Error occurred when updating aspects of network " + networkId + ": " + e1.getMessage());
 	    			e1.printStackTrace();
 	    			daoNew.setErrorMessage(networkId, e1.getMessage());
-	    			try {
-	    				daoNew.unlockNetwork(networkId);
-	    			} catch (ObjectNotFoundException e) {
-	    				// TODO Auto-generated catch block
-	    				e.printStackTrace();
-	    				logger.error("Can't find network " + networkId + " in the server to delete.");
-	    			}
-	    				    		
+	    			daoNew.unlockNetwork(networkId);   				    		
 	    	} 
         	     
 			FileUtils.deleteDirectory(new File(Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString()));
@@ -2049,7 +2042,7 @@ public class NetworkServiceV2 extends NdexService {
 				dao.commit();
 	       }
 	       
-	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, getLoggedInUser().getUserName(), false, visibility, extraIndexOnNodes));
+	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, /*getLoggedInUser().getUserName(),*/ false, visibility, extraIndexOnNodes));
 	       
 //		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
 		   

@@ -144,7 +144,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 //	protected String updatedBy;
 	
-	public CXNetworkLoader(UUID networkUUID,String ownerUserName, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields) {
+	public CXNetworkLoader(UUID networkUUID, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields) {
 		super();
 		
 		this.isUpdate = isUpdate;
