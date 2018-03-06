@@ -51,19 +51,16 @@ import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.solr.GroupIndexManager;
-import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
-
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SimpleQuery;
 import org.ndexbio.model.object.SolrSearchResult;
-import org.ndexbio.model.object.User;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -529,7 +526,7 @@ public class GroupDAO extends NdexDBDAO {
 			String msg = "Group with name " + group.getGroupName() + " already exists.";
 			logger.info(msg);
 			throw new DuplicateObjectException(msg);
-		} catch ( ObjectNotFoundException e) {
+		} catch ( @SuppressWarnings("unused") ObjectNotFoundException e) {
 			// when account doesn't exists return as normal.
 		}
 		

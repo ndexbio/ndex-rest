@@ -58,7 +58,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 
 			  //drop the old ones.
 			  globalIdx.deleteNetwork(networkid.toString());
-  
+			  globalIdx.commit();
 			  try {
 					idx2.dropIndex();
 			  } catch (IOException | SolrServerException | NdexException e) {
@@ -75,19 +75,20 @@ public class SolrIndexBuilder implements AutoCloseable {
 		
 		  logger.info("Solr index for query created.");
 		  
-		  // build the solr document obj
-		  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
-		  Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
-		  Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
-		  globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
+		  if ( lvl != NetworkIndexLevel.NONE) {
+			  // build the solr document obj
+			  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
+			  Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
+			  Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
+			  globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
 					userMemberships.get(Permissions.READ),
 					userMemberships.get(Permissions.WRITE),
 					grpMemberships.get(Permissions.READ),
 					grpMemberships.get(Permissions.WRITE));
 
-			//process node attribute aspect and add to solr doc
+			  //process node attribute aspect and add to solr doc
 			
-		  try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkid, NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class)) {
+			  try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkid, NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class)) {
 				while (it.hasNext()) {
 					NetworkAttributesElement e = it.next();
 					
@@ -97,45 +98,46 @@ public class SolrIndexBuilder implements AutoCloseable {
 							System.err.println("Warning: " + warning);
 					
 				}
-		    }
+			  }
 
 		  
-		if (lvl == NetworkIndexLevel.ALL) {	
-			try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkid, FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
-				while (it.hasNext()) {
-					FunctionTermElement fun = it.next();
+			  if (lvl == NetworkIndexLevel.ALL) {	
+				  try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkid, FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
+					  while (it.hasNext()) {
+						  FunctionTermElement fun = it.next();
 					
-					globalIdx.addFunctionTermToIndex(fun);
+						  globalIdx.addFunctionTermToIndex(fun);
 
-				}
-			}
+					  }
+				  }
 
-			try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkid, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
-				while (it.hasNext()) {
-					NodeAttributesElement e = it.next();					
-					globalIdx.addCXNodeAttrToIndex(e);	
-				}
-			}
+				  try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkid, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
+					  while (it.hasNext()) {
+						  NodeAttributesElement e = it.next();					
+						  globalIdx.addCXNodeAttrToIndex(e);	
+					  }
+				  }
 
-			try (AspectIterator<NodesElement> it = new AspectIterator<>(networkid, NodesElement.ASPECT_NAME, NodesElement.class)) {
-				while (it.hasNext()) {
-					NodesElement e = it.next();					
-					globalIdx.addCXNodeToIndex(e);	
-				}
-			}
+				  try (AspectIterator<NodesElement> it = new AspectIterator<>(networkid, NodesElement.ASPECT_NAME, NodesElement.class)) {
+					  while (it.hasNext()) {
+						  NodesElement e = it.next();					
+						  globalIdx.addCXNodeToIndex(e);	
+					  }
+				  }
 						
-		}	
-			globalIdx.commit();
+			  }	
+			  globalIdx.commit();
 			
-			logger.info("Solr index of network " + networkid + " created.");
-		} 
+			  logger.info("Solr index of network " + networkid + " created.");
+		  } 
+		}	  
 	}
 	
 	private  void rebuildAll() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (NetworkDAO dao = new NetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\", solr_idx_lvl from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and solr_idx_lvl <> 'NONE'";
+			String sqlStr = "select \"UUID\", solr_idx_lvl from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false";
 			
 			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -144,10 +146,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 					   rebuildNetworkIndex((UUID)rs.getObject(1), NetworkIndexLevel.valueOf(rs.getString(2)));
 					   i ++;
 					   if ( i % 100 == 0 ) {
-						   System.err.println("Loaded " + i + " records to solr. sleep 10 seconds");
+						   System.err.println("Loaded " + i + " records to solr. sleep 6 seconds");
 						//   globalIdx.commit();
 						   try {
-							  Thread.sleep(10000);
+							  Thread.sleep(6000);
 						   } catch (InterruptedException e) {
 							  // TODO Auto-generated catch block
 							  e.printStackTrace();

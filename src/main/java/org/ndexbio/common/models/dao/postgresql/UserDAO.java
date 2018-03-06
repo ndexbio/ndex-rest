@@ -44,9 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.logging.Logger;
 
-import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
@@ -73,9 +71,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 public class UserDAO extends NdexDBDAO {
-
-	private static final Logger logger = Logger.getLogger(UserDAO.class
-			.getName());
 
 	public static long default_disk_quota = 10*1000000000l; //default disk quota for each user. -1 means no limit;
 
@@ -155,7 +150,7 @@ public class UserDAO extends NdexDBDAO {
 		try {
 			getUserByAccountName(newUser.getUserName(),false, false);
 			throw new DuplicateObjectException ( "User " + newUser.getUserName() + " already exists in NDEx.");
-		} catch ( ObjectNotFoundException e ) {}
+		} catch ( @SuppressWarnings("unused") ObjectNotFoundException e ) {/* ignore this case because it is expected.*/}
 		
 		newUser.setExternalId(NdexUUIDFactory.INSTANCE.createNewNDExUUID());
 		newUser.setCreationTime(new Timestamp(Calendar.getInstance().getTimeInMillis()));	
@@ -369,7 +364,7 @@ public class UserDAO extends NdexDBDAO {
 			if ( limit == 0)
 				user.setDiskQuota(Long.valueOf(default_disk_quota));
 			else
-				user.setDiskQuota(limit);
+				user.setDiskQuota(Long.valueOf(limit));
 			
 			long used = rs.getLong("storage_usage");
 			user.setDiskUsed(Long.valueOf(used));
