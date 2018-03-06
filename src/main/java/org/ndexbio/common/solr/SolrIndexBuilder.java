@@ -58,7 +58,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 
 			  //drop the old ones.
 			  globalIdx.deleteNetwork(networkid.toString());
-			  globalIdx.commit();
+		//	  globalIdx.commit();
 			  try {
 					idx2.dropIndex();
 			  } catch (IOException | SolrServerException | NdexException e) {
