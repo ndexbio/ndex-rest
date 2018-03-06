@@ -110,7 +110,8 @@ public class NetworkDAO extends NdexDBDAO {
     /* define this to reuse in different functions to keep the order of the fields so that the populateNetworkSummaryFromResultSet function can be shared.*/
 	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 			+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified "; 
+			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,"
+			+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample "; 
 	
 	public NetworkDAO () throws  SQLException {
 	    super();
@@ -1218,6 +1219,8 @@ public class NetworkDAO extends NdexDBDAO {
 		result.setCompleted(rs.getBoolean(20));
 		result.setDoi(rs.getString(21));
 		result.setIsCertified(rs.getBoolean(22));
+		result.setHasLayout(rs.getBoolean(23));
+		result.setHasSample(rs.getBoolean(24));
 	}
 	
 	
@@ -1798,7 +1801,8 @@ public class NetworkDAO extends NdexDBDAO {
 				+ " from network n where n.owneruuid = ? and n.is_deleted= false " 
 				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
-				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified "
+				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_idx_lvl,"
+				+ " n.iscomplete, n.ndexdoi, n.certified,n.has_layout, n.has_sample "
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? ) k order by k.modification_time desc"; 
 
 		if ( offset >=0 && limit >0) {

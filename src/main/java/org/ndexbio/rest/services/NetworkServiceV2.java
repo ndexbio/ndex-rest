@@ -678,27 +678,29 @@ public class NetworkServiceV2 extends NdexService {
 			String CXString)
 			throws IllegalArgumentException, NdexException, SQLException, InterruptedException {
 
-    	logger.info("[start: Getting sample network {}]", networkId);
+//    	logger.info("[start: Getting sample network {}]", networkId);
   	
-    	UUID networkUUID = UUID.fromString(networkId);
-    	try (NetworkDAO dao = new NetworkDAO()) {
-    		if ( ! dao.isAdmin(networkUUID, getLoggedInUserId()))
-                throw new UnauthorizedOperationException("User is not admin of this network.");
+		UUID networkUUID = UUID.fromString(networkId);
+		try (NetworkDAO dao = new NetworkDAO()) {
+			if (!dao.isAdmin(networkUUID, getLoggedInUserId()))
+				throw new UnauthorizedOperationException("User is not admin of this network.");
 
-    		if ( dao.networkIsLocked(networkUUID,10))
-    			throw new NetworkConcurrentModificationException();
-    		
-    		if ( !dao.networkIsValid(networkUUID))
-    			throw new InvalidNetworkException();
-    	}
-    	  	
-		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/sample.cx";
-		
-		try (FileWriter w = new FileWriter(cxFilePath)){
-			w.write(CXString);
-		} catch (  IOException e) {
+			if (dao.networkIsLocked(networkUUID, 10))
+				throw new NetworkConcurrentModificationException();
+
+			if (!dao.networkIsValid(networkUUID))
+				throw new InvalidNetworkException();
+
+			String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/sample.cx";
+
+			try (FileWriter w = new FileWriter(cxFilePath)) {
+				w.write(CXString);
+				dao.setFlag(networkUUID, "has_sample", true);
+				dao.commit();
+			} catch (IOException e) {
 				throw new NdexException("Failed to write sample network of " + networkId + ": " + e.getMessage(), e);
-		} 
+			}
+		}
 	}  
 	
 	

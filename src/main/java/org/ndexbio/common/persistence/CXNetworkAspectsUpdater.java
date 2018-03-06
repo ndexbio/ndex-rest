@@ -15,6 +15,7 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
 
+import org.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodesElement;
@@ -83,7 +84,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				try {
 				//	dao.saveNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
 					dao.saveNetworkEntry(summary, fullMetaData);
-						
+					dao.setFlag(getNetworkId(), "has_layout", fullMetaData.getMetaDataElement(CartesianLayoutElement.ASPECT_NAME)!=null);	
 					dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();	

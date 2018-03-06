@@ -49,6 +49,7 @@ import java.util.TreeSet;
 import java.util.UUID;
 
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
+import org.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.cxio.aspects.datamodels.EdgesElement;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.cxio.aspects.datamodels.NodeAttributesElement;
@@ -261,6 +262,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  
 				
 				// create the network sample if the network has more than 500 edges
+				boolean sampleCreated = false;
 				if (summary.getEdgeCount() > CXNetworkSampleGenerator.sampleSize)  {
 			  
 					Long subNetworkId = null;
@@ -272,6 +274,7 @@ public class CXNetworkLoader implements AutoCloseable {
 					}
 					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId, metadata);
 					g.createSampleNetwork();
+					sampleCreated = true;
 			  
 				}
 			  				
@@ -321,6 +324,8 @@ public class CXNetworkLoader implements AutoCloseable {
 						dao.updateNetworkVisibility(networkId, visibility, true);
 					}
 					
+					dao.setFlag(this.networkId, "has_sample", sampleCreated);
+					dao.setFlag(this.networkId, "has_layout", metadata.getMetaDataElement(CartesianLayoutElement.ASPECT_NAME)!=null);
 					dao.unlockNetwork(this.networkId);
 
 				//	dao.commit();

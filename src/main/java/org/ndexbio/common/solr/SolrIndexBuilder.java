@@ -48,7 +48,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 	
 	
-	private  void rebuildNetworkIndex (UUID networkid, NetworkIndexLevel lvl ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private  void rebuildNetworkIndex (UUID networkid, NetworkIndexLevel lvl, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (NetworkDAO dao = new NetworkDAO()) {
 		  logger.info("Rebuild solr index of network " + networkid);
 		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
@@ -57,18 +57,18 @@ public class SolrIndexBuilder implements AutoCloseable {
 		  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkid.toString())) {
 
 			  //drop the old ones.
-			  globalIdx.deleteNetwork(networkid.toString());
-		//	  globalIdx.commit();
-			  try {
+			  if ( !ignoreDeletion) {
+				  globalIdx.deleteNetwork(networkid.toString());
+				  try {
 					idx2.dropIndex();
-			  } catch (IOException | SolrServerException | NdexException e) {
+				  } catch (IOException | SolrServerException | NdexException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 					logger.warn("Warning: Failed to delete node Index for network " + networkid.toString());
-			  }		
+				  }		
 			
-			  logger.info("Existing indexes deleted.");
-		  	
+				  logger.info("Existing indexes deleted.");
+			  }
 			  idx2.createIndex(null);
 			  idx2.close();
 		  }
@@ -137,19 +137,19 @@ public class SolrIndexBuilder implements AutoCloseable {
 		try (NetworkDAO dao = new NetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\", solr_idx_lvl from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false";
+			String sqlStr = "select \"UUID\", solr_idx_lvl from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null";
 			
 			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
 					while (rs.next()) {
-					   rebuildNetworkIndex((UUID)rs.getObject(1), NetworkIndexLevel.valueOf(rs.getString(2)));
+					   rebuildNetworkIndex((UUID)rs.getObject(1), NetworkIndexLevel.valueOf(rs.getString(2)), true);
 					   i ++;
 					   if ( i % 100 == 0 ) {
-						   System.err.println("Loaded " + i + " records to solr. sleep 6 seconds");
+						   System.err.println("Loaded " + i + " records to solr. sleep 4 seconds");
 						//   globalIdx.commit();
 						   try {
-							  Thread.sleep(6000);
+							  Thread.sleep(4000);
 						   } catch (InterruptedException e) {
 							  // TODO Auto-generated catch block
 							  e.printStackTrace();
@@ -270,7 +270,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 				SolrIndexBuilder.rebuildGroupIndex();
 				break;
 			default:	
-				builder.rebuildNetworkIndex(UUID.fromString(args[0]), NetworkIndexLevel.valueOf(args[1]));
+				builder.rebuildNetworkIndex(UUID.fromString(args[0]), NetworkIndexLevel.valueOf(args[1]), false);
 				builder.globalIdx.commit();
 				
 			}
