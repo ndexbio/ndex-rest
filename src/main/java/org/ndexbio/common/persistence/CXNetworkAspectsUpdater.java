@@ -38,11 +38,12 @@ import org.ndexbio.task.SolrIndexScope;
 import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 
 public class CXNetworkAspectsUpdater extends CXNetworkLoader {
+	
 
 	private UUID aspectsCXNetworkID;
 	
 	public CXNetworkAspectsUpdater(UUID networkUUID, /*String ownerUserName,*/ NetworkDAO networkDao, UUID aspectsCXUUID) {
-		super(networkUUID,/* ownerUserName,*/ true, networkDao, null,null);
+		super(networkUUID,/* ownerUserName,*/ true, networkDao, null,null, 0);
 		
 		this.aspectsCXNetworkID = aspectsCXUUID;
 	}
@@ -94,7 +95,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 		  
 				
 				// create the network sample if the network has more than 500 edges
-				if (summary.getEdgeCount() > CXNetworkSampleGenerator.sampleSize)  {
+				if (summary.getEdgeCount() > this.sampleGenerationThreshold)  {
 			  
 					Long subNetworkId = null;
 					if (subNetworkIds.size()>0 )  {
@@ -103,7 +104,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 							break;
 						}
 					}
-					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(networkUUID, subNetworkId, metadata);
+					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(networkUUID, subNetworkId, metadata, defaultSampleSize);
 					g.createSampleNetwork();
 			  
 				}

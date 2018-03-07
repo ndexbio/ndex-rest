@@ -5,7 +5,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -31,7 +30,6 @@ import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.cx.NodeCitationLinksElement;
 import org.ndexbio.model.cx.NodeSupportLinksElement;
 import org.ndexbio.model.cx.SupportElement;
-import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.internal.CXNetwork;
 import org.ndexbio.rest.Configuration;
 
@@ -43,18 +41,19 @@ public class CXNetworkSampleGenerator {
 	private UUID networkId;
 	private Long subNetworkId;
 	private MetaDataCollection srcMetaDataCollection;
-	private Long currentTime;
+//	private Long currentTime;
 	
 	// size of sample is number of edges.
-	public static final int sampleSize = 300;
+	public final int sampleSize;
 	
 	
-	public CXNetworkSampleGenerator(UUID networkUUID, Long subNetworkID, MetaDataCollection srcMetaData) {
+	public CXNetworkSampleGenerator(UUID networkUUID, Long subNetworkID, MetaDataCollection srcMetaData, int sampleSize) {
 		this.networkId = networkUUID;
 		this.subNetworkId = subNetworkID;
 		this.srcMetaDataCollection = srcMetaData;
-		this.currentTime = Long.valueOf(Calendar.getInstance().getTimeInMillis());
+	//	this.currentTime = Long.valueOf(Calendar.getInstance().getTimeInMillis());
 		
+		this.sampleSize = sampleSize;
 	}
 	
 	private MetaDataElement getMetaDataElementTempleteFromSrc (String aspectName) {

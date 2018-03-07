@@ -103,6 +103,11 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	//private static final String nodeName = "name";
     
+	public static final int defaultSampleSize = 300;
+	public static final int defaultSampleGenerationThreshhold = 1000;
+    
+	protected int sampleGenerationThreshold;
+	
     private boolean isUpdate;
 	
 	private long counter;
@@ -145,7 +150,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 //	protected String updatedBy;
 	
-	public CXNetworkLoader(UUID networkUUID, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields) {
+	public CXNetworkLoader(UUID networkUUID, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields, int sampleGenerationThreshold) {
 		super();
 		
 		this.isUpdate = isUpdate;
@@ -187,6 +192,10 @@ public class CXNetworkLoader implements AutoCloseable {
 	//	updatedBy = updaterUserName;
 		this.visibility = visibility;
 		this.indexedFields = IndexedFields;
+		if ( sampleGenerationThreshold <= defaultSampleGenerationThreshhold)
+			this.sampleGenerationThreshold = defaultSampleGenerationThreshhold;
+		else
+			this.sampleGenerationThreshold = sampleGenerationThreshold;
 	}
 	
 	protected UUID getNetworkId() {return this.networkId;}
@@ -263,7 +272,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 				// create the network sample if the network has more than 500 edges
 				boolean sampleCreated = false;
-				if (summary.getEdgeCount() > CXNetworkSampleGenerator.sampleSize)  {
+				if (summary.getEdgeCount() > sampleGenerationThreshold)  {
 			  
 					Long subNetworkId = null;
 					if (subNetworkIds.size()>0 )  {
@@ -272,7 +281,7 @@ public class CXNetworkLoader implements AutoCloseable {
 							break;
 						}
 					}
-					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId, metadata);
+					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId, metadata, defaultSampleSize);
 					g.createSampleNetwork();
 					sampleCreated = true;
 			  

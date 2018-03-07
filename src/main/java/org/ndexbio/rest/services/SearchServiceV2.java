@@ -445,7 +445,7 @@ public class SearchServiceV2 extends NdexService {
 			IOUtils.closeQuietly(input);
 		      
 			try (NetworkDAO dao = new NetworkDAO ()) {
-				try ( CXNetworkLoader loader = new CXNetworkLoader(networkUUID, false,dao, VisibilityType.PRIVATE, null) ) {
+				try ( CXNetworkLoader loader = new CXNetworkLoader(networkUUID, false,dao, VisibilityType.PRIVATE, null, 5000) ) {
 							loader.persistCXNetwork();
 				} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
 					e1.printStackTrace();

@@ -40,7 +40,7 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 	public void run()  {
 		
 	  try (NetworkDAO dao = new NetworkDAO ()) {
-		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, /*ownerUserName,*/ isUpdate,dao, visibility, nodeAttributeIndexList) ) {
+		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, /*ownerUserName,*/ isUpdate,dao, visibility, nodeAttributeIndexList, 0) ) {
 				loader.persistCXNetwork();
 		} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
 			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
