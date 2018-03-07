@@ -48,29 +48,14 @@ public interface NdexClasses {
 	public static final String User				  = "ndex_user";
 	public static final String Network            = "network";
 	
-	// network related classes
-/*	
-	public static final String BaseTerm			  = "baseTerm";
-	public static final String Citation			  = "citation";
-	public static final String Edge				  = "CXedge";
-	public static final String FunctionTerm 	  = "functionTerm";
-	public static final String ReifiedEdgeTerm    = "reifiedEdgeTerm";
-	public static final String Namespace          = "namespace";
-	public static final String Node               = "node";
-	public static final String Provenance         = "Provenance";
-	public static final String Subnetwork         = "Subnetwork";
-	public static final String Support            = "support"; */
+
 	
 	//presentationProperty
 	public static final String SimpleProp_P_name  = "name";
 	public static final String SimpleProp_P_value = "value";
 	
 	//account edges
-/*	public static final String E_admin               = Permissions.ADMIN.toString().toLowerCase();
-    public static final String account_E_canRead     = Permissions.READ.toString().toLowerCase();
-    public static final String account_E_canEdit     = Permissions.WRITE.toString().toLowerCase();
-	public static final String account_P_accountName = "accountName";
-    public static final String account_P_oldAcctName = "oldAcctName"; */
+
     public static final String Account_imageURL  = "image_url";
     public static final String Account_websiteURL = "website_url";
     public static final String Account_description = "description";
@@ -115,11 +100,7 @@ public interface NdexClasses {
     public static final String Element_SID = "sid";
     
     public static final String Index_network_name_desc = "idx_network-name-desc";
-    
-    // propertiedObject
- //   public static final String E_ndexProperties        = "ndexProps";
- //   public static final String E_ndexPresentationProps = "ndexPresProp";
-    
+        
     
     // namespace 
     public static final String ns_P_prefix = "prefix";

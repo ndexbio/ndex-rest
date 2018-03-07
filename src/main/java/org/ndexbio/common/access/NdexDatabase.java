@@ -87,7 +87,7 @@ public class NdexDatabase {
 		connectionPool.setUrl(dbURL);
 		connectionPool.setInitialSize(3);		
 		connectionPool.setMaxIdle(5);
-		connectionPool.setMaxConnLifetimeMillis(7200000);
+		connectionPool.setMaxConnLifetimeMillis(-1);
 		connectionPool.setMaxTotal(size);
 		
 		
