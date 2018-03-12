@@ -33,6 +33,8 @@ package org.ndexbio.security;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
 
+
+@Deprecated
 public class DelegatedLDAPAuthenticator extends LDAPAuthenticator {
 
 	private static final String AD_DELEGATED_ACCOUNT="AD_DELEGATED_ACCOUNT";

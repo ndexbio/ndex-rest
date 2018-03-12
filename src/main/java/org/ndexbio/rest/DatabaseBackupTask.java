@@ -37,8 +37,11 @@ import java.util.TimerTask;
 
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
-import org.ndexbio.task.NdexServerQueue;
 
+/*
+ * This class is no longer used because we are using external scripts to backup PostgresSQL and data files.
+ */
+@Deprecated
 public class DatabaseBackupTask extends TimerTask {
 
 	  //expressed in milliseconds

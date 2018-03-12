@@ -56,7 +56,6 @@ import org.ndexbio.rest.services.GroupServiceV2;
 import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.NetworkServiceV2;
 import org.ndexbio.rest.services.NetworkSetServiceV2;
-import org.ndexbio.rest.services.RequestService;
 import org.ndexbio.rest.services.RequestServiceV2;
 import org.ndexbio.rest.services.SearchServiceV2;
 import org.ndexbio.rest.services.TaskService;

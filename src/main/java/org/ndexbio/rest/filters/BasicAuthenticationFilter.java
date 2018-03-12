@@ -35,7 +35,6 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
@@ -52,7 +51,6 @@ import javax.ws.rs.ext.Provider;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.util.Base64;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.common.util.NdexUUIDFactory;
 //import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -387,7 +385,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 	 * @param passwork
 	 * @return
 	 */
-	private User getNewUserSimulator(String username, String password) {
+	/*private User getNewUserSimulator(String username, String password) {
 		User newUser = new User();
 		newUser.setUserName(username);
 		newUser.setPassword(password);
@@ -397,6 +395,6 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 		newUser.setDescription("Fake user created by AD simulator function.");
 		newUser.setIsIndividual(true);
 		return newUser;
-	}
+	} */
 
 }

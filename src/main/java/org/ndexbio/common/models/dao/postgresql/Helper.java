@@ -31,35 +31,25 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.object.*;
-import org.ndexbio.model.object.network.NetworkSourceFormat;
+import org.ndexbio.model.object.Account;
+import org.ndexbio.model.object.NdexExternalObject;
+import org.ndexbio.model.object.ProvenanceEntity;
+import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.network.NetworkSummary;
-import org.ndexbio.model.object.network.VisibilityType;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import org.slf4j.Logger;
 
 public class Helper {
 	
@@ -95,7 +85,7 @@ public class Helper {
 			if ( propStr != null) {
 				ObjectMapper mapper = new ObjectMapper(); 
 				TypeReference<HashMap<String,Object>> typeRef 
-	            	= new TypeReference<HashMap<String,Object>>() {};
+	            	= new TypeReference<HashMap<String,Object>>() {/**/};
 
 	            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
 	            accObj.setProperties(o);

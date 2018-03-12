@@ -37,7 +37,6 @@ import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.Status;
-import org.ndexbio.task.parsingengines.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +50,7 @@ import com.google.common.io.Files;
  * database, no user authentication is required.
  * 
  */
-
+@Deprecated
 public class FileUploadTask extends NdexTask {
 
 	private final String filename;
@@ -74,7 +73,7 @@ public class FileUploadTask extends NdexTask {
 
 	@Override
 	protected Task call_aux() throws Exception {
-		logger.info("[start: Processing file='{}']", this.getFilename());
+	/*	logger.info("[start: Processing file='{}']", this.getFilename());
 		File file = new File(this.getFilename());
 		String fileExtension = com.google.common.io.Files
 				.getFileExtension(this.getFilename()).toUpperCase().trim();
@@ -106,7 +105,7 @@ public class FileUploadTask extends NdexTask {
 			this.getTask().setStatus(taskStatus);
 		}
         logger.info("[end: Network upload finished; UUID='{}' fileSize={}]", parser.getUUIDOfUploadedNetwork().toString(), fileSize);
-	
+	*/
         return getTask();
 	}
 

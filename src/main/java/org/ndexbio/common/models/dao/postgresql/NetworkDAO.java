@@ -724,9 +724,7 @@ public class NetworkDAO extends NdexDBDAO {
 		} else {
 			MetaDataElement e = metadata.getMetaDataElement(Provenance.ASPECT_NAME);
 			if ( e == null) {
-				e = new MetaDataElement ();
-				e.setName(Provenance.ASPECT_NAME);
-				e.setVersion("1.0");
+				e = new MetaDataElement (Provenance.ASPECT_NAME,"1.0");
 				
 				long cg = 1;
 				if (metadata.getMetaDataElement(NodesElement.ASPECT_NAME) != null) {
@@ -734,8 +732,8 @@ public class NetworkDAO extends NdexDBDAO {
 					if (cgL !=null)
 						cg = cgL.longValue();
 				}
-				e.setConsistencyGroup(cg);
-				e.setElementCount(1L);
+				e.setConsistencyGroup(Long.valueOf(cg));
+				e.setElementCount(Long.valueOf(1L));
 				metadata.addAt(0, e);
 			}		
 //			metadata.setLastUpdate(Provenance.ASPECT_NAME, Calendar.getInstance().getTimeInMillis());

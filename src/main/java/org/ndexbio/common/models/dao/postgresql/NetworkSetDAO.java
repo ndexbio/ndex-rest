@@ -148,7 +148,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 					if ( propStr != null) {
 						ObjectMapper mapper = new ObjectMapper(); 
 						TypeReference<HashMap<String,Object>> typeRef 
-				            = new TypeReference<HashMap<String,Object>>() {};
+				            = new TypeReference<HashMap<String,Object>>() {/**/};
 
 				            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
 				            result.setProperties(o);
@@ -239,7 +239,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 					if ( propStr != null) {
 						ObjectMapper mapper = new ObjectMapper(); 
 						TypeReference<HashMap<String,Object>> typeRef 
-				            = new TypeReference<HashMap<String,Object>>() {};
+				            = new TypeReference<HashMap<String,Object>>() {/**/};
 				            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
 				            entry.setProperties(o);
 					}

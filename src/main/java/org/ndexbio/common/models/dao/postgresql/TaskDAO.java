@@ -110,13 +110,13 @@ public class TaskDAO extends NdexDBDAO {
 		ObjectMapper mapper = new ObjectMapper(); 
 		String o = rs.getString("other_attributes");
 		if ( o != null) {
-			Map<String, Object> attr = mapper.readValue(o, new TypeReference<Map<String,Object>>() {}); 					
+			Map<String, Object> attr = mapper.readValue(o, new TypeReference<Map<String,Object>>() {/**/}); 					
 			task.setAttributes(attr);
 		} 
 		
 		o = rs.getString("user_properties");
 		if ( o != null) {
-			Map<String, Object> attr = mapper.readValue(o, new TypeReference<Map<String,Object>>() {}); 					
+			Map<String, Object> attr = mapper.readValue(o, new TypeReference<Map<String,Object>>() {/**/}); 					
 			task.setOwnerProperties(attr);
 		} else
 			task.setOwnerProperties(null);

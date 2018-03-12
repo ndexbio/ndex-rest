@@ -37,7 +37,7 @@ public class OpaqueAspectIterator implements Iterator<OpaqueElement> {
    	 		throw new IllegalStateException("Wrong file format format: expected to start with an array, but has: " + jp.getCurrentToken().asString());
    	 	} 
    	 	_current = null;
-   	 	_reader = OpaqueFragmentReader.createInstance(jp, "a");
+   	 	_reader = OpaqueFragmentReader.createInstance( "a");
 	}
 	
 

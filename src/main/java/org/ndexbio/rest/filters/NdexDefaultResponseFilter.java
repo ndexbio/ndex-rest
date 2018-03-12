@@ -73,7 +73,6 @@ import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerResponseContext;
 import javax.ws.rs.container.ContainerResponseFilter;
 import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.ext.Provider;
 
 import org.jboss.resteasy.core.ResourceMethodInvoker;
@@ -98,7 +97,7 @@ public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Fi
 		headers.putSingle("Access-Control-Allow-Origin", "*");
 	/*	headers.putSingle("Access-Control-Allow-Methods", "HEAD, DELETE,GET,OPTIONS,POST,PUT");
 		headers.putSingle("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization, Content-Length, X-Requested-With");*/
-		headers.putSingle("Access-Control-Allow-Credentials", true); 
+		headers.putSingle("Access-Control-Allow-Credentials", Boolean.TRUE); 
 	
 		final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)arg0.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");
 	    if ( methodInvoker != null) {

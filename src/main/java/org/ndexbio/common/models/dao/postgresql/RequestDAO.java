@@ -297,7 +297,7 @@ public class RequestDAO extends NdexDBDAO  {
 		if ( propStr != null) {
 			ObjectMapper mapper = new ObjectMapper(); 
 			TypeReference<HashMap<String,Object>> typeRef 
-            	= new TypeReference<HashMap<String,Object>>() {};
+            	= new TypeReference<HashMap<String,Object>>() {/**/};
 
             HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
             r.setProperties(o);

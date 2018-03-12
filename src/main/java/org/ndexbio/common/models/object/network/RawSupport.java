@@ -30,6 +30,7 @@
  */
 package org.ndexbio.common.models.object.network;
 
+@Deprecated
 public class RawSupport implements Comparable <RawSupport>{
 	private final static int nary = 500000; 
 	private String text;

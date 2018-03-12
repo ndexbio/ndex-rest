@@ -39,27 +39,19 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TimerTask;
 import java.util.UUID;
 
-import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.Membership;
-import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
-import org.ndexbio.rest.helpers.Email;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -179,6 +171,7 @@ public class EmailNotificationTask extends TimerTask {
 	 * @return
 	 * @throws NdexException 
 	 */
+	@SuppressWarnings("boxing")
 	private static Map<UUID, Map<ResponseType, Integer>> getNotificationTable() throws NdexException{
 		  		
 	/*  			OSQLSynchQuery<ODocument> query = new OSQLSynchQuery<>(

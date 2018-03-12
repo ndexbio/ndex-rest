@@ -49,13 +49,11 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.server.StandaloneServer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 @Path("/admin")
 public class AdminService extends NdexService {
-	private static Logger logger = LoggerFactory.getLogger(AdminService.class);
+//	private static Logger logger = LoggerFactory.getLogger(AdminService.class);
 	
 //	static final String defaultPostEdgeLimit = "800000";
 	

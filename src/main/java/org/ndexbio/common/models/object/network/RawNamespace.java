@@ -32,7 +32,9 @@ package org.ndexbio.common.models.object.network;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+
 @JsonIgnoreProperties(ignoreUnknown = true)
+@Deprecated
 public class RawNamespace implements Comparable<RawNamespace> 
 {
     private String _prefix;

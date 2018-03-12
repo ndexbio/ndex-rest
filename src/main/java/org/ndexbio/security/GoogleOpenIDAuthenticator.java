@@ -33,7 +33,6 @@ package org.ndexbio.security;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
-import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -42,8 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -53,16 +50,15 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.HttpClientUtils;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.helpers.Security;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,14 +70,14 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 
 public class GoogleOpenIDAuthenticator {
 
-	private static final String GOOGLE_OAUTH_KEY = "GOOGLE_OAUTH_KEY";
+//	private static final String GOOGLE_OAUTH_KEY = "GOOGLE_OAUTH_KEY";
 	private static final String GOOGLE_OAUTH_CLIENT_ID = "GOOGLE_OAUTH_CLIENT_ID";
 	private static final String GOOGLE_OAUTH_CLIENT_SECRET = "GOOGLE_OAUTH_CLIENT_SECRET";
 
 	private String apiState;
 	private String clientID;
 	private String clientSecret;
-	private GoogleIdTokenVerifier verifier;
+//	private GoogleIdTokenVerifier verifier;
 
 	// a table to support google OAuth authentication. a access_token -> user uuid mapping table
 	private Map<String,OAuthUserRecord> googleTokenTable ;  
@@ -272,7 +268,7 @@ public class GoogleOpenIDAuthenticator {
 		return theString;
 	
 	} */
-	
+	/*
 	private static Map<String,String> getGoogleUserProfileFromAccessToken(String accessToken) throws ClientProtocolException, IOException {
 		
 		 HttpClient httpclient = HttpClients.createDefault();
@@ -303,7 +299,7 @@ public class GoogleOpenIDAuthenticator {
 		return r;
 	}
 	
-
+*/
 	public UUID GetUserUUIDFromAccessToke(String accessToken) throws NdexException {
 		OAuthUserRecord r = googleTokenTable.get(accessToken);
 		if ( r== null) throw new NdexException ("Invalid access token received.");
@@ -315,16 +311,21 @@ public class GoogleOpenIDAuthenticator {
 	
 	public void revokeAccessToken ( String accessToken) throws ClientProtocolException, IOException, NdexException {
 		 HttpClient httpclient = HttpClients.createDefault();
-		 HttpGet httpget = new HttpGet("https://accounts.google.com/o/oauth2/revoke?token="
+		 HttpResponse response = null;
+		try {
+			 HttpGet httpget = new HttpGet("https://accounts.google.com/o/oauth2/revoke?token="
 				 + accessToken);
 
-		 //Execute and get the response.
-		 HttpResponse response = httpclient.execute(httpget);
-		 if (response.getStatusLine().getStatusCode() != 200) 
-			 throw new NdexException ("Failed to revoke accessToken on Google.");
-		 
-		 googleTokenTable.remove(accessToken);
-		
+			//Execute and get the response.
+			response = httpclient.execute(httpget);
+			if (response.getStatusLine().getStatusCode() != 200) {
+				throw new NdexException ("Failed to revoke accessToken on Google.");
+			}
+			googleTokenTable.remove(accessToken);
+		 } finally {
+			 HttpClientUtils.closeQuietly(response); 
+			 HttpClientUtils.closeQuietly(httpclient);
+		 }
 	}
 	
 	public String getNewAccessTokenByRefreshToken(String expiredAccessToken, String refreshToken) throws ClientProtocolException, IOException, NdexException {

@@ -30,6 +30,7 @@
  */
 package org.ndexbio.common.models.object.network;
 
+@Deprecated
 public class RawEdge implements Comparable<RawEdge> {
 
 	private long subjectId;

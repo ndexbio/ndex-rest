@@ -62,7 +62,8 @@ public class CXMetaDataManager {
 	// table stores ndex supported aspect and its version.
 	private Map<String, String> NdexSupportedAspects;
 
-	static protected final long consistencyGroupId = 1;
+	static protected final Long consistencyGroupId = Long.valueOf(1l);
+	static private final String VERSION_ONE = "1.0";
 	
 	
 /*	public static final String[] NdexSupportedAspects = {NodesElement.ASPECT_NAME,EdgesElement.ASPECT_NAME,NetworkAttributesElement.ASPECT_NAME,
@@ -74,23 +75,23 @@ public class CXMetaDataManager {
 	public CXMetaDataManager() { 
 		NdexSupportedAspects = new TreeMap<>();
 	    	  
-	    NdexSupportedAspects.put(NodesElement.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put(EdgesElement.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put(NetworkAttributesElement.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put(NodeAttributesElement.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put(EdgeAttributesElement.ASPECT_NAME, "1.0");
-	    	  NdexSupportedAspects.put(CitationElement.ASPECT_NAME, "1.0");
-	    	  NdexSupportedAspects.put(SupportElement.ASPECT_NAME, "1.0");
-	    	  NdexSupportedAspects.put(EdgeCitationLinksElement.ASPECT_NAME,"1.0"); 
-	    	  NdexSupportedAspects.put(EdgeSupportLinksElement.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put(NodeCitationLinksElement.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put(	NodeSupportLinksElement.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put( FunctionTermElement.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put( NamespacesElement.ASPECT_NAME, "1.0");
-	    	  NdexSupportedAspects.put(NdexNetworkStatus.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put(Provenance.ASPECT_NAME,"1.0");
-	    	  NdexSupportedAspects.put(ReifiedEdgeElement.ASPECT_NAME,"1.0");	  
-	    	  NdexSupportedAspects.put(BELNamespaceElement.ASPECT_NAME, "1.0;");
+	    NdexSupportedAspects.put(NodesElement.ASPECT_NAME, VERSION_ONE);
+	    	  NdexSupportedAspects.put(EdgesElement.ASPECT_NAME,VERSION_ONE);
+	    	  NdexSupportedAspects.put(NetworkAttributesElement.ASPECT_NAME,VERSION_ONE);
+	    	  NdexSupportedAspects.put(NodeAttributesElement.ASPECT_NAME,VERSION_ONE);
+	    	  NdexSupportedAspects.put(EdgeAttributesElement.ASPECT_NAME, VERSION_ONE);
+	    	  NdexSupportedAspects.put(CitationElement.ASPECT_NAME, VERSION_ONE);
+	    	  NdexSupportedAspects.put(SupportElement.ASPECT_NAME, VERSION_ONE);
+	    	  NdexSupportedAspects.put(EdgeCitationLinksElement.ASPECT_NAME,VERSION_ONE); 
+	    	  NdexSupportedAspects.put(EdgeSupportLinksElement.ASPECT_NAME,VERSION_ONE);
+	    	  NdexSupportedAspects.put(NodeCitationLinksElement.ASPECT_NAME,VERSION_ONE);
+	    	  NdexSupportedAspects.put(	NodeSupportLinksElement.ASPECT_NAME,VERSION_ONE);
+	    	  NdexSupportedAspects.put( FunctionTermElement.ASPECT_NAME,VERSION_ONE);
+	    	  NdexSupportedAspects.put( NamespacesElement.ASPECT_NAME, VERSION_ONE);
+	    	  NdexSupportedAspects.put(NdexNetworkStatus.ASPECT_NAME,VERSION_ONE);
+	    	  NdexSupportedAspects.put(Provenance.ASPECT_NAME,VERSION_ONE);
+	    	  NdexSupportedAspects.put(ReifiedEdgeElement.ASPECT_NAME,VERSION_ONE);	  
+	    	  NdexSupportedAspects.put(BELNamespaceElement.ASPECT_NAME, VERSION_ONE);
 	}
 
 	public static synchronized CXMetaDataManager getInstance() {
@@ -111,7 +112,7 @@ public class CXMetaDataManager {
 	        md.add(metadataElement );
 
 		}   
-		md.setElementCount(NdexNetworkStatus.ASPECT_NAME, 1l);
+		md.setElementCount(NdexNetworkStatus.ASPECT_NAME, Long.valueOf(1l));
         return md;
 	}
 
@@ -127,7 +128,7 @@ public class CXMetaDataManager {
 			metadataElement .setVersion(aspectVersion);
 			metadataElement .setConsistencyGroup(consistencyGroupId);
 	        if ( aspectName .equals(NdexNetworkStatus.ASPECT_NAME))
-	        	metadataElement.setElementCount(1L);
+	        	metadataElement.setElementCount(Long.valueOf(1L));
 	        md.add(metadataElement );
 	        	
 		}    

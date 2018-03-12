@@ -105,9 +105,9 @@ public class GroupIndexManager implements AutoCloseable{
 		if ( searchTerms.equalsIgnoreCase("*:*"))
 			solrQuery.setSort(UUID, ORDER.desc);
 		if ( offset >=0)
-		  solrQuery.setStart(offset);
+		  solrQuery.setStart(Integer.valueOf(offset));
 		if ( limit >0 )
-			solrQuery.setRows(limit);
+			solrQuery.setRows(Integer.valueOf(limit));
 				
 			
 		try {

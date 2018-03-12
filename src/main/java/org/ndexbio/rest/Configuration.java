@@ -45,7 +45,6 @@ import java.util.Properties;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
-import org.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
@@ -156,7 +155,7 @@ public class Configuration
 				try {
 					serverElementLimit = Long.parseLong(edgeLimit);
 				} catch( NumberFormatException e) {
-					_logger.warn("[Invalid value in server property {}]", Configuration.networkPostEdgeLimit);
+					_logger.warn("[Invalid value in server property {}. Error: {}]", Configuration.networkPostEdgeLimit, e.getMessage());
 			//		props.put("ServerPostEdgeLimit", "-1");  //defaultPostEdgeLimit);
 				}
 			} else 
@@ -189,30 +188,32 @@ public class Configuration
 
 		      Iterator<ImporterExporterEntry> it = new ObjectMapper().readerFor(ImporterExporterEntry.class).readValues(i);
 		      
-		      while (it.hasNext()) {
-		    	  ImporterExporterEntry entry = it.next();
-		    	  entry.setDirectoryName(this.ndexRoot + "/importer_exporter/"+ entry.getDirectoryName());
-		    	  List<String> cmdList = entry.getImporterCmd();
-		    	  if (cmdList != null && !cmdList.isEmpty()) {
-		    		 String cmd = cmdList.get(0);
-		    		 if (!cmd.startsWith("/")) {
-		    			 cmd = entry.getDirectoryName() + "/"+ cmd;
-		    			 cmdList.set(0, cmd);
-		    		 }
-		    	  }
-		    	  
-		    	  cmdList = entry.getExporterCmd();
-		    	  if (cmdList != null && !cmdList.isEmpty()) {
-		    		 String cmd = cmdList.get(0);
-		    		 if (!cmd.startsWith("/")) {
-		    			 cmd = entry.getDirectoryName() + "/"+ cmd;
-		    			 cmdList.set(0, cmd);
-		    		 }
-		    	  }
-		          impExpTable.put(entry.getName(), entry);	
-		        }
+			while (it.hasNext()) {
+				ImporterExporterEntry entry = it.next();
+				entry.setDirectoryName(this.ndexRoot + "/importer_exporter/" + entry.getDirectoryName());
+				List<String> cmdList = entry.getImporterCmd();
+				if (cmdList != null && !cmdList.isEmpty()) {
+					String cmd = cmdList.get(0);
+					if (!cmd.startsWith("/")) {
+						cmd = entry.getDirectoryName() + "/" + cmd;
+						cmdList.set(0, cmd);
+					}
+				}
+
+				cmdList = entry.getExporterCmd();
+				if (cmdList != null && !cmdList.isEmpty()) {
+					String cmd = cmdList.get(0);
+					if (!cmd.startsWith("/")) {
+						cmd = entry.getDirectoryName() + "/" + cmd;
+						cmdList.set(0, cmd);
+					}
+				}
+
+				impExpTable.put(entry.getName(), entry);
+			}
     		} catch (FileNotFoundException nfe) {
-    			_logger.warn("Importer/Exporter configuration not found at \"" + impExpConfigFile + "\". No import export function will be supported in this server" );
+    			_logger.warn("Importer/Exporter configuration not found at \"" + impExpConfigFile + "\". No import export function will be supported in this server."
+    					+ "\nError: " + nfe.getMessage()  );
     		}
    /*     } 
         catch (Exception e)

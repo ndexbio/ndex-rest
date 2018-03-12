@@ -34,6 +34,7 @@ import java.util.List;
 
 import org.ndexbio.model.exceptions.NdexException;
 
+@Deprecated
 public class RawCitation implements Comparable <RawCitation>{
 	
 	private String title;
