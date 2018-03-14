@@ -25,7 +25,7 @@
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
-			<version>42.0.0</version>
+			<version>42.1.4</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -117,7 +117,7 @@
 		<dependency>
  			 <groupId>org.apache.solr</groupId>
 		 	<artifactId>solr-solrj</artifactId>
- 		 	<version>6.5.1</version>
+ 		 	<version>6.6.3</version>
 		</dependency>
 		
 		<dependency>
@@ -381,7 +381,7 @@
 	</build>
 	<properties>
 		<jettyVersion>9.3.18.v20170406</jettyVersion>
-		<resteasyVersion>3.0.22.Final</resteasyVersion>
+		<resteasyVersion>3.1.4.Final</resteasyVersion>
 		<log4jVersion>2.8.2</log4jVersion>
 		<jacksonVersion>2.9.4</jacksonVersion>
 	</properties>

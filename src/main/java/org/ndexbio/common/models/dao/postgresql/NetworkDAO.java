@@ -1459,7 +1459,7 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 				
-		logger.info("Successfuly retrieved network-group permissions.");
+	//	logger.info("Successfuly retrieved network-group permissions.");
 		return memberships;
 	}
 		
