@@ -355,11 +355,11 @@ public class UserDAO extends NdexDBDAO {
 		user.setLastName(rs.getString(NdexClasses.User_lastName));
 		user.setDisplayName(rs.getString(NdexClasses.User_displayName));
 		user.setIsIndividual(rs.getBoolean(NdexClasses.User_isIndividual));
-		user.setEmailAddress(rs.getString(NdexClasses.User_emailAddress));
 	//	user.setPassword(rs.getString(NdexClasses.User_password));
 		user.setIsVerified(rs.getBoolean(NdexClasses.User_isVerified));
 		user.setUserName(rs.getString("user_name"));
 		if ( fullRecord) {
+			user.setEmailAddress(rs.getString(NdexClasses.User_emailAddress));
 			long limit = rs.getLong("disk_limit");
 			if ( limit == 0)
 				user.setDiskQuota(Long.valueOf(default_disk_quota));
