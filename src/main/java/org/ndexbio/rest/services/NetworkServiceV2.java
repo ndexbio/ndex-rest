@@ -42,6 +42,7 @@ import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Paths;
@@ -80,6 +81,7 @@ import javax.ws.rs.core.Response.ResponseBuilder;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
@@ -134,6 +136,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
 @Path("/v2/network")
@@ -2018,7 +2021,16 @@ public class NetworkServiceV2 extends NdexService {
 		   
 		   
 		   UUID uuid = storeRawNetwork ( input);
-		   String uuidStr = uuid.toString();
+		   return processRawNetwork(visibility, extraIndexOnNodes, uuid);
+
+	   	}
+
+
+
+	private Response processRawNetwork(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid)
+			throws SQLException, NdexException, IOException, ObjectNotFoundException, JsonProcessingException,
+			URISyntaxException {
+		String uuidStr = uuid.toString();
 		   accLogger.info("[data]\t[uuid:" +uuidStr + "]" );
 	   
 		   String urlStr = Configuration.getInstance().getHostURI()  + 
@@ -2051,10 +2063,72 @@ public class NetworkServiceV2 extends NdexService {
 		   URI l = new URI (urlStr);
 
 		   return Response.created(l).entity(l).build();
-
-	   	}
+	}
 	  
 
+	   @POST	   
+	   @Path("")
+	   @Produces("text/plain")
+	   @Consumes(MediaType.APPLICATION_JSON)
+	   public Response createCXNetworkFromPost( 
+			   @QueryParam("visibility") String visibilityStr,
+				@QueryParam("indexedfields") String fieldListStr // comma seperated list		
+			   ) throws Exception
+	   {
+	   
+		   VisibilityType visibility = null;
+		   if ( visibilityStr !=null) {
+			   visibility = VisibilityType.valueOf(visibilityStr);
+		   }
+		   
+		   Set<String> extraIndexOnNodes = null;
+		   if ( fieldListStr != null) {
+			   extraIndexOnNodes = new HashSet<>(10);
+			   for ( String f: fieldListStr.split("\\s*,\\s*") ) {
+				   extraIndexOnNodes.add(f);
+			   }
+		   }
+		   try (UserDAO dao = new UserDAO()) {
+			   dao.checkDiskSpace(getLoggedInUserId());
+		   }
+		   
+		   InputStream in = this.getInputStreamFromRequest();
+		   UUID uuid = storeRawNetworkFromStream(in);
+		   
+	
+	       
+//		   logger.info("[end: Created a new network based on a POSTed CX stream.]");
+		   
+		   return processRawNetwork(visibility, extraIndexOnNodes, uuid);
+
+	   	}
+	   
+	   
+	   private static UUID storeRawNetworkFromStream(InputStream in) throws IOException {
+		   
+		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuid.toString();
+		   
+		   //Create dir
+		   java.nio.file.Path dir = Paths.get(pathPrefix);
+		   Set<PosixFilePermission> perms =
+				    PosixFilePermissions.fromString("rwxrwxr-x");
+				FileAttribute<Set<PosixFilePermission>> attr =
+				    PosixFilePermissions.asFileAttribute(perms);
+		   Files.createDirectory(dir,attr);
+		   
+		   //write content to file
+		   String cxFilePath = pathPrefix + "/network.cx";
+		   
+		   try (OutputStream outputStream = new FileOutputStream(cxFilePath)) {
+			   IOUtils.copy(in, outputStream);
+			   outputStream.close();
+			   in.close();
+		   } 
+		   return uuid;
+	   }
+	   
+	   
 	   private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException {
 		   Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
 	       

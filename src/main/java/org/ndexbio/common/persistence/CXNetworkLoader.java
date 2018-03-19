@@ -671,7 +671,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 
     
-	private void createNetworkAttribute(NetworkAttributesElement e) throws NdexException, IOException {
+	private void createNetworkAttribute(NetworkAttributesElement e) throws IOException {
 		
 		if ( e.getName().equals(NdexClasses.Network_P_name) && ( networkName == null || e.getSubnetwork() == null)) {
 				this.networkName = e.getValue();
@@ -696,7 +696,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				warnings.addAll(indexWarnings);
 		} */
 		
-		tick();
+//		tick();
 
 	}
 	
@@ -724,17 +724,17 @@ public class CXNetworkLoader implements AutoCloseable {
 			this.globalIdx.addCXNodeToIndex(node);	
 		}   */
 		
-		tick();   
+//		tick();   
 	}	 
 
 	private void createCXCitation(CitationElement citation) throws NdexException, IOException {
 
 		citationIdTracker.addDefinedElementId(citation.getId());
 		writeCXElement(citation);		   
-		tick();   
+//		tick();   
 	}	 
 
-	private void createFunctionTerm(FunctionTermElement funcTerm) throws NdexException, IOException {
+	private void createFunctionTerm(FunctionTermElement funcTerm) throws IOException {
 
 		nodeIdTracker.addReferenceId(funcTerm.getNodeID());
 		writeCXElement(funcTerm);		   
@@ -742,14 +742,14 @@ public class CXNetworkLoader implements AutoCloseable {
 
 			globalIdx.addFunctionTermToIndex(funcTerm);
 		}	*/
-		tick();   
+//		tick();   
 	}	 
 
 	
 	private void createCXSupport(SupportElement support) throws NdexException, IOException {
 		supportIdTracker.addDefinedElementId(support.getId());
 		writeCXElement(support);		   
-		tick();   
+//		tick();   
 	}	 
 	
 	
@@ -762,7 +762,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		writeCXElement(ee);
 
-		tick();	
+//		tick();	
 	   
 	}
 	
@@ -815,13 +815,13 @@ public class CXNetworkLoader implements AutoCloseable {
 	}
 
 	
-	private void createAspectElement(AspectElement element) throws NdexException, IOException {
+	private void createAspectElement(AspectElement element) throws IOException {
 		writeCXElement(element);
-		tick();			
+//		tick();			
 	}
 	
 
-	private void addNodeAttribute(NodeAttributesElement e) throws NdexException, IOException{
+	private void addNodeAttribute(NodeAttributesElement e) throws IOException{
 		
 			nodeIdTracker.addReferenceId(e.getPropertyOf());
 		
@@ -832,18 +832,18 @@ public class CXNetworkLoader implements AutoCloseable {
 			this.globalIdx.addCXNodeAttrToIndex(e);	
 		} */
 		
-		tick();
+	//	tick();
 		
 	}
 	
-	private void tick() throws NdexException {
+/*	private void tick() throws NdexException {
 		counter ++;
 		if ( serverElementLimit>=0 && counter >serverElementLimit ) 
 			throw new NdexException("Element count in the CX input stream exceeded server limit " + serverElementLimit);
 		if ( counter %10000 == 0 )
 			System.out.println("Loaded " + counter + " element in CX");
 		
-	} 
+	}  */
 	
 
 	private void closeAspectStreams() {

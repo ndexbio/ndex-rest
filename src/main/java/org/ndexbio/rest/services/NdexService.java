@@ -31,6 +31,7 @@
 package org.ndexbio.rest.services;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.text.DateFormat;
@@ -215,6 +216,7 @@ public abstract class NdexService
 		try {
 			decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
 		} catch (IOException e) {
+			e.printStackTrace();
             return null;
 		}
         
@@ -227,7 +229,7 @@ public abstract class NdexService
         return decodedAuthInfo.substring(0, idx);
     }
      
-    protected void logInfo (Logger locallogger, String message) {
+ /*   protected void logInfo (Logger locallogger, String message) {
     	final Object user = _httpRequest.getAttribute("User");
     	
     	String userPrefix = (user != null) ?
@@ -235,11 +237,11 @@ public abstract class NdexService
             	"[ANONYMOUS-USER]\t";
     	
     	locallogger.info(userPrefix + message);
-    }
+    } */
    
     protected String getRequestsUniqueId() {
-    	return this.requestsUniqueId;
-    }
+    		return this.requestsUniqueId;
+    } 
 
     private void setRequestsUniqueId() {
     	long currentSystemTimeInMs = System.currentTimeMillis();
@@ -247,6 +249,10 @@ public abstract class NdexService
     //	cal.setTimeInMillis(currentSystemTimeInMs);
     	
     	this.requestsUniqueId = currentSystemTimeInMs + "-" + Thread.currentThread().getId();
+    }
+    
+    protected InputStream getInputStreamFromRequest() throws IOException {
+    		return _httpRequest.getInputStream();
     }
     
     protected static GoogleOpenIDAuthenticator getGoogleAuthenticator() {return googleAuthtenticator;}
