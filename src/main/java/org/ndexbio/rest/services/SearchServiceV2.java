@@ -310,7 +310,7 @@ public class SearchServiceV2 extends NdexService {
 		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
 		if ( queryParameters.getSearchDepth() <1) {
-			throw new BadRequestException("Query depth should be a positive integer.");
+			queryParameters.setSearchDepth(1);
 		}
 		UUID networkId = UUID.fromString(networkIdStr);
 
