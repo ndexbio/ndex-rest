@@ -34,10 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.UUID;
 
@@ -51,7 +48,6 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 
-import org.jboss.resteasy.util.Base64;
 import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.annotations.ApiDoc;
@@ -65,13 +61,13 @@ public abstract class NdexService
 	public static final String NdexZipFlag = "NdexZipped";
 	
     protected HttpServletRequest _httpRequest;
-    private String requestsUniqueId;
+//    private String requestsUniqueId;
     private static GoogleOpenIDAuthenticator googleAuthtenticator = null;
     
 	static Logger logger = LoggerFactory.getLogger(NdexService.class);
 //	static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS");
 	
-	private static final String basicAuthPrefix = "Basic ";
+//	private static final String basicAuthPrefix = "Basic ";
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -89,16 +85,16 @@ public abstract class NdexService
         // the developer will insert pertinent contextual information, such as the client id, client's IP address, request parameters etc. into the MDC. 
         // Logback components, if appropriately configured, will automatically include this information in each log entry.
         // See http://logback.qos.ch/manual/mdc.html for more info.
-        this.setRequestsUniqueId();
-        MDC.put("RequestsUniqueId", this.getRequestsUniqueId());
-        MDC.put("UserName", parseCredentials());
+      //  this.setRequestsUniqueId();
+        MDC.put("RequestsUniqueId", createRequestsUniqueId());
+//        MDC.put("UserName", parseCredentials());
         
         // get IP address of the client
         // the argument for httpRequest.getHeader() method is case insensitive
-        MDC.put("ClientIP",
+    /*    MDC.put("ClientIP",
                 (null == httpRequest.getHeader("X-FORWARDED-FOR")) ? 
                     httpRequest.getRemoteAddr() :
-                    httpRequest.getHeader("X-FORWARDED-FOR"));
+                    httpRequest.getHeader("X-FORWARDED-FOR")); */
 
   //      logger.info("[start: httpRequest received; stamped with {}]", this.getRequestsUniqueId());
     }
@@ -203,7 +199,7 @@ public abstract class NdexService
     	_httpRequest.setAttribute(NdexZipFlag, Boolean.TRUE);
     }
 
-    
+  /*  
     private String parseCredentials()
     {	
     	String authHeader = _httpRequest.getHeader("Authorization");
@@ -227,7 +223,7 @@ public abstract class NdexService
         }
         
         return decodedAuthInfo.substring(0, idx);
-    }
+    } */
      
  /*   protected void logInfo (Logger locallogger, String message) {
     	final Object user = _httpRequest.getAttribute("User");
@@ -239,16 +235,16 @@ public abstract class NdexService
     	locallogger.info(userPrefix + message);
     } */
    
-    protected String getRequestsUniqueId() {
+  /*  protected String getRequestsUniqueId() {
     		return this.requestsUniqueId;
-    } 
+    } */ 
 
-    private void setRequestsUniqueId() {
+    private static String createRequestsUniqueId() {
     	long currentSystemTimeInMs = System.currentTimeMillis();
     //	Calendar cal = Calendar.getInstance();
     //	cal.setTimeInMillis(currentSystemTimeInMs);
     	
-    	this.requestsUniqueId = currentSystemTimeInMs + "-" + Thread.currentThread().getId();
+    	return currentSystemTimeInMs + "-" + Thread.currentThread().getId();
     }
     
     protected InputStream getInputStreamFromRequest() throws IOException {

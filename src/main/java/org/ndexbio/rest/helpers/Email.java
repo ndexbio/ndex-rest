@@ -42,7 +42,6 @@ import javax.mail.internet.MimeMessage;
 
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.services.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

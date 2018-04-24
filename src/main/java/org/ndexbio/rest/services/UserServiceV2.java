@@ -55,7 +55,6 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
-import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
@@ -132,7 +131,7 @@ public class UserServiceV2 extends NdexService {
 	@NdexOpenFunction
 	@Produces("text/plain")
 	@ApiDoc("Verify the given user with UUID and verificationCode")
-	public String verifyUser(@PathParam("userid") String userUUID,
+	public static String verifyUser(@PathParam("userid") String userUUID,
 					@QueryParam("verificationCode") String verificationCode		
 			)
 			throws Exception {
@@ -164,11 +163,8 @@ public class UserServiceV2 extends NdexService {
 			+ "Username and emailAddress must be unique in the database. If email verification is turned on on the server, the user uuid field will be set to null.")
 	public Response createUser(final User newUser)
 			throws Exception {
-
-//		logger.info("[start: Creating User {}]", newUser.getUserName());
 		
 		if ( newUser.getUserName().indexOf(":")>=0) {
-//			logger.warn("[end: Failed to create user, account name can't contain \":\" in it]");
 			throw new NdexException("User account name can't have \":\" in it.");
 		}
 		
@@ -176,12 +172,9 @@ public class UserServiceV2 extends NdexService {
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			LDAPAuthenticator authenticator = BasicAuthenticationFilter.getLDAPAuthenticator();
 			if (!authenticator.authenticateUser(newUser.getUserName(), newUser.getPassword()) ) {
-//				logger.error("[end: Unauthorized to create user {}. Throwing UnauthorizedOperationException.]", 
-//						newUser.getUserName());
 				throw new UnauthorizedOperationException("Only valid AD users can have an account in NDEx.");
 			}
 			newUser.setPassword(Security.generateLongPassword());
-//			logger.info("[User is a authenticated by AD.]");
 		}
 
 		try (UserDAO userdao = new UserDAO()){
@@ -255,8 +248,6 @@ public class UserServiceV2 extends NdexService {
 				
 				user.setExternalId(null);
 			}	
-	//		logger.info("[end: User {} created with UUID {}]", 
-	//				newUser.getUserName(), user.getExternalId());
 			
 			if ( user.getExternalId() != null) {
 			  URI l = new URI (Configuration.getInstance().getHostURI()  + 
@@ -472,7 +463,7 @@ public class UserServiceV2 extends NdexService {
 
 			dao.commit();
 			
-			User u = dao.getUserById(userId, true,false);
+			User u = dao.getUserById(userId, true,true);
 			
 	        AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(),
 	        		"Your new password is:" + newPasswd, "Your NDEx Password Has Been Reset", "html");
@@ -504,8 +495,6 @@ public class UserServiceV2 extends NdexService {
 
 	public void updateUser(@PathParam("userid") final String userId, final User updatedUser)
 			throws Exception {
-		Preconditions.checkArgument(null != updatedUser, 
-				"Updated user data are required");
 		Preconditions.checkArgument(UUID.fromString(userId).equals(updatedUser.getExternalId()), 
 				"UUID in updated user data doesn't match user ID in the URL.");
 		Preconditions.checkArgument(updatedUser.getExternalId().equals(getLoggedInUserId()), 
@@ -536,7 +525,7 @@ public class UserServiceV2 extends NdexService {
 	@Path("/{userid}/membership")
 	@Produces("application/json")
 	@ApiDoc("Returns the group membership information of a user.")
-	public Map<String,String> getMembershipInfo(
+	public static Map<String,String> getMembershipInfo(
 				@PathParam("userid") final String userIdStr,
 			    @QueryParam("groupid") String groupIdStr,
 			    @QueryParam("type") String membershipType,
