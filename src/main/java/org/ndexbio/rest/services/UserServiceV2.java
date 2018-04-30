@@ -404,7 +404,7 @@ public class UserServiceV2 extends NdexService {
 			}
 		} else  {
 			if ( !booleanStr.toLowerCase().equals("true"))
-				throw new IllegalArgumentException("Value of paramter forgot can only be true.");
+				throw new IllegalArgumentException("Value of parameter forgot can only be true.");
 			emailNewPassword(userUUID);
 			return;
 		}

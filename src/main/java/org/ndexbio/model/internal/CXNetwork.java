@@ -223,7 +223,7 @@ public class CXNetwork {
 
 	public void write(OutputStream out) throws IOException {
 		
-		CxWriter cxwtr = getNdexCXWriter(out, true);     
+		CxWriter cxwtr = getNdexCXWriter(out, false);     
 		
         cxwtr.addPreMetaData(metadata);
       try {
