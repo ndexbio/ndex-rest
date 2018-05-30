@@ -543,7 +543,8 @@ public class UserServiceV2 extends NdexService {
 				Map<String, String> result = new TreeMap<>();
 				Permissions m = dao.getUserMembershipTypeOnGroup(userId, groupId);
 
-				result.put(groupId.toString(), m.toString());
+				if (m != null )
+					result.put(groupId.toString(), m.toString());
 				return result;
 			}
 		}
