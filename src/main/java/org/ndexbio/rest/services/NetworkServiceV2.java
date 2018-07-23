@@ -961,12 +961,7 @@ public class NetworkServiceV2 extends NdexService {
 	@GET
 	@Path("/{networkid}/permission")
 	@Produces("application/json")
-    @ApiDoc("Retrieves a list of Membership objects which specify user permissions for the network specified by " +
-            "'networkId'. The value of the 'permission' parameter constrains the type of the returned Membership " +
-            "objects and may take the following set of values: READ, WRITE, and ADMIN.  READ, WRITE, and ADMIN are mutually exclusive. Memberships of all types can " +
-            "be retrieved by permission = 'ALL'.   The maximum number of Membership objects to retrieve in the query " +
-            "is set by 'blockSize' (which may be any number chosen by the user) while  'skipBlocks' specifies the " +
-            "number of blocks that have already been read.")
+
 	public Map<String, String> getNetworkUserMemberships(
 			@PathParam("networkid") final String networkId,
 		    @QueryParam("type") String sourceType,
@@ -1013,12 +1008,7 @@ public class NetworkServiceV2 extends NdexService {
 	@DELETE
 	@Path("/{networkid}/permission")
 	@Produces("application/json")
-    @ApiDoc("Removes any permission for the network specified by 'networkId' for the user specified by 'userUUID': it" +
-            " deletes any Membership object that specifies a permission for the user-network combination. This method" +
-            " will return an error if the authenticated user making the request does not have sufficient permissions " +
-            "to make the deletion or if the network or user is not found. Removal is also denied if it would leave " +
-            "the network without any user having ADMIN permissions: NDEx does not permit networks to become 'orphans'" +
-            " without any owner.")
+
 	public int deleteNetworkPermission(
 			@PathParam("networkid") final String networkIdStr,
 			@QueryParam("userid") String userIdStr,
