@@ -6,7 +6,7 @@ ALTER TABLE ndex_user ADD COLUMN storage_usage bigint;
 ALTER TABLE network ALTER COLUMN error TYPE text;
 ALTER TABLE network ADD COLUMN access_key character varying(500);
 ALTER TABLE network ADD COLUMN access_key_is_on boolean;
-ALTER TABLE network ADD COLUMN cx_file_size bigint
+ALTER TABLE network ADD COLUMN cx_file_size bigint;
 ALTER TABLE network ADD COLUMN storage_usage bigint;
 
 --ALTER TABLE network ADD COLUMN solr_indexed boolean DEFAULT false;
@@ -155,11 +155,7 @@ ALTER TABLE ONLY network_set
 
     
 update network set solr_idx_lvl = 'ALL' where is_deleted=false;
-ALTER TABLE core.network
-    ADD COLUMN has_sample boolean DEFAULT False;
 
-ALTER TABLE core.network
-    ADD COLUMN has_layout boolean DEFAULT False;
 
 update network set has_layout = false where has_layout is null and is_deleted = false;
 

@@ -34,7 +34,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
+import java.security.GeneralSecurityException;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +83,7 @@ import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Security;
+import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrIndexScope;
@@ -90,6 +93,11 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
+import com.google.api.client.http.apache.ApacheHttpTransport;
+import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
@@ -161,9 +169,22 @@ public class UserServiceV2 extends NdexService {
 	@Produces("text/plain")
 	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. "
 			+ "Username and emailAddress must be unique in the database. If email verification is turned on on the server, the user uuid field will be set to null.")
-	public Response createUser(final User newUser)
+	public Response createUser(final User newUser, 
+			@QueryParam("idtoken") String id_token)
 			throws Exception {
 		
+		//check if we need to create user from OAuth.
+		if ( id_token !=null && BasicAuthenticationFilter.getGoogleOAuthAuthenticatior() != null) {
+			User user = createUserFromIdToken (newUser, id_token, BasicAuthenticationFilter.getGoogleOAuthAuthenticatior());
+			if ( user.getExternalId() != null) {
+				  URI l = new URI (Configuration.getInstance().getHostURI()  + 
+				            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ user.getExternalId());
+
+				  return Response.created(l).entity(l).build();
+				} 
+		}
+		
+		//Basic user creation.
 		if ( newUser.getUserName().indexOf(":")>=0) {
 			throw new NdexException("User account name can't have \":\" in it.");
 		}
@@ -176,6 +197,7 @@ public class UserServiceV2 extends NdexService {
 			}
 			newUser.setPassword(Security.generateLongPassword());
 		}
+		
 
 		try (UserDAO userdao = new UserDAO()){
 			
@@ -263,6 +285,47 @@ public class UserServiceV2 extends NdexService {
 	}
 	
 
+	private static User createUserFromIdToken(User tmpUser, String idTokenString , GoogleOpenIDAuthenticator authenticator) throws Exception {
+		Payload payload = authenticator.getPayloadFromIdToken(idTokenString);
+
+			  // Print user identifier
+			  String userId = payload.getSubject();
+			  System.out.println("User ID: " + userId);
+
+			  // Get profile information from payload
+			  User newUser = new User();
+			  newUser.setUserName(tmpUser.getUserName()==null? payload.getEmail(): tmpUser.getUserName());
+			  newUser.setEmailAddress(payload.getEmail());
+			  newUser.setFirstName((String) payload.get("given_name"));
+			  String pictureUrl = (String) payload.get("picture");
+			  if ( pictureUrl !=null) 
+				  newUser.setImage(pictureUrl);
+			  newUser.setLastName((String) payload.get("family_name"));
+			  newUser.setDisplayName((String) payload.get("name"));
+			  
+			  String newPassword = Security.generatePassword();
+			  newUser.setPassword(newPassword);	
+			  
+			  try (UserDAO userdao = new UserDAO()){
+					
+					User user = userdao.createNewUser(newUser, null);
+					
+					try (UserIndexManager mgr = new UserIndexManager()) {
+							mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(),
+									user.getLastName(), user.getDisplayName(), user.getDescription());
+					}
+
+					userdao.commit();
+					String htmlEmail = "Dear "+ newUser.getFirstName() + ",<br>NDEx has create a new account for you. Your user name is " + newUser.getUserName()
+					  + ". Your password is: <br>" + newUser.getPassword() + "<p>Thanks for using NDEx.<p><br>Best,<br>NDEx team.";
+					AmazonSESMailSender.getInstance().sendEmail(newUser.getEmailAddress(), htmlEmail, "Verify Your New NDEx Account", "html");
+					return user;
+			  }
+	
+			
+	}
+	
+	
 	/**************************************************************************
 	 * Gets a user by accountName. 
 	 * 

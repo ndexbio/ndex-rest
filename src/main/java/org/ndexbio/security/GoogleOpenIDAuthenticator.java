@@ -108,17 +108,7 @@ public class GoogleOpenIDAuthenticator {
 	
 	public User getUserByIdToken(String idTokenString) throws GeneralSecurityException, IOException, IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
-		ApacheHttpTransport.Builder builder = new ApacheHttpTransport.Builder();
-		
-		GoogleIdTokenVerifier localVerifier = new GoogleIdTokenVerifier.Builder(builder.build(), new JacksonFactory())
-			    .setAudience(Collections.singletonList(clientID))
-			    // Or, if multiple clients access the backend:
-			    //.setAudience(Arrays.asList(CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3))
-			    .build();
-		
-		GoogleIdToken idToken = localVerifier.verify(idTokenString);
-		if (idToken != null) {
-		  Payload payload = idToken.getPayload();
+		  Payload payload = getPayloadFromIdToken(idTokenString);
 
 		  // Print user identifier
 		//  String userId = payload.getSubject();
@@ -139,15 +129,11 @@ public class GoogleOpenIDAuthenticator {
 			 }	catch ( SQLException e1) {
 				 e1.printStackTrace();
 				  throw new UnauthorizedOperationException("SQL Error when getting user by email: " + e1.getMessage());
-			 }
-		} 
-		  throw new UnauthorizedOperationException("Invalid OAuth ID token.");
-		
+			 }	
 	}
 	
-	public UUID getUserUUIDByIdToken(String idTokenString) throws GeneralSecurityException, IOException, IllegalArgumentException, ObjectNotFoundException, NdexException {
-		
-		ApacheHttpTransport.Builder builder = new ApacheHttpTransport.Builder();
+    public Payload getPayloadFromIdToken(String idTokenString) throws GeneralSecurityException, IOException, UnauthorizedOperationException {
+    	ApacheHttpTransport.Builder builder = new ApacheHttpTransport.Builder();
 		
 		GoogleIdTokenVerifier localVerifier = new GoogleIdTokenVerifier.Builder(builder.build(), new JacksonFactory())
 			    .setAudience(Collections.singletonList(clientID))
@@ -157,27 +143,31 @@ public class GoogleOpenIDAuthenticator {
 		
 		GoogleIdToken idToken = localVerifier.verify(idTokenString);
 		if (idToken != null) {
-		  Payload payload = idToken.getPayload();
-
-		  // Print user identifier
-		  String userId = payload.getSubject();
-		  System.out.println("User ID: " + userId);
-
-		  // Get profile information from payload
-		  String email = payload.getEmail();
-	
-			 try (UserDAO userDao = new UserDAO()) {
-				 UUID userUUID = userDao.getUUIDByEmail(email.toLowerCase());
-				 return userUUID;	
-			 }	catch ( SQLException e1) {
-				 e1.printStackTrace();
-				  throw new UnauthorizedOperationException("SQL Error when getting user by email: " + e1.getMessage());
-			 }
+			return  idToken.getPayload();
 		}
-		 
 		throw new UnauthorizedOperationException("Invalid OAuth ID token.");
+    }
+	
+	
+	public UUID getUserUUIDByIdToken(String idTokenString) throws GeneralSecurityException, IOException, IllegalArgumentException, ObjectNotFoundException, NdexException {
 		
-		
+		Payload payload = getPayloadFromIdToken(idTokenString);
+
+		// Print user identifier
+		String userId = payload.getSubject();
+		System.out.println("User ID: " + userId);
+
+		// Get profile information from payload
+		String email = payload.getEmail();
+
+		try (UserDAO userDao = new UserDAO()) {
+			UUID userUUID = userDao.getUUIDByEmail(email.toLowerCase());
+			return userUUID;
+		} catch (SQLException e1) {
+			e1.printStackTrace();
+			throw new UnauthorizedOperationException("SQL Error when getting user by email: " + e1.getMessage());
+		}
+
 	}
 /*	
 	public String getIDTokenFromQueryStr(String googleQueryString) throws NdexException, ClientProtocolException, IOException, SQLException, IllegalArgumentException, NoSuchAlgorithmException {

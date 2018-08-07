@@ -85,15 +85,15 @@ import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.cxio.aspects.datamodels.NetworkAttributesElement;
+import org.cxio.core.CXAspectWriter;
+import org.cxio.core.OpaqueAspectIterator;
 import org.cxio.metadata.MetaDataCollection;
 import org.cxio.metadata.MetaDataElement;
 import org.cxio.util.JsonWriter;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.cx.CXAspectWriter;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
-import org.ndexbio.common.cx.OpaqueAspectIterator;
 import org.ndexbio.common.models.dao.postgresql.Helper;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
@@ -544,20 +544,22 @@ public class NetworkServiceV2 extends NdexService {
 	public Response getCompleteNetworkAsCX(	@PathParam("networkid") final String networkId,
 			@QueryParam("download") boolean isDownload,
 			@QueryParam("accesskey") String accessKey,
-			@QueryParam("id_token") String id_token )
+			@QueryParam("id_token") String id_token,
+			@QueryParam("auth_token") String auth_token)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException, GeneralSecurityException {
-
-    	logger.info("[start: Getting complete network {}]", networkId);
-
     	
     	String title = null;
     	try (NetworkDAO dao = new NetworkDAO()) {
     		UUID networkUUID = UUID.fromString(networkId);
     		UUID userId = getLoggedInUserId();
-    		if ( userId == null && id_token !=null) {
-    			if ( getGoogleAuthenticator() == null)
-    				throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
-    			userId = getGoogleAuthenticator().getUserUUIDByIdToken(id_token);
+    		if ( userId == null ) {
+    			if ( auth_token != null) {
+    				
+    			} else if ( id_token !=null) {
+    				if ( getGoogleAuthenticator() == null)
+    					throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
+    				userId = getGoogleAuthenticator().getUserUUIDByIdToken(id_token);
+    			}
     		}
     		if ( ! dao.isReadable(networkUUID, userId) && (!dao.accessKeyIsValid(networkUUID, accessKey))) 
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
