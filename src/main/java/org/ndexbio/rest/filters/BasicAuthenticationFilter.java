@@ -132,7 +132,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     	return ADAuthenticator;
     }
     
-    public static GoogleOpenIDAuthenticator getGoogleOAuthAuthenticatior() { return googleOAuthAuthenticator;}
+ //   public static GoogleOpenIDAuthenticator getGoogleOAuthAuthenticatior() { return googleOAuthAuthenticator;}
     
     @Override
     public void filter(ContainerRequestContext requestContext)
@@ -189,9 +189,9 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             			authInfo[0] = authInfo[0].toLowerCase();
             			try ( UserDAO dao = new UserDAO() ) {
             				authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
-            				authType = "B";
             			}
             		}
+    				authType = "B";
             	}
             	
             	if (authUser != null) {   // user is authenticated

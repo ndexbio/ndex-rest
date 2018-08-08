@@ -48,26 +48,26 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 
+import org.jboss.resteasy.util.Base64;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.annotations.ApiDoc;
+import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 public abstract class NdexService
 {
 	public static final String NdexZipFlag = "NdexZipped";
 	
     protected HttpServletRequest _httpRequest;
-//    private String requestsUniqueId;
     private static GoogleOpenIDAuthenticator googleAuthtenticator = null;
     
 	static Logger logger = LoggerFactory.getLogger(NdexService.class);
-//	static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS");
-	
-//	private static final String basicAuthPrefix = "Basic ";
+
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -78,25 +78,8 @@ public abstract class NdexService
     public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
         
-        
-        // we need to log request id.  
-        // The parameter UniqueRequestId can be accessed in <pattern> element from logback.xml like this: %X{UniqueRequestId} 
-        // The MDC manages contextual information on a per thread basis.  Typically, while starting to service a new client request, 
-        // the developer will insert pertinent contextual information, such as the client id, client's IP address, request parameters etc. into the MDC. 
-        // Logback components, if appropriately configured, will automatically include this information in each log entry.
-        // See http://logback.qos.ch/manual/mdc.html for more info.
-      //  this.setRequestsUniqueId();
-        MDC.put("RequestsUniqueId", createRequestsUniqueId());
-//        MDC.put("UserName", parseCredentials());
-        
-        // get IP address of the client
-        // the argument for httpRequest.getHeader() method is case insensitive
-    /*    MDC.put("ClientIP",
-                (null == httpRequest.getHeader("X-FORWARDED-FOR")) ? 
-                    httpRequest.getRemoteAddr() :
-                    httpRequest.getHeader("X-FORWARDED-FOR")); */
+ //       MDC.put("RequestsUniqueId", createRequestsUniqueId());
 
-  //      logger.info("[start: httpRequest received; stamped with {}]", this.getRequestsUniqueId());
     }
     
     /**************************************************************************
@@ -199,53 +182,14 @@ public abstract class NdexService
     	_httpRequest.setAttribute(NdexZipFlag, Boolean.TRUE);
     }
 
-  /*  
-    private String parseCredentials()
-    {	
-    	String authHeader = _httpRequest.getHeader("Authorization");
-    	if (null == authHeader) {
-    		return "anonymous";
-    	}
 
-    	String encodedAuthInfo = authHeader.substring(basicAuthPrefix.length());
-        String decodedAuthInfo;
-		try {
-			decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
-		} catch (IOException e) {
-			e.printStackTrace();
-            return null;
-		}
-        
-        int idx = decodedAuthInfo.indexOf(":");
-        
-        if (idx == -1) {
-        	return null;
-        }
-        
-        return decodedAuthInfo.substring(0, idx);
-    } */
-     
- /*   protected void logInfo (Logger locallogger, String message) {
-    	final Object user = _httpRequest.getAttribute("User");
-    	
-    	String userPrefix = (user != null) ?
-            "[USER:"+ ((org.ndexbio.model.object.User)user).getUserName()+ "]\t": 
-            	"[ANONYMOUS-USER]\t";
-    	
-    	locallogger.info(userPrefix + message);
-    } */
-   
-  /*  protected String getRequestsUniqueId() {
-    		return this.requestsUniqueId;
-    } */ 
-
-    private static String createRequestsUniqueId() {
+/*    private static String createRequestsUniqueId() {
     	long currentSystemTimeInMs = System.currentTimeMillis();
     //	Calendar cal = Calendar.getInstance();
     //	cal.setTimeInMillis(currentSystemTimeInMs);
     	
     	return currentSystemTimeInMs + "-" + Thread.currentThread().getId();
-    }
+    } */
     
     protected InputStream getInputStreamFromRequest() throws IOException {
     		return _httpRequest.getInputStream();
@@ -255,4 +199,28 @@ public abstract class NdexService
     public static void setGoogleAuthenticator(GoogleOpenIDAuthenticator a) {
     	googleAuthtenticator = a;
     }
+    
+	protected static UUID getUserIdFromBasicAuthString(String encodedAuthInfo) throws Exception {
+		final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+		int idx = decodedAuthInfo.indexOf(":");
+		if (idx == -1)
+			throw new UnauthorizedOperationException("Malformed authorization value received.");
+
+		String username = decodedAuthInfo.substring(0, idx);
+		String password = decodedAuthInfo.substring(idx + 1);
+
+		if (BasicAuthenticationFilter.getLDAPAuthenticator() != null) {
+			if (!BasicAuthenticationFilter.getLDAPAuthenticator().authenticateUser(username, password)) {
+				throw new UnauthorizedOperationException("Invalid username or password for AD authentication.");
+			}
+			try (UserDAO dao = new UserDAO()) {
+				return dao.getUserByAccountName(username.toLowerCase(), true, true).getExternalId();
+			}
+		}
+		try (UserDAO dao = new UserDAO()) {
+			 return dao.authenticateUser(username.toLowerCase(), password).getExternalId();
+		}
+
+	}
+	
 }

@@ -34,9 +34,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
-import java.security.GeneralSecurityException;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,27 +86,15 @@ import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrIndexScope;
 import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
-import com.google.api.client.http.apache.ApacheHttpTransport;
-import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 @Path("/v2/user")
 public class UserServiceV2 extends NdexService {
-	
-//	private static final String GOOGLE_OAUTH_FLAG = "USE_GOOGLE_AUTHENTICATION";
-//	private static final String GOOGLE_OATH_KEY = "GOOGLE_OATH_KEY";
-	
-	
-	static Logger logger = LoggerFactory.getLogger(UserService.class);
 	
 
 	/**************************************************************************
@@ -174,8 +160,8 @@ public class UserServiceV2 extends NdexService {
 			throws Exception {
 		
 		//check if we need to create user from OAuth.
-		if ( id_token !=null && BasicAuthenticationFilter.getGoogleOAuthAuthenticatior() != null) {
-			User user = createUserFromIdToken (newUser, id_token, BasicAuthenticationFilter.getGoogleOAuthAuthenticatior());
+		if ( id_token !=null && getGoogleAuthenticator() != null) {
+			User user = createUserFromIdToken (newUser, id_token, getGoogleAuthenticator());
 			if ( user.getExternalId() != null) {
 				  URI l = new URI (Configuration.getInstance().getHostURI()  + 
 				            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ user.getExternalId());

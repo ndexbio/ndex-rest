@@ -118,9 +118,7 @@ public class UserDAO extends NdexDBDAO {
 				throw new UnauthorizedOperationException("Invalid accountName or password.");
 		}
 	
-		User user = getUserByAccountName(accountName, true, true);
-//		user.setPassword("");
-		return user;
+		return getUserByAccountName(accountName, true, true);
 		
 	}
 

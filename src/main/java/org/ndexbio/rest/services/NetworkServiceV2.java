@@ -92,6 +92,7 @@ import org.cxio.metadata.MetaDataElement;
 import org.cxio.util.JsonWriter;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
+import org.jboss.resteasy.util.Base64;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.Helper;
@@ -546,7 +547,7 @@ public class NetworkServiceV2 extends NdexService {
 			@QueryParam("accesskey") String accessKey,
 			@QueryParam("id_token") String id_token,
 			@QueryParam("auth_token") String auth_token)
-			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException, GeneralSecurityException {
+			throws Exception {
     	
     	String title = null;
     	try (NetworkDAO dao = new NetworkDAO()) {
@@ -554,7 +555,7 @@ public class NetworkServiceV2 extends NdexService {
     		UUID userId = getLoggedInUserId();
     		if ( userId == null ) {
     			if ( auth_token != null) {
-    				
+    				userId = getUserIdFromBasicAuthString(auth_token);
     			} else if ( id_token !=null) {
     				if ( getGoogleAuthenticator() == null)
     					throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
@@ -564,7 +565,6 @@ public class NetworkServiceV2 extends NdexService {
     		if ( ! dao.isReadable(networkUUID, userId) && (!dao.accessKeyIsValid(networkUUID, accessKey))) 
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
     		
-    	//	NetworkSummary s = dao.getNetworkSummaryById(networkUUID);
     		title = dao.getNetworkName(networkUUID);
     	}
   
@@ -593,6 +593,8 @@ public class NetworkServiceV2 extends NdexService {
 		
 	}  
 
+
+	
 	@PermitAll
 	@GET
 	@Path("/{networkid}/sample")

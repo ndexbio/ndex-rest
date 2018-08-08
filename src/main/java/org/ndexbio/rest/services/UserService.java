@@ -89,7 +89,7 @@ public class UserService extends NdexService {
 //	private static final String GOOGLE_OATH_KEY = "GOOGLE_OATH_KEY";
 	
 	
-	static Logger logger = LoggerFactory.getLogger(UserService.class);
+//	static Logger logger = LoggerFactory.getLogger(UserService.class);
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -544,7 +544,7 @@ public class UserService extends NdexService {
 		
 		logger.info("[start: renew Google access token by refresh token]");
 
-		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+		GoogleOpenIDAuthenticator authenticator = getGoogleAuthenticator();
 		if ( authenticator ==null ) {
 			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
 			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
@@ -568,7 +568,7 @@ public class UserService extends NdexService {
 	public void revokeGoogleAccessToken(@PathParam("accessToken") String accessToken)
 			throws NdexException, ClientProtocolException, IOException {
 		
-		GoogleOpenIDAuthenticator authenticator = BasicAuthenticationFilter.getGoogleOAuthAuthenticatior();
+		GoogleOpenIDAuthenticator authenticator = getGoogleAuthenticator();
 		if ( authenticator ==null ) {
 			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
 			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
@@ -824,7 +824,7 @@ public class UserService extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("")
 	public List<Request> getSentRequest(@PathParam("start") int skipBlocks,
-			@PathParam("size") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+			@PathParam("size") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
 		logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 		
@@ -841,13 +841,13 @@ public class UserService extends NdexService {
 	@ApiDoc("")
 	public List<Request> getPendingRequests(
 			@PathParam("start") int skipBlocks,
-			@PathParam("size") int blockSize) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+			@PathParam("size") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
-		logger.info("[start: Getting pending request for user {}]", getLoggedInUser().getUserName());
+//		logger.info("[start: Getting pending request for user {}]", getLoggedInUser().getUserName());
 		
 		try (RequestDAO dao = new RequestDAO ()){
 			List<Request> reqs= dao.getPendingRequestByUserId(this.getLoggedInUserId(),skipBlocks, blockSize);
-			logger.info("[end: Returning {} pending request.]", reqs.size());
+//			logger.info("[end: Returning {} pending request.]", reqs.size());
 			return reqs;
 		} 
 	}
