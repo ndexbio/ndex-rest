@@ -302,9 +302,20 @@ public class UserServiceV2 extends NdexService {
 					}
 
 					userdao.commit();
-					String htmlEmail = "Dear "+ newUser.getFirstName() + ",<br>NDEx has create a new account for you. Your user name is " + newUser.getUserName()
-					  + ". Your password is: <br>" + newUser.getPassword() + "<p>Thanks for using NDEx.<p><br>Best,<br>NDEx team.";
-					AmazonSESMailSender.getInstance().sendEmail(newUser.getEmailAddress(), htmlEmail, "Verify Your New NDEx Account", "html");
+					String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
+
+					String messageBody = "Dear "+ newUser.getFirstName() + " "+ newUser.getLastName() +
+							   ",<p>NDEx has created your new account using the Google email address you chose.<p>"
+							   + "To Sign In to your NDEx Account, visit http://ndexbio.org/#signIn and click the \"Sign In / Sign up with Google\" button.<p>"+
+							   "Although you won't need to input your username and password when signing in, you might still need your credentials for"
+							   + " other purposes such as programmatic access to the NDEx REST API:<p>Your username is: " + newUser.getUserName()
+					  + "<br>Your password is: " + newUser.getPassword() + 
+					  "<p>Please save this email for future reference as you may need your password if you plan on using NDEx programmatically rather than via our web user interface.<p>Thanks for using NDEx!";
+				
+			        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+
+					
+					AmazonSESMailSender.getInstance().sendEmail(newUser.getEmailAddress(), htmlEmail, "Your New NDEx Account Has Been Created", "html");
 					return user;
 			  }
 	
@@ -333,6 +344,7 @@ public class UserServiceV2 extends NdexService {
 	@ApiDoc("Return the user corresponding to the given user account name. Error if this account is not found.")
 	public User getUserByAccountNameOrAuthenticatUser(
 			@QueryParam("username") /*@Encoded*/ final String accountName,
+			@QueryParam("email") final String emailAddress,
 			@QueryParam("valid") final String booleanStr
 			)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
@@ -343,15 +355,20 @@ public class UserServiceV2 extends NdexService {
 			return authenticateUser();
 		}
 		
-	//	logger.info("[start: Getting user by account name {}]", accountName);
-		if ( accountName == null || accountName.length() == 0)
-			throw new IllegalArgumentException("parameter username is required in the URL.");
-		
+		if ( accountName == null || accountName.length() == 0) {
+			// check by email
+			if ( emailAddress == null || emailAddress.length() == 0)
+			  throw new IllegalArgumentException("parameter username or email is required in the URL.");
+			
+			try (UserDAO dao = new UserDAO()){
+				final User user = dao.getUserByEmail(emailAddress.toLowerCase(),false);
+				return user;
+			}
+		}
 		try (UserDAO dao = new UserDAO()){
 			
 			final User user = dao.getUserByAccountName(accountName.toLowerCase(),false,
 					getLoggedInUser() !=null && getLoggedInUser().getUserName().equalsIgnoreCase(accountName));
-	//		logger.info("[end: User object returned for user account {}]", accountName);
 			return user;
 		} 
 		
@@ -501,7 +518,6 @@ public class UserServiceV2 extends NdexService {
 	//	logger.info("[start: Email new password for {}]", user.getUserName());
 		
 		if( Configuration.getInstance().getUseADAuthentication()) {
-			logger.warn("[end: Emailing new password is not allowed for AD authentication method]");
 			throw new UnauthorizedOperationException("Emailing new password is not allowed when using AD authentication method");
 		}
 	
@@ -513,9 +529,19 @@ public class UserServiceV2 extends NdexService {
 			dao.commit();
 			
 			User u = dao.getUserById(userId, true,true);
+
+			String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
+
+			String messageBody = "Dear " + u.getFirstName() + " " + u.getLastName()+ 
+	        		",<p>your NDEx Account password has been reset.<br>Your username is: " + u.getUserName() + "<p>"+
+    				"Your new password is: " + newPasswd + 
+    				"<p>If you didn't request to reset your password, please contact us at support@ndexbio.org immediately.<p>" + 
+    				"Thanks for using NDEx!";
 			
+	        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+	        
 	        AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(),
-	        		"Your new password is:" + newPasswd, "Your NDEx Password Has Been Reset", "html");
+	        		htmlEmail, "Your NDEx Password Has Been Reset", "html");
 
 	        // this is the old method using local host. We are suing AmazonSES now. For enterprise users, we need to find out how to send emails.
 			/*

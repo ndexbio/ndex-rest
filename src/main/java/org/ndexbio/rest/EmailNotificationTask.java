@@ -129,7 +129,7 @@ public class EmailNotificationTask extends TimerTask {
 				
 				// send email;
 				 AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(), emailTemplate.replaceFirst("%%____%%",emailString),
-						 emailSubject + "You Request Has Been Reviewed" , "html");
+						 emailSubject + "Your Request Has Been Reviewed" , "html");
 				  logger.info("Notified " + u.getUserName() + " one accepted request.");
 
 			/*	Email.sendHTMLEmailUsingLocalhost(senderAddress, u.getEmailAddress(), emailSubject + "You Request Has Been Reviewed",
