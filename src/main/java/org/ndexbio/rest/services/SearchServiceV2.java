@@ -705,6 +705,7 @@ public class SearchServiceV2 extends NdexService {
 	    formData.add("q", q);
 	    formData.add("scopes", "symbol,entrezgene,ensemblgene,alias,uniprot");
 	    formData.add("fields", "symbol,name,taxid,entrezgene,ensembl.gene,alias,uniprot,MGI,RGD,HGNC");
+	    formData.add("species", "9606");
 	    formData.add("dotfield", "true");
 
 	//    lStr.append("&scope=symbol,entrezgene,ensemblgene,alias,uniprot&fields=symbol,name,taxid,entrezgene,ensembl.gene,alias,uniprot&dotfield=true");
@@ -731,9 +732,9 @@ public class SearchServiceV2 extends NdexService {
         	addTermsToExpensionSet(termObj.get("ensembl.gene"), expendedTerms);
         	addTermsToExpensionSet(termObj.get("symbol"), expendedTerms);
         	
-        	Integer id = (Integer) termObj.get("entrezgene");
+        	String id =  (String)termObj.get("entrezgene");
         	if ( id !=null)
-        		expendedTerms.add(id.toString());
+        		expendedTerms.add(id);
         	
         	String term = (String) termObj.get("uniprot.Swiss-Prot");
         	if ( term !=null)
