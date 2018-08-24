@@ -514,8 +514,6 @@ public class UserServiceV2 extends NdexService {
 
 	private static void emailNewPassword( UUID userId)
 			throws Exception {
-
-	//	logger.info("[start: Email new password for {}]", user.getUserName());
 		
 		if( Configuration.getInstance().getUseADAuthentication()) {
 			throw new UnauthorizedOperationException("Emailing new password is not allowed when using AD authentication method");
@@ -523,7 +521,6 @@ public class UserServiceV2 extends NdexService {
 	
 		try (UserDAO dao = new UserDAO ()){
 
-		//	User authUser = dao.getUserById(userId, true);
 			String newPasswd = dao.setNewPassword(userId,null);
 
 			dao.commit();
@@ -543,14 +540,6 @@ public class UserServiceV2 extends NdexService {
 	        AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(),
 	        		htmlEmail, "Your NDEx Password Has Been Reset", "html");
 
-	        // this is the old method using local host. We are suing AmazonSES now. For enterprise users, we need to find out how to send emails.
-			/*
-			Email.sendHTMLEmailUsingLocalhost(Configuration.getInstance().getProperty("Forgot-Password-Email"), 
-					user.getEmailAddress(), 
-					"Your NDEx Password Has Been Reset", 
-					"Your new password is:" + newPasswd); */
-
-	//		logger.info("[end: Emailed new password to {}]", user.getUserName());
 		}
 	}
 

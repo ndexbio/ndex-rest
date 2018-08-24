@@ -642,62 +642,6 @@ public class UserService extends NdexService {
 		} 
 	}
 
-	/**************************************************************************
-	 * Emails the user a new randomly generated password.
-	 * 
-	 * @param username
-	 *            The username of the user.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to change the password in the database, or failed to
-	 *             send the email.
-	 * @throws IOException 
-	 * @throws MessagingException 
-	 * @throws SQLException 
-	 * @throws NoSuchAlgorithmException 
-	 **************************************************************************/
-/*	@POST
-	@PermitAll
-	@NdexOpenFunction
-	@Path("/forgot-password")
-	@Consumes("application/json")
-	@Produces("application/json")
-	@ApiDoc("Causes a new password to be generated for the given user account and then emailed to the user's emailAddress")
-	public Response emailNewPassword( final String accountName)
-			throws IllegalArgumentException, NdexException, IOException, MessagingException, SQLException, NoSuchAlgorithmException {
-
-		logger.info("[start: Email new password for {}]", accountName);
-		
-		if( Configuration.getInstance().getUseADAuthentication()) {
-			logger.warn("[end: Emailing new password is not allowed for AD authentication method]");
-			throw new UnauthorizedOperationException("Emailing new password is not allowed when using AD authentication method");
-		}
-		
-		
-		Preconditions.checkArgument(!Strings.isNullOrEmpty(accountName), 
-				"A accountName is required");
-		// TODO: In the future security questions should be implemented - right
-		// now anyone can change anyone else's password to a randomly generated
-		// password
-		
-	//	BufferedReader fileReader = null;
-		try (UserDAO dao = new UserDAO ()){
-
-			User authUser = dao.getUserByAccountName(accountName,true);
-			String newPasswd = dao.setNewPassword(accountName.toLowerCase(),null);
-
-			dao.commit();
-			
-			Email.sendHTMLEmailUsingLocalhost(Configuration.getInstance().getProperty("Forgot-Password-Email"), 
-					authUser.getEmailAddress(), 
-					"Your NDEx Password Has Been Reset", 
-					"Your new password is:" + newPasswd);
-
-			logger.info("[end: Emailed new password to {}]", accountName);
-			return Response.ok().build();
-		}
-	} */
 
 	/**************************************************************************
 	 * Finds users based on the search parameters.
