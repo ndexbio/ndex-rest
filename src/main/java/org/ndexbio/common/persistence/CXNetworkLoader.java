@@ -290,17 +290,8 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 				List<SimplePropertyValuePair> pProps =provenanceEntity.getProperties();
 				
-			//    pProps.add( new SimplePropertyValuePair("edge count", Integer.toString( summary.getEdgeCount() )) );
-			//    pProps.add( new SimplePropertyValuePair("node count", Integer.toString( summary.getNodeCount() )) );
-
 			    if ( summary.getName() != null)
 			       pProps.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
-
-			/*    if ( summary.getDescription() != null && summary.getDescription().length() >0 )
-			       pProps.add( new SimplePropertyValuePair("description", summary.getDescription()) );
-
-			    if ( summary.getVersion()!=null && summary.getVersion().length() > 0 )
-			       pProps.add( new SimplePropertyValuePair("version", summary.getVersion()) ); */
 
 			    provenanceEntity.setProperties(pProps); 
 			    

@@ -95,37 +95,6 @@ public class Helper {
 		return accObj;
 	}
 	
-
-/*	public static ODocument updateNetworkProfile(ODocument doc, NetworkSummary newSummary){
-	
-	   boolean needResetModificationTime = false;
-	   
-	   if ( newSummary.getName() != null) {
-		 doc.field( NdexClasses.Network_P_name, newSummary.getName());
-		 needResetModificationTime = true;
-	   }
-		
-	  if ( newSummary.getDescription() != null) {
-		doc.field( NdexClasses.Network_P_desc, newSummary.getDescription());
-		needResetModificationTime = true;
-	  }
-	
-	  if ( newSummary.getVersion()!=null ) {
-		doc.field( NdexClasses.Network_P_version, newSummary.getVersion());
-		needResetModificationTime = true;
-	  }
-	  
-	  if ( newSummary.getVisibility()!=null )
-		doc.field( NdexClasses.Network_P_visibility, newSummary.getVisibility());
-	  
-	  if (needResetModificationTime) 
-	     doc.field(NdexClasses.ExternalObj_mTime, new Date());
-      
-	  doc.save();
-	  return doc;
-	} */
-	
-
 	
     //Added by David Welker
     public static void populateProvenanceEntity(ProvenanceEntity entity, NetworkSummary summary)
@@ -148,50 +117,7 @@ public class Helper {
         entity.setProperties(entityProperties);
     }
 
-    //Added by David Welker
- /*   public static void addUserInfoToProvenanceEventProperties(List<SimplePropertyValuePair> eventProperties, User user)
-    {
-        String firstName = user.getFirstName();
-        String lastName = user.getLastName();
-        if( firstName != null || lastName != null )
-        {
-            String name = "";
-            if( firstName == null )
-                name = lastName;
-            else if( lastName == null )
-                name = firstName;
-            else
-                name = firstName + " " + lastName;
-            eventProperties.add( new SimplePropertyValuePair("user", name));
-        } 
+ 
 
-       // if( user.getUserName() != null )
-            eventProperties.add( new SimplePropertyValuePair("user name", user.getUserName()) );
-    } */
-
-
-     
-/*	private static void createUserIfnotExist(UserDAO dao, String accountName, String email, String password) throws NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, NoSuchAlgorithmException, SQLException, IOException {
-		try {
-			User u = dao.getUserByAccountName(accountName,true, false);
-			if ( u!= null) return;
-		} catch (IllegalArgumentException e) {
-			e.printStackTrace();
-			throw new NdexException ("Failed to create new user after creating database. " + e.getMessage());
-		} catch ( ObjectNotFoundException e2) {
-			
-		}
-		
-		User newUser = new User();
-        newUser.setEmailAddress(email);
-        newUser.setPassword(password);
-        newUser.setUserName(accountName);
-        newUser.setFirstName("");
-        newUser.setLastName("");
-        dao.createNewUser(newUser, null);
-        
-
-	} */
-	
 	
 }

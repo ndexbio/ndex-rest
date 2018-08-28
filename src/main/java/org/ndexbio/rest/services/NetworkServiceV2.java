@@ -284,15 +284,12 @@ public class NetworkServiceV2 extends NdexService {
     		final List<NdexPropertyValuePair> properties)
     		throws Exception {
 
-//    	logger.info("[start: Updating properties of network {}]", networkId);
-
 		User user = getLoggedInUser();
 		UUID networkUUID = UUID.fromString(networkId);
 
 		try (NetworkDAO daoNew = new NetworkDAO()) {
 			
 	  	    if(daoNew.isReadOnly(networkUUID)) {
-				logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
 			} 
 			
@@ -387,9 +384,7 @@ public class NetworkServiceV2 extends NdexService {
 			logger.error("Updating properties of network {}. Exception caught:]{}", networkId, e);
 			
 			throw new NdexException(e.getMessage(), e);
-		} finally {
-			logger.info("[end: Updated properties of network {}]", networkId);
-		}
+		} 
     }
   
 	/*
@@ -621,7 +616,7 @@ public class NetworkServiceV2 extends NdexService {
 			//	setZipFlag();
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 		} catch ( FileNotFoundException e) {
-				throw new ObjectNotFoundException("Sample network of " + networkId + " not found");
+				throw new ObjectNotFoundException("Sample network of " + networkId + " not found. Error: " + e.getMessage());
 		}  
 		
 	}  
@@ -796,6 +791,7 @@ public class NetworkServiceV2 extends NdexService {
 			in = inputStream;
 		}
 		
+		@Override
 		public void run() {
 
 			try {
@@ -972,9 +968,6 @@ public class NetworkServiceV2 extends NdexService {
 			@QueryParam("permission") final String permissions ,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize) throws NdexException, SQLException {
-
-		logger.info("[start: Get {} accounts on network {}, skipBlocks {},  blockSize {}]", 
-				permissions, networkId, skipBlocks, blockSize);
 		
 		Permissions permission = null;
 		if ( permissions != null ){
@@ -1001,9 +994,6 @@ public class NetworkServiceV2 extends NdexService {
 					networkDao.getNetworkUserPermissions(networkUUID, permission, skipBlocks, blockSize):
 					networkDao.getNetworkGroupPermissions(networkUUID,permission,skipBlocks,blockSize);
 					
-
-			logger.info("[end: Got {} members returned for network {}]", 
-					result.size(), networkId);
 			return result;
 		} 
 	}
@@ -1018,7 +1008,7 @@ public class NetworkServiceV2 extends NdexService {
 			@QueryParam("userid") String userIdStr,
 			@QueryParam("groupid") String groupIdStr		
 			)
-			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
+			throws IllegalArgumentException, NdexException, IOException, SQLException {
 				
 		UUID networkId = UUID.fromString(networkIdStr);
 
@@ -1084,7 +1074,7 @@ public class NetworkServiceV2 extends NdexService {
 			@QueryParam("groupid") String groupIdStr,			
 			@QueryParam("permission") final String permissions 
 			)
-			throws IllegalArgumentException, NdexException, SolrServerException, IOException, SQLException {
+			throws IllegalArgumentException, NdexException, IOException, SQLException {
 
 		logger.info("[start: Updating membership for network {}]", networkIdStr);
 		UUID networkId = UUID.fromString(networkIdStr);
@@ -1199,7 +1189,6 @@ public class NetworkServiceV2 extends NdexService {
 			)
             throws  NdexException, SQLException , IOException, IllegalArgumentException 
     {
-	//	logger.info("[start: Updating profile information of network {}]", networkId);
 		
 		try (NetworkDAO networkDao = new NetworkDAO()){
 
@@ -1207,7 +1196,6 @@ public class NetworkServiceV2 extends NdexService {
 			UUID networkUUID = UUID.fromString(networkId);
 	
 	  	    if(networkDao.isReadOnly(networkUUID)) {
-	//			logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
 			} 
 			
@@ -1584,12 +1572,10 @@ public class NetworkServiceV2 extends NdexService {
 			} 
 			
 			daoNew.lockNetwork(networkId);
-			
-	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
-			
+						
 	        UUID tmpNetworkId = storeRawNetwork (input);
 
-	        updateNetworkFromSavedFile(networkIdStr, networkId, daoNew, tmpNetworkId);
+	        updateNetworkFromSavedFile( networkId, daoNew, tmpNetworkId);
 			
            } catch (SQLException | NdexException | IOException e) {
         	  // e.printStackTrace();
@@ -1602,7 +1588,6 @@ public class NetworkServiceV2 extends NdexService {
         }  
     	      
 	     NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkId, /* ownerAccName,*/ true, visibility,extraIndexOnNodes));
-	    // return networkIdStr; 
     }
 
 
@@ -1660,7 +1645,7 @@ public class NetworkServiceV2 extends NdexService {
 					UUID tmpNetworkId = storeRawNetworkFromStream(in);
 					// UUID tmpNetworkId = storeRawNetwork (input);
 
-					updateNetworkFromSavedFile(networkIdStr, networkId, daoNew, tmpNetworkId);
+					updateNetworkFromSavedFile(networkId, daoNew, tmpNetworkId);
 					// daoNew.unlockNetwork(networkId);
 				}
 			
@@ -1681,7 +1666,7 @@ public class NetworkServiceV2 extends NdexService {
 
 
 
-	private void updateNetworkFromSavedFile(final String networkIdStr, UUID networkId, NetworkDAO daoNew,
+	private static void updateNetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
 			UUID tmpNetworkId) throws SQLException, NdexException, IOException, JsonParseException,
 			JsonMappingException, ObjectNotFoundException {
 		String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString()
@@ -1698,10 +1683,12 @@ public class NetworkServiceV2 extends NdexService {
 				new File(Configuration.getInstance().getNdexRoot() + "/data/" + networkId));
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 
-		String urlStr = Configuration.getInstance().getHostURI()
-				+ Configuration.getInstance().getRestAPIPrefix() + "/network/" + networkIdStr;
+		// commenting these part out to simplify the provenance recording. We don't generate 
+		// provenance event when user updates their networks now.
+//		String urlStr = Configuration.getInstance().getHostURI()
+//				+ Configuration.getInstance().getRestAPIPrefix() + "/network/" + networkIdStr;
 
-		ProvenanceEntity entity = new ProvenanceEntity();
+/*		ProvenanceEntity entity = new ProvenanceEntity();
 		entity.setUri(urlStr + "/summary");
 
 		ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE,
@@ -1716,7 +1703,7 @@ public class NetworkServiceV2 extends NdexService {
 		entity.setCreationEvent(event);
 
 		daoNew.setProvenance(networkId, entity);
-
+*/
 		daoNew.commit();
 	}
     
@@ -1765,7 +1752,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 	        UUID tmpNetworkId = storeRawNetwork (input); //network stored as a temp network
 	        
-	    	updateNetworkFromSavedAspects(networkIdStr, networkId, daoNew, tmpNetworkId);
+	    	updateNetworkFromSavedAspects(networkId, daoNew, tmpNetworkId);
 			
            } 
     }
@@ -1808,23 +1795,23 @@ public class NetworkServiceV2 extends NdexService {
 
 	        UUID tmpNetworkId = storeRawNetworkFromStream(in); //network stored as a temp network
 	        
-	    	updateNetworkFromSavedAspects(networkIdStr, networkId, daoNew, tmpNetworkId);
+	    	updateNetworkFromSavedAspects( networkId, daoNew, tmpNetworkId);
 			}
            } 
     }
 
 
 
-	private void updateNetworkFromSavedAspects(final String networkIdStr, UUID networkId, NetworkDAO daoNew,
+	private static void updateNetworkFromSavedAspects( UUID networkId, NetworkDAO daoNew,
 			UUID tmpNetworkId) throws SQLException, IOException {
 		try ( CXNetworkAspectsUpdater aspectUpdater = new CXNetworkAspectsUpdater(networkId, /*ownerAccName,*/daoNew, tmpNetworkId) ) {
 			
-			String urlStr = Configuration.getInstance().getHostURI()  + 
+		/*	String urlStr = Configuration.getInstance().getHostURI()  + 
 		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr;
 			ProvenanceEntity entity = new ProvenanceEntity();
 			entity.setUri(urlStr + "/summary");
 
-			ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_ASPECTS_UPDATE, new Timestamp(System.currentTimeMillis()));
+		 event = new ProvenanceEvent(NdexProvenanceEventType.CX_ASPECTS_UPDATE, new Timestamp(System.currentTimeMillis()));
 
 			List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
 			eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
@@ -1834,7 +1821,7 @@ public class NetworkServiceV2 extends NdexService {
 			event.addInput(inputEntity);
 			entity.setCreationEvent(event);
 
-			daoNew.setProvenance(networkId, entity);
+			daoNew.setProvenance(networkId, entity);*/
 				
 			aspectUpdater.update();
 
@@ -2014,7 +2001,6 @@ public class NetworkServiceV2 extends NdexService {
 	@PUT
 	@Path("/{networkid}/systemproperty")
 	@Produces("application/json")
-//    @Consumes("application/json")
     @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
 	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
 	public void setNetworkFlag(

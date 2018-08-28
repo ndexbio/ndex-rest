@@ -51,6 +51,7 @@ import javax.ws.rs.ext.Provider;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.util.Base64;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.solr.UserIndexManager;
 //import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -180,6 +181,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             						//	User newUser = getNewUserSimulator(authInfo[0], authInfo[1]); // only use this line one debugging AD authentication using simulator functions.
             							authUser = dao.createNewUser(newUser,null);
             							dao.commit();
+            							try (UserIndexManager mgr = new UserIndexManager()) {
+            								mgr.addUser(authUser.getExternalId().toString(), authUser.getUserName(), authUser.getFirstName(),
+            										authUser.getLastName(), authUser.getDisplayName(), authUser.getDescription());
+            							}
             						} else 
             							throw e;
             					}	

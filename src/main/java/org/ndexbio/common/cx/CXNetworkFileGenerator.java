@@ -53,15 +53,7 @@ public class CXNetworkFileGenerator {
 		fullSummary = networkDao.getNetworkSummaryById(networkUUID);
 		metadata = networkDao.getMetaDataCollection(networkUUID);
 		provenance = provenanceHistory;
-	}
-	
-/*	public CXNetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao, MetaDataCollection metaDataCollection) 
-			throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
-		networkId = networkUUID;
-		fullSummary = networkDao.getNetworkSummaryById(networkUUID);
-		metadata = metaDataCollection;
-	}*/
-	
+	}	
 	
 	public CXNetworkFileGenerator(UUID networkUUID, NetworkSummary summary, MetaDataCollection metaDataCollection, ProvenanceEntity prov) {
 		networkId = networkUUID;
