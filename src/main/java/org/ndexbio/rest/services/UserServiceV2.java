@@ -530,8 +530,8 @@ public class UserServiceV2 extends NdexService {
 			String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
 
 			String messageBody = "Dear " + u.getFirstName() + " " + u.getLastName()+ 
-	        		",<p>your NDEx Account password has been reset.<br>Your username is: " + u.getUserName() + "<p>"+
-    				"Your new password is: " + newPasswd + 
+	        		",<p>your NDEx Account password has been reset.<p>Your username is: " + u.getUserName() + 
+	        		"<br>Your new password is: " + newPasswd + "<br>Your email address on file is: " + u.getEmailAddress() +
     				"<p>If you didn't request to reset your password, please contact us at support@ndexbio.org immediately.<p>" + 
     				"Thanks for using NDEx!";
 			
