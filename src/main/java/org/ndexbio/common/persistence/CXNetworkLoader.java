@@ -441,7 +441,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		CxElementReader2 cxreader = createCXReader(in);
 		  
 	    metadata = cxreader.getPreMetaData();
-		
+		//TODO: review why EdgeAttributes, cartesianLayout are missing.
 		for ( AspectElement elmt : cxreader ) {
 			switch ( elmt.getAspectName() ) {
 				case NodesElement.ASPECT_NAME :       //Node
