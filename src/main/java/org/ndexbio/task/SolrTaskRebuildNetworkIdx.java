@@ -9,7 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.cx.AspectIterator;
+import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
@@ -23,6 +23,7 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.rest.Configuration;
 
 public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 	
@@ -88,9 +89,11 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 							userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE),
 							grpMemberships.get(Permissions.READ), grpMemberships.get(Permissions.WRITE));
 
+					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/"; 
+
 					if (indexLevel == NetworkIndexLevel.META || indexLevel == NetworkIndexLevel.ALL) {
-						try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId,
-								NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class)) {
+						try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId.toString(),
+								NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class,pathPrefix)) {
 							while (it.hasNext()) {
 								NetworkAttributesElement e = it.next();
 
@@ -105,8 +108,8 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 					
 					// process node attribute aspect and add to solr doc
 					if (indexLevel == NetworkIndexLevel.ALL) {
-						try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId,
-								FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
+						try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId.toString(),
+								FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
 							while (it.hasNext()) {
 								FunctionTermElement fun = it.next();
 
@@ -115,16 +118,16 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 							}
 						}
 
-						try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkId,
-								NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
+						try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkId.toString(),
+								NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
 							while (it.hasNext()) {
 								NodeAttributesElement e = it.next();
 								globalIdx.addCXNodeAttrToIndex(e);
 							}
 						}
 
-						try (AspectIterator<NodesElement> it = new AspectIterator<>(networkId, NodesElement.ASPECT_NAME,
-								NodesElement.class)) {
+						try (AspectIterator<NodesElement> it = new AspectIterator<>(networkId.toString(), NodesElement.ASPECT_NAME,
+								NodesElement.class,pathPrefix)) {
 							while (it.hasNext()) {
 								NodesElement e = it.next();
 								globalIdx.addCXNodeToIndex(e);

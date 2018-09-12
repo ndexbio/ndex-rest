@@ -10,9 +10,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.List;
 import java.util.UUID;
 
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
@@ -24,12 +22,9 @@ import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.aspects.datamodels.SubNetworkElement;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
-import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
@@ -111,7 +106,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 			  				
 				// update provenance
 				
-				ProvenanceEntity provenanceEntity = dao.getProvenance(networkUUID);
+/*				ProvenanceEntity provenanceEntity = dao.getProvenance(networkUUID);
 				
 				List<SimplePropertyValuePair> pProps =provenanceEntity.getProperties();
 				
@@ -126,10 +121,10 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 					provenanceEntity.getCreationEvent().addInput(oldEntity);
 				}
 					    
-				dao.setProvenance(networkUUID, provenanceEntity);
+				dao.setProvenance(networkUUID, provenanceEntity); */
 				
 				//recreate CX file
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkUUID, dao, new Provenance(provenanceEntity));
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkUUID, dao /*, new Provenance(provenanceEntity)*/);
 				String tmpFileName = g.createNetworkFile();
 				
 				long fileSize = new File(tmpFileName).length();

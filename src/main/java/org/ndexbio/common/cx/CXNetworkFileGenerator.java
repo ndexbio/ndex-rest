@@ -1,5 +1,6 @@
 package org.ndexbio.common.cx;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -33,9 +34,9 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 public class CXNetworkFileGenerator {
 
 	private UUID networkId;
-	private NetworkSummary fullSummary;
+//	private NetworkSummary fullSummary;
 	private MetaDataCollection metadata;
-	private Provenance provenance;
+//	private Provenance provenance;
 	
 	/**
 	 * We need the caller to pass in the NetworkDAO object so that the generator can see the changes have been
@@ -48,18 +49,18 @@ public class CXNetworkFileGenerator {
 	 * @throws JsonParseException 
 	 * @throws NdexException 
 	 */
-	public CXNetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao, Provenance provenanceHistory) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
+	public CXNetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao /*, Provenance provenanceHistory*/) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
 		networkId = networkUUID;
-		fullSummary = networkDao.getNetworkSummaryById(networkUUID);
+//		fullSummary = networkDao.getNetworkSummaryById(networkUUID);
 		metadata = networkDao.getMetaDataCollection(networkUUID);
-		provenance = provenanceHistory;
+//		provenance = provenanceHistory;
 	}	
 	
-	public CXNetworkFileGenerator(UUID networkUUID, NetworkSummary summary, MetaDataCollection metaDataCollection, ProvenanceEntity prov) {
+	public CXNetworkFileGenerator(UUID networkUUID, /*NetworkSummary summary,*/ MetaDataCollection metaDataCollection /*, ProvenanceEntity prov*/) {
 		networkId = networkUUID;
-		fullSummary = summary;
+//		fullSummary = summary;
 		metadata = metaDataCollection;
-		provenance = new Provenance(prov);
+//		provenance = new Provenance(prov);
 	}
 	
 	// create a CX network using a tmp file name and return the temp file name;
@@ -69,9 +70,10 @@ public class CXNetworkFileGenerator {
 		try (FileOutputStream out = new FileOutputStream(tmpFileName) ) {
 			NdexCXNetworkWriter wtr = new NdexCXNetworkWriter(out);
 			wtr.start();
-			NdexNetworkStatus status = getNdexNetworkStatusFromSummary(fullSummary);
+
+			 //	NdexNetworkStatus status = getNdexNetworkStatusFromSummary(fullSummary);
 			
-			// process NdexNetworkStatus metadata
+	/*		// process NdexNetworkStatus metadata
 			MetaDataElement e = metadata.getMetaDataElement(NdexNetworkStatus.ASPECT_NAME);
 			if ( e == null) {
 				  e = new MetaDataElement();
@@ -83,12 +85,18 @@ public class CXNetworkFileGenerator {
 				  e.setElementCount(Long.valueOf(1L));
 				  metadata.add(e);
 			 }
-//			 e.setLastUpdate(fullSummary.getModificationTime().getTime());
-					 
+//			 e.setLastUpdate(fullSummary.getModificationTime().getTime()); */
+		
+			 // for back compatibility reason. System used to generate provenance on the fly.
+			 String provenanceAspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + Provenance.ASPECT_NAME;
+			 File f = new File(provenanceAspectFileName);
+			 if(!f.exists() ) { 
+			     metadata.remove(Provenance.ASPECT_NAME);
+			 }
+			
 			 //write metadata first.
 			 wtr.writeMetadata(metadata);
 			 
-			 metadata.remove(NdexNetworkStatus.ASPECT_NAME);
 			
 			 //write namespace first
 			 if ( metadata.getMetaDataElement(NamespacesElement.ASPECT_NAME) != null ) {
@@ -99,13 +107,13 @@ public class CXNetworkFileGenerator {
 				 metadata.remove(NamespacesElement.ASPECT_NAME);	 
 			 }
 
-			 //write the NdexNetworkstatus aspect.
+	/*		 //write the NdexNetworkstatus aspect.
 			 List<AspectElement> stat = new ArrayList<> (1);
 			 stat.add(status);		 
-			 wtr.writeAspectFragment(new CXAspectFragment(NdexNetworkStatus.ASPECT_NAME, stat));
+			 wtr.writeAspectFragment(new CXAspectFragment(NdexNetworkStatus.ASPECT_NAME, stat)); */
 			 
 			 //write provenance history separately
-			 if ( metadata.getMetaDataElement(Provenance.ASPECT_NAME) != null ) {
+		/*	 if ( metadata.getMetaDataElement(Provenance.ASPECT_NAME) != null ) {
 				 metadata.remove(Provenance.ASPECT_NAME);
 				 if (provenance !=null )  {
 					 List<AspectElement> prov = new ArrayList<> (1);
@@ -113,7 +121,7 @@ public class CXNetworkFileGenerator {
 					 wtr.writeAspectFragment(new CXAspectFragment(Provenance.ASPECT_NAME, prov));	
 				 }
 			 }
-				 
+		*/		 
 			 
 			 //write all other aspects
 			 for ( MetaDataElement metaElmt: metadata) {
@@ -138,7 +146,7 @@ public class CXNetworkFileGenerator {
 		Files.move(src, tgt, StandardCopyOption.REPLACE_EXISTING);  
 	}
 	
-	   private static NdexNetworkStatus getNdexNetworkStatusFromSummary(NetworkSummary summary)  {
+/*	   private static NdexNetworkStatus getNdexNetworkStatusFromSummary(NetworkSummary summary)  {
 		   NdexNetworkStatus nstatus = new NdexNetworkStatus () ;
 		  
 	        nstatus.setCreationTime(summary.getCreationTime());
@@ -156,6 +164,6 @@ public class CXNetworkFileGenerator {
 	         
 		   return nstatus;
 	   }
-	   
+	 */  
 	   
 }

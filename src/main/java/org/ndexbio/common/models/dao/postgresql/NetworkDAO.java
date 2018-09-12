@@ -697,6 +697,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	
+	@Deprecated
 	public ProvenanceEntity getProvenance(UUID networkId) throws JsonParseException, JsonMappingException, IOException, ObjectNotFoundException, SQLException {
 		String sql = "select provenance from network where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement p = db.prepareStatement(sql)) {
@@ -717,9 +718,10 @@ public class NetworkDAO extends NdexDBDAO {
 		
 	}
     
+	@Deprecated
 	public int setProvenance(UUID networkId, ProvenanceEntity provenance) throws SQLException, NdexException, IOException {
 		
-		MetaDataCollection metadata = getMetaDataCollection (networkId);
+/*		MetaDataCollection metadata = getMetaDataCollection (networkId);
 		if ( provenance == null) {
 			metadata.remove(Provenance.ASPECT_NAME);
 		} else {
@@ -738,10 +740,10 @@ public class NetworkDAO extends NdexDBDAO {
 				metadata.addAt(0, e);
 			}		
 //			metadata.setLastUpdate(Provenance.ASPECT_NAME, Calendar.getInstance().getTimeInMillis());
-		}
+		} */
 			
 		// get the network document
-		String sql = " update network set provenance = ? :: jsonb, cxmetadata = ? :: json where \"UUID\"=? and is_deleted=false";
+		String sql = " update network set provenance = ? :: jsonb where \"UUID\"=? and is_deleted=false";
 		try (PreparedStatement p = db.prepareStatement(sql)) {
 			
 			if ( provenance != null) {
@@ -751,11 +753,11 @@ public class NetworkDAO extends NdexDBDAO {
 			} else 
 				p.setString(1, null);
 			
-			ObjectMapper mapper = new ObjectMapper();
+		/*	ObjectMapper mapper = new ObjectMapper();
 		    String s = mapper.writeValueAsString( metadata);
-		    p.setString(2, s);
+		    p.setString(2, s); */
 			
-			p.setObject(3, networkId);
+			p.setObject(2, networkId);
 			int cnt = p.executeUpdate();
 			if ( cnt != 1) {
 				throw new NdexException ("Failed to update db, network not found or locked by another update process");

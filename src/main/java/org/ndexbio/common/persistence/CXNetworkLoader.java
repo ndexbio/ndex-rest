@@ -56,6 +56,7 @@ import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.aspects.datamodels.SubNetworkElement;
+import org.ndexbio.cxio.aspects.readers.CartesianLayoutFragmentReader;
 import org.ndexbio.cxio.aspects.readers.EdgeAttributesFragmentReader;
 import org.ndexbio.cxio.aspects.readers.EdgesFragmentReader;
 import org.ndexbio.cxio.aspects.readers.GeneralAspectFragmentReader;
@@ -84,7 +85,6 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -107,9 +107,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	protected int sampleGenerationThreshold;
 	
     private boolean isUpdate;
-	
-	private long counter;
-	
+		
 //	private InputStream inputStream;
 //	private String ownerName;
 	private UUID networkId;
@@ -122,7 +120,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	private AspectElementIdTracker citationIdTracker;
 	private AspectElementIdTracker supportIdTracker;
 		
-	protected Provenance provenanceHistory;    // comment out for now.
+//	protected Provenance provenanceHistory;    // comment out for now.
 	protected Set<Long> subNetworkIds;
 		
 	long opaqueCounter ;
@@ -168,7 +166,6 @@ public class CXNetworkLoader implements AutoCloseable {
 		networkNameIsAssigned = false;
 
 		opaqueCounter = 0;
-		counter =0; 
 		
 		nodeIdTracker = new AspectElementIdTracker(NodesElement.ASPECT_NAME);
 		edgeIdTracker = new AspectElementIdTracker(EdgesElement.ASPECT_NAME);
@@ -180,7 +177,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		aspectTable = new TreeMap<>();
 		this.subNetworkIds = new HashSet<>(10);
 	
-		provenanceHistory = null;
+//		provenanceHistory = null;
 		
 		networkName = null;
 		description = null;
@@ -207,10 +204,11 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(NetworkAttributesFragmentReader.createInstance());
 		  readers.add(NodesFragmentReader.createInstance());
 		  readers.add(NodeAttributesFragmentReader.createInstance());
+		  readers.add(CartesianLayoutFragmentReader.createInstance());
 		  
 		  readers.add(new GeneralAspectFragmentReader<> (NdexNetworkStatus.ASPECT_NAME,
 				NdexNetworkStatus.class));
-		  readers.add(new GeneralAspectFragmentReader<> (NamespacesElement.ASPECT_NAME,NamespacesElement.class));
+//		  readers.add(new GeneralAspectFragmentReader<> (NamespacesElement.ASPECT_NAME,NamespacesElement.class));
 		  readers.add(new GeneralAspectFragmentReader<> (FunctionTermElement.ASPECT_NAME,FunctionTermElement.class));
 		  readers.add(new GeneralAspectFragmentReader<> (CitationElement.ASPECT_NAME,CitationElement.class));
 		  readers.add(new GeneralAspectFragmentReader<> (SupportElement.ASPECT_NAME,SupportElement.class));
@@ -219,7 +217,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(new GeneralAspectFragmentReader<> (EdgeSupportLinksElement.ASPECT_NAME,EdgeSupportLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader<> (NodeCitationLinksElement.ASPECT_NAME,NodeCitationLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader<> (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
-		  readers.add(new GeneralAspectFragmentReader<> (Provenance.ASPECT_NAME,Provenance.class));
+//		  readers.add(new GeneralAspectFragmentReader<> (Provenance.ASPECT_NAME,Provenance.class));
 		  return  new CxElementReader2(in, readers,false);
 	}
 	
@@ -235,7 +233,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 			  persistNetworkData(inputStream); 
 		  
-			  logger.info("aspects have been stored.");
+		//	  logger.info("aspects have been stored.");
 		  
 			  NetworkSummary summary = new NetworkSummary();
 
@@ -286,7 +284,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 			  				
 				//recreate CX file
-				ProvenanceEntity provenanceEntity = dao.getProvenance(networkId);
+/*				ProvenanceEntity provenanceEntity = dao.getProvenance(networkId);
 				
 				List<SimplePropertyValuePair> pProps =provenanceEntity.getProperties();
 				
@@ -301,9 +299,9 @@ public class CXNetworkLoader implements AutoCloseable {
 			    	provenanceEntity.getCreationEvent().addInput(oldEntity);
 			    }
 			    
-				dao.setProvenance(networkId, provenanceEntity);
+				dao.setProvenance(networkId, provenanceEntity); */
 				
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, new Provenance(provenanceEntity));
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
 				String tmpFileName = g.createNetworkFile();
 				
 				java.nio.file.Path src = Paths.get(tmpFileName);
@@ -483,16 +481,15 @@ public class CXNetworkLoader implements AutoCloseable {
 					createFunctionTerm((FunctionTermElement)elmt);
 					break;
 					
-				case Provenance.ASPECT_NAME:   // we ignore the provenance aspect in the uploaded network for now.
-												// uncomment the following line to save it.
+/*				case Provenance.ASPECT_NAME:   // provenance is treated as an opaque aspect now.
 					this.provenanceHistory = (Provenance)elmt;
-					break;
+					break; */
 				default:    // opaque aspect
 					createAspectElement(elmt);
 					if ( elmt.getAspectName().equals("subNetworks") 
 							|| elmt.getAspectName().equals(SubNetworkElement.ASPECT_NAME)) {
 						 OpaqueElement e = (OpaqueElement) elmt;
-						 subNetworkIds.add(e.getData().get("@id").asLong())  ;
+						 subNetworkIds.add(Long.valueOf(e.getData().get("@id").asLong()) ) ;
 					} 
 			}
 
@@ -516,8 +513,6 @@ public class CXNetworkLoader implements AutoCloseable {
 			  }
 		  }
 		  
-		//  Timestamp modificationTime = new Timestamp(Calendar.getInstance().getTimeInMillis());
-
 		  if(metadata !=null) {
 			  
 			  if (networkNameIsAssigned) {
@@ -539,9 +534,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 			  //Remove the NdexNetworkStatus metadata if it exists
 			  metadata.remove(NdexNetworkStatus.ASPECT_NAME);
-			  
-	//		  Set<Long> consistencyGrpIds = new TreeSet<>();
-			  
+			  			  
 			  Set<String> tobeRemovedMetaData = new HashSet<>();
 			  for ( MetaDataElement e: metadata) {
 
@@ -566,7 +559,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				  } 
 					  
 				  //check if elementCount matches between metadata and data
-				  if ( !e.getName().equals(Provenance.ASPECT_NAME)) {
+		//		  if ( !e.getName().equals(Provenance.ASPECT_NAME)) {
 				  
 					  long declaredCnt = e.getElementCount().longValue() ;
 					  if ( declaredCnt == 0) {
@@ -590,7 +583,7 @@ public class CXNetworkLoader implements AutoCloseable {
 						//	  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because no element was found in the CX document.");
 						  }
 					  }
-				  }
+		//		  }
 				  
 				  //check consistencyGrp 
 				/*  Long cGrpIds = e.getConsistencyGroup();
@@ -606,7 +599,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
 				  if ( metadata.getMetaDataElement(aspectName) == null) {
-					  warnings.add ("Aspect " + aspectName + " is not defined in MetaData section. NDEx is adding one without a consistencyGroupId and version in it.");
+					  warnings.add ("Aspect " + aspectName + " is not defined in MetaData section. NDEx is adding one without a version in it.");
 					  MetaDataElement mElmt = new MetaDataElement();
 					  mElmt.setName(aspectName);
 					  mElmt.setElementCount(this.aspectTable.get(aspectName).getElementCount());
@@ -685,8 +678,6 @@ public class CXNetworkLoader implements AutoCloseable {
 				warnings.addAll(indexWarnings);
 		} */
 		
-//		tick();
-
 	}
 	
 	private void writeCXElement(AspectElement element) throws IOException {
@@ -713,7 +704,6 @@ public class CXNetworkLoader implements AutoCloseable {
 			this.globalIdx.addCXNodeToIndex(node);	
 		}   */
 		
-//		tick();   
 	}	 
 
 	private void createCXCitation(CitationElement citation) throws NdexException, IOException {
@@ -731,14 +721,12 @@ public class CXNetworkLoader implements AutoCloseable {
 
 			globalIdx.addFunctionTermToIndex(funcTerm);
 		}	*/
-//		tick();   
 	}	 
 
 	
 	private void createCXSupport(SupportElement support) throws NdexException, IOException {
 		supportIdTracker.addDefinedElementId(support.getId());
 		writeCXElement(support);		   
-//		tick();   
 	}	 
 	
 	
@@ -749,10 +737,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		nodeIdTracker.addReferenceId(ee.getSource());
 		nodeIdTracker.addReferenceId(Long.valueOf(ee.getTarget()));
 		
-		writeCXElement(ee);
-
-//		tick();	
-	   
+		writeCXElement(ee);	   
 	}
 	
 	private void createEdgeCitation(EdgeCitationLinksElement elmt) throws IOException {
@@ -806,7 +791,6 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 	private void createAspectElement(AspectElement element) throws IOException {
 		writeCXElement(element);
-//		tick();			
 	}
 	
 
@@ -815,26 +799,8 @@ public class CXNetworkLoader implements AutoCloseable {
 			nodeIdTracker.addReferenceId(e.getPropertyOf());
 		
 		writeCXElement(e);
-		
-	/*	if (globalIdx !=null) {
-
-			this.globalIdx.addCXNodeAttrToIndex(e);	
-		} */
-		
-	//	tick();
-		
 	}
 	
-/*	private void tick() throws NdexException {
-		counter ++;
-		if ( serverElementLimit>=0 && counter >serverElementLimit ) 
-			throw new NdexException("Element count in the CX input stream exceeded server limit " + serverElementLimit);
-		if ( counter %10000 == 0 )
-			System.out.println("Loaded " + counter + " element in CX");
-		
-	}  */
-	
-
 	private void closeAspectStreams() {
 		for ( Map.Entry<String, CXAspectWriter> entry : aspectTable.entrySet() ){
 			try {

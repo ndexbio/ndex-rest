@@ -14,7 +14,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.cx.AspectIterator;
+import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -87,8 +87,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 					grpMemberships.get(Permissions.WRITE));
 
 			  //process node attribute aspect and add to solr doc
+			 String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkid + "/aspects/"; 
 			
-			  try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkid, NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class)) {
+			  try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkid.toString(), 
+					  NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
 				while (it.hasNext()) {
 					NetworkAttributesElement e = it.next();
 					
@@ -102,7 +104,8 @@ public class SolrIndexBuilder implements AutoCloseable {
 
 		  
 			  if (lvl == NetworkIndexLevel.ALL) {	
-				  try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkid, FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
+				  try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkid.toString(), 
+						  FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
 					  while (it.hasNext()) {
 						  FunctionTermElement fun = it.next();
 					
@@ -111,14 +114,16 @@ public class SolrIndexBuilder implements AutoCloseable {
 					  }
 				  }
 
-				  try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkid, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
+				  try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkid.toString(), 
+						  NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
 					  while (it.hasNext()) {
 						  NodeAttributesElement e = it.next();					
 						  globalIdx.addCXNodeAttrToIndex(e);	
 					  }
 				  }
 
-				  try (AspectIterator<NodesElement> it = new AspectIterator<>(networkid, NodesElement.ASPECT_NAME, NodesElement.class)) {
+				  try (AspectIterator<NodesElement> it = new AspectIterator<>(networkid.toString(), 
+						  NodesElement.ASPECT_NAME, NodesElement.class, pathPrefix)) {
 					  while (it.hasNext()) {
 						  NodesElement e = it.next();					
 						  globalIdx.addCXNodeToIndex(e);	

@@ -55,6 +55,7 @@ import org.ndexbio.model.cx.ReifiedEdgeElement;
 import org.ndexbio.model.cx.SupportElement;
 import org.ndexbio.model.exceptions.NdexException;
 
+@Deprecated
 public class CXMetaDataManager {
 
 	private static CXMetaDataManager INSTANCE = null;

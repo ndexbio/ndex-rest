@@ -53,7 +53,7 @@ import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
-import org.ndexbio.common.cx.AspectIterator;
+import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
@@ -395,7 +395,8 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		}
 		
 		//go through node attributes to find aliases
-		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(UUID.fromString(collectionName),NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class)) {
+
+		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(collectionName,NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
 	//	try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeAttributesElement.ASPECT_NAME)) {
 
 	//		Iterator<NodeAttributesElement> it = new ObjectMapper().readerFor(NodeAttributesElement.class).readValues(inputStream);

@@ -12,7 +12,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
-import org.ndexbio.common.cx.AspectIterator;
+import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
@@ -83,7 +83,7 @@ public class CXNetworkSampleGenerator {
 		
 		if ( subNetworkId != null) {
 						
-			try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId,SubNetworkElement.ASPECT_NAME , SubNetworkElement.class ) ) {
+			try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId.toString(),SubNetworkElement.ASPECT_NAME , SubNetworkElement.class,pathPrefix ) ) {
 				while ( subNetIterator.hasNext()) {
 					SubNetworkElement subNetwork = subNetIterator.next();
 					
@@ -100,7 +100,7 @@ public class CXNetworkSampleGenerator {
 			}
 			
 			if (edgeIds.isEmpty()) {  // try the subNetworks aspect to be compatible with the old cyCX spec.
-				try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId,"subNetworks" , SubNetworkElement.class ) ) {
+				try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId.toString(),"subNetworks" , SubNetworkElement.class ,pathPrefix) ) {
 					while ( subNetIterator.hasNext()) {
 						SubNetworkElement subNetwork = subNetIterator.next();
 						
@@ -129,7 +129,7 @@ public class CXNetworkSampleGenerator {
 		Set<Long> nodeIds = new TreeSet<>();
 		//go through Edge aspect
 		Long edgeIdCounter = null;
-		try (AspectIterator<EdgesElement> it = new AspectIterator<>(networkId,EdgesElement.ASPECT_NAME , EdgesElement.class )) {
+		try (AspectIterator<EdgesElement> it = new AspectIterator<>(networkId.toString(),EdgesElement.ASPECT_NAME , EdgesElement.class ,pathPrefix)) {
 
 			while (it.hasNext()) {
 	        	EdgesElement edge = it.next();
@@ -340,7 +340,7 @@ public class CXNetworkSampleGenerator {
 		
 		// process function terms
 		long aspElmtCount = 0;
-		try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId, FunctionTermElement.ASPECT_NAME, FunctionTermElement.class)) {
+		try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId.toString(), FunctionTermElement.ASPECT_NAME, FunctionTermElement.class,pathPrefix)) {
 			while (it.hasNext()) {
 				FunctionTermElement fun = it.next();
 				
@@ -362,7 +362,7 @@ public class CXNetworkSampleGenerator {
 		
 		//process citation links aspects
 		aspElmtCount = 0;
-		try (AspectIterator<NodeCitationLinksElement> it = new AspectIterator<>(networkId, NodeCitationLinksElement.ASPECT_NAME, NodeCitationLinksElement.class)) {
+		try (AspectIterator<NodeCitationLinksElement> it = new AspectIterator<>(networkId.toString(), NodeCitationLinksElement.ASPECT_NAME, NodeCitationLinksElement.class,pathPrefix)) {
 			while (it.hasNext()) {
 				NodeCitationLinksElement cl = it.next();
 				
@@ -384,7 +384,7 @@ public class CXNetworkSampleGenerator {
 		 }
 		
 		aspElmtCount = 0;
-		try (AspectIterator<EdgeCitationLinksElement> it = new AspectIterator<>(networkId, EdgeCitationLinksElement.ASPECT_NAME, EdgeCitationLinksElement.class)) {
+		try (AspectIterator<EdgeCitationLinksElement> it = new AspectIterator<>(networkId.toString(), EdgeCitationLinksElement.ASPECT_NAME, EdgeCitationLinksElement.class, pathPrefix)) {
 			while (it.hasNext()) {
 				EdgeCitationLinksElement cl = it.next();
 				
@@ -406,7 +406,7 @@ public class CXNetworkSampleGenerator {
 		 }
 		
 		if( !citationIds.isEmpty()) {
-			try (AspectIterator<CitationElement> it = new AspectIterator<>(networkId, CitationElement.ASPECT_NAME, CitationElement.class)) {
+			try (AspectIterator<CitationElement> it = new AspectIterator<>(networkId.toString(), CitationElement.ASPECT_NAME, CitationElement.class, pathPrefix)) {
 				while (it.hasNext()) {
 					CitationElement c = it.next();
 					if ( citationIds.contains(c.getId()))
@@ -425,7 +425,7 @@ public class CXNetworkSampleGenerator {
 		
 		//process support links aspects
 		aspElmtCount = 0;
-		try (AspectIterator<NodeSupportLinksElement> it = new AspectIterator<>(networkId, NodeSupportLinksElement.ASPECT_NAME, NodeSupportLinksElement.class)) {
+		try (AspectIterator<NodeSupportLinksElement> it = new AspectIterator<>(networkId.toString(), NodeSupportLinksElement.ASPECT_NAME, NodeSupportLinksElement.class, pathPrefix)) {
 			while (it.hasNext()) {
 				NodeSupportLinksElement cl = it.next();
 				
@@ -447,7 +447,7 @@ public class CXNetworkSampleGenerator {
 		 }
 		
 		aspElmtCount = 0;
-		try (AspectIterator<EdgeSupportLinksElement> it = new AspectIterator<>(networkId, EdgeSupportLinksElement.ASPECT_NAME, EdgeSupportLinksElement.class)) {
+		try (AspectIterator<EdgeSupportLinksElement> it = new AspectIterator<>(networkId.toString(), EdgeSupportLinksElement.ASPECT_NAME, EdgeSupportLinksElement.class, pathPrefix)) {
 			while (it.hasNext()) {
 				EdgeSupportLinksElement cl = it.next();
 				
@@ -469,7 +469,7 @@ public class CXNetworkSampleGenerator {
 		 }
 		
 		if( !supportIds.isEmpty()) {
-			try (AspectIterator<SupportElement> it = new AspectIterator<>(networkId, SupportElement.ASPECT_NAME, SupportElement.class)) {
+			try (AspectIterator<SupportElement> it = new AspectIterator<>(networkId.toString(), SupportElement.ASPECT_NAME, SupportElement.class, pathPrefix)) {
 				while (it.hasNext()) {
 					SupportElement e = it.next();
 					if ( supportIds.contains(e.getId()))
