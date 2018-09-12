@@ -46,29 +46,29 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
-import org.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
-import org.cxio.aspects.datamodels.CartesianLayoutElement;
-import org.cxio.aspects.datamodels.EdgesElement;
-import org.cxio.aspects.datamodels.NetworkAttributesElement;
-import org.cxio.aspects.datamodels.NodeAttributesElement;
-import org.cxio.aspects.datamodels.NodesElement;
-import org.cxio.aspects.datamodels.SubNetworkElement;
-import org.cxio.aspects.readers.EdgeAttributesFragmentReader;
-import org.cxio.aspects.readers.EdgesFragmentReader;
-import org.cxio.aspects.readers.GeneralAspectFragmentReader;
-import org.cxio.aspects.readers.NetworkAttributesFragmentReader;
-import org.cxio.aspects.readers.NodeAttributesFragmentReader;
-import org.cxio.aspects.readers.NodesFragmentReader;
-import org.cxio.core.CXAspectWriter;
-import org.cxio.core.CxElementReader2;
-import org.cxio.core.interfaces.AspectElement;
-import org.cxio.core.interfaces.AspectFragmentReader;
-import org.cxio.metadata.MetaDataCollection;
-import org.cxio.metadata.MetaDataElement;
-import org.cxio.misc.OpaqueElement;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
+import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
+import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
+import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodesElement;
+import org.ndexbio.cxio.aspects.datamodels.SubNetworkElement;
+import org.ndexbio.cxio.aspects.readers.EdgeAttributesFragmentReader;
+import org.ndexbio.cxio.aspects.readers.EdgesFragmentReader;
+import org.ndexbio.cxio.aspects.readers.GeneralAspectFragmentReader;
+import org.ndexbio.cxio.aspects.readers.NetworkAttributesFragmentReader;
+import org.ndexbio.cxio.aspects.readers.NodeAttributesFragmentReader;
+import org.ndexbio.cxio.aspects.readers.NodesFragmentReader;
+import org.ndexbio.cxio.core.CXAspectWriter;
+import org.ndexbio.cxio.core.CxElementReader2;
+import org.ndexbio.cxio.core.interfaces.AspectElement;
+import org.ndexbio.cxio.core.interfaces.AspectFragmentReader;
+import org.ndexbio.cxio.metadata.MetaDataCollection;
+import org.ndexbio.cxio.metadata.MetaDataElement;
+import org.ndexbio.cxio.misc.OpaqueElement;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
@@ -441,7 +441,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		CxElementReader2 cxreader = createCXReader(in);
 		  
 	    metadata = cxreader.getPreMetaData();
-		
+		//TODO: review why EdgeAttributes, cartesianLayout are missing.
 		for ( AspectElement elmt : cxreader ) {
 			switch ( elmt.getAspectName() ) {
 				case NodesElement.ASPECT_NAME :       //Node
