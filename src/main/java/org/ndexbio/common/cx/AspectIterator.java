@@ -15,6 +15,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
+@Deprecated 
+//User the version in ndex-object-model instead.
 public class AspectIterator<E> implements Iterator<E>, Closeable {
 
 	private FileInputStream inputStream;

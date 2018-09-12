@@ -37,11 +37,11 @@ import java.util.Arrays;
 import java.util.logging.Logger;
 
 import org.apache.commons.dbcp2.BasicDataSource;
-import org.cxio.aspects.datamodels.EdgeAttributesElement;
-import org.cxio.aspects.datamodels.EdgesElement;
-import org.cxio.aspects.datamodels.NetworkAttributesElement;
-import org.cxio.aspects.datamodels.NodeAttributesElement;
-import org.cxio.aspects.datamodels.NodesElement;
+import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
+import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
@@ -67,16 +67,16 @@ public class NdexDatabase {
 	
 	private static long currentId = System.currentTimeMillis(); 
 	
-	public static  String[] NdexSupportedAspects ={NodesElement.ASPECT_NAME,EdgesElement.ASPECT_NAME,NetworkAttributesElement.ASPECT_NAME,
+/*	private static  String[] NdexSupportedAspects ={NodesElement.ASPECT_NAME,EdgesElement.ASPECT_NAME,NetworkAttributesElement.ASPECT_NAME,
 			NodeAttributesElement.ASPECT_NAME, EdgeAttributesElement.ASPECT_NAME, CitationElement.ASPECT_NAME, SupportElement.ASPECT_NAME,
 			EdgeCitationLinksElement.ASPECT_NAME, EdgeSupportLinksElement.ASPECT_NAME, NodeCitationLinksElement.ASPECT_NAME,
 			NodeSupportLinksElement.ASPECT_NAME, FunctionTermElement.ASPECT_NAME, NamespacesElement.ASPECT_NAME, NdexNetworkStatus.ASPECT_NAME,
-			Provenance.ASPECT_NAME,ReifiedEdgeElement.ASPECT_NAME};
+			Provenance.ASPECT_NAME,ReifiedEdgeElement.ASPECT_NAME}; */
 	
 	private NdexDatabase(String dbURL, String dbUserName,
 			String dbPassword, int size) {
 			
-		Arrays.sort(NdexSupportedAspects) ;
+	//	Arrays.sort(NdexSupportedAspects) ;
 		
 		connectionPool = new BasicDataSource();
 		

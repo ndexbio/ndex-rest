@@ -12,12 +12,12 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
 
-import org.cxio.aspects.datamodels.NodesElement;
-import org.cxio.core.NdexCXNetworkWriter;
-import org.cxio.core.interfaces.AspectElement;
-import org.cxio.metadata.MetaDataCollection;
-import org.cxio.metadata.MetaDataElement;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.cxio.aspects.datamodels.NodesElement;
+import org.ndexbio.cxio.core.NdexCXNetworkWriter;
+import org.ndexbio.cxio.core.interfaces.AspectElement;
+import org.ndexbio.cxio.metadata.MetaDataCollection;
+import org.ndexbio.cxio.metadata.MetaDataElement;
 import org.ndexbio.model.cx.CXAspectFragment;
 import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.cx.NdexNetworkStatus;
