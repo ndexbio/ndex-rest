@@ -89,7 +89,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 							userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE),
 							grpMemberships.get(Permissions.READ), grpMemberships.get(Permissions.WRITE));
 
-					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/"; 
+					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
 
 					if (indexLevel == NetworkIndexLevel.META || indexLevel == NetworkIndexLevel.ALL) {
 						try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId.toString(),

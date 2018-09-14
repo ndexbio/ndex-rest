@@ -75,15 +75,17 @@ public class CXNetworkSampleGenerator {
 
 		MetaDataCollection metadata = new MetaDataCollection();
 		result.setMetadata(metadata);
-		
-		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/"; 
+
+		String iteratorPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
+
+		String pathPrefix = iteratorPathPrefix + networkId + "/aspects/"; 
 	
 		// if sample is for a subNetwork, get ids of 500 edges from the subNetwork aspect
 		Set<Long> edgeIds = new HashSet<>(sampleSize); 
 		
 		if ( subNetworkId != null) {
 						
-			try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId.toString(),SubNetworkElement.ASPECT_NAME , SubNetworkElement.class,pathPrefix ) ) {
+			try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId.toString(),SubNetworkElement.ASPECT_NAME , SubNetworkElement.class,iteratorPathPrefix ) ) {
 				while ( subNetIterator.hasNext()) {
 					SubNetworkElement subNetwork = subNetIterator.next();
 					
@@ -100,7 +102,7 @@ public class CXNetworkSampleGenerator {
 			}
 			
 			if (edgeIds.isEmpty()) {  // try the subNetworks aspect to be compatible with the old cyCX spec.
-				try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId.toString(),"subNetworks" , SubNetworkElement.class ,pathPrefix) ) {
+				try (AspectIterator<SubNetworkElement> subNetIterator = new AspectIterator<>(networkId.toString(),"subNetworks" , SubNetworkElement.class ,iteratorPathPrefix) ) {
 					while ( subNetIterator.hasNext()) {
 						SubNetworkElement subNetwork = subNetIterator.next();
 						
@@ -129,7 +131,7 @@ public class CXNetworkSampleGenerator {
 		Set<Long> nodeIds = new TreeSet<>();
 		//go through Edge aspect
 		Long edgeIdCounter = null;
-		try (AspectIterator<EdgesElement> it = new AspectIterator<>(networkId.toString(),EdgesElement.ASPECT_NAME , EdgesElement.class ,pathPrefix)) {
+		try (AspectIterator<EdgesElement> it = new AspectIterator<>(networkId.toString(),EdgesElement.ASPECT_NAME , EdgesElement.class ,iteratorPathPrefix)) {
 
 			while (it.hasNext()) {
 	        	EdgesElement edge = it.next();
@@ -340,7 +342,7 @@ public class CXNetworkSampleGenerator {
 		
 		// process function terms
 		long aspElmtCount = 0;
-		try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId.toString(), FunctionTermElement.ASPECT_NAME, FunctionTermElement.class,pathPrefix)) {
+		try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId.toString(), FunctionTermElement.ASPECT_NAME, FunctionTermElement.class,iteratorPathPrefix)) {
 			while (it.hasNext()) {
 				FunctionTermElement fun = it.next();
 				
@@ -362,7 +364,7 @@ public class CXNetworkSampleGenerator {
 		
 		//process citation links aspects
 		aspElmtCount = 0;
-		try (AspectIterator<NodeCitationLinksElement> it = new AspectIterator<>(networkId.toString(), NodeCitationLinksElement.ASPECT_NAME, NodeCitationLinksElement.class,pathPrefix)) {
+		try (AspectIterator<NodeCitationLinksElement> it = new AspectIterator<>(networkId.toString(), NodeCitationLinksElement.ASPECT_NAME, NodeCitationLinksElement.class,iteratorPathPrefix)) {
 			while (it.hasNext()) {
 				NodeCitationLinksElement cl = it.next();
 				
@@ -384,7 +386,7 @@ public class CXNetworkSampleGenerator {
 		 }
 		
 		aspElmtCount = 0;
-		try (AspectIterator<EdgeCitationLinksElement> it = new AspectIterator<>(networkId.toString(), EdgeCitationLinksElement.ASPECT_NAME, EdgeCitationLinksElement.class, pathPrefix)) {
+		try (AspectIterator<EdgeCitationLinksElement> it = new AspectIterator<>(networkId.toString(), EdgeCitationLinksElement.ASPECT_NAME, EdgeCitationLinksElement.class, iteratorPathPrefix)) {
 			while (it.hasNext()) {
 				EdgeCitationLinksElement cl = it.next();
 				
@@ -406,7 +408,7 @@ public class CXNetworkSampleGenerator {
 		 }
 		
 		if( !citationIds.isEmpty()) {
-			try (AspectIterator<CitationElement> it = new AspectIterator<>(networkId.toString(), CitationElement.ASPECT_NAME, CitationElement.class, pathPrefix)) {
+			try (AspectIterator<CitationElement> it = new AspectIterator<>(networkId.toString(), CitationElement.ASPECT_NAME, CitationElement.class, iteratorPathPrefix)) {
 				while (it.hasNext()) {
 					CitationElement c = it.next();
 					if ( citationIds.contains(c.getId()))
@@ -425,7 +427,7 @@ public class CXNetworkSampleGenerator {
 		
 		//process support links aspects
 		aspElmtCount = 0;
-		try (AspectIterator<NodeSupportLinksElement> it = new AspectIterator<>(networkId.toString(), NodeSupportLinksElement.ASPECT_NAME, NodeSupportLinksElement.class, pathPrefix)) {
+		try (AspectIterator<NodeSupportLinksElement> it = new AspectIterator<>(networkId.toString(), NodeSupportLinksElement.ASPECT_NAME, NodeSupportLinksElement.class, iteratorPathPrefix)) {
 			while (it.hasNext()) {
 				NodeSupportLinksElement cl = it.next();
 				
@@ -447,7 +449,7 @@ public class CXNetworkSampleGenerator {
 		 }
 		
 		aspElmtCount = 0;
-		try (AspectIterator<EdgeSupportLinksElement> it = new AspectIterator<>(networkId.toString(), EdgeSupportLinksElement.ASPECT_NAME, EdgeSupportLinksElement.class, pathPrefix)) {
+		try (AspectIterator<EdgeSupportLinksElement> it = new AspectIterator<>(networkId.toString(), EdgeSupportLinksElement.ASPECT_NAME, EdgeSupportLinksElement.class, iteratorPathPrefix)) {
 			while (it.hasNext()) {
 				EdgeSupportLinksElement cl = it.next();
 				
@@ -469,7 +471,7 @@ public class CXNetworkSampleGenerator {
 		 }
 		
 		if( !supportIds.isEmpty()) {
-			try (AspectIterator<SupportElement> it = new AspectIterator<>(networkId.toString(), SupportElement.ASPECT_NAME, SupportElement.class, pathPrefix)) {
+			try (AspectIterator<SupportElement> it = new AspectIterator<>(networkId.toString(), SupportElement.ASPECT_NAME, SupportElement.class, iteratorPathPrefix)) {
 				while (it.hasNext()) {
 					SupportElement e = it.next();
 					if ( supportIds.contains(e.getId()))

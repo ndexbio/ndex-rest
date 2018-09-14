@@ -87,7 +87,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 					grpMemberships.get(Permissions.WRITE));
 
 			  //process node attribute aspect and add to solr doc
-			 String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkid + "/aspects/"; 
+			 String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
 			
 			  try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkid.toString(), 
 					  NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {

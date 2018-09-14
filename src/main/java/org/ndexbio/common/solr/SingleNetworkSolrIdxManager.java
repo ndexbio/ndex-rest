@@ -395,7 +395,8 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 		//go through node attributes to find aliases
 
-		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(collectionName,NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
+		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(collectionName,NodeAttributesElement.ASPECT_NAME, 
+				   NodeAttributesElement.class, Configuration.getInstance().getNdexRoot() + "/data/")) {
 	//	try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeAttributesElement.ASPECT_NAME)) {
 
 	//		Iterator<NodeAttributesElement> it = new ObjectMapper().readerFor(NodeAttributesElement.class).readValues(inputStream);
