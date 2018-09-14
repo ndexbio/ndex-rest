@@ -1809,8 +1809,7 @@ public class NetworkServiceV2 extends NdexService {
 	@DELETE
 	@Path("/{networkid}")
 	@Produces("application/json")
-    @ApiDoc("Deletes the network specified by networkId. There is no method to undo a deletion, so care " +
-	        "should be exercised. A user can only delete networks that they own.")
+
 	public void deleteNetwork(final @PathParam("networkid") String id) throws NdexException, SQLException {
 		    
 		try (NetworkDAO networkDao = new NetworkDAO()) {
@@ -1970,8 +1969,6 @@ public class NetworkServiceV2 extends NdexService {
 	@PUT
 	@Path("/{networkid}/systemproperty")
 	@Produces("application/json")
-    @ApiDoc("Set the system flag specified by ‘parameter’ to ‘value’ for the network with id ‘networkId’. As of " +
-	        "NDEx v1.2, the only supported parameter is readOnly={true|false}. In 2.0, we added visibility={PUBLIC|PRIVATE}")
 	public void setNetworkFlag(
 			@PathParam("networkid") final String networkIdStr,
 			final Map<String,Object> parameters)
@@ -2252,9 +2249,6 @@ public class NetworkServiceV2 extends NdexService {
 		   @Produces("text/plain")
 		   public Response cloneNetwork( @PathParam("networkid") final String srcNetworkUUIDStr) throws Exception
 		   {
-
-			   
-//			   logger.info("[start: Creating a new network based on a POSTed CX stream.]");
 		   
 			   try (UserDAO dao = new UserDAO()) {
 				   dao.checkDiskSpace(getLoggedInUserId());
@@ -2340,9 +2334,7 @@ public class NetworkServiceV2 extends NdexService {
 		       }
 		       
 				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null, NetworkIndexLevel.NONE));
-		       
-			   logger.info("[end: Created a new network based on a POSTed CX stream.]");
-			   
+		       			   
 			   URI l = new URI (urlStr);
 
 			   return Response.created(l).entity(l).build();

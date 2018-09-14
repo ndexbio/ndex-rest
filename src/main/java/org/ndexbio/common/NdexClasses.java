@@ -38,10 +38,8 @@ package org.ndexbio.common;
  */
 public interface NdexClasses {
 	
-//	public static final String NdexExternalObject = "NdexExternalObject"; 
 	public static final String Group          	  = "ndex_group";
 	public static final String Membership         = "ndex_group_user";
-//	public static final String Request            = "request";
 	public static final String Task				  = "task";
 	public static final String User				  = "ndex_user";
 	public static final String Network            = "network";
@@ -77,56 +75,10 @@ public interface NdexClasses {
     public static final String Network_P_edgeCount 	= "edgecount";
     public static final String Network_P_provenance = "provenance";
     public static final String Network_P_source_format = "sourceformat";  // Used internally. Will be convert to properties in the network model.
- //   public static final String Network_P_readOnlyCommitId = "roid";
- //   public static final String Network_P_cacheId 	= "cacheid";
     public static final String Network_P_owner      = "owner";
     public static final String Network_P_metadata   = "aspectMetadata";
     public static final String Network_P_opaquEdgeTable = "opaqueAspects";
-    
-//    public static final String Network_E_opaque_asp_prefix = "A_";
-    
-/*    public static final String Network_E_Namespace = "networkNS";
-    public static final String Network_E_BaseTerms = "BaseTerms";
-    public static final String Network_E_Nodes     = "networkNodes";
-    public static final String Network_E_Edges     = "networkEdges";
-    public static final String Network_E_FunctionTerms = "FunctionTerms";
-    public static final String Network_E_Citations  = "citations";
-    public static final String Network_E_Supports   = "supports";
-    public static final String Network_E_ReifiedEdgeTerms = "reifiedETerms";     */
-    // element 
-//    public static final String Element_ID  = "id";
-//    public static final String Element_SID = "sid";
-    
-//    public static final String Index_network_name_desc = "idx_network-name-desc";
         
-    
-    // namespace 
-//    public static final String ns_P_prefix = "prefix";
-//    public static final String ns_P_uri    = "uri";
-    
-    // citation
- /*   public static final String Citation_P_title        = "title";
-    public static final String Citation_P_contributors = "authors";
-    public static final String Citation_p_idType	   = "idType";
-    public static final String Citation_P_identifier   = "identifier"; */
-    //support
-//    public static final String Support_P_text     = "text";
-//    public static final String Support_E_citation = "citeFrom";
-    
-    //BaseTerm
-  /*  public static final String BTerm_P_name        = "name";
-    public static final String BTerm_P_prefix      = "prefix";
-    public static final String BTerm_NS_ID   = "nsID";
-    
-    public static final String Index_BTerm_name    = "idx_baseterm_name"; */
-
-    //ReifiedEdgeTerm
- //   public static final String ReifiedEdge_E_edge  ="reify";
-    
-    //FunctionTerm
-//    public static final String FunctionTerm_E_baseTerm = "FuncBaseTerm";
- //   public static final String FunctionTerm_E_paramter = "FuncArguments";
-    
     //node
     public static final String Node_P_name         = "name";
     
@@ -134,25 +86,13 @@ public interface NdexClasses {
     public static final String Node_P_alias		   = "alias";
     public static final String Node_P_relatedTo	   = "relatedTo";
     
-  
     // ndexProperty
- /*   public static final String ndexProp_P_predicateStr  = "predicateStr";
-    public static final String ndexProp_P_value         = "value";
-    public static final String ndexProp_P_datatype		= "dType";
-    public static final String ndexProp_P_predicateId   = "predicateId";
-    public static final String ndexProp_P_valueId	    = "valueId"; */
     public static final String ndexProperties = "props";
     
     //Group
-    
-//    public static final String GRP_E_admin = Permissions.GROUPADMIN.toString().toLowerCase();
-//    public static final String GRP_E_member = Permissions.MEMBER.toString().toLowerCase();
     public static final String GRP_P_NAME = "groupName";
 
     //user
-    
-
-//    public static final String User_oldEmailAddress = "oldEmail";
     public static final String User_emailAddress   = "email_addr";
     public static final String User_verification_code = "verificationCode";
     public static final String User_firstName = "first_name";
@@ -176,19 +116,6 @@ public interface NdexClasses {
     public static final String Task_P_message   = "message";
     public static final String Task_P_attributes = "other_attributes";
     
-    public static final String Task_E_owner   = "ownedBy";
-    
-    //request
- //   public static final String Request_P_sourceUUID = "sourceUUID";
- //   public static final String Request_P_sourceName = "sourceName";
- //   public static final String Request_P_responseTime = "responseTime";
- //   public static final String Request_E_requests   = "requests";
-    
-    //reserved NDEx property names
-    
-    //BEL namespace file record
-//    public static final String BELPrefix = "prefix";
-//    public static final String BELNamespaceFileContent = "content";
-    
+    public static final String Task_E_owner   = "ownedBy";    
 }
 

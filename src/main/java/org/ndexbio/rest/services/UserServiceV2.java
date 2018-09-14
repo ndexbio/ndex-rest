@@ -785,7 +785,6 @@ public class UserServiceV2 extends NdexService {
 				  @QueryParam("type") String queryType
 				) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
-			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 			String qT = null;
 			if ( queryType !=null) {
 				qT = queryType.toLowerCase();

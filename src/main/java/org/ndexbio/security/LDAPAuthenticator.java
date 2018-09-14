@@ -50,7 +50,6 @@ import javax.naming.ldap.LdapContext;
 
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.NewUser;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.helpers.Security;
@@ -164,10 +163,11 @@ public class LDAPAuthenticator {
                    	   if ( userIsInGrp.booleanValue() ) {
                    		   userCredentials.put(new AbstractMap.SimpleImmutableEntry<>(userName, pswd), Boolean.TRUE);	
                    		   return Boolean.TRUE;
-                   	   } else {
-                   		   userCredentials.put(new AbstractMap.SimpleImmutableEntry<>(userName, pswd), Boolean.FALSE);
-                   		   throw new UnauthorizedOperationException("User " + userName + " is not in the required group." );
-                   	   }
+                   	   } 
+                   		
+                   	   userCredentials.put(new AbstractMap.SimpleImmutableEntry<>(userName, pswd), Boolean.FALSE);
+                   	   throw new UnauthorizedOperationException("User " + userName + " is not in the required group." );
+                   	   
 				   }
 			    });
        } else {
@@ -194,17 +194,17 @@ public class LDAPAuthenticator {
 
 	}
 
-	/**
+	/*
 	 * This is a simulotor function for debugging AD code logic without an real AD environment.
 	 * @param username
 	 * @param password
 	 * @return
 	 * @throws UnauthorizedOperationException
 	 */
-	private static Boolean userIsInNdexGroupSimulator (String username, String password) throws UnauthorizedOperationException  {
+/*	private static Boolean userIsInNdexGroupSimulator (String username, String password) throws UnauthorizedOperationException  {
 		return  username.equals("chenjing") && password.equals("chenjing");
 		
-	}
+	} */
 	
 	protected Boolean userIsInNdexGroup (String username, String password) throws UnauthorizedOperationException  {
       

@@ -35,7 +35,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.GeneralSecurityException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -66,8 +65,6 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.annotations.ApiDoc;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -77,7 +74,6 @@ import com.google.common.base.Strings;
 @Path("/v2/task")
 public class TaskServiceV2 extends NdexService
 {
-	static Logger logger = LoggerFactory.getLogger(TaskService.class);
     
     /**************************************************************************
     * Injects the HTTP request into the base class to be used by
@@ -124,10 +120,8 @@ public class TaskServiceV2 extends NdexService
             else if (!taskToDelete.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
                 throw new UnauthorizedOperationException("You cannot delete a task you don't own.");
             }
-            if ( taskToDelete.getIsDeleted()) {
-            	logger.info("[end: Task {} is already deleted by user {}]", 
-            			taskUUID,this.getLoggedInUser().getUserName());            
-            } else {
+            if ( ! taskToDelete.getIsDeleted()) {
+            	       
             	tdao.deleteTask(taskToDelete.getExternalId());
             	tdao.commit();
             	
@@ -160,9 +154,7 @@ public class TaskServiceV2 extends NdexService
     @Produces("application/json")
 	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
     public Task getTask(@PathParam("taskid")final String taskIdStr) throws  UnauthorizedOperationException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException
-    {
-    	logger.info("[start: get task {}] ", taskIdStr);
-    	
+    {    	
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskIdStr), "A task id is required");
     	
     	UUID taskId = UUID.fromString(taskIdStr);
@@ -172,18 +164,14 @@ public class TaskServiceV2 extends NdexService
             final Task task = tdao.getTaskByUUID(taskId);
             
             if (task == null || task.getIsDeleted()) {
-        		logger.info("[end: Task {} not found]", taskIdStr);
                 throw new ObjectNotFoundException("Task", taskIdStr);
             }    
             
             else if (!task.getTaskOwnerId().equals(this.getLoggedInUser().getExternalId())) {
-        		logger.info("[end: User {} is unauthorized to query task {}]", 
-        				getLoggedInUser().getExternalId(), taskId);            
+        	      
                 throw new UnauthorizedOperationException("Can't query task " + taskId + 
                 		" for user " + this.getLoggedInUser().getUserName());
             }
-
-        	logger.info("[end: Return task {} to user] ", taskIdStr);
         	return task;
         }
     }
@@ -198,15 +186,12 @@ public class TaskServiceV2 extends NdexService
 			@DefaultValue("100") @QueryParam("size") int blockSize) 
 					throws SQLException, JsonParseException, JsonMappingException, IOException {
 
-		logger.info("[start: Getting tasks for user {}]", getLoggedInUser().getUserName());
-
 		Status taskStatus = Status.ALL;
 		if ( status != null)
 			taskStatus = Status.valueOf(status);
 
 		try (TaskDAO dao = new TaskDAO ()){
 			List<Task> tasks= dao.getTasksByUserId(this.getLoggedInUser().getExternalId(),taskStatus, skipBlocks, blockSize);
-			logger.info("[end: Returned {} tasks under user {}]", tasks.size(), getLoggedInUser().getUserName());
 			return tasks;
 		} 
 	}
@@ -292,7 +277,6 @@ public class TaskServiceV2 extends NdexService
 			}	
 			return r.type(MediaType.APPLICATION_OCTET_STREAM_TYPE).entity(in).build();
 		} catch (IOException e) {
-			logger.error("[end: Ndex server can't find file: {}]", e.getMessage());
 			throw new NdexException ("Ndex server can't find file: " + e.getMessage());
 		}
 		

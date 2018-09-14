@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Timer;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.logging.Logger;
@@ -75,7 +74,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	private static String ndexVersion = "";
 	private static String buildNumber  = "";
 	
-	private final static String backupDB = "BACKUP_DATABASE";
+//	private final static String backupDB = "BACKUP_DATABASE";
 	
 	
 	public NdexHttpServletDispatcher() {
@@ -144,7 +143,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			logger.info("Client task executor started.");
 
 			// setup the automatic backup
-			 Timer timer = new Timer();
+/*			 Timer timer = new Timer();
 			 String dbNeedsBackup = configuration.getProperty(backupDB);
 			 if ( dbNeedsBackup ==null || dbNeedsBackup.trim().equalsIgnoreCase("true") ) {
 				 timer.scheduleAtFixedRate(new DatabaseBackupTask(), 
@@ -154,7 +153,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			 timer.scheduleAtFixedRate(new EmailNotificationTask(), 
 					 EmailNotificationTask.getTomorrowNotificationTime(), 
 					 EmailNotificationTask.fONCE_PER_DAY);
-			 
+*/			 
 			 //just for testing comment out when done.
 		/*	 EmailNotificationTask e = new EmailNotificationTask();
 			 e.run();

@@ -949,6 +949,9 @@ CREATE UNIQUE INDEX v1_network_rid_idx ON v1_network USING btree (rid);
 CREATE INDEX v1_user_network_network_rid_idx ON v1_user_network USING btree (network_rid);
 
 
+CREATE INDEX network_set_member_networkId_idx
+    ON core.network_set_member USING btree
+    (network_id);
 --
 -- Name: insert_trigger; Type: TRIGGER; Schema: core; Owner: ndexserver
 --

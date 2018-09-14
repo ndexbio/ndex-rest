@@ -33,16 +33,11 @@ package org.ndexbio.common.models.dao.postgresql;
 import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.model.object.Account;
 import org.ndexbio.model.object.NdexExternalObject;
-import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.SimplePropertyValuePair;
-import org.ndexbio.model.object.network.NetworkSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,7 +92,7 @@ public class Helper {
 	
 	
     //Added by David Welker
-    public static void populateProvenanceEntity(ProvenanceEntity entity, NetworkSummary summary)
+ /*   private static void populateProvenanceEntity(ProvenanceEntity entity, NetworkSummary summary)
     {
 
         List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
@@ -116,7 +111,7 @@ public class Helper {
 
         entity.setProperties(entityProperties);
     }
-
+*/
  
 
 	

@@ -33,26 +33,9 @@ package org.ndexbio.common.access;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Arrays;
 import java.util.logging.Logger;
 
 import org.apache.commons.dbcp2.BasicDataSource;
-import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
-import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
-import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
-import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
-import org.ndexbio.cxio.aspects.datamodels.NodesElement;
-import org.ndexbio.model.cx.CitationElement;
-import org.ndexbio.model.cx.EdgeCitationLinksElement;
-import org.ndexbio.model.cx.EdgeSupportLinksElement;
-import org.ndexbio.model.cx.FunctionTermElement;
-import org.ndexbio.model.cx.NamespacesElement;
-import org.ndexbio.model.cx.NdexNetworkStatus;
-import org.ndexbio.model.cx.NodeCitationLinksElement;
-import org.ndexbio.model.cx.NodeSupportLinksElement;
-import org.ndexbio.model.cx.Provenance;
-import org.ndexbio.model.cx.ReifiedEdgeElement;
-import org.ndexbio.model.cx.SupportElement;
 import org.ndexbio.model.exceptions.NdexException;
 
 public class NdexDatabase {

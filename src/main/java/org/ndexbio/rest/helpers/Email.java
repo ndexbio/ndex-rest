@@ -122,7 +122,8 @@ public class Email
         Session smtpSession = Session.getInstance(smtpProperties,
             new javax.mail.Authenticator()
             {
-                protected PasswordAuthentication getPasswordAuthentication()
+                @Override
+				protected PasswordAuthentication getPasswordAuthentication()
                 {
                     return new PasswordAuthentication(smtpUsername, smtpPassword);
                 }
