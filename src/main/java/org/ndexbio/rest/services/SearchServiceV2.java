@@ -42,8 +42,6 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -88,8 +86,6 @@ import org.ndexbio.model.network.query.EdgeCollectionQuery;
 import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.NetworkSearchResult;
-import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.ProvenanceEvent;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.SimpleQuery;
 import org.ndexbio.model.object.SolrSearchResult;
@@ -143,7 +139,7 @@ public class SearchServiceV2 extends NdexService {
 	@Produces("application/json")
 	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
 			+ "The searchParameters must contain a 'searchString' parameter. ")
-	public SolrSearchResult<User> findUsers(
+	public static SolrSearchResult<User> findUsers(
 			SimpleQuery simpleUserQuery, 
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize
@@ -180,7 +176,7 @@ public class SearchServiceV2 extends NdexService {
 	@Path("/group")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of groups found based on the searchOperator and the POSTed searchParameters.")
-	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
+	public static SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize) throws SQLException, IOException, SolrServerException, NdexException  {
 
@@ -209,10 +205,7 @@ public class SearchServiceV2 extends NdexService {
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize)
 			throws IllegalArgumentException, NdexException {
-		
-		//logger.info("[start: Retrieving NetworkSummary objects using query \"{}\"]", 
-		//		query.getSearchString());		
-		
+				
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
 		
     	if(query.getAccountName() != null)
@@ -221,14 +214,11 @@ public class SearchServiceV2 extends NdexService {
     	try (NetworkDAO dao = new NetworkDAO()) {
 
 			NetworkSearchResult result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
-	//		logger.info("[end: Retrieved {} NetworkSummary objects]", result.getNetworks().size());		
 			return result;
 
         } catch (NdexException e1) {
         		throw e1;
 		} catch (Exception e) {
-		//	logger.error("[end: Retrieving NetworkSummary objects using query \"{}\". Exception caught:]{}", 
-		//			query.getSearchString(), e);	
 			e.printStackTrace();
         		throw new NdexException(e.getMessage());
         }
@@ -298,7 +288,7 @@ public class SearchServiceV2 extends NdexService {
 			@QueryParam("accesskey") String accessKey,
 			@DefaultValue("false") @QueryParam("save") boolean saveAsNetwork,
 			final CXSimplePathQuery queryParameters
-			) throws NdexException, SQLException, IOException, URISyntaxException   {
+			) throws NdexException, SQLException, URISyntaxException   {
 		
 		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
@@ -323,10 +313,10 @@ public class SearchServiceV2 extends NdexService {
 			}
 			networkName = dao.getNetworkName(networkId);
 		}   
-		ProvenanceEntity ei = new ProvenanceEntity();
+/*		ProvenanceEntity ei = new ProvenanceEntity();
 		ei.setUri(Configuration.getInstance().getHostURI()  + 
 	            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr + "/summary" );
-		ei.addProperty("dc:title", networkName);
+		ei.addProperty("dc:title", networkName); */
 	
 		if (networkName == null)
 			networkName = "Neighborhood query result on unnamed network";
@@ -347,14 +337,14 @@ public class SearchServiceV2 extends NdexService {
 		InputStream in = response.readEntity(InputStream.class);
 
         if (saveAsNetwork) {
-        		ProvenanceEntity entity = new ProvenanceEntity();
+        /*		ProvenanceEntity entity = new ProvenanceEntity();
         		ProvenanceEvent evt = new ProvenanceEvent("Neighborhood query",new Timestamp(Calendar.getInstance().getTimeInMillis()));
         		evt.addProperty("Query terms", queryParameters.getSearchString());
         		evt.addProperty("Query depth", String.valueOf(queryParameters.getSearchDepth()));
      		evt.addProperty( "user name", this.getLoggedInUser().getUserName());
         		evt.addInput(ei);
-        		entity.setCreationEvent(evt);
-        		return saveQueryResult(networkName, userId, getLoggedInUser().getUserName(), in, entity);
+        		entity.setCreationEvent(evt); */
+        		return saveQueryResult(networkName, userId, getLoggedInUser().getUserName(), in);
         }  
         
         	return Response.ok().entity(in).build();
@@ -362,13 +352,13 @@ public class SearchServiceV2 extends NdexService {
 	}
 	
 	private Response saveQueryResult(String networkName, UUID ownerUUID,String ownerName,
-			InputStream in, ProvenanceEntity entity) throws SQLException, NdexException, IOException, URISyntaxException {
+			InputStream in) throws SQLException, URISyntaxException {
 		// create a network entry in db
 		UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
 	    try (NetworkDAO dao = new NetworkDAO()) {
 	    	   dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName);
-     	   dao.setProvenance(uuid, entity);
+    // 	   dao.setProvenance(uuid, entity);
 		   dao.commit();
 	    }
 
@@ -455,19 +445,6 @@ public class SearchServiceV2 extends NdexService {
 					e.printStackTrace();
 			}			
 			
-/*		    try {
-				NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(networkUUID,
-						owner, false, VisibilityType.PRIVATE, null));
-			} catch (JsonProcessingException | SQLException | NdexException e) {
-				e.printStackTrace();
-				try (NetworkDAO dao = new NetworkDAO()) {
-					dao.setErrorMessage(networkUUID, "Failed to process network: "+ e.getMessage());
-					dao.commit();
-				} catch (SQLException e2) {
-					e.printStackTrace();
-				}
-			}
-*/
 		}
 	}
 
@@ -481,7 +458,7 @@ public class SearchServiceV2 extends NdexService {
 			@QueryParam("accesskey") String accessKey,
 			@DefaultValue("false") @QueryParam("save") boolean saveAsNetwork,
 			final CXSimplePathQuery queryParameters
-			) throws NdexException, SQLException, IOException, URISyntaxException   {
+			) throws NdexException, SQLException, URISyntaxException   {
 		
 		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
@@ -508,10 +485,10 @@ public class SearchServiceV2 extends NdexService {
 			networkName = dao.getNetworkName(networkId);
 		}   
 		
-		ProvenanceEntity ei = new ProvenanceEntity();
+/*		ProvenanceEntity ei = new ProvenanceEntity();
 		ei.setUri(Configuration.getInstance().getHostURI()  + 
 	            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr + "/summary" );
-		ei.addProperty("dc:title", networkName);
+		ei.addProperty("dc:title", networkName); */
 		
 		if (networkName == null)
 			networkName = "Interconnect query result on unnamed network";
@@ -538,13 +515,13 @@ public class SearchServiceV2 extends NdexService {
        //    response.close();  
         InputStream in = response.readEntity(InputStream.class);
         if (saveAsNetwork) {
-    			ProvenanceEntity entity = new ProvenanceEntity();
+    	/*		ProvenanceEntity entity = new ProvenanceEntity();
         		ProvenanceEvent evt = new ProvenanceEvent("Interconnect query",new Timestamp(Calendar.getInstance().getTimeInMillis()));
         		evt.addProperty("Query terms", queryParameters.getSearchString());
      		evt.addProperty( "user name", this.getLoggedInUser().getUserName());
         		evt.addInput(ei);
-        		entity.setCreationEvent(evt);
-    			return saveQueryResult(networkName, userId, getLoggedInUser().getUserName(), in, entity);
+        		entity.setCreationEvent(evt); */
+    			return saveQueryResult(networkName, userId, getLoggedInUser().getUserName(), in);
         }  
         return Response.ok().entity(in).build();
 		
@@ -679,7 +656,7 @@ public class SearchServiceV2 extends NdexService {
         }
 	}
 	
-	private Set<String> expandGeneSearchTerms(Collection<String> geneSearchTerms) throws NdexException  {
+	private static Set<String> expandGeneSearchTerms(Collection<String> geneSearchTerms) throws NdexException  {
 		
 		Client client = ClientBuilder.newBuilder().build();
         Set<String> expendedTerms = new HashSet<> ();
@@ -752,7 +729,7 @@ public class SearchServiceV2 extends NdexService {
         
 	}
 	
-	private void addTermsToExpensionSet(Object term, Set<String> expendedTerms) {
+	private static void addTermsToExpensionSet(Object term, Set<String> expendedTerms) {
 		if ( term !=null) {
     		if (term instanceof String) {
     			expendedTerms.add((String)term);
@@ -762,7 +739,7 @@ public class SearchServiceV2 extends NdexService {
     	}
 	}
 
-	private void addSingleTermToExpensionSet(Object term, Set<String> expendedTerms) {
+	private static void addSingleTermToExpensionSet(Object term, Set<String> expendedTerms) {
 		if ( term !=null) {
     		if (term instanceof String) {
     			expendedTerms.add((String)term);
