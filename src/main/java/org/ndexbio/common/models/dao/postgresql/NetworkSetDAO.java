@@ -212,11 +212,14 @@ public class NetworkSetDAO extends NdexDBDAO {
 	}
 
 	
-	public List<NetworkSet> getNetworkSetsByUserId(UUID userId, UUID signedInUserId, int offset, int limit) throws SQLException, JsonParseException, JsonMappingException, IOException {
+	public List<NetworkSet> getNetworkSetsByUserId(UUID userId, UUID signedInUserId, int offset, int limit,
+			boolean summaryOnly, boolean showcasedOnly
+			) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		List<NetworkSet> result = new ArrayList<>();
 		
-		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description, other_attributes,showcased from network_set  where owner_id=? and is_deleted=false";
+		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description, other_attributes,showcased from network_set  where owner_id=? and is_deleted=false"
+				 + (showcasedOnly? " and showcased = true" : "");
 	
 		if ( offset>=0 && limit>0) {
 			sqlStr += " limit " +limit + " offset " + offset;
@@ -252,20 +255,25 @@ public class NetworkSetDAO extends NdexDBDAO {
 			}
 		}
 		
-		sqlStr = "select network_id from network_set_member nm, network n where nm.set_id =? and nm.network_id = n.\"UUID\" and " + NetworkDAO.createIsReadableConditionStr(signedInUserId);
+		if ( summaryOnly) {
+			for (NetworkSet entry : result) {
+				entry.setNetworks(null);
+			}
+		} else {	
+			sqlStr = "select network_id from network_set_member nm, network n where nm.set_id =? and nm.network_id = n.\"UUID\" and " + NetworkDAO.createIsReadableConditionStr(signedInUserId);
 		
-		for (NetworkSet entry : result) {
-			try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-				p.setObject(1, entry.getExternalId());
-				try ( ResultSet rs = p.executeQuery()) {
-					List<UUID> networkIds = entry.getNetworks();
-					while ( rs.next()) {
-						networkIds.add((UUID)rs.getObject(1));
-					} 
+			for (NetworkSet entry : result) {
+				try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+					p.setObject(1, entry.getExternalId());
+					try ( ResultSet rs = p.executeQuery()) {
+						List<UUID> networkIds = entry.getNetworks();
+						while ( rs.next()) {
+							networkIds.add((UUID)rs.getObject(1));
+						} 
+					}
 				}
 			}
 		}
-		
 		return result;
 	}
 

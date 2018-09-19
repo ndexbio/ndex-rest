@@ -1139,13 +1139,15 @@ public class UserServiceV2 extends NdexService {
 		public  List<NetworkSet> getNetworksetsByUserId(
 					 @PathParam("userid") String userIdStr,
 						@DefaultValue("0") @QueryParam("offset") int offset,
-						@DefaultValue("0") @QueryParam("limit") int limit
+						@DefaultValue("0") @QueryParam("limit") int limit,
+						@DefaultValue("false") @QueryParam("summary") boolean summaryOnly,
+						@DefaultValue("false") @QueryParam("showcase") boolean showcasedOnly
 						) throws SQLException, JsonParseException, JsonMappingException, IOException {
 				
 			UUID userId = UUID.fromString(userIdStr);
 					
 			try (NetworkSetDAO dao = new NetworkSetDAO ()){
-					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId(), offset, limit);
+					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId(), offset, limit, summaryOnly, showcasedOnly);
 					return sets;
 				}
 				

@@ -119,118 +119,15 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 @Path("/network")
 public class NetworkService extends NdexService {
 	
-//	static Logger logger = LoggerFactory.getLogger(NetworkService.class);
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 	
-//	static private final String readOnlyParameter = "readOnly";
 
 	public NetworkService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
 
 
-/* Note: will be implemented in services	
-	@PermitAll
-	@GET
-	@Path("/{networkId}/namespaceFile/{prefix}")
-	@Produces("text/plain")
-    @ApiDoc("Retrieves the archived namespace file if exists. Otherwise 404 will be returned.")
-	public String getBELNamespaceFile(
-			@PathParam("networkId") final String networkId,
-			@PathParam("prefix") final String prefix
-			) throws ObjectNotFoundException, UnauthorizedOperationException, NdexException, Exception {
-    	logger.info("[start: Getting namespace file for " + prefix + " in network {}]", networkId);
 
-		if ( isReadable(networkId) ) { 
-			try ( SingleNetworkDAO dao = new SingleNetworkDAO (networkId) ) {				
-				String s = dao.getNamespaceFile(prefix);
-				logger.info("[end: Return namespace file of {} ,in network {}]", prefix, networkId);
-				return s;
-			}
-		}
-		else
-            throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-	} 
-	
-	@PermitAll
-	@GET
-	@Path("/{networkId}/namespace")
-	@Produces("application/json")
-    @ApiDoc("Retrieves a list of Namespace objects from the network specified by 'networkId'.")
-	public List<Namespace> getNamespaces(
-			@PathParam("networkId") final String networkId)
-
-			throws IllegalArgumentException, NdexException {
-
-		logger.info("[start: Getting list of namespaces for network {}, skipBlocks {}, blockSize {}]",  
-				networkId);
-		
-		try (NetworkDocDAO daoNew = new NetworkDocDAO()){
-			
-			if ( !isReadable(daoNew, networkId)) {
-				logger.error("[end: Network {} not readable for this user]", networkId);
-				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
-			}
-			
-			logger.info("[end: Got list of namespaces for network {}]",  networkId);
-			return (List<Namespace>) daoNew.getNamespaces(networkId);
-		} 
-
-	} */
-
-	/* Note: will be implement in service
-	@POST
-	@Path("/{networkId}/namespace")
-	@Produces("application/json")
-    @ApiDoc("Adds the POSTed Namespace object to the network specified by 'networkId'.")
-	public void addNamespace(
-			@PathParam("networkId") final String networkId,
-			final Namespace namespace
-			)
-			throws IllegalArgumentException, NdexException, IOException {
-		
-		logger.info("[start: Adding namespace to the network {}]", networkId);
-
-		NdexDatabase db = null; 
-		NdexPersistenceService networkService = null;
-		try {
-			db = NdexDatabase.getInstance();
-			networkService = new NdexPersistenceService(
-					db,
-					UUID.fromString(networkId));
-
-            //networkService.get
-			networkService.getNamespace(new RawNamespace(namespace.getPrefix(), namespace.getUri()));
-
-            //DW: Handle provenance
-            ProvenanceEntity oldProv = networkService.getNetworkProvenance();
-            ProvenanceEntity newProv = new ProvenanceEntity();
-            newProv.setUri( oldProv.getUri() );
-
-            Helper.populateProvenanceEntity(newProv, networkService.getCurrentNetwork());
-
-            Timestamp now = new Timestamp(Calendar.getInstance().getTimeInMillis());
-            ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.ADD_NAMESPACE, now);
-            List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-            Helper.addUserInfoToProvenanceEventProperties( eventProperties, this.getLoggedInUser());
-            String namespaceString = namespace.getPrefix() + " : " + namespace.getUri();
-            eventProperties.add( new SimplePropertyValuePair("namespace", namespaceString));
-            event.setProperties(eventProperties);
-            List<ProvenanceEntity> oldProvList = new ArrayList<>();
-            oldProvList.add(oldProv);
-            event.setInputs(oldProvList);
-
-            newProv.setCreationEvent(event);
-            networkService.setNetworkProvenance(newProv);
-
-			networkService.commit();
-			networkService.close();
-		} finally {
-			
-			if (networkService != null) networkService.close();
-			logger.info("[end: Added namespace to the network {}]", networkId);
-		}
-	} */
 
     /**************************************************************************
     * Returns network provenance.
@@ -251,9 +148,7 @@ public class NetworkService extends NdexService {
 			@PathParam("networkid") final String networkId)
 
 			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException, NdexException, SQLException {
-		
-	//	logger.info("[start: Getting provenance of network {}]", networkId);
-		
+				
 		try (NetworkDAO daoNew = new NetworkDAO()) {
 			if ( !daoNew.isReadable(UUID.fromString(networkId), getLoggedInUserId()) )
 				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
@@ -384,10 +279,6 @@ public class NetworkService extends NdexService {
 			}	
    			return i;
 		} catch (Exception e) {
-			//logger.severe("Error occurred when update network properties: " + e.getMessage());
-			//e.printStackTrace();
-			//if (null != daoNew) daoNew.rollback();
-		//	logger.error("Updating properties of network {}. Exception caught:]{}", networkId, e);
 			
 			throw new NdexException(e.getMessage(), e);
 		} 
@@ -410,15 +301,12 @@ public class NetworkService extends NdexService {
 			@PathParam("networkid") final String networkIdStr)
 
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-
-    //	logger.info("[start: Getting networkSummary of network {}]", networkIdStr);
 		
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			UUID networkId = UUID.fromString(networkIdStr);
 			if ( dao.isReadable(networkId, userId)) {
 				NetworkSummary summary = dao.getNetworkSummaryById(networkId);
-		//		logger.error("[end: Getting networkSummary of network {}.]", networkId);	
 
 				return summary;
 			}
@@ -429,103 +317,10 @@ public class NetworkService extends NdexService {
 			
 	}
 
-/*
-	@PermitAll
-	@POST
-	@Path("/summaries")
-	@Produces("application/json")
-	@ApiDoc("Retrieves a list of NetworkSummary objects based on the network uuids POSTed. This " +
-            "method only returns network summaries that the user is allowed to read. User can only post up to 300 uuids in this function.")
-	public List<NetworkSummary> getNetworkSummaries(
-			List<String> networkIdStrs)
-
-			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-
-		if (networkIdStrs.size() > 1000) 
-			throw new NdexException ("You can only send up to 1000 network ids in this function.");
-		
-    	logger.info("[start: Getting networkSummary of networks {}]", networkIdStrs);
-		
-		try (NetworkDAO dao = new NetworkDAO())  {
-			UUID userId = getLoggedInUserId();
-			return dao.getNetworkSummariesByIdStrList(networkIdStrs, userId);				
-		}  finally {
-	    	logger.info("[end: Getting networkSummary of networks {}]", networkIdStrs);
-		}						
-	} */
-	
-/*	
-	@PermitAll
-	@POST
-	@Path("/{networkid}/aspects")
-	@ApiDoc("The getAspectsAsCX method enables an application to obtain aspects of a given network as a CX " +
-	        "structure.")
-	//TODO: handle cached network from hardDrive.
-	public Response getAspectsAsCX(	@PathParam("networkid") final String networkId,
-			final List<String> aspectNames)
-			throws Exception {
-
-
-	//	if ( isReadable(networkId) ) {
-			Set<String> asp = new HashSet<>(aspectNames.size());
-			for ( String s : aspectNames)
-				asp.add(s);
-
-			
-			PipedInputStream in = new PipedInputStream();
-			PipedOutputStream out;
-			try {
-				out = new PipedOutputStream(in);
-			} catch (IOException e) {
-				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
-			}
-			
-			new CXNetworkAspectsWriterThread(out,networkId, asp).start();
-			//setZipFlag();
-			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
-	}  
-*/
-	
-/*	@PermitAll
-	@GET
-	@Path("/{networkid}/metadata")
-	public static Response getNetworkCXMetadataCollection(	@PathParam("networkid") final String networkId)
-			throws Exception {
-
-			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity("").build(); //to be removed when implemented.
 
 	
-	}  
-*/	
-/*	
-	@PermitAll
-	@GET
-	@Path("/{networkid}/aspect/{aspectname}/{limit}")
-	@ApiDoc("The getAspectElement method returns elements in the specified aspect up to the given limit.")
-	//TODO: handle cached network from hardDrive.
-	public Response getAspectElements(	@PathParam("networkid") final String networkId,
-			@PathParam("aspectname") final String aspectName,
-			@PathParam("limit") final int limit)
-			throws Exception {
 
-//		if ( isReadable(networkId) ) {
-			
-			PipedInputStream in = new PipedInputStream();
-			PipedOutputStream out;
-			try {
-				out = new PipedOutputStream(in);
-			} catch (IOException e) {
-				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
-			}
-			
 
-			
-			new CXAspectElementsWriterThread(out,networkId, aspectName, limit).start();
-			logger.info("[end: Return get one aspect in network {}]", networkId);
-			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
-	
-	}  
-*/	
 	
 	@PermitAll
 	@GET
@@ -561,8 +356,6 @@ public class NetworkService extends NdexService {
 
 	public Response getSampleNetworkAsCX(	@PathParam("networkid") final String networkId)
 			throws IllegalArgumentException, NdexException, SQLException {
-
-  //  	logger.info("[start: Getting sample network {}]", networkId);
   	
     	try (NetworkDAO dao = new NetworkDAO()) {
     		if ( ! dao.isReadable(UUID.fromString(networkId), getLoggedInUserId()))
@@ -576,7 +369,6 @@ public class NetworkService extends NdexService {
 			FileInputStream in = new FileInputStream(cxFilePath)  ;
 		
 			//	setZipFlag();
-	//		logger.info("[end: Return network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
 		} catch ( FileNotFoundException e) {
 				throw new ObjectNotFoundException("Sample network of " + networkId + " not found");
@@ -585,40 +377,7 @@ public class NetworkService extends NdexService {
 	}  
 	
 	
-/*	
-	private class CXNetworkWriterThread extends Thread {
-		private OutputStream o;
-		private String networkId;
-		public CXNetworkWriterThread (OutputStream out, String  networkUUIDStr) {
-			o = out;
-			networkId = networkUUIDStr;
-		}
-		
-		public void run() {
-			try (CXNetworkExporter dao = new CXNetworkExporter (networkId) ) {
-				    dao.writeNetworkInCX(o, true);
-			} catch (IOException e) {
-					logger.error("IOException in CXNetworkWriterThread: " + e.getMessage());
-					e.printStackTrace();
-			} catch (NdexException e1) {
-			     logger.error("Ndex error: " + e1.getMessage());
-			     e1.printStackTrace();
-			} catch (Exception e1) {
-				logger.error("Ndex excption: " + e1.getMessage());
-				e1.printStackTrace();
-			} finally {
-				try {
-					o.flush();
-					o.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-					logger.error("Failed to close outputstream in CXNetworkWriterThread.");
-				}
-			} 
-		}
-		
-	} */
-	
+
 /*	private class CXNetworkQueryWriterThread extends Thread {
 		private OutputStream o;
 		private String networkId;
@@ -720,82 +479,6 @@ public class NetworkService extends NdexService {
 		}
 	} */
 
-	/*
-	
-	private ProvenanceEntity getProvenanceEntityFromMultiPart(Map<String, List<InputPart>> uploadForm) throws NdexException, IOException {
-		
-	       List<InputPart> parts = uploadForm.get("provenance");
-	       if (parts == null)
-	    	   return null;
-
-		  	StringBuffer sb = new StringBuffer();
-		    for (InputPart inputPart : parts) {
-		        	   org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
-		        			   (org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
-		        	   sb.append(p.getBodyAsString());
-		    }
-		    
-		    ObjectMapper mapper = new ObjectMapper();
-		    ProvenanceEntity entity = mapper.readValue(sb.toString(), ProvenanceEntity.class);		
-	    	
-		    if (entity == null || entity.getUri() == null)
-	    		   throw new NdexException ("Malformed provenance parameter found in posted form data.");  
-		   return entity;
-	} */
-	
-
-/* Note: Will be implemented in services	
-	@PermitAll
-	@GET
-	@Path("/export/{networkId}/{format}")
-	@Produces("application/json")
-    @ApiDoc("Retrieve an entire network specified by 'networkId' as a Network object.  (Compare this method to " +
-            "getCompleteNetworkAsPropertyGraph).")
-	public String exportNetwork(	@PathParam("networkId") final String networkId,
-			@PathParam("format") final String format)
-			throws  NdexException {
-
-    	logger.info("[start: request to export network {}]", networkId);
-		
-		if ( isReadable(networkId) ) {
-			
-			String networkName =null;
-			try (NetworkDAO networkdao = new NetworkDAO(NdexDatabase.getInstance().getAConnection())){
-				networkName = networkdao.getNetworkSummaryById(networkId).getName();
-			}
-			
-			Task exportNetworkTask = new Task();
-			exportNetworkTask.setTaskType(TaskType.EXPORT_NETWORK_TO_FILE);
-			exportNetworkTask.setPriority(Priority.LOW);
-			exportNetworkTask.setResource(networkId); 
-			exportNetworkTask.setStatus(Status.QUEUED);
-			exportNetworkTask.setDescription("Export network \""+ networkName + "\" in " + format + " format");
-			
-			try {
-				exportNetworkTask.setFormat(FileFormat.valueOf(format));
-			} catch ( Exception e) {
-				logger.error("[end: Exception caught:]{}", e);
-				throw new NdexException ("Invalid network format for network export.");
-			}
-			
-			try (TaskDAO taskDAO = new TaskDAO(NdexDatabase.getInstance().getAConnection()) ){ 
-				exportNetworkTask.setTaskOwnerId(getLoggedInUser().getExternalId());
-				UUID taskId = taskDAO.createTask(exportNetworkTask);
-				taskDAO.commit();
-				logger.info("[start: task created to export network {}]", networkId);
-				return taskId.toString();
-			}  catch (Exception e) {
-				logger.error("[end: Exception caught:]{}", e);
-				
-				throw new NdexException(e.getMessage());
-			} 
-		}
-		logger.error("[end: User doesn't have read access network {}. Throwing  UnauthorizedOperationException]", networkId);
-		throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-	}  
-	*/
-	
-
 
 	/**************************************************************************
 	 * Retrieves array of user membership objects
@@ -867,13 +550,10 @@ public class NetworkService extends NdexService {
 			UUID networkUUID = UUID.fromString(networkId);
 	
 	  	    if(networkDao.isReadOnly(networkUUID)) {
-	//			logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
 			} 
 			
 			if ( !networkDao.isWriteable(networkUUID, user.getExternalId())) {
-	//			logger.error("[end: No write permissions for user account {} on network {}]", 
-	//					user.getUserName(), networkId);
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			} 
 			
@@ -998,137 +678,6 @@ public class NetworkService extends NdexService {
 	}
 
 
-/* Note: Will be implemented in service
-	@PermitAll
-	@POST
-	@Path("/{networkId}/asCX/query")
-	@Produces("application/json")
-    @ApiDoc("Retrieves a 'neighborhood' subnetwork of the network specified by ‘networkId’. The query finds " +
-            "the subnetwork by a traversal of the network starting with nodes associated with identifiers " +
-            "specified in a POSTed JSON query object. " +
-            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#queryNetwork\">here</a>.")
-	public Response queryNetworkAsCX(
-			@PathParam("networkId") final String networkId,
-			final CXSimplePathQuery queryParameters
-			)
-
-			throws Exception {
-		
-		logger.info("[start: Retrieving neighborhood subnetwork for network {} with phrase \"{}\"]", 
-				networkId, queryParameters.getSearchString());
-		
-		if ( !isReadable(networkId)) {
-			 logger.error("[end: User doesn't have read permission to retrieve neighborhood subnetwork for network {} with phrase\"{}\"]",  
-					   networkId, queryParameters.getSearchString());
-		       throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
-		}
-
-		Set<String> aspects = queryParameters.getAspects();
-		if (aspects == null) {
-			aspects = new TreeSet<>();
-			queryParameters.setAspects(aspects);
-		}
-		if ( aspects.size() == 0) {
-			aspects.add(NodesElement.ASPECT_NAME);
-			aspects.add(EdgesElement.ASPECT_NAME);
-		}
-		
-		try (CXNetworkExporter cxexporter = new CXNetworkExporter(networkId);) {
-
-			PipedInputStream in = new PipedInputStream();
-			PipedOutputStream out;
-			try {
-				out = new PipedOutputStream(in);
-			} catch (IOException e) {
-				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
-			}
-			
-			new CXNetworkQueryWriterThread(out,networkId,queryParameters).start();
-			//setZipFlag();
-			logger.info("[end: Return cx network {}]", networkId);
-			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
-		} 
-	} 
-	
-	
-	
-	@PermitAll
-	@POST
-	@Path("/{networkId}/asNetwork/prototypeNetworkQuery")
-	@Produces("application/json")
-    @ApiDoc("This method retrieves a filtered subnetwork of the network specified by ‘networkId’ based on a " +
-            "POSTed JSON query object.  The returned subnetwork contains edges which satisfy both the " +
-            "edgeFilter and the nodeFilter up to a specified limit. The subnetwork is returned as a Network " +
-            "object containing the selected edges plus all other network elements relevant to the edges. " +
-            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#queryNetworkByEdgeFilter\">here</a>.")
-	public Network queryNetworkByEdgeFilter(
-			@PathParam("networkId") final String networkId,
-			final EdgeCollectionQuery query
-			)
-
-			throws IllegalArgumentException, NdexException {
-
-		logger.info("[start: filter query on network {}]", networkId);
-		
-
-		if ( !isReadable(networkId ) ) {
-			logger.error("[end: Network {} not readable for this user]", networkId);
-			throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
-		}
-		
-		NetworkFilterQueryExecutor queryExecutor = NetworkFilterQueryExecutorFactory.createODBExecutor(networkId, query);
-		
-		Network result =  queryExecutor.evaluate();
-		logger.info("[end: filter query on network {}]", networkId);
-        return result;
-	} */
-	
-	
-
-/*	
-	@PermitAll
-	@POST
-	@Path("/{networkId}/asPropertyGraph/query")
-	@Produces("application/json")
-    @ApiDoc("Retrieves a 'neighborhood' subnetwork of a network based on identifiers specified in a POSTed " +
-            "SimplePathQuery object. The network is specified by networkId. In the first step of the query, " +
-            "a set of base terms exactly matching identifiers found in the searchString of the SimplePathQuery is " +
-            "selected. In the second step, nodes are selected that reference the base terms identified in the network" +
-            ". Finally, a set of edges is selected by traversing outwards from each of these selected nodes, " +
-            "up to the limit specified by the 'searchDepth' field of the SimplePathQuery.  The subnetwork is returned" +
-            " as a PropertyGraphNetwork object containing the selected PropertyGraphEdge objects along with any other" +
-            " network information relevant to the edges.")
-	public PropertyGraphNetwork queryNetworkAsPropertyGraph(
-			@PathParam("networkId") final String networkId,
-			final SimplePathQuery queryParameters
-//			@PathParam("skipBlocks") final int skipBlocks, 
-//			@PathParam("blockSize") final int blockSize
-			)
-
-			throws IllegalArgumentException, NdexException {
-
-		logger.info("[start: Retrieving neighborhood subnetwork for network {} based on SimplePathQuery object]",
-				networkId);
-		
-		try (NetworkDocDAO networkDao = new NetworkDocDAO() ) {
-
-			if ( !isReadable( networkId)) {
-				logger.error("[end: network {} is not readble to this user]",
-						networkId);
-			    throw new UnauthorizedOperationException("User doesn't have read permissions for this network.");
-			}
-			
-			NetworkAOrientDBDAO dao = NetworkAOrientDBDAO.getInstance();
-
-			PropertyGraphNetwork n = dao.queryForSubPropertyGraphNetworkV2(networkId, queryParameters);
-			logger.info("[end: Retrieved neighborhood subnetwork for network {} based on SimplePathQuery object]",
-						networkId);				
-			return n;
-
-		} 
-
-	}
-*/
 
 
 
@@ -1195,19 +744,16 @@ public class NetworkService extends NdexService {
            
          try {
 	  	   if( daoNew.isReadOnly(networkId)) {
-	//			logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
 			} 
 			
 			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
-	//			logger.error("[end: No write permissions for user account {} on network {}]", 
-	//					user.getUserName(), networkId);
+
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			} 
 			
 			if ( daoNew.networkIsLocked(networkId)) {
 				daoNew.close();
-	//			logger.info("[end: Can't update locked network {}]", networkId);
 				throw new NetworkConcurrentModificationException ();
 			} 
 			
@@ -1267,8 +813,6 @@ public class NetworkService extends NdexService {
     @ApiDoc("Deletes the network specified by networkId. There is no method to undo a deletion, so care " +
 	        "should be exercised. A user can only delete networks that they own.")
 	public void deleteNetwork(final @PathParam("networkid") String id) throws NdexException, SQLException {
-
-//		logger.info("[start: Deleting network {}]", id);
 		    
 		try (NetworkDAO networkDao = new NetworkDAO()) {
 			UUID networkId = UUID.fromString(id);
@@ -1286,7 +830,6 @@ public class NetworkService extends NdexService {
 						networkDao.commit();
 						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId));
 				
-//						logger.info("[end: Deleted network {}]", id);
 						return;
 					}
 					throw new NdexException ("Network is locked by another updating process. Please try again.");
@@ -1532,8 +1075,6 @@ public class NetworkService extends NdexService {
 	       
 	       NdexServerQueue.INSTANCE.addSystemTask(new CXNetworkLoadingTask(uuid, /*getLoggedInUser().getUserName(),*/ false, null,null));
 	       
-	//	   logger.info("[end: Created a new network based on a POSTed CX stream.]");
-		   //return "\"" + uuidStr + "\"";
 		   return  uuidStr ;
 
 	   	}
