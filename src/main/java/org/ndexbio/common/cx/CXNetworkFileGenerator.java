@@ -8,24 +8,16 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.List;
 import java.util.UUID;
 
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.core.NdexCXNetworkWriter;
-import org.ndexbio.cxio.core.interfaces.AspectElement;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
-import org.ndexbio.model.cx.CXAspectFragment;
 import org.ndexbio.model.cx.NamespacesElement;
-import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.Provenance;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonParseException;
