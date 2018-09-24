@@ -80,7 +80,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Provider
 public class BasicAuthenticationFilter implements ContainerRequestFilter
 {
-	
+    private static byte counter = 0; // a global counter
+
 	 @Context
 	 private HttpServletRequest httpRequest;
 	 
@@ -148,7 +149,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         
 		// write the log context
 		MDC.put("RequestsUniqueId", 
-				"tid:"+System.currentTimeMillis() + "-" + Thread.currentThread().getId());
+				"tid:"+System.currentTimeMillis() + "-" + getCounter() /*+ Thread.currentThread().getId()*/);
 
 		NdexException authorizationException = null;
         try
@@ -401,5 +402,12 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 		newUser.setIsIndividual(true);
 		return newUser;
 	} */
+    
+    
+    static synchronized byte getCounter() {
+        counter++;
+        return counter;
+   }
+
 
 }

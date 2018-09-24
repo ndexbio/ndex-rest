@@ -299,7 +299,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				dao.setProvenance(networkId, provenanceEntity); */
 				
 				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
-				String tmpFileName = g.createNetworkFile();
+				String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
 				
 				java.nio.file.Path src = Paths.get(tmpFileName);
 				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");

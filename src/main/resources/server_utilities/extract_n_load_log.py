@@ -10,7 +10,7 @@ def save_rec(tid, rec, cursor, record_cnt, connection):
     if rec['agent'] == 'Zoho Monitor' or rec['agent'] == 'Site24x7'\
             or rec['user'] == 'dexterpratt' or rec['user'] == 'cjtest'\
             or rec['user'] == 'drh' or rec['user'] == 'scratch'\
-            or rec['user'] == 'vrynkov':
+            or rec['user'] == 'vrynkov' or rec['user'] == 'rudipillich':
         return record_cnt
 
     sql = """INSERT INTO request_record_raw(tid,start_time,end_time, ip, method, user_name, auth_type, user_agent, function_name,
@@ -41,13 +41,13 @@ def load_log_file_to_db (file_name, holder):
                          '\t\\[(.*)\\]\t\\[(.*)\\]\t\\[(.*)\\]\t\\[(.*)\\]' + # up to function name
                          '\t\\[(.*)\\]\t\\[(\\{.*\\})\\]\t\\[(\\{.*\\})\\]')
     p_data = re.compile('^\\[(.*)\\]\t\\[tid:(.*)\\]\t\\[data\\]\t(.*)')
-    p_end = re.compile('^\\[(.*)\\]\t\\[tid:(.*)\\]\t\\[end\\]\t\\[\\w+\\]\t\\[status: (\\d+)\\](\t\\[error: (.*)\\])?')
+    p_end = re.compile('^\\[(.*)\\]\t\\[tid:(.*)\\]\t\\[end\\]\t(\\[\\w+\\]\t)?\\[status: (\\d+)\\](\t\\[error: (.*)\\])?')
 
     p_auth = re.compile('^(G|B):(\w+)')
 
 
     # Define our connection string
-    conn_string = "host='xxx' port='5432' dbname='xxxx' user='xxxx' password='xxx'"
+    conn_string = "host='xxxx' port='xxxx' dbname='xxxx' user='xxxx' password='xxxx'"
 
     with open(file_name) as fp:
         line = fp.readline()
@@ -95,7 +95,7 @@ def load_log_file_to_db (file_name, holder):
                            'method': method,
                            'auth': auth,
                            'user': user,
-                           'ip': m.group(5),
+                           'ip': m.group(5).split("\s+")[0],
                            'agent': m.group(6),
                            'fun': m.group(7),
                            'path': m.group(8),
@@ -119,8 +119,10 @@ def load_log_file_to_db (file_name, holder):
                             rec = holder[tid_e]
 
                             rec['end'] = t2
-                            rec['status'] = m3.group(3)
-                            errormsg = m3.group(5)
+                       #     tmp_funName = m3.group(3)
+                            tmp_status = m3.group(4)
+                            rec['status'] = tmp_status
+                            errormsg = m3.group(6)
                             if errormsg:
                                 rec['err'] = errormsg
 

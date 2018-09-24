@@ -336,6 +336,7 @@ public class NetworkServiceV2 extends NdexService {
 				//Recreate the CX file 					
 				CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, /*fullSummary,*/ metadata /*, newProv*/);
 				g.reCreateCXFile();
+				//CXNetworkFileGenerator.reCreateCXFileAsync(networkUUID.toString(),  metadata);
 				
 				// update the solr Index
 				NetworkIndexLevel idxLvl = daoNew.getIndexLevel(networkUUID);

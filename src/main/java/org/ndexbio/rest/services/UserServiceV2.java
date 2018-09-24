@@ -388,8 +388,6 @@ public class UserServiceV2 extends NdexService {
 	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
 	public User getUserByUUID(@PathParam("userid") final String userIdStr)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
-
-//		logger.info("[start: Getting user from UUID {}]", userId);
 		
 		UUID userUUID = UUID.fromString(userIdStr);
 		if ( getLoggedInUserId() != null && getLoggedInUserId().equals(userUUID))
@@ -397,7 +395,6 @@ public class UserServiceV2 extends NdexService {
 		
 		try (UserDAO dao = new UserDAO() ){
 			final User user = dao.getUserById(userUUID,true,false);
-//			logger.info("[end: User object returned for user uuid {}]", userId);
 			return user;	
 		} 
 		
@@ -406,16 +403,12 @@ public class UserServiceV2 extends NdexService {
 
 	private User authenticateUser()
 			throws UnauthorizedOperationException {
-		
-	//	logger.info("[start: Authenticate user from Auth header]");
-       
+		       
 		User u = this.getLoggedInUser(); 
 		if ( u == null ) {
-//			logger.error("[end: Unauthorized user. Throwing UnauthorizedOperationException...]");
 			throw new UnauthorizedOperationException("Unauthorized user.");
 		}	
 		
-//		logger.info("[end: user {} autenticated from Auth header]",  u.getUserName());
 		return this.getLoggedInUser();
 	}
 	
@@ -568,6 +561,7 @@ public class UserServiceV2 extends NdexService {
 				"A valid email address is required.");
 		
 		
+		
 		if ( Configuration.getInstance().getUseADAuthentication()) {
 			if ( !updatedUser.getUserName().equals(getLoggedInUser().getUserName())) {
 				throw new UnauthorizedOperationException(
@@ -575,14 +569,32 @@ public class UserServiceV2 extends NdexService {
 			}
 		}
 		
+		String oldEmail = getLoggedInUser().getEmailAddress();
+		
 		try (UserDAO dao = new UserDAO ()){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			try (UserIndexManager mgr = new UserIndexManager()) {
-			mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
-			dao.commit();
-	//		logger.info("[end: User {} updated]", updatedUser.getUserName());
+				mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
+				dao.commit();
 			}
-		} 
+			
+			if ( !oldEmail.equals(updatedUser.getEmailAddress())) {
+				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
+
+				String messageBody = "Dear " + user.getFirstName() + " " + user.getLastName()+ 
+		        		",<p>We are sending this message to let you know that the email address associated to your NDEx account " + user.getUserName() + 
+		        		" has been changed to " + updatedUser.getEmailAddress() + 
+		        		".<p>If you didn't request to change the email address associated to your account, please contact us at support@ndexbio.org immediately!\n" + 
+		        		"<p>Thanks for using NDEx!";
+				
+		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+		        
+		        AmazonSESMailSender.getInstance().sendEmail(oldEmail,
+		        		htmlEmail, "The Email Address Associated to Your NDEx Account Was Changed", "html");
+			}
+		}
+		
+		
 	}
 	
 	@GET

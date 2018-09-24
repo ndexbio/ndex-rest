@@ -55,9 +55,11 @@ public class CXNetworkFileGenerator {
 //		provenance = new Provenance(prov);
 	}
 	
+	public MetaDataCollection getMetaData() { return metadata;}
+	
 	// create a CX network using a tmp file name and return the temp file name;
-	public String createNetworkFile() throws FileNotFoundException, IOException {
-		String tmpFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + 
+	public static String createNetworkFile(String uuidStr, MetaDataCollection metadataCollection) throws FileNotFoundException, IOException {
+		String tmpFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/" + 
 				 Thread.currentThread().getId() + "-" + Calendar.getInstance().getTimeInMillis();
 		try (FileOutputStream out = new FileOutputStream(tmpFileName) ) {
 			NdexCXNetworkWriter wtr = new NdexCXNetworkWriter(out);
@@ -80,30 +82,25 @@ public class CXNetworkFileGenerator {
 //			 e.setLastUpdate(fullSummary.getModificationTime().getTime()); */
 		
 			 // for back compatibility reason. System used to generate provenance on the fly.
-			 String provenanceAspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + Provenance.ASPECT_NAME;
+			 String provenanceAspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/aspects/" + Provenance.ASPECT_NAME;
 			 File f = new File(provenanceAspectFileName);
 			 if(!f.exists() ) { 
-			     metadata.remove(Provenance.ASPECT_NAME);
+				 metadataCollection.remove(Provenance.ASPECT_NAME);
 			 }
 			
 			 //write metadata first.
-			 wtr.writeMetadata(metadata);
+			 wtr.writeMetadata(metadataCollection);
 			 
 			
 			 //write namespace first
-			 if ( metadata.getMetaDataElement(NamespacesElement.ASPECT_NAME) != null ) {
+			 if ( metadataCollection.getMetaDataElement(NamespacesElement.ASPECT_NAME) != null ) {
 				 wtr.startAspectFragment(NamespacesElement.ASPECT_NAME);
-				 String aspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + NamespacesElement.ASPECT_NAME;
+				 String aspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/aspects/" + NamespacesElement.ASPECT_NAME;
 			 	 wtr.writeAspectElementsFromNdexAspectFile(aspectFileName);
 				 wtr.endAspectFragment(); 
-				 metadata.remove(NamespacesElement.ASPECT_NAME);	 
+				 metadataCollection.remove(NamespacesElement.ASPECT_NAME);	 
 			 }
-
-	/*		 //write the NdexNetworkstatus aspect.
-			 List<AspectElement> stat = new ArrayList<> (1);
-			 stat.add(status);		 
-			 wtr.writeAspectFragment(new CXAspectFragment(NdexNetworkStatus.ASPECT_NAME, stat)); */
-			 
+		 
 			 //write provenance history separately
 		/*	 if ( metadata.getMetaDataElement(Provenance.ASPECT_NAME) != null ) {
 				 metadata.remove(Provenance.ASPECT_NAME);
@@ -116,9 +113,9 @@ public class CXNetworkFileGenerator {
 		*/		 
 			 
 			 //write all other aspects
-			 for ( MetaDataElement metaElmt: metadata) {
+			 for ( MetaDataElement metaElmt: metadataCollection) {
 				wtr.startAspectFragment(metaElmt.getName());
-				String aspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + metaElmt.getName();
+				String aspectFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/aspects/" + metaElmt.getName();
 				wtr.writeAspectElementsFromNdexAspectFile(aspectFileName);
 				wtr.endAspectFragment(); 
 			 }
@@ -131,31 +128,36 @@ public class CXNetworkFileGenerator {
 	
 	
 	public void reCreateCXFile ( ) throws FileNotFoundException, IOException {
-		String tmpFileName = this.createNetworkFile();
+		String tmpFileName = createNetworkFile(networkId.toString(), metadata);
 			// rename the tmp file
 		java.nio.file.Path src = Paths.get(tmpFileName);
 		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
 		Files.move(src, tgt, StandardCopyOption.REPLACE_EXISTING);  
 	}
 	
-/*	   private static NdexNetworkStatus getNdexNetworkStatusFromSummary(NetworkSummary summary)  {
-		   NdexNetworkStatus nstatus = new NdexNetworkStatus () ;
-		  
-	        nstatus.setCreationTime(summary.getCreationTime());
-	        nstatus.setEdgeCount(summary.getEdgeCount());
-	        nstatus.setNodeCount(summary.getNodeCount());
-	        nstatus.setExternalId(summary.getExternalId().toString());
-	        nstatus.setModificationTime(summary.getModificationTime());
-			nstatus.setNdexServerURI(Configuration.getInstance().getHostURI());
-	        nstatus.setOwner(summary.getOwner());
-	        //nstatus.setPublished(isPublished);
-	        
-	        nstatus.setReadOnly(summary.getIsReadOnly());
-	     
-	        nstatus.setVisibility(summary.getVisibility());
-	         
-		   return nstatus;
-	   }
-	 */  
+	//Asyncronous version of CX file recreation. 
+	//TODO:how to catch errors in the runner and put it into db.
+	public static void reCreateCXFileAsync ( String uuidStr, MetaDataCollection metadataCollection) {
+		
+		Thread t = new Thread() {
+		    @Override
+			public void run() {
+		    	try {
+		    		String tmpFileName = createNetworkFile(uuidStr, metadataCollection);
+		    		// rename the tmp file
+		    		java.nio.file.Path src = Paths.get(tmpFileName);
+		    		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/network.cx");
+				
+					Files.move(src, tgt, StandardCopyOption.REPLACE_EXISTING);
+				} catch (IOException e) {
+					System.out.println("Error occurred when re-creating cx file for network " + uuidStr.toString());
+					e.printStackTrace();
+				}  
+				
+		    }
+		};
+		t.start();
+	}
+	
 	   
 }

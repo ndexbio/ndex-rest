@@ -32,28 +32,14 @@ package org.ndexbio.rest.services;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.UUID;
 
-import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
 
 import org.jboss.resteasy.util.Base64;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.RestResource;
 import org.ndexbio.model.object.User;
-import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.slf4j.Logger;
@@ -85,7 +71,7 @@ public abstract class NdexService
     /**************************************************************************
     * Gets API information for the service.
     **************************************************************************/
-    @GET
+ /*   @GET
     @PermitAll
     @Path("/api")
 	@NdexOpenFunction
@@ -154,7 +140,7 @@ public abstract class NdexService
 		logger.info("[end: getApi()]");
         return resourceList;
     }
-
+*/
     /**************************************************************************
     * Gets the authenticated user that made the request.
     * 

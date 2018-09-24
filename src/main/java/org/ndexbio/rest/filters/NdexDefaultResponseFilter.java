@@ -113,7 +113,7 @@ public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Fi
 	    	
 	    	String error = MDC.get("error");
 	    	
-	    	logger.info("[end]\t["+ method.getName() + "]\t[status: " + responseCode + "]" + 
+	    	logger.info("[end]\t[status: " + responseCode + "]" + 
 	    			(error !=null? "\t[error: "+ error + "]" : "" ));
 	    	
 	    	if ( error !=null)

@@ -125,7 +125,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				
 				//recreate CX file
 				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkUUID, dao /*, new Provenance(provenanceEntity)*/);
-				String tmpFileName = g.createNetworkFile();
+				String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkUUID.toString(), g.getMetaData());
 				
 				long fileSize = new File(tmpFileName).length();
                 dao.setNetworkFileSize(networkUUID, fileSize);
