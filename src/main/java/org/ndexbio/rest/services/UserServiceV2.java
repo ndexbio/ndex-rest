@@ -582,9 +582,9 @@ public class UserServiceV2 extends NdexService {
 				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
 
 				String messageBody = "Dear " + user.getFirstName() + " " + user.getLastName()+ 
-		        		",<p>We are sending this message to let you know that the email address associated to your NDEx account " + user.getUserName() + 
-		        		" has been changed to " + updatedUser.getEmailAddress() + 
-		        		".<p>If you didn't request to change the email address associated to your account, please contact us at support@ndexbio.org immediately!\n" + 
+		        		",<p>We are sending this message to let you know that the email address associated to your NDEx Account \"" + user.getUserName() + 
+		        		"\" has been changed. The new email address associated to your account is: " + updatedUser.getEmailAddress() + 
+		        		".<p>If you didn't request this change, please contact us immediately using the link below." + 
 		        		"<p>Thanks for using NDEx!";
 				
 		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
