@@ -35,6 +35,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.sql.SQLException;
 
+import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Status;
 import org.slf4j.Logger;
@@ -65,8 +66,11 @@ public class ClientTaskProcessor extends NdexTaskProcessor {
 				return;
 			}
 			
-			try {		        
-//		        MDC.put("RequestsUniqueId", (String)task.getAttribute("RequestsUniqueId") );
+			try {		   
+				try (TaskDAO dao = new TaskDAO()) {
+					if (!dao.isNotDeleted(task.getTask().getExternalId()))
+							return ;
+				}
 				logger.info("[start: starting task]");
 				task.call();
 				logger.info("[end: task completed]");

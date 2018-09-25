@@ -248,6 +248,20 @@ public class TaskDAO extends NdexDBDAO {
 		}		
 	}
 
+	public boolean isNotDeleted(UUID taskId) throws SQLException {
+		String sqlStr = "SELECT 1 FROM " + NdexClasses.Task + " where \"UUID\" = ? and not is_deleted";
+		
+		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
+			st.setObject(1, taskId);
+			try (ResultSet rs = st.executeQuery() ) {
+				if (rs.next()) {
+					return true;
+				} 
+				return false;
+			}
+		}		
+	}
+	
 	public void updateTaskOwnerProperties (UUID taskID, Map<String, Object> ownerProps) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		String updateStr = " update " + NdexClasses.Task + " set user_properties = ? :: jsonb where \"UUID\" = ? and is_deleted = false";

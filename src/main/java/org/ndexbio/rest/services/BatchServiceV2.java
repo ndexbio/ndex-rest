@@ -95,14 +95,13 @@ public class BatchServiceV2 extends NdexService {
 	}
 	
 	
-	@SuppressWarnings("static-method")
 	@POST
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/user")
 	@Produces("application/json")
 	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
-	public List<User> getUsersByUUIDs(
+	public static List<User> getUsersByUUIDs(
 			List<String> userIdStrs)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
@@ -124,14 +123,13 @@ public class BatchServiceV2 extends NdexService {
 	
 	
 	
-	@SuppressWarnings("static-method")
 	@POST
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/group")
 	@Produces("application/json")
 	@ApiDoc("Returns a list of groups for the groups specified by the groupid list. Errors if any of the group id is not found. ")
-	public List<Group> getGroupsByUUIDs(List<String> groupIdStrs)
+	public static List<Group> getGroupsByUUIDs(List<String> groupIdStrs)
 			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 		
 		if ( groupIdStrs == null )
