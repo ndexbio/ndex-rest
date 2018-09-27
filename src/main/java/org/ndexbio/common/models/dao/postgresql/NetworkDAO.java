@@ -1244,11 +1244,6 @@ public class NetworkDAO extends NdexDBDAO {
 		    		throw new NdexException ("Failed to update. Network " + networkId + " might have been locked.");
 		    	}
 		    }
-		    
-	    	//update solr index
-	//    	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-
-	//    	networkIdx.updateNetworkProfile(networkId.toString(), newValues); 
 		
 	}
 

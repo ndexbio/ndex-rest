@@ -1174,21 +1174,21 @@ public class NetworkServiceV2 extends NdexService {
 			} 
 			
 			Map<String,String> newValues = new HashMap<> ();
-	        List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
+//	        List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
 
 			if ( partialSummary.getName() != null) {
 				newValues.put(NdexClasses.Network_P_name, partialSummary.getName());
-			    entityProperties.add( new SimplePropertyValuePair("dc:title", partialSummary.getName()) );
+//			    entityProperties.add( new SimplePropertyValuePair("dc:title", partialSummary.getName()) );
 			}
 					
 			if ( partialSummary.getDescription() != null) {
 					newValues.put( NdexClasses.Network_P_desc, partialSummary.getDescription());
-		            entityProperties.add( new SimplePropertyValuePair("description", partialSummary.getDescription()) );
+//		            entityProperties.add( new SimplePropertyValuePair("description", partialSummary.getDescription()) );
 			}
 				
 			if ( partialSummary.getVersion()!=null ) {
 					newValues.put( NdexClasses.Network_P_version, partialSummary.getVersion());
-		            entityProperties.add( new SimplePropertyValuePair("version", partialSummary.getVersion()) );
+//		            entityProperties.add( new SimplePropertyValuePair("version", partialSummary.getVersion()) );
 			}
 
 			if ( newValues.size() > 0 ) { 
@@ -1324,7 +1324,6 @@ public class NetworkServiceV2 extends NdexService {
 	@PUT
 	@Path("/{networkid}/summary")
 	@Produces("application/json")
-	@ApiDoc("This function use the name, description, version and properties in the payload to update those properties of the network on the server.")
 	public void updateNetworkSummary(
 			@PathParam("networkid") final String networkId,
 			final NetworkSummary summary
@@ -1338,13 +1337,10 @@ public class NetworkServiceV2 extends NdexService {
 			UUID networkUUID = UUID.fromString(networkId);
 	
 	  	    if(networkDao.isReadOnly(networkUUID)) {
-	//			logger.info("[end: Can't modify readonly network {}]", networkId);
 				throw new NdexException ("Can't update readonly network.");				
 			} 
 			
 			if ( !networkDao.isWriteable(networkUUID, user.getExternalId())) {
-				logger.error("[end: No write permissions for user account {} on network {}]", 
-						user.getUserName(), networkId);
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			} 
 			
