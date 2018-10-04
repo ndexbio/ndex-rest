@@ -36,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -47,11 +48,13 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.ConfigSetAdminRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
+import org.apache.solr.client.solrj.request.CoreStatus;
 import org.apache.solr.client.solrj.response.ConfigSetAdminResponse;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
+import org.apache.solr.common.util.NamedList;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
@@ -71,6 +74,11 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private HttpSolrClient client;
 	
 	static private final  int batchSize = 2000;
+	
+	//NDEx will auto create index for networks with node count larger than this value
+	// other wise it will delay the creation until the first time this network is queried.
+	static public final int AUTOCREATE_THRESHHOLD= 100;
+	
 	private int counter ; 
 	private Collection<SolrInputDocument> docs ;
 	
@@ -86,6 +94,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	}
 	
 	public SolrDocumentList getNodeIdsByQuery(String query, int limit) throws SolrServerException, IOException, NdexException {
+				
 		client.setBaseURL(solrUrl+ "/" + collectionName);
 
 		SolrQuery solrQuery = new SolrQuery();
@@ -102,6 +111,29 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		} catch (HttpSolrClient.RemoteSolrException e) {
 			throw NetworkGlobalIndexManager.convertException(e, collectionName);
 		}
+	}
+	
+	public boolean isReady (boolean autoCreate) throws SolrServerException, IOException, NdexException {
+		return coreIsReady(this, autoCreate);
+	}
+	private static synchronized boolean coreIsReady(SingleNetworkSolrIdxManager mgr, boolean autoCreate) throws SolrServerException, IOException, NdexException {
+		CoreAdminResponse rp = CoreAdminRequest.getStatus(mgr.getNetworkId(), mgr.getClient());
+		//	CoreStatus r = CoreAdminRequest.getCoreStatus(mgr.getNetworkId(), mgr.getClient());
+		//int d = rp.getStatus();
+		NamedList<NamedList<Object>> o1 = rp.getCoreStatus();
+		//System.out.println(o1);
+		NamedList<Object> o11 = o1.get(mgr.getNetworkId());
+		//System.out.println(o11);
+		
+		//NamedList<Object> o2 = rp.getResponse();
+		//System.out.println(o2);
+		if ( o11.size() !=0)
+			return true;
+		if ( autoCreate) {
+			mgr.createDefaultIndex();
+			return true;
+		}
+		return false;
 	}
 	
 	public void createIndex(Set<String> extraIndexFields) throws SolrServerException, IOException, NdexException {
@@ -161,7 +193,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		counter = 0;
 		docs = new ArrayList<>(batchSize);
 			
-		Map<Long,NodeIndexEntry> tab = createIndexDocs();
+		Map<Long,NodeIndexEntry> tab = createIndexDocs(collectionName);
 		for ( NodeIndexEntry e : tab.values()) {
 			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
 		}
@@ -188,29 +220,10 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 		client.setBaseURL(solrUrl + "/" + collectionName);
 
-		//extend the schema
-	/*	if  ( extraIndexFields !=null ) {
-			for (String fieldName: extraIndexFields ) {
-				 Map<String, Object> fieldAttributes = new LinkedHashMap<>();
-				 fieldAttributes.put("name", fieldName);
-				 fieldAttributes.put("type", "text_ws");
-				 fieldAttributes.put("stored", false);
-				 fieldAttributes.put("required", false);
-				 SchemaRequest.AddField addFieldUpdateSchemaRequest = new SchemaRequest.AddField(fieldAttributes);
-				 SchemaResponse.UpdateResponse addFieldResponse = addFieldUpdateSchemaRequest.process(client);
-				 System.out.println(addFieldResponse.getStatus());
-			}
-		}
-		
-		 SchemaRequest.Fields fieldsSchemaRequest = new SchemaRequest.Fields();
-		 SchemaResponse.FieldsResponse currentFieldsResponse = fieldsSchemaRequest.process(client);
-		 List<Map<String, Object>> currentFields = currentFieldsResponse.getFields();
-		 System.out.println(currentFields);
-	*/	
 		counter = 0;
 		docs = new ArrayList<>(batchSize);
 			
-		Map<Long,NodeIndexEntry> tab = createIndexDocs();
+		Map<Long,NodeIndexEntry> tab = createIndexDocs(collectionName);
 		for ( NodeIndexEntry e : tab.values()) {
 			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
 		}
@@ -218,6 +231,35 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		commit();
 	}
 	
+	/*
+	private static void createDefaultIndex_aux(String coreName, HttpSolrClient solrClient) throws SolrServerException, IOException, NdexException {
+		//CollectionAdminRequest.Create creator = CollectionAdminRequest.createCollection(collectionName,"ndex-nodes",1 , 1); 
+		CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
+		creator.setCoreName(coreName);
+		creator.setConfigSet(
+				"ndex-nodes"); 
+		creator.setIsLoadOnStartup(Boolean.FALSE);
+		creator.setIsTransient(Boolean.TRUE); 
+		
+	//	"data_driven_schema_configs");
+		CoreAdminResponse foo = creator.process(solrClient);	
+	
+		if ( foo.getStatus() != 0 ) {
+			throw new NdexException ("Failed to create solrIndex for network " + coreName + ". Error: " + foo.getResponseHeader().toString());
+		}
+		
+		solrClient.setBaseURL(solrUrl + "/" + coreName);
+
+		counter = 0;
+		docs = new ArrayList<>(batchSize);
+			
+		Map<Long,NodeIndexEntry> tab = createIndexDocs(coreName);
+		for ( NodeIndexEntry e : tab.values()) {
+			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
+		}
+		
+		commit();
+	} */
 	
 	public void dropIndex() throws IOException, SolrServerException, NdexException {
 		try {
@@ -345,10 +387,10 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			e.printStackTrace();
 		}
 	}
-	private Map<Long,NodeIndexEntry> createIndexDocs() throws JsonProcessingException, IOException {
+	private static Map<Long,NodeIndexEntry> createIndexDocs(String coreName) throws JsonProcessingException, IOException {
 		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
 		
-		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + collectionName + "/aspects/"; 
+		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/aspects/"; 
 	
 		//go through node aspect
 		try (FileInputStream inputStream = new FileInputStream(pathPrefix + "nodes")) {
@@ -395,7 +437,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 		//go through node attributes to find aliases
 
-		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(collectionName,NodeAttributesElement.ASPECT_NAME, 
+		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(coreName,NodeAttributesElement.ASPECT_NAME, 
 				   NodeAttributesElement.class, Configuration.getInstance().getNdexRoot() + "/data/")) {
 	//	try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeAttributesElement.ASPECT_NAME)) {
 
@@ -444,4 +486,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 		return result;
 	}
+	
+	protected String getNetworkId () {return collectionName;}
+	protected HttpSolrClient getClient() {return this.client;}
 }

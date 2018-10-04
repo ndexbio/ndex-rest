@@ -49,6 +49,7 @@ import java.util.UUID;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
@@ -328,11 +329,16 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 
 				NetworkIndexLevel indexLevel = dao.getIndexLevel(networkId);
-				if ( isUpdate && indexLevel != NetworkIndexLevel.NONE) 
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel ));
-				else
+				boolean needIndividualIndex = this.nodeIdTracker.getDefinedElementSize() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD;
+				if ( isUpdate && indexLevel != NetworkIndexLevel.NONE)  {
+				   if ( needIndividualIndex)
+					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel ));
+				   else 
+				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields, indexLevel ));
+				} else {
+					if (needIndividualIndex)
 						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,!isUpdate, indexedFields, NetworkIndexLevel.NONE));
-				
+				}
 		  }
 
 	}
@@ -683,7 +689,7 @@ public class CXNetworkLoader implements AutoCloseable {
 //			aspectName =CyVisualPropertiesElement.ASPECT_NAME;
 		CXAspectWriter writer = aspectTable.get(aspectName);
 		if ( writer == null) {
-			logger.info("creating new file for aspect " + aspectName);
+			//logger.info("creating new file for aspect " + aspectName);
 			writer = new CXAspectWriter(rootPath + aspectName);
 			aspectTable.put(aspectName, writer);
 		}

@@ -51,7 +51,7 @@ public class UnauthorizedOperationExceptionMapper implements ExceptionMapper<Una
     {
     	logger.error("SERVER ERROR:", exception);
     	MDC.put("error", exception.getMessage());
-    	exception.printStackTrace();
+ //   	exception.printStackTrace();
     	ResponseBuilder b = Response
                 .status(Status.UNAUTHORIZED)
                 .entity(exception.getNdexExceptionInJason());

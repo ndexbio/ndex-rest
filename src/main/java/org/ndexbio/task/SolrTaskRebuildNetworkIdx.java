@@ -2,6 +2,8 @@ package org.ndexbio.task;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -70,10 +72,13 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 			}
 
 			if (this.idxScope != SolrIndexScope.global) {
+				long t1 = Calendar.getInstance().getTimeInMillis();
 				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
 					idx2.createIndex(indexedFields);
 					idx2.close();
 				}
+				long t = Calendar.getInstance().getTimeInMillis() -t1;
+				System.out.println("Takes " + t +"/000 sec to create index");
 			}
 
 			if (this.idxScope != SolrIndexScope.individual && indexLevel != NetworkIndexLevel.NONE) {

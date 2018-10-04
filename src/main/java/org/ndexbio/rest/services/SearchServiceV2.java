@@ -246,6 +246,8 @@ public class SearchServiceV2 extends NdexService {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
 			checkIfQueryIsAllowed(networkId, dao);
+			getSolrIdxReady(networkId, dao);
+
 		}   
 		
 		try (SingleNetworkSolrIdxManager solr = new SingleNetworkSolrIdxManager(networkId.toString())) {
@@ -288,7 +290,7 @@ public class SearchServiceV2 extends NdexService {
 			@QueryParam("accesskey") String accessKey,
 			@DefaultValue("false") @QueryParam("save") boolean saveAsNetwork,
 			final CXSimplePathQuery queryParameters
-			) throws NdexException, SQLException, URISyntaxException   {
+			) throws NdexException, SQLException, URISyntaxException, SolrServerException, IOException   {
 		
 		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
@@ -312,6 +314,8 @@ public class SearchServiceV2 extends NdexService {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
 			networkName = dao.getNetworkName(networkId);
+			getSolrIdxReady(networkId, dao);
+			
 		}   
 /*		ProvenanceEntity ei = new ProvenanceEntity();
 		ei.setUri(Configuration.getInstance().getHostURI()  + 
@@ -349,6 +353,20 @@ public class SearchServiceV2 extends NdexService {
         
         	return Response.ok().entity(in).build();
         
+	}
+
+	private static void getSolrIdxReady(UUID networkId, NetworkDAO dao)
+			throws SQLException, ObjectNotFoundException, SolrServerException, IOException, NdexException {
+		int nodeCount = dao.getNodeCount(networkId);
+		
+		try (SingleNetworkSolrIdxManager solr = new SingleNetworkSolrIdxManager(networkId.toString())) {
+			boolean ready = solr.isReady(nodeCount < SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD);
+			if ( !ready ) {
+				if (nodeCount < SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD) 
+					throw new NdexException ("Failed to create Solr Index on this network.");
+				throw new NdexException("NDEx server hasn't finished creating index on this network yet. Please try again later");
+			}
+		}
 	}
 	
 	private Response saveQueryResult(String networkName, UUID ownerUUID,String ownerName,
@@ -458,7 +476,7 @@ public class SearchServiceV2 extends NdexService {
 			@QueryParam("accesskey") String accessKey,
 			@DefaultValue("false") @QueryParam("save") boolean saveAsNetwork,
 			final CXSimplePathQuery queryParameters
-			) throws NdexException, SQLException, URISyntaxException   {
+			) throws NdexException, SQLException, URISyntaxException, SolrServerException, IOException   {
 		
 		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
@@ -482,7 +500,9 @@ public class SearchServiceV2 extends NdexService {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
+			getSolrIdxReady(networkId, dao);
 			networkName = dao.getNetworkName(networkId);
+			
 		}   
 		
 /*		ProvenanceEntity ei = new ProvenanceEntity();

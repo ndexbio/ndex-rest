@@ -172,8 +172,6 @@ public class NetworkDAO extends NdexDBDAO {
 				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID, the network is Locked or the network is readonly.");
 			}
 		}
-		
-		
 	}
 	
 	public void deleteNetwork(UUID networkId, UUID userId) throws SQLException, NdexException {
@@ -247,7 +245,7 @@ public class NetworkDAO extends NdexDBDAO {
 				if ( rs.next()) {
 					return (UUID)rs.getObject(1);
 				}
-				throw new ObjectNotFoundException("Network "+ networkId + " not found in NDEx.");
+				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
 			}
 		}	
 	}
@@ -260,7 +258,20 @@ public class NetworkDAO extends NdexDBDAO {
 				if ( rs.next()) {
 					return rs.getString(1);
 				}
-				throw new ObjectNotFoundException("Network "+ networkId + " not found in NDEx.");
+				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
+			}
+		}	
+	}
+	
+	public int getNodeCount(UUID networkId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select nodecount from network where  is_deleted=false and  \"UUID\" = ? ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getInt(1);
+				}
+				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
 			}
 		}	
 	}
@@ -273,7 +284,7 @@ public class NetworkDAO extends NdexDBDAO {
 				if ( rs.next()) {
 				   return VisibilityType.valueOf(rs.getString(1));
 				}
-				throw new ObjectNotFoundException("Network "+ networkId + " not found in NDEx.");
+				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
 			}
 		}	
 	}
