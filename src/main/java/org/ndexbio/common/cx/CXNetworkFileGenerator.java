@@ -62,7 +62,7 @@ public class CXNetworkFileGenerator {
 		String tmpFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/" + 
 				 Thread.currentThread().getId() + "-" + Calendar.getInstance().getTimeInMillis();
 		try (FileOutputStream out = new FileOutputStream(tmpFileName) ) {
-			NdexCXNetworkWriter wtr = new NdexCXNetworkWriter(out);
+			NdexCXNetworkWriter wtr = new NdexCXNetworkWriter(out, true);
 			wtr.start();
 
 			 //	NdexNetworkStatus status = getNdexNetworkStatusFromSummary(fullSummary);
