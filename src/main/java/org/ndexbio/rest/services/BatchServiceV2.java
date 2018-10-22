@@ -107,6 +107,9 @@ public class BatchServiceV2 extends NdexService {
 
 		if ( userIdStrs == null )
 			throw new ForbiddenOperationException("A user id list is required.");
+
+		if (userIdStrs.size() > 2000) 
+			throw new NdexException ("You can only send up to 2000 user ids in this function.");
 		
 		accLogger.info("[data]\t[uuidcounts:" +userIdStrs.size() + "]" );
 
@@ -134,6 +137,9 @@ public class BatchServiceV2 extends NdexService {
 		
 		if ( groupIdStrs == null )
 			throw new ForbiddenOperationException("A group id list is required.");
+		
+		if (groupIdStrs.size() > 2000) 
+			throw new NdexException ("You can only send up to 2000 group ids in this function.");
 		
 		accLogger.info("[data]\t[uuidcounts:" +groupIdStrs.size() + "]" );
 
@@ -206,6 +212,9 @@ public class BatchServiceV2 extends NdexService {
 		    
     			String rr = (new ObjectMapper()).writeValueAsString(exportRequest.getNetworkIds());
 			accLogger.info("[data]\t[format:" +exportRequest.getExportFormat() + "][NetworkIds:"+ rr+ "]" );
+			
+			if (exportRequest.getNetworkIds().size() > 1000) 
+				throw new NdexException ("You can only send up to 1000 network ids in this function.");
 
 		    ImporterExporterEntry entry = Configuration.getInstance().getImpExpEntry(exportRequest.getExportFormat());
 		    if ( entry == null || entry.getExporterCmd() == null || 

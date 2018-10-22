@@ -114,7 +114,6 @@ public class NetworkDAO extends NdexDBDAO {
 	    super();
 	}
 
-	
 	public NetworkSummary CreateCloneNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize, UUID srcUUID) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		

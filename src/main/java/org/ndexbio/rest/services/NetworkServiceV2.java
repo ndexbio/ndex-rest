@@ -2294,6 +2294,9 @@ public class NetworkServiceV2 extends NdexService {
 				   Files.copy(srcSample, tgtSample);
 			   }
 			   
+			   
+			   //TODO: generate prov:wasDerivedFrom and prov:wasGeneratedby field in both db record and the recreated CX file.
+			   // Need to handle the case when this network was a clone (means it already has prov:wasGeneratedBy and wasDerivedFrom attributes
 			   // create entry in db. 
 		       try (NetworkDAO dao = new NetworkDAO()) {
 		    //	   NetworkSummary summary = 
