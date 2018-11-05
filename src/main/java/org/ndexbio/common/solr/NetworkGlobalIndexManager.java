@@ -234,6 +234,8 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		  solrQuery.setStart(offset);
 		if ( limit >0 )
 			solrQuery.setRows(limit);
+		else 
+			solrQuery.setRows(30000000);
 		
 		solrQuery.setFilterQueries(resultFilter) ;
 		

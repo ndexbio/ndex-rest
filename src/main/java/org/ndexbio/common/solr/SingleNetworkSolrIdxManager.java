@@ -103,6 +103,8 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		solrQuery.setStart(0);
 		if (limit >0)
 			solrQuery.setRows(limit);
+		else 
+			solrQuery.setRows(30000000);
 		
 		try {
 			QueryResponse rsp = client.query(solrQuery);
