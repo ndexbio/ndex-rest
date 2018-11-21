@@ -110,6 +110,8 @@ public class NetworkDAO extends NdexDBDAO {
 			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,"
 			+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample "; 
 	
+	public static final String PENDING = "Pending";
+	
 	public NetworkDAO () throws  SQLException {
 	    super();
 	}
@@ -250,7 +252,8 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public String getNetworkName(UUID networkId) throws SQLException, NdexException {
-		String sqlStr = "select name from network where  is_deleted=false and  \"UUID\" = ? ";
+		return getStringField(networkId, "name");
+	/* String sqlStr = "select name from network where  is_deleted=false and  \"UUID\" = ? ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkId);
 			try (ResultSet rs = pst.executeQuery()) {
@@ -259,7 +262,24 @@ public class NetworkDAO extends NdexDBDAO {
 				}
 				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
 			}
-		}	
+		}	*/
+	}
+
+	public String getNetworkDOI(UUID networkId) throws SQLException, NdexException {
+		return getStringField(networkId, "ndexdoi");
+	}
+	
+	private String getStringField(UUID networkId, String fieldName) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select " + fieldName + " from network where  is_deleted=false and  \"UUID\" = ? ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					return rs.getString(1);
+				}
+				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
+			}
+		}		
 	}
 	
 	public int getNodeCount(UUID networkId) throws SQLException, ObjectNotFoundException {
@@ -274,6 +294,8 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}	
 	}
+	
+	
 	
 	public VisibilityType getNetworkVisibility(UUID networkId) throws SQLException, NdexException {
 		String sqlStr = "select n.visibility from network n where  is_deleted=false and  \"UUID\" = ? ";
@@ -1936,7 +1958,7 @@ public class NetworkDAO extends NdexDBDAO {
 	public String requestDOI(UUID networkId, boolean isCertified) throws SQLException, NdexException {
 		String accessKey = enableNetworkAccessKey(networkId);
 		setFlag(networkId,"readonly",true); 
-		setDOI (networkId, "Pending");
+		setDOI (networkId, PENDING);
 		setFlag(networkId, "certified", isCertified);
 		if ( isCertified) {
 			updateNetworkVisibility(networkId, VisibilityType.PUBLIC, true);
@@ -1945,6 +1967,15 @@ public class NetworkDAO extends NdexDBDAO {
 		return accessKey;
 	}
 	
+	public void cancelDOI(UUID networkId) throws SQLException, NdexException {
+		if ( isCertified(networkId)) {
+			updateNetworkVisibility(networkId, VisibilityType.PRIVATE, true);
+		}	
+		disableNetworkAccessKey(networkId);
+		setFlag(networkId,"readonly",false); 
+		setDOI (networkId, null);
+		setFlag(networkId, "certified", false);
+	}
 	
 	public void disableNetworkAccessKey( UUID networkId) throws SQLException {
 		//update db flag

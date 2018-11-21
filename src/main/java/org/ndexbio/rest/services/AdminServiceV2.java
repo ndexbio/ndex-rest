@@ -162,7 +162,7 @@ public class AdminServiceV2 extends NdexService {
 		if ( reqType == null) 
 			throw new ForbiddenOperationException("Attribute 'type' is missing in the request.");
 		switch ( reqType ) {
-		case "DOI": 
+		case "DOI": {
 			String networkIdStr = (String)request.get("networkId");
 			if (networkIdStr == null)
 				throw new ForbiddenOperationException("Attribute 'networkId' is missing in the request");
@@ -188,8 +188,7 @@ public class AdminServiceV2 extends NdexService {
 				dao.setFlag(networkId, "iscomplete", false);
 				dao.commit();
 				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL));
-				
-				
+								
 				String name = dao.getNetworkName(networkId);
 				String url = Configuration.getInstance().getHostURI() + "/#/network/"+ networkId ;
 				
@@ -220,6 +219,43 @@ public class AdminServiceV2 extends NdexService {
 		        		  htmlEmail, "DOI request on NDEx Network", "html");
 			}
 			break;
+		}	
+		case "Cancel_DOI": {
+			String networkIdStr = (String)request.get("networkId");
+			if (networkIdStr == null)
+				throw new ForbiddenOperationException("Attribute 'networkId' is missing in the request");
+			UUID networkId = UUID.fromString(networkIdStr);
+			String adminEmailAddress = Configuration.getInstance().getProperty("NdexSystemUserEmail");
+
+			try (NetworkDAO dao = new NetworkDAO() ) {
+
+				if (!dao.isAdmin(networkId, user.getExternalId())) 
+					throw new ForbiddenOperationException("You are not the owner of this network.");
+				String currentDOI = dao.getNetworkDOI(networkId);
+				if ( currentDOI ==null || !currentDOI.equals(NetworkDAO.PENDING)) {
+					throw new ForbiddenOperationException("Only pending DOI request can be cancelled.");
+				}
+
+				dao.cancelDOI(networkId);
+				dao.setFlag(networkId, "iscomplete", false);
+				dao.commit();
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL));
+
+				String name = dao.getNetworkName(networkId);
+				
+				//Reading in the email template
+				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
+
+				String messageBody = "Dear NDEx Administrator,<p>User " + user.getUserName() + " has cancelled the DOI request on network '" +
+				        name + "' (UUID: " + networkId + ").<br>";
+				
+		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+
+		        AmazonSESMailSender.getInstance().sendEmail(adminEmailAddress, 
+		        		  htmlEmail, "A DOI request is cancelled on NDEx Network", "html");
+			}
+			break;
+		}
 		default:
 			throw new ForbiddenOperationException("Request type " + reqType + " is not supported.");
 		}

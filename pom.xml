@@ -249,7 +249,7 @@
 				<executions>
 					<execution>
 						<id>make-a-jar</id>
-						<phase>pac	kage</phase>
+						<phase>package</phase>
 						<goals>
 							<goal>jar</goal>
 						</goals>
