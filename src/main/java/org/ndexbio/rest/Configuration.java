@@ -106,11 +106,10 @@ public class Configuration
      * @throws IOException 
      * @throws FileNotFoundException 
     **************************************************************************/
-    private Configuration() throws NamingException, NdexException, FileNotFoundException, IOException
+    private Configuration(final String configPath) throws NamingException, NdexException, FileNotFoundException, IOException
     {
    //     try {
-        	String configFilePath = System.getenv("ndexConfigurationPath");
-        	
+    		String configFilePath = configPath;
         	if ( configFilePath == null) {
         		InitialContext ic = new InitialContext();
         	    configFilePath = (String) ic.lookup("java:comp/env/ndexConfigurationPath"); 
@@ -287,10 +286,27 @@ public class Configuration
     {
     	if ( INSTANCE == null)  { 
     		try {
-    			INSTANCE = new Configuration();
+    			INSTANCE = new Configuration(System.getenv("ndexConfigurationPath"));
     		} catch (  NamingException | IOException e) {
     			throw new NdexException ( "Failed to get Configurtion Instance: " + e.getMessage(), e);
     		}
+    	} 
+        return INSTANCE;
+    }
+    
+    /**
+     * Added to enable testing. 
+     * @deprecated Dont use this is for testing only
+     * @param configFilePath
+     * @return Instance of {@link org.ndexbio.rest.Configuration} object
+     * @throws NdexException
+     */
+    public static Configuration reCreateInstance(final String configFilePath) throws NdexException{
+    	
+    	try {
+    		INSTANCE = new Configuration(configFilePath);
+    	} catch (  NamingException | IOException e) {
+    		throw new NdexException ( "Failed to get Configurtion Instance: " + e.getMessage(), e);
     	} 
         return INSTANCE;
     }
