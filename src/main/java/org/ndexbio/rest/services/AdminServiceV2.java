@@ -237,9 +237,9 @@ public class AdminServiceV2 extends NdexService {
 				}
 
 				dao.cancelDOI(networkId);
-				dao.setFlag(networkId, "iscomplete", false);
+				//dao.setFlag(networkId, "iscomplete", false);
 				dao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL));
+				//NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL));
 
 				String name = dao.getNetworkName(networkId);
 				

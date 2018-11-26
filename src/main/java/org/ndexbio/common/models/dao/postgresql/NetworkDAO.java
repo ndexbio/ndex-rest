@@ -1968,10 +1968,10 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public void cancelDOI(UUID networkId) throws SQLException, NdexException {
-		if ( isCertified(networkId)) {
+		/*if ( isCertified(networkId)) {
 			updateNetworkVisibility(networkId, VisibilityType.PRIVATE, true);
 		}	
-		disableNetworkAccessKey(networkId);
+		disableNetworkAccessKey(networkId); */
 		setFlag(networkId,"readonly",false); 
 		setDOI (networkId, null);
 		setFlag(networkId, "certified", false);
