@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.io.IOException;
 import java.io.File;
 import java.io.InputStream;
+import java.io.FileInputStream;
 import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.BufferedReader;
@@ -151,6 +152,8 @@ public class TestExporterExecutor {
 		ie.setDirectoryName(tmpFolder.getCanonicalPath());
 		ArrayList<String> mylist = new ArrayList<String>();
 		
+		mylist.add("/bin/bash");
+		mylist.add("-c");
 		mylist.add("tee");
 		ie.setExporterCmd(mylist);
 		ExporterExecutor ee = new ExporterExecutor(ie);
@@ -158,8 +161,25 @@ public class TestExporterExecutor {
 		UUID taskid = UUID.randomUUID();
 		UUID userid = UUID.randomUUID();
 		int result = ee.export(in, taskid, userid);
-		assertEquals(0, result);
+		in.close();
+		assertEquals("If /bin/bash or tee command not available this test will fail", 0, result);
 		assertNull(ee.getErrorMessage());
+		
+		//verify we got a standard out file
+		String prefix = ee.getPathPrefix(userid);
+		String outfile = ee.getStandardOutFilePath(prefix, taskid.toString());
+		File outf = new File(outfile);
+		assertTrue(outf.isFile());
+		assertEquals(11, outf.length());
+		BufferedReader br = new BufferedReader(new FileReader(outf));
+		assertEquals("hello world", br.readLine());
+		br.close();
+		
+		//verify we got an empty standard error file
+		String errfile = ee.getStandardErrorFilePath(prefix, taskid.toString());
+		File errf = new File(errfile);
+		assertTrue(errf.isFile());
+		assertEquals(0, errf.length());
 	}
 	
 	@Test
@@ -176,7 +196,7 @@ public class TestExporterExecutor {
 		ie.setDirectoryName(tmpFolder.getCanonicalPath());
 		ArrayList<String> mylist = new ArrayList<String>();
 		
-		String script = "#!/bin/bash\ncat - \necho 'somerror' 1>&2\nexit 7\n";
+		String script = "#!/bin/bash\ncat - \necho 'someerror' 1>&2\nexit 7\n";
 		String scriptfile = tmpFolder.getCanonicalPath() + File.separator + "script.sh";
 		
 		BufferedWriter bw = new BufferedWriter(new FileWriter(scriptfile));
@@ -189,25 +209,31 @@ public class TestExporterExecutor {
 		mylist.add(scriptfile);
 		ie.setExporterCmd(mylist);
 		ExporterExecutor ee = new ExporterExecutor(ie);
-		InputStream in = IOUtils.toInputStream("\nhello world\n", "UTF-8");
+		InputStream in = IOUtils.toInputStream("hello world\n", "UTF-8");
 		UUID taskid = UUID.randomUUID();
 		UUID userid = UUID.randomUUID();
 		int result = ee.export(in, taskid, userid);
 		assertNull(ee.getErrorMessage());
 		assertEquals(7, result);
-		String baseoutput = ee.getPathPrefix(userid) + File.separator + taskid.toString();
-		File outfile = new File(baseoutput + ExporterExecutor.PERIOD + ie.getFileExtension());
-		assertTrue(outfile.isFile());
-		//assertEquals(outfile.length(), 10);
+		String prefix = ee.getPathPrefix(userid);
+		String outfile = ee.getStandardOutFilePath(prefix, taskid.toString());
+		File outf = new File(outfile);
+		assertTrue(outf.isFile());
+		assertEquals(12, outf.length());
 		
-		//BufferedReader br = new BufferedReader(new FileReader(outfile));
-		//System.out.println("XXXXXXX: " + br.readLine());
-		//assertTrue(br.readLine().contains("hello world"));
-		//br.close();
+		BufferedReader br = new BufferedReader(new FileReader(outfile));
+		assertEquals("hello world", br.readLine());
+		br.close();
 		
-		File errorfile = new File(baseoutput + ExporterExecutor.STDERR_EXT);
-		assertTrue(errorfile.isFile());
-		//assertEquals(errorfile.length(), 34534);
+		String errorfile = ee.getStandardErrorFilePath(prefix, taskid.toString());
+		File errf = new File(errorfile);
+		assertTrue(errf.isFile());
+		assertEquals(10, errf.length());
+		
+		br = new BufferedReader(new FileReader(errorfile));
+		assertEquals("someerror", br.readLine());
+		br.close();
+		
 		
 		
 		
