@@ -5,12 +5,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.StandardCopyOption;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import org.apache.commons.io.IOUtils;
-import org.ndexbio.rest.Configuration;
 
 public class ExporterExecutor {
 	
@@ -23,9 +22,22 @@ public class ExporterExecutor {
 	private String _errorMessage = null;
 	
 	private ImporterExporterEntry impExp;
+	private String _ndexRootPath;
+	private long _defaultTimeOut;
 	
-	public ExporterExecutor(ImporterExporterEntry impExpEntry) {
+	/**
+	 * Constructor
+	 * @param impExpEntry Exporter to run
+	 * @param ndexRootPath Ndex root filesystem path as string
+	 * @param defaultTimeOut Time in seconds exporter should be allowed
+	 *                       to run. If set to 0 then this object will wait forever.
+	 */
+	public ExporterExecutor(ImporterExporterEntry impExpEntry,
+			                final String ndexRootPath,
+			                long defaultTimeOut) {
 		impExp = impExpEntry;
+		_ndexRootPath = ndexRootPath;
+		_defaultTimeOut = defaultTimeOut;
 	}
 
 	/**
@@ -36,7 +48,8 @@ public class ExporterExecutor {
 	 * @param input CX format network as an InputStream
 	 * @param taskId Id of task
 	 * @param userId Id of user
-	 * @return -100 if userId is null, -200 if exception is caught 
+	 * @return -100 if userId is null, -200 if exception is caught, 
+	 *         -300 if timeout exceeded
 	 *         otherwise exit code of command line process 0 for success
 	 *         and any other number for failure 
 	 */
@@ -75,12 +88,27 @@ public class ExporterExecutor {
 						out.close();
 						
 						//wait for IOThreadHandlers to complete
-						expHandler.join();
-						errHandler.join();
-						
-						p.waitFor();						
+						if (_defaultTimeOut == 0){
+							_logger.info("Default timeout set to 0, will wait forever");
+							expHandler.join();
+							errHandler.join();
+							p.waitFor();
+						} else {
+							_logger.fine("Timeout set to " + _defaultTimeOut + " seconds");
+							expHandler.join(_defaultTimeOut*1000);
+							errHandler.join(_defaultTimeOut*1000);
+							p.waitFor(_defaultTimeOut, TimeUnit.SECONDS);
+						}
 					}
-				}		
+				}
+			}
+			// check if _defaultTimeOut is greater then zero and process
+			// is alive which means it timed out, so lets kill it.
+			if (_defaultTimeOut > 0 && p.isAlive() == true) {
+				_logger.info("Timelimit for process exceeded. Killing");
+				p.destroyForcibly();
+				p.waitFor();
+				return -300;
 			}
 			return p.exitValue();
 		} catch(IOException ioex) {
@@ -179,9 +207,8 @@ public class ExporterExecutor {
 	 */
 	protected String getPathPrefix(UUID userId) {
 		try {
-			return Configuration.getInstance().getNdexRoot() +
-					             File.separator + "workspace" +
-					             File.separator + userId.toString();
+			return _ndexRootPath + File.separator + "workspace" + File.separator +
+				   userId.toString();
 		} catch(NullPointerException npe) {
 			_errorMessage = "Caught NullPointerException trying to build users path prefix";
 		}

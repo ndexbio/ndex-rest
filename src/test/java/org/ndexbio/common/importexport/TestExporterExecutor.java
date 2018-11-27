@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.io.IOException;
 import java.io.File;
 import java.io.InputStream;
-import java.io.FileInputStream;
 import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.BufferedReader;
@@ -20,45 +19,23 @@ import org.junit.runners.JUnit4;
 import org.apache.commons.io.IOUtils;
 
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.rest.Configuration;
-
-
 
 
 @RunWith(JUnit4.class)
 public class TestExporterExecutor {
-
+	
 	@Rule
-    public TemporaryFolder _tmpFolder = new TemporaryFolder();
-	
-	
-	public String getConfigAsString(final String ndexrootpath) {
-		StringBuilder sb = new StringBuilder();
-		sb.append("NdexDBURL=somedburl\n");
-		sb.append("NdexSystemUser=sysuser\n");
-		sb.append("NdexSystemUserPassword=hithere\n");
-		sb.append("NdexRoot=");
-		sb.append(ndexrootpath);
-		sb.append("\nHostURI=http://localhost\n");
-		return sb.toString();
-	}
-	
-	public void writeConfigToFile(final String outPath, final String ndexrootpath) throws IOException {
-		BufferedWriter bw = new BufferedWriter(new FileWriter(outPath));
-		bw.write(this.getConfigAsString(ndexrootpath));
-		bw.flush();
-		bw.close();
-	}
+	public TemporaryFolder _tmpFolder = new TemporaryFolder();
 	
 	@Test
 	public void testConstructorWithNull() {
-		ExporterExecutor ee = new ExporterExecutor(null);
+		ExporterExecutor ee = new ExporterExecutor(null, null, 0);
 		assertNotNull(ee);
 	}
 	
 	@Test
 	public void testCreateOutputDirectoryWithNullUUID() {
-		ExporterExecutor ee = new ExporterExecutor(null);
+		ExporterExecutor ee = new ExporterExecutor(null, null, 0);
 		String res = ee.createOutputDirectory(null);
 		assertEquals(res, null);
 		assertEquals(ee.getErrorMessage(), "User UUID is null");
@@ -67,7 +44,7 @@ public class TestExporterExecutor {
 	@Test
 	public void testCreateDirectoryIfNeeded() throws IOException {
 		File tmpFolder = _tmpFolder.newFolder();
-		ExporterExecutor ee = new ExporterExecutor(null);
+		ExporterExecutor ee = new ExporterExecutor(null, null, 0);
 		
 		// test where directory exists
 		boolean res = ee.createDirectoryIfNeeded(tmpFolder.getCanonicalPath());
@@ -97,30 +74,18 @@ public class TestExporterExecutor {
 	@Test
 	public void testCreateOutputDirectorySuccess() throws IOException, NdexException {
 		File tmpFolder = _tmpFolder.newFolder();
-		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";		
-		writeConfigToFile(configFile, tmpFolder.getCanonicalPath());
 		
-		// needed to update configuration with custom config
-		// cause once jvm is running environment variable cannot be updated
-		Configuration.reCreateInstance(configFile);
-		
-		ExporterExecutor ee = new ExporterExecutor(null);
+		ExporterExecutor ee = new ExporterExecutor(null, tmpFolder.getCanonicalPath(), 0);
 		UUID auuid = UUID.fromString("54a9a35b-1e5f-11e8-b939-0ac135e8bacf");
 		String res = ee.createOutputDirectory(auuid);
 		assertEquals(res, tmpFolder.getCanonicalFile() + File.separator +
 				          "workspace" + File.separator + auuid.toString());
-		
 	}
 	
 	@Test
 	public void testNonexistantCommand() throws IOException, NdexException {
 		File tmpFolder = _tmpFolder.newFolder();
-		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";		
-		writeConfigToFile(configFile, tmpFolder.getCanonicalPath());
 		
-		// needed to update configuration with custom config
-		// cause once jvm is running environment variable cannot be updated
-		Configuration.reCreateInstance(configFile);
 		ImporterExporterEntry ie = new ImporterExporterEntry();
 		ie.setFileExtension(".txt");
 		ie.setDirectoryName(tmpFolder.getCanonicalPath());
@@ -128,7 +93,7 @@ public class TestExporterExecutor {
 		
 		mylist.add(tmpFolder.getCanonicalPath() + File.separator + "doesnotexist");
 		ie.setExporterCmd(mylist);
-		ExporterExecutor ee = new ExporterExecutor(ie);
+		ExporterExecutor ee = new ExporterExecutor(ie, tmpFolder.getCanonicalPath(), 0);
 		InputStream in = IOUtils.toInputStream("hello world", "UTF-8");
 		UUID taskid = UUID.randomUUID();
 		UUID userid = UUID.randomUUID();
@@ -141,12 +106,7 @@ public class TestExporterExecutor {
 	@Test
 	public void testExportSuccessfulCommand() throws IOException, NdexException {
 		File tmpFolder = _tmpFolder.newFolder();
-		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";		
-		writeConfigToFile(configFile, tmpFolder.getCanonicalPath());
 		
-		// needed to update configuration with custom config
-		// cause once jvm is running environment variable cannot be updated
-		Configuration.reCreateInstance(configFile);
 		ImporterExporterEntry ie = new ImporterExporterEntry();
 		ie.setFileExtension(".txt");
 		ie.setDirectoryName(tmpFolder.getCanonicalPath());
@@ -156,7 +116,7 @@ public class TestExporterExecutor {
 		mylist.add("-c");
 		mylist.add("tee");
 		ie.setExporterCmd(mylist);
-		ExporterExecutor ee = new ExporterExecutor(ie);
+		ExporterExecutor ee = new ExporterExecutor(ie, tmpFolder.getCanonicalPath(), 0);
 		InputStream in = IOUtils.toInputStream("hello world", "UTF-8");
 		UUID taskid = UUID.randomUUID();
 		UUID userid = UUID.randomUUID();
@@ -185,12 +145,7 @@ public class TestExporterExecutor {
 	@Test
 	public void testExportFailedCommand() throws IOException, NdexException {
 		File tmpFolder = _tmpFolder.newFolder();
-		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";		
-		writeConfigToFile(configFile, tmpFolder.getCanonicalPath());
-		
-		// needed to update configuration with custom config
-		// cause once jvm is running environment variable cannot be updated
-		Configuration.reCreateInstance(configFile);
+
 		ImporterExporterEntry ie = new ImporterExporterEntry();
 		ie.setFileExtension("txt");
 		ie.setDirectoryName(tmpFolder.getCanonicalPath());
@@ -208,7 +163,7 @@ public class TestExporterExecutor {
 		
 		mylist.add(scriptfile);
 		ie.setExporterCmd(mylist);
-		ExporterExecutor ee = new ExporterExecutor(ie);
+		ExporterExecutor ee = new ExporterExecutor(ie, tmpFolder.getCanonicalPath(), 0);
 		InputStream in = IOUtils.toInputStream("hello world\n", "UTF-8");
 		UUID taskid = UUID.randomUUID();
 		UUID userid = UUID.randomUUID();
@@ -233,9 +188,35 @@ public class TestExporterExecutor {
 		br = new BufferedReader(new FileReader(errorfile));
 		assertEquals("someerror", br.readLine());
 		br.close();
+	}
+	
+	@Test
+	public void testExportFailedDueToTimeout() throws IOException, NdexException {
+		File tmpFolder = _tmpFolder.newFolder();
+
+		ImporterExporterEntry ie = new ImporterExporterEntry();
+		ie.setFileExtension("txt");
+		ie.setDirectoryName(tmpFolder.getCanonicalPath());
+		ArrayList<String> mylist = new ArrayList<String>();
 		
+		String script = "#!/bin/bash\ncat - \necho 'someerror' 1>&2\nsleep 100\nexit 25\n";
+		String scriptfile = tmpFolder.getCanonicalPath() + File.separator + "script.sh";
 		
+		BufferedWriter bw = new BufferedWriter(new FileWriter(scriptfile));
+		bw.write(script);
+		bw.flush();
+		bw.close();
+		File sfile = new File(scriptfile);
+		sfile.setExecutable(true);
 		
-		
+		mylist.add(scriptfile);
+		ie.setExporterCmd(mylist);
+		ExporterExecutor ee = new ExporterExecutor(ie, tmpFolder.getCanonicalPath(), 1);
+		InputStream in = IOUtils.toInputStream("hello world\n", "UTF-8");
+		UUID taskid = UUID.randomUUID();
+		UUID userid = UUID.randomUUID();
+		int result = ee.export(in, taskid, userid);
+		assertNull(ee.getErrorMessage());
+		assertEquals(-300, result);
 	}
 }

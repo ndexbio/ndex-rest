@@ -25,7 +25,9 @@ public class NetworkExportTask extends NdexTask {
 		
 		ImporterExporterEntry entry = Configuration.getInstance().getImpExpEntry(converterName);
 		
-		ExporterExecutor executor = new ExporterExecutor (entry);
+		ExporterExecutor executor = new ExporterExecutor(entry,
+				                                         Configuration.getInstance().getNdexRoot(),
+				                                         Configuration.getInstance().getExporterTimeout());
 		
 		try (FileInputStream input = new FileInputStream (Configuration.getInstance().getNdexRoot() + "/data/"+task.getResource() + "/network.cx")) {
 		
@@ -35,6 +37,7 @@ public class NetworkExportTask extends NdexTask {
 			}
 			else {
 				task.setStatus(Status.FAILED);
+				task.setMessage(executor.getErrorMessage());
 			}
 		}
 		return getTask();
