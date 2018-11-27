@@ -68,8 +68,6 @@ public class ExporterExecutor {
 						input.close();
 						out.close();
 						p.waitFor();
-						System.out.println("YYYYYY" + expHandler.getErrorMessage());
-						System.out.println("XXXXXXX" + errHandler.getErrorMessage());
 					}
 				}		
 			}
