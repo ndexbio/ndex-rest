@@ -58,6 +58,8 @@ import ch.qos.logback.classic.Level;
 
 public class Configuration
 {
+	public static final String NDEX_EXPORTER_TIMEOUT = "NdexExporterTimeout";
+	
     public static final String UPLOADED_NETWORKS_PATH_PROPERTY = "Uploaded-Networks-Path";
     
     private static final String PROP_USE_AD_AUTHENTICATION = "USE_AD_AUTHENTICATION";
@@ -74,6 +76,7 @@ public class Configuration
 	public static final String networkPostEdgeLimit = "NETWORK_POST_ELEMENT_LIMIT";
 	private static final String defaultSolrURL = "http://localhost:8983/solr";
 	
+	private static final String DEFAULT_NDEX_EXPORTER_TIMEOUT_VAL="600";
 	private String solrURL;
 	private String ndexSystemUser ;
 	private String ndexSystemUserPassword;
@@ -340,6 +343,22 @@ public class Configuration
     public String getDBURL () { return dbURL; }
     public String getDBUser() { return _configurationProperties.getProperty(dbUserPropName); }
     public String getDBPasswd () { return _configurationProperties.getProperty(dbPasswordPropName); }
+    
+    /**
+     * Gets Exporter timeout in seconds from configuration
+     * with default set to 600 seconds.
+     * @return timeout in seconds as a long
+     */
+    public long getExporterTimeout() { 
+    	try {
+    		return Long.parseLong(_configurationProperties.getProperty(NDEX_EXPORTER_TIMEOUT,
+    				DEFAULT_NDEX_EXPORTER_TIMEOUT_VAL));
+    	} catch(NumberFormatException nfe) {
+    		_logger.warn("Unable to convert " + NDEX_EXPORTER_TIMEOUT +
+    				     " parameter value to a number", nfe);
+    	}
+    	return Long.parseLong(DEFAULT_NDEX_EXPORTER_TIMEOUT_VAL);
+    }
     public String getSystmUserName() {return this.ndexSystemUser;}
     public String getSystemUserPassword () {return this.ndexSystemUserPassword;}
     public String getNdexRoot()  {return this.ndexRoot;}
