@@ -3,8 +3,9 @@ package org.ndexbio.task;
 import java.io.FileInputStream;
 import java.util.Map;
 
-import org.ndexbio.common.importexport.ExporterExecutor;
+import org.ndexbio.common.importexport.ExporterExecutorImpl;
 import org.ndexbio.common.importexport.ImporterExporterEntry;
+import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.rest.Configuration;
 
@@ -24,12 +25,20 @@ public class NetworkExportTask extends NdexTask {
 		
 		ImporterExporterEntry entry = Configuration.getInstance().getImpExpEntry(converterName);
 		
-		ExporterExecutor executor = new ExporterExecutor (entry);
+		ExporterExecutorImpl executor = new ExporterExecutorImpl(entry,
+				                                         Configuration.getInstance().getNdexRoot(),
+				                                         Configuration.getInstance().getExporterTimeout());
 		
 		try (FileInputStream input = new FileInputStream (Configuration.getInstance().getNdexRoot() + "/data/"+task.getResource() + "/network.cx")) {
 		
-			executor.export(input, task.getExternalId(), task.getTaskOwnerId());
-	
+			int exitCode = executor.export(input, task.getExternalId(), task.getTaskOwnerId());
+			if (exitCode == 0) {
+				task.setStatus(Status.COMPLETED);
+			}
+			else {
+				task.setStatus(Status.FAILED);
+				task.setMessage(executor.getErrorMessage());
+			}
 		}
 		return getTask();
 		

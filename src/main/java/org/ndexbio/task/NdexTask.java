@@ -57,7 +57,8 @@ public abstract class NdexTask implements Callable<Task> {
 	private final void startTask() throws IllegalArgumentException, 
 		ObjectNotFoundException, SecurityException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException{
 		try (TaskDAO dao = new TaskDAO()) {
-			dao.updateTaskStatus(task.getExternalId(), Status.PROCESSING);
+			task.setStatus(Status.PROCESSING);
+			dao.updateTaskStatus(task.getExternalId(), task.getStatus());
 			dao.commit();
 		}
 	}
@@ -69,9 +70,8 @@ public abstract class NdexTask implements Callable<Task> {
 	public Task call() throws Exception {
 		startTask();
 		Task t= call_aux();	
-		
 		try (TaskDAO dao = new TaskDAO()) {
-			dao.updateTaskStatus(task.getExternalId(), Status.COMPLETED);
+			dao.updateTaskStatus(task.getExternalId(), t.getStatus());
 			dao.commit();
 		}
 		return t;
