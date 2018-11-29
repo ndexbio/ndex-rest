@@ -11,6 +11,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.ndexbio.rest.Configuration;
 
+
 /**
  *
  * @author churas
@@ -48,9 +49,17 @@ public class TestNetworkExportTask {
     }
 
     @Test
-    public void testConstructorWithNull() {
-        assertTrue(1 == 1);
+    public void testcall_aux_with_null_task() {
+    	NetworkExportTask exptask = new NetworkExportTask(null);
+    	try {
+    		exptask.call_aux();
+    		fail("Expected exception");
+    	} catch(NullPointerException npe) {
+    		assertEquals(null, npe.getMessage());
+    	} catch(Exception ex) {
+    		fail("Expected NullPointerException");
+    	}
     }
-    
+        
 
 }

@@ -3,7 +3,7 @@ package org.ndexbio.task;
 import java.io.FileInputStream;
 import java.util.Map;
 
-import org.ndexbio.common.importexport.ExporterExecutor;
+import org.ndexbio.common.importexport.ExporterExecutorImpl;
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
@@ -25,7 +25,7 @@ public class NetworkExportTask extends NdexTask {
 		
 		ImporterExporterEntry entry = Configuration.getInstance().getImpExpEntry(converterName);
 		
-		ExporterExecutor executor = new ExporterExecutor(entry,
+		ExporterExecutorImpl executor = new ExporterExecutorImpl(entry,
 				                                         Configuration.getInstance().getNdexRoot(),
 				                                         Configuration.getInstance().getExporterTimeout());
 		
