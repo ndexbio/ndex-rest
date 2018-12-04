@@ -245,7 +245,7 @@ public class UserServiceV2 extends NdexService {
 
 							restURL;
 							
-		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", java.util.regex.Matcher.quoteReplacement(messageBody)) ;
 		        
 		        AmazonSESMailSender.getInstance().sendEmail(newUser.getEmailAddress(), htmlEmail, "Verify Your New NDEx Account", "html");
 			/*	Email.sendHTMLEmailUsingLocalhost(Configuration.getInstance().getProperty("Feedback-Email"),
@@ -312,7 +312,7 @@ public class UserServiceV2 extends NdexService {
 					  + "<br>Your password is: " + newUser.getPassword() + 
 					  "<p>Please save this email for future reference as you may need your password if you plan on using NDEx programmatically rather than via our web user interface.<p>Thanks for using NDEx!";
 				
-			        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+			        String htmlEmail = emailTemplate.replaceFirst("%%____%%", java.util.regex.Matcher.quoteReplacement(messageBody)) ;
 
 					
 					AmazonSESMailSender.getInstance().sendEmail(newUser.getEmailAddress(), htmlEmail, "Your New NDEx Account Has Been Created", "html");
@@ -442,7 +442,7 @@ public class UserServiceV2 extends NdexService {
 //		logger.info("[start: Changing password for user {}]", getLoggedInUser().getUserName() );
 		
 		if( Configuration.getInstance().getUseADAuthentication()) {
-			logger.warn("[end: Changing password not allowed for AD authentication method]");
+			//logger.warn("[end: Changing password not allowed for AD authentication method]");
 			throw new UnauthorizedOperationException("Emailing new password is not allowed when using AD authentication method");
 		}
 		
@@ -528,7 +528,7 @@ public class UserServiceV2 extends NdexService {
     				"<p>If you didn't request to reset your password, please contact us at support@ndexbio.org immediately.<p>" + 
     				"Thanks for using NDEx!";
 			
-	        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+	        String htmlEmail = emailTemplate.replaceFirst("%%____%%", java.util.regex.Matcher.quoteReplacement(messageBody)) ;
 	        
 	        AmazonSESMailSender.getInstance().sendEmail(u.getEmailAddress(),
 	        		htmlEmail, "Your NDEx Password Has Been Reset", "html");
@@ -587,7 +587,7 @@ public class UserServiceV2 extends NdexService {
 		        		".<p>If you didn't request this change, please contact us immediately using the link below." + 
 		        		"<p>Thanks for using NDEx!";
 				
-		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", java.util.regex.Matcher.quoteReplacement(messageBody)) ;
 		        
 		        AmazonSESMailSender.getInstance().sendEmail(oldEmail,
 		        		htmlEmail, "The Email Address Associated to Your NDEx Account Was Changed", "html");
