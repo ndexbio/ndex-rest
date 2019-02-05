@@ -130,21 +130,20 @@ public class UserServiceV2 extends NdexService {
 			)
 			throws Exception {
 
-	//	logger.info("[start: verifing User {}]", userUUID);
 		if ( verificationCode == null || verificationCode.length()== 0) 
 			throw new IllegalArgumentException("Parameter verificationCode can not be empty");
 		
 		try (UserDAO userdao = new UserDAO()){
 			UUID userId = UUID.fromString(userUUID);
-			String accountName = userdao.verifyUser(userId, verificationCode);
+			String returnMessage = userdao.verifyUser(userId, verificationCode);
 			User u = userdao.getUserById(userId, true,false);
 			try (UserIndexManager mgr = new UserIndexManager()) {
 				mgr.addUser(userUUID, u.getUserName(), u.getFirstName(), u.getLastName(), u.getDisplayName(),
 						u.getDescription());
 				userdao.commit();
-				// logger.info("[end: User {} verified ]", userUUID);
-				return // userdao.getUserById(UUID.fromString(userUUID));
-				"User account " + accountName + " has been activated.";
+				return // userdao.getUserById(UUID.fromString(userUUID)); 
+						returnMessage;
+				//"User account " + accountName + " has been activated.";
 			}
 		}
 	}

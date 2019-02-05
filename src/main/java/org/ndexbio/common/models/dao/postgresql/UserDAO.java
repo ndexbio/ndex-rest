@@ -212,7 +212,7 @@ public class UserDAO extends NdexDBDAO {
 		User user = getUserById(userUUID, false, true);		
 		
 		if ( user.getIsVerified())
-			throw new NdexException ( "User has already been verified.");
+			return  "User " + user.getUserName() + " has already been verified.";
 		
 		String vCode = (String) user.getProperties().get(NdexClasses.User_verification_code) ;
 		
@@ -235,7 +235,7 @@ public class UserDAO extends NdexDBDAO {
 						throw new NdexException ( "Failed to verify user " + user.getUserName() + " in database.");
 				
 			}
-			return user.getUserName();			
+			return "User account " + user.getUserName() + " has been activated.";			
 
 		}
 		
