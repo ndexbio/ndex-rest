@@ -177,7 +177,7 @@ public class Configuration
             	setUseADAuthentication(false);
             }
             
-			String userDefaultStorageQuota = getProperty("NETWORK_POST_ELEMENT_LIMIT");
+			String userDefaultStorageQuota = getProperty("USER_STORAGE_LIMIT");
 			if ( userDefaultStorageQuota != null) {
 				Float limit = Float.valueOf(userDefaultStorageQuota);
 					UserDAO.default_disk_quota = limit.floatValue() > 0 ? (limit.intValue() * 1000000000l) : -1;
