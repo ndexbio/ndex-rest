@@ -52,12 +52,15 @@ import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
+import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
+import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.aspects.datamodels.SubNetworkElement;
 import org.ndexbio.cxio.aspects.readers.CartesianLayoutFragmentReader;
+import org.ndexbio.cxio.aspects.readers.CyVisualPropertiesFragmentReader;
 import org.ndexbio.cxio.aspects.readers.EdgeAttributesFragmentReader;
 import org.ndexbio.cxio.aspects.readers.EdgesFragmentReader;
 import org.ndexbio.cxio.aspects.readers.GeneralAspectFragmentReader;
@@ -203,6 +206,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(NodesFragmentReader.createInstance());
 		  readers.add(NodeAttributesFragmentReader.createInstance());
 		  readers.add(CartesianLayoutFragmentReader.createInstance());
+		  readers.add(CyVisualPropertiesFragmentReader.createInstance());
 		  
 		  readers.add(new GeneralAspectFragmentReader<> (NdexNetworkStatus.ASPECT_NAME,
 				NdexNetworkStatus.class));
@@ -216,7 +220,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(new GeneralAspectFragmentReader<> (NodeCitationLinksElement.ASPECT_NAME,NodeCitationLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader<> (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
 //		  readers.add(new GeneralAspectFragmentReader<> (Provenance.ASPECT_NAME,Provenance.class));
-		  return  new CxElementReader2(in, readers,false);
+		  return  new CxElementReader2(in, readers,true);
 	}
 	
 	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException {
@@ -442,7 +446,6 @@ public class CXNetworkLoader implements AutoCloseable {
 		CxElementReader2 cxreader = createCXReader(in);
 		  
 	    metadata = cxreader.getPreMetaData();
-		//TODO: review why EdgeAttributes, cartesianLayout are missing.
 		for ( AspectElement elmt : cxreader ) {
 			switch ( elmt.getAspectName() ) {
 				case NodesElement.ASPECT_NAME :       //Node
@@ -459,8 +462,14 @@ public class CXNetworkLoader implements AutoCloseable {
 				case NodeAttributesElement.ASPECT_NAME:  // node attributes
 					addNodeAttribute((NodeAttributesElement) elmt );
 					break;
+				case EdgeAttributesElement.ASPECT_NAME:
+					addEdgeAttribute((EdgeAttributesElement) elmt);
+					break;
 				case NetworkAttributesElement.ASPECT_NAME: //network attributes
 					createNetworkAttribute(( NetworkAttributesElement) elmt);
+					break;
+				case CartesianLayoutElement.ASPECT_NAME:
+					addCartesianLayoutElement((CartesianLayoutElement) elmt);
 					break;
 				case CitationElement.ASPECT_NAME: 
 					createCXCitation((CitationElement)elmt);
@@ -483,7 +492,9 @@ public class CXNetworkLoader implements AutoCloseable {
 				case FunctionTermElement.ASPECT_NAME:
 					createFunctionTerm((FunctionTermElement)elmt);
 					break;
-					
+				case CyVisualPropertiesElement.ASPECT_NAME: 
+					createCyVisualProperitiesElement((CyVisualPropertiesElement) elmt);
+					break;
 /*				case Provenance.ASPECT_NAME:   // provenance is treated as an opaque aspect now.
 					this.provenanceHistory = (Provenance)elmt;
 					break; */
@@ -517,6 +528,10 @@ public class CXNetworkLoader implements AutoCloseable {
 		  }
 		  
 		  if(metadata !=null) {
+			  
+			  if (metadata.getMetaDataElement(NodesElement.ASPECT_NAME) == null ) {
+				  throw new NdexException ("Nodes aspect is missing.");
+			  }
 			  
 			  if (networkNameIsAssigned) {
 				 MetaDataElement ee =   metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
@@ -713,19 +728,24 @@ public class CXNetworkLoader implements AutoCloseable {
 
 		citationIdTracker.addDefinedElementId(citation.getId());
 		writeCXElement(citation);		   
-//		tick();   
 	}	 
 
 	private void createFunctionTerm(FunctionTermElement funcTerm) throws IOException {
 
-		nodeIdTracker.addReferenceId(funcTerm.getNodeID());
+		nodeIdTracker.addReferenceId(funcTerm.getNodeID(), FunctionTermElement.ASPECT_NAME);
 		writeCXElement(funcTerm);		   
-	/*	if (globalIdx !=null) {
-
-			globalIdx.addFunctionTermToIndex(funcTerm);
-		}	*/
 	}	 
 
+	private void createCyVisualProperitiesElement(CyVisualPropertiesElement visualProperty) throws IOException {
+		
+		String po = visualProperty.getProperties_of();
+		if(po.equals("edges")) {
+			edgeIdTracker.addReferenceId(visualProperty.getApplies_to(), CyVisualPropertiesElement.ASPECT_NAME);
+		} else if ( po.equals("nodes")) { 
+			nodeIdTracker.addReferenceId(visualProperty.getApplies_to(), CyVisualPropertiesElement.ASPECT_NAME);
+		}	
+		writeCXElement(visualProperty);		   
+	}	 
 	
 	private void createCXSupport(SupportElement support) throws NdexException, IOException {
 		supportIdTracker.addDefinedElementId(support.getId());
@@ -737,19 +757,19 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		edgeIdTracker.addDefinedElementId(ee.getId());
 		
-		nodeIdTracker.addReferenceId(ee.getSource());
-		nodeIdTracker.addReferenceId(Long.valueOf(ee.getTarget()));
+		nodeIdTracker.addReferenceId(ee.getSource(), EdgesElement.ASPECT_NAME);
+		nodeIdTracker.addReferenceId(ee.getTarget(), EdgesElement.ASPECT_NAME);
 		
 		writeCXElement(ee);	   
 	}
 	
 	private void createEdgeCitation(EdgeCitationLinksElement elmt) throws IOException {
 		  for ( Long sourceId : elmt.getSourceIds()) {
-			  edgeIdTracker.addReferenceId(sourceId);
+			  edgeIdTracker.addReferenceId(sourceId, EdgeCitationLinksElement.ASPECT_NAME);
 		  }
 		  
 		  for ( Long citationSID : elmt.getCitationIds()) {
-			  citationIdTracker.addReferenceId(citationSID);
+			  citationIdTracker.addReferenceId(citationSID, EdgeCitationLinksElement.ASPECT_NAME);
 		  }
 	  	  writeCXElement(elmt);
 
@@ -757,11 +777,11 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	private void createEdgeSupport(EdgeSupportLinksElement elmt) throws IOException {
 		  for ( Long sourceId : elmt.getSourceIds()) {
-			edgeIdTracker.addReferenceId(sourceId);
+			edgeIdTracker.addReferenceId(sourceId, EdgeSupportLinksElement.ASPECT_NAME);
 		  }
 		  
 		  for ( Long supportId : elmt.getSupportIds()) {
-			  supportIdTracker.addReferenceId(supportId);
+			  supportIdTracker.addReferenceId(supportId, EdgeSupportLinksElement.ASPECT_NAME);
 		  }
 	  	  writeCXElement(elmt);
 
@@ -769,22 +789,22 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	private void createNodeCitation(NodeCitationLinksElement elmt) throws IOException {
 		  for ( Long sourceId : elmt.getSourceIds()) {
-			  nodeIdTracker.addReferenceId(sourceId);
+			  nodeIdTracker.addReferenceId(sourceId, NodeCitationLinksElement.ASPECT_NAME);
 		  }
 		  
 		  for ( Long citationSID : elmt.getCitationIds()) {
-			  citationIdTracker.addReferenceId(citationSID);
+			  citationIdTracker.addReferenceId(citationSID, NodeCitationLinksElement.ASPECT_NAME);
 		  }
 	  	  writeCXElement(elmt);
 	}
 
 	private void createNodeSupport(NodeSupportLinksElement elmt) throws IOException {
 		  for ( Long sourceId : elmt.getSourceIds()) {
-			nodeIdTracker.addReferenceId(sourceId);
+			nodeIdTracker.addReferenceId(sourceId, NodeSupportLinksElement.ASPECT_NAME);
 		  }
 		  
 		  for ( Long supportId : elmt.getSupportIds()) {
-			  supportIdTracker.addReferenceId(supportId);
+			  supportIdTracker.addReferenceId(supportId, NodeSupportLinksElement.ASPECT_NAME);
 		  }
 		  
 	  	  writeCXElement(elmt);
@@ -798,12 +818,20 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 
 	private void addNodeAttribute(NodeAttributesElement e) throws IOException{
-		
-			nodeIdTracker.addReferenceId(e.getPropertyOf());
-		
+		nodeIdTracker.addReferenceId(e.getPropertyOf(), NodeAttributesElement.ASPECT_NAME);
 		writeCXElement(e);
 	}
 	
+	private void addEdgeAttribute(EdgeAttributesElement e) throws IOException{
+		edgeIdTracker.addReferenceId(e.getPropertyOf(), EdgeAttributesElement.ASPECT_NAME);
+		writeCXElement(e);
+	}
+
+	private void addCartesianLayoutElement(CartesianLayoutElement e) throws IOException{
+		nodeIdTracker.addReferenceId(e.getNode(), CartesianLayoutElement.ASPECT_NAME);
+		writeCXElement(e);
+	}
+
 	private void closeAspectStreams() {
 		for ( Map.Entry<String, CXAspectWriter> entry : aspectTable.entrySet() ){
 			try {

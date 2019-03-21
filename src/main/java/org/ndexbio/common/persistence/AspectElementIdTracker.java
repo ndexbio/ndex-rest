@@ -1,6 +1,8 @@
 package org.ndexbio.common.persistence;
 
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 import org.ndexbio.model.exceptions.NdexException;
@@ -17,20 +19,20 @@ public class AspectElementIdTracker {
 	
 	//This set tracks the Ids that are referenced in a CX document but we haven't find a 
 	// the definition of that element yet.
-	private Set<Long> undefinedIds;
+	private Map<Long,String> undefinedIds;
 	
 	private String aspectName;
 	
 	public AspectElementIdTracker(String aspectName) {
 		definedIds = new TreeSet<>();
-		undefinedIds = new TreeSet<>();
+		undefinedIds = new TreeMap<>();
 		this.aspectName = aspectName;
 		
 	}
 	
-	public void addReferenceId(Long id) {
+	public void addReferenceId(Long id, String aspect) {
 		if (!definedIds.contains(id))
-			undefinedIds.add(id);
+			undefinedIds.put(id, aspect);
 	}
 	
 	public void addDefinedElementId(long id) throws NdexException {
@@ -45,21 +47,24 @@ public class AspectElementIdTracker {
 	
 	public boolean hasUndefinedIds () {return undefinedIds.size()>0;}
 	
-	public Set<Long> getUndefinedIds() { return undefinedIds;}
+	public Map<Long,String> getUndefinedIds() { return undefinedIds;}
 	
 	public int getDefinedElementSize() { return definedIds.size(); }
 	
 	
 	public String checkUndefinedIds ()  {
 		if ( undefinedIds.size() > 0 ) {
-		  String errorMessage = undefinedIds.size() + " undefined ids found in aspect " + aspectName + ": [";
+		  String errorMessage = "There are " + undefinedIds.size() + " missing elements in aspect " + aspectName + 
+				  ", and these are the element ids that are referenced in other aspects but missing in this aspect: ";
 		  int i = 0;
-		  for( Long sid : undefinedIds) {
+		  for( Map.Entry<Long,String> entry : undefinedIds.entrySet()) {
 			  if (i == 20) break;
-			  errorMessage += sid + " ";
+			  if (i >0) 
+				  errorMessage += ", ";
+			  errorMessage += entry.getKey() +  " in " + entry.getValue();
 			  i++;
 		  }	  
-		  errorMessage +="]";
+		  errorMessage +=".";
 		  return errorMessage;
 		} 
 		return null;
