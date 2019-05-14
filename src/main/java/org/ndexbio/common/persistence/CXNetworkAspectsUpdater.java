@@ -46,10 +46,11 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 	public void update() throws FileNotFoundException, IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException {
 	
 		try (	InputStream inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + aspectsCXNetworkID.toString() + "/network.cx") ) {
-			  persistNetworkData(inputStream); 
+			  persistNetworkData(inputStream, true); 
 			  
 
 			  UUID networkUUID = getNetworkId();
+			  @SuppressWarnings("resource")
 			  NetworkDAO dao = getDAO();
 			  //handle the network properties 
 			  NetworkSummary summary = dao.getNetworkSummaryById(networkUUID);
@@ -65,21 +66,21 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 			  if ( aspectTable.containsKey(NodesElement.ASPECT_NAME))
 				  summary.setNodeCount((int) aspectTable.get(NodesElement.ASPECT_NAME).getElementCount());
 				
-				summary.setModificationTime(new Timestamp(Calendar.getInstance().getTimeInMillis()));
+			  //summary.setModificationTime(new Timestamp(Calendar.getInstance().getTimeInMillis()));
 				
-				if ( aspectTable.containsKey(NetworkAttributesElement.ASPECT_NAME)) {
+			  if ( aspectTable.containsKey(NetworkAttributesElement.ASPECT_NAME)) {
 					summary.setProperties(properties);
 					summary.setName(this.networkName);
 					summary.setDescription(this.description);
 					summary.setVersion(this.version);
 					summary.setWarnings(warnings);
-				}
+			   }
 				if ( aspectTable.containsKey(SubNetworkElement.ASPECT_NAME)) {
 					summary.setSubnetworkIds(subNetworkIds);
 				}
 				try {
 				//	dao.saveNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
-					dao.saveNetworkEntry(summary, fullMetaData);
+					dao.saveNetworkEntry(summary, fullMetaData ,true);
 					dao.setFlag(getNetworkId(), "has_layout", fullMetaData.getMetaDataElement(CartesianLayoutElement.ASPECT_NAME)!=null);	
 					dao.commit();
 				} catch (SQLException e) {

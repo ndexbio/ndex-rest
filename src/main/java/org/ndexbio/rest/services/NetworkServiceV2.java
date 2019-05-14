@@ -1832,7 +1832,8 @@ public class NetworkServiceV2 extends NdexService {
 					throw new NetworkConcurrentModificationException ();
 				}
 				  throw new NdexException("Can't delete a read-only network.");
-			}	
+			}
+			//TODO: need to check if the network actually exists and give an 404 error for that case.
 			throw new NdexException("Only network owner can delete a network.");	
 		} catch ( IOException e ) {
 			throw new NdexException ("Error occurred when deleting network: " + e.getMessage(), e);

@@ -146,7 +146,6 @@ public class CXNetworkLoader implements AutoCloseable {
 	private Set<String> indexedFields;
 		
 //	protected String updatedBy;
-	
 	public CXNetworkLoader(UUID networkUUID, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields, int sampleGenerationThreshold) {
 		super();
 		
@@ -233,7 +232,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  
 		  try (	InputStream inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx") ) {
 	
-			  persistNetworkData(inputStream); 
+			  persistNetworkData(inputStream, false); 
 		  
 		//	  logger.info("aspects have been stored.");
 		  
@@ -259,7 +258,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				summary.setSubnetworkIds(subNetworkIds);
 				try {
 				//	dao.saveNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
-					dao.saveNetworkEntry(summary, metadata);
+					dao.saveNetworkEntry(summary, metadata, false);
 						
 					dao.commit();
 				} catch (SQLException e) {
@@ -435,12 +434,14 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 	/** 
 	 * If it is called from a network import function ( db migrator), we don't remove the provenance entry from the metadata.
+	 * @param  isAspectUpdate set this flag if updating aspects in network. We are not check if node aspect is missing when 
+	 *          this parameter is set to true.
 	 * @throws IOException
 	 * @throws DuplicateObjectException
 	 * @throws NdexException
 	 * @throws ObjectNotFoundException
 	 */
-	protected void persistNetworkData(InputStream in/*, boolean isImport*/)
+	protected void persistNetworkData(InputStream in, boolean isAspectUpdate)
 			throws IOException, DuplicateObjectException, NdexException, ObjectNotFoundException {
 				
 		CxElementReader2 cxreader = createCXReader(in);
@@ -529,7 +530,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  
 		  if(metadata !=null) {
 			  
-			  if (metadata.getMetaDataElement(NodesElement.ASPECT_NAME) == null ) {
+			  if ( !isAspectUpdate && metadata.getMetaDataElement(NodesElement.ASPECT_NAME) == null ) {
 				  throw new NdexException ("Nodes aspect is missing.");
 			  }
 			  

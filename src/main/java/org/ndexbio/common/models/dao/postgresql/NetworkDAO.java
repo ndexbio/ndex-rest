@@ -390,9 +390,10 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws NdexException 
 	 * @throws JsonProcessingException 
 	 */
-	public void saveNetworkEntry(NetworkSummary networkSummary, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
+	public void saveNetworkEntry(NetworkSummary networkSummary, MetaDataCollection metadata, boolean setModificationTime) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
 				+ "properties = ? ::jsonb, cxmetadata = ? :: json, warnings = ?, subnetworkids = ?, "
+				+ (setModificationTime? "modification_time = localtimestamp, " : "") 
 				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setString(1,networkSummary.getName());
