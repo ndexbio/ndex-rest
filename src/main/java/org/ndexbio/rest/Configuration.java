@@ -304,7 +304,7 @@ public class Configuration
      * @return Instance of {@link org.ndexbio.rest.Configuration} object
      * @throws NdexException
      */
-    public static Configuration reCreateInstance(final String configFilePath) throws NdexException{
+    protected static Configuration reCreateInstance(final String configFilePath) throws NdexException{
     	
     	try {
     		INSTANCE = new Configuration(configFilePath);

@@ -95,8 +95,8 @@ public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Fi
 
 		MultivaluedMap<String, Object> headers = responseContext.getHeaders();
 		headers.putSingle("Access-Control-Allow-Origin", "*");
-	/*	headers.putSingle("Access-Control-Allow-Methods", "HEAD, DELETE,GET,OPTIONS,POST,PUT");
-		headers.putSingle("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization, Content-Length, X-Requested-With");*/
+		headers.putSingle("Access-Control-Allow-Methods", "HEAD, DELETE,GET,OPTIONS,POST,PUT");
+		//headers.putSingle("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization, Content-Length, X-Requested-With, NDEx-application");
 		headers.putSingle("Access-Control-Allow-Credentials", Boolean.TRUE); 
 	
 		final ResourceMethodInvoker methodInvoker = (ResourceMethodInvoker)arg0.getProperty("org.jboss.resteasy.core.ResourceMethodInvoker");

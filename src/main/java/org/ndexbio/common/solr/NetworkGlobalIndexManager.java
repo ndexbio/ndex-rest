@@ -55,7 +55,7 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.common.util.TermUtilities;
+import org.ndexbio.model.tools.TermUtilities;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
