@@ -77,7 +77,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
@@ -85,7 +84,6 @@ import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CXNetworkAspectsUpdater;
 import org.ndexbio.common.util.NdexUUIDFactory;
@@ -106,12 +104,8 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.Priority;
 import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.SimplePropertyValuePair;
-import org.ndexbio.model.object.Status;
-import org.ndexbio.model.object.Task;
-import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -284,31 +278,6 @@ public class NetworkServiceV2 extends NdexService {
 			
 			try {
 				int i = daoNew.setNetworkProperties(networkUUID, properties);
-
-				//DW: Handle provenance
-
-	/*			ProvenanceEntity oldProv = daoNew.getProvenance(networkUUID);
-				ProvenanceEntity newProv = new ProvenanceEntity();
-				newProv.setUri( oldProv.getUri() ); */
-
-		//		NetworkSummary summary = daoNew.getNetworkSummaryById(networkUUID);
-		//		Helper.populateProvenanceEntity(newProv, summary);
-		//		ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_NETWORK_PROPERTIES, summary.getModificationTime());
-			//	List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-		//		eventProperties.add( new SimplePropertyValuePair("user name", user.getUserName()) ) ;
-
-		/*		for( NdexPropertyValuePair vp : properties )
-				{
-					SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getPredicateString(), vp.getValue());
-					eventProperties.add(svp);
-				}
-				event.setProperties(eventProperties);
-				List<ProvenanceEntity> oldProvList = new ArrayList<>();
-				oldProvList.add(oldProv);
-				event.setInputs(oldProvList);
-
-				newProv.setCreationEvent(event);
-				daoNew.setProvenance(networkUUID, newProv); */
 
 				NetworkSummary fullSummary = daoNew.getNetworkSummaryById(networkUUID);
 			
@@ -676,76 +645,6 @@ public class NetworkServiceV2 extends NdexService {
 	}  
 	
 	
-/*	
-	private class CXNetworkWriterThread extends Thread {
-		private OutputStream o;
-		private String networkId;
-		public CXNetworkWriterThread (OutputStream out, String  networkUUIDStr) {
-			o = out;
-			networkId = networkUUIDStr;
-		}
-		
-		public void run() {
-			try (CXNetworkExporter dao = new CXNetworkExporter (networkId) ) {
-				    dao.writeNetworkInCX(o, true);
-			} catch (IOException e) {
-					logger.error("IOException in CXNetworkWriterThread: " + e.getMessage());
-					e.printStackTrace();
-			} catch (NdexException e1) {
-			     logger.error("Ndex error: " + e1.getMessage());
-			     e1.printStackTrace();
-			} catch (Exception e1) {
-				logger.error("Ndex excption: " + e1.getMessage());
-				e1.printStackTrace();
-			} finally {
-				try {
-					o.flush();
-					o.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-					logger.error("Failed to close outputstream in CXNetworkWriterThread.");
-				}
-			} 
-		}
-		
-	}  */
-	
-/*	private class CXNetworkQueryWriterThread extends Thread {
-		private OutputStream o;
-		private String networkId;
-		private CXSimplePathQuery parameters;
-		
-		public CXNetworkQueryWriterThread (OutputStream out, String  networkUUIDStr, CXSimplePathQuery query) {
-			o = out;
-			networkId = networkUUIDStr;
-			this.parameters = query;
-		}
-		
-		public void run() {
-			try (CXNetworkExporter dao = new CXNetworkExporter (networkId) ) {
-				    dao.exportSubnetworkInCX(o, parameters,true);   
-			} catch (IOException e) {
-					logger.error("IOException in CXNetworkWriterThread: " + e.getMessage());
-					e.printStackTrace();
-			} catch (NdexException e1) {
-			     logger.error("Ndex error: " + e1.getMessage());
-			     e1.printStackTrace();
-			} catch (Exception e1) {
-				logger.error("Ndex excption: " + e1.getMessage());
-				e1.printStackTrace();
-			} finally {
-				try {
-					o.flush();
-					o.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-					logger.error("Failed to close outputstream in CXNetworkWriterThread.");
-				}
-			} 
-		}
-		
-	}
-*/
 
 	private class CXAspectElementsWriterThread extends Thread {
 		private OutputStream o;
@@ -825,94 +724,6 @@ public class NetworkServiceV2 extends NdexService {
 		
 	}  */
 	
-	
-/*	private class CXNetworkLoadThread extends Thread {
-		private UUID networkId;
-		public CXNetworkLoadThread (UUID networkUUID  ) {
-			this.networkId = networkUUID;
-		}
-		
-		public void run() {
-            
-		}
-	} */
-
-	/*
-	
-	private ProvenanceEntity getProvenanceEntityFromMultiPart(Map<String, List<InputPart>> uploadForm) throws NdexException, IOException {
-		
-	       List<InputPart> parts = uploadForm.get("provenance");
-	       if (parts == null)
-	    	   return null;
-
-		  	StringBuffer sb = new StringBuffer();
-		    for (InputPart inputPart : parts) {
-		        	   org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
-		        			   (org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
-		        	   sb.append(p.getBodyAsString());
-		    }
-		    
-		    ObjectMapper mapper = new ObjectMapper();
-		    ProvenanceEntity entity = mapper.readValue(sb.toString(), ProvenanceEntity.class);		
-	    	
-		    if (entity == null || entity.getUri() == null)
-	    		   throw new NdexException ("Malformed provenance parameter found in posted form data.");  
-		   return entity;
-	} */
-	
-
-/* Note: Will be implemented in services	
-	@PermitAll
-	@GET
-	@Path("/export/{networkId}/{format}")
-	@Produces("application/json")
-    @ApiDoc("Retrieve an entire network specified by 'networkId' as a Network object.  (Compare this method to " +
-            "getCompleteNetworkAsPropertyGraph).")
-	public String exportNetwork(	@PathParam("networkId") final String networkId,
-			@PathParam("format") final String format)
-			throws  NdexException {
-
-    	logger.info("[start: request to export network {}]", networkId);
-		
-		if ( isReadable(networkId) ) {
-			
-			String networkName =null;
-			try (NetworkDAO networkdao = new NetworkDAO(NdexDatabase.getInstance().getAConnection())){
-				networkName = networkdao.getNetworkSummaryById(networkId).getName();
-			}
-			
-			Task exportNetworkTask = new Task();
-			exportNetworkTask.setTaskType(TaskType.EXPORT_NETWORK_TO_FILE);
-			exportNetworkTask.setPriority(Priority.LOW);
-			exportNetworkTask.setResource(networkId); 
-			exportNetworkTask.setStatus(Status.QUEUED);
-			exportNetworkTask.setDescription("Export network \""+ networkName + "\" in " + format + " format");
-			
-			try {
-				exportNetworkTask.setFormat(FileFormat.valueOf(format));
-			} catch ( Exception e) {
-				logger.error("[end: Exception caught:]{}", e);
-				throw new NdexException ("Invalid network format for network export.");
-			}
-			
-			try (TaskDAO taskDAO = new TaskDAO(NdexDatabase.getInstance().getAConnection()) ){ 
-				exportNetworkTask.setTaskOwnerId(getLoggedInUser().getExternalId());
-				UUID taskId = taskDAO.createTask(exportNetworkTask);
-				taskDAO.commit();
-				logger.info("[start: task created to export network {}]", networkId);
-				return taskId.toString();
-			}  catch (Exception e) {
-				logger.error("[end: Exception caught:]{}", e);
-				
-				throw new NdexException(e.getMessage());
-			} 
-		}
-		logger.error("[end: User doesn't have read access network {}. Throwing  UnauthorizedOperationException]", networkId);
-		throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-	}  
-	*/
-	
-
 
 	/**************************************************************************
 	 * Retrieves array of user membership objects
@@ -1211,61 +1022,6 @@ public class NetworkServiceV2 extends NdexService {
 				
 					networkDao.updateNetworkProfile(networkUUID, newValues);
 
-					//DW: Handle provenance
-					//Special Logic. Test whether we should record provenance at all.
-					//If the only thing that has changed is the visibility, we should not add a provenance
-					//event.
-	//				ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
-			//		String oldName = "", oldDescription = "", oldVersion ="";
-			/*		if ( oldProv != null ) {
-						for( SimplePropertyValuePair oldProperty : oldProv.getProperties() ) {
-							if( oldProperty.getName() == null )
-								continue;
-							if( oldProperty.getName().equals("dc:title") )
-								oldName = oldProperty.getValue().trim();
-							else if( oldProperty.getName().equals("description") )
-								oldDescription = oldProperty.getValue().trim();
-							else if( oldProperty.getName().equals("version") )
-								oldVersion = oldProperty.getValue().trim();
-						}
-					} */
-
-					//Treat all summary values that are null like ""
-	//				String summaryName = partialSummary.getName() == null ? "" : partialSummary.getName().trim();
-	//				String summaryDescription = partialSummary.getDescription() == null ? "" : partialSummary.getDescription().trim();
-	//				String summaryVersion = partialSummary.getVersion() == null ? "" : partialSummary.getVersion().trim();
-
-	/*				ProvenanceEntity newProv = new ProvenanceEntity();
-					if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
-					{
-						if ( oldProv !=null )   //TODO: initialize the URI properly when there is null.
-							newProv.setUri(oldProv.getUri());
-
-						newProv.setProperties(entityProperties);
-
-						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, partialSummary.getModificationTime()); 
-
-					/*	List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-						eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
-
-						if (partialSummary.getName() != null)
-							eventProperties.add(new SimplePropertyValuePair("dc:title", partialSummary.getName()));
-
-						if (partialSummary.getDescription() != null)
-							eventProperties.add(new SimplePropertyValuePair("description", partialSummary.getDescription()));
-
-						if (partialSummary.getVersion() != null)
-							eventProperties.add(new SimplePropertyValuePair("version", partialSummary.getVersion()));
-
-						event.setProperties(eventProperties);
-						List<ProvenanceEntity> oldProvList = new ArrayList<>();
-						oldProvList.add(oldProv);
-						event.setInputs(oldProvList);
-
-						newProv.setCreationEvent(event);
-						networkDao.setProvenance(networkUUID, newProv); 
-					}
-				*/
 					NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
 					
 					//update the networkProperty aspect 
@@ -1377,61 +1133,6 @@ public class NetworkServiceV2 extends NdexService {
 				}
 
 				
-				//DW: Handle provenance
-				//Special Logic. Test whether we should record provenance at all.
-				//If the only thing that has changed is the visibility, we should not add a provenance
-				//event.
-//				ProvenanceEntity oldProv = networkDao.getProvenance(networkUUID);
-	//			String oldName = "", oldDescription = "", oldVersion ="";
-	/*			if ( oldProv != null ) {
-						for( SimplePropertyValuePair oldProperty : oldProv.getProperties() ) {
-							if( oldProperty.getName() == null )
-								continue;
-							if( oldProperty.getName().equals("dc:title") )
-								oldName = oldProperty.getValue().trim();
-							else if( oldProperty.getName().equals("description") )
-								oldDescription = oldProperty.getValue().trim();
-							else if( oldProperty.getName().equals("version") )
-								oldVersion = oldProperty.getValue().trim();
-						}
-				} */
-
-				//Treat all summary values that are null like ""
-	/*			String summaryName = summary.getName() == null ? "" : summary.getName().trim();
-				String summaryDescription = summary.getDescription() == null ? "" : summary.getDescription().trim();
-				String summaryVersion = summary.getVersion() == null ? "" : summary.getVersion().trim();
-
-				ProvenanceEntity newProv = new ProvenanceEntity();
-				if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
-				{
-					if ( oldProv !=null )   //TODO: initialize the URI properly when there is null.
-							newProv.setUri(oldProv.getUri());
-
-					newProv.setProperties(entityProperties);
-
-						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, summary.getModificationTime());
-
-						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-						eventProperties.add( new SimplePropertyValuePair("user name", user.getUserName()) ) ;
-
-						if (summary.getName() != null)
-							eventProperties.add(new SimplePropertyValuePair("dc:title", summary.getName()));
-
-						if (summary.getDescription() != null)
-							eventProperties.add(new SimplePropertyValuePair("description", summary.getDescription()));
-
-						if (summary.getVersion() != null)
-							eventProperties.add(new SimplePropertyValuePair("version", summary.getVersion())); 
-
-						event.setProperties(eventProperties);
-						List<ProvenanceEntity> oldProvList = new ArrayList<>();
-						oldProvList.add(oldProv);
-						event.setInputs(oldProvList);
-
-						newProv.setCreationEvent(event);
-						networkDao.setProvenance(networkUUID, newProv);
-					}
-	*/			
 					NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
 					
 					//update the networkProperty aspect 
@@ -1544,7 +1245,7 @@ public class NetworkServiceV2 extends NdexService {
 	        updateNetworkFromSavedFile( networkId, daoNew, tmpNetworkId);
 			
            } catch (SQLException | NdexException | IOException e) {
-        	  // e.printStackTrace();
+        	   e.printStackTrace();
         	   daoNew.rollback();
         	   daoNew.unlockNetwork(networkId);  
 
@@ -1649,27 +1350,6 @@ public class NetworkServiceV2 extends NdexService {
 				new File(Configuration.getInstance().getNdexRoot() + "/data/" + networkId));
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 
-		// commenting these part out to simplify the provenance recording. We don't generate 
-		// provenance event when user updates their networks now.
-//		String urlStr = Configuration.getInstance().getHostURI()
-//				+ Configuration.getInstance().getRestAPIPrefix() + "/network/" + networkIdStr;
-
-/*		ProvenanceEntity entity = new ProvenanceEntity();
-		entity.setUri(urlStr + "/summary");
-
-		ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_NETWORK_UPDATE,
-				new Timestamp(System.currentTimeMillis()));
-
-		List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-
-		eventProperties.add(new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()));
-		event.setProperties(eventProperties);
-		ProvenanceEntity inputEntity = daoNew.getProvenance(networkId);
-		event.addInput(inputEntity);
-		entity.setCreationEvent(event);
-
-		daoNew.setProvenance(networkId, entity);
-*/
 		daoNew.commit();
 	}
     
@@ -1772,23 +1452,6 @@ public class NetworkServiceV2 extends NdexService {
 			UUID tmpNetworkId) throws SQLException, IOException {
 		try ( CXNetworkAspectsUpdater aspectUpdater = new CXNetworkAspectsUpdater(networkId, /*ownerAccName,*/daoNew, tmpNetworkId) ) {
 			
-		/*	String urlStr = Configuration.getInstance().getHostURI()  + 
-		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ networkIdStr;
-			ProvenanceEntity entity = new ProvenanceEntity();
-			entity.setUri(urlStr + "/summary");
-
-		 event = new ProvenanceEvent(NdexProvenanceEventType.CX_ASPECTS_UPDATE, new Timestamp(System.currentTimeMillis()));
-
-			List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-			eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
-			event.setProperties(eventProperties);		
-			
-			ProvenanceEntity inputEntity =daoNew.getProvenance(networkId);
-			event.addInput(inputEntity);
-			entity.setCreationEvent(event);
-
-			daoNew.setProvenance(networkId, entity);*/
-				
 			aspectUpdater.update();
 
 		} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
@@ -1825,6 +1488,27 @@ public class NetworkServiceV2 extends NdexService {
 						networkDao.deleteNetwork(UUID.fromString(id), getLoggedInUser().getExternalId());
 						networkDao.commit();
 
+						// move the row network to archive folder and delete the folder
+					    String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId.toString();
+				        /*String archivePath = Configuration.getInstance().getNdexRoot() + "/data/_archive/";
+				        
+				        File archiveDir = new File(archivePath);
+				        if (!archiveDir.exists())
+				        		archiveDir.mkdir();
+				        
+				        
+				        java.nio.file.Path src = Paths.get(pathPrefix+ "/network.cx");     
+						java.nio.file.Path tgt = Paths.get(archivePath + "/" + networkId.toString() + ".cx");
+						*/
+						try {
+						//	Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE); 	
+						
+							FileUtils.deleteDirectory(new File(pathPrefix));
+						} catch (IOException e) {
+							e.printStackTrace();
+							throw new NdexException("Failed to delete directory. Error: " + e.getMessage());
+						}
+						
 						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId));
 				
 						return;
@@ -1842,10 +1526,11 @@ public class NetworkServiceV2 extends NdexService {
 	}
 	
 
-	/**************************************************************************
+	/* *************************************************************************
 	 * Saves an uploaded network file. Determines the type of file uploaded,
 	 * saves the file, and creates a task.
 	 *
+	 *  Removing it. No longer relevent in v2.
 	 * @param uploadedNetwork
 	 *            The uploaded network file.
 	 * @throws IllegalArgumentException
@@ -1859,7 +1544,7 @@ public class NetworkServiceV2 extends NdexService {
 	/*
 	 * refactored to support non-transactional database operations
 	 */
-	@POST
+/*	@POST
 	@Path("/upload")
 	@Consumes("multipart/form-data")
 	@Produces("application/json")
@@ -1962,7 +1647,7 @@ public class NetworkServiceV2 extends NdexService {
 		return processNetworkTask;
 	}
 
-
+*/
 
 	@PUT
 	@Path("/{networkid}/systemproperty")
@@ -2092,8 +1777,6 @@ public class NetworkServiceV2 extends NdexService {
 	   
 		   String urlStr = Configuration.getInstance().getHostURI()  + 
 		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
-	//	   ProvenanceEntity entity = new ProvenanceEntity();
-	//	   entity.setUri(urlStr + "/summary");
 		   
 		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/network.cx";
 		   long fileSize = new File(cxFileName).length();
@@ -2103,14 +1786,6 @@ public class NetworkServiceV2 extends NdexService {
 	    	  // NetworkSummary summary = 
 	    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null);
        
-//			   ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.CX_CREATE_NETWORK, summary.getModificationTime());
-
-//				List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-//				eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
-//				event.setProperties(eventProperties);
-
-//				entity.setCreationEvent(event);
-//				dao.setProvenance(summary.getExternalId(), entity);
 				dao.commit();
 	       }
 	       
@@ -2180,44 +1855,44 @@ public class NetworkServiceV2 extends NdexService {
 	   }
 	   
 	   
-	   private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException {
+	   private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException, BadRequestException {
 		   Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
-	       
-			 //      ProvenanceEntity entity = this.getProvenanceEntityFromMultiPart(uploadForm);
-			       
-			 //Get file data to save
-			 List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
-					
-				   byte[] bytes = new byte[8192];
-				   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-				   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuid.toString();
+	       			       
+		   //Get file data to save
+		   List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
+		   if (inputParts == null)
+			   throw new BadRequestException("Field CXNetworkStream is not found in the POSTed Data.");
+			 
+		   byte[] bytes = new byte[8192];
+		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuid.toString();
 				   
-				   //Create dir
-				   java.nio.file.Path dir = Paths.get(pathPrefix);
-				   Set<PosixFilePermission> perms =
+		   //Create dir
+		   java.nio.file.Path dir = Paths.get(pathPrefix);
+		   Set<PosixFilePermission> perms =
 						    PosixFilePermissions.fromString("rwxrwxr-x");
-						FileAttribute<Set<PosixFilePermission>> attr =
+		   FileAttribute<Set<PosixFilePermission>> attr =
 						    PosixFilePermissions.asFileAttribute(perms);
-				   Files.createDirectory(dir,attr);
+		   Files.createDirectory(dir,attr);
 				   
-				   //write content to file
-				   String cxFilePath = pathPrefix + "/network.cx";
-				   try (FileOutputStream out = new FileOutputStream (cxFilePath ) ){     
-					   for (InputPart inputPart : inputParts) {
-				               // convert the uploaded file to inputstream and write it to disk
-				        	org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
-				        			   (org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
-				            try (InputStream inputStream = p.getBody()) {
+		   //write content to file
+		   String cxFilePath = pathPrefix + "/network.cx";
+		   try (FileOutputStream out = new FileOutputStream (cxFilePath ) ){     
+			   for (InputPart inputPart : inputParts) {
+				     // convert the uploaded file to inputstream and write it to disk
+				   org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
+				        	(org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
+				   try (InputStream inputStream = p.getBody()) {
 				              
-				            	int read = 0;
-				            	while ((read = inputStream.read(bytes)) != -1) {
-				                  out.write(bytes, 0, read);
-				            	}
-				            }
-				               
-					   }
+				       int read = 0;
+				       while ((read = inputStream.read(bytes)) != -1) {
+				            out.write(bytes, 0, read);
+				       }
 				   }
-				return uuid; 
+				               
+			   }
+		   }
+		   return uuid; 
 	   }
 	   
 	 
@@ -2302,32 +1977,7 @@ public class NetworkServiceV2 extends NdexService {
 		       try (NetworkDAO dao = new NetworkDAO()) {
 		    //	   NetworkSummary summary = 
 		    			   dao.CreateCloneNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize, srcNetUUID);
-		    	 //  ProvenanceEntity sourceProvenanceEntity = dao.getProvenance(srcNetUUID);
-		    	   
-		    //	   List<SimplePropertyValuePair> srcProv = sourceProvenanceEntity.getProperties();
-		    //	   String newTitle = "Copy of Untitled Network";
-		    /*	   if (srcProv !=null) {
-		    		   for ( SimplePropertyValuePair p : srcProv) {
-		    			   if ( p.getName().equals("dc:title")) {
-		    				   newTitle = "Copy of " + p.getValue();
-		    				   break;
-		    			   }
-		    		   }
-		    	   }
-		    */	   
-		   /* 	   ProvenanceEntity copyProv = ProvenanceHelpers.createProvenanceHistoryWhithoutClone(
-		    				summary,
-		    				Configuration.getInstance().getHostURI(),
-		    				NdexProvenanceEventType.CX_NETWORK_CLONE, 
-		    				new Timestamp(Calendar.getInstance().getTimeInMillis()),
-		    				sourceProvenanceEntity
-		    		);
-		    	   
-		    	   List<SimplePropertyValuePair> props = new ArrayList<>(2);
-		    	   props.add(new SimplePropertyValuePair("dc:title", newTitle));
-		    	   copyProv.setProperties(props);
-		    		
-					dao.setProvenance(uuid, copyProv); */
+	
 					CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao /*, new Provenance(copyProv)*/);
 					g.reCreateCXFile();
 					dao.setFlag(uuid, "iscomplete", true);

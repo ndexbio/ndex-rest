@@ -214,7 +214,7 @@ public class NetworkDAO extends NdexDBDAO {
 			st.executeUpdate();
 		}		
 		
-		
+	/*	
 		// move the row network to archive folder and delete the folder
 	    String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId.toString();
         String archivePath = Configuration.getInstance().getNdexRoot() + "/data/_archive/";
@@ -224,17 +224,17 @@ public class NetworkDAO extends NdexDBDAO {
         		archiveDir.mkdir();
         
         
-        java.nio.file.Path src = Paths.get(pathPrefix+ "/network.cx");     
-		java.nio.file.Path tgt = Paths.get(archivePath + "/" + networkId.toString() + ".cx");
+     //   java.nio.file.Path src = Paths.get(pathPrefix+ "/network.cx");     
+	//	java.nio.file.Path tgt = Paths.get(archivePath + "/" + networkId.toString() + ".cx");
 		
 		try {
-			Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE); 	
+		//	Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE); 	
 		
 			FileUtils.deleteDirectory(new File(pathPrefix));
 		} catch (IOException e) {
 			logger.severe("Failed to move file and delete directory: "+ e.getMessage());
 			e.printStackTrace();
-		}
+		} */
 	}
 	
 

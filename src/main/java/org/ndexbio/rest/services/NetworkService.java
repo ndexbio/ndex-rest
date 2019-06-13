@@ -820,14 +820,19 @@ public class NetworkService extends NdexService {
 			if(networkDao.isAdmin(networkId, userId) ) {
 				if (!networkDao.isReadOnly(networkId) ) {
 					if ( !networkDao.networkIsLocked(networkId)) {
-/*					
-						NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
-						globalIdx.deleteNetwork(id);
-						SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id);
-						idxManager.dropIndex();
-*/
+
 						networkDao.deleteNetwork(UUID.fromString(id), getLoggedInUser().getExternalId());
 						networkDao.commit();
+						
+						String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId.toString();
+						try {
+							
+								FileUtils.deleteDirectory(new File(pathPrefix));
+						} catch (IOException e) {
+								e.printStackTrace();
+								throw new NdexException("Failed to delete directory. Error: " + e.getMessage());
+						}
+							
 						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId));
 				
 						return;
