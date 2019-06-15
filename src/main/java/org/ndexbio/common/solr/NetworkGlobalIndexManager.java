@@ -230,6 +230,8 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 
 //		solrQuery.setQuery( searchTerms ).setFields(UUID);
 		solrQuery.setQuery("( " + searchTerms + " ) AND _val_:\"div(" + NDEX_SCORE+ ",10)\"" ).setFields(UUID);
+    	solrQuery.set("defType", "edismax");
+		solrQuery.set("qf","uuid^20 name^11 description^5 labels^5 owner^3 networkType^5 organism^3 disease^3 tissue^3 author^2 methods text");
 		if ( offset >=0)
 		  solrQuery.setStart(offset);
 		if ( limit >0 )
