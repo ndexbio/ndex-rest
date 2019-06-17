@@ -108,7 +108,10 @@ public class GroupIndexManager implements AutoCloseable{
 		  solrQuery.setStart(Integer.valueOf(offset));
 		if ( limit >0 )
 			solrQuery.setRows(Integer.valueOf(limit));
-				
+		
+    	solrQuery.set("defType", "edismax");
+    	solrQuery.set("qf","uuid^10 groupName^5 description");
+		
 			
 		try {
 			QueryResponse rsp = client.query(solrQuery);		

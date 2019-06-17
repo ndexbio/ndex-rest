@@ -116,6 +116,8 @@ public class UserIndexManager implements AutoCloseable{
 		  solrQuery.setStart(offset);
 		if ( limit >0 )
 			solrQuery.setRows(limit);
+    	solrQuery.set("defType", "edismax");
+    	solrQuery.set("qf","uuid^10 userName^5 firstName^3 lastName^3 displayName^2 description");
 		
 	//	solrQuery.setFilterQueries(resultFilter) ;
 		
