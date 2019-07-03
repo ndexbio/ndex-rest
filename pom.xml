@@ -6,7 +6,7 @@
 	<groupId>org.ndexbio</groupId>
 	<artifactId>ndexbio-rest</artifactId>
 	<packaging>war</packaging>
-	<version>2.4.2</version>
+	<version>2.4.3-SNAPSHOT</version>
 	<name>ndexbio-rest</name>
 	<url>http://maven.apache.org</url>
 	<inceptionYear>2013</inceptionYear>
@@ -30,7 +30,7 @@
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-dbcp2</artifactId>
-			<version>2.1.1</version>
+			<version>2.6.0</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
@@ -111,33 +111,33 @@
 		<dependency>
  			 <groupId>org.apache.solr</groupId>
 		 	<artifactId>solr-solrj</artifactId>
- 		 	<version>7.5.0</version>
+ 		 	<version>8.1.1</version>
 		</dependency>
 		
 		<dependency>
   			<groupId>com.fasterxml.uuid</groupId>
   			<artifactId>java-uuid-generator</artifactId>
-  			<version>3.1.4</version>
+  			<version>3.2.0</version>
 		</dependency>
 				<dependency>
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>
-			<version>19.0</version>
+			<version>27.0.1-jre</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-collections4</artifactId>
-			<version>4.1</version>
+			<version>4.3</version>
 		</dependency>
 		<dependency>
             <groupId>com.google.api-client</groupId>
             <artifactId>google-api-client</artifactId>
-            <version>1.20.0</version>
+            <version>1.30.1</version>
         </dependency>
         <dependency>
             <groupId>com.google.oauth-client</groupId>
             <artifactId>google-oauth-client</artifactId>
-            <version>1.22.0</version>
+            <version>1.27.0</version>
         </dependency>
 		
 		
@@ -376,7 +376,7 @@
 	<properties>
 		<jettyVersion>9.3.18.v20170406</jettyVersion>
 		<resteasyVersion>3.1.4.Final</resteasyVersion>
-		<log4jVersion>2.8.2</log4jVersion>
+	<!-- 	<log4jVersion>2.8.2</log4jVersion>  -->
 		<jacksonVersion>2.9.9</jacksonVersion>
 	    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>

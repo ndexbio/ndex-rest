@@ -7,14 +7,18 @@ public class NodeIndexEntry {
 
 	private Long id;
 	private String name;
+	private boolean memberIsToBeIndexed;
 	private Collection<String> represents;
 	private Collection<String> aliases;
+	private Collection<String> members;
 	
 	public NodeIndexEntry() {
 		setId(null);
 		setName(null);
 		setRepresents(new TreeSet<>());
 		setAliases(new TreeSet<>());
+		setMembers(new TreeSet<>());
+		memberIsToBeIndexed = false;
 	}
 	
 	public NodeIndexEntry(Long nodeId, String nodeName) {
@@ -22,6 +26,8 @@ public class NodeIndexEntry {
 		setName(nodeName);
 		setRepresents(new TreeSet<>());
 		setAliases(new TreeSet<>());
+		setMembers(new TreeSet<>());
+		memberIsToBeIndexed = false;
 	}
 
 	public Long getId() {
@@ -54,6 +60,22 @@ public class NodeIndexEntry {
 
 	public void setRepresents(Collection<String> represents) {
 		this.represents = represents;
+	}
+
+	public Collection<String> getMembers() {
+		return members;
+	}
+
+	public void setMembers(Collection<String> members) {
+		this.members = members;
+	}
+
+	public boolean isMemberIsToBeIndexed() {
+		return memberIsToBeIndexed;
+	}
+
+	public void setMemberIsToBeIndexed(boolean memberIsToBeIndexed) {
+		this.memberIsToBeIndexed = memberIsToBeIndexed;
 	}
 	
 }

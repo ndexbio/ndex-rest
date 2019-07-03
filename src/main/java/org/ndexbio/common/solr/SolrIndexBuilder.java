@@ -175,41 +175,43 @@ public class SolrIndexBuilder implements AutoCloseable {
 	
 	private static void rebuildUserIndex() throws Exception {
 		logger.info("Start rebuild user index.");
-		try(UserIndexManager umgr = new UserIndexManager()) {
-		String coreName = UserIndexManager.coreName; 
-		CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
-		creator.setCoreName(coreName);
-		creator.setConfigSet( coreName); 
-		CoreAdminResponse foo = creator.process(umgr.client);		
-		
-		if ( foo.getStatus() != 0 ) {
-			throw new NdexException ("Failed to create solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
-		}
-		logger.info("Solr core " + coreName + " created.");		
+		try (UserIndexManager umgr = new UserIndexManager()) {
+			String coreName = UserIndexManager.coreName;
+			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
+			creator.setCoreName(coreName);
+			creator.setConfigSet(coreName);
+			CoreAdminResponse foo = creator.process(umgr.client);
 
-		try (UserDAO dao = new UserDAO ()) {
-			@SuppressWarnings("resource")
-			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\" from ndex_user n where n.is_deleted=false and n.is_verified=true";
-			
-			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-				try ( ResultSet rs = pst.executeQuery()) {
-					while (rs.next()) {
-					    UUID userId = (UUID)rs.getObject(1);
-					    try (UserDAO dao2 = new UserDAO()) {
-					    	User user = dao2.getUserById(userId, true, false);
-					    	if (user == null)
-					    		throw new NdexException ("User " + userId+ " can't be indexed because this account is not verified.");
-					    	logger.info("Adding user " + user.getUserName() + " to index.");
-					    	umgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), 
-					    			user.getLastName(), user.getDisplayName(), user.getDescription());
-					    	logger.info("User " + user.getUserName() + " added to index.");
-					    }
+			if (foo.getStatus() != 0) {
+				throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
+						+ foo.getResponseHeader().toString());
+			}
+			logger.info("Solr core " + coreName + " created.");
 
-					}   
+			try (UserDAO dao = new UserDAO()) {
+				@SuppressWarnings("resource")
+				Connection db = dao.getDBConnection();
+				String sqlStr = "select \"UUID\" from ndex_user n where n.is_deleted=false and n.is_verified=true";
+
+				try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+					try (ResultSet rs = pst.executeQuery()) {
+						while (rs.next()) {
+							UUID userId = (UUID) rs.getObject(1);
+							try (UserDAO dao2 = new UserDAO()) {
+								User user = dao2.getUserById(userId, true, false);
+								if (user == null)
+									throw new NdexException("User " + userId
+											+ " can't be indexed because this account is not verified.");
+								logger.info("Adding user " + user.getUserName() + " to index.");
+								umgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(),
+										user.getLastName(), user.getDisplayName(), user.getDescription());
+								logger.info("User " + user.getUserName() + " added to index.");
+							}
+
+						}
+					}
 				}
 			}
-		}
 		}
 		logger.info("User index has been rebuilt.");
 	}
@@ -254,6 +256,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 					}
 				}
 			}
+			
 			logger.info("Group index has been rebuilt.");
 		}
 	}

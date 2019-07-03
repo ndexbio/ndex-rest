@@ -38,7 +38,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -77,6 +79,10 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 	private HttpSolrClient client;
 	
 	private SolrInputDocument doc ;
+	
+	// holds the mapping between node ID and member attributes. 
+	// members will be added to the represent field as additional lists.
+	private Map<Long, Set<String>> nodeMembers;  
 	
 	public static final String UUID = "uuid";
 	private static final String NAME = "name";
@@ -133,6 +139,9 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		solrUrl = Configuration.getInstance().getSolrURL();
 		client = new HttpSolrClient.Builder(solrUrl).build();
 		doc = new SolrInputDocument();
+		
+		nodeMembers = new TreeMap<>();
+		
 /*		if ( attTable == null) { 
 			attTable = new HashMap<>(otherAttributes.size());
 			for ( String att : otherAttributes) {
@@ -231,13 +240,13 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 //		solrQuery.setQuery( searchTerms ).setFields(UUID);
 		solrQuery.setQuery("( " + searchTerms + " ) AND _val_:\"div(" + NDEX_SCORE+ ",10)\"" ).setFields(UUID);
     	solrQuery.set("defType", "edismax");
-		solrQuery.set("qf","uuid^20 name^11 description^5 labels^5 owner^3 networkType^5 organism^3 disease^3 tissue^3 author^2 methods text");
+		solrQuery.set("qf","uuid^20 name^10 description^5 labels^6 owner^2 networkType^4 organism^3 disease^3 tissue^3 author^2 methods nodeName represents alias rights^0.6 rightsHolder^0.6");
 		if ( offset >=0)
 		  solrQuery.setStart(offset);
 		if ( limit >0 )
 			solrQuery.setRows(limit);
 		else 
-			solrQuery.setRows(30000000);
+			solrQuery.setRows(100000);
 		
 		solrQuery.setFilterQueries(resultFilter) ;
 		
@@ -412,7 +421,7 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 			addStringAttribute(e, VERSION, warnings);			
 		} else {
 			if ( otherAttributes.contains(e.getName())  ) {
-				addStrinListgAttribute(e, e.getName(), warnings);
+				addStringListgAttribute(e, e.getName(), warnings);
 			}			
 		}
 		
@@ -428,7 +437,7 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 			warnings.add("Network attribute " + e.getName() + " is not indexed because its data type is not 'string'.");
 	}
 	
-	private void addStrinListgAttribute(NetworkAttributesElement e, String solrFieldName, List<String>  warnings ) {
+	private void addStringListgAttribute(NetworkAttributesElement e, String solrFieldName, List<String>  warnings ) {
 		if (e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
 			if ( e.getValue() !=null && e.getValue().length()>0)
 				doc.addField(solrFieldName, e.getValue());
@@ -455,6 +464,7 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		client.commit(false,true,true);
 		docs.clear();
 		doc = new SolrInputDocument();
+		nodeMembers = new TreeMap<>();
 
 	}
 	

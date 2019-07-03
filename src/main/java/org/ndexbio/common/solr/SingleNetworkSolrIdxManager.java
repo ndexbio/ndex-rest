@@ -229,6 +229,9 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			
 		Map<Long,NodeIndexEntry> tab = createIndexDocs(collectionName);
 		for ( NodeIndexEntry e : tab.values()) {
+			if ( e.isMemberIsToBeIndexed() && e.getMembers().size()>0) {
+				e.getRepresents().addAll(e.getMembers());
+			}
 			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
 		}
 		
@@ -299,11 +302,11 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			doc.addField(NAME, name);
 		if ( represents !=null && !represents.isEmpty()) {
 			for ( String rterm : represents )
-				doc.addField(REPRESENTS, rterm);
+				doc.addField(REPRESENTS, rterm.trim());
 		}	
 		if ( alias !=null && !alias.isEmpty()) {
 			for ( String aTerm : alias )
-				doc.addField(ALIAS, aTerm);
+				doc.addField(ALIAS, aTerm.trim());
 		}	
 //		if ( relatedTerms !=null && ! relatedTerms.isEmpty() ) 
 //			doc.addField(RELATEDTO, relatedTerms);
@@ -391,7 +394,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			e.printStackTrace();
 		}
 	}
-	private static Map<Long,NodeIndexEntry> createIndexDocs(String coreName) throws JsonProcessingException, IOException {
+	private static Map<Long,NodeIndexEntry> createIndexDocs(String coreName) throws JsonProcessingException, IOException, NdexException {
 		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
 		
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/aspects/"; 
@@ -449,7 +452,8 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 
 			while (it.hasNext()) {
 	        	NodeAttributesElement attr = it.next();
-	        	if ( attr.getName().equals("alias")) {
+	        	String attrName = attr.getName().toLowerCase(); // doing case insensitive check
+	        	if ( attrName.equals("alias")) {
 	        		List<String>  l = getIndexableTerms(attr);
 	        		if ( l.size() > 0 ) {
 	        			NodeIndexEntry e = result.get(attr.getPropertyOf());
@@ -459,8 +463,29 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	        			}
 	        			e.setAliases(l);
 	        		}
+	        	} else if ( attrName.equals("type")) {
+	        		if ( (attr.getDataType() == null || attr.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) && 
+	        				attr.getValue() != null && attr.getValue().length()>0 ) {
+	        			String typeStr = attr.getValue().trim().toLowerCase();
+	        			if ( typeStr.equals("complex") || typeStr.equals("proteinfamily")) {
+		        			NodeIndexEntry e = result.get(attr.getPropertyOf());
+		        			if ( e != null) {
+		        				e.setMemberIsToBeIndexed(true);
+		        			} else {
+		        				throw new NdexException("Node " + attr.getPropertyOf() + " is not found in node Aspect.");
+		        			}
+	        			}
+	        		}	
+	        	} else if ( attrName.equals("member")) {
+	        		NodeIndexEntry e = result.get(attr.getPropertyOf());
+        			if ( e != null) {
+    	        		List<String>  l = getIndexableTerms(attr);
+    	        		if ( l.size() > 0 ) 
+    	        			e.setMembers(l);
+        			} else {
+        				throw new NdexException("Node " + attr.getPropertyOf() + " is not found in node Aspect.");
+        			}
 	        	}
-	   
 			}
 		}
 		
