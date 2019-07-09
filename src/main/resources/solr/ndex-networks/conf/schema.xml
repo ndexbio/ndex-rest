@@ -17,7 +17,7 @@
    <field name="nodeCount" type="pint" indexed="true" stored="false"  />
    <field name="userRead" type="string" indexed="true" stored="false"  multiValued="true"/>
    <field name="userEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="owner" type="lowercase" indexed="true" stored="false"  multiValued="true"/>
+   <field name="owner" type="text_ws" indexed="true" stored="false"  multiValued="true"/>
    <field name="grpRead" type="string" indexed="true" stored="false"  multiValued="true"/>
    <field name="grpEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
    <field name="grpAdmin" type="string" indexed="true" stored="false"  multiValued="true"/>
@@ -26,10 +26,10 @@
    
   <!-- some fields that should be useful for biological networks -->
    <field name="nodeName" type="text_ws" indexed="true" stored="false"  multiValued="true"/>
-   <field name="NCBIGeneID" type="string" indexed="true" stored="false" multiValued="true" />
-   <field name="geneSymbol" type="string" indexed="true" stored="false"  multiValued="true" />
-   <field name="represents" type="lowercase" indexed="true" stored="false"  multiValued="true" />
-   <field name="alias" type="lowercase" indexed="true" stored="false"  multiValued="true" />
+   <field name="NCBIGeneID" type="text_ws" indexed="true" stored="false" multiValued="true" />
+   <field name="geneSymbol" type="text_ws" indexed="true" stored="false"  multiValued="true" />
+   <field name="represents" type="text_ws" indexed="true" stored="false"  multiValued="true" />
+   <field name="alias" type="text_ws" indexed="true" stored="false"  multiValued="true" />
 <!--  <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />   -->  
    
    

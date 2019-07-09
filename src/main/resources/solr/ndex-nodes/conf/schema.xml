@@ -12,8 +12,8 @@
    <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false" /> 
         
    <field name="nodeName" type="text_ws" indexed="true" stored="false" required="false" multiValued="false" />
-   <field name="represents" type="lowercase" indexed="true" stored="false" required="false" multiValued="true" />
-   <field name="alias" type="lowercase" indexed="true" stored="false" required="false" multiValued="true" />
+   <field name="represents" type="text_ws" indexed="true" stored="false" required="false" multiValued="true" />
+   <field name="alias" type="text_ws" indexed="true" stored="false" required="false" multiValued="true" />
 
  <uniqueKey>id</uniqueKey>
 

@@ -558,22 +558,22 @@ public class NetworkService extends NdexService {
 			} 
 			
 			Map<String,String> newValues = new HashMap<> ();
-	        List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
+	    //    List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
 
 			if ( partialSummary.getName() != null) {
 				newValues.put(NdexClasses.Network_P_name, partialSummary.getName());
-			    entityProperties.add( new SimplePropertyValuePair("dc:title", partialSummary.getName()) );
+//			    entityProperties.add( new SimplePropertyValuePair("dc:title", partialSummary.getName()) );
 			}
 					
 			if ( partialSummary.getDescription() != null) {
 					newValues.put( NdexClasses.Network_P_desc, partialSummary.getDescription());
-		            entityProperties.add( new SimplePropertyValuePair("description", partialSummary.getDescription()) );
+//		            entityProperties.add( new SimplePropertyValuePair("description", partialSummary.getDescription()) );
 			}
 				
 			if ( partialSummary.getVersion()!=null ) {
 					newValues.put( NdexClasses.Network_P_version, partialSummary.getVersion());
-		            entityProperties.add( new SimplePropertyValuePair("version", partialSummary.getVersion()) );
-			}
+	//	            entityProperties.add( new SimplePropertyValuePair("version", partialSummary.getVersion()) );
+			} 
 
 			if ( newValues.size() > 0 ) { 
 				

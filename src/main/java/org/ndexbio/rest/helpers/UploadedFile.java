@@ -33,6 +33,7 @@ package org.ndexbio.rest.helpers;
 import javax.ws.rs.FormParam;
 import org.jboss.resteasy.annotations.providers.multipart.PartType;
 
+@Deprecated
 public class UploadedFile
 {
     private byte[] _fileData;

@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -350,8 +351,6 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 	}
 	
 
-	
-	
 	public void addCXNodeToIndex(NodesElement node)  {
 			
 		   if ( node.getNodeName() != null ) 
@@ -380,6 +379,39 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 				for ( String indexableString : getIndexableString(v) ){
 					doc.addField(ALIASES, indexableString);
 				}
+			}
+		} else if ( e.getName().toLowerCase().equals("type")) {
+			if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
+				String v = e.getValue().toLowerCase();
+				if ( v.equals("complex") || v.equals("proteinfamily")) {
+					Set<String> members = nodeMembers.get(e.getPropertyOf());
+					if ( members != null) {  // saw the member attribute on this node before
+						for ( String memberIdStr : members) {
+							for ( String indexableString : getIndexableString(memberIdStr) ){
+								doc.addField(REPRESENTS, indexableString);
+							}
+						}
+						nodeMembers.remove(e.getPropertyOf());
+					}
+					else {
+						nodeMembers.put(e.getPropertyOf(), new TreeSet<String>());
+					}
+				}
+			}
+		} else if (  e.getName().toLowerCase().equals("member")) {
+			if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
+				Set<String> members = nodeMembers.get(e.getPropertyOf());
+				if ( members != null) {  // this node is proteinfamily or complex
+					for ( String memberIdStr : e.getValues()) {
+						for ( String indexableString : getIndexableString(memberIdStr) ){
+							doc.addField(REPRESENTS, indexableString);
+						}
+					}
+					nodeMembers.remove(e.getPropertyOf());
+				} else {
+					members = new HashSet<>(e.getValues());
+					nodeMembers.put(e.getPropertyOf(), members);
+				}		
 			}
 		}
 

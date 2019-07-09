@@ -65,7 +65,7 @@ public class AmazonSESMailSender {
     		        // Create a Properties object to contain connection configuration information.
     		    	Properties props = System.getProperties();
     		    	props.put("mail.transport.protocol", "smtps");
-    		    	props.put("mail.smtp.port", PORT); 
+    		    	props.put("mail.smtp.port", Integer.valueOf(PORT)); 
     		    	
     		    	// Set properties indicating that we want to use STARTTLS to encrypt the connection.
     		    	// The SMTP session will begin on an unencrypted connection, and then the client

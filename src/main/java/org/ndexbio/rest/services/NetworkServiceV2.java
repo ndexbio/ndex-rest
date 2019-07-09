@@ -262,8 +262,6 @@ public class NetworkServiceV2 extends NdexService {
 			} 
 			
 			if ( !daoNew.isWriteable(networkUUID, user.getExternalId())) {
-				logger.error("[end: No write permissions for user account {} on network {}]", 
-						user.getUserName(), networkId);
 		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 			} 
 			
@@ -1118,7 +1116,7 @@ public class NetworkServiceV2 extends NdexService {
 				
 				networkDao.updateNetworkSummary(networkUUID, summary);
 
-		        List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
+		  /*      List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
 
 				if ( summary.getName() != null) {
 				    entityProperties.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
@@ -1130,8 +1128,8 @@ public class NetworkServiceV2 extends NdexService {
 					
 				if ( summary.getVersion()!=null ) {
 			            entityProperties.add( new SimplePropertyValuePair("version", summary.getVersion()) );
-				}
-
+				} 
+*/
 				
 					NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
 					
