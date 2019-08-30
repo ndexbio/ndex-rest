@@ -30,11 +30,7 @@
  */
 package org.ndexbio.common.models.dao.postgresql;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
 import java.sql.Array;
 import java.sql.PreparedStatement;
@@ -57,7 +53,6 @@ import java.util.regex.Pattern;
 
 import javax.xml.bind.DatatypeConverter;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
@@ -79,7 +74,6 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
-import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -1705,15 +1699,18 @@ public class NetworkDAO extends NdexDBDAO {
     }
     
     /**
-     * Becareful when using this function, it commit the db connection of the current DAO object.
+     * Be careful when using this function, it commit the db connection of the current DAO object.
      * 
      * @param networkId
-     * @param ErrorMessage
+     * @param errorMessage
      */
-    public void setErrorMessage(UUID networkId, String ErrorMessage) {
+    public void setErrorMessage(UUID networkId, String errorMessage) {
     	String sql = "update network set error = ? where \"UUID\" = ? and is_deleted=false";
+    	
+    	String trimedMsg = ( errorMessage.length()>2000) ?
+    			(errorMessage.substring(0, 1996) + "...") : errorMessage ;
     	try ( PreparedStatement pst = db.prepareStatement(sql)) {
-    		pst.setString(1, ErrorMessage);
+    		pst.setString(1, trimedMsg);
     		pst.setObject(2, networkId);
     		int i = pst.executeUpdate();
     		if ( i !=1)

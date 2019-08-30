@@ -47,6 +47,7 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.tools.SearchUtilities;
 import org.ndexbio.rest.Configuration;
 
 public class GroupIndexManager implements AutoCloseable{
@@ -101,7 +102,7 @@ public class GroupIndexManager implements AutoCloseable{
 
 		SolrQuery solrQuery = new SolrQuery();	
 			
-		solrQuery.setQuery(searchTerms).setFields(UUID);
+		solrQuery.setQuery(SearchUtilities.preprocessSearchTerm(searchTerms)).setFields(UUID);
 		if ( searchTerms.equalsIgnoreCase("*:*"))
 			solrQuery.setSort(UUID, ORDER.desc);
 		if ( offset >=0)

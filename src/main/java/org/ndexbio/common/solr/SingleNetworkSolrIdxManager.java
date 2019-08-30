@@ -61,6 +61,7 @@ import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.tools.SearchUtilities;
 import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -99,7 +100,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 
 		SolrQuery solrQuery = new SolrQuery();
 		
-		solrQuery.setQuery(query).setFields(ID);
+		solrQuery.setQuery(SearchUtilities.preprocessSearchTerm(query)).setFields(ID);
     	solrQuery.set("defType", "edismax");
 		solrQuery.set("qf", NAME + " " + REPRESENTS + " " + ALIAS);
 		solrQuery.setStart(0);

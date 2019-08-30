@@ -58,6 +58,7 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.model.tools.SearchUtilities;
 import org.ndexbio.model.tools.TermUtilities;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
@@ -239,7 +240,7 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 			solrQuery.setSort(MODIFICATION_TIME, ORDER.desc);
 
 //		solrQuery.setQuery( searchTerms ).setFields(UUID);
-		solrQuery.setQuery("( " + searchTerms + " ) AND _val_:\"div(" + NDEX_SCORE+ ",10)\"" ).setFields(UUID);
+		solrQuery.setQuery("( " + SearchUtilities.preprocessSearchTerm(searchTerms) + " ) AND _val_:\"div(" + NDEX_SCORE+ ",10)\"" ).setFields(UUID);
     	solrQuery.set("defType", "edismax");
 		solrQuery.set("qf","uuid^20 name^10 description^5 labels^6 owner^2 networkType^4 organism^3 disease^3 tissue^3 author^2 methods nodeName represents alias rights^0.6 rightsHolder^0.6");
 		if ( offset >=0)
