@@ -395,6 +395,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/aspect/{aspectname}/metadata")
+	@Produces("application/json")
 	
 	public MetaDataElement getNetworkCXMetadata(	
 			@PathParam("networkid") final String networkId,
