@@ -54,12 +54,16 @@ public class SolrIndexBuilder implements AutoCloseable {
 		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
 		  if (summary == null)
 			  throw new NdexException ("Network "+ networkid + " not found in the server." );
+		  
+		  if (!ignoreDeletion) {
+				globalIdx.deleteNetwork(networkid.toString());
+				globalIdx.commit();
+		  }		
 		  if (rebuildLocal) {
 				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkid.toString())) {
 
 					// drop the old ones.
 					if (!ignoreDeletion) {
-						globalIdx.deleteNetwork(networkid.toString());
 						try {
 							idx2.dropIndex();
 						} catch (IOException | SolrServerException | NdexException e) {
@@ -173,6 +177,18 @@ public class SolrIndexBuilder implements AutoCloseable {
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
 	
+	
+	private  void rebuildSingleNetworkIndex (UUID networkid) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+		try (NetworkDAO dao = new NetworkDAO()) {
+		  logger.info("Rebuild solr index of network " + networkid);
+		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
+		  if (summary == null)
+			  throw new NdexException ("Network "+ networkid + " not found in the server." );
+		  
+		  rebuildNetworkIndex(networkid, summary.getIndexLevel(), false,summary.getNodeCount() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD);
+		}  
+	}	  
+	
 	private static void rebuildUserIndex() throws Exception {
 		logger.info("Start rebuild user index.");
 		try (UserIndexManager umgr = new UserIndexManager()) {
@@ -283,13 +299,13 @@ public class SolrIndexBuilder implements AutoCloseable {
 				SolrIndexBuilder.rebuildGroupIndex();
 				break;
 			default:	
-				builder.rebuildNetworkIndex(UUID.fromString(args[0]), NetworkIndexLevel.valueOf(args[1]), false, Boolean.getBoolean(args[2]));
+				builder.rebuildSingleNetworkIndex(UUID.fromString(args[0]));
 				builder.globalIdx.commit();
 				
 			}
 			logger.info("Index rebuid process finished.");
 		} else {
-			System.out.println("Supported argument: all/user/group/<networkid true|false>");
+			System.out.println("Supported argument: all/user/group/<networkUUID>");
 			System.out.println("For the boolean argument after network ID, true means rebuild the Single Network index.");
 		}
 		

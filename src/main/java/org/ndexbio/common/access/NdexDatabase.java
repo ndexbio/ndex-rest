@@ -99,7 +99,7 @@ public class NdexDatabase {
 	         return INSTANCE;
 		} 
 		
-		throw new NdexException("Database has arlready been  opened.");
+		throw new NdexException("Database has already been opened.");
 		
 	}
 

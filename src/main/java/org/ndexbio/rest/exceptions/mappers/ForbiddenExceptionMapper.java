@@ -43,7 +43,7 @@ import org.slf4j.MDC;
 @Provider
 public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenOperationException>
 {
-	static Logger logger = LoggerFactory.getLogger(ObjectNotFoundExceptionMapper.class);
+	static Logger logger = LoggerFactory.getLogger(ForbiddenExceptionMapper.class);
 
     @Override
     public Response toResponse(ForbiddenOperationException exception)
