@@ -285,22 +285,6 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 			  				
 				//recreate CX file
-/*				ProvenanceEntity provenanceEntity = dao.getProvenance(networkId);
-				
-				List<SimplePropertyValuePair> pProps =provenanceEntity.getProperties();
-				
-			    if ( summary.getName() != null)
-			       pProps.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
-
-			    provenanceEntity.setProperties(pProps); 
-			    
-			    if (this.provenanceHistory != null) {
-			    	ProvenanceEntity oldEntity = this.provenanceHistory.getEntity();
-			    	provenanceEntity.getCreationEvent().setInputs(new ArrayList<ProvenanceEntity>(1));
-			    	provenanceEntity.getCreationEvent().addInput(oldEntity);
-			    }
-			    
-				dao.setProvenance(networkId, provenanceEntity); */
 				
 				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
 				String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
@@ -350,91 +334,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	}
 	
-	/**
-	 * This function is only for migrating db. It validates and creates network files in NDEx file store, but doesn't update the main network table record. Solr indexes
-	 * are not created either.
-	 * @throws SolrServerException 
-	 * 
 
-	 */
-/*
-	public void importNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {
-	    
-		 //   try {
-		    	
-		      //Create dir
-			  java.nio.file.Path dir = Paths.get(rootPath);
-			  Files.createDirectory(dir);
-
-			  globalIdx = new NetworkGlobalIndexManager();
-				
-			  try (	InputStream inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx") ) {
-			  
-			  persistNetworkData(inputStream); 
-			  
-			  logger.info("aspects have been stored.");
-			  
-			  NetworkSummary summary = dao.getNetworkSummaryById(networkId);
-			  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
-				if ( isUpdate ) {
-					this.globalIdx.deleteNetwork(networkId.toString());
-					idx2.dropIndex();		
-				}	
-				
-				createSolrIndex(summary);
-				idx2.createIndex(null);
-				//idx2.close();
-			  } 			  
-			 // create the network sample if the network has more than 500 edges
-			 if (this.edgeIdTracker.getDefinedElementSize() > CXNetworkSampleGenerator.sampleSize)  {
-				  
-						Long subNetworkId = null;
-						if (subNetworkIds.size()>1 )  {
-							for ( Long i : subNetworkIds) {
-								subNetworkId = i;
-								break;
-							}
-						}
-						CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(this.networkId, subNetworkId, metadata);
-						g.createSampleNetwork();
-				  
-				}
-				  				
-			 
-
-				try {
-					dao.saveNetworkMetaData(this.networkId,metadata);
-					dao.setWarning(networkId, warnings);
-					dao.setSubNetworkIds(networkId, subNetworkIds);		
-					dao.updateNetworkProperties(networkId, properties);
-					dao.commit();
-				} catch (SQLException e) {
-					dao.rollback();
-					throw new NdexException ("DB error when setting iscomplete flag: " + e.getMessage(), e);
-				}
-					//recreate CX file
-					ProvenanceEntity provenanceEntity = dao.getProvenance(networkId);
-					CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao, new Provenance(provenanceEntity));
-					String tmpFileName = g.createNetworkFile();
-					
-					java.nio.file.Path src = Paths.get(tmpFileName);
-					java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
-					java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.arc");
-					
-					Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
-					Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
-					
-					try {
-						dao.setFlag(this.networkId, "iscomplete", true);
-						dao.setFlag(this.networkId, "is_validated", true);
-						dao.commit();
-					} catch (SQLException e) {
-						dao.rollback();
-						throw new NdexException ("DB error when setting iscomplete flag: " + e.getMessage(), e);
-					}
-			  }
-		}
-*/
 	
 	/** 
 	 * If it is called from a network import function ( db migrator), we don't remove the provenance entry from the metadata.
@@ -602,8 +502,6 @@ public class CXNetworkLoader implements AutoCloseable {
 						  if (actualCount == 0) {
 							  //metadata.remove(e.getName());
 						    tobeRemovedMetaData.add(e.getName());
-
-						//	  warnings.add("Metadata element of aspect " + e.getName() + " is removed by NDEx because no element was found in the CX document.");
 						  }
 					  }
 		//		  }
@@ -616,9 +514,10 @@ public class CXNetworkLoader implements AutoCloseable {
 				     consistencyGrpIds.add(cGrpIds); */
 			  }
 			  
-			  for (String name : tobeRemovedMetaData)
+			  for (String name : tobeRemovedMetaData) {
 				  metadata.remove(name);
-			  
+		 	      warnings.add("Metadata of aspect " + name + " is removed by NDEx server because this aspect has no data in it.");
+			  }
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
 				  if ( metadata.getMetaDataElement(aspectName) == null) {
