@@ -502,6 +502,7 @@ public class CXNetworkLoader implements AutoCloseable {
 						  if (actualCount == 0) {
 							  //metadata.remove(e.getName());
 						    tobeRemovedMetaData.add(e.getName());
+					 	    warnings.add("Metadata of aspect " + e.getName() + " is removed by NDEx server because this aspect has no data in it.");
 						  }
 					  }
 		//		  }
@@ -516,7 +517,6 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 			  for (String name : tobeRemovedMetaData) {
 				  metadata.remove(name);
-		 	      warnings.add("Metadata of aspect " + name + " is removed by NDEx server because this aspect has no data in it.");
 			  }
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
