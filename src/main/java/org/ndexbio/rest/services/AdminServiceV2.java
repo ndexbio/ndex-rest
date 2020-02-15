@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
@@ -213,7 +214,8 @@ public class AdminServiceV2 extends NdexService {
 					  messageBody += "<p>Additional information: <br>" + stringMapTable.toString() ;
 				}
 				
-		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", 
+		        		Matcher.quoteReplacement(messageBody)) ;
 
 		        AmazonSESMailSender.getInstance().sendEmail(adminEmailAddress, 
 		        		  htmlEmail, "DOI request on NDEx Network", "html");
@@ -249,7 +251,8 @@ public class AdminServiceV2 extends NdexService {
 				String messageBody = "Dear NDEx Administrator,<p>User " + user.getUserName() + " has cancelled the DOI request on network '" +
 				        name + "' (UUID: " + networkId + ").<br>";
 				
-		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", messageBody) ;
+		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", 
+		        		Matcher.quoteReplacement(messageBody)) ;
 
 		        AmazonSESMailSender.getInstance().sendEmail(adminEmailAddress, 
 		        		  htmlEmail, "A DOI request is cancelled on NDEx Network", "html");

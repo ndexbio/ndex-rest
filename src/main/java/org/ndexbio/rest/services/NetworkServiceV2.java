@@ -686,42 +686,7 @@ public class NetworkServiceV2 extends NdexService {
 		
 	}
 
-/*	
-	private class CXNetworkAspectsWriterThread extends Thread {
-		private OutputStream o;
-		private String networkId;
-		private Set<String> aspects;
-		
-		public CXNetworkAspectsWriterThread (OutputStream out, String networkId, Set<String> aspectNames) {
-			o = out;
-			this.networkId = networkId;
-			this.aspects = aspectNames;
-		}
-		
-		public void run() {
-			try (CXNetworkExporter dao = new CXNetworkExporter (networkId)) {
-				    dao.writeAspectsInCX(o, aspects, true);
-			} catch (IOException e) {
-					logger.error("IOException in CXNetworkAspectsWriterThread: " + e.getMessage());
-					e.printStackTrace();
-			} catch (NdexException e1) {
-			     logger.error("Ndex error: " + e1.getMessage());
-			     e1.printStackTrace();
-			} catch (Exception e1) {
-				logger.error("Ndex exception: " + e1.getMessage());
-				e1.printStackTrace();
-			} finally {
-				try {
-					o.flush();
-					o.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-					logger.error("Failed to close outputstream in CXNetworkAspectsWriterThread. " + e.getMessage());
-				} 
-			} 
-		}
-		
-	}  */
+
 	
 
 	/**************************************************************************
