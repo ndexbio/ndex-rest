@@ -49,6 +49,7 @@
 			<version>${jacksonVersion}</version>
 		</dependency>
 
+    
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-jaxrs</artifactId>
@@ -72,7 +73,6 @@
 			<artifactId>resteasy-multipart-provider</artifactId>
 			<version>${resteasyVersion}</version>
 		</dependency>
-
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
@@ -257,7 +257,7 @@
 			<plugin>
 				<groupId>org.eclipse.jetty</groupId>
 				<artifactId>jetty-maven-plugin</artifactId>
-				<version>9.2.5.v20141112</version>
+				<version>${jettyVersion}</version>
 			</plugin>
 
 			<!-- the "maven-war-plugin" below generates the "ndexbio-rest-{project.artifactId}-${project.version}.jar" 
@@ -373,10 +373,10 @@
 		</plugins>
 	</build>
 	<properties>
-		<jettyVersion>9.3.18.v20170406</jettyVersion>
+		<jettyVersion>9.3.28.v20191105</jettyVersion>
 		<resteasyVersion>3.1.4.Final</resteasyVersion>
 		<!-- <log4jVersion>2.8.2</log4jVersion> -->
-		<jacksonVersion>2.9.9</jacksonVersion>
+		<jacksonVersion>2.10.4</jacksonVersion>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 </project>

@@ -31,6 +31,7 @@
 package org.ndexbio.common.persistence;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -50,6 +51,7 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.cx2.converter.CXToCX2Converter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
@@ -96,6 +98,9 @@ import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+
 public class CXNetworkLoader implements AutoCloseable {
 	
     protected static Logger logger = LoggerFactory.getLogger(CXNetworkLoader.class);
@@ -139,7 +144,6 @@ public class CXNetworkLoader implements AutoCloseable {
 	protected List<NdexPropertyValuePair> properties;
 		
 	protected Map<String,CXAspectWriter> aspectTable;
-//	private NetworkGlobalIndexManager globalIdx ;
 	protected List<String> warnings;
 	private NetworkDAO dao;
 	private VisibilityType visibility;
@@ -160,8 +164,6 @@ public class CXNetworkLoader implements AutoCloseable {
 				
 		serverElementLimit = Configuration.getInstance().getServerElementLimit();
 		
-	//	globalIdx = null;
-
 		warnings = new ArrayList<> ();
 		networkNameIsAssigned = false;
 
@@ -284,19 +286,9 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 				}
 			  				
-				//recreate CX file
+				//recreate CX and CX2 files
+				reCreateCXFiles(networkId,dao);
 				
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
-				String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
-				
-				java.nio.file.Path src = Paths.get(tmpFileName);
-				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
-				java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.arc");
-				
-				Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
-				Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
-				
-
 				try {
 					if ( !isUpdate) {
 						dao.setFlag(this.networkId, "iscomplete", true);
@@ -332,6 +324,25 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 		  }
 
+	}
+
+	public static void reCreateCXFiles(UUID networkId, NetworkDAO dao ) throws JsonParseException, JsonMappingException, SQLException, IOException,
+			NdexException, FileNotFoundException {
+		CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
+		String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
+		
+		java.nio.file.Path src = Paths.get(tmpFileName);
+		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
+		java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.arc");
+		
+		Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
+		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
+		
+		// create the CX2 file
+		CXToCX2Converter cvtr = new CXToCX2Converter(tgt.toString(),null,
+				Configuration.getInstance().getNdexRoot() + "/data/" +networkId + "/net2.cx");
+		
+		cvtr.convert();
 	}
 	
 

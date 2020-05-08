@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.cx2.converter.CXToCX2Converter;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
@@ -105,27 +106,9 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 			  
 				}
 			  				
-				// update provenance
-				
-/*				ProvenanceEntity provenanceEntity = dao.getProvenance(networkUUID);
-				
-				List<SimplePropertyValuePair> pProps =provenanceEntity.getProperties();
-				
-				    if ( summary.getName() != null)
-				       pProps.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
-
-				    provenanceEntity.setProperties(pProps); 
-				    
-				if (this.provenanceHistory != null) {
-					ProvenanceEntity oldEntity = this.provenanceHistory.getEntity();
-					provenanceEntity.getCreationEvent().setInputs(new ArrayList<ProvenanceEntity>(1));
-					provenanceEntity.getCreationEvent().addInput(oldEntity);
-				}
-					    
-				dao.setProvenance(networkUUID, provenanceEntity); */
-				
 				//recreate CX file
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkUUID, dao /*, new Provenance(provenanceEntity)*/);
+				CXNetworkLoader.reCreateCXFiles(networkUUID, dao);
+				/*CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkUUID, dao );
 				String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkUUID.toString(), g.getMetaData());
 				
 				long fileSize = new File(tmpFileName).length();
@@ -138,6 +121,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 				Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 				
+				 */
 
 			try {
 				dao.unlockNetwork(networkUUID);
