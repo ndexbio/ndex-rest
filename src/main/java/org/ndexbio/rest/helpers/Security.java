@@ -32,10 +32,10 @@ package org.ndexbio.rest.helpers;
 
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.List;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.MultivaluedMap;
-import org.jboss.resteasy.util.Base64;
 
 public class Security
 {
@@ -156,7 +156,7 @@ public class Security
             return null;
 
         final String encodedAuthInfo = authHeader.get(0).replaceFirst("Basic" + " ", "");
-        final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+        final String decodedAuthInfo = new String(Base64.getDecoder().decode(encodedAuthInfo));
         
         return decodedAuthInfo.split(":");
     }

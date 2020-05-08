@@ -49,13 +49,18 @@
 			<version>${jacksonVersion}</version>
 		</dependency>
 
-    
+      	<dependency>
+            <groupId>org.jboss.resteasy</groupId>
+            <artifactId>resteasy-crypto</artifactId>
+            <version>${resteasyVersion}</version>
+        </dependency>
+<!--        
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-jaxrs</artifactId>
 			<version>${resteasyVersion}</version>
 		</dependency>
-
+-->
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-jaxb-provider</artifactId>
@@ -374,7 +379,7 @@
 	</build>
 	<properties>
 		<jettyVersion>9.3.28.v20191105</jettyVersion>
-		<resteasyVersion>3.1.4.Final</resteasyVersion>
+		<resteasyVersion>4.5.3.Final</resteasyVersion>
 		<!-- <log4jVersion>2.8.2</log4jVersion> -->
 		<jacksonVersion>2.10.4</jacksonVersion>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

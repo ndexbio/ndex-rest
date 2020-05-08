@@ -32,11 +32,11 @@ package org.ndexbio.rest.services;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Base64;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.jboss.resteasy.util.Base64;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.User;
@@ -187,7 +187,7 @@ public abstract class NdexService
     }
     
 	protected static UUID getUserIdFromBasicAuthString(String encodedAuthInfo) throws Exception {
-		final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+		final String decodedAuthInfo = new String(Base64.getDecoder().decode(encodedAuthInfo));
 		int idx = decodedAuthInfo.indexOf(":");
 		if (idx == -1)
 			throw new UnauthorizedOperationException("Malformed authorization value received.");
