@@ -473,11 +473,13 @@ public class CXNetworkLoader implements AutoCloseable {
 			  for ( MetaDataElement e: metadata) {
 
 				  // check if idCounter is defined in certain espects.
+				  /* this is no longer required so that a CX2 network can be converted back to cx1
 				  if (  (e.getName().equals(NodesElement.ASPECT_NAME) || e.getName().equals(EdgesElement.ASPECT_NAME) || 
 								  e.getName().equals(CitationElement.ASPECT_NAME) || 
 								  e.getName().equals(SupportElement.ASPECT_NAME) ) 
 						  &&  e.getIdCounter() == null ) 
  						   throw new NdexException ( "Idcounter value is not found in metadata of aspect " + e.getName());
+				  */
 				  
 				  //check if elementCount is missing in metadata
 				  Long cntObj = e.getElementCount();

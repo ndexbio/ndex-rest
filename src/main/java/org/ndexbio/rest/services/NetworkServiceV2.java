@@ -132,6 +132,8 @@ public class NetworkServiceV2 extends NdexService {
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 	
 	static private final String readOnlyParameter = "readOnly";
+	
+	private static final String cx1NetworkFileName = "network.cx";
 
 	public NetworkServiceV2(@Context HttpServletRequest httpRequest
 		//	@Context org.jboss.resteasy.spi.HttpResponse response
@@ -503,7 +505,7 @@ public class NetworkServiceV2 extends NdexService {
     		title = dao.getNetworkName(networkUUID);
     	}
   
-		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx";
+		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + cx1NetworkFileName;
 
     	try {
 			FileInputStream in = new FileInputStream(cxFilePath)  ;
@@ -1273,7 +1275,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 				try (InputStream in = this.getInputStreamFromRequest()) {
-					UUID tmpNetworkId = storeRawNetworkFromStream(in);
+					UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName);
 					// UUID tmpNetworkId = storeRawNetwork (input);
 
 					updateNetworkFromSavedFile(networkId, daoNew, tmpNetworkId);
@@ -1403,7 +1405,7 @@ public class NetworkServiceV2 extends NdexService {
 	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			try (InputStream in = this.getInputStreamFromRequest()) {
 
-	        UUID tmpNetworkId = storeRawNetworkFromStream(in); //network stored as a temp network
+	        UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName); //network stored as a temp network
 	        
 	    	updateNetworkFromSavedAspects( networkId, daoNew, tmpNetworkId);
 			}
@@ -1787,7 +1789,7 @@ public class NetworkServiceV2 extends NdexService {
 		   }
 		   
 		   try (InputStream in = this.getInputStreamFromRequest()) {
-			   UUID uuid = storeRawNetworkFromStream(in);
+			   UUID uuid = storeRawNetworkFromStream(in, "network.cx");
 			   return processRawNetwork(visibility, extraIndexOnNodes, uuid);
 
 		   }		   
@@ -1795,7 +1797,7 @@ public class NetworkServiceV2 extends NdexService {
 	   	}
 	   
 	   
-	   private static UUID storeRawNetworkFromStream(InputStream in) throws IOException {
+/*	   private static UUID storeRawNetworkFromStream(InputStream in) throws IOException {
 		   
 		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuid.toString();
@@ -1817,7 +1819,7 @@ public class NetworkServiceV2 extends NdexService {
 		   } 
 		   return uuid;
 	   }
-	   
+*/	   
 	   
 	   private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException, BadRequestException {
 		   Map<String, List<InputPart>> uploadForm = input.getFormDataMap();

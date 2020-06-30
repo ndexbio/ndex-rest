@@ -35,14 +35,13 @@ public class AspectElementIdTracker {
 			undefinedIds.put(id, aspect);
 	}
 	
-	public void addDefinedElementId(long id) throws NdexException {
+	public void addDefinedElementId(Long id) throws NdexException {
 		
-		Long ID = Long.valueOf(id);
-		if ( !this.definedIds.add(ID)) {
+		if ( !this.definedIds.add(id)) {
 			throw new NdexException ("Duplicate Id " + id + " found in aspect" + aspectName );
 		}
 		
-		undefinedIds.remove(ID);
+		undefinedIds.remove(id);
 	}
 	
 	public boolean hasUndefinedIds () {return undefinedIds.size()>0;}

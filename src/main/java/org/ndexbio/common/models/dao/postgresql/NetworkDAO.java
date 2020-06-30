@@ -58,6 +58,7 @@ import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
+import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
@@ -80,6 +81,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
@@ -208,27 +210,6 @@ public class NetworkDAO extends NdexDBDAO {
 			st.executeUpdate();
 		}		
 		
-	/*	
-		// move the row network to archive folder and delete the folder
-	    String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId.toString();
-        String archivePath = Configuration.getInstance().getNdexRoot() + "/data/_archive/";
-        
-        File archiveDir = new File(archivePath);
-        if (!archiveDir.exists())
-        		archiveDir.mkdir();
-        
-        
-     //   java.nio.file.Path src = Paths.get(pathPrefix+ "/network.cx");     
-	//	java.nio.file.Path tgt = Paths.get(archivePath + "/" + networkId.toString() + ".cx");
-		
-		try {
-		//	Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE); 	
-		
-			FileUtils.deleteDirectory(new File(pathPrefix));
-		} catch (IOException e) {
-			logger.severe("Failed to move file and delete directory: "+ e.getMessage());
-			e.printStackTrace();
-		} */
 	}
 	
 
@@ -247,16 +228,6 @@ public class NetworkDAO extends NdexDBDAO {
 	
 	public String getNetworkName(UUID networkId) throws SQLException, NdexException {
 		return getStringField(networkId, "name");
-	/* String sqlStr = "select name from network where  is_deleted=false and  \"UUID\" = ? ";
-		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setObject(1, networkId);
-			try (ResultSet rs = pst.executeQuery()) {
-				if ( rs.next()) {
-					return rs.getString(1);
-				}
-				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
-			}
-		}	*/
 	}
 
 	public String getNetworkDOI(UUID networkId) throws SQLException, NdexException {
@@ -428,7 +399,62 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 	}
 
-
+	/**
+	 * Pass in a partial summary to initialize the db entry. Only the name, description, version, edge and node counts are used
+	 * in this function.
+	 * @param networkSummary
+	 * @throws SQLException 
+	 * @throws NdexException 
+	 * @throws JsonProcessingException 
+	 */
+	public void saveCX2NetworkEntry(NetworkSummary networkSummary, Map<String,CxMetadata> metadata, boolean setModificationTime) throws SQLException, NdexException, JsonProcessingException {
+		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
+				+ "properties = ? ::jsonb, cxmetadata = ? :: json, warnings = ?, subnetworkids = ?, "
+				+ (setModificationTime? "modification_time = localtimestamp, " : "") 
+				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setString(1,networkSummary.getName());
+			pst.setString(2, networkSummary.getDescription());
+			pst.setString(3, networkSummary.getVersion());
+			pst.setInt(4, networkSummary.getEdgeCount());
+			pst.setInt(5, networkSummary.getNodeCount());
+			
+			if ( networkSummary.getProperties()!=null && networkSummary.getProperties().size() >0 ) {
+				ObjectMapper mapper = new ObjectMapper();
+		        String s = mapper.writeValueAsString( networkSummary.getProperties());
+				pst.setString(6, s);
+			} else {
+				pst.setString(6, null);
+			}
+					
+			if (metadata !=null) {
+				ObjectMapper mapper = new ObjectMapper();
+				Map<String, List<CxMetadata>> mp = new HashMap<>();
+				mp.put(MetaDataCollection.NAME, new ArrayList<>(metadata.values()));
+		        String s = mapper.writeValueAsString( mp);
+				pst.setString(7, s);
+			}	else 
+				pst.setString(7, null);
+			
+			// set warnings
+			String[] warningArray = networkSummary.getWarnings().toArray(new String[0]);
+			Array arrayWarnings = db.createArrayOf("text", warningArray);
+			pst.setArray(8, arrayWarnings);
+			
+			//set subnetworkIds
+			Long[] subNetIds = networkSummary.getSubnetworkIds().toArray(new Long[0]);
+			Array subNetworkIds = db.createArrayOf("bigint", subNetIds);
+			pst.setArray(9, subNetworkIds);
+			
+			pst.setObject(10, networkSummary.getExternalId());
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to update network summary entry in db.");
+		} 
+	}
+	
+	
+/*
 	public void saveNetworkMetaData(UUID networkId, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set  cxmetadata = ? :: json where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -445,7 +471,7 @@ public class NetworkDAO extends NdexDBDAO {
 				throw new NdexException ("Failed to update network metadata entry in db.");
 		}
 	}
-	
+*/	
 	/**
 	 * Only update fields that relates to the network content. Permission related fields are not updated.
 	 * in this function.
@@ -1311,8 +1337,7 @@ public class NetworkDAO extends NdexDBDAO {
 				if ( rs.next()) {
 					String s = rs.getString(1);
 					if ( s != null) {
-						MetaDataCollection metadata = MetaDataCollection.createInstanceFromJson(s);
-						return metadata;
+						return MetaDataCollection.createInstanceFromJson(s);
 					}
 					return new MetaDataCollection();
 				}
@@ -1613,8 +1638,6 @@ public class NetworkDAO extends NdexDBDAO {
     		
     		// keep the old 
     		commit();
-    //		networkIdx.revokeNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.ADMIN, true);
-   // 		networkIdx.grantNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.WRITE, Permissions.ADMIN, true);
     		
     	} else {
     		String sql = "insert into user_network_membership ( user_id,network_id, permission_type) values (?,?,'"+ permission.toString() + "') "
@@ -1653,15 +1676,7 @@ public class NetworkDAO extends NdexDBDAO {
         	pst.setObject(2,groupUUID);
         	int c = pst.executeUpdate();
         	commit();
-       // 	if ( c ==1 )  {
-      //  		try (GroupDAO dao = new GroupDAO()) {
-      //  			Group g = dao.getGroupById(groupUUID);
-        			
-        			//update solr index
-            /*		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getGroupName(), p, false); */
-       // 		}               
-        //	} 
+
         	return c;	
         }
         		

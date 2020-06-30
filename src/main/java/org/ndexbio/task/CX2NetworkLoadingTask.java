@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.logging.Logger;
 
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
@@ -14,32 +15,22 @@ import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.network.VisibilityType;
 
 
-public class CXNetworkLoadingTask extends NdexSystemTask {
+public class CX2NetworkLoadingTask extends CXNetworkLoadingTask {
 	
-	private static Logger logger = Logger.getLogger(CXNetworkLoadingTask.class.getName());
+	private static Logger logger = Logger.getLogger(CX2NetworkLoadingTask.class.getName());
 	
-	protected UUID networkId;
-//	private String ownerUserName;
-	protected boolean isUpdate;
-	protected VisibilityType visibility;
-	protected Set<String> nodeAttributeIndexList; 
-	private static final TaskType taskType = TaskType.SYS_LOAD_NETWORK;
+	private static final TaskType taskType = TaskType.SYS_LOAD_CX2_NETWORK;
 	
-	public CXNetworkLoadingTask (UUID networkUUID, /*String ownerName,*/ boolean isUpdate, 
+	public CX2NetworkLoadingTask (UUID networkUUID,  boolean isUpdate, 
 			VisibilityType visibility, Set<String> nodeAttributeIndexList) {
-		super();
-		this.networkId = networkUUID;
-	//	this.ownerUserName = ownerName;
-		this.isUpdate = isUpdate;
-		this.visibility = visibility;
-		this.nodeAttributeIndexList = nodeAttributeIndexList;
+		super(networkUUID, isUpdate, visibility, nodeAttributeIndexList);
 	}
 	
 	@Override
 	public void run()  {
 		
 	  try (NetworkDAO dao = new NetworkDAO ()) {
-		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, /*ownerUserName,*/ isUpdate,dao, visibility, nodeAttributeIndexList, 0) ) {
+		try ( CX2NetworkLoader loader = new CX2NetworkLoader(getNetworkId(), isUpdate,dao, visibility, nodeAttributeIndexList, 0) ) {
 				loader.persistCXNetwork();
 		} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
 			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
@@ -60,7 +51,6 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 	    task.setResource(networkId.toString());
 		task.setAttribute("visibility", visibility);
 		task.setAttribute("nodeIndexes", this.nodeAttributeIndexList);
-	//	task.setAttribute("owner", ownerUserName);
 		task.setAttribute("isUpdate", Boolean.valueOf(isUpdate));
 	    return task;	
 	
@@ -70,8 +60,6 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 	public TaskType getTaskType() {
 		return taskType;
 	}
-	
-	public UUID getNetworkId () { return networkId;}
 
 }
 

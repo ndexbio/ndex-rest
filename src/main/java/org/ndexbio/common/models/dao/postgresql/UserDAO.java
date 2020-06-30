@@ -451,7 +451,12 @@ public class UserDAO extends NdexDBDAO {
 
 			List<User> results = new ArrayList<>(l.size());
 			for (SolrDocument d : l) {
-				results.add(getUserById(UUID.fromString((String) d.get(UserIndexManager.UUID)), true, false));
+				try {
+					results.add(getUserById(UUID.fromString((String) d.get(UserIndexManager.UUID)), true, false));
+				} catch ( ObjectNotFoundException o) {
+					System.out.print("Solr index might be corrupted. User " + 
+							(String) d.get(UserIndexManager.UUID) + " not found in Postgres DB." );
+				}
 			}
 			return new SolrSearchResult<>(l.getNumFound(), l.getStart(), results);
 		}

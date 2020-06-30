@@ -146,14 +146,12 @@ public class SearchServiceV2 extends NdexService {
 			)
 			throws Exception {
 
-	//	logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
 		accLogger.info("[data]\t[query:" +simpleUserQuery.getSearchString() + "]" );
 		
 		try (UserDAO dao = new UserDAO ()){
 
 			final SolrSearchResult<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
 			
-	//		logger.info("[end: Returning {} users from search]", users.getNumFound());			
 			return users;
 		} 
 		

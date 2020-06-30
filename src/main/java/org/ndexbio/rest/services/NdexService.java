@@ -30,16 +30,27 @@
  */
 package org.ndexbio.rest.services;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Base64;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 
+import org.apache.commons.io.IOUtils;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.slf4j.Logger;
@@ -208,5 +219,29 @@ public abstract class NdexService
 		}
 
 	}
+	
+	   protected static UUID storeRawNetworkFromStream(InputStream in, String fileName) throws IOException {
+		   
+		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuid.toString();
+		   
+		   //Create dir
+		   java.nio.file.Path dir = Paths.get(pathPrefix);
+		   Set<PosixFilePermission> perms =
+				    PosixFilePermissions.fromString("rwxrwxr-x");
+				FileAttribute<Set<PosixFilePermission>> attr =
+				    PosixFilePermissions.asFileAttribute(perms);
+		   Files.createDirectory(dir,attr);
+		   
+		   //write content to file
+		   String cxFilePath = pathPrefix + "/" + fileName;
+		   
+		   try (OutputStream outputStream = new FileOutputStream(cxFilePath)) {
+			   IOUtils.copy(in, outputStream);
+			   outputStream.close();
+		   } 
+		   return uuid;
+	   }
+
 	
 }
