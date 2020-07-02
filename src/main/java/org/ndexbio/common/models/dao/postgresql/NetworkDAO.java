@@ -367,8 +367,8 @@ public class NetworkDAO extends NdexDBDAO {
 			pst.setInt(4, networkSummary.getEdgeCount());
 			pst.setInt(5, networkSummary.getNodeCount());
 			
+			ObjectMapper mapper = new ObjectMapper();
 			if ( networkSummary.getProperties()!=null && networkSummary.getProperties().size() >0 ) {
-				ObjectMapper mapper = new ObjectMapper();
 		        String s = mapper.writeValueAsString( networkSummary.getProperties());
 				pst.setString(6, s);
 			} else {
@@ -376,7 +376,6 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 					
 			if (metadata !=null) {
-				ObjectMapper mapper = new ObjectMapper();
 		        String s = mapper.writeValueAsString( metadata);
 				pst.setString(7, s);
 			}	else 
@@ -409,7 +408,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 */
 	public void saveCX2NetworkEntry(NetworkSummary networkSummary, Map<String,CxMetadata> metadata, boolean setModificationTime) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
-				+ "properties = ? ::jsonb, cxmetadata = ? :: json, warnings = ?, subnetworkids = ?, "
+				+ "properties = ? ::jsonb, cx2metadata = ? :: json, warnings = ?, subnetworkids = ?, "
 				+ (setModificationTime? "modification_time = localtimestamp, " : "") 
 				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -419,8 +418,8 @@ public class NetworkDAO extends NdexDBDAO {
 			pst.setInt(4, networkSummary.getEdgeCount());
 			pst.setInt(5, networkSummary.getNodeCount());
 			
+			ObjectMapper mapper = new ObjectMapper();
 			if ( networkSummary.getProperties()!=null && networkSummary.getProperties().size() >0 ) {
-				ObjectMapper mapper = new ObjectMapper();
 		        String s = mapper.writeValueAsString( networkSummary.getProperties());
 				pst.setString(6, s);
 			} else {
@@ -428,10 +427,7 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 					
 			if (metadata !=null) {
-				ObjectMapper mapper = new ObjectMapper();
-				Map<String, List<CxMetadata>> mp = new HashMap<>();
-				mp.put(MetaDataCollection.NAME, new ArrayList<>(metadata.values()));
-		        String s = mapper.writeValueAsString( mp);
+		        String s = mapper.writeValueAsString( new ArrayList<>(metadata.values()));
 				pst.setString(7, s);
 			}	else 
 				pst.setString(7, null);
@@ -1346,6 +1342,37 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 		
 	}
+
+	/**
+	 * Return null if no metadata is found in the db.
+	 * @param networkId
+	 * @return
+	 * @throws SQLException
+	 * @throws IOException
+	 * @throws NdexException
+	 */
+	public List<CxMetadata> getCxMetaDataList(UUID networkId) throws SQLException, IOException, NdexException {
+		String sqlStr = "select cx2metadata from network n where n.\"UUID\" =? and n.is_deleted= false" ;
+		
+		List<CxMetadata> result = new ArrayList<>();
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					String s = rs.getString(1);
+					
+					if ( s != null) {
+						ObjectMapper mapper = new ObjectMapper();
+						result = mapper.readValue(s,new TypeReference<List<CxMetadata>>(){});
+						
+					}
+				}
+			}
+		}
+		return result;
+		
+	}
+	
 	
 	public void updateMetadataColleciton(UUID networkId, MetaDataCollection metadata) throws SQLException, JsonProcessingException, NdexException {
 		String sqlStr = "update network set cxmetadata = ? ::jsonb where \"UUID\" = ? and is_deleted=false";

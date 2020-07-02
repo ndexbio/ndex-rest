@@ -607,12 +607,6 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		writeCXElement(e);
 		
-	/*	if (globalIdx !=null) {
-			List<String> indexWarnings = this.globalIdx.addCXNetworkAttrToIndex(e);	
-			if ( !indexWarnings.isEmpty())
-				warnings.addAll(indexWarnings);
-		} */
-		
 	}
 	
 	private void writeCXElement(AspectElement element) throws IOException {
@@ -634,10 +628,6 @@ public class CXNetworkLoader implements AutoCloseable {
 
 		nodeIdTracker.addDefinedElementId(node.getId());
 		writeCXElement(node);
-		
-	/*	if (globalIdx !=null) {
-			this.globalIdx.addCXNodeToIndex(node);	
-		}   */
 		
 	}	 
 
@@ -763,13 +753,6 @@ public class CXNetworkLoader implements AutoCloseable {
 	public void close() {
 		closeAspectStreams();
 		
-	/*	try {
-			this.inputStream.close();
-		} catch (IOException e) {
-			logger.error("Failed to close input stream when closing CXNetworkLoader: " + e.getMessage());
-		} */
-	/*	if (globalIdx !=null) 
-			this.globalIdx.close(); */
 	}
 
 

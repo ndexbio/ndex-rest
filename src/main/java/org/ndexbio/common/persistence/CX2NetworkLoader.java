@@ -49,6 +49,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.cx.CX2NetworkFileGenerator;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
@@ -118,6 +119,9 @@ public class CX2NetworkLoader implements AutoCloseable {
 	
     protected static Logger logger = LoggerFactory.getLogger(CXNetworkLoader.class);
 	static public final String cx2NetworkFileName = "net2.cx";
+	
+	//Directory name of CX2 aspects
+	static public final String cx2AspectDirName = "aspects_cx2";
 
     
 	protected int sampleGenerationThreshold;
@@ -153,7 +157,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		this.isUpdate = isUpdate;
 		
 		this.networkId = networkUUID;
-		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects_cx2/";
+		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/"+ cx2AspectDirName + "/";
 						
 		warnings = new ArrayList<> ();
 		
@@ -283,8 +287,8 @@ public class CX2NetworkLoader implements AutoCloseable {
 
 	public static void reCreateCXFiles(UUID networkId, NetworkDAO dao ) throws JsonParseException, JsonMappingException, SQLException, IOException,
 			NdexException, FileNotFoundException {
-	/*	CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
-		String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
+		CX2NetworkFileGenerator g = new CX2NetworkFileGenerator ( networkId, dao);
+		String tmpFileName = g.createCX2File();
 		
 		java.nio.file.Path src = Paths.get(tmpFileName);
 		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + cx2NetworkFileName);
@@ -292,7 +296,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		
 		Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
-	*/	
+		
 		// TODO: zip the archive and convert to CX file
 		//CXToCX2Converter cvtr = new CXToCX2Converter(tgt.toString(),null,
 			//	Configuration.getInstance().getNdexRoot() + "/data/" +networkId + "/net2.cx");
@@ -319,7 +323,9 @@ public class CX2NetworkLoader implements AutoCloseable {
 		for ( CxAspectElement elmt : cxreader ) {
 			switch ( elmt.getAspectName() ) {
 				case CxAttributeDeclaration.ASPECT_NAME:
-					attributeDeclarations.addNewDeclarations((CxAttributeDeclaration)elmt);
+					CxAttributeDeclaration decl = (CxAttributeDeclaration)elmt;
+					if ( !decl.getDeclarations().isEmpty())
+						attributeDeclarations.addNewDeclarations(decl);
 					break;
 				case CxNode.ASPECT_NAME :       //Node
 					createCXNode((CxNode) elmt);
@@ -351,8 +357,12 @@ public class CX2NetworkLoader implements AutoCloseable {
 
 		} 
 		
+		writeCXElement(attributeDeclarations);
+		
 		closeAspectStreams();
 
+		//save the attribute Declaration
+		
 		//save the metadata
 		metadataTable = cxreader.getMetadata();
 		  
@@ -426,8 +436,8 @@ public class CX2NetworkLoader implements AutoCloseable {
 		else 
 			throw new NdexException ("Only one networkAttributes element is allowed in CX.");
 		
-		writeCXElement(e);
-		
+		if ( !e.getAttributes().isEmpty())
+			writeCXElement(e);		
 	}
 	
 	@SuppressWarnings("resource")
