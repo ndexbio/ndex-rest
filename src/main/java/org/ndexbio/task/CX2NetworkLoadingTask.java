@@ -8,9 +8,7 @@ import java.util.logging.Logger;
 
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
-import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.network.VisibilityType;
 
@@ -44,17 +42,6 @@ public class CX2NetworkLoadingTask extends CXNetworkLoadingTask {
 	  }
 	}
 
-
-	@Override
-	public Task createTask() {
-		Task task = super.createTask();
-	    task.setResource(networkId.toString());
-		task.setAttribute("visibility", visibility);
-		task.setAttribute("nodeIndexes", this.nodeAttributeIndexList);
-		task.setAttribute("isUpdate", Boolean.valueOf(isUpdate));
-	    return task;	
-	
-	}
 
 	@Override
 	public TaskType getTaskType() {

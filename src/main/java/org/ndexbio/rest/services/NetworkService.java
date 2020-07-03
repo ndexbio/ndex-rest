@@ -275,7 +275,7 @@ public class NetworkService extends NdexService {
 			if ( idxLvl != NetworkIndexLevel.NONE) {
 				daoNew.setFlag(networkUUID, "iscomplete", false);
 				daoNew.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl,false));
 			}	
    			return i;
 		} catch (Exception e) {
@@ -659,7 +659,7 @@ public class NetworkService extends NdexService {
 					if ( idxLvl != NetworkIndexLevel.NONE) {
 						networkDao.setFlag(networkUUID, "iscomplete", false);
 						networkDao.commit();
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl,false));
 					}	
 					
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {

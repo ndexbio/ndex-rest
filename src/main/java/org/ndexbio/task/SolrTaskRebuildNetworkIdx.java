@@ -32,21 +32,25 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 	private UUID networkId;
 	private SolrIndexScope idxScope;
 	private boolean createOnly;
+	private boolean fromCX2File;
 	
     private static final TaskType taskType = TaskType.SYS_SOLR_REBUILD_NETWORK_INDEX;
     public static final String AttrScope = "scope";
     public static final String AttrCreateOnly ="createOnly";
+    public static final String FORMCX2FILE = "fromCX2";
     private Set<String> indexedFields;
     private NetworkIndexLevel indexLevel;
     
 	
-	public SolrTaskRebuildNetworkIdx (UUID networkUUID, SolrIndexScope scope, boolean createOnly, Set<String> indexedFields, NetworkIndexLevel level) {
+	public SolrTaskRebuildNetworkIdx (UUID networkUUID, SolrIndexScope scope, boolean createOnly, 
+			Set<String> indexedFields, NetworkIndexLevel level, boolean fromCX2File) {
 		super();
 		this.networkId = networkUUID;
 		this.idxScope = scope;
 		this.createOnly = createOnly;
 		this.indexedFields =indexedFields;
 		this.indexLevel = level;
+		this.fromCX2File = fromCX2File;
 	}
 	
 	@Override
@@ -74,7 +78,10 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 			if (this.idxScope != SolrIndexScope.global) {
 				long t1 = Calendar.getInstance().getTimeInMillis();
 				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
-					idx2.createIndex(indexedFields);
+					if ( this.fromCX2File)
+						idx2.createIndexFromCx2(indexedFields);
+					else
+						idx2.createIndex(indexedFields);
 					idx2.close();
 				}
 				long t = Calendar.getInstance().getTimeInMillis() -t1;
@@ -97,19 +104,23 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
 
 					if (indexLevel == NetworkIndexLevel.META || indexLevel == NetworkIndexLevel.ALL) {
-						try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId.toString(),
+						if ( this.fromCX2File) {
+						  /*TODO: build network index from cx2. */
+						} else { 
+							try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId.toString(),
 								NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class,pathPrefix)) {
-							while (it.hasNext()) {
-								NetworkAttributesElement e = it.next();
+								while (it.hasNext()) {
+									NetworkAttributesElement e = it.next();
 
-								List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
-								if (!indexWarnings.isEmpty())
-									for (String warning : indexWarnings)
-										System.err.println("Warning: " + warning);
+									List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
+									if (!indexWarnings.isEmpty())
+										for (String warning : indexWarnings)
+											System.err.println("Warning: " + warning);
 
+								}
 							}
 						}
-					}
+					}	
 					
 					// process node attribute aspect and add to solr doc
 					if (indexLevel == NetworkIndexLevel.ALL) {
@@ -189,6 +200,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		t.getAttributes().put(AttrCreateOnly, Boolean.valueOf(this.createOnly));
 		t.setAttribute("fields", indexedFields);
 		t.setAttribute("indexLevel", this.indexLevel);
+		t.setAttribute(FORMCX2FILE, this.fromCX2File);
 		return t;
 	}
 

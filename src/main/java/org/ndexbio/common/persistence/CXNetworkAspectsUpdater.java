@@ -135,10 +135,10 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 			NetworkIndexLevel indexLevel = dao.getIndexLevel(networkUUID);
 			if (indexLevel != NetworkIndexLevel.NONE)
 				NdexServerQueue.INSTANCE.addSystemTask(
-						new SolrTaskRebuildNetworkIdx(networkUUID, SolrIndexScope.both, false, null, indexLevel));
+						new SolrTaskRebuildNetworkIdx(networkUUID, SolrIndexScope.both, false, null, indexLevel,false));
 			else
 				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
-						SolrIndexScope.individual, false, null, NetworkIndexLevel.NONE));
+						SolrIndexScope.individual, false, null, NetworkIndexLevel.NONE,false));
 			dao.setFlag(networkUUID, "iscomplete", false);
 
 			dao.commit();
