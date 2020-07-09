@@ -101,7 +101,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 					idx2.close();
 				}
 				long t = Calendar.getInstance().getTimeInMillis() -t1;
-				System.out.println("Takes " + t +"/000 sec to create index");
+				System.out.println("Takes " + t/1000 +" secs to create index");
 			}
 
 			if (this.idxScope != SolrIndexScope.individual && indexLevel != NetworkIndexLevel.NONE) {
@@ -121,14 +121,13 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 
 					if (indexLevel == NetworkIndexLevel.META || indexLevel == NetworkIndexLevel.ALL) {
 						if ( this.fromCX2File) {
-							/*TODO: build network index from cx2. */
 							
-							String cx2AspectPath = pathPrefix + CX2NetworkLoader.cx2AspectDirName + "/";
+							String cx2AspectPath = pathPrefix + networkId.toString() + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
 							File attrFile = new File (cx2AspectPath + CxNetworkAttribute.ASPECT_NAME);
 							if (attrFile.exists()) {
 							
 								//create the attribute name mapping table from attribute declaration
-								File declFile = new File(pathPrefix + CxAttributeDeclaration.ASPECT_NAME);
+								File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
 								ObjectMapper om = new ObjectMapper();
 							
 								CxAttributeDeclaration[] declarations = om.readValue(declFile, CxAttributeDeclaration[].class);
@@ -163,12 +162,12 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 					if (indexLevel == NetworkIndexLevel.ALL) {
 						if ( fromCX2File) {
 							//TODO: build from CX2
-							String cx2AspectPath = pathPrefix + CX2NetworkLoader.cx2AspectDirName + "/";
+							String cx2AspectPath = pathPrefix + networkId.toString() + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
 							ObjectMapper om = new ObjectMapper();
 							
 							File functionAspectFile = new File (cx2AspectPath + FunctionTermElement.ASPECT_NAME);
 							if ( functionAspectFile.exists()) {
-								try (FileInputStream inputStream = new FileInputStream(pathPrefix + FunctionTermElement.ASPECT_NAME)) {
+								try (FileInputStream inputStream = new FileInputStream(cx2AspectPath + FunctionTermElement.ASPECT_NAME)) {
 
 									Iterator<FunctionTermElement> it = om.readerFor(FunctionTermElement.class).readValues(inputStream);
 
@@ -237,7 +236,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 	}
 	
 	
-	private void processCx2Nodes(String cx2AspectPath, ObjectMapper om, NetworkGlobalIndexManager globalIdx) throws JsonParseException, JsonMappingException, IOException {
+	private static void processCx2Nodes(String cx2AspectPath, ObjectMapper om, NetworkGlobalIndexManager globalIdx) throws JsonParseException, JsonMappingException, IOException {
 		File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
 		if (!declFile.exists())
 			return;

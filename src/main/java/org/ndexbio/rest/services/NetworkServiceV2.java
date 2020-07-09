@@ -799,7 +799,7 @@ public class NetworkServiceV2 extends NdexService {
 			if ( lvl != NetworkIndexLevel.NONE) {
 				networkDao.setFlag(networkId, "iscomplete", false); 
 				networkDao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl, true));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl, false));
 			}
             return count;
 		} 
@@ -866,7 +866,7 @@ public class NetworkServiceV2 extends NdexService {
 			if ( lvl != NetworkIndexLevel.NONE) {
 				networkDao.setFlag(networkId, "iscomplete", false);
 				networkDao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl, true));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl, false));
 			}
 			
 			logger.info("[end: Updated permission for network {}]", networkId);
@@ -1656,7 +1656,7 @@ public class NetworkServiceV2 extends NdexService {
 							NetworkIndexLevel lvl = networkDao.getIndexLevel(networkId);
 							networkDao.commit();
 							if ( lvl != NetworkIndexLevel.NONE) {
-								NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl,true));
+								NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl,false));
 							} 
 						}
 					}

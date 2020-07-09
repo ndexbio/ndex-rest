@@ -85,7 +85,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	
 	//NDEx will auto create index for networks with node count larger than this value
 	// other wise it will delay the creation until the first time this network is queried.
-	static public final int AUTOCREATE_THRESHHOLD= 100;
+	static public final int AUTOCREATE_THRESHHOLD= 1; //100;
 	
 	private int counter ; 
 	private Collection<SolrInputDocument> docs ;
@@ -148,7 +148,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		if ( o11.size() !=0)
 			return true;
 		if ( autoCreate) {
-			mgr.createDefaultIndex();
+			mgr.createDefaultIndex(false);
 			return true;
 		}
 		return false;
@@ -159,7 +159,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	public void createIndex(Set<String> extraIndexFields) throws SolrServerException, IOException, NdexException {
 		
 		if ( extraIndexFields == null) {
-			 createDefaultIndex();
+			 createDefaultIndex(false);
 			 return;
 		}
 		
@@ -225,25 +225,16 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		if (extraIndexFields !=null) 
 			throw new NdexException("Additional node attribute indexing is not implmented yet.");
 		
-		createNewCore();
-		
-		Map<Long,NodeIndexEntry> tab = createIndexDocsFromCx2(collectionName);
-		for ( NodeIndexEntry e : tab.values()) {
-			if ( e.isMemberIsToBeIndexed() && e.getMembers().size()>0) {
-				e.getRepresents().addAll(e.getMembers());
-			}
-			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
-		}
-		
-		commit();
-	}
+		createDefaultIndex(true);
+	} 
 	
 	
-	private void createDefaultIndex() throws SolrServerException, IOException, NdexException {
+	private void createDefaultIndex(boolean isFromCx2) throws SolrServerException, IOException, NdexException {
 
 		createNewCore();
 		
-		Map<Long,NodeIndexEntry> tab = createIndexDocs(collectionName);
+		Map<Long,NodeIndexEntry> tab = isFromCx2 ? createIndexDocsFromCx2(collectionName)
+				  :createIndexDocs(collectionName);
 		for ( NodeIndexEntry e : tab.values()) {
 			if ( e.isMemberIsToBeIndexed() && e.getMembers().size()>0) {
 				e.getRepresents().addAll(e.getMembers());

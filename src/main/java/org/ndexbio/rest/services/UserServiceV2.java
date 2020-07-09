@@ -1014,7 +1014,7 @@ public class UserServiceV2 extends NdexService {
 					if(idxLvl != NetworkIndexLevel.NONE) {
 						ndao.setFlag(reqs.getDestinationUUID(), "iscomplete", false);
 						ndao.commit();
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),SolrIndexScope.global,false,null,idxLvl, true));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),SolrIndexScope.global,false,null,idxLvl, false));
 					}
 				}
 			} else {
