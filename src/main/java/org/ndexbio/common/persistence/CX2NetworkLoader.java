@@ -53,6 +53,7 @@ import org.ndexbio.common.cx.CX2NetworkFileGenerator;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.cx2.aspect.element.core.AttributeDeclaredAspect;
 import org.ndexbio.cx2.aspect.element.core.CxAspectElement;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
@@ -63,6 +64,7 @@ import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.CxNodeBypass;
 import org.ndexbio.cx2.aspect.element.core.CxOpaqueAspectElement;
 import org.ndexbio.cx2.aspect.element.core.CxVisualProperty;
+import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cx2.converter.CXToCX2Converter;
 import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.cx2.io.CXReader;
@@ -436,8 +438,10 @@ public class CX2NetworkLoader implements AutoCloseable {
 		else 
 			throw new NdexException ("Only one networkAttributes element is allowed in CX.");
 		
-		if ( !e.getAttributes().isEmpty())
+		if ( !e.getAttributes().isEmpty()) {
 			writeCXElement(e);		
+			validateElementAttributes(e);
+		}
 	}
 	
 	@SuppressWarnings("resource")
@@ -453,10 +457,19 @@ public class CX2NetworkLoader implements AutoCloseable {
 		//writer.flush();
 	}
 	
+	private void validateElementAttributes(AttributeDeclaredAspect e) throws NdexException {
+		Map<String,DeclarationEntry> declarations = this.attributeDeclarations.getAttributesInAspect(e.getAspectName());
+		e.replaceShortenedName(declarations);
+		e.validateAttribute(declarations, false);	
+	}
+	
 	
 	private void createCXNode(CxNode node) throws NdexException, IOException {
 
 		node.validate();
+		writeCXElement(node);
+		
+		validateElementAttributes(node);
 		
 		if ( this.hasLayout) {
 			if ( node.getX() == null ) 
@@ -467,8 +480,8 @@ public class CX2NetworkLoader implements AutoCloseable {
 			}
 		}
 		
+		
 		nodeIdTracker.addDefinedElementId(node.getId());
-		writeCXElement(node);
 	}	 
 
 
@@ -490,12 +503,14 @@ public class CX2NetworkLoader implements AutoCloseable {
 	
 	private void createCXEdge(CxEdge ee) throws NdexException, IOException {
 		
+		writeCXElement(ee);	   
+		validateElementAttributes(ee);
+		
 		edgeIdTracker.addDefinedElementId(ee.getId());
 		
 		nodeIdTracker.addReferenceId(ee.getSource(), EdgesElement.ASPECT_NAME);
 		nodeIdTracker.addReferenceId(ee.getTarget(), EdgesElement.ASPECT_NAME);
 		
-		writeCXElement(ee);	   
 	}
 	
 	

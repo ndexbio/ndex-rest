@@ -91,15 +91,15 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private Collection<SolrInputDocument> docs ;
 	
 	public static final String ID = "id";
-	private  static final String NODE_NAME= "name";
-	private  static final String TYPE = "type";
-	private  static final String COMPLEX = "complex";
-	private  static final String PROTEINFAMILY = "proteinfamily";
-	private  static final String MEMBER= "member";
+	public  static final String NODE_NAME= "name";
+	public  static final String TYPE = "type";
+	public  static final String COMPLEX = "complex";
+	public  static final String PROTEINFAMILY = "proteinfamily";
+	public  static final String MEMBER= "member";
 	
 	private static final String NAME = "nodeName";
-	private static final String REPRESENTS = "represents";
-	private static final String ALIAS= "alias";
+	public static final String REPRESENTS = "represents";
+	public static final String ALIAS= "alias";
 		
 	public SingleNetworkSolrIdxManager(String networkUUID) {
 		collectionName = networkUUID;
@@ -504,7 +504,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	}
 	
 	
-	private static Map<Long,NodeIndexEntry> createIndexDocsFromCx2(String coreName) throws JsonProcessingException, IOException, NdexException {
+	private  Map<Long,NodeIndexEntry> createIndexDocsFromCx2(String coreName) throws JsonProcessingException, IOException, NdexException {
 		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
 		
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/" + CX2NetworkLoader.cx2AspectDirName + "/"; 
@@ -531,24 +531,24 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		//TODO: if 2 attribute names are the same in the case-insensitive lookup, we should raise an error.  
 		Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping = new HashMap<> ();
 		for ( Map.Entry<String,DeclarationEntry> entry: nodeAttributeDecls.entrySet()) {
-			String lowerCasedName = entry.getKey();
-			if (lowerCasedName.equals(NODE_NAME)) {
+			String attrName = entry.getKey();
+			if (attrName.equals(NODE_NAME)) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
 					attributeNameMapping.put (NODE_NAME, entry);
-			} else if (lowerCasedName.equals(REPRESENTS) ) {
+			} else if (attrName.equals(REPRESENTS) ) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
 					attributeNameMapping.put (REPRESENTS, entry);
-			} else if ( lowerCasedName.equals(ALIAS) ) {
+			} else if ( attrName.equalsIgnoreCase(ALIAS) ) {
 				if ( entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
 					attributeNameMapping.put (ALIAS, entry);					
 				}
-			} else if ( lowerCasedName.equals(TYPE)) {
+			} else if ( attrName.equalsIgnoreCase(TYPE)) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
 					attributeNameMapping.put (TYPE, entry);
-			} else if ( lowerCasedName.equals(MEMBER)) {
+			} else if ( attrName.equalsIgnoreCase(MEMBER)) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
 					attributeNameMapping.put (MEMBER, entry);
@@ -564,15 +564,43 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			while (it.hasNext()) {
 	        	CxNode node = it.next();
 	        	
-	        	Map<String, Object> attrs = node.getAttributes();
-	        	List<String> represents = getIndexableTermsFromObj(attrs.get(REPRESENTS));
-	        	if (( attrs.get(NODE_NAME) != null && (attrs.get(NODE_NAME) instanceof String))
-	        			|| represents.size() > 0) {
-	        		NodeIndexEntry e = new NodeIndexEntry(node.getId(), (String)attrs.get(NODE_NAME));
-	        		if ( represents .size() > 0 ) 
-	        			e.setRepresents(represents);	     
-	        		result.put(node.getId(), e);
+	        	node.extendToFullNode(nodeAttributeDecls);
+	        	
+	        	//Map<String, Object> attrs = node.getAttributes();
+	        	NodeIndexEntry e = null;
+	        	String name = getSingleIndexableTermFromNode(NODE_NAME,node,attributeNameMapping);
+	        	if ( name !=null) {
+	        		e =  new NodeIndexEntry(node.getId(), name);
 	        	}
+	        	List<String> represents = getSplitableTerms(REPRESENTS, node, attributeNameMapping);
+	        	if ( represents.size()>0) {
+	        		if ( e ==null)
+	        			e = new NodeIndexEntry(node.getId(),null);
+	        		e.setRepresents(represents);	     
+	        	}
+
+	        	// process alias
+	        	List<String> aliases =  getSplitableTerms(ALIAS, node, attributeNameMapping);
+	        	if ( aliases.size() > 0 ) {
+	        		if ( e==null)
+	        			e= new  NodeIndexEntry(node.getId(),null);
+	        		e.setAliases(aliases);
+	        	}
+	        	
+	        	//process members
+	        	String nodeType = getSingleIndexableTermFromNode(TYPE, node, attributeNameMapping);
+	        	if ( nodeType != null && (nodeType.equalsIgnoreCase(PROTEINFAMILY) || 
+	        			nodeType.equalsIgnoreCase(COMPLEX) )) {
+	        		List<String> memberGenes = getSplitableTerms (MEMBER, node, attributeNameMapping);
+	        		if( e==null)
+	        			e = new NodeIndexEntry ( node.getId(),null);
+	        		e.setMembers(memberGenes);
+	        		e.setMemberIsToBeIndexed(true);
+	        	}
+	        	
+	        	if ( e!=null)
+	        		result.put(node.getId(), e);
+
 			}
 		}
 		
@@ -601,57 +629,56 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			}	
 		}
 		
-		//go through node attributes to find aliases
-
-		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(coreName,NodeAttributesElement.ASPECT_NAME, 
-				   NodeAttributesElement.class, Configuration.getInstance().getNdexRoot() + "/data/")) {
-
-			while (it.hasNext()) {
-	        	NodeAttributesElement attr = it.next();
-	        	String attrName = attr.getName().toLowerCase(); // doing case insensitive check
-	        	if ( attrName.equals(ALIAS)) {
-	        		List<String>  l = getIndexableTerms(attr);
-	        		if ( l.size() > 0 ) {
-	        			NodeIndexEntry e = result.get(attr.getPropertyOf());
-	        			if ( e == null) {
-	        				e = new NodeIndexEntry(attr.getPropertyOf(), null);
-	        				result.put(attr.getPropertyOf(), e);
-	        			}
-	        			e.setAliases(l);
-	        		}
-	        	} else if ( attrName.equals("type")) {
-	        		if ( (attr.getDataType() == null || attr.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) && 
-	        				attr.getValue() != null && attr.getValue().length()>0 ) {
-	        			String typeStr = attr.getValue().trim().toLowerCase();
-	        			if ( typeStr.equals("complex") || typeStr.equals("proteinfamily")) {
-		        			NodeIndexEntry e = result.get(attr.getPropertyOf());
-		        			if ( e != null) {
-		        				e.setMemberIsToBeIndexed(true);
-		        			} else {
-		        				throw new NdexException("Node " + attr.getPropertyOf() + " is not found in node Aspect.");
-		        			}
-	        			}
-	        		}	
-	        	} else if ( attrName.equals("member")) {
-	        		NodeIndexEntry e = result.get(attr.getPropertyOf());
-        			if ( e != null) {
-    	        		List<String>  l = getIndexableTerms(attr);
-    	        		if ( l.size() > 0 ) 
-    	        			e.setMembers(l);
-        			} else {
-        				throw new NdexException("Node " + attr.getPropertyOf() + " is not found in node Aspect.");
-        			}
-	        	}
-			}
-		}
 		
 		return result;
 	}
 
-	private static List<String> getIndexableTermsFromObj (Object originalString) {		
-		if (originalString != null && originalString instanceof String ) 
-			return NetworkGlobalIndexManager.getIndexableString((String)originalString);
-		return new ArrayList<>(1);
+	
+	protected static String getSingleIndexableTermFromNode (String attrName, CxNode node, 
+			Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping) {		
+	
+		Map.Entry<String,DeclarationEntry> entry = attributeNameMapping.get(attrName);
+	
+		if ( entry != null) {
+			String actualAttrName = entry.getKey();
+			ATTRIBUTE_DATA_TYPE t = entry.getValue().getDataType();
+			if ( t == null || t== ATTRIBUTE_DATA_TYPE.STRING)  {
+				return (String)node.getAttributes().get(actualAttrName);
+			}
+		
+		}
+	
+		return null;
+	}
+	
+	protected static List<String> getSplitableTerms (String attrName, CxNode node, 
+				Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping) {		
+	
+		List<String> result = new ArrayList<>();
+
+		Map.Entry<String,DeclarationEntry> entry = attributeNameMapping.get(attrName);
+		
+		if ( entry != null) {
+			String actualAttrName = entry.getKey();
+			ATTRIBUTE_DATA_TYPE t = entry.getValue().getDataType();
+			
+			if ( t == null || t == ATTRIBUTE_DATA_TYPE.STRING) {
+				String v = (String)node.getAttributes().get(actualAttrName);
+				for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
+					result.add( indexableString);
+				}
+			} else if (t == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
+				List<String> vl = (List<String>)node.getAttributes().get(actualAttrName);
+				for ( String v : vl) {
+					for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
+						result.add( indexableString);
+					}
+				}
+			} 
+						
+		}
+		
+		return result;
 
 	}
 	
