@@ -48,10 +48,12 @@ import java.util.TreeMap;
 
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.ConfigSetAdminRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.request.CoreStatus;
+import org.apache.solr.client.solrj.SolrRequest.METHOD;
 import org.apache.solr.client.solrj.response.ConfigSetAdminResponse;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
@@ -91,14 +93,14 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private Collection<SolrInputDocument> docs ;
 	
 	public static final String ID = "id";
-	public  static final String NODE_NAME= "name";
+//	public  static final String NODE_NAME= "name";
 	public  static final String TYPE = "type";
 	public  static final String COMPLEX = "complex";
 	public  static final String PROTEINFAMILY = "proteinfamily";
 	public  static final String MEMBER= "member";
 	
 	private static final String NAME = "nodeName";
-	public static final String REPRESENTS = "represents";
+//	public static final String REPRESENTS = "represents";
 	public static final String ALIAS= "alias";
 		
 	public SingleNetworkSolrIdxManager(String networkUUID) {
@@ -115,7 +117,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 		solrQuery.setQuery(SearchUtilities.preprocessSearchTerm(query)).setFields(ID);
     	solrQuery.set("defType", "edismax");
-		solrQuery.set("qf", NAME + " " + REPRESENTS + " " + ALIAS);
+		solrQuery.set("qf", NAME + " " + CxNode.REPRESENTS + " " + ALIAS);
 		solrQuery.setStart(0);
 		if (limit >0)
 			solrQuery.setRows(limit);
@@ -123,10 +125,10 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			solrQuery.setRows(30000000);
 		
 		try {
-			QueryResponse rsp = client.query(solrQuery);
+			QueryResponse rsp = client.query(solrQuery, METHOD.POST);
 			SolrDocumentList dds = rsp.getResults();
 			return dds;
-		} catch (HttpSolrClient.RemoteSolrException e) {
+		} catch (BaseHttpSolrClient.RemoteSolrException e) {
 			throw NetworkGlobalIndexManager.convertException(e, collectionName);
 		}
 	}
@@ -303,7 +305,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			doc.addField(NAME, name);
 		if ( represents !=null && !represents.isEmpty()) {
 			for ( String rterm : represents )
-				doc.addField(REPRESENTS, rterm.trim());
+				doc.addField(CxNode.REPRESENTS, rterm.trim());
 		}	
 		if ( alias !=null && !alias.isEmpty()) {
 			for ( String aTerm : alias )
@@ -523,14 +525,14 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping = new HashMap<> ();
 		for ( Map.Entry<String,DeclarationEntry> entry: nodeAttributeDecls.entrySet()) {
 			String attrName = entry.getKey();
-			if (attrName.equals(NODE_NAME)) {
+			if (attrName.equals(CxNode.NAME)) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (NODE_NAME, entry);
-			} else if (attrName.equals(REPRESENTS) ) {
+					attributeNameMapping.put (CxNode.NAME, entry);
+			} else if (attrName.equals(CxNode.REPRESENTS) ) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (REPRESENTS, entry);
+					attributeNameMapping.put (CxNode.REPRESENTS, entry);
 			} else if ( attrName.equalsIgnoreCase(ALIAS) ) {
 				if ( entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
 					attributeNameMapping.put (ALIAS, entry);					
@@ -559,11 +561,11 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	        	
 	        	//Map<String, Object> attrs = node.getAttributes();
 	        	NodeIndexEntry e = null;
-	        	String name = getSingleIndexableTermFromNode(NODE_NAME,node,attributeNameMapping);
+	        	String name = getSingleIndexableTermFromNode(CxNode.NAME,node,attributeNameMapping);
 	        	if ( name !=null) {
 	        		e =  new NodeIndexEntry(node.getId(), name);
 	        	}
-	        	List<String> represents = getSplitableTerms(REPRESENTS, node, attributeNameMapping);
+	        	List<String> represents = getSplitableTerms(CxNode.REPRESENTS, node, attributeNameMapping);
 	        	if ( represents.size()>0) {
 	        		if ( e ==null)
 	        			e = new NodeIndexEntry(node.getId(),null);

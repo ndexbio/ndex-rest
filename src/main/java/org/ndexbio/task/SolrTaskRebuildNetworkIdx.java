@@ -3,10 +3,7 @@ package org.ndexbio.task;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashMap;
@@ -17,7 +14,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
@@ -30,6 +26,7 @@ import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
+import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Permissions;
@@ -254,14 +251,14 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping = new HashMap<> ();
 		for ( Map.Entry<String,DeclarationEntry> entry: nodeAttributeDecls.entrySet()) {
 			String attrName = entry.getKey();
-			if (attrName.equals(SingleNetworkSolrIdxManager.NODE_NAME)) {
+			if (attrName.equals(CxNode.NAME)) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (SingleNetworkSolrIdxManager.NODE_NAME, entry);
-			} else if (attrName.equals(SingleNetworkSolrIdxManager.REPRESENTS) ) {
+					attributeNameMapping.put (CxNode.NAME, entry);
+			} else if (attrName.equals(CxNode.REPRESENTS) ) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (SingleNetworkSolrIdxManager.REPRESENTS, entry);
+					attributeNameMapping.put (CxNode.REPRESENTS, entry);
 			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.ALIAS) ) {
 				if ( entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
 					attributeNameMapping.put (SingleNetworkSolrIdxManager.ALIAS, entry);					

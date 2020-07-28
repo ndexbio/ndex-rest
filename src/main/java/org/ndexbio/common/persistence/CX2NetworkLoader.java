@@ -249,7 +249,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 				} */
 			  				
 				//recreate CX and CX2 files
-				reCreateCXFiles(networkId,dao);
+				reCreateCXFiles();//networkId,dao);
 				
 				try {
 					if ( !isUpdate) {
@@ -287,23 +287,27 @@ public class CX2NetworkLoader implements AutoCloseable {
 
 	}
 
-	public static void reCreateCXFiles(UUID networkId, NetworkDAO dao ) throws JsonParseException, JsonMappingException, SQLException, IOException,
+	public void reCreateCXFiles( ) throws JsonParseException, JsonMappingException, SQLException, IOException,
 			NdexException, FileNotFoundException {
+		
+		
 		CX2NetworkFileGenerator g = new CX2NetworkFileGenerator ( networkId, dao);
 		String tmpFileName = g.createCX2File();
 		
+		String rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/";
+		
 		java.nio.file.Path src = Paths.get(tmpFileName);
-		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + cx2NetworkFileName);
-		java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/"  + cx2NetworkFileName + ".arc");
+		java.nio.file.Path tgt = Paths.get( rootPath + cx2NetworkFileName);
+		java.nio.file.Path tgt2 = Paths.get( rootPath + cx2NetworkFileName + ".arc");
 		
 		Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 		
 		// TODO: zip the archive and convert to CX file
-		//CXToCX2Converter cvtr = new CXToCX2Converter(tgt.toString(),null,
-			//	Configuration.getInstance().getNdexRoot() + "/data/" +networkId + "/net2.cx");
+		CX2ToCXConverter cvtr = new CX2ToCXConverter(rootPath, this.attributeDeclarations, 
+				this.metadataTable, this.hasLayout, this.networkAttributes);
 		
-		//cvtr.convert();
+		cvtr.convert();
 	}
 	
 

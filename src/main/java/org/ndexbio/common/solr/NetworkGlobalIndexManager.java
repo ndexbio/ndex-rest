@@ -50,6 +50,7 @@ import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrQuery.ORDER;
 import org.apache.solr.client.solrj.SolrRequest.METHOD;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
@@ -260,13 +261,13 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 			
 			SolrDocumentList  dds = rsp.getResults();
 			return dds;
-		} catch (HttpSolrClient.RemoteSolrException e) {
+		} catch (BaseHttpSolrClient.RemoteSolrException e) {
 			throw convertException(e, "ndex-networks");
 		}
 		
 	}
 	
-	protected static NdexException convertException(HttpSolrClient.RemoteSolrException e, String core_name) {
+	protected static NdexException convertException(BaseHttpSolrClient.RemoteSolrException e, String core_name) {
 		if (e.code() == 400) {
 			String err = e.getMessage();
 			Pattern p = Pattern.compile("Error from server at .*/" + core_name +": (.*)");
@@ -372,11 +373,11 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 	public void addCX2NodeToIndex(CxNode node, Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping)  {
 		
 		Map<String,Object> nodeAttrs = node.getAttributes();
-		Object nodeName = nodeAttrs.get(SingleNetworkSolrIdxManager.NODE_NAME);
+		Object nodeName = nodeAttrs.get(CxNode.NAME);
 		if ( nodeName != null) {
 			   doc.addField(NODE_NAME, nodeName);			
 		}
-		Object represents= nodeAttrs.get(SingleNetworkSolrIdxManager.REPRESENTS);
+		Object represents= nodeAttrs.get(CxNode.REPRESENTS);
 		if ( represents != null) {
 			for (String indexableString : getIndexableString((String)represents)) {
 				   doc.addField(REPRESENTS, indexableString);

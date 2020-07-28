@@ -107,6 +107,8 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	//private static final String nodeName = "name";
     
+    public static final String CX1FileName = "network.cx";
+    
 	public static final int defaultSampleSize = 300;
 	public static final int defaultSampleGenerationThreshhold = 1000;
     
@@ -232,7 +234,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  java.nio.file.Path dir = Paths.get(rootPath);
 		  Files.createDirectory(dir);
 		  
-		  try (	InputStream inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx") ) {
+		  try (	InputStream inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + CX1FileName) ) {
 	
 			  persistNetworkData(inputStream, false); 
 		  
@@ -332,17 +334,17 @@ public class CXNetworkLoader implements AutoCloseable {
 		String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
 		
 		java.nio.file.Path src = Paths.get(tmpFileName);
-		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
+		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + CX1FileName);
 		java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.arc");
 		
 		Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 		
 		// create the CX2 file
-		CXToCX2Converter cvtr = new CXToCX2Converter(tgt.toString(),null,
+	/*	CXToCX2Converter cvtr = new CXToCX2Converter(tgt.toString(),null,
 				Configuration.getInstance().getNdexRoot() + "/data/" +networkId + "/net2.cx");
 		
-		cvtr.convert();
+		cvtr.convert(); */
 	}
 	
 
