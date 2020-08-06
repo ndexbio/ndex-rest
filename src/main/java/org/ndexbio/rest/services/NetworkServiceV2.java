@@ -1206,7 +1206,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 						
-	        UUID tmpNetworkId = storeRawNetwork (input);
+	        UUID tmpNetworkId = storeRawNetworkFromMultipart (input, cx1NetworkFileName);
 
 	        updateNetworkFromSavedFile( networkId, daoNew, tmpNetworkId);
 			
@@ -1362,7 +1362,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			
-	        UUID tmpNetworkId = storeRawNetwork (input); //network stored as a temp network
+	        UUID tmpNetworkId = storeRawNetworkFromMultipart (input, cx1NetworkFileName); //network stored as a temp network
 	        
 	    	updateNetworkFromSavedAspects(networkId, daoNew, tmpNetworkId);
 			
@@ -1728,7 +1728,7 @@ public class NetworkServiceV2 extends NdexService {
 		   }
 		   
 		   
-		   UUID uuid = storeRawNetwork ( input);
+		   UUID uuid = storeRawNetworkFromMultipart ( input, cx1NetworkFileName);
 		   return processRawNetwork(visibility, extraIndexOnNodes, uuid);
 
 	   	}
@@ -1744,7 +1744,7 @@ public class NetworkServiceV2 extends NdexService {
 		   String urlStr = Configuration.getInstance().getHostURI()  + 
 		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
 		   
-		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/network.cx";
+		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/" + cx1NetworkFileName;
 		   long fileSize = new File(cxFileName).length();
 
 		   // create entry in db. 
@@ -1789,7 +1789,7 @@ public class NetworkServiceV2 extends NdexService {
 		   }
 		   
 		   try (InputStream in = this.getInputStreamFromRequest()) {
-			   UUID uuid = storeRawNetworkFromStream(in, "network.cx");
+			   UUID uuid = storeRawNetworkFromStream(in, cx1NetworkFileName);
 			   return processRawNetwork(visibility, extraIndexOnNodes, uuid);
 
 		   }		   
@@ -1821,7 +1821,7 @@ public class NetworkServiceV2 extends NdexService {
 	   }
 */	   
 	   
-	   private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException, BadRequestException {
+	 /*  private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException, BadRequestException {
 		   Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
 	       			       
 		   //Get file data to save
@@ -1860,7 +1860,7 @@ public class NetworkServiceV2 extends NdexService {
 		   }
 		   return uuid; 
 	   }
-	   
+	   */
 	 
 	   
 	   private static List<NetworkAttributesElement> getNetworkAttributeAspectsFromSummary(NetworkSummary summary) 
@@ -1926,7 +1926,7 @@ public class NetworkServiceV2 extends NdexService {
 			   // ProvenanceEntity entity = new ProvenanceEntity();
 			  //  entity.setUri(urlStr + "/summary");
 			   
-			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/network.cx";
+			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/" + cx1NetworkFileName;
 			   long fileSize = new File(cxFileName).length();
 
 			   // copy sample 

@@ -25,7 +25,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 
-import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
@@ -43,13 +42,13 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 
-@Path("/v3/networks")
-public class NetworkServiceV3  extends NdexService {
+@Path("/v3/network")
+public class NetworkServiceV3Temp  extends NdexService {
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 	
 	static private final String readOnlyParameter = "readOnly";
 
-	public NetworkServiceV3(@Context HttpServletRequest httpRequest
+	public NetworkServiceV3Temp(@Context HttpServletRequest httpRequest
 			) {
 		super(httpRequest);
 	}
@@ -168,37 +167,6 @@ public class NetworkServiceV3  extends NdexService {
 			   URI l = new URI (urlStr);
 
 			   return Response.created(l).entity(l).build();
-		}
-		
-		
-		@POST
-
-		@Path("")
-		@Produces("text/plain")
-		@Consumes("multipart/form-data")
-		public Response createCXNetwork(MultipartFormDataInput input, @QueryParam("visibility") String visibilityStr,
-				@QueryParam("indexedfields") String fieldListStr // comma seperated list
-		) throws Exception {
-
-			VisibilityType visibility = null;
-			if (visibilityStr != null) {
-				visibility = VisibilityType.valueOf(visibilityStr);
-			}
-
-			Set<String> extraIndexOnNodes = null;
-			if (fieldListStr != null) {
-				extraIndexOnNodes = new HashSet<>(10);
-				for (String f : fieldListStr.split("\\s*,\\s*")) {
-					extraIndexOnNodes.add(f);
-				}
-			}
-			try (UserDAO dao = new UserDAO()) {
-				dao.checkDiskSpace(getLoggedInUserId());
-			}
-
-			UUID uuid = storeRawNetworkFromMultipart(input, CX2NetworkLoader.cx2NetworkFileName);
-			return processRawCX2Network(visibility, extraIndexOnNodes, uuid);
-
 		}
 
 }

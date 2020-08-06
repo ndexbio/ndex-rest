@@ -40,14 +40,19 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.io.IOUtils;
+import org.jboss.resteasy.plugins.providers.multipart.InputPart;
+import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
@@ -243,5 +248,45 @@ public abstract class NdexService
 		   return uuid;
 	   }
 
+	   
+	   protected static UUID storeRawNetworkFromMultipart (MultipartFormDataInput input, String fileName) throws IOException, BadRequestException {
+		   Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
+	       			       
+		   //Get file data to save
+		   List<InputPart> inputParts = uploadForm.get("CXNetworkStream");
+		   if (inputParts == null)
+			   throw new BadRequestException("Field CXNetworkStream is not found in the POSTed Data.");
+			 
+		   byte[] bytes = new byte[8192];
+		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuid.toString();
+				   
+		   //Create dir
+		   java.nio.file.Path dir = Paths.get(pathPrefix);
+		   Set<PosixFilePermission> perms =
+						    PosixFilePermissions.fromString("rwxrwxr-x");
+		   FileAttribute<Set<PosixFilePermission>> attr =
+						    PosixFilePermissions.asFileAttribute(perms);
+		   Files.createDirectory(dir,attr);
+				   
+		   //write content to file
+		   String cxFilePath = pathPrefix + "/" + fileName;
+		   try (FileOutputStream out = new FileOutputStream (cxFilePath ) ){     
+			   for (InputPart inputPart : inputParts) {
+				     // convert the uploaded file to inputstream and write it to disk
+				   org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl p =
+				        	(org.jboss.resteasy.plugins.providers.multipart.MultipartInputImpl.PartImpl) inputPart;
+				   try (InputStream inputStream = p.getBody()) {
+				              
+				       int read = 0;
+				       while ((read = inputStream.read(bytes)) != -1) {
+				            out.write(bytes, 0, read);
+				       }
+				   }
+				               
+			   }
+		   }
+		   return uuid; 
+	   }
 	
 }

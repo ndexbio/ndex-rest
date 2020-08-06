@@ -38,6 +38,7 @@ import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.core.NdexCXNetworkWriter;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
+import org.ndexbio.model.exceptions.NdexException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -81,7 +82,7 @@ public class CX2ToCXConverter {
 		this.networkAttributes = networkAttrs;
 	}
 	
-	void convert() throws FileNotFoundException, IOException {
+	void convert() throws FileNotFoundException, IOException, NdexException {
 		
 		nodeAttrCount = 0;
 		edgeAttrCount = 0;
@@ -174,10 +175,10 @@ public class CX2ToCXConverter {
 								ATTRIBUTE_DATA_TYPE attrType = nodeAttrDecls.get(attrName).getDataType();
 								NodeAttributesElement na;
 								if ( attrType.isSingleValueType()) {
-									na = new NodeAttributesElement(null, e.getKey(), e.getValue().toString(), attrType);
+									na = new NodeAttributesElement(n.getId(), e.getKey(), e.getValue().toString(), attrType);
 								} else {
 									List<Object> listV = (List<Object>)e.getValue();
-									na = new NodeAttributesElement(null, e.getKey(),
+									na = new NodeAttributesElement(n.getId(), e.getKey(),
 										listV.stream().map(s -> s.toString()).collect(Collectors.toList()), attrType);
 								}
 								writer.writeElement(na);
@@ -220,7 +221,7 @@ public class CX2ToCXConverter {
 
 				
 				//write edge attributes
-				writer.startAspectFragment(CxEdge.ASPECT_NAME);
+				writer.startAspectFragment(EdgeAttributesElement.ASPECT_NAME);
 				writer.openFragment();
 				try (FileInputStream inputStream = new FileInputStream(aspectPath + CxEdge.ASPECT_NAME)) {
 
@@ -236,10 +237,10 @@ public class CX2ToCXConverter {
 								ATTRIBUTE_DATA_TYPE attrType = edgeAttrDecls.get(attrName).getDataType();
 								EdgeAttributesElement ea;
 								if ( attrType.isSingleValueType()) {
-									ea = new EdgeAttributesElement(null, e.getKey(), e.getValue().toString(), attrType);
+									ea = new EdgeAttributesElement(edge.getId(), e.getKey(), e.getValue().toString(), attrType);
 								} else {
 									List<Object> listV = (List<Object>)e.getValue();
-									ea = new EdgeAttributesElement(null, e.getKey(),
+									ea = new EdgeAttributesElement(edge.getId(), e.getKey(),
 										listV.stream().map(s -> s.toString()).collect(Collectors.toList()), attrType);
 								}
 								writer.writeElement(ea);
@@ -299,35 +300,32 @@ public class CX2ToCXConverter {
 				
 				//set node mapping
 				Map<String,VisualPropertyMapping> nodeMappings = vPs[0].getNodeMappings();
-				for ( Map.Entry<String, VisualPropertyMapping> cx2Mapping: nodeMappings.entrySet()) {
-					String vpName = cx2Mapping.getKey();
-					VisualPropertyMapping mapping = cx2Mapping.getValue();
-					switch ( mapping.getType()) {
-					case PASSTHROUGH: {
-							String colName = mapping.getMappingDef().getAttributeName();
-							ATTRIBUTE_DATA_TYPE type = this.attrDeclarations.getAttributesInAspect(CxNode.ASPECT_NAME)
-									.get(colName).getDataType();
-							
-							final StringBuilder sb = new StringBuilder();
-				            sb.append(VM_COL);
-				            sb.append(escapeString(colName));
-				            sb.append(",");
-				            sb.append(VM_TYPE);
-				            sb.append(type.toString());
-				            vp.putMapping(vpName, VPMappingType.PASSTHROUGH.toString(), sb.toString());
-							break;
-						}
-					case DISCRETE:
-							break;
-					case CONTINUOUS:
-							break;
-					default:
-						break;		
-					}		
-					
-				}
+				convertMapping(vp, nodeMappings, CxNode.ASPECT_NAME);
+				
 				
 				writer.writeElement(vp);
+				
+				
+				// convert edge default
+				Map<String,Object> edgeDefaultVPs =defaultVPs.getEdgeProperties();
+				vp = new CyVisualPropertiesElement ("edge:default");
+				vp.setProperties(vpCvtr.convertEdgeOrNodeVPs(edgeDefaultVPs));
+				
+				// set edge dependency
+				if ( vep != null ) {
+					SortedMap<String, String> edgeVPDependencies = vp.getDependencies();
+					if ( vep.get("arrowColorMatchesEdge") != null ) {
+						edgeVPDependencies.put("arrowColorMatchesEdge", vep.get("arrowColorMatchesEdge").toString());
+					}
+				}
+				
+				//set edge mapping
+				Map<String,VisualPropertyMapping> edgeMappings = vPs[0].getEdgeMappings();
+				convertMapping(vp, edgeMappings, CxEdge.ASPECT_NAME);
+				
+				
+				writer.writeElement(vp);
+				
 				
 				writer.closeFragment();
 				writer.endAspectFragment();
@@ -373,6 +371,112 @@ public class CX2ToCXConverter {
 		
 		
 	}
+	
+	
+    private void convertMapping(CyVisualPropertiesElement vp, Map<String,VisualPropertyMapping> mappings, String aspectName) throws NdexException {
+		for ( Map.Entry<String, VisualPropertyMapping> cx2Mapping: mappings.entrySet()) {
+			String vpName = cx2Mapping.getKey();
+			VisualPropertyMapping mapping = cx2Mapping.getValue();
+			String colName = mapping.getMappingDef().getAttributeName();
+			ATTRIBUTE_DATA_TYPE type = this.attrDeclarations.getAttributesInAspect(aspectName)
+						.get(colName).getDataType();
+			final StringBuilder sb = new StringBuilder();
+	        sb.append(VM_COL);
+	        sb.append(escapeString(colName));
+	        sb.append(",");
+	        sb.append(VM_TYPE);
+	        sb.append(type.toString());
+            int counter = 0;
+			switch ( mapping.getType()) {
+			case PASSTHROUGH: {
+		        vp.putMapping(vpName, VPMappingType.PASSTHROUGH.toString(), sb.toString());
+				break;
+			}
+			case DISCRETE:
+				for ( Map<String,Object> m : mapping.getMappingDef().getMapppingList() ) {
+					  sb.append(",K=");
+	                  sb.append(counter);
+	                  sb.append("=");
+	                  sb.append(escapeString(m.get("v").toString()));
+	                  sb.append(",V=");
+	                  sb.append(counter);
+	                  sb.append("=");
+	                  sb.append(escapeString(m.get("vp").toString()));
+	                  counter++;
+				}
+		        vp.putMapping(vpName, VPMappingType.DISCRETE.toString(), sb.toString());
+				break;
+			case CONTINUOUS: {
+				//int total = mapping.getMappingDef().getMapppingList().size(); 
+				int cyCounter = 0;
+				String L = null;
+				String E = null;
+				String G = null;
+				String ov = null;
+				for ( Map<String,Object> m : mapping.getMappingDef().getMapppingList() ) {
+					
+					Object minV = m.get("min");
+					Object maxV = m.get("max");
+					Boolean includeMin = (Boolean)m.get("includeMin");
+					Boolean includeMax = (Boolean)m.get("includeMax");
+					Object minVP = m.get("minVPValue");
+					Object maxVP = m.get("maxVPValue");
+					
+					if ( minVP == null && maxVP == null)
+						throw new NdexException ("minVPValue and maxVPValue are both missing in CONTINUOUS mapping of " + vpName + " on column " + colName);
+					
+					if ( counter == 0) { // first range
+					    L = maxVP.toString();
+					    ov = maxV.toString();
+					    if ( includeMax.booleanValue()) 
+					    	E = L;
+					} else {  // middle ranges and the last range
+						G = minVP.toString();
+						if (includeMin.booleanValue())
+							E=G;
+						
+						// create the mapping point
+						sb.append(",L=");
+		                sb.append(cyCounter);
+		                sb.append("=");
+		                sb.append(escapeString(L));
+		                sb.append(",E=");
+		                sb.append(cyCounter);
+		                sb.append("=");
+		                sb.append(escapeString(E));
+		                sb.append(",G=");
+		                sb.append(cyCounter);
+		                sb.append("=");
+		                sb.append(escapeString(G));
+		                sb.append(",OV=");
+		                sb.append(cyCounter);
+		                sb.append("=");
+		                sb.append(escapeString(ov));
+		                cyCounter++;
+		                
+		                // prepare for the next point
+		                if ( maxV != null) {
+		                	ov = maxV.toString();
+		                	L = maxVP.toString();
+		                	if (includeMax.booleanValue())
+		                		E = L;
+		                	else 
+		                		E = null;
+		                }	
+		                
+					}
+					counter++;
+				}	
+		        vp.putMapping(vpName, VPMappingType.CONTINUOUS.toString(), sb.toString());
+
+				break;
+			}
+			default:
+				break;		
+			}		
+			
+		}
+    }
 	
 	private MetaDataCollection createCX1PreMetadata() {
 		MetaDataCollection result = new MetaDataCollection ();
