@@ -50,7 +50,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public class CX2ToCXConverter {
 	
-	private static final List<String> cx2SpecialAspects = Arrays.asList(
+	public static final List<String> cx2SpecialAspects = Arrays.asList(
 			CxAttributeDeclaration.ASPECT_NAME,CxEdgeBypass.ASPECT_NAME,
 			CxNodeBypass.ASPECT_NAME, VisualEditorProperties.ASPECT_NAME,
 			CxNetworkAttribute.ASPECT_NAME);
@@ -380,6 +380,9 @@ public class CX2ToCXConverter {
 			String colName = mapping.getMappingDef().getAttributeName();
 			ATTRIBUTE_DATA_TYPE type = this.attrDeclarations.getAttributesInAspect(aspectName)
 						.get(colName).getDataType();
+			// workaround the cyndex list type handling issue
+			if ( !type.isSingleValueType())
+				type = type.elementType();
 			final StringBuilder sb = new StringBuilder();
 	        sb.append(VM_COL);
 	        sb.append(escapeString(colName));

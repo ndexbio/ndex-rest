@@ -107,7 +107,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				}
 			  				
 				//recreate CX file
-				CXNetworkLoader.reCreateCXFiles(networkUUID, dao);
+				CXNetworkLoader.reCreateCXFiles(networkUUID, metadata, dao);
 				/*CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkUUID, dao );
 				String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkUUID.toString(), g.getMetaData());
 				

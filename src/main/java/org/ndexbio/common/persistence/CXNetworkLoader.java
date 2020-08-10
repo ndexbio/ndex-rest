@@ -289,7 +289,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 			  				
 				//recreate CX and CX2 files
-				reCreateCXFiles(networkId,dao);
+				reCreateCXFiles(networkId,metadata, dao);
 				
 				try {
 					if ( !isUpdate) {
@@ -328,7 +328,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	}
 
-	public static void reCreateCXFiles(UUID networkId, NetworkDAO dao ) throws JsonParseException, JsonMappingException, SQLException, IOException,
+	public static void reCreateCXFiles(UUID networkId, MetaDataCollection m, NetworkDAO dao ) throws JsonParseException, JsonMappingException, SQLException, IOException,
 			NdexException, FileNotFoundException {
 		CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
 		String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
@@ -341,6 +341,11 @@ public class CXNetworkLoader implements AutoCloseable {
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 		
 		// create the CX2 file
+		
+		CXToCX2ServerSideConverter cvtr = new CXToCX2ServerSideConverter( Configuration.getInstance().getNdexRoot() + "/data/",
+				m, networkId.toString() );
+		cvtr.convert(); 
+
 	/*	CXToCX2Converter cvtr = new CXToCX2Converter(tgt.toString(),null,
 				Configuration.getInstance().getNdexRoot() + "/data/" +networkId + "/net2.cx");
 		
