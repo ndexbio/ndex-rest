@@ -107,24 +107,20 @@ public class CXToCX2ServerSideConverter {
 
 	}
 	
-	void convert() throws FileNotFoundException, IOException, NdexException {
+	public List<CxMetadata> convert() throws FileNotFoundException, IOException, NdexException {
 		
-		//JsonFactory factory = new JsonFactory();
-		//factory.disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET);
-		//ObjectMapper mapper = new ObjectMapper(factory);
-		//Map<String, Object> descriptor = new HashMap<>();
+		attrStats = analyzeAttributes();
+		attrDeclarations = attrStats.createCxDeclaration();
 		
-		if ( attrDeclarations == null) {
-			attrStats = analyzeAttributes();
-			attrDeclarations = attrStats.createCxDeclaration();
-		}
-		
+		cleanupMetadata();
+
+		List<CxMetadata> cx2Metadata = CxMetadata.createCxMetadataListFromMetedataCollection(metaDataCollection);
+
 		try (FileOutputStream out = new FileOutputStream(pathPrefix + networkId + "/" + CX2NetworkLoader.cx2NetworkFileName) ) {
 			CXWriter wtr = new CXWriter(out, false);
 			
 			boolean hasAttributes = !attrDeclarations.getDeclarations().isEmpty();
 			
-			List<CxMetadata> cx2Metadata = CxMetadata.createCxMetadataListFromMetedataCollection(metaDataCollection);
 			if (hasAttributes)
 				cx2Metadata.add(new CxMetadata (CxAttributeDeclaration.ASPECT_NAME, 1));
 			
@@ -155,7 +151,7 @@ public class CXToCX2ServerSideConverter {
 				netAttrs.add(cx2NetAttr);
 				wtr.writeFullAspectFragment(netAttrs);
 			}
-			
+			 
 			//write nodes
 			if( needToWriteAspect(CxNode.ASPECT_NAME, cx2Metadata)) {
 				Map<Long, CxNode> nodeTable = createCX2NodeTable();
@@ -242,6 +238,8 @@ public class CXToCX2ServerSideConverter {
 			wtr.finish();
 		}
 		
+		return cx2Metadata;
+		
 	}
 	
 	private static boolean needToWriteAspect(String aspectName, List<CxMetadata> metaDataList) {
@@ -323,6 +321,8 @@ public class CXToCX2ServerSideConverter {
 		return edgeTable;
 	}
 	
+	
+	/* warning: this function can only be called after attrStats is initialized */
 	private void cleanupMetadata() {
 		metaDataCollection.remove("nodeAttributes");
 		metaDataCollection.remove("edgeAttributes");
@@ -423,13 +423,6 @@ public class CXToCX2ServerSideConverter {
 	
 	private CX2VPHolder readVisualProperties() throws JsonProcessingException, IOException, NdexException {
 		CX2VPHolder holder = new CX2VPHolder ();
-		
-		/*Map<String,Object> rs= new HashMap<>();
-		
-		CxVisualProperty style = new CxVisualProperty();
-		
-		List<CxNodeBypass> nodeBypasses = new ArrayList<>();
-		List<CxEdgeBypass> edgeBypasses = new ArrayList<>();  */
 		
 		try (AspectIterator<CyVisualPropertiesElement> a = new AspectIterator<>(networkId, CyVisualPropertiesElement.ASPECT_NAME, CyVisualPropertiesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
@@ -698,7 +691,7 @@ public class CXToCX2ServerSideConverter {
 
 	
 	// escape ',' with double ',' 
-    private static String escapeString(String str) {
+   /* private static String escapeString(String str) {
         if (str == null) {
           return null;
         }
@@ -713,5 +706,5 @@ public class CXToCX2ServerSideConverter {
         }
         return result.toString();
       }
-
+    */
 }

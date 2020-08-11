@@ -344,12 +344,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 		CXToCX2ServerSideConverter cvtr = new CXToCX2ServerSideConverter( Configuration.getInstance().getNdexRoot() + "/data/",
 				m, networkId.toString() );
-		cvtr.convert(); 
+		dao.setCxMetadata(networkId, cvtr.convert()); 
 
-	/*	CXToCX2Converter cvtr = new CXToCX2Converter(tgt.toString(),null,
-				Configuration.getInstance().getNdexRoot() + "/data/" +networkId + "/net2.cx");
-		
-		cvtr.convert(); */
 	}
 	
 

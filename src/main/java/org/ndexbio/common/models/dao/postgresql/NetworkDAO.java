@@ -1372,6 +1372,20 @@ public class NetworkDAO extends NdexDBDAO {
 		return result;
 		
 	}
+
+	
+	public void setCxMetadata(UUID networkId, List<CxMetadata> cx2metadata) throws SQLException, JsonProcessingException, NdexException {
+		String sqlStr = "update network set cx2metadata = ? ::jsonb where \"UUID\" = ? and is_deleted=false";
+		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			ObjectMapper mapper = new ObjectMapper();
+		    String s = mapper.writeValueAsString( cx2metadata);
+			 pst.setString(1, s);
+			 pst.setObject(2, networkId);
+			 int i = pst.executeUpdate();
+			 if ( i !=1 )
+				 throw new NdexException ("Failed to update cx2metadata of Network " + networkId + ". Db record might have been locked.");
+		 }
+	}
 	
 	
 	public void updateMetadataColleciton(UUID networkId, MetaDataCollection metadata) throws SQLException, JsonProcessingException, NdexException {
