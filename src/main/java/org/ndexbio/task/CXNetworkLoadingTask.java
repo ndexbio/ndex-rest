@@ -44,6 +44,8 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 		} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
 			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
 			e1.printStackTrace();
+			dao.setFlag(networkId, "is_validated", true);
+			dao.setFlag(networkId, "iscomplete", true);
 			dao.setErrorMessage(networkId, e1.getMessage());
 			dao.unlockNetwork(networkId);
 		} 

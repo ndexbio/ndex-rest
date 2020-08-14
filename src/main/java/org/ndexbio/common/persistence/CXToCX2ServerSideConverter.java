@@ -1,19 +1,14 @@
 package org.ndexbio.common.persistence;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
@@ -24,14 +19,11 @@ import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.CxNodeBypass;
 import org.ndexbio.cx2.aspect.element.core.CxOpaqueAspectElement;
 import org.ndexbio.cx2.aspect.element.core.CxVisualProperty;
-import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
-import org.ndexbio.cx2.aspect.element.core.DefaultVisualProperties;
 import org.ndexbio.cx2.aspect.element.core.MappingDefinition;
 import org.ndexbio.cx2.aspect.element.core.VPMappingType;
 import org.ndexbio.cx2.aspect.element.core.VisualPropertyMapping;
 import org.ndexbio.cx2.aspect.element.cytoscape.VisualEditorProperties;
 import org.ndexbio.cx2.converter.AspectAttributeStat;
-import org.ndexbio.cx2.converter.CX2ToCXVisualPropertyConverter;
 import org.ndexbio.cx2.converter.CX2VPHolder;
 import org.ndexbio.cx2.converter.CXToCX2Converter;
 import org.ndexbio.cx2.converter.CXToCX2VisualPropertyConverter;
@@ -48,18 +40,11 @@ import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.core.AspectIterator;
-import org.ndexbio.cxio.core.CxElementReader2;
-import org.ndexbio.cxio.core.NdexCXNetworkWriter;
-import org.ndexbio.cxio.core.interfaces.AspectElement;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
-import org.ndexbio.cxio.misc.OpaqueElement;
 import org.ndexbio.model.exceptions.NdexException;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Convert a CX2 network on the server to CX1. This converter works on the individual aspects on the 
@@ -68,16 +53,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  */
 public class CXToCX2ServerSideConverter {
-	
-	/*private static final List<String> cx2SpecialAspects = Arrays.asList(
-			CxAttributeDeclaration.ASPECT_NAME,CxEdgeBypass.ASPECT_NAME,
-			CxNodeBypass.ASPECT_NAME, VisualEditorProperties.ASPECT_NAME,
-			CxNetworkAttribute.ASPECT_NAME);
-		*/
-	private static final String VM_COL = "COL=";
-	private static final String VM_TYPE = "T=";
-    private final  static char COMMA = ','; 
-
 	
 	private String pathPrefix;
 	private String networkId;
@@ -165,13 +140,13 @@ public class CXToCX2ServerSideConverter {
 			//write edges
 			if ( needToWriteAspect(CxEdge.ASPECT_NAME, cx2Metadata)) {
 				Map<Long, CxEdge> edgeAttrTable = createEdgeAttrTable();
-				wtr.startAspectFragment(CxNode.ASPECT_NAME);
+				wtr.startAspectFragment(CxEdge.ASPECT_NAME);
 				try (AspectIterator<EdgesElement> a = new AspectIterator<>(networkId, EdgesElement.ASPECT_NAME, EdgesElement.class, pathPrefix) ) {
 					while (a.hasNext()) {
 						EdgesElement cx1Edge = a.next();
 						CxEdge cx2Edge = edgeAttrTable.remove(cx1Edge.getId());
 						if ( cx2Edge == null) 
-							cx2Edge = new CxEdge(cx2Edge.getId());
+							cx2Edge = new CxEdge(cx1Edge.getId());
 						cx2Edge.setSource(cx1Edge.getSource());
 						cx2Edge.setTarget(cx1Edge.getTarget());
 						if ( cx1Edge.getInteraction() != null) {

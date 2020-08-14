@@ -287,10 +287,13 @@ public class CX2ToCXConverter {
 				vp.setProperties(vpCvtr.convertEdgeOrNodeVPs(nodeDefaultVPs));
 				
 				// set node dependency
+				boolean nodeSizeLocked = false;
 				if ( vep != null ) {
 					SortedMap<String, String> nodeVPDependencies = vp.getDependencies();
 					if ( vep.get("nodeSizeLocked") != null ) {
-						nodeVPDependencies.put("nodeSizeLocked", vep.get("nodeSizeLocked").toString());
+						nodeSizeLocked = ((Boolean)vep.get("nodeSizeLocked")).booleanValue();
+						nodeVPDependencies.put("nodeSizeLocked", Boolean.toString(nodeSizeLocked));
+						vp.getProperties().put("NODE_SIZE", vp.getProperties().get("NODE_WIDTH"));
 					}
 					if ( vep.get("nodeCustomGraphicsSizeSync") !=null ) {
 						nodeVPDependencies.put("nodeCustomGraphicsSizeSync", 
@@ -300,6 +303,11 @@ public class CX2ToCXConverter {
 				
 				//set node mapping
 				Map<String,VisualPropertyMapping> nodeMappings = vPs[0].getNodeMappings();
+				if ( nodeSizeLocked) {
+					VisualPropertyMapping m = nodeMappings.get("NODE_WIDTH");
+					if ( m != null)
+						nodeMappings.put("NODE_SIZE", m);
+				}
 				convertMapping(vp, nodeMappings, CxNode.ASPECT_NAME);
 				
 				
@@ -312,15 +320,27 @@ public class CX2ToCXConverter {
 				vp.setProperties(vpCvtr.convertEdgeOrNodeVPs(edgeDefaultVPs));
 				
 				// set edge dependency
+				
+				boolean arrowColorMatchesEdge = false;
 				if ( vep != null ) {
 					SortedMap<String, String> edgeVPDependencies = vp.getDependencies();
 					if ( vep.get("arrowColorMatchesEdge") != null ) {
-						edgeVPDependencies.put("arrowColorMatchesEdge", vep.get("arrowColorMatchesEdge").toString());
+						arrowColorMatchesEdge = ((Boolean)vep.get("arrowColorMatchesEdge")).booleanValue();
+						edgeVPDependencies.put("arrowColorMatchesEdge", Boolean.toString(arrowColorMatchesEdge));
+						vp.getProperties().put("EDGE_PAINT", vp.getProperties().get("EDGE_STROKE_UNSELECTED_PAINT"));	
 					}
 				}
 				
 				//set edge mapping
 				Map<String,VisualPropertyMapping> edgeMappings = vPs[0].getEdgeMappings();
+				
+				// add edge_paint mapping if dependency flag exists.
+				if ( arrowColorMatchesEdge) {
+					VisualPropertyMapping m = edgeMappings.get("EDGE_STROKE_UNSELECTED_PAINT");
+					if ( m != null)
+						edgeMappings.put("EDGE_PAINT", m);
+				}
+				
 				convertMapping(vp, edgeMappings, CxEdge.ASPECT_NAME);
 				
 				

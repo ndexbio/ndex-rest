@@ -310,14 +310,14 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws NdexException 
 	 */
 	
-	public void setFlag(UUID networkId, String fieldName, boolean value) throws SQLException, NdexException {
+	public void setFlag(UUID networkId, String fieldName, boolean value) throws SQLException {
 		String sqlStr = "update network set "
 				+ fieldName + "=" + value + " where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkId);
 			int i = pst.executeUpdate();
 			if ( i != 1)
-				throw new NdexException ("Failed to set network flag entry in db.");
+				throw new SQLException ("Failed to set flag " + fieldName + "="  + value + " in db for network " + networkId.toString());
 		}
 	}
 
