@@ -66,6 +66,8 @@ public class CX2ToCXConverter {
 	private boolean hasLayout;
 	private CxNetworkAttribute networkAttributes; 
 	
+	private CX2ToCXVisualPropertyConverter vpCvtr;
+
 	private int nodeAttrCount;
 	private int edgeAttrCount;
 	private int networkAttrCount;
@@ -80,6 +82,8 @@ public class CX2ToCXConverter {
 		this.metadataTable = metadata;
 		this.hasLayout = hasLayout;
 		this.networkAttributes = networkAttrs;
+		this.vpCvtr = new CX2ToCXVisualPropertyConverter();
+
 	}
 	
 	void convert() throws FileNotFoundException, IOException, NdexException {
@@ -257,7 +261,6 @@ public class CX2ToCXConverter {
 			//write visual aspects
 			if ( this.metadataTable.get(CxVisualProperty.ASPECT_NAME)!=null) {
 				
-				CX2ToCXVisualPropertyConverter vpCvtr = new CX2ToCXVisualPropertyConverter();
 				writer.startAspectFragment(CyVisualPropertiesElement.ASPECT_NAME);
 				writer.openFragment();
 
@@ -396,6 +399,7 @@ public class CX2ToCXConverter {
     private void convertMapping(CyVisualPropertiesElement vp, Map<String,VisualPropertyMapping> mappings, String aspectName) throws NdexException {
 		for ( Map.Entry<String, VisualPropertyMapping> cx2Mapping: mappings.entrySet()) {
 			String vpName = cx2Mapping.getKey();
+			String cx1VPName = this.vpCvtr.getCx1EdgeOrNodeProperty(vpName);
 			VisualPropertyMapping mapping = cx2Mapping.getValue();
 			String colName = mapping.getMappingDef().getAttributeName();
 			ATTRIBUTE_DATA_TYPE type = this.attrDeclarations.getAttributesInAspect(aspectName)
@@ -412,7 +416,7 @@ public class CX2ToCXConverter {
             int counter = 0;
 			switch ( mapping.getType()) {
 			case PASSTHROUGH: {
-		        vp.putMapping(vpName, VPMappingType.PASSTHROUGH.toString(), sb.toString());
+		        vp.putMapping(cx1VPName, VPMappingType.PASSTHROUGH.toString(), sb.toString());
 				break;
 			}
 			case DISCRETE:
@@ -424,10 +428,10 @@ public class CX2ToCXConverter {
 	                  sb.append(",V=");
 	                  sb.append(counter);
 	                  sb.append("=");
-	                  sb.append(escapeString(m.get("vp").toString()));
+	                  sb.append(escapeString(vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,m.get("vp"))));
 	                  counter++;
 				}
-		        vp.putMapping(vpName, VPMappingType.DISCRETE.toString(), sb.toString());
+		        vp.putMapping(cx1VPName, VPMappingType.DISCRETE.toString(), sb.toString());
 				break;
 			case CONTINUOUS: {
 				//int total = mapping.getMappingDef().getMapppingList().size(); 
@@ -449,12 +453,12 @@ public class CX2ToCXConverter {
 						throw new NdexException ("minVPValue and maxVPValue are both missing in CONTINUOUS mapping of " + vpName + " on column " + colName);
 					
 					if ( counter == 0) { // first range
-					    L = maxVP.toString();
+					    L = vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,maxVP);
 					    ov = maxV.toString();
 					    if ( includeMax.booleanValue()) 
 					    	E = L;
 					} else {  // middle ranges and the last range
-						G = minVP.toString();
+						G = vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,minVP);
 						if (includeMin.booleanValue())
 							E=G;
 						
@@ -480,7 +484,7 @@ public class CX2ToCXConverter {
 		                // prepare for the next point
 		                if ( maxV != null) {
 		                	ov = maxV.toString();
-		                	L = maxVP.toString();
+		                	L = vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,maxVP);
 		                	if (includeMax.booleanValue())
 		                		E = L;
 		                	else 
@@ -490,7 +494,7 @@ public class CX2ToCXConverter {
 					}
 					counter++;
 				}	
-		        vp.putMapping(vpName, VPMappingType.CONTINUOUS.toString(), sb.toString());
+		        vp.putMapping(cx1VPName, VPMappingType.CONTINUOUS.toString(), sb.toString());
 
 				break;
 			}
