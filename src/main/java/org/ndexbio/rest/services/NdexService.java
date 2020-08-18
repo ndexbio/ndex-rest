@@ -39,6 +39,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.sql.SQLException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -50,9 +51,12 @@ import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.io.IOUtils;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
+import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.BadRequestException;
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
@@ -80,83 +84,9 @@ public abstract class NdexService
     public NdexService(HttpServletRequest httpRequest) {
         _httpRequest = httpRequest;
         
- //       MDC.put("RequestsUniqueId", createRequestsUniqueId());
-
     }
     
-    /**************************************************************************
-    * Gets API information for the service.
-    **************************************************************************/
- /*   @GET
-    @PermitAll
-    @Path("/api")
-	@NdexOpenFunction
-    @Produces("application/json")
-    @ApiDoc("Retrieves the REST API documentation for network related operations as a list of RestResource objects.")
-    public Collection<RestResource> getApi()
-    {
-		logger.info("[start: getApi()]");
-		
-        final Collection<RestResource> resourceList = new ArrayList<>();
-        Path serviceClassPathAnnotation = this.getClass().getAnnotation(Path.class);
-        for (Method method : this.getClass().getMethods())
-        {
-        	RestResource resource = new RestResource();
-        	resource.setMethodName(method.getName());
-
-            for (Class<?> parameterType : method.getParameterTypes()){
-            	resource.addParameterType(parameterType.getSimpleName());
-            }
-                       
-            for (final Annotation annotation : method.getDeclaredAnnotations()){
-            	if(annotation instanceof GET){
-            		resource.setRequestType("GET");
-                } else if (annotation instanceof PUT){
-                	resource.setRequestType("PUT");
-                } else if (annotation instanceof DELETE){
-                	resource.setRequestType("DELETE");
-                } else if (annotation instanceof POST){
-                	resource.setRequestType("POST");
-                }  else if (annotation instanceof Path){
-                	Path pathAnnotation = (Path)annotation;
-                	resource.setPath(serviceClassPathAnnotation.value() + pathAnnotation.value());
-                }  else if (annotation instanceof Consumes){
-                	Consumes consumesAnnotation = (Consumes)annotation;
-                	if (consumesAnnotation.value() != null && consumesAnnotation.value().length > 0){
-                		String[] consumes = consumesAnnotation.value();
-                		resource.setConsumes(consumes[0]);
-                	}
-                }  else if (annotation instanceof Produces){
-                	Produces producesAnnotation = (Produces)annotation;
-                	if (producesAnnotation.value() != null && producesAnnotation.value().length > 0){
-                		String[] produces = producesAnnotation.value();
-                		resource.setProduces(produces[0]);
-                	}
-                } else if (annotation instanceof ApiDoc){
-                	ApiDoc apiDocAnnotation = (ApiDoc)annotation;
-                	resource.setApiDoc(apiDocAnnotation.value());
-                } else if (annotation instanceof PermitAll){
-                	resource.setAuthentication(false);
-                } else if ( annotation instanceof NdexOpenFunction ) {
-                	resource.setIsOpenFunction(true);
-                } else {
-                	// annotation class not handled
-                	System.out.println(annotation.toString() + " not handled");
-                }
-                
-            }
-            
-            if (resource.getPath() == null){
-            	resource.setPath(serviceClassPathAnnotation.value());
-            }
-            if (resource.getRequestType() != null)
-                resourceList.add(resource);
-        }
- 
-		logger.info("[end: getApi()]");
-        return resourceList;
-    }
-*/
+  
     /**************************************************************************
     * Gets the authenticated user that made the request.
     * 
@@ -183,15 +113,6 @@ public abstract class NdexService
     protected void setZipFlag() {
     	_httpRequest.setAttribute(NdexZipFlag, Boolean.TRUE);
     }
-
-
-/*    private static String createRequestsUniqueId() {
-    	long currentSystemTimeInMs = System.currentTimeMillis();
-    //	Calendar cal = Calendar.getInstance();
-    //	cal.setTimeInMillis(currentSystemTimeInMs);
-    	
-    	return currentSystemTimeInMs + "-" + Thread.currentThread().getId();
-    } */
     
     protected InputStream getInputStreamFromRequest() throws IOException {
     		return _httpRequest.getInputStream();
@@ -287,6 +208,44 @@ public abstract class NdexService
 			   }
 		   }
 		   return uuid; 
+	   }
+	   
+	   
+	   /**
+	    * Caller should put this function in a try () ressource statement so that the NetworkDAO object can be 
+	    * closed properly when an exception was thrown. 
+	    * @param networkId
+	    * @return
+	    * @throws SQLException
+	    * @throws NdexException
+	    */
+	   protected NetworkDAO lockNetworkForUpdate(UUID networkId) throws SQLException, NdexException {
+		   
+			try (UserDAO dao = new UserDAO()) {
+				   dao.checkDiskSpace(getLoggedInUserId());
+			}
+	    	
+	        @SuppressWarnings("resource")
+			NetworkDAO daoNew = new NetworkDAO() ;
+	        User user = getLoggedInUser();
+	           
+		  	   if( daoNew.isReadOnly(networkId)) {
+					throw new NdexException ("Can't update readonly network.");				
+				} 
+				
+				if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
+			        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
+				} 
+				
+				if ( daoNew.networkIsLocked(networkId)) {
+					daoNew.close();
+					throw new NetworkConcurrentModificationException ();
+			   } 
+				
+			daoNew.lockNetwork(networkId);
+			
+			return daoNew;
+		   
 	   }
 	
 }

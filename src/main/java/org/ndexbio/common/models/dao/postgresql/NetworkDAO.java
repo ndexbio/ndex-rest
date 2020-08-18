@@ -334,7 +334,7 @@ public class NetworkDAO extends NdexDBDAO {
 	public void clearNetworkSummary(UUID networkId, long fileSize) throws SQLException, NdexException {
 		String sqlStr = "update network set modification_time = localtimestamp, name = null,"
 				+ "description = null, edgeCount = null, nodeCount = null, isComplete=false,"
-				+ " properties = null, cxmetadata = null,"
+				+ " properties = null, cxmetadata = null, cx2metadata = null,"
 				+ "version = null, is_validated = false, error = null, warnings = null,subnetworkids = null, cx_file_size = ? where \"UUID\" ='" +
 				 networkId.toString() + "' and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {

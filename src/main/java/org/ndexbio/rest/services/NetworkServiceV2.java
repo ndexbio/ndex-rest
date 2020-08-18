@@ -1246,44 +1246,18 @@ public class NetworkServiceV2 extends NdexService {
 				   extraIndexOnNodes.add(f);
 			   }
 		   }
-		
-		try (UserDAO dao = new UserDAO()) {
-			   dao.checkDiskSpace(getLoggedInUserId());
-		}
     	
         UUID networkId = UUID.fromString(networkIdStr);
 
    //     String ownerAccName = null;
-        try ( NetworkDAO daoNew = new NetworkDAO() ) {
-           User user = getLoggedInUser();
-           
-         try {
-	  	   if( daoNew.isReadOnly(networkId)) {
-				throw new NdexException ("Can't update readonly network.");				
-			} 
-			
-			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
-		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
-			} 
-			
-			if ( daoNew.networkIsLocked(networkId)) {
-				daoNew.close();
-				throw new NetworkConcurrentModificationException ();
-			} 
-			
-			daoNew.lockNetwork(networkId);
-			
-	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
-				try (InputStream in = this.getInputStreamFromRequest()) {
+        try ( NetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
+           	
+			try (InputStream in = this.getInputStreamFromRequest()) {
 					UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName);
-					// UUID tmpNetworkId = storeRawNetwork (input);
 
-					updateNetworkFromSavedFile(networkId, daoNew, tmpNetworkId);
-					// daoNew.unlockNetwork(networkId);
-				}
+					updateNetworkFromSavedFile(networkId, daoNew, tmpNetworkId);				
 			
            } catch (SQLException | NdexException | IOException e) {
-        	  // e.printStackTrace();
         	   daoNew.rollback();
         	   daoNew.unlockNetwork(networkId);  
 
