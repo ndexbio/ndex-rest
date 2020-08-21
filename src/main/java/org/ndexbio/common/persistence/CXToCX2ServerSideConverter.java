@@ -3,6 +3,9 @@ package org.ndexbio.common.persistence;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +32,7 @@ import org.ndexbio.cx2.converter.CXToCX2Converter;
 import org.ndexbio.cx2.converter.CXToCX2VisualPropertyConverter;
 import org.ndexbio.cx2.converter.ConverterUtilities;
 import org.ndexbio.cx2.converter.MappingValueStringParser;
+import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.cx2.io.CXWriter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
@@ -43,6 +47,7 @@ import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 
@@ -82,7 +87,12 @@ public class CXToCX2ServerSideConverter {
 
 	}
 	
+	
 	public List<CxMetadata> convert() throws FileNotFoundException, IOException, NdexException {
+		
+		//create the aspect dir
+        String cx2AspectDir  = pathPrefix + networkId + "/"+ CX2NetworkLoader.cx2AspectDirName + "/";
+		Files.createDirectory(Paths.get(cx2AspectDir));
 		
 		attrStats = analyzeAttributes();
 		attrDeclarations = attrStats.createCxDeclaration();
@@ -95,10 +105,7 @@ public class CXToCX2ServerSideConverter {
 			CXWriter wtr = new CXWriter(out, false);
 			
 			boolean hasAttributes = !attrDeclarations.getDeclarations().isEmpty();
-			
-			if (hasAttributes)
-				cx2Metadata.add(new CxMetadata (CxAttributeDeclaration.ASPECT_NAME, 1));
-			
+		
 			//write metadata first.
 			wtr.writeMetadata(cx2Metadata);
 			
@@ -107,6 +114,10 @@ public class CXToCX2ServerSideConverter {
 				List<CxAttributeDeclaration> attrDecls = new ArrayList<>(1);
 				attrDecls.add(this.attrDeclarations);
 				wtr.writeFullAspectFragment(attrDecls);
+				
+				try (CX2AspectWriter<CxAttributeDeclaration> aspWtr = new CX2AspectWriter<>(cx2AspectDir + CxAttributeDeclaration.ASPECT_NAME)) {
+					aspWtr.writeCXElement(attrDeclarations);
+				}
 			 
 			} 
 			
@@ -125,14 +136,23 @@ public class CXToCX2ServerSideConverter {
 				List<CxNetworkAttribute> netAttrs = new ArrayList<>(1);
 				netAttrs.add(cx2NetAttr);
 				wtr.writeFullAspectFragment(netAttrs);
+				
+				try (CX2AspectWriter<CxNetworkAttribute> aspWtr = new CX2AspectWriter<>(cx2AspectDir + CxNetworkAttribute.ASPECT_NAME)) {
+					aspWtr.writeCXElement(cx2NetAttr);
+				}
+				
 			}
 			 
 			//write nodes
 			if( needToWriteAspect(CxNode.ASPECT_NAME, cx2Metadata)) {
 				Map<Long, CxNode> nodeTable = createCX2NodeTable();
 				wtr.startAspectFragment(CxNode.ASPECT_NAME);
-				for (CxNode n : nodeTable.values()) {
-					wtr.writeElementInFragment(n);
+				try (CX2AspectWriter<CxNode> aspWtr = new CX2AspectWriter<>(cx2AspectDir + CxNode.ASPECT_NAME)) {
+					for (CxNode n : nodeTable.values()) {
+					
+						wtr.writeElementInFragment(n);
+						aspWtr.writeCXElement(n);
+					}
 				}
 				wtr.endAspectFragment();
 			}
@@ -142,20 +162,25 @@ public class CXToCX2ServerSideConverter {
 				Map<Long, CxEdge> edgeAttrTable = createEdgeAttrTable();
 				wtr.startAspectFragment(CxEdge.ASPECT_NAME);
 				try (AspectIterator<EdgesElement> a = new AspectIterator<>(networkId, EdgesElement.ASPECT_NAME, EdgesElement.class, pathPrefix) ) {
-					while (a.hasNext()) {
-						EdgesElement cx1Edge = a.next();
-						CxEdge cx2Edge = edgeAttrTable.remove(cx1Edge.getId());
-						if ( cx2Edge == null) 
-							cx2Edge = new CxEdge(cx1Edge.getId());
-						cx2Edge.setSource(cx1Edge.getSource());
-						cx2Edge.setTarget(cx1Edge.getTarget());
-						if ( cx1Edge.getInteraction() != null) {
-							EdgeAttributesElement attr = new EdgeAttributesElement(cx1Edge.getId(), CxEdge.INTERACTION, cx1Edge.getInteraction(), ATTRIBUTE_DATA_TYPE.STRING);	
-							cx2Edge.addCX1EdgeAttribute(attr, this.attrDeclarations);   
+					try(CX2AspectWriter<CxEdge> aspWtr = new CX2AspectWriter<>(cx2AspectDir + CxEdge.ASPECT_NAME)) {
+						while (a.hasNext()) {
+							EdgesElement cx1Edge = a.next();
+							CxEdge cx2Edge = edgeAttrTable.remove(cx1Edge.getId());
+							if ( cx2Edge == null) 
+								cx2Edge = new CxEdge(cx1Edge.getId());
+							cx2Edge.setSource(cx1Edge.getSource());
+							cx2Edge.setTarget(cx1Edge.getTarget());
+							if ( cx1Edge.getInteraction() != null) {
+								EdgeAttributesElement attr = new EdgeAttributesElement(cx1Edge.getId(), CxEdge.INTERACTION, cx1Edge.getInteraction(), ATTRIBUTE_DATA_TYPE.STRING);	
+								cx2Edge.addCX1EdgeAttribute(attr, this.attrDeclarations);   
+							}
+							wtr.writeElementInFragment(cx2Edge);
+							aspWtr.writeCXElement(cx2Edge);
 						}
-						wtr.writeElementInFragment(cx2Edge);
+						
 					}
 				}		
+					
 				
 				wtr.endAspectFragment();
 				
@@ -169,20 +194,33 @@ public class CXToCX2ServerSideConverter {
 				wtr.startAspectFragment(CxVisualProperty.ASPECT_NAME);
 				wtr.writeElementInFragment(vp.getStyle());
 				wtr.endAspectFragment();
+				
+				try (CX2AspectWriter<CxVisualProperty> aspWtr = new CX2AspectWriter<>(cx2AspectDir + CxVisualProperty.ASPECT_NAME)) {
+					aspWtr.writeCXElement(vp.getStyle());
+				}
 			}
 						
 			if ( !vp.getNodeBypasses().isEmpty()) {
 				wtr.startAspectFragment(CxNodeBypass.ASPECT_NAME);
-				for ( CxNodeBypass e : vp.getNodeBypasses()) {
-					wtr.writeElementInFragment(e);
+				
+				try (CX2AspectWriter<CxNodeBypass> aspWtr = new CX2AspectWriter<>(cx2AspectDir + CxNodeBypass.ASPECT_NAME)) {
+
+					for ( CxNodeBypass e : vp.getNodeBypasses()) {
+						wtr.writeElementInFragment(e);
+						aspWtr.writeCXElement(e);
+					}
 				}
 				wtr.endAspectFragment();
 			}
 			
 			if ( !vp.getEdgeBypasses().isEmpty()) {
 				wtr.startAspectFragment(CxEdgeBypass.ASPECT_NAME);
-				for ( CxEdgeBypass e : vp.getEdgeBypasses()) {
-					wtr.writeElementInFragment(e);
+				try (CX2AspectWriter<CxEdgeBypass> aspWtr = new CX2AspectWriter<>(cx2AspectDir + CxEdgeBypass.ASPECT_NAME)) {
+
+					for ( CxEdgeBypass e : vp.getEdgeBypasses()) {
+						wtr.writeElementInFragment(e);
+						aspWtr.writeCXElement(e);
+					}
 				}
 				wtr.endAspectFragment();
 			}
@@ -192,10 +230,15 @@ public class CXToCX2ServerSideConverter {
 				wtr.startAspectFragment(VisualEditorProperties.ASPECT_NAME);
 				wtr.writeElementInFragment(this.visualDependencies);
 				wtr.endAspectFragment();
+				
+				try (CX2AspectWriter<VisualEditorProperties> aspWtr = new CX2AspectWriter<>(cx2AspectDir + VisualEditorProperties.ASPECT_NAME)) {
+					aspWtr.writeCXElement(this.visualDependencies);
+				}
 			}
 
 			//write possible opaque aspects
-			
+	        String cx1AspectDir  = pathPrefix + networkId + "/"+ CXNetworkLoader.CX1AspectDir ;
+
 			for ( CxMetadata m : cx2Metadata) {
 				String aspectName = m.getName();
 			    if (! CX2ToCXConverter.cx2SpecialAspects.contains(aspectName) && 
@@ -207,6 +250,10 @@ public class CXToCX2ServerSideConverter {
 							wtr.writeElementInFragment(a.next());
 					}
 					wtr.endAspectFragment();
+					
+					Path tgt = Paths.get(cx1AspectDir, aspectName);
+					Path link = Paths.get(pathPrefix + networkId + "/"+ CX2NetworkLoader.cx2AspectDirName, aspectName);
+					Files.createSymbolicLink(link, tgt);
 			   }
 			}
 			
@@ -333,6 +380,12 @@ public class CXToCX2ServerSideConverter {
 				ep.setElementCount(Long.valueOf(attrStats.getEdgeBypassCount()));
 				metaDataCollection.add(ep);
 			}
+		}
+		
+		if (!attrDeclarations.getDeclarations().isEmpty()) {
+			MetaDataElement ep = new MetaDataElement(CxAttributeDeclaration.ASPECT_NAME, null);
+			ep.setElementCount(1L);
+			metaDataCollection.addAt(0, ep);
 		}
 
 	}

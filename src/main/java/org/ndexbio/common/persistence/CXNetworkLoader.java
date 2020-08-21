@@ -108,6 +108,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	//private static final String nodeName = "name";
     
     public static final String CX1FileName = "network.cx";
+    public static final String CX1AspectDir = "aspects";
     
 	public static final int defaultSampleSize = 300;
 	public static final int defaultSampleGenerationThreshhold = 1000;
@@ -159,7 +160,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 //		this.ownerName = ownerUserName;
 		this.networkId = networkUUID;
-		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/";
+		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + CX1AspectDir+ "/";
 		this.networkName = null;
 
 	//	this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
