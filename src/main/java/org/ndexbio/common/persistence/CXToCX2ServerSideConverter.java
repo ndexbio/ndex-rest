@@ -74,14 +74,14 @@ public class CXToCX2ServerSideConverter {
 	 * 
 	 * @param rootPath the directory of a CX2 network on the server. 
 	 */
-	CXToCX2ServerSideConverter(String rootPath, 
-			MetaDataCollection metadataCollection, String networkIdStr) {
+	protected CXToCX2ServerSideConverter(String rootPath, 
+			MetaDataCollection metadataCollection, String networkIdStr, AspectAttributeStat cx1AttributeStats ) {
 		pathPrefix = rootPath;
 		this.metaDataCollection = metadataCollection;
 		
 		this.attrDeclarations = new CxAttributeDeclaration();
 		this.networkId = networkIdStr;
-		this.attrStats = null;
+		this.attrStats = cx1AttributeStats;
 		this.visualDependencies = new VisualEditorProperties();
 		vpConverter = new CXToCX2VisualPropertyConverter();
 
@@ -94,7 +94,9 @@ public class CXToCX2ServerSideConverter {
         String cx2AspectDir  = pathPrefix + networkId + "/"+ CX2NetworkLoader.cx2AspectDirName + "/";
 		Files.createDirectory(Paths.get(cx2AspectDir));
 		
-		attrStats = analyzeAttributes();
+		if ( attrStats == null)
+			attrStats = analyzeAttributes();
+		
 		attrDeclarations = attrStats.createCxDeclaration();
 		
 		cleanupMetadata();

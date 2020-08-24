@@ -51,6 +51,7 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.cx2.converter.AspectAttributeStat;
 import org.ndexbio.cx2.converter.CXToCX2Converter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
@@ -151,6 +152,9 @@ public class CXNetworkLoader implements AutoCloseable {
 	private NetworkDAO dao;
 	private VisibilityType visibility;
 	private Set<String> indexedFields;
+	
+	protected AspectAttributeStat attributeStats;
+
 		
 //	protected String updatedBy;
 	public CXNetworkLoader(UUID networkUUID, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields, int sampleGenerationThreshold) {
@@ -187,6 +191,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		networkName = null;
 		description = null;
 		version = null;
+		attributeStats = new AspectAttributeStat();
 		properties = new ArrayList<>();
 		dao = networkDao;
 	//	updatedBy = updaterUserName;
@@ -290,7 +295,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 			  				
 				//recreate CX and CX2 files
-				reCreateCXFiles(networkId,metadata, dao);
+				reCreateCXFiles(networkId,metadata, dao, this.attributeStats);
 				
 				try {
 					if ( !isUpdate) {
@@ -329,7 +334,21 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	}
 
-	public static void reCreateCXFiles(UUID networkId, MetaDataCollection m, NetworkDAO dao ) throws JsonParseException, JsonMappingException, SQLException, IOException,
+	/**
+	 * 
+	 * @param networkId
+	 * @param m
+	 * @param dao
+	 * @param attrStats This object will help the cx2 converter to generate metadata for some cx2 aspect. When this 
+	 *        parameter is null, the cx2converter will run analyze attributes in the converter.
+	 * @throws JsonParseException
+	 * @throws JsonMappingException
+	 * @throws SQLException
+	 * @throws IOException
+	 * @throws NdexException
+	 * @throws FileNotFoundException
+	 */
+	public static void reCreateCXFiles(UUID networkId, MetaDataCollection m, NetworkDAO dao, AspectAttributeStat attrStats ) throws JsonParseException, JsonMappingException, SQLException, IOException,
 			NdexException, FileNotFoundException {
 		CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
 		String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
@@ -344,7 +363,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		// create the CX2 file
 		
 		CXToCX2ServerSideConverter cvtr = new CXToCX2ServerSideConverter( Configuration.getInstance().getNdexRoot() + "/data/",
-				m, networkId.toString() );
+				m, networkId.toString(), attrStats );
 		dao.setCxMetadata(networkId, cvtr.convert()); 
 
 	}
@@ -592,7 +611,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 
     
-	private void createNetworkAttribute(NetworkAttributesElement e) throws IOException {
+	private void createNetworkAttribute(NetworkAttributesElement e) throws IOException, NdexException {
 		
 		if ( e.getName().equals(NdexClasses.Network_P_name) && ( networkName == null || e.getSubnetwork() == null)) {
 				this.networkName = e.getValue();
@@ -610,7 +629,8 @@ public class CXNetworkLoader implements AutoCloseable {
 					(e.isSingleValue() ? e.getValue(): e.getValueAsJsonString()), e.getDataType().toString()));
 		
 		writeCXElement(e);
-		
+		attributeStats.addNetworkAttribute(e);		
+
 	}
 	
 	private void writeCXElement(AspectElement element) throws IOException {
@@ -632,7 +652,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 		nodeIdTracker.addDefinedElementId(node.getId());
 		writeCXElement(node);
-		
+		attributeStats.addNode(node);
 	}	 
 
 	private void createCXCitation(CitationElement citation) throws NdexException, IOException {
@@ -655,7 +675,9 @@ public class CXNetworkLoader implements AutoCloseable {
 		} else if ( po.equals("nodes")) { 
 			nodeIdTracker.addReferenceId(visualProperty.getApplies_to(), CyVisualPropertiesElement.ASPECT_NAME);
 		}	
-		writeCXElement(visualProperty);		   
+		writeCXElement(visualProperty);		  
+		attributeStats.addCyVisualPropertiesElement(visualProperty);
+
 	}	 
 	
 	private void createCXSupport(SupportElement support) throws NdexException, IOException {
@@ -672,6 +694,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		nodeIdTracker.addReferenceId(ee.getTarget(), EdgesElement.ASPECT_NAME);
 		
 		writeCXElement(ee);	   
+		attributeStats.addEdge(ee);
+
 	}
 	
 	private void createEdgeCitation(EdgeCitationLinksElement elmt) throws IOException {
@@ -728,14 +752,21 @@ public class CXNetworkLoader implements AutoCloseable {
 	}
 	
 
-	private void addNodeAttribute(NodeAttributesElement e) throws IOException{
+	private void addNodeAttribute(NodeAttributesElement e) throws IOException, NdexException{
+		if ( e.getName().equals("name") || e.getName().equals("represents"))
+			throw new NdexException ("Node attribute " + e.getName() + " is not allowed in CX1 spec.");
 		nodeIdTracker.addReferenceId(e.getPropertyOf(), NodeAttributesElement.ASPECT_NAME);
 		writeCXElement(e);
+		attributeStats.addNodeAttribute(e);
 	}
 	
-	private void addEdgeAttribute(EdgeAttributesElement e) throws IOException{
+	private void addEdgeAttribute(EdgeAttributesElement e) throws IOException, NdexException{
+		if ( e.getName().equals("interaction"))
+			throw new NdexException ( "Edge attribute interaction is not allowed.");
 		edgeIdTracker.addReferenceId(e.getPropertyOf(), EdgeAttributesElement.ASPECT_NAME);
 		writeCXElement(e);
+		attributeStats.addEdgeAttribute(e);
+
 	}
 
 	private void addCartesianLayoutElement(CartesianLayoutElement e) throws IOException{
