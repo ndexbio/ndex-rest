@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
@@ -85,11 +86,23 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXNetworkAspectsUpdater;
+import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Util;
+import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
+import org.ndexbio.cx2.aspect.element.core.CxEdgeBypass;
+import org.ndexbio.cx2.aspect.element.core.CxNode;
+import org.ndexbio.cx2.aspect.element.core.CxNodeBypass;
+import org.ndexbio.cx2.aspect.element.core.CxVisualProperty;
+import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
+import org.ndexbio.cx2.aspect.element.cytoscape.VisualEditorProperties;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodesElement;
+import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.cxio.core.CXAspectWriter;
 import org.ndexbio.cxio.core.OpaqueAspectIterator;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
@@ -124,6 +137,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Path("/v2/network")
 public class NetworkServiceV2 extends NdexService {
@@ -436,20 +450,44 @@ public class NetworkServiceV2 extends NdexService {
     			throw new UnauthorizedOperationException("User doesn't have access to this network.");
     		}
     		
-			FileInputStream in;
+    		File cx1AspectDir = new File (Configuration.getInstance().getNdexRoot() + "/data/" + networkId 
+    				+ "/" + CXNetworkLoader.CX1AspectDir);
+    		boolean hasCX1AspDir = cx1AspectDir.exists();
+    		
+			FileInputStream in = null;
 			try {
-				in = new FileInputStream(
-						Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + aspectName);
+				if ( hasCX1AspDir) {
+				   in = new FileInputStream(cx1AspectDir + "/" + aspectName);
+				   if ( limit <= 0) {
+						return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+			    	} 
+				   
+				   PipedInputStream pin = new PipedInputStream();
+					PipedOutputStream out;
+						
+					try {
+							out = new PipedOutputStream(pin);
+					} catch (IOException e) {
+						try {
+							pin.close();
+							in.close();
+						} catch (IOException e1) {
+							e1.printStackTrace();
+						}
+						throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+					}
+						
+					new CXAspectElementsWriterThread(out,in, /*aspectName,*/ limit).start();
+				//	logger.info("[end: Return get one aspect in network {}]", networkId);
+					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
+				} 
+				
 			} catch (FileNotFoundException e) {
 					throw new ObjectNotFoundException("Aspect "+ aspectName + " not found in this network: " + e.getMessage());
 			}
 	    	
-			if ( limit <= 0) {
-		//		logger.info("[end: Return cached network {}]", networkId);
-				return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
-	    	} 
 			
-			
+			//get aspect from cx2 aspects
 			PipedInputStream pin = new PipedInputStream();
 			PipedOutputStream out;
 				
@@ -458,14 +496,13 @@ public class NetworkServiceV2 extends NdexService {
 			} catch (IOException e) {
 				try {
 					pin.close();
-					in.close();
 				} catch (IOException e1) {
 					e1.printStackTrace();
 				}
 				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
 			}
-				
-			new CXAspectElementsWriterThread(out,in, /*aspectName,*/ limit).start();
+							
+			new CXAspectElementsWriter2Thread(out,networkId, aspectName, limit).start();
 		//	logger.info("[end: Return get one aspect in network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 		
@@ -688,6 +725,158 @@ public class NetworkServiceV2 extends NdexService {
 		
 	}
 
+	private class CXAspectElementsWriter2Thread extends Thread {
+		private OutputStream o;
+		private String networkId;
+		private String aspect;
+		private int limit;
+		private String pathPrefix;
+		
+		public CXAspectElementsWriter2Thread (OutputStream out, String networkId, String aspectName, int limit) throws ObjectNotFoundException {
+			
+			
+			o = out;
+			this.networkId = networkId;
+			aspect = aspectName;
+			this.limit = limit;
+			checkAspectName();
+			pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId 
+    				+ "/" + CX2NetworkLoader.cx2AspectDirName + "/";
+			
+		}
+		
+		private void checkAspectName() throws ObjectNotFoundException {
+			if (aspect.equals(CxAttributeDeclaration.ASPECT_NAME) ||
+					aspect.equals(CxVisualProperty.ASPECT_NAME) ||
+					aspect.equals(CxNodeBypass.ASPECT_NAME) ||
+					aspect.equals(CxEdgeBypass.ASPECT_NAME) ||
+					aspect.equals(VisualEditorProperties.ASPECT_NAME)) {
+				throw new ObjectNotFoundException ("Aspect " + aspect + " is not found. It is only available in CX2.");
+			}
+		}
+		
+		
+		@Override
+		public void run() {
+
+			try {
+	
+			    if ( aspect.equals(NodesElement.ASPECT_NAME)) {
+				  writeNodes();
+				  return;
+			    }
+			    
+			    if ( aspect.equals(NodeAttributesElement.ASPECT_NAME)) {
+			    	writeNodeAttributes();
+			    	return ;
+			    }
+				
+			    File aspF = new File ( pathPrefix + aspect);
+				if ( !aspF.exists() ) {
+					o.write("[]".getBytes());
+					return;
+				}
+				try(FileInputStream in = new FileInputStream (aspF))	 {
+				OpaqueAspectIterator asi = new OpaqueAspectIterator(in);
+				try (CXAspectWriter wtr = new CXAspectWriter (o)) {
+					for ( int i = 0 ; (limit <=0 ||i < limit) && asi.hasNext() ; i++) {
+						wtr.writeCXElement(asi.next());
+					}
+				}
+				}
+			} catch (IOException e) {
+					logger.error("IOException in CXAspectElementWriterThread: " + e.getMessage());
+			} catch (Exception e1) {
+				logger.error("Ndex exception: " + e1.getMessage());
+			} finally {
+				try {
+					o.flush();
+					o.close();
+				} catch (IOException e) {
+					logger.error("Failed to close outputstream in CXElementWriterWriterThread");
+					e.printStackTrace();
+				}
+			} 
+		}
+		
+		private Map<String,DeclarationEntry> getDeclarations(String cx2AspectName) throws JsonParseException, JsonMappingException, IOException {			
+			File attrDeclF = new File ( pathPrefix + CxAttributeDeclaration.ASPECT_NAME);
+			CxAttributeDeclaration[] declarations = null;
+			if ( attrDeclF.exists() ) {
+				ObjectMapper om = new ObjectMapper();
+				declarations = om.readValue(attrDeclF, CxAttributeDeclaration[].class);
+			}
+
+			Map<String,DeclarationEntry> aspAttrDecls = null;
+			if ( declarations != null)
+				aspAttrDecls = declarations[0].getAttributesInAspect(cx2AspectName);
+			
+			return aspAttrDecls;
+		}
+		
+		private void writeNodes() throws IOException {
+			String fileName = pathPrefix + CxNode.ASPECT_NAME;
+			
+			Map<String,DeclarationEntry> nodeAttrDecls = getDeclarations(CxNode.ASPECT_NAME);
+			
+			File f = new File (fileName);
+			if ( f.exists()) {
+				try (CXAspectWriter wtr = new CXAspectWriter (o)) {
+					try(FileInputStream in = new FileInputStream(f)) {
+					AspectIterator<CxNode> it = new AspectIterator<>(in, CxNode.class);
+					for ( int i = 0 ; (limit <=0 || i < limit) && it.hasNext() ; i++) {
+						CxNode n = it.next();
+						NodesElement node = new NodesElement(n.getId(),n.getNodeName(nodeAttrDecls),
+								n.getNodeRepresents(nodeAttrDecls));
+						wtr.writeCXElement(node);
+					}	
+					}
+				}
+			} else 
+				o.write("[]".getBytes());
+		}
+		
+		
+		private void writeNodeAttributes() throws IOException {
+			String fileName = pathPrefix + CxNode.ASPECT_NAME;
+			
+			Map<String,DeclarationEntry> nodeAttrDecls = getDeclarations(CxNode.ASPECT_NAME);
+			
+			File f = new File (fileName);
+			if ( f.exists()) {
+				try (CXAspectWriter wtr = new CXAspectWriter (o)) {
+					try(FileInputStream in = new FileInputStream(f)) {
+					AspectIterator<CxNode> it = new AspectIterator<>(in, CxNode.class);
+					for ( int i = 0 ; (limit <=0 || i < limit) && it.hasNext() ; i++) {
+						CxNode n = it.next();
+						n.extendToFullNode(nodeAttrDecls);
+						for ( Map.Entry<String,Object> attr : n.getAttributes().entrySet() ) {
+							String attrName = attr.getKey();
+							if ( !attrName.equals(CxNode.NAME) && ! attrName.equals(CxNode.REPRESENTS) ) {
+								DeclarationEntry e = nodeAttrDecls.get(attr.getKey());
+								ATTRIBUTE_DATA_TYPE t = e.getDataType();
+								NodeAttributesElement nodeAttr;
+								if (t.isSingleValueType()) 
+										nodeAttr = new NodeAttributesElement(null, n.getId(),
+									  attr.getKey(), attr.getValue().toString(),t);
+								else {
+									List<Object> v = (List<Object>)attr.getValue();
+									List<String> vs = v.stream().map((Object vn )-> vn.toString()).collect(Collectors.toList());
+									nodeAttr = new NodeAttributesElement(null, n.getId(),
+										  attr.getKey(), vs,t);
+								}
+								wtr.writeCXElement(nodeAttr);	
+							}
+						}
+						
+					}	
+					}
+				}
+			} else 
+				o.write("[]".getBytes());
+		}
+		
+	}
 
 	
 
