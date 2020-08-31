@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -19,6 +20,7 @@ import org.ndexbio.cx2.aspect.element.core.CxNodeBypass;
 import org.ndexbio.cx2.aspect.element.core.CxVisualProperty;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cx2.aspect.element.cytoscape.VisualEditorProperties;
+import org.ndexbio.cx2.converter.CX2ToCXVisualPropertyConverter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
@@ -30,6 +32,7 @@ import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.cxio.core.CXAspectWriter;
 import org.ndexbio.cxio.core.OpaqueAspectIterator;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.rest.Configuration;
 import org.slf4j.Logger;
@@ -138,6 +141,21 @@ public class CXAspectElementWriter2Thread extends Thread {
 					e.printStackTrace();
 				}
 			} 
+		}
+		
+		
+		private CxAttributeDeclaration getAttrDeclarations() throws JsonParseException, JsonMappingException, IOException {			
+			File attrDeclF = new File ( pathPrefix + CxAttributeDeclaration.ASPECT_NAME);
+			CxAttributeDeclaration[] declarations = null;
+			if ( attrDeclF.exists() ) {
+				ObjectMapper om = new ObjectMapper();
+				declarations = om.readValue(attrDeclF, CxAttributeDeclaration[].class);
+			}
+
+			if ( declarations != null)
+				return declarations[0];
+			
+			return null;
 		}
 		
 		private Map<String,DeclarationEntry> getDeclarations(String cx2AspectName) throws JsonParseException, JsonMappingException, IOException {			
@@ -335,13 +353,13 @@ public class CXAspectElementWriter2Thread extends Thread {
 				o.write("[]".getBytes());
 		}
 		
-		private void writeCyVisualProperties() throws JsonParseException, JsonMappingException, IOException {
+		private void writeCyVisualProperties() throws JsonParseException, JsonMappingException, IOException, NdexException {
 			String fileName = pathPrefix + CxVisualProperty.ASPECT_NAME;
+			ObjectMapper om = new ObjectMapper();
 			
 			CxVisualProperty[] vp = null;
 			File f = new File ( fileName);
 			if ( f.exists() ) {
-				ObjectMapper om = new ObjectMapper();
 				vp = om.readValue(f, CxVisualProperty[].class);
 			} else 
 				o.write("[]".getBytes());
@@ -349,27 +367,91 @@ public class CXAspectElementWriter2Thread extends Thread {
 			fileName = pathPrefix + VisualEditorProperties.ASPECT_NAME;
 			VisualEditorProperties[] evp = null;
 			if ( f.exists() ) {
-				ObjectMapper om = new ObjectMapper();
 				evp = om.readValue(f, VisualEditorProperties[].class);
 			}
 
+			CxAttributeDeclaration attrDeclarations = getAttrDeclarations();
+			
+			int i = 0;
+			
 			try (CXAspectWriter wtr = new CXAspectWriter (o)) {
-				CyVisualPropertiesElement netDefault = CX2ToCXConverter.getDefaultNetworkVP(vp[0].getDefaultProps());
-				wtr.writeCXElement(netDefault);
+				
+				if(limit <=0 || i < limit ) {
+					CyVisualPropertiesElement netDefault = CX2ToCXConverter.getDefaultNetworkVP(vp[0].getDefaultProps());
+					wtr.writeCXElement(netDefault);
+					i++;
+				} else
+					return;
 
+				if (limit <=0 || i < limit ) {
+					CyVisualPropertiesElement cx1vp = CX2ToCXConverter.getDefaultNodeVP(vp[0], 
+						(evp == null ? null:evp[0]), attrDeclarations );
+					wtr.writeCXElement(cx1vp);
+					i++;
+				} else 
+					return;
 				
+				if (limit <=0 || i < limit ) {
 				
-			/*	try(FileInputStream in = new FileInputStream(f)) {
-					AspectIterator<CxEdge> it = new AspectIterator<>(in, CxEdge.class);
-					for ( int i = 0 ; (limit <=0 || i < limit) && it.hasNext() ; i++) {
-						CxEdge n = it.next();
-						EdgesElement node = new EdgesElement(n.getId(),n.getSource(),n.getTarget(),
-								n.getInteraction(edgeAttrDecls));
-						wtr.writeCXElement(node);
-					}	
-					}
-				} */
+					CyVisualPropertiesElement cx1vp = CX2ToCXConverter.getDefaultEdgeVP(vp[0], 
+						(evp == null ? null:evp[0]), attrDeclarations );
+					wtr.writeCXElement(cx1vp);
+					i++;
+				} else 
+					return;
+				
+				//Node bypasses
+				fileName = pathPrefix + CxNodeBypass.ASPECT_NAME;
+				f = new File ( fileName);
+				if ( f.exists() ) {
+					try (FileInputStream inputStream = new FileInputStream(fileName)) {
+						Iterator<CxNodeBypass> it = om.readerFor(CxNodeBypass.class).readValues(inputStream);
+						
+						while ((limit <=0 || i < limit) && it.hasNext() ) {
+							CxNodeBypass bypass = it.next();
+							CyVisualPropertiesElement e = new CyVisualPropertiesElement(NodesElement.ASPECT_NAME,
+								Long.valueOf(bypass.getId()), null);
+						
+							Boolean nodeSizeLocked = evp == null? Boolean.FALSE: 
+								(Boolean)evp[0].getProperties().get("nodeSizeLocked");
+							Map<String,Object> bypassProps = bypass.getVisualProperties();
+							if( nodeSizeLocked.booleanValue()) {
+								if (bypassProps.get("NODE_WIDTH") != null ) {
+									bypassProps.put("NODE_SIZE", bypassProps.get("NODE_WIDTH"));
+								}
+							}
+			    		
+							e.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
+			    		
+							wtr.writeCXElement(e);
+							i++;
+						}	
+					}				
+				}
+				
+				//edge bypasses
+				fileName = pathPrefix + CxEdgeBypass.ASPECT_NAME;
+				f = new File ( fileName);
+				if ( f.exists() ) {
+					try (FileInputStream inputStream = new FileInputStream(fileName)) {
+						Iterator<CxEdgeBypass> it = om.readerFor(CxEdgeBypass.class).readValues(inputStream);
+						
+						while ((limit <=0 || i < limit) && it.hasNext() ) {
+							CxEdgeBypass bypass = it.next();
+							CyVisualPropertiesElement e = new CyVisualPropertiesElement(EdgesElement.ASPECT_NAME,
+								Long.valueOf(bypass.getId()), null);
+						
+							Map<String,Object> bypassProps = bypass.getVisualProperties();
+							e.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
+			    		
+							wtr.writeCXElement(e);
+							i++;
+						}	
+					}				
+				}
+			
 			} 
+
 		}
 		
 }
