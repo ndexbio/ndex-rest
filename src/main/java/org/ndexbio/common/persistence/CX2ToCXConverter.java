@@ -66,7 +66,7 @@ public class CX2ToCXConverter {
 	private boolean hasLayout;
 	private CxNetworkAttribute networkAttributes; 
 	
-	private CX2ToCXVisualPropertyConverter vpCvtr;
+	//private CX2ToCXVisualPropertyConverter vpCvtr;
 
 	private int nodeAttrCount;
 	private int edgeAttrCount;
@@ -82,7 +82,7 @@ public class CX2ToCXConverter {
 		this.metadataTable = metadata;
 		this.hasLayout = hasLayout;
 		this.networkAttributes = networkAttrs;
-		this.vpCvtr = new CX2ToCXVisualPropertyConverter();
+		//this.vpCvtr = CX2ToCXVisualPropertyConverter.getInstance();
 
 	}
 	
@@ -271,84 +271,64 @@ public class CX2ToCXConverter {
 				DefaultVisualProperties defaultVPs = vPs[0].getDefaultProps();
 				
 				//convert network default VPs
-				Map<String, Object> networkDFVPs = defaultVPs.getNetworkProperties();
-				CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("network");
-				vp.setProperties(vpCvtr.convertNetworkVPs(networkDFVPs));
-				writer.writeElement(vp);
+				writer.writeElement(getDefaultNetworkVP(defaultVPs));
 				
 				// get the dependency table
-				Map<String,Object> vep = null;
+				VisualEditorProperties vep = null;
 				File vsEditorPropsFile = new File ( aspectPath + VisualEditorProperties.ASPECT_NAME);
 				if (vsEditorPropsFile.exists()) {
 					VisualEditorProperties[] vepr = om.readValue(vsEditorPropsFile, VisualEditorProperties[].class);
-					vep = vepr[0].getProperties();
+					vep = vepr[0];
 				}
 				
-				// convert node default
-				Map<String,Object> nodeDefaultVPs =defaultVPs.getNodeProperties();
-				vp = new CyVisualPropertiesElement ("nodes:default");
-				vp.setProperties(vpCvtr.convertEdgeOrNodeVPs(nodeDefaultVPs));
-				
-				// set node dependency
-				boolean nodeSizeLocked = false;
-				if ( vep != null ) {
-					SortedMap<String, String> nodeVPDependencies = vp.getDependencies();
-					if ( vep.get("nodeSizeLocked") != null ) {
-						nodeSizeLocked = ((Boolean)vep.get("nodeSizeLocked")).booleanValue();
-						nodeVPDependencies.put("nodeSizeLocked", Boolean.toString(nodeSizeLocked));
-						vp.getProperties().put("NODE_SIZE", vp.getProperties().get("NODE_WIDTH"));
-					}
-					if ( vep.get("nodeCustomGraphicsSizeSync") !=null ) {
-						nodeVPDependencies.put("nodeCustomGraphicsSizeSync", 
-								vep.get("nodeCustomGraphicsSizeSync").toString()); 
-					}
-				}
-				
-				//set node mapping
-				Map<String,VisualPropertyMapping> nodeMappings = vPs[0].getNodeMappings();
-				if ( nodeSizeLocked) {
-					VisualPropertyMapping m = nodeMappings.get("NODE_WIDTH");
-					if ( m != null)
-						nodeMappings.put("NODE_SIZE", m);
-				}
-				convertMapping(vp, nodeMappings, CxNode.ASPECT_NAME);
-				
+				// convert node default and node mappings
+				CyVisualPropertiesElement vp = getDefaultNodeVP(vPs[0], vep, this.attrDeclarations );
 				
 				writer.writeElement(vp);
 				
-				
-				// convert edge default
-				Map<String,Object> edgeDefaultVPs =defaultVPs.getEdgeProperties();
-				vp = new CyVisualPropertiesElement ("edge:default");
-				vp.setProperties(vpCvtr.convertEdgeOrNodeVPs(edgeDefaultVPs));
-				
-				// set edge dependency
-				
-				boolean arrowColorMatchesEdge = false;
-				if ( vep != null ) {
-					SortedMap<String, String> edgeVPDependencies = vp.getDependencies();
-					if ( vep.get("arrowColorMatchesEdge") != null ) {
-						arrowColorMatchesEdge = ((Boolean)vep.get("arrowColorMatchesEdge")).booleanValue();
-						edgeVPDependencies.put("arrowColorMatchesEdge", Boolean.toString(arrowColorMatchesEdge));
-						vp.getProperties().put("EDGE_PAINT", vp.getProperties().get("EDGE_STROKE_UNSELECTED_PAINT"));	
-					}
-				}
-				
-				//set edge mapping
-				Map<String,VisualPropertyMapping> edgeMappings = vPs[0].getEdgeMappings();
-				
-				// add edge_paint mapping if dependency flag exists.
-				if ( arrowColorMatchesEdge) {
-					VisualPropertyMapping m = edgeMappings.get("EDGE_STROKE_UNSELECTED_PAINT");
-					if ( m != null)
-						edgeMappings.put("EDGE_PAINT", m);
-				}
-				
-				convertMapping(vp, edgeMappings, CxEdge.ASPECT_NAME);
-				
+				// convert edge default and edge mappings
+				vp = getDefaultEdgeVP(vPs[0], vep, this.attrDeclarations);
 				
 				writer.writeElement(vp);
 				
+				// add node bypasses
+				try (FileInputStream inputStream = new FileInputStream(aspectPath + CxNodeBypass.ASPECT_NAME)) {
+					Iterator<CxNodeBypass> it = om.readerFor(CxNodeBypass.class).readValues(inputStream);
+					
+					while (it.hasNext()) {
+						CxNodeBypass bypass = it.next();
+						CyVisualPropertiesElement e = new CyVisualPropertiesElement(NodesElement.ASPECT_NAME,
+								Long.valueOf(bypass.getId()), null);
+						
+						Boolean nodeSizeLocked = (Boolean)vep.getProperties().get("nodeSizeLocked");
+		    			Map<String,Object> bypassProps = bypass.getVisualProperties();
+			    		if( nodeSizeLocked.booleanValue()) {
+			    			if (bypassProps.get("NODE_WIDTH") != null ) {
+			    				bypassProps.put("NODE_SIZE", bypassProps.get("NODE_WIDTH"));
+			    			}
+			    		}
+			    		
+			    		e.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
+			    		
+						writer.writeElement(e);
+					}	
+				}
+				// add edge bypasses
+				try (FileInputStream inputStream = new FileInputStream(aspectPath + CxEdgeBypass.ASPECT_NAME)) {
+					Iterator<CxEdgeBypass> it = om.readerFor(CxEdgeBypass.class).readValues(inputStream);
+					
+					while (it.hasNext()) {
+						CxEdgeBypass bypass = it.next();
+						CyVisualPropertiesElement e = new CyVisualPropertiesElement(EdgesElement.ASPECT_NAME,
+								Long.valueOf(bypass.getId()), null);
+						
+		    			Map<String,Object> bypassProps = bypass.getVisualProperties();
+			    		
+			    		e.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
+			    		
+						writer.writeElement(e);
+					}	
+				}
 				
 				writer.closeFragment();
 				writer.endAspectFragment();
@@ -390,19 +370,96 @@ public class CX2ToCXConverter {
 			//finish up.
 			writer.end();
 		}
-		
-		
-		
+	}
+	
+	public static CyVisualPropertiesElement getDefaultNetworkVP (DefaultVisualProperties dvps) {
+		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("network");
+		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertNetworkVPs(dvps.getNetworkProperties()));
+		return vp;
 	}
 	
 	
-    private void convertMapping(CyVisualPropertiesElement vp, Map<String,VisualPropertyMapping> mappings, String aspectName) throws NdexException {
-		for ( Map.Entry<String, VisualPropertyMapping> cx2Mapping: mappings.entrySet()) {
+	public static CyVisualPropertiesElement getDefaultNodeVP (CxVisualProperty vps, VisualEditorProperties vep,
+			CxAttributeDeclaration attrDecls) throws NdexException {
+		DefaultVisualProperties defaultVPs = vps.getDefaultProps();
+		Map<String,Object> nodeDefaultVPs =defaultVPs.getNodeProperties();
+		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("nodes:default");
+		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(nodeDefaultVPs));
+		
+		// set node dependency
+		boolean nodeSizeLocked = false;
+		if ( vep != null ) {
+			Map<String,Object> deps = vep.getProperties();
+			SortedMap<String, String> nodeVPDependencies = vp.getDependencies();
+			if ( deps.get("nodeSizeLocked") != null ) {
+				nodeSizeLocked = ((Boolean)deps.get("nodeSizeLocked")).booleanValue();
+				nodeVPDependencies.put("nodeSizeLocked", Boolean.toString(nodeSizeLocked));
+				vp.getProperties().put("NODE_SIZE", vp.getProperties().get("NODE_WIDTH"));
+			}
+			if ( deps.get("nodeCustomGraphicsSizeSync") !=null ) {
+				nodeVPDependencies.put("nodeCustomGraphicsSizeSync", 
+						deps.get("nodeCustomGraphicsSizeSync").toString()); 
+			}
+		}
+		
+		//set node mapping
+		Map<String,VisualPropertyMapping> nodeMappings = vps.getNodeMappings();
+		if ( nodeSizeLocked) {
+			VisualPropertyMapping m = nodeMappings.get("NODE_WIDTH");
+			if ( m != null)
+				nodeMappings.put("NODE_SIZE", m);
+		}
+		
+		convertMapping(vp, nodeMappings, CxNode.ASPECT_NAME, attrDecls);
+
+		return vp;
+	}
+	
+	
+	public static CyVisualPropertiesElement getDefaultEdgeVP (CxVisualProperty vps, VisualEditorProperties vep,
+			CxAttributeDeclaration attrDecls) throws NdexException {
+		DefaultVisualProperties defaultVPs = vps.getDefaultProps();
+		Map<String,Object> edgeDefaultVPs =defaultVPs.getEdgeProperties();
+		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("edge:default");
+		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(edgeDefaultVPs));
+		
+		// set edge dependency
+		
+		boolean arrowColorMatchesEdge = false;
+		if ( vep != null ) {
+			Map<String,Object> deps = vep.getProperties();
+			SortedMap<String, String> edgeVPDependencies = vp.getDependencies();
+			if ( deps.get("arrowColorMatchesEdge") != null ) {
+				arrowColorMatchesEdge = ((Boolean)deps.get("arrowColorMatchesEdge")).booleanValue();
+				edgeVPDependencies.put("arrowColorMatchesEdge", Boolean.toString(arrowColorMatchesEdge));
+				vp.getProperties().put("EDGE_PAINT", vp.getProperties().get("EDGE_STROKE_UNSELECTED_PAINT"));	
+			}
+		}
+		
+		//set edge mapping
+		Map<String,VisualPropertyMapping> edgeMappings = vps.getEdgeMappings();
+		
+		// add edge_paint mapping if dependency flag exists.
+		if ( arrowColorMatchesEdge) {
+			VisualPropertyMapping m = edgeMappings.get("EDGE_STROKE_UNSELECTED_PAINT");
+			if ( m != null)
+				edgeMappings.put("EDGE_PAINT", m);
+		}
+		
+		convertMapping(vp, edgeMappings, CxEdge.ASPECT_NAME, attrDecls);
+		
+		return vp;
+	}
+    private static void convertMapping(CyVisualPropertiesElement vp, Map<String,VisualPropertyMapping> mappings, 
+    		String aspectName, CxAttributeDeclaration attrDecls) throws NdexException {
+    	CX2ToCXVisualPropertyConverter vpCvtr = CX2ToCXVisualPropertyConverter.getInstance();
+    	
+    	for ( Map.Entry<String, VisualPropertyMapping> cx2Mapping: mappings.entrySet()) {
 			String vpName = cx2Mapping.getKey();
-			String cx1VPName = this.vpCvtr.getCx1EdgeOrNodeProperty(vpName);
+			String cx1VPName = vpCvtr.getCx1EdgeOrNodeProperty(vpName);
 			VisualPropertyMapping mapping = cx2Mapping.getValue();
 			String colName = mapping.getMappingDef().getAttributeName();
-			ATTRIBUTE_DATA_TYPE type = this.attrDeclarations.getAttributesInAspect(aspectName)
+			ATTRIBUTE_DATA_TYPE type = attrDecls.getAttributesInAspect(aspectName)
 						.get(colName).getDataType();
 			// workaround the cyndex list type handling issue
 			if ( !type.isSingleValueType())
@@ -517,10 +574,19 @@ public class CX2ToCXConverter {
 			String aspectName = m.getName();
 			// ignore some aspects 
 			if ( !cx2SpecialAspects.contains(aspectName)) {
-				MetaDataElement e = 
-						aspectName.equals(CxVisualProperty.ASPECT_NAME) ?
-								new MetaDataElement(CyVisualPropertiesElement.ASPECT_NAME, "1.0") :
-								m.toMetaDataElement();
+				MetaDataElement e ;
+				if (aspectName.equals(CxVisualProperty.ASPECT_NAME)) {
+					e = new MetaDataElement(CyVisualPropertiesElement.ASPECT_NAME, "1.0");
+					long cnt = 3;
+					if ( metadataTable.get(CxNodeBypass.ASPECT_NAME) != null) {
+						cnt += metadataTable.get(CxNodeBypass.ASPECT_NAME).getElementCount().longValue();
+					}
+					if (metadataTable.get(CxEdgeBypass.ASPECT_NAME) != null) {
+						cnt += metadataTable.get(CxEdgeBypass.ASPECT_NAME).getElementCount().longValue();
+					}
+					e.setElementCount(Long.valueOf(cnt));
+				} else 
+					e = m.toMetaDataElement();
 				result.add(e);
 				if ( aspectName.contentEquals(CxNode.ASPECT_NAME))
 					nodeCount = m.getElementCount(); 

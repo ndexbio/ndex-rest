@@ -83,7 +83,7 @@ public class CXToCX2ServerSideConverter {
 		this.networkId = networkIdStr;
 		this.attrStats = cx1AttributeStats;
 		this.visualDependencies = new VisualEditorProperties();
-		vpConverter = new CXToCX2VisualPropertyConverter();
+		vpConverter = CXToCX2VisualPropertyConverter.getInstance();
 
 	}
 	

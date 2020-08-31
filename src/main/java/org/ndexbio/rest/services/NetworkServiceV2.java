@@ -99,6 +99,9 @@ import org.ndexbio.cx2.aspect.element.core.CxVisualProperty;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cx2.aspect.element.cytoscape.VisualEditorProperties;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
+import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
+import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
@@ -502,7 +505,7 @@ public class NetworkServiceV2 extends NdexService {
 				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
 			}
 							
-			new CXAspectElementsWriter2Thread(out,networkId, aspectName, limit).start();
+			new CXAspectElementWriter2Thread(out,networkId, aspectName, limit, accLogger).start();
 		//	logger.info("[end: Return get one aspect in network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 		
@@ -725,160 +728,7 @@ public class NetworkServiceV2 extends NdexService {
 		
 	}
 
-	private class CXAspectElementsWriter2Thread extends Thread {
-		private OutputStream o;
-		private String networkId;
-		private String aspect;
-		private int limit;
-		private String pathPrefix;
-		
-		public CXAspectElementsWriter2Thread (OutputStream out, String networkId, String aspectName, int limit) throws ObjectNotFoundException {
-			
-			
-			o = out;
-			this.networkId = networkId;
-			aspect = aspectName;
-			this.limit = limit;
-			checkAspectName();
-			pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId 
-    				+ "/" + CX2NetworkLoader.cx2AspectDirName + "/";
-			
-		}
-		
-		private void checkAspectName() throws ObjectNotFoundException {
-			if (aspect.equals(CxAttributeDeclaration.ASPECT_NAME) ||
-					aspect.equals(CxVisualProperty.ASPECT_NAME) ||
-					aspect.equals(CxNodeBypass.ASPECT_NAME) ||
-					aspect.equals(CxEdgeBypass.ASPECT_NAME) ||
-					aspect.equals(VisualEditorProperties.ASPECT_NAME)) {
-				throw new ObjectNotFoundException ("Aspect " + aspect + " is not found. It is only available in CX2.");
-			}
-		}
-		
-		
-		@Override
-		public void run() {
 
-			try {
-	
-			    if ( aspect.equals(NodesElement.ASPECT_NAME)) {
-				  writeNodes();
-				  return;
-			    }
-			    
-			    if ( aspect.equals(NodeAttributesElement.ASPECT_NAME)) {
-			    	writeNodeAttributes();
-			    	return ;
-			    }
-				
-			    File aspF = new File ( pathPrefix + aspect);
-				if ( !aspF.exists() ) {
-					o.write("[]".getBytes());
-					return;
-				}
-				try(FileInputStream in = new FileInputStream (aspF))	 {
-				OpaqueAspectIterator asi = new OpaqueAspectIterator(in);
-				try (CXAspectWriter wtr = new CXAspectWriter (o)) {
-					for ( int i = 0 ; (limit <=0 ||i < limit) && asi.hasNext() ; i++) {
-						wtr.writeCXElement(asi.next());
-					}
-				}
-				}
-			} catch (IOException e) {
-					logger.error("IOException in CXAspectElementWriterThread: " + e.getMessage());
-			} catch (Exception e1) {
-				logger.error("Ndex exception: " + e1.getMessage());
-			} finally {
-				try {
-					o.flush();
-					o.close();
-				} catch (IOException e) {
-					logger.error("Failed to close outputstream in CXElementWriterWriterThread");
-					e.printStackTrace();
-				}
-			} 
-		}
-		
-		private Map<String,DeclarationEntry> getDeclarations(String cx2AspectName) throws JsonParseException, JsonMappingException, IOException {			
-			File attrDeclF = new File ( pathPrefix + CxAttributeDeclaration.ASPECT_NAME);
-			CxAttributeDeclaration[] declarations = null;
-			if ( attrDeclF.exists() ) {
-				ObjectMapper om = new ObjectMapper();
-				declarations = om.readValue(attrDeclF, CxAttributeDeclaration[].class);
-			}
-
-			Map<String,DeclarationEntry> aspAttrDecls = null;
-			if ( declarations != null)
-				aspAttrDecls = declarations[0].getAttributesInAspect(cx2AspectName);
-			
-			return aspAttrDecls;
-		}
-		
-		private void writeNodes() throws IOException {
-			String fileName = pathPrefix + CxNode.ASPECT_NAME;
-			
-			Map<String,DeclarationEntry> nodeAttrDecls = getDeclarations(CxNode.ASPECT_NAME);
-			
-			File f = new File (fileName);
-			if ( f.exists()) {
-				try (CXAspectWriter wtr = new CXAspectWriter (o)) {
-					try(FileInputStream in = new FileInputStream(f)) {
-					AspectIterator<CxNode> it = new AspectIterator<>(in, CxNode.class);
-					for ( int i = 0 ; (limit <=0 || i < limit) && it.hasNext() ; i++) {
-						CxNode n = it.next();
-						NodesElement node = new NodesElement(n.getId(),n.getNodeName(nodeAttrDecls),
-								n.getNodeRepresents(nodeAttrDecls));
-						wtr.writeCXElement(node);
-					}	
-					}
-				}
-			} else 
-				o.write("[]".getBytes());
-		}
-		
-		
-		private void writeNodeAttributes() throws IOException {
-			String fileName = pathPrefix + CxNode.ASPECT_NAME;
-			
-			Map<String,DeclarationEntry> nodeAttrDecls = getDeclarations(CxNode.ASPECT_NAME);
-			
-			File f = new File (fileName);
-			if ( f.exists()) {
-				try (CXAspectWriter wtr = new CXAspectWriter (o)) {
-					try(FileInputStream in = new FileInputStream(f)) {
-					AspectIterator<CxNode> it = new AspectIterator<>(in, CxNode.class);
-					for ( int i = 0 ; (limit <=0 || i < limit) && it.hasNext() ; i++) {
-						CxNode n = it.next();
-						n.extendToFullNode(nodeAttrDecls);
-						for ( Map.Entry<String,Object> attr : n.getAttributes().entrySet() ) {
-							String attrName = attr.getKey();
-							if ( !attrName.equals(CxNode.NAME) && ! attrName.equals(CxNode.REPRESENTS) ) {
-								DeclarationEntry e = nodeAttrDecls.get(attr.getKey());
-								ATTRIBUTE_DATA_TYPE t = e.getDataType();
-								NodeAttributesElement nodeAttr;
-								if (t.isSingleValueType()) 
-										nodeAttr = new NodeAttributesElement(null, n.getId(),
-									  attr.getKey(), attr.getValue().toString(),t);
-								else {
-									List<Object> v = (List<Object>)attr.getValue();
-									List<String> vs = v.stream().map((Object vn )-> vn.toString()).collect(Collectors.toList());
-									nodeAttr = new NodeAttributesElement(null, n.getId(),
-										  attr.getKey(), vs,t);
-								}
-								wtr.writeCXElement(nodeAttr);	
-							}
-						}
-						
-					}	
-					}
-				}
-			} else 
-				o.write("[]".getBytes());
-		}
-		
-	}
-
-	
 
 	/**************************************************************************
 	 * Retrieves array of user membership objects
