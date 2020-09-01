@@ -420,7 +420,7 @@ public class CX2ToCXConverter {
 			CxAttributeDeclaration attrDecls) throws NdexException {
 		DefaultVisualProperties defaultVPs = vps.getDefaultProps();
 		Map<String,Object> edgeDefaultVPs =defaultVPs.getEdgeProperties();
-		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("edge:default");
+		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("edges:default");
 		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(edgeDefaultVPs));
 		
 		// set edge dependency
