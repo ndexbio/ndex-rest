@@ -99,9 +99,7 @@ public class CXToCX2ServerSideConverter {
 		
 		attrDeclarations = attrStats.createCxDeclaration();
 		
-		cleanupMetadata();
-
-		List<CxMetadata> cx2Metadata = CxMetadata.createCxMetadataListFromMetedataCollection(metaDataCollection);
+		List<CxMetadata> cx2Metadata = getCX2Metadata();
 
 		try (FileOutputStream out = new FileOutputStream(pathPrefix + networkId + "/" + CX2NetworkLoader.cx2NetworkFileName) ) {
 			CXWriter wtr = new CXWriter(out, false);
@@ -347,48 +345,47 @@ public class CXToCX2ServerSideConverter {
 	
 	
 	/* warning: this function can only be called after attrStats is initialized */
-	private void cleanupMetadata() {
-		metaDataCollection.remove("nodeAttributes");
-		metaDataCollection.remove("edgeAttributes");
-		metaDataCollection.remove("cartesianLayout");
-		
-		MetaDataElement networkAttribute = metaDataCollection.getMetaDataElement("networkAttributes");
+	private List<CxMetadata> getCX2Metadata() {
+		List<CxMetadata> result = new ArrayList<>(metaDataCollection.size());
+				
+		MetaDataElement networkAttribute = metaDataCollection.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
 		if ( networkAttribute != null ) {
-			networkAttribute.setElementCount(1L);
-			networkAttribute.setVersion(null);
+			result.add(new CxMetadata (CxNetworkAttribute.ASPECT_NAME, 1L));
 		}	
 
-		MetaDataElement vpM = metaDataCollection.getMetaDataElement("cyVisualProperties");
+		MetaDataElement vpM = metaDataCollection.getMetaDataElement( CyVisualPropertiesElement.ASPECT_NAME);
 		if ( vpM != null) {
-			vpM.setIdCounter(null);
-			vpM.setVersion(null);
-			vpM.setConsistencyGroup(null);
-			vpM.setElementCount(1L );
-			vpM.setName("visualProperties");
+			result.add(new CxMetadata(CxVisualProperty.ASPECT_NAME, 1L));
 			
 			//addCx2 extra aspects
-			MetaDataElement e = new MetaDataElement(VisualEditorProperties.ASPECT_NAME, null);
-			e.setElementCount(1L);
-			metaDataCollection.add(e);
+			result.add(new CxMetadata(VisualEditorProperties.ASPECT_NAME, 1L));
 			
 			if (attrStats.getNodeBypassCount() > 0) {
-				MetaDataElement ep = new MetaDataElement(CxNodeBypass.ASPECT_NAME, null);
-				ep.setElementCount(Long.valueOf(attrStats.getNodeBypassCount()));
-				metaDataCollection.add(ep);
+				result.add(new CxMetadata(CxNodeBypass.ASPECT_NAME,
+						attrStats.getNodeBypassCount()));
 			}
 			
 			if (attrStats.getEdgeBypassCount() > 0) {
-				MetaDataElement ep = new MetaDataElement(CxEdgeBypass.ASPECT_NAME, null);
-				ep.setElementCount(Long.valueOf(attrStats.getEdgeBypassCount()));
-				metaDataCollection.add(ep);
+				result.add(new CxMetadata(CxEdgeBypass.ASPECT_NAME, attrStats.getEdgeBypassCount()));
 			}
 		}
 		
 		if (!attrDeclarations.getDeclarations().isEmpty()) {
-			MetaDataElement ep = new MetaDataElement(CxAttributeDeclaration.ASPECT_NAME, null);
-			ep.setElementCount(1L);
-			metaDataCollection.addAt(0, ep);
+			result.add(new CxMetadata(CxAttributeDeclaration.ASPECT_NAME,1L));
 		}
+		
+		for ( MetaDataElement e: metaDataCollection) {
+			String aspectName = e.getName();
+			if ( !aspectName.equals(NetworkAttributesElement.ASPECT_NAME) && 
+					!aspectName.equals(CyVisualPropertiesElement.ASPECT_NAME) &&
+					!aspectName.equals(NodeAttributesElement.ASPECT_NAME) &&
+					!aspectName.equals(EdgeAttributesElement.ASPECT_NAME) &&
+					!aspectName.equals(CartesianLayoutElement.ASPECT_NAME) ) {
+				result.add(new CxMetadata(e.getName(), e.getElementCount().longValue()));
+			}
+	
+		}
+		return result;
 
 	}
 	
@@ -533,7 +530,6 @@ public class CXToCX2ServerSideConverter {
 	    		// add mapping
 	    		SortedMap<String,Mapping> edgeMappings = elmt.getMappings();
 	    		
-	    		//TODO: process the lock flag
 	    		if ( arrowColorMatchesEdge) {
 	    			Mapping m = edgeMappings.remove("EDGE_PAINT");
 	    			if ( m !=null) {

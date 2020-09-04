@@ -83,6 +83,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.cx.CX2NetworkFileGenerator;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -1929,11 +1930,34 @@ public class NetworkServiceV2 extends NdexService {
 				FileAttribute<Set<PosixFilePermission>> attr =
 						    PosixFilePermissions.asFileAttribute(perms);
 				Files.createDirectory(tgt,attr);
+				
+				String srcPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/";
+				String tgtPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/";
 
-			    File srcAspectDir = new File ( Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/aspects");
-			    File tgtAspectDir = new File ( Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/aspects");
-			    FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
-
+			    File srcAspectDir = new File ( srcPathPrefix + CXNetworkLoader.CX1AspectDir);
+			    if ( srcAspectDir.exists()) {
+			    	File tgtAspectDir = new File ( tgtPathPrefix + CXNetworkLoader.CX1AspectDir);
+			    	FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
+			    }
+			    
+			    //copy the cx2 aspect directories
+			    String tgtCX2AspectPathPrefix = tgtPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+			    String srcCX2AspectPathPrefix = srcPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+			    File srcCX2AspectDir = new File (srcCX2AspectPathPrefix );
+			    Files.createDirectories(Paths.get(tgtCX2AspectPathPrefix), attr);
+			    for ( String fname : srcCX2AspectDir.list() ) {
+			    	java.nio.file.Path src = Paths.get(srcPathPrefix + CX2NetworkLoader.cx2AspectDirName , fname);
+			    	if (Files.isSymbolicLink(src)) {
+			    		java.nio.file.Path link = Paths.get(tgtCX2AspectPathPrefix, fname);
+			    		java.nio.file.Path target = Paths.get(tgtPathPrefix + CXNetworkLoader.CX1AspectDir, fname);
+			    		Files.createSymbolicLink(link, target);
+			    	} else {
+			    		Files.copy(Paths.get(srcCX2AspectPathPrefix, fname),
+			    				Paths.get(tgtCX2AspectPathPrefix, fname));
+			    	}
+			    	
+			    }
+			    
 			    String urlStr = Configuration.getInstance().getHostURI()  + 
 			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
 			   // ProvenanceEntity entity = new ProvenanceEntity();
@@ -1959,6 +1983,12 @@ public class NetworkServiceV2 extends NdexService {
 	
 					CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao /*, new Provenance(copyProv)*/);
 					g.reCreateCXFile();
+					CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(uuid, dao);
+					String tmpFilePath = g2.createCX2File();
+					Files.move(Paths.get(tmpFilePath), 
+							Paths.get(tgtPathPrefix + CX2NetworkLoader.cx2NetworkFileName), 
+							StandardCopyOption.ATOMIC_MOVE); 				
+
 					dao.setFlag(uuid, "iscomplete", true);
 					dao.commit();
 		       }
