@@ -408,7 +408,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 */
 	public void saveCX2NetworkEntry(NetworkSummary networkSummary, Map<String,CxMetadata> metadata, boolean setModificationTime) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
-				+ "properties = ? ::jsonb, cx2metadata = ? :: json, warnings = ?, subnetworkids = ?, "
+				+ "properties = ? ::jsonb, cx2metadata = ? :: json, warnings = ?, subnetworkids = ?, cxformat= ?"
 				+ (setModificationTime? "modification_time = localtimestamp, " : "") 
 				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -442,7 +442,9 @@ public class NetworkDAO extends NdexDBDAO {
 			Array subNetworkIds = db.createArrayOf("bigint", subNetIds);
 			pst.setArray(9, subNetworkIds);
 			
-			pst.setObject(10, networkSummary.getExternalId());
+			pst.setString(10, networkSummary.getCxFormat());
+			
+			pst.setObject(11, networkSummary.getExternalId());
 			int i = pst.executeUpdate();
 			if ( i != 1)
 				throw new NdexException ("Failed to update network summary entry in db.");

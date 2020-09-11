@@ -92,6 +92,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 	//Directory name of CX2 aspects
 	static public final String cx2AspectDirName = "aspects_cx2";
 
+    static public final String cx2Format = "cx2";
     
 	protected int sampleGenerationThreshold;
 	
@@ -113,7 +114,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		
 	protected Map<String, CxMetadata> metadataTable;
 			
-	protected Map<String,CX2AspectWriter> aspectTable;
+	protected Map<String,CX2AspectWriter<? extends CxAspectElement>> aspectTable;
 	protected List<String> warnings;
 	private NetworkDAO dao;
 	private VisibilityType visibility;
@@ -169,6 +170,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 
 				//handle the network properties 
 				summary.setExternalId(this.networkId);
+				summary.setCxFormat(cx2Format);
 				if ( isUpdate) {
 					summary.setVisibility(dao.getNetworkVisibility(networkId));
 				} else 
@@ -391,7 +393,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 	}
 	
 	private void addMissingMetadata() {
-		for ( Map.Entry<String,CX2AspectWriter> aw : aspectTable.entrySet() ){
+		for ( Map.Entry<String,CX2AspectWriter<? extends CxAspectElement>> aw : aspectTable.entrySet() ){
 			 String aspectName = aw.getKey();
 			 if ( metadataTable.get(aspectName) == null) {
 				  CxMetadata mElmt = new CxMetadata();
@@ -421,7 +423,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		CX2AspectWriter writer = aspectTable.get(aspectName);
 		if ( writer == null) {
 			//logger.info("creating new file for aspect " + aspectName);
-			writer = new CX2AspectWriter(rootPath + aspectName);
+			writer = new CX2AspectWriter<>(rootPath + aspectName);
 			aspectTable.put(aspectName, writer);
 		}
 		writer.writeCXElement(element);
@@ -468,7 +470,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 	}
 
 	private void createEdgeBypass(CxEdgeBypass e) throws IOException {
-		edgeIdTracker.addReferenceId(e.getId(), e.getAspectName());
+		edgeIdTracker.addReferenceId(Long.valueOf(e.getId()), e.getAspectName());
 		writeCXElement(e);
 	}
 	
@@ -491,7 +493,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 	
 
 	private void closeAspectStreams() {
-		for ( Map.Entry<String, CX2AspectWriter> entry : aspectTable.entrySet() ){
+		for ( Map.Entry<String, CX2AspectWriter<? extends CxAspectElement>> entry : aspectTable.entrySet() ){
 			try {
 				entry.getValue().close();
 			} catch (IOException e) {
