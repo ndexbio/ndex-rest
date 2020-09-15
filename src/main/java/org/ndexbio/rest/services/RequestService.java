@@ -48,7 +48,6 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.Request;
-import org.ndexbio.rest.annotations.ApiDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,9 +84,7 @@ public class RequestService extends NdexService
     **************************************************************************/
     @POST
     @Produces("application/json")
-	@ApiDoc("Create a new request based on a request JSON structure. Returns the JSON structure including the assigned UUID of this request."
-			+ "CreationDate, modificationDate, and sourceName fields will be ignored in the input object. A user can only create request for "
-			+ "himself or the group that he is a member of.")
+	
     public Request createRequest(final Request newRequest) 
     		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
@@ -115,7 +112,6 @@ public class RequestService extends NdexService
     @DELETE
     @Path("/{requestid}")
     @Produces("application/json")
-	@ApiDoc("Deletes the request specified by requestId. Errors if requestId not specified or if request not found.")
     public void deleteRequest(@PathParam("requestid")final String requestId) 
     		throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
 
@@ -149,7 +145,6 @@ public class RequestService extends NdexService
     @GET
     @Path("/{requestid}")
     @Produces("application/json")
-	@ApiDoc("Returns the request JSON structure for the request specified by requestId. Errors if requestId not specified or if request not found.")
     public Request getRequest(@PathParam("requestid")final String requestId) 
     		throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
  
@@ -172,10 +167,6 @@ public class RequestService extends NdexService
    @POST
     @Path("/{requestid}")
     @Produces("application/json")
-	@ApiDoc("Updates a request corresponding to the POSTed request JSON structure. " +
-			"The request JSON must specify the request id. " +
-			"Errors if requestId is not specified or if request is not found." +
-			"If the response field of the request is updated such that the request is accepted, then the action associated with the request is performed.")
     public void updateRequest(@PathParam("requestid")final String requestId, final Request updatedRequest)
     		throws IllegalArgumentException, NdexException, SQLException, JsonProcessingException {
   

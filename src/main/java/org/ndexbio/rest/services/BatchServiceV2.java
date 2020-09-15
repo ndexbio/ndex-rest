@@ -65,7 +65,6 @@ import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NetworkExportTask;
@@ -100,7 +99,6 @@ public class BatchServiceV2 extends NdexService {
 	@AuthenticationNotRequired
 	@Path("/user")
 	@Produces("application/json")
-	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
 	public static List<User> getUsersByUUIDs(
 			List<String> userIdStrs)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
@@ -131,7 +129,6 @@ public class BatchServiceV2 extends NdexService {
 	@AuthenticationNotRequired
 	@Path("/group")
 	@Produces("application/json")
-	@ApiDoc("Returns a list of groups for the groups specified by the groupid list. Errors if any of the group id is not found. ")
 	public static List<Group> getGroupsByUUIDs(List<String> groupIdStrs)
 			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 		
@@ -158,8 +155,6 @@ public class BatchServiceV2 extends NdexService {
 	@POST
 	@Path("/network/summary")
 	@Produces("application/json")
-	@ApiDoc("Retrieves a list of NetworkSummary objects based on the network uuids POSTed. This " +
-            "method only returns network summaries that the user is allowed to read. User can only post up to 2000 uuids in this function.")
 	public List<NetworkSummary> getNetworkSummaries(
 			@QueryParam("accesskey") String accessKey,
 			List<String> networkIdStrs)
@@ -204,7 +199,6 @@ public class BatchServiceV2 extends NdexService {
 	@POST
 	@Path("/network/export")
 	@Produces("application/json")
-    @ApiDoc("")
 	public Map<UUID,UUID> exportNetworks(NetworkExportRequestV2 exportRequest)
 
 			throws IllegalArgumentException, NdexException, SQLException, IOException {

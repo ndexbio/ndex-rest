@@ -68,7 +68,6 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.RequestType;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -104,8 +103,7 @@ public class GroupServiceV2 extends NdexService {
 	 */
 	@POST
 	@Produces("text/plain")
-	@ApiDoc("Create a group owned by the authenticated user based on the supplied group JSON structure. " +
-	        "Errors if the group name specified in the JSON is not valid or is already in use. ")
+
 	public Response createGroup(final Group newGroup)
 			throws  Exception {
 	
@@ -146,8 +144,6 @@ public class GroupServiceV2 extends NdexService {
 	@DELETE
 	@Path("/{groupid}")
 	@Produces("application/json")
-	@ApiDoc("Delete the group specified by groupid. " +
-	        "Errors if the group is not found or if the authenticated user does not have authorization to delete the group.")
 	public void deleteGroup(@PathParam("groupid") final String groupId)
 			throws Exception {
 				
@@ -181,7 +177,6 @@ public class GroupServiceV2 extends NdexService {
 	@PermitAll
 	@Path("/{groupid}")
 	@Produces("application/json")
-	@ApiDoc("Returns a group JSON structure for the group specified by groupId. Errors if the group is not found. ")
 	public Group getGroup(@PathParam("groupid") final String groupId)
 			throws ObjectNotFoundException, NdexException, SQLException {
 		
@@ -205,8 +200,7 @@ public class GroupServiceV2 extends NdexService {
 	@PUT
 	@Path("/{groupid}")
 	@Produces("application/json")
-	@ApiDoc("Updates the group metadata corresponding to the POSTed group JSON structure. " + 
-			"Errors if the JSON structure does not specify the group id or if no group is found by that id. ")
+	
 	public void updateGroup(final Group updatedGroup, 
 							@PathParam("groupid") final String id)
 			throws Exception {
@@ -244,9 +238,7 @@ public class GroupServiceV2 extends NdexService {
 	 **************************************************************************/
 	@PUT
 	@Path("/{groupid}/membership")
-	@ApiDoc("Updates a user's membership corresponding to the POSTed Permission in the group specified by groupId." +
-			"Errors if the authenticated user does not have admin permissions for the group. " + 
-			"Errors if the change would leave the group without an Admin member.")
+	
 	public void updateMember(@PathParam("groupid") final String group_id,
 			@QueryParam("userid") final String user_id,
 			@QueryParam("type")  final Permissions permission
@@ -292,10 +284,7 @@ public class GroupServiceV2 extends NdexService {
 	@DELETE
 	@Path("/{groupid}/membership")
 	@Produces("application/json")
-	@ApiDoc("Removes the member specified by userUUID from the group specified by groupUUID. "
-			+ "Errors if the group or the user is not found. "
-			+ "Also errors if the authenticated user is not authorized to edit the group "
-			+ "or if removing the member would leave the group with no Admin member.")
+	
 	public void removeGroupMember(@PathParam("groupid") final String groupIdStr,
 			@QueryParam("userid") final String memberIdStr) throws IllegalArgumentException,
 			ObjectNotFoundException, NdexException, SQLException {
@@ -328,7 +317,6 @@ public class GroupServiceV2 extends NdexService {
 	@PermitAll
 	@Path("/{groupid}/permission")
 	@Produces("application/json")
-	@ApiDoc("Return a list of network membership objects which the given group have explicit permission to. ")
 	public Map<String,String> getGroupNetworkPermissions(@PathParam("groupid") final String groupIdStr,
 		    @QueryParam("networkid") String networkIdStr,
 		    @QueryParam("permission") String permissions,
@@ -388,7 +376,6 @@ public class GroupServiceV2 extends NdexService {
 	@Path("/{groupid}/membership")
 	@Produces("application/json")
 	@PermitAll
-	@ApiDoc("")
 	public List<Membership> getGroupUserMemberships(@PathParam("groupid") final String groupIdStr,
 			  @QueryParam("type") String permissions,
 				@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -417,9 +404,7 @@ public class GroupServiceV2 extends NdexService {
 	   @POST
 	   @Path("/{groupid}/permissionrequest")
 	   @Produces("text/plain")
-	   @ApiDoc("Create a new request based on a request JSON structure. Returns the JSON structure including the assigned UUID of this request."
-				+ "CreationDate, modificationDate, and sourceName fields will be ignored in the input object. A user can only create request for "
-				+ "himself or the group that he is a member of.")
+	 
 	    public Response createRequest(
 	    		@PathParam("groupid") final String groupIdStr,
 	    		final PermissionRequest newRequest) 
@@ -461,9 +446,7 @@ public class GroupServiceV2 extends NdexService {
 	    @GET
 		@Path("/{groupid}/permissionrequest")
 		@Produces("application/json")
-		@ApiDoc("For authenticated users, this function returns all the networks that the given group has direct access to and the authenticated user can see." + 
-				"For anonymous users, this function returns all publice networks that the specified group bas direct access to."
-				+ "")
+	
 		public List<Request> getPermissionRequests(@PathParam("groupid") final String groupIdStr,
 				@QueryParam("networkid") final String networkIdStr,
 				@QueryParam("permission") final String permissionStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
@@ -494,7 +477,6 @@ public class GroupServiceV2 extends NdexService {
 	   	@GET
 		@Path("/{groupid}/permissionrequest/{requestid}")
 		@Produces("application/json")
-		@ApiDoc("")
 		public Request getPermissionRequestById(@PathParam("groupid") String groupIdStr,
 				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 

@@ -46,7 +46,6 @@ import javax.ws.rs.core.Context;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Request;
-import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -143,7 +142,6 @@ public class RequestServiceV2 extends NdexService
     @GET
     @Path("/{requestid}")
     @Produces("application/json")
-	@ApiDoc("Returns the request JSON structure for the request specified by requestId. Errors if requestId not specified or if request not found.")
     public Request getRequest(@PathParam("requestid")final String requestId) 
     		throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
  				

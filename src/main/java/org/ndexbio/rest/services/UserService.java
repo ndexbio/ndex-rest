@@ -68,7 +68,6 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.UserV1;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Security;
@@ -116,7 +115,6 @@ public class UserService extends NdexService {
 	@Path("/{userid}/verify/{verificationCode}")
 	@NdexOpenFunction
 //	@Produces("application/json")
-	@ApiDoc("Verify the given user with UUID and verificationCode")
 	public String verifyUser(@PathParam("userid") String userUUID,
 //					@PathParam("accountName") String accountName, 
 					@PathParam("verificationCode") String verificationCode
@@ -144,8 +142,6 @@ public class UserService extends NdexService {
 	@PermitAll
 	@NdexOpenFunction
 	@Produces("application/json")
-	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. "
-			+ "Username and emailAddress must be unique in the database. If email verification is turned on on the server, the user uuid field will be set to null.")
 	public User createUser(final User newUser)
 			throws Exception {
 
@@ -251,8 +247,6 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/{userid}")
 	@Produces("application/json")
-	@ApiDoc("Deprecated. User should use either the user/account/{accountName} function or user/uuid/{uuid} function to get user information. "
-			+ "This function returns the user corresponding to userId, whether userId is actually a database id or a accountName. Error if neither is found.")
 	public User getUserV1(@PathParam("userid") @Encoded final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
@@ -303,7 +297,6 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/account/{username}")
 	@Produces("application/json")
-	@ApiDoc("Return the user corresponding to the given user account name. Error if this account is not found.")
 	public User getUserByAccountName(@PathParam("username") @Encoded final String accountName)
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 
@@ -336,7 +329,6 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/uuid/{userid}")
 	@Produces("application/json")
-	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
 	public User getUserByUUID(@PathParam("userid") @Encoded final String userId)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 
@@ -394,8 +386,7 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/network/{permission}/{start}/{size}")
 	@Produces("application/json")
-	@ApiDoc("Get a list of memberships which contains networks that this this user has explicit permissions on. The result includes permissions directly"
-			+ " and in-directly ( through groups) granted to this user. ")
+	
 	//TODO: need to review the spec. Should we remove userID from URL or remove this function and replace with a getNetworksByOwner function?
 	
 	public List<Membership> getUserNetworkMemberships(
@@ -435,7 +426,6 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/{userid}/group/{permission}/{start}/{size}")
 	@Produces("application/json")
-	@ApiDoc("Returns a list of membership of groups that the current user has the given permission on. skipBlocks <0 or blockSize <=0 means return all results in one list.")
 	public List<Membership> getUserGroupMemberships(
 			@PathParam("userid")	final String userIdStr,
 			@PathParam("permission") final String permissions ,
@@ -477,7 +467,6 @@ public class UserService extends NdexService {
 	@NdexOpenFunction
 	@Path("/authenticate")
 	@Produces("application/json")
-	@ApiDoc("Authenticates the combination of accountName and password supplied in the Auth header, returns the authenticated user if successful.")
 	public UserV1 authenticateUser()
 			throws UnauthorizedOperationException {
 		
@@ -536,7 +525,6 @@ public class UserService extends NdexService {
 	@NdexOpenFunction
 	@Path("/google/authenticate/renew")
 	@Produces("application/json")
-	@ApiDoc("renew the given accessToken on Ndex server.")
 	public String renewGoogleToken(OAuthTokenRenewRequest renewRequest)
 			throws NdexException, ClientProtocolException, IOException {
 		
@@ -562,7 +550,6 @@ public class UserService extends NdexService {
 	@NdexOpenFunction
 	@Path("/google/authenticate/revoke/{accessToken}")
 	@Produces("application/json")
-	@ApiDoc("Callback endpoint for Google OAuth OpenId Connect.")
 	public void revokeGoogleAccessToken(@PathParam("accessToken") String accessToken)
 			throws NdexException, ClientProtocolException, IOException {
 		
@@ -624,8 +611,7 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	@DELETE
 	@Produces("application/json")
-	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user. "
-			+ "If this operation orphans a network or group, an exception will be thrown.")
+
 	public void deleteUser() throws Exception {
 
 	//	logger.info("[start: Deleting user (self).]");
@@ -652,8 +638,7 @@ public class UserService extends NdexService {
 	@PermitAll
 	@Path("/search/{start}/{size}")
 	@Produces("application/json")
-	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
-			+ "The searchParameters must contain a 'searchString' parameter. ")
+	
 	public SolrSearchResult<User> findUsers(SimpleQuery simpleUserQuery, 
 			@PathParam("start") final int skipBlocks, 
 			@PathParam("size") final int blockSize)
@@ -682,8 +667,6 @@ public class UserService extends NdexService {
 	@POST
 	@Path("/{userid}")
 	@Produces("application/json")
-	@ApiDoc("Updates the authenticated user based on the serialized user object in the POST data. The userName and UUID fields in the posted object are ignored by the server."
-			+ " Errors if the user object references a different user.")
 	public User updateUser(@PathParam("userid") final String userId, final User updatedUser)
 			throws Exception {
 		Preconditions.checkArgument(null != updatedUser, 
@@ -721,7 +704,6 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/membership/group/{groupid}")
 	@Produces("application/json")
-	@ApiDoc("Returns the permission the current logged in user has on the given group. Returns null if the user is not a member of this group.")
 	public Permissions getGroupMembership(
 				@PathParam("groupid") final String groupId) 
 			throws IllegalArgumentException, SQLException {
@@ -743,19 +725,14 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/membership/network/{networkid}/{directonly}")
 	@Produces("application/json")
-	@ApiDoc("Get the type of permission the logged in user has on the given network. If directOnly is set to true, permissions grant through groups are not included in the result.")
 	public Permissions getNetworkMembership(@PathParam("networkid") final String networkId, 
 				@PathParam("directonly") final boolean directOnly) 
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
 
-		logger.info("[start: Getting membership of account {} on {}]", getLoggedInUser().getUserName(), networkId);
 		
 		try (UserDAO dao = new UserDAO ()){
 			Permissions m = dao.getLoggedInUserPermissionOnNetwork(getLoggedInUserId(), UUID.fromString(networkId), directOnly);
-			if ( m==null)
-			   logger.info("[end: No membership found.]");			
-			else 
-			   logger.info("[end: Membership {} found.]",  m.name());
+		
 			return m;
 		} 
 	}
@@ -764,15 +741,11 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/request/{start}/{size}")
 	@Produces("application/json")
-	@ApiDoc("")
 	public List<Request> getSentRequest(@PathParam("start") int skipBlocks,
 			@PathParam("size") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
-
-		logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
 		
 		try (RequestDAO dao = new RequestDAO ()){
 			List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),null,skipBlocks, blockSize);
-			logger.info("[end: Returning {} requests]", reqs.size());
 			return reqs;
 		}
 	}
@@ -780,16 +753,12 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/request/pending/{start}/{size}")
 	@Produces("application/json")
-	@ApiDoc("")
 	public List<Request> getPendingRequests(
 			@PathParam("start") int skipBlocks,
 			@PathParam("size") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
-
-//		logger.info("[start: Getting pending request for user {}]", getLoggedInUser().getUserName());
 		
 		try (RequestDAO dao = new RequestDAO ()){
 			List<Request> reqs= dao.getPendingRequestByUserId(this.getLoggedInUserId(),skipBlocks, blockSize);
-//			logger.info("[end: Returning {} pending request.]", reqs.size());
 			return reqs;
 		} 
 	}
@@ -798,19 +767,16 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/task/{status}/{start}/{size}")
 	@Produces("application/json")
-	@ApiDoc("Returns an array of Task objects with the specified status")
 	public List<Task> getTasks(
 
 			@PathParam("status") final String status,
 			@PathParam("start") int skipBlocks,
 			@PathParam("size") int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
 
-		logger.info("[start: Getting tasks for user {}]", getLoggedInUser().getUserName());
 		
 		try (TaskDAO dao = new TaskDAO ()){
 			Status taskStatus = Status.valueOf(status);
 			List<Task> tasks= dao.getTasksByUserId(this.getLoggedInUser().getExternalId(),taskStatus, skipBlocks, blockSize);
-			logger.info("[end: Returned {} tasks under user {}]", tasks.size(), getLoggedInUser().getUserName());
 			return tasks;
 		} 
 	}
