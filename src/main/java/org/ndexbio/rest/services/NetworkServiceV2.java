@@ -900,7 +900,16 @@ public class NetworkServiceV2 extends NdexService {
 					if ( !updated) {
 						props.add(new NdexPropertyValuePair("reference", reference.get("reference")));
 					}
+					
+					networkDao.lockNetwork(networkUUID);
+
 					networkDao.updateNetworkProperties(networkUUID,props);
+					
+					// recreate files and update db
+					updateNetworkAttributesAspect(networkDao, networkUUID);
+
+					networkDao.unlockNetwork(networkUUID);
+					
 					networkDao.updateNetworkVisibility(networkUUID, VisibilityType.PUBLIC, true);
 					//networkDao.setFlag(networkUUID, "solr_indexed", true);
 					networkDao.setIndexLevel(networkUUID,  NetworkIndexLevel.ALL);
@@ -1041,11 +1050,9 @@ public class NetworkServiceV2 extends NdexService {
 	// update the networkAttributes aspect file and also update the metadata in the db.
 	protected static void updateNetworkAttributesAspect(NetworkDAO networkDao, UUID networkUUID) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
 		NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
-		String aspectFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + 
-				networkUUID.toString() + "/" + CXNetworkLoader.CX1AspectDir + "/" + NetworkAttributesElement.ASPECT_NAME;
-		String cx2AspectDirPath = Configuration.getInstance().getNdexRoot() + "/data/" + 
-				networkUUID.toString() + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
-		String cx2AspectFilePath = cx2AspectDirPath + CxNetworkAttribute.ASPECT_NAME;
+		String fileStoreDir = Configuration.getInstance().getNdexRoot() + "/data/" + networkUUID.toString() + "/";
+		String aspectFilePath = fileStoreDir + CXNetworkLoader.CX1AspectDir + "/" + NetworkAttributesElement.ASPECT_NAME;
+		String cx2AspectDirPath = fileStoreDir + CX2NetworkLoader.cx2AspectDirName + "/";
 		
 		//update the networkAttributes aspect in cx and cx2 
 		List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
@@ -1081,7 +1088,7 @@ public class NetworkServiceV2 extends NdexService {
 			File f = new File ( aspectFilePath);
 			if ( f.exists())
 				f.delete();
-			f = new File(cx2AspectFilePath);
+			f = new File(cx2AspectDirPath + CxNetworkAttribute.ASPECT_NAME);
 			if ( f.exists())
 				f.delete();
 		}
@@ -1136,13 +1143,15 @@ public class NetworkServiceV2 extends NdexService {
 		}
 		
 		//Recreate the CX file 					
-		CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, /*fullSummary,*/ metadata /*, newProv*/);
+		CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, metadata);
 		g.reCreateCXFile();
         
 		//Recreate cx2 file
 		CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(networkUUID, cx2metadata);
-		g2.createCX2File();
-
+		String tmpFilePath = g2.createCX2File();
+		Files.move(Paths.get(tmpFilePath), 
+				Paths.get(fileStoreDir + CX2NetworkLoader.cx2NetworkFileName), 
+				StandardCopyOption.ATOMIC_MOVE); 
 	}
 
 	@PUT
