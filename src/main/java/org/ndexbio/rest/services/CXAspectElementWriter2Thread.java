@@ -143,20 +143,7 @@ public class CXAspectElementWriter2Thread extends Thread {
 			} 
 		}
 		
-		
-		private CxAttributeDeclaration getAttrDeclarations() throws JsonParseException, JsonMappingException, IOException {			
-			File attrDeclF = new File ( pathPrefix + CxAttributeDeclaration.ASPECT_NAME);
-			CxAttributeDeclaration[] declarations = null;
-			if ( attrDeclF.exists() ) {
-				ObjectMapper om = new ObjectMapper();
-				declarations = om.readValue(attrDeclF, CxAttributeDeclaration[].class);
-			}
-
-			if ( declarations != null)
-				return declarations[0];
-			
-			return null;
-		}
+	
 		
 		private Map<String,DeclarationEntry> getDeclarations(String cx2AspectName) throws JsonParseException, JsonMappingException, IOException {			
 			File attrDeclF = new File ( pathPrefix + CxAttributeDeclaration.ASPECT_NAME);
@@ -370,7 +357,7 @@ public class CXAspectElementWriter2Thread extends Thread {
 				evp = om.readValue(f, VisualEditorProperties[].class);
 			}
 
-			CxAttributeDeclaration attrDeclarations = getAttrDeclarations();
+			CxAttributeDeclaration attrDeclarations = NetworkServiceV2.getAttrDeclarations(pathPrefix);
 			
 			int i = 0;
 			

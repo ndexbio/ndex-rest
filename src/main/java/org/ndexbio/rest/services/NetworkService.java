@@ -212,62 +212,17 @@ public class NetworkService extends NdexService {
 			if ( !daoNew.networkIsValid(networkUUID))
 				throw new InvalidNetworkException();
 			
-			int i = daoNew.setNetworkProperties(networkUUID, properties);
+			int i = 0;
+			try {
+				i = daoNew.setNetworkProperties(networkUUID, properties);
 
-            //DW: Handle provenance
+				// recreate files and update db
+				NetworkServiceV2.updateNetworkAttributesAspect(daoNew, networkUUID);
 
-  /*          ProvenanceEntity oldProv = daoNew.getProvenance(networkUUID);
-            ProvenanceEntity newProv = new ProvenanceEntity();
-            newProv.setUri( oldProv.getUri() );
-
-            NetworkSummary summary = daoNew.getNetworkSummaryById(networkUUID);
-            Helper.populateProvenanceEntity(newProv, summary);
-            ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.SET_NETWORK_PROPERTIES, summary.getModificationTime());
-            List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-			eventProperties.add( new SimplePropertyValuePair("user name", user.getUserName()) ) ;
-
-            for( NdexPropertyValuePair vp : properties )
-            {
-                SimplePropertyValuePair svp = new SimplePropertyValuePair(vp.getPredicateString(), vp.getValue());
-                eventProperties.add(svp);
-            }
-            event.setProperties(eventProperties);
-            List<ProvenanceEntity> oldProvList = new ArrayList<>();
-            oldProvList.add(oldProv);
-            event.setInputs(oldProvList);
-
-            newProv.setCreationEvent(event);
-            daoNew.setProvenance(networkUUID, newProv);  */
-
-            NetworkSummary fullSummary = daoNew.getNetworkSummaryById(networkUUID);
-			
-			//update the networkProperty aspect 
-			List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
-			if ( attrs.size() > 0 ) {					
-				try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
-						+ NetworkAttributesElement.ASPECT_NAME) ) {
-					for ( NetworkAttributesElement e : attrs) {
-						writer.writeCXElement(e);	
-						writer.flush();
-					}
-				}
+			} finally {
+				daoNew.unlockNetwork(networkUUID);				
 			}
-			
-			//update metadata
-			MetaDataCollection metadata = daoNew.getMetaDataCollection(networkUUID);
-			MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
-			if ( elmt == null) {
-				elmt = new MetaDataElement();
-			}
-			elmt.setElementCount(Long.valueOf(attrs.size()));
-			daoNew.updateMetadataColleciton(networkUUID, metadata);
-
-			//Recreate the CX file 					
-			CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, /* fullSummary,*/ metadata /*,newProv*/);
-			g.reCreateCXFile();
-			
-			daoNew.unlockNetwork(networkUUID);
-            
+  
 			// update the solr Index
 			NetworkIndexLevel idxLvl = daoNew.getIndexLevel(networkUUID);
 			if ( idxLvl != NetworkIndexLevel.NONE) {
@@ -575,71 +530,10 @@ public class NetworkService extends NdexService {
 				
 					networkDao.updateNetworkProfile(networkUUID, newValues);
 
-					//DW: Handle provenance
-					//Special Logic. Test whether we should record provenance at all.
-					//If the only thing that has changed is the visibility, we should not add a provenance
-					//event.
-		
+					NetworkServiceV2.updateNetworkAttributesAspect(networkDao, networkUUID);
 
-					//Treat all summary values that are null like ""
-	//				String summaryName = partialSummary.getName() == null ? "" : partialSummary.getName().trim();
-	//				String summaryDescription = partialSummary.getDescription() == null ? "" : partialSummary.getDescription().trim();
-	//				String summaryVersion = partialSummary.getVersion() == null ? "" : partialSummary.getVersion().trim();
-
-	/*				ProvenanceEntity newProv = new ProvenanceEntity();
-					if( !oldName.equals(summaryName) || !oldDescription.equals(summaryDescription) || !oldVersion.equals(summaryVersion) )
-					{
-						if ( oldProv !=null )   //TODO: initialize the URI properly when there is null.
-							newProv.setUri(oldProv.getUri());
-
-						newProv.setProperties(entityProperties);
-
-						ProvenanceEvent event = new ProvenanceEvent(NdexProvenanceEventType.UPDATE_NETWORK_PROFILE, partialSummary.getModificationTime());
-
-						List<SimplePropertyValuePair> eventProperties = new ArrayList<>();
-						eventProperties.add( new SimplePropertyValuePair("user name", this.getLoggedInUser().getUserName()) ) ;
-
-						if (partialSummary.getName() != null)
-							eventProperties.add(new SimplePropertyValuePair("dc:title", partialSummary.getName()));
-
-						event.setProperties(eventProperties);
-						List<ProvenanceEntity> oldProvList = new ArrayList<>();
-						oldProvList.add(oldProv);
-						event.setInputs(oldProvList);
-
-						newProv.setCreationEvent(event);
-						networkDao.setProvenance(networkUUID, newProv);
-					} */
-				
-					NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
-					
-					//update the networkProperty aspect 
-					List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
-					if ( attrs.size() > 0 ) {					
-						try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
-								+ NetworkAttributesElement.ASPECT_NAME) ) {
-							for ( NetworkAttributesElement e : attrs) {
-								writer.writeCXElement(e);	
-								writer.flush();
-							}
-						}
-					}
-					
-					//update metadata
-					MetaDataCollection metadata = networkDao.getMetaDataCollection(networkUUID);
-					MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
-					if ( elmt == null) {
-						elmt = new MetaDataElement();
-					}
-					elmt.setElementCount(Long.valueOf(attrs.size()));
-					networkDao.updateMetadataColleciton(networkUUID, metadata);
-
-					//Recreate the CX file 					
-					CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, /*fullSummary,*/ metadata /*, newProv*/);
-					g.reCreateCXFile();
-					
 					networkDao.unlockNetwork(networkUUID);
-					
+										
 					// update the solr Index
 					NetworkIndexLevel idxLvl = networkDao.getIndexLevel(networkUUID);
 					if ( idxLvl != NetworkIndexLevel.NONE) {
