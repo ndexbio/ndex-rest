@@ -722,7 +722,7 @@ public class CXToCX2ServerSideConverter {
 			            if ( E == null) {
 			                break;
 			            }
-			            Object EO = vpConverter.getNewEdgeOrNodePropertyValue(vpName,E);
+			            //Object EO = vpConverter.getNewEdgeOrNodePropertyValue(vpName,E);
 			            
 			            final String G = sp.get("G=" + counter);
 			            if (G == null) {
@@ -739,7 +739,7 @@ public class CXToCX2ServerSideConverter {
 			            
 			            if ( counter == 0 ) {  // min side
 			            	currentMapping.put("includeMin", Boolean.FALSE);
-			            	currentMapping.put("includeMax", E.equals(L));
+			            	currentMapping.put("includeMax", Boolean.valueOf(E.equals(L)));
 			            	currentMapping.put("maxVPValue", LO);
 			            	currentMapping.put("max", OVO);
 			            	m.add(currentMapping);
