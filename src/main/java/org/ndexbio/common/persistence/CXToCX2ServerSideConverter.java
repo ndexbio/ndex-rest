@@ -65,6 +65,9 @@ public class CXToCX2ServerSideConverter {
 	private	MetaDataCollection metaDataCollection;
 	private VisualEditorProperties visualDependencies;
 	
+	//when this value is true, the converter will skip data errors and try to make a guess.
+	private boolean alwaysCreate;
+	
 	CXToCX2VisualPropertyConverter vpConverter;
 
 	
@@ -74,8 +77,9 @@ public class CXToCX2ServerSideConverter {
 	 * 
 	 * @param rootPath the directory of a CX2 network on the server. 
 	 */
-	protected CXToCX2ServerSideConverter(String rootPath, 
-			MetaDataCollection metadataCollection, String networkIdStr, AspectAttributeStat cx1AttributeStats ) {
+	public CXToCX2ServerSideConverter(String rootPath, 
+			MetaDataCollection metadataCollection, String networkIdStr, AspectAttributeStat cx1AttributeStats ,
+			boolean alwaysCreate) {
 		pathPrefix = rootPath;
 		this.metaDataCollection = metadataCollection;
 		
@@ -84,7 +88,7 @@ public class CXToCX2ServerSideConverter {
 		this.attrStats = cx1AttributeStats;
 		this.visualDependencies = new VisualEditorProperties();
 		vpConverter = CXToCX2VisualPropertyConverter.getInstance();
-
+		this.alwaysCreate = alwaysCreate;
 	}
 	
 	
@@ -128,7 +132,7 @@ public class CXToCX2ServerSideConverter {
 					NetworkAttributesElement netAttr = a.next();
 					Object attrValue = CXToCX2Converter.convertAttributeValue(netAttr);
 					Object oldV = cx2NetAttr.getAttributes().put(netAttr.getName(), attrValue);
-					if ( oldV !=null)
+					if ( !alwaysCreate && oldV !=null)
 						throw new NdexException("Duplicated network attribute name found: " + netAttr.getName());
 				}
 			}		
@@ -172,7 +176,13 @@ public class CXToCX2ServerSideConverter {
 							cx2Edge.setTarget(cx1Edge.getTarget());
 							if ( cx1Edge.getInteraction() != null) {
 								EdgeAttributesElement attr = new EdgeAttributesElement(cx1Edge.getId(), CxEdge.INTERACTION, cx1Edge.getInteraction(), ATTRIBUTE_DATA_TYPE.STRING);	
-								cx2Edge.addCX1EdgeAttribute(attr, this.attrDeclarations);   
+								try {
+									cx2Edge.addCX1EdgeAttribute(attr, this.attrDeclarations);   
+								} catch ( NdexException e) {
+									if ( !alwaysCreate) 
+										throw e;
+									System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
+								}
 							}
 							wtr.writeElementInFragment(cx2Edge);
 							aspWtr.writeCXElement(cx2Edge);
@@ -304,7 +314,14 @@ public class CXToCX2ServerSideConverter {
 				NodeAttributesElement cx1nodeAttr = nAttrs.next();
 				Long nodeId = cx1nodeAttr.getPropertyOf();
 				CxNode newNode = nodeTable.get(nodeId);
-				newNode.addCX1NodeAttribute(cx1nodeAttr, this.attrDeclarations);
+				try {
+					newNode.addCX1NodeAttribute(cx1nodeAttr, this.attrDeclarations);
+				} catch( NdexException e) {
+					if (!alwaysCreate)
+						throw e;
+					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
+
+				}
 			}
 		}
 		
@@ -336,7 +353,12 @@ public class CXToCX2ServerSideConverter {
 					newEdge = new CxEdge(edgeId);
 					edgeTable.put(edgeId, newEdge);
 				}
-				newEdge.addCX1EdgeAttribute(cx1EdgeAttr, this.attrDeclarations);
+				try {
+					newEdge.addCX1EdgeAttribute(cx1EdgeAttr, this.attrDeclarations);
+				} catch (NdexException e) {
+					if ( !alwaysCreate)
+						throw e;
+				}
 			}
 		}
 		
@@ -415,7 +437,13 @@ public class CXToCX2ServerSideConverter {
 		//check network attribute
 		try (AspectIterator<NetworkAttributesElement> a = new AspectIterator<>(networkId, NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
-				attributeStats.addNetworkAttribute(a.next());		
+				try {
+					attributeStats.addNetworkAttribute(a.next());	
+				} catch ( NdexException e) {
+					if ( !alwaysCreate)
+						throw e;
+					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
+				}
 			}
 		}
 		
@@ -423,7 +451,7 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<NodeAttributesElement> a = new AspectIterator<>(networkId, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				NodeAttributesElement attr = a.next();
-				if ( attr.getName().equals("name") || attr.getName().equals("represents"))
+				if ( !alwaysCreate && (attr.getName().equals("name") || attr.getName().equals("represents")))
 					throw new NdexException ("Node attribute " + attr.getName() + " is not allowed in CX spec.");
 				attributeStats.addNodeAttribute(attr);
 			}
@@ -433,7 +461,7 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<EdgeAttributesElement> a = new AspectIterator<>(networkId, EdgeAttributesElement.ASPECT_NAME, EdgeAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				EdgeAttributesElement e = a.next();
-				if ( e.getName().equals("interaction"))
+				if ( !alwaysCreate && (e.getName().equals("interaction")))
 					throw new NdexException ( "Edge attribute interaction is not allowed.");
 				attributeStats.addEdgeAttribute(e);
 			}
@@ -605,30 +633,39 @@ public class CXToCX2ServerSideConverter {
 					defObj.setAttributeName(mappingAttrName);
 				} else if (mappingType.equals("DISCRETE")) {
 					List<Map<String,Object>> m = new ArrayList<> ();
-					MappingValueStringParser sp = new MappingValueStringParser(defString);	
-					String col = sp.get("COL");
-					String t = sp.get("T");
-				    int counter = 0;
-			        while (true) {
-			            final String k = sp.get("K=" + counter);
-			            if (k == null) {
-			                break;
-			            }
-			            final String v = sp.get("V=" + counter);
-			        
-			            if (v == null) {
-			            	throw new NdexException("error: discrete mapping string is corruptted for " + defString);
-			            }
-			            
-			            Map<String,Object> mapEntry = new HashMap<>(2);
-			            mapEntry.put("v", ConverterUtilities.cvtStringValueToObj(t,k));
-			            mapEntry.put("vp", vpConverter.getNewEdgeOrNodePropertyValue(vpName,v));
-			        	m.add(mapEntry);
-			            counter++;
-			        }
-			        
-					defObj.setAttributeName(col);
-					defObj.setMapppingList(m);
+					try {
+						MappingValueStringParser sp = new MappingValueStringParser(defString);	
+					
+						String col = sp.get("COL");
+						String t = sp.get("T");
+						int counter = 0;
+						while (true) {
+							final String k = sp.get("K=" + counter);
+							if (k == null) {
+								break;
+							}
+							final String v = sp.get("V=" + counter);
+
+							if (v == null) {
+								throw new NdexException(
+										"error: discrete mapping string is corruptted for " + defString);
+							}
+
+							Map<String, Object> mapEntry = new HashMap<>(2);
+							mapEntry.put("v", ConverterUtilities.cvtStringValueToObj(t, k));
+							mapEntry.put("vp", vpConverter.getNewEdgeOrNodePropertyValue(vpName, v));
+							m.add(mapEntry);
+							counter++;
+						}
+
+						defObj.setAttributeName(col);
+						defObj.setMapppingList(m);
+					} catch (IOException e) {
+						if ( alwaysCreate) 
+							continue;
+						//otherwise throw the exception.
+						throw e;
+					}
 
 				} else {  //continuous mapping
 					List<Map<String,Object>> m = new ArrayList<> ();

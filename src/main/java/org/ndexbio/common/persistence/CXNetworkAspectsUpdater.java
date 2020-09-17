@@ -1,21 +1,13 @@
 package org.ndexbio.common.persistence;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.util.Calendar;
 import java.util.UUID;
 
-import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.cx2.converter.CXToCX2Converter;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
@@ -38,8 +30,8 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 
 	private UUID aspectsCXNetworkID;
 	
-	public CXNetworkAspectsUpdater(UUID networkUUID, /*String ownerUserName,*/ NetworkDAO networkDao, UUID aspectsCXUUID) {
-		super(networkUUID,/* ownerUserName,*/ true, networkDao, null,null, 0);
+	public CXNetworkAspectsUpdater(UUID networkUUID,  NetworkDAO networkDao, UUID aspectsCXUUID) {
+		super(networkUUID, true, networkDao, null,null, 0);
 		
 		this.aspectsCXNetworkID = aspectsCXUUID;
 	}
@@ -66,9 +58,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				  summary.setEdgeCount((int)aspectTable.get(EdgesElement.ASPECT_NAME).getElementCount());
 			  if ( aspectTable.containsKey(NodesElement.ASPECT_NAME))
 				  summary.setNodeCount((int) aspectTable.get(NodesElement.ASPECT_NAME).getElementCount());
-				
-			  //summary.setModificationTime(new Timestamp(Calendar.getInstance().getTimeInMillis()));
-				
+								
 			  if ( aspectTable.containsKey(NetworkAttributesElement.ASPECT_NAME)) {
 					summary.setProperties(properties);
 					summary.setName(this.networkName);
@@ -80,7 +70,6 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 					summary.setSubnetworkIds(subNetworkIds);
 				}
 				try {
-				//	dao.saveNetworkEntry(summary, (this.provenanceHistory == null? null: provenanceHistory.getEntity()), metadata);
 					dao.saveNetworkEntry(summary, fullMetaData ,true);
 					dao.setFlag(getNetworkId(), "has_layout", fullMetaData.getMetaDataElement(CartesianLayoutElement.ASPECT_NAME)!=null);	
 					dao.commit();
@@ -89,8 +78,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 					dao.close();
 					throw new NdexException ("DB error when saving network summary: " + e.getMessage(), e);
 				}
-		  
-				
+		  				
 				// create the network sample if the network has more than 500 edges
 				if (summary.getEdgeCount() > this.sampleGenerationThreshold)  {
 			  
@@ -125,7 +113,6 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 
 			try {
 				dao.unlockNetwork(networkUUID);
-				// dao.commit();
 			} catch (SQLException e) {
 				dao.rollback();
 				dao.close();

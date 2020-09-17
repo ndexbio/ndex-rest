@@ -1387,7 +1387,6 @@ public class NetworkServiceV2 extends NdexService {
     	
         UUID networkId = UUID.fromString(networkIdStr);
 
-     //   String ownerAccName = null;
         try ( NetworkDAO daoNew = new NetworkDAO() ) {
            User user = getLoggedInUser();
            
@@ -1406,7 +1405,6 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 			
-	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			
 	        UUID tmpNetworkId = storeRawNetworkFromMultipart (input, cx1NetworkFileName); //network stored as a temp network
 	        
@@ -1448,7 +1446,6 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 			
-	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			try (InputStream in = this.getInputStreamFromRequest()) {
 
 	        UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName); //network stored as a temp network
