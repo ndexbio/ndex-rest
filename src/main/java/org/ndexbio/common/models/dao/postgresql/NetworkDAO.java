@@ -1375,7 +1375,29 @@ public class NetworkDAO extends NdexDBDAO {
 		
 	}
 
-	
+	public List<String> getWarnings(UUID networkId) throws SQLException {
+		String sqlStr = "select warnings from network n where n.\"UUID\" =? and n.is_deleted= false" ;
+		
+		List<String> result = new ArrayList<>();
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					
+					Array warnings = rs.getArray(1);
+					if ( warnings != null) {
+						String[] wA = (String[]) warnings.getArray();
+						List<String> warningList = Arrays.asList(wA);  
+						return warningList;
+					}  
+					return result;
+				}
+			}
+		}
+		return result;
+		
+	}
+
 	public void setCxMetadata(UUID networkId, List<CxMetadata> cx2metadata) throws SQLException, JsonProcessingException, NdexException {
 		String sqlStr = "update network set cx2metadata = ? ::jsonb where \"UUID\" = ? and is_deleted=false";
 		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {

@@ -69,6 +69,7 @@ public class CXToCX2ServerSideConverter {
 	
 	CXToCX2VisualPropertyConverter vpConverter;
 
+	public static final String messagePrefix = "CX2-CONVERTER: ";
 	
 	AspectAttributeStat attrStats;
 	
@@ -101,7 +102,7 @@ public class CXToCX2ServerSideConverter {
 		if (warnings.size() > 20 ) 
 			return;
 		
-		warnings.add(warningStr);		
+		warnings.add(messagePrefix + warningStr);		
 	}
 	
 	public List<CxMetadata> convert() throws FileNotFoundException, IOException, NdexException {

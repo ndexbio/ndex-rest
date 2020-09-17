@@ -56,10 +56,15 @@ public class CX2NetworkCreator {
 								networkUUID.toString(),null,true);
 							List<CxMetadata> cx2mc = converter.convert();
 							networkdao.setCxMetadata(networkUUID, cx2mc);
-							if ( converter.getWarning().size() > 0) 
-								networkdao.setWarning(networkUUID, converter.getWarning());
+							if ( converter.getWarning().size() > 0) {
+								List<String> warnings = new java.util.ArrayList<>(networkdao.getWarnings(networkUUID));
+								warnings.removeIf(n -> n.startsWith(CXToCX2ServerSideConverter.messagePrefix));
+								warnings.addAll(converter.getWarning());
+								networkdao.setWarning(networkUUID, warnings);
+							}	
 						} catch ( NdexException e) {
-							networkdao.setErrorMessage(networkUUID, e.getMessage());
+							networkdao.setErrorMessage(networkUUID, 
+									CXToCX2ServerSideConverter.messagePrefix + e.getMessage());
 						}
 						networkdao.commit();
 						i++;
