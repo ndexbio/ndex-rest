@@ -14,6 +14,7 @@ import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXToCX2ServerSideConverter;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
 
 public class CX2NetworkCreator {
@@ -50,10 +51,16 @@ public class CX2NetworkCreator {
 							System.out.print(" aspect folder deleted ... ");
 						}
 						MetaDataCollection mc = networkdao.getMetaDataCollection(networkUUID);
-						CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(rootPath,mc,
+						try {
+							CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(rootPath,mc,
 								networkUUID.toString(),null,true);
-						List<CxMetadata> cx2mc = converter.convert();
-						networkdao.setCxMetadata(networkUUID, cx2mc);
+							List<CxMetadata> cx2mc = converter.convert();
+							networkdao.setCxMetadata(networkUUID, cx2mc);
+							if ( converter.getWarning().size() > 0) 
+								networkdao.setWarning(networkUUID, converter.getWarning());
+						} catch ( NdexException e) {
+							networkdao.setErrorMessage(networkUUID, e.getMessage());
+						}
 						networkdao.commit();
 						i++;
 						System.out.println( " done (" + i + ").");

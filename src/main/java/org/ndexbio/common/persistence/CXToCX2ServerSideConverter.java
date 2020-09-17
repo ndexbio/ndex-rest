@@ -47,7 +47,6 @@ import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 
@@ -72,6 +71,12 @@ public class CXToCX2ServerSideConverter {
 
 	
 	AspectAttributeStat attrStats;
+	
+	public List<String> getWarning() {
+		return warnings;
+	}
+
+	private List<String> warnings;
 		
 	/**
 	 * 
@@ -89,14 +94,22 @@ public class CXToCX2ServerSideConverter {
 		this.visualDependencies = new VisualEditorProperties();
 		vpConverter = CXToCX2VisualPropertyConverter.getInstance();
 		this.alwaysCreate = alwaysCreate;
+		warnings = new ArrayList<>(20);
 	}
 	
+	private void addWarning(String warningStr) {
+		if (warnings.size() > 20 ) 
+			return;
+		
+		warnings.add(warningStr);		
+	}
 	
 	public List<CxMetadata> convert() throws FileNotFoundException, IOException, NdexException {
-		
+				
 		//create the aspect dir
         String cx2AspectDir  = pathPrefix + networkId + "/"+ CX2NetworkLoader.cx2AspectDirName + "/";
 		Files.createDirectory(Paths.get(cx2AspectDir));
+		
 		
 		if ( attrStats == null)
 			attrStats = analyzeAttributes();
@@ -132,8 +145,13 @@ public class CXToCX2ServerSideConverter {
 					NetworkAttributesElement netAttr = a.next();
 					Object attrValue = CXToCX2Converter.convertAttributeValue(netAttr);
 					Object oldV = cx2NetAttr.getAttributes().put(netAttr.getName(), attrValue);
-					if ( !alwaysCreate && oldV !=null)
-						throw new NdexException("Duplicated network attribute name found: " + netAttr.getName());
+					if ( oldV !=null) {
+					   String msg = "Duplicated network attribute name found: " + netAttr.getName();	
+					   if (  alwaysCreate) {
+					   	 addWarning(msg);  
+					   } else
+						   throw new NdexException(msg);
+					}	
 				}
 			}		
 			if ( !cx2NetAttr.getAttributes().isEmpty()) {
@@ -181,6 +199,7 @@ public class CXToCX2ServerSideConverter {
 								} catch ( NdexException e) {
 									if ( !alwaysCreate) 
 										throw e;
+									addWarning(e.getMessage());
 									System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 								}
 							}
@@ -319,6 +338,7 @@ public class CXToCX2ServerSideConverter {
 				} catch( NdexException e) {
 					if (!alwaysCreate)
 						throw e;
+					addWarning (e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 
 				}
@@ -358,6 +378,8 @@ public class CXToCX2ServerSideConverter {
 				} catch (NdexException e) {
 					if ( !alwaysCreate)
 						throw e;
+					addWarning (e.getMessage());
+					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 				}
 			}
 		}
@@ -442,6 +464,7 @@ public class CXToCX2ServerSideConverter {
 				} catch ( NdexException e) {
 					if ( !alwaysCreate)
 						throw e;
+					addWarning(e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 				}
 			}
@@ -461,8 +484,11 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<EdgeAttributesElement> a = new AspectIterator<>(networkId, EdgeAttributesElement.ASPECT_NAME, EdgeAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				EdgeAttributesElement e = a.next();
-				if ( !alwaysCreate && (e.getName().equals("interaction")))
-					throw new NdexException ( "Edge attribute interaction is not allowed.");
+				if (  (e.getName().equals("interaction"))) {
+					if (!alwaysCreate)
+						throw new NdexException ( "Edge attribute interaction is not allowed.");
+					addWarning ( "Edge attribute interaction is not allowed. It should be removed.");
+				}	
 				attributeStats.addEdgeAttribute(e);
 			}
 		}
@@ -661,8 +687,11 @@ public class CXToCX2ServerSideConverter {
 						defObj.setAttributeName(col);
 						defObj.setMapppingList(m);
 					} catch (IOException e) {
-						if ( alwaysCreate) 
+						if ( alwaysCreate) {
+							addWarning ( e.getMessage());
+							System.err.println(e.getMessage());
 							continue;
+						}	
 						//otherwise throw the exception.
 						throw e;
 					}
