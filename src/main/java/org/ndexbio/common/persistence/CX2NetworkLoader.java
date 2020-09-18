@@ -87,7 +87,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 public class CX2NetworkLoader implements AutoCloseable {
 	
     protected static Logger logger = LoggerFactory.getLogger(CXNetworkLoader.class);
-	static public final String cx2NetworkFileName = "net2.cx";
+	static public final String cx2NetworkFileName = "network.cx2";
 	
 	//Directory name of CX2 aspects
 	static public final String cx2AspectDirName = "aspects_cx2";
@@ -114,7 +114,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		
 	protected Map<String, CxMetadata> metadataTable;
 			
-	protected Map<String,CX2AspectWriter<? extends CxAspectElement>> aspectTable;
+	protected Map<String,CX2AspectWriter<? extends CxAspectElement<?>>> aspectTable;
 	protected List<String> warnings;
 	private NetworkDAO dao;
 	private VisibilityType visibility;
@@ -263,7 +263,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		CX2NetworkFileGenerator g = new CX2NetworkFileGenerator ( networkId, dao);
 		String tmpFileName = g.createCX2File();
 		
-		String rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/";
+		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/";
 		
 		java.nio.file.Path src = Paths.get(tmpFileName);
 		java.nio.file.Path tgt = Paths.get( rootPath + cx2NetworkFileName);
@@ -273,7 +273,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 		
 		// TODO: zip the archive and convert to CX file
-		CX2ToCXConverter cvtr = new CX2ToCXConverter(rootPath, this.attributeDeclarations, 
+		CX2ToCXConverter cvtr = new CX2ToCXConverter(pathPrefix, this.attributeDeclarations, 
 				this.metadataTable, this.hasLayout, this.networkAttributes);
 		
 		cvtr.convert();
@@ -393,7 +393,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 	}
 	
 	private void addMissingMetadata() {
-		for ( Map.Entry<String,CX2AspectWriter<? extends CxAspectElement>> aw : aspectTable.entrySet() ){
+		for ( Map.Entry<String,CX2AspectWriter<? extends CxAspectElement<?>>> aw : aspectTable.entrySet() ){
 			 String aspectName = aw.getKey();
 			 if ( metadataTable.get(aspectName) == null) {
 				  CxMetadata mElmt = new CxMetadata();
@@ -493,7 +493,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 	
 
 	private void closeAspectStreams() {
-		for ( Map.Entry<String, CX2AspectWriter<? extends CxAspectElement>> entry : aspectTable.entrySet() ){
+		for ( Map.Entry<String, CX2AspectWriter<? extends CxAspectElement<?>>> entry : aspectTable.entrySet() ){
 			try {
 				entry.getValue().close();
 			} catch (IOException e) {
