@@ -64,6 +64,8 @@ public class CXToCX2ServerSideConverter {
 	private	MetaDataCollection metaDataCollection;
 	private VisualEditorProperties visualDependencies;
 	
+	//private boolean isCollection; // cytoscape collection.
+	
 	//when this value is true, the converter will skip data errors and try to make a guess.
 	private boolean alwaysCreate;
 	
@@ -85,7 +87,7 @@ public class CXToCX2ServerSideConverter {
 	 */
 	public CXToCX2ServerSideConverter(String rootPath, 
 			MetaDataCollection metadataCollection, String networkIdStr, AspectAttributeStat cx1AttributeStats ,
-			boolean alwaysCreate) {
+			boolean alwaysCreate /*, boolean isCytoscapeCollection*/) {
 		pathPrefix = rootPath;
 		this.metaDataCollection = metadataCollection;
 		
@@ -96,6 +98,7 @@ public class CXToCX2ServerSideConverter {
 		vpConverter = CXToCX2VisualPropertyConverter.getInstance();
 		this.alwaysCreate = alwaysCreate;
 		warnings = new ArrayList<>(20);
+	//	this.isCollection = isCytoscapeCollection;
 	}
 	
 	private void addWarning(String warningStr) {

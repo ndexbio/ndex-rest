@@ -1054,11 +1054,12 @@ public class NetworkServiceV2 extends NdexService {
 		String aspectFilePath = fileStoreDir + CXNetworkLoader.CX1AspectDir + "/" + NetworkAttributesElement.ASPECT_NAME;
 		String cx2AspectDirPath = fileStoreDir + CX2NetworkLoader.cx2AspectDirName + "/";
 		
+		boolean isSingleNetwork = fullSummary.getSubnetworkIds().isEmpty();
 		//update the networkAttributes aspect in cx and cx2 
 		List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
 		
 		CxAttributeDeclaration networkAttrDecl = null;
-		if ( attrs.size() > 0 ) {					
+		if ( attrs.size() > 0 ) {	
 			AspectAttributeStat attributeStats = new AspectAttributeStat();
 			CxNetworkAttribute cx2NetAttr = new CxNetworkAttribute();
 
@@ -1068,38 +1069,46 @@ public class NetworkServiceV2 extends NdexService {
 					writer.writeCXElement(e);	
 					writer.flush();
 
-					attributeStats.addNetworkAttribute(e);
+					if ( isSingleNetwork) {
+						attributeStats.addNetworkAttribute(e);
 					
-					Object attrValue = CXToCX2Converter.convertAttributeValue(e);
-					Object oldV = cx2NetAttr.getAttributes().put(e.getName(), attrValue);
-					if ( oldV !=null)
-						throw new NdexException("Duplicated network attribute name found: " + e.getName());
+						Object attrValue = CXToCX2Converter.convertAttributeValue(e);
+						Object oldV = cx2NetAttr.getAttributes().put(e.getName(), attrValue);
+						if ( oldV !=null)
+							throw new NdexException("Duplicated network attribute name found: " + e.getName());
+					}
 				}
 			}
 			
 			// write cx2 network attribute aspect file
-			networkAttrDecl = attributeStats.createCxDeclaration();
+			if ( isSingleNetwork) {
+				networkAttrDecl = attributeStats.createCxDeclaration();
 			
-			try (CX2AspectWriter<CxNetworkAttribute> aspWtr = new CX2AspectWriter<>(cx2AspectDirPath + CxNetworkAttribute.ASPECT_NAME)) {
-				aspWtr.writeCXElement(cx2NetAttr);
+				try (CX2AspectWriter<CxNetworkAttribute> aspWtr = new CX2AspectWriter<>(cx2AspectDirPath + CxNetworkAttribute.ASPECT_NAME)) {
+					aspWtr.writeCXElement(cx2NetAttr);
+				}
 			}
-			
 		} else { // remove the aspect file if it exists
 			File f = new File ( aspectFilePath);
 			if ( f.exists())
 				f.delete();
-			f = new File(cx2AspectDirPath + CxNetworkAttribute.ASPECT_NAME);
-			if ( f.exists())
-				f.delete();
+			if ( isSingleNetwork) {
+				f = new File(cx2AspectDirPath + CxNetworkAttribute.ASPECT_NAME);
+				if ( f.exists())
+					f.delete();
+			}
 		}
 		
 				
 		//update cx and cx2 metadata for networkAttributes
 		MetaDataCollection metadata = networkDao.getMetaDataCollection(networkUUID);
+		
 		List<CxMetadata>   cx2metadata = networkDao.getCxMetaDataList(networkUUID);
+		
 		if ( attrs.size() == 0 ) {
 			metadata.remove(NetworkAttributesElement.ASPECT_NAME);
-			cx2metadata.removeIf( n -> n.getName().equals(CxNetworkAttribute.ASPECT_NAME));
+			if ( isSingleNetwork)
+				cx2metadata.removeIf( n -> n.getName().equals(CxNetworkAttribute.ASPECT_NAME));
 		} else {
 			MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
 			if ( elmt == null) {
@@ -1107,7 +1116,7 @@ public class NetworkServiceV2 extends NdexService {
 			}
 			elmt.setElementCount(Long.valueOf(attrs.size()));
 			
-			if ( ! cx2metadata.stream().anyMatch(
+			if ( isSingleNetwork  && ! cx2metadata.stream().anyMatch(
 					(CxMetadata n) -> n.getName().equals(CxNetworkAttribute.ASPECT_NAME) )) {
 			
 				CxMetadata m = new CxMetadata(CxNetworkAttribute.ASPECT_NAME, 1);
@@ -1118,28 +1127,31 @@ public class NetworkServiceV2 extends NdexService {
 
 		
 		// update attribute declaration aspect and cx2 metadata
-		CxAttributeDeclaration decls = getAttrDeclarations(cx2AspectDirPath);
-		if ( decls == null) {
-			if ( networkAttrDecl != null ) { // has new attributes
-				decls = new CxAttributeDeclaration();
-				decls.add(CxNetworkAttribute.ASPECT_NAME,
-						networkAttrDecl.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
-				cx2metadata.add(new CxMetadata(CxAttributeDeclaration.ASPECT_NAME, 1));
-			} 
-		} else {
-			if ( networkAttrDecl != null) {
-				decls.getDeclarations().put(CxNetworkAttribute.ASPECT_NAME, 
-						networkAttrDecl.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
-			} else { 
-				decls.removeAspectDeclaration(CxNetworkAttribute.ASPECT_NAME);
-			    cx2metadata.removeIf((CxMetadata m) -> m.getName().equals(CxAttributeDeclaration.ASPECT_NAME));
-			}   
-		}
+		if ( isSingleNetwork) {
+			CxAttributeDeclaration decls = getAttrDeclarations(cx2AspectDirPath);
+			if (decls == null) {
+				if (networkAttrDecl != null) { // has new attributes
+					decls = new CxAttributeDeclaration();
+					decls.add(CxNetworkAttribute.ASPECT_NAME,
+							networkAttrDecl.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
+					cx2metadata.add(new CxMetadata(CxAttributeDeclaration.ASPECT_NAME, 1));
+				}
+			} else {
+				if (networkAttrDecl != null) {
+					decls.getDeclarations().put(CxNetworkAttribute.ASPECT_NAME,
+							networkAttrDecl.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
+				} else {
+					decls.removeAspectDeclaration(CxNetworkAttribute.ASPECT_NAME);
+					cx2metadata.removeIf((CxMetadata m) -> m.getName().equals(CxAttributeDeclaration.ASPECT_NAME));
+				}
+			}
 
-		networkDao.setCxMetadata(networkUUID, cx2metadata);
-		try (CX2AspectWriter<CxAttributeDeclaration> aspWtr = new 
-				CX2AspectWriter<>(cx2AspectDirPath + CxAttributeDeclaration.ASPECT_NAME)) {
-			aspWtr.writeCXElement(decls);
+			networkDao.setCxMetadata(networkUUID, cx2metadata);
+			try (CX2AspectWriter<CxAttributeDeclaration> aspWtr = new CX2AspectWriter<>(
+					cx2AspectDirPath + CxAttributeDeclaration.ASPECT_NAME)) {
+				aspWtr.writeCXElement(decls);
+			}
+
 		}
 		
 		//Recreate the CX file 					
@@ -1147,11 +1159,13 @@ public class NetworkServiceV2 extends NdexService {
 		g.reCreateCXFile();
         
 		//Recreate cx2 file
-		CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(networkUUID, cx2metadata);
-		String tmpFilePath = g2.createCX2File();
-		Files.move(Paths.get(tmpFilePath), 
+		if(isSingleNetwork) {
+			CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(networkUUID, cx2metadata);
+			String tmpFilePath = g2.createCX2File();
+			Files.move(Paths.get(tmpFilePath), 
 				Paths.get(fileStoreDir + CX2NetworkLoader.cx2NetworkFileName), 
-				StandardCopyOption.ATOMIC_MOVE); 
+				StandardCopyOption.ATOMIC_MOVE);
+		}
 	}
 
 	@PUT

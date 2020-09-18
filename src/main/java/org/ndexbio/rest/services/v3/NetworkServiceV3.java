@@ -79,7 +79,11 @@ public class NetworkServiceV3  extends NdexService {
     	String title = null;
     	try (NetworkDAO dao = new NetworkDAO()) {
     		UUID networkUUID = UUID.fromString(networkId);
-    		UUID userId = getLoggedInUserId();
+    		Set<Long> subNetIds = dao.getSubNetworkId(networkUUID);
+    		if ( !subNetIds.isEmpty()) {
+    			throw new ObjectNotFoundException("CX2 network is not available for Cytoscape collection.");
+    		}
+     		UUID userId = getLoggedInUserId();
     		if ( userId == null ) {
     			if ( auth_token != null) {
     				userId = getUserIdFromBasicAuthString(auth_token);

@@ -247,6 +247,26 @@ public class NetworkDAO extends NdexDBDAO {
 		}		
 	}
 	
+	public Set<Long> getSubNetworkId(UUID networkId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select subnetworkids from network where  is_deleted=false and  \"UUID\" = ? ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					
+					Array subNetworkIds = rs.getArray(1);
+					if ( subNetworkIds != null) {
+						Long[] subNetIds = (Long[]) subNetworkIds.getArray();
+						return new HashSet<> (Arrays.asList(subNetIds));
+					}
+					return new HashSet<>();
+				}
+				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
+			}
+		}	
+	}
+	
+	
 	public int getNodeCount(UUID networkId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select nodecount from network where  is_deleted=false and  \"UUID\" = ? ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
