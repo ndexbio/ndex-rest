@@ -12,13 +12,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-import org.ndexbio.rest.Configuration;
 import org.ndexbio.model.exceptions.NdexException;
 
 @RunWith(JUnit4.class)
 public class TestConfiguration {
 
-	@Rule
+    @Rule
     public TemporaryFolder _tmpFolder = new TemporaryFolder();
 	
 	
