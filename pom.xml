@@ -374,9 +374,38 @@
 					</excludes>
 				</configuration>
 			</plugin>
+                        <plugin>
+                            <groupId>org.jacoco</groupId>
+                            <artifactId>jacoco-maven-plugin</artifactId>
+                            <version>0.8.3</version>
+                            <executions>
+                                <execution>
+                                    <id>prepare-agent</id>
+                                    <goals>
+                                        <goal>prepare-agent</goal>
+                                    </goals>
+                                </execution>
+                            </executions>
+                        </plugin>
 
 		</plugins>
 	</build>
+        <reporting>
+            <plugins>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <reportSets>
+                        <reportSet>
+                            <reports>
+                                <!-- select non-aggregate reports -->
+                                <report>report</report>
+                            </reports>
+                        </reportSet>
+                    </reportSets>
+                </plugin>
+            </plugins>
+        </reporting>
 	<properties>
 		<jettyVersion>9.3.28.v20191105</jettyVersion>
 		<resteasyVersion>3.1.4.Final</resteasyVersion>
