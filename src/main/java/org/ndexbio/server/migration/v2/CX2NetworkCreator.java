@@ -7,8 +7,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,7 +21,6 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
 
 public class CX2NetworkCreator {
-	
 	
 	public CX2NetworkCreator() {
 		
@@ -51,7 +48,7 @@ public class CX2NetworkCreator {
 		
 		try (Connection conn = NdexDatabase.getInstance().getConnection()) {
 		
-		String sqlStr = "select \"UUID\", subnetworkids from network where is_deleted=false and error is null";
+		String sqlStr = "select \"UUID\", subnetworkids from network where is_deleted=false and iscomplete and error is null and edgecount < 40000000";
 		
 		int i = 0;
 		try (NetworkDAO networkdao = new NetworkDAO() ) {
