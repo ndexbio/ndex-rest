@@ -104,9 +104,11 @@ public class CX2NetworkCreator {
 					warnings.addAll(converter.getWarning());
 					networkdao.setWarning(networkUUID, warnings);
 				}
-			} catch (NdexException e) {
+			} catch (NdexException | RuntimeException e) {
 				networkdao.setErrorMessage(networkUUID,
 						CXToCX2ServerSideConverter.messagePrefix + e.getMessage());
+				System.out.println(networkUUID.toString() + " has error. Error message is: " + e.getMessage());
+
 			}
 		} else {
 			List<String> warnings = new java.util.ArrayList<>(
