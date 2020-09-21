@@ -111,7 +111,7 @@ public class NetworkServiceV3  extends NdexService {
 					title = networkId;
 				}
 				title.replace('"', '_');
-				r.header("Content-Disposition", "attachment; filename=\"" + title + ".cx\"");
+				r.header("Content-Disposition", "attachment; filename=\"" + title + ".cx2\"");
 				r.header("Access-Control-Expose-Headers", "Content-Disposition");
 			}
 			return 	r.type(isDownload ? MediaType.APPLICATION_OCTET_STREAM_TYPE : MediaType.APPLICATION_JSON_TYPE)
