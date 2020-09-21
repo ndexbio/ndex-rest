@@ -205,6 +205,9 @@ public class CXToCX2ServerSideConverter {
 										throw e;
 									addWarning(e.getMessage());
 									System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
+								} catch (NumberFormatException e2) {
+									System.err.println("Network " + networkId + "has error: " + e2.getMessage());
+									throw new NdexException (e2.getMessage());
 								}
 							}
 							wtr.writeElementInFragment(cx2Edge);
@@ -345,6 +348,9 @@ public class CXToCX2ServerSideConverter {
 					addWarning (e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 
+				} catch (NumberFormatException e2) {
+					System.err.println("Network " + networkId + "has error: " + e2.getMessage());
+					throw new NdexException (e2.getMessage());
 				}
 			}
 		}
@@ -355,6 +361,9 @@ public class CXToCX2ServerSideConverter {
 				CartesianLayoutElement coord = coordinates.next();
 				Long nodeId = coord.getNode();
 				CxNode newNode = nodeTable.get(nodeId);
+				if ( newNode == null)
+					throw new  NdexException ("Node " + nodeId + " is referenced in " + CartesianLayoutElement.ASPECT_NAME
+							+ " but not defined in the nodes aspect.");
 				newNode.setCoordinates(coord.getX(), coord.getY(), coord.getZ());
 			}
 		}
@@ -384,6 +393,9 @@ public class CXToCX2ServerSideConverter {
 						throw e;
 					addWarning (e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
+				} catch (NumberFormatException e2) {
+					System.err.println("Network " + networkId + "has error: " + e2.getMessage());
+					throw new NdexException (e2.getMessage());
 				}
 			}
 		}
@@ -470,6 +482,9 @@ public class CXToCX2ServerSideConverter {
 						throw e;
 					addWarning(e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
+				} catch (NumberFormatException e2) {
+					System.err.println("Network " + networkId + "has error: " + e2.getMessage());
+					throw new NdexException (e2.getMessage());
 				}
 			}
 		}
