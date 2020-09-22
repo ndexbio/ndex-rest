@@ -49,6 +49,7 @@ import org.ndexbio.cxio.metadata.MetaDataElement;
 import org.ndexbio.model.exceptions.NdexException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import org.ndexbio.cx2.converter.ConverterUtilitiesResult;
 
 /**
  * Convert a CX2 network on the server to CX1. This converter works on the individual aspects on the 
@@ -101,11 +102,35 @@ public class CXToCX2ServerSideConverter {
 	//	this.isCollection = isCytoscapeCollection;
 	}
 	
+    /**
+     * Adds {@code warningStr} to internal {@code warnings} variable 
+     * unless there are more then 20 entries in list in which case
+     * method just returns
+     * @param warningStr warning message to add to warnings list
+     */
 	private void addWarning(String warningStr) {
 		if (warnings.size() > 20 ) 
 			return;
 		
 		warnings.add(messagePrefix + warningStr);		
+	}
+        
+    /**
+     * Adds any warnings found in {@code cRes} to internal {@code warnings} 
+     * @param cRes Result from ConverterUtilitiesResult along with any 
+     *             issues encountered during conversion
+     */
+	private void addWarning(final ConverterUtilitiesResult cRes) {
+	    if (cRes == null) {
+            return;
+        }
+        List<String> warnList = cRes.getWarnings();
+        if (warnList == null) {
+            return;
+        }
+        for (String warning : warnList) {
+            addWarning(warning);
+        }
 	}
 	
 	public List<CxMetadata> convert() throws FileNotFoundException, IOException, NdexException {
@@ -693,11 +718,13 @@ public class CXToCX2ServerSideConverter {
 
 							if (v == null) {
 								throw new NdexException(
-										"error: discrete mapping string is corruptted for " + defString);
+										"error: discrete mapping string is corrupted for " + defString);
 							}
 
 							Map<String, Object> mapEntry = new HashMap<>(2);
-							mapEntry.put("v", ConverterUtilities.cvtStringValueToObj(t, k));
+                              ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, k);
+                              addWarning(cRes);
+							mapEntry.put("v", cRes.getResult());
 							mapEntry.put("vp", vpConverter.getNewEdgeOrNodePropertyValue(vpName, v));
 							m.add(mapEntry);
 							counter++;
@@ -705,7 +732,7 @@ public class CXToCX2ServerSideConverter {
 
 						defObj.setAttributeName(col);
 						defObj.setMapppingList(m);
-					} catch (IOException e) {
+					} catch (IOException|NdexException e) {
 						if ( alwaysCreate) {
 							addWarning ( e.getMessage());
 							System.err.println(e.getMessage());
@@ -714,7 +741,6 @@ public class CXToCX2ServerSideConverter {
 						//otherwise throw the exception.
 						throw e;
 					}
-
 				} else {  //continuous mapping
 					List<Map<String,Object>> m = new ArrayList<> ();
 					MappingValueStringParser sp = new MappingValueStringParser(defString);	
@@ -727,73 +753,74 @@ public class CXToCX2ServerSideConverter {
 					Object minVP = null;
 					//Object maxVP = null;
 					
-				    int counter = 0;
+                                        int counter = 0;
 				    Map<String,Object> currentMapping = new HashMap<>();
 				    
 			        while (true) {
-			        	final String L = sp.get("L=" + counter);
-			            if (L == null) {
-			                break;
-			            }
-			            Object LO = vpConverter.getNewEdgeOrNodePropertyValue(vpName,L);
-			            
-			            final String E = sp.get("E=" + counter);
-			            if ( E == null) {
-			                break;
-			            }
-			            //Object EO = vpConverter.getNewEdgeOrNodePropertyValue(vpName,E);
-			            
-			            final String G = sp.get("G=" + counter);
-			            if (G == null) {
-			                break;
-			            }
-			            Object GO = vpConverter.getNewEdgeOrNodePropertyValue(vpName,G);
+                           final String L = sp.get("L=" + counter);
+                        if (L == null) {
+                            break;
+                        }
+                        Object LO = vpConverter.getNewEdgeOrNodePropertyValue(vpName, L);
 
-			            final String OV = sp.get("OV=" + counter);
-			            Object OVO = ConverterUtilities.cvtStringValueToObj(t, OV);
-			        
-			            if (OV == null) {
-			            	throw new NdexException("error: continuous mapping string is corruptted for " + defString);
-			            }
-			            
-			            if ( counter == 0 ) {  // min side
-			            	currentMapping.put("includeMin", Boolean.FALSE);
-			            	currentMapping.put("includeMax", Boolean.valueOf(E.equals(L)));
-			            	currentMapping.put("maxVPValue", LO);
-			            	currentMapping.put("max", OVO);
-			            	m.add(currentMapping);
+                        final String E = sp.get("E=" + counter);
+                        if (E == null) {
+                            break;
+                        }
+                        //Object EO = vpConverter.getNewEdgeOrNodePropertyValue(vpName,E);
 
-			            } else {
-			            	currentMapping.put("includeMin", includeMin);
-			            	currentMapping.put("includeMax", Boolean.valueOf(E.equals(L)));
-			            	currentMapping.put("minVPValue", minVP);
-			            	currentMapping.put("min", min);
-			            	currentMapping.put("maxVPValue", LO);
-			            	currentMapping.put("max", OVO);
-			            	m.add(currentMapping);
-			            }
-			            
-			            // store the max values as min for the next segment
-			            includeMin = Boolean.valueOf(E.equals(G));
+                        final String G = sp.get("G=" + counter);
+                        if (G == null) {
+                            break;
+                        }
+                        Object GO = vpConverter.getNewEdgeOrNodePropertyValue(vpName, G);
 
-			            min = OVO;
-			            minVP = GO;
-			            	
-		            	currentMapping = new HashMap<>();
-			            counter++;
+                        final String OV = sp.get("OV=" + counter);
+                        if (OV == null) {
+                            throw new NdexException("error: continuous mapping string is corruptted for " + defString);
+                        }
+                        ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, OV);
+                        addWarning(cRes);
+                        Object OVO = cRes.getResult();
+
+                        if (counter == 0) {  // min side
+                            currentMapping.put("includeMin", Boolean.FALSE);
+                            currentMapping.put("includeMax", Boolean.valueOf(E.equals(L)));
+                            currentMapping.put("maxVPValue", LO);
+                            currentMapping.put("max", OVO);
+                            m.add(currentMapping);
+
+                        } else {
+                            currentMapping.put("includeMin", includeMin);
+                            currentMapping.put("includeMax", Boolean.valueOf(E.equals(L)));
+                            currentMapping.put("minVPValue", minVP);
+                            currentMapping.put("min", min);
+                            currentMapping.put("maxVPValue", LO);
+                            currentMapping.put("max", OVO);
+                            m.add(currentMapping);
+                        }
+
+                        // store the max values as min for the next segment
+                        includeMin = Boolean.valueOf(E.equals(G));
+
+                        min = OVO;
+                        minVP = GO;
+
+                        currentMapping = new HashMap<>();
+                        counter++;
 			        }
 					
 			        // add the last entry
 			        currentMapping.put("includeMin",includeMin);
-	            	currentMapping.put("includeMax", Boolean.FALSE);
-	            	currentMapping.put("minVPValue", minVP);
-	            	currentMapping.put("min", min);
-	            	m.add(currentMapping);
+                                  currentMapping.put("includeMax", Boolean.FALSE);
+                                  currentMapping.put("minVPValue", minVP);
+	            	        currentMapping.put("min", min);
+	            	        m.add(currentMapping);
 			        
 			        // add the list
-			    	defObj.setAttributeName(col);
-					defObj.setMapppingList(m);
-				}
+			        defObj.setAttributeName(col);
+                                  defObj.setMapppingList(m);
+			}
 				v2NodeMappings.put(newVPName, mappingObj);
 			}
 		}
