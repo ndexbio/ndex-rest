@@ -686,147 +686,150 @@ public class CXToCX2ServerSideConverter {
 			return defaultVp;
 	    } */
 	    
-		private void processMappingEntry(SortedMap<String, Mapping> nodeMappings, Map<String, VisualPropertyMapping> v2NodeMappings)
-				throws NdexException, IOException {
-			for ( Map.Entry<String, Mapping> entry : nodeMappings.entrySet() ) {
+		private void processMappingEntry(SortedMap<String, Mapping> nodeMappings,
+				Map<String, VisualPropertyMapping> v2NodeMappings) throws NdexException, IOException {
+			for (Map.Entry<String, Mapping> entry : nodeMappings.entrySet()) {
 				String vpName = entry.getKey();
-				String newVPName =  vpConverter.getNewEdgeOrNodeProperty(vpName);
-				if ( newVPName == null)
+				String newVPName = vpConverter.getNewEdgeOrNodeProperty(vpName);
+				if (newVPName == null)
 					continue;
-				
+
 				VisualPropertyMapping mappingObj = new VisualPropertyMapping();
 				String mappingType = entry.getValue().getType();
 				mappingObj.setType(VPMappingType.valueOf(mappingType));
 				MappingDefinition defObj = new MappingDefinition();
 				mappingObj.setMappingDef(defObj);
 				String defString = entry.getValue().getDefinition();
-				if ( mappingType.equals("PASSTHROUGH")) {
-					String mappingAttrName = ConverterUtilities.getPassThroughMappingAttribute(defString); 
-					defObj.setAttributeName(mappingAttrName);
-				} else if (mappingType.equals("DISCRETE")) {
-					List<Map<String,Object>> m = new ArrayList<> ();
-					try {
-						MappingValueStringParser sp = new MappingValueStringParser(defString);	
-					
+				try {
+					if (mappingType.equals("PASSTHROUGH")) {
+						String mappingAttrName = ConverterUtilities.getPassThroughMappingAttribute(defString);
+						defObj.setAttributeName(mappingAttrName);
+					} else if (mappingType.equals("DISCRETE")) {
+						List<Map<String, Object>> m = new ArrayList<>();
+						try {
+							MappingValueStringParser sp = new MappingValueStringParser(defString);
+
+							String col = sp.get("COL");
+							String t = sp.get("T");
+							int counter = 0;
+							while (true) {
+								final String k = sp.get("K=" + counter);
+								if (k == null) {
+									break;
+								}
+								final String v = sp.get("V=" + counter);
+
+								if (v == null) {
+									throw new NdexException(
+											"error: discrete mapping string is corruptted for " + defString);
+								}
+
+								Map<String, Object> mapEntry = new HashMap<>(2);
+								mapEntry.put("v", ConverterUtilities.cvtStringValueToObj(t, k));
+								mapEntry.put("vp", vpConverter.getNewEdgeOrNodePropertyValue(vpName, v));
+								m.add(mapEntry);
+								counter++;
+							}
+
+							defObj.setAttributeName(col);
+							defObj.setMapppingList(m);
+						} catch (IOException e) {
+							if (alwaysCreate) {
+								addWarning(e.getMessage());
+								System.err.println(e.getMessage());
+								continue;
+							}
+							// otherwise throw the exception.
+							throw e;
+						}
+
+					} else { // continuous mapping
+						List<Map<String, Object>> m = new ArrayList<>();
+						MappingValueStringParser sp = new MappingValueStringParser(defString);
 						String col = sp.get("COL");
 						String t = sp.get("T");
+
+						Object min = null;
+						Boolean includeMin = null;
+						// Object max = null;
+						Object minVP = null;
+						// Object maxVP = null;
+
 						int counter = 0;
+						Map<String, Object> currentMapping = new HashMap<>();
+
 						while (true) {
-							final String k = sp.get("K=" + counter);
-							if (k == null) {
+							final String L = sp.get("L=" + counter);
+							if (L == null) {
 								break;
 							}
-							final String v = sp.get("V=" + counter);
+							Object LO = vpConverter.getNewEdgeOrNodePropertyValue(vpName, L);
 
-							if (v == null) {
+							final String E = sp.get("E=" + counter);
+							if (E == null) {
+								break;
+							}
+							// Object EO = vpConverter.getNewEdgeOrNodePropertyValue(vpName,E);
+
+							final String G = sp.get("G=" + counter);
+							if (G == null) {
+								break;
+							}
+							Object GO = vpConverter.getNewEdgeOrNodePropertyValue(vpName, G);
+
+							final String OV = sp.get("OV=" + counter);
+							Object OVO = ConverterUtilities.cvtStringValueToObj(t, OV);
+
+							if (OV == null) {
 								throw new NdexException(
-										"error: discrete mapping string is corrupted for " + defString);
+										"error: continuous mapping string is corruptted for " + defString);
 							}
 
-							Map<String, Object> mapEntry = new HashMap<>(2);
-                              ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, k);
-                              addWarning(cRes);
-							mapEntry.put("v", cRes.getResult());
-							mapEntry.put("vp", vpConverter.getNewEdgeOrNodePropertyValue(vpName, v));
-							m.add(mapEntry);
+							if (counter == 0) { // min side
+								currentMapping.put("includeMin", Boolean.FALSE);
+								currentMapping.put("includeMax", Boolean.valueOf(E.equals(L)));
+								currentMapping.put("maxVPValue", LO);
+								currentMapping.put("max", OVO);
+								m.add(currentMapping);
+
+							} else {
+								currentMapping.put("includeMin", includeMin);
+								currentMapping.put("includeMax", Boolean.valueOf(E.equals(L)));
+								currentMapping.put("minVPValue", minVP);
+								currentMapping.put("min", min);
+								currentMapping.put("maxVPValue", LO);
+								currentMapping.put("max", OVO);
+								m.add(currentMapping);
+							}
+
+							// store the max values as min for the next segment
+							includeMin = Boolean.valueOf(E.equals(G));
+
+							min = OVO;
+							minVP = GO;
+
+							currentMapping = new HashMap<>();
 							counter++;
 						}
 
+						// add the last entry
+						currentMapping.put("includeMin", includeMin);
+						currentMapping.put("includeMax", Boolean.FALSE);
+						currentMapping.put("minVPValue", minVP);
+						currentMapping.put("min", min);
+						m.add(currentMapping);
+
+						// add the list
 						defObj.setAttributeName(col);
 						defObj.setMapppingList(m);
-					} catch (IOException|NdexException e) {
-						if ( alwaysCreate) {
-							addWarning ( e.getMessage());
-							System.err.println(e.getMessage());
-							continue;
-						}	
-						//otherwise throw the exception.
-						throw e;
 					}
-				} else {  //continuous mapping
-					List<Map<String,Object>> m = new ArrayList<> ();
-					MappingValueStringParser sp = new MappingValueStringParser(defString);	
-					String col = sp.get("COL");
-					String t = sp.get("T");
-					
-					Object min = null;
-					Boolean includeMin = null;
-					//Object max = null;
-					Object minVP = null;
-					//Object maxVP = null;
-					
-                                        int counter = 0;
-				    Map<String,Object> currentMapping = new HashMap<>();
-				    
-			        while (true) {
-                           final String L = sp.get("L=" + counter);
-                        if (L == null) {
-                            break;
-                        }
-                        Object LO = vpConverter.getNewEdgeOrNodePropertyValue(vpName, L);
-
-                        final String E = sp.get("E=" + counter);
-                        if (E == null) {
-                            break;
-                        }
-                        //Object EO = vpConverter.getNewEdgeOrNodePropertyValue(vpName,E);
-
-                        final String G = sp.get("G=" + counter);
-                        if (G == null) {
-                            break;
-                        }
-                        Object GO = vpConverter.getNewEdgeOrNodePropertyValue(vpName, G);
-
-                        final String OV = sp.get("OV=" + counter);
-                        if (OV == null) {
-                            throw new NdexException("error: continuous mapping string is corruptted for " + defString);
-                        }
-                        ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, OV);
-                        addWarning(cRes);
-                        Object OVO = cRes.getResult();
-
-                        if (counter == 0) {  // min side
-                            currentMapping.put("includeMin", Boolean.FALSE);
-                            currentMapping.put("includeMax", Boolean.valueOf(E.equals(L)));
-                            currentMapping.put("maxVPValue", LO);
-                            currentMapping.put("max", OVO);
-                            m.add(currentMapping);
-
-                        } else {
-                            currentMapping.put("includeMin", includeMin);
-                            currentMapping.put("includeMax", Boolean.valueOf(E.equals(L)));
-                            currentMapping.put("minVPValue", minVP);
-                            currentMapping.put("min", min);
-                            currentMapping.put("maxVPValue", LO);
-                            currentMapping.put("max", OVO);
-                            m.add(currentMapping);
-                        }
-
-                        // store the max values as min for the next segment
-                        includeMin = Boolean.valueOf(E.equals(G));
-
-                        min = OVO;
-                        minVP = GO;
-
-                        currentMapping = new HashMap<>();
-                        counter++;
-			        }
-					
-			        // add the last entry
-			        currentMapping.put("includeMin",includeMin);
-                                  currentMapping.put("includeMax", Boolean.FALSE);
-                                  currentMapping.put("minVPValue", minVP);
-	            	        currentMapping.put("min", min);
-	            	        m.add(currentMapping);
-			        
-			        // add the list
-			        defObj.setAttributeName(col);
-                                  defObj.setMapppingList(m);
-			}
+				} catch (NdexException e) {
+					throw new NdexException(
+							"Can't converter " + mappingType + " mapping on " + vpName + ". Cause: " + e.getMessage());
+				}
 				v2NodeMappings.put(newVPName, mappingObj);
 			}
 		}
-	   
 	   
 
 	
