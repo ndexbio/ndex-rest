@@ -84,7 +84,7 @@ public class NetworkServiceV3Temp  extends NdexService {
     		title = dao.getNetworkName(networkUUID);
     	}
   
-		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/net2.cx";
+		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + CX2NetworkLoader.cx2NetworkFileName;;
 
     	try {
 			FileInputStream in = new FileInputStream(cxFilePath)  ;
