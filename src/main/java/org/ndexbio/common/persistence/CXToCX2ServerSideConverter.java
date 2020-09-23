@@ -49,6 +49,7 @@ import org.ndexbio.cxio.metadata.MetaDataElement;
 import org.ndexbio.model.exceptions.NdexException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import java.io.File;
 import org.ndexbio.cx2.converter.ConverterUtilitiesResult;
 
 /**
@@ -84,7 +85,8 @@ public class CXToCX2ServerSideConverter {
 		
 	/**
 	 * 
-	 * @param rootPath the directory of a CX2 network on the server. 
+	 * @param rootPath the directory of a CX2 network on the server, this path
+	 *                 must end with /
 	 */
 	public CXToCX2ServerSideConverter(String rootPath, 
 			MetaDataCollection metadataCollection, String networkIdStr, AspectAttributeStat cx1AttributeStats ,
@@ -136,7 +138,7 @@ public class CXToCX2ServerSideConverter {
 	public List<CxMetadata> convert() throws FileNotFoundException, IOException, NdexException {
 				
 		//create the aspect dir
-        String cx2AspectDir  = pathPrefix + networkId + "/"+ CX2NetworkLoader.cx2AspectDirName + "/";
+        String cx2AspectDir  = pathPrefix + File.separator + networkId + File.separator + CX2NetworkLoader.cx2AspectDirName + File.separator;
 		Files.createDirectory(Paths.get(cx2AspectDir));
 		
 		
@@ -147,7 +149,7 @@ public class CXToCX2ServerSideConverter {
 		
 		List<CxMetadata> cx2Metadata = getCX2Metadata();
 
-		try (FileOutputStream out = new FileOutputStream(pathPrefix + networkId + "/" + CX2NetworkLoader.cx2NetworkFileName) ) {
+		try (FileOutputStream out = new FileOutputStream(pathPrefix + File.separator + networkId + File.separator + CX2NetworkLoader.cx2NetworkFileName) ) {
 			CXWriter wtr = new CXWriter(out, false);
 			
 			boolean hasAttributes = !attrDeclarations.getDeclarations().isEmpty();
@@ -298,7 +300,7 @@ public class CXToCX2ServerSideConverter {
 			}
 
 			//write possible opaque aspects
-	        String cx1AspectDir  = pathPrefix + networkId + "/"+ CXNetworkLoader.CX1AspectDir ;
+	        String cx1AspectDir  = pathPrefix + File.separator + networkId + File.separator + CXNetworkLoader.CX1AspectDir ;
 
 			for ( CxMetadata m : cx2Metadata) {
 				String aspectName = m.getName();
@@ -313,7 +315,7 @@ public class CXToCX2ServerSideConverter {
 					wtr.endAspectFragment();
 					
 					Path tgt = Paths.get(cx1AspectDir, aspectName);
-					Path link = Paths.get(pathPrefix + networkId + "/"+ CX2NetworkLoader.cx2AspectDirName, aspectName);
+					Path link = Paths.get(pathPrefix + File.separator + networkId + File.separator + CX2NetworkLoader.cx2AspectDirName, aspectName);
 					Files.createSymbolicLink(link, tgt);
 			   }
 			}
