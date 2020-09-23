@@ -3,8 +3,10 @@ package org.ndexbio.common.persistence;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.google.common.io.Files;
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Arrays;
@@ -108,6 +110,10 @@ public class TestCXToCX2ServerSideConverter {
 				+ File.separator + networkIdStr + File.separator + CX2NetworkLoader.cx2AspectDirName);
 		for (String entry : a2Dir.list()){
 			System.out.println("IIII: " + entry);
+			BufferedReader br = new BufferedReader(new FileReader(a2Dir.getAbsolutePath() + File.separator + entry));
+			while (br.ready()){
+				System.out.println(br.readLine());
+			}
 		}
 		
 		
