@@ -72,13 +72,20 @@ public class TestCXToCX2ServerSideConverter {
 										"edges", 
 										"networkAttributes",
 										"nodeAttributes",
-										"nodes");
+										"nodes",
+										"cyHiddenAttributes",
+										"cyTableColumn");
 		File aspectDir = new File(destPath + File.separator +  CXNetworkLoader.CX1AspectDir);
 		aspectDir.mkdirs();
 		for (String aspectName : aspects){
-			String filePath = this.getClass().getResource(resourceDirName + "/" + aspectName).getFile();
-			File srcFile = new File(filePath);
-			Files.copy(srcFile, new File(aspectDir.getAbsolutePath() + File.separator + srcFile.getName()));
+			try {
+				String filePath = this.getClass().getResource(resourceDirName + "/" + aspectName).getFile();
+				File srcFile = new File(filePath);
+				Files.copy(srcFile, new File(aspectDir.getAbsolutePath() + File.separator + srcFile.getName()));
+			} catch(NullPointerException npe){
+				System.err.println("Not necessarily an error, but no resource with name: " 
+						+ resourceDirName + "/" + aspectName);
+			}
 		}
 	}
 	
@@ -186,5 +193,86 @@ public class TestCXToCX2ServerSideConverter {
 		
 		//TODO Question if conversion fails should files such as network.cx2 remain?
 		//     They seem to still exist after a failure
+	}
+	
+	@Test
+	public void testConvertCDAPSHierarchyNetwork() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath());
+		String networkIdStr = UUID.randomUUID().toString();
+		
+		// Load the meta data from file in resources
+		MetaDataCollection mdc = getNetworkMetaData("/cdapshier/metadata");
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(tmpFolder.getAbsolutePath() + File.separator, 
+				mdc, networkIdStr, null, true);
+		
+		// copy over network aspect files used by conversion
+		copyNetworkAspects("/cdapshier", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
+		
+		// run conversion
+		List<CxMetadata> metaDataList = converter.convert();
+		
+		//verify metaDataList returns valid values
+		assertEquals(9, metaDataList.size());
+	
+		for (CxMetadata mData : metaDataList){
+			if (mData.getName().equals("networkAttributes") ||
+			    mData.getName().equals("visualProperties") ||
+				mData.getName().equals("visualEditorProperties") ||
+			    mData.getName().equals("attributeDeclarations")){
+				assertEquals((long)1, (long)mData.getElementCount());
+			} else if (mData.getName().equals("nodes")){
+				assertEquals((long)43, (long)mData.getElementCount());
+			} else if (mData.getName().equals("edges")){
+				assertEquals((long)37, (long)mData.getElementCount());
+			} else if (mData.getName().equals("edgeBypasses")){
+				assertEquals((long)2, (long)mData.getElementCount());
+			} else if (mData.getName().equals("cyHiddenAttributes")){
+				assertEquals((long)3, (long)mData.getElementCount());
+			} else if (mData.getName().equals("cyTableColumn")){
+				assertEquals((long)27, (long)mData.getElementCount());
+			} else {
+				fail("Unexpected meta data: " + mData.getName());
+			}
+		}
+		
+		//verify we got a network.cx2 file
+		File cx2File = new File(tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator
+		         + CX2NetworkLoader.cx2NetworkFileName);
+		assertTrue(cx2File.isFile());
+		assertTrue(cx2File.length() > 0);
+		
+		//verify aspect files for cx2 are properly created
+		File a2Dir = new File(tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator + CX2NetworkLoader.cx2AspectDirName);
+		List<String> cx2AspectFileNames = new ArrayList<>();
+		for (String entry : a2Dir.list()){
+			cx2AspectFileNames.add(entry);
+			File fileCheck = new File(a2Dir.getAbsolutePath() + File.separator + entry);
+			assertTrue(entry + " file has 0 size", fileCheck.length() > 0);
+		}
+		assertEquals(8, cx2AspectFileNames.size());
+		assertTrue(cx2AspectFileNames.contains("visualProperties"));
+		assertTrue(cx2AspectFileNames.contains("visualEditorProperties"));
+		assertTrue(cx2AspectFileNames.contains("nodes"));
+		assertTrue(cx2AspectFileNames.contains("edges"));
+		assertTrue(cx2AspectFileNames.contains("networkAttributes"));
+		assertTrue(cx2AspectFileNames.contains("attributeDeclarations"));
+		assertTrue(cx2AspectFileNames.contains("cyHiddenAttributes"));
+		assertTrue(cx2AspectFileNames.contains("cyTableColumn"));
+
+
+		// @TODO The converter reports duplicate warnings about duplicate network
+		//       attribute cause its checked in analyzeAttributes and again in convert()
+		List<String> warnings = converter.getWarning();
+		assertEquals(2, warnings.size());
+		assertTrue(warnings.get(0).contains("CX2-CONVERTER: Duplicated network attribute "));
+		assertTrue(warnings.get(0).contains("version"));
+	    assertTrue(warnings.get(1).contains("CX2-CONVERTER: Duplicated network attribute "));
+		assertTrue(warnings.get(1).contains("version"));
+		
 	}
 }
