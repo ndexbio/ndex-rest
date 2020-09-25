@@ -725,7 +725,9 @@ public class CXToCX2ServerSideConverter {
 								}
 
 								Map<String, Object> mapEntry = new HashMap<>(2);
-								mapEntry.put("v", ConverterUtilities.cvtStringValueToObj(t, k));
+								ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, k);
+								addWarning(cRes);
+								mapEntry.put("v", cRes);
 								mapEntry.put("vp", vpConverter.getNewEdgeOrNodePropertyValue(vpName, v));
 								m.add(mapEntry);
 								counter++;
@@ -778,12 +780,14 @@ public class CXToCX2ServerSideConverter {
 							Object GO = vpConverter.getNewEdgeOrNodePropertyValue(vpName, G);
 
 							final String OV = sp.get("OV=" + counter);
-							Object OVO = ConverterUtilities.cvtStringValueToObj(t, OV);
-
 							if (OV == null) {
 								throw new NdexException(
 										"error: continuous mapping string is corruptted for " + defString);
 							}
+							ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, OV);
+							addWarning(cRes);
+							
+							Object OVO = cRes.getResult();
 
 							if (counter == 0) { // min side
 								currentMapping.put("includeMin", Boolean.FALSE);
