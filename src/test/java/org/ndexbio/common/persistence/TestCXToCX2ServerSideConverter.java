@@ -16,6 +16,9 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
+import org.ndexbio.cx2.converter.AspectAttributeStat;
+import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
+import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.model.exceptions.NdexException;
 
@@ -266,18 +269,38 @@ public class TestCXToCX2ServerSideConverter {
 		assertTrue(cx2AspectFileNames.contains("cyHiddenAttributes"));
 		assertTrue(cx2AspectFileNames.contains("cyTableColumn"));
 
-
-		// @TODO The converter reports duplicate warnings about duplicate network
-		//       attribute cause its checked in analyzeAttributes and again in convert()
 		List<String> warnings = converter.getWarning();
-		assertEquals(2, warnings.size());
-		assertTrue(warnings.get(0).contains("CX2-CONVERTER: Duplicated network attribute "));
-		assertTrue(warnings.get(0).contains("version"));
-	    assertTrue(warnings.get(1).contains("CX2-CONVERTER: Duplicated network attribute "));
-		assertTrue(warnings.get(1).contains("version"));
+		assertEquals(1, warnings.size());
+		assertEquals("CX2-CONVERTER: Duplicated network attribute 'version' found.", warnings.get(0));
+		
 		
 	}
 	
+	@Test
+	public void testConvertCDAPSHierarchyNetworkAlwaysCreateFalse() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath());
+		String networkIdStr = UUID.randomUUID().toString();
+		
+		// Load the meta data from file in resources
+		MetaDataCollection mdc = getNetworkMetaData("/cdapshier/metadata");
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(tmpFolder.getAbsolutePath() + File.separator, 
+				mdc, networkIdStr, null, false);
+		
+		// copy over network aspect files used by conversion
+		copyNetworkAspects("/cdapshier", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
+		
+		// run conversion
+		try {
+			converter.convert();
+			fail("Expected NdexException");
+		} catch(NdexException ne){
+			assertEquals("Duplicated network attribute 'version' found.", ne.getMessage());
+		}
+	}
+
 	@Test
 	public void testConvertBypassTest() throws Exception {
 		File tmpFolder = _tmpFolder.newFolder();
@@ -378,6 +401,8 @@ public class TestCXToCX2ServerSideConverter {
 		File cartFile = new File(cartesianLayoutFile);
 		assertTrue(cartFile.delete());
 
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
 		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
 			bw.write("[{\"node\":64,\"x\":95.0,\"y\":-119.0},\n");
 			bw.write(" {\"node\":62,\"x\":-77.0,\"y\":-103.0},\n");
@@ -394,5 +419,345 @@ public class TestCXToCX2ServerSideConverter {
 		}
 		
 		
+	}
+	
+	@Test
+	public void testConvertNodeAttributeIsNamedNameAlwaysCreateFalse() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath());
+		String networkIdStr = UUID.randomUUID().toString();
+		
+		// Load the meta data from file in resources
+		MetaDataCollection mdc = getNetworkMetaData("/bypasstest/metadata");
+		mdc.setElementCount("nodeAttributes", 5L);
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(tmpFolder.getAbsolutePath() + File.separator, 
+				mdc, networkIdStr, null, false);
+		
+		// copy over network aspect files used by conversion
+		copyNetworkAspects("/bypasstest", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
+		String cartesianLayoutFile = tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "nodeAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"po\":64,\"n\":\"node_label_color\",\"v\":\"blue\"}, \n");
+			bw.write(" {\"po\":64,\"n\":\"node_size\",\"v\":\"150.0\",\"d\":\"double\"}, \n");
+			bw.write(" {\"po\":62,\"n\":\"node_label_color\",\"v\":\"red\"}, \n");
+			bw.write(" {\"po\":62,\"n\":\"node_size\",\"v\":\"100.0\",\"d\":\"double\"},\n");
+             bw.write(" {\"po\":62,\"n\":\"name\",\"v\":\"uhoh\"}]\n");
+			
+			bw.flush();
+		}
+		
+		// run conversion
+		try {
+			converter.convert();
+			fail("Expected NdexException");
+		} catch(NdexException ne){
+			assertEquals("Node attribute id: 62 "
+					+ "is named 'name' which is "
+					+ "not allowed in CX spec.", ne.getMessage());
+		}
+	}
+	
+	@Test
+	public void testConvertNodeAttributeIsNamedRepresentsAlwaysCreateFalse() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath());
+		String networkIdStr = UUID.randomUUID().toString();
+		
+		// Load the meta data from file in resources
+		MetaDataCollection mdc = getNetworkMetaData("/bypasstest/metadata");
+		mdc.setElementCount("nodeAttributes", 5L);
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(tmpFolder.getAbsolutePath() + File.separator, 
+				mdc, networkIdStr, null, false);
+		
+		// copy over network aspect files used by conversion
+		copyNetworkAspects("/bypasstest", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
+		String cartesianLayoutFile = tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "nodeAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"po\":64,\"n\":\"node_label_color\",\"v\":\"blue\"}, \n");
+			bw.write(" {\"po\":64,\"n\":\"node_size\",\"v\":\"150.0\",\"d\":\"double\"}, \n");
+			bw.write(" {\"po\":62,\"n\":\"node_label_color\",\"v\":\"red\"}, \n");
+			bw.write(" {\"po\":62,\"n\":\"node_size\",\"v\":\"100.0\",\"d\":\"double\"},\n");
+             bw.write(" {\"po\":62,\"n\":\"represents\",\"v\":\"uhoh\"}]\n");
+			
+			bw.flush();
+		}
+		
+		// run conversion
+		try {
+			converter.convert();
+			fail("Expected NdexException");
+		} catch(NdexException ne){
+			assertEquals("Node attribute id: 62 "
+					+ "is named 'represents' which is "
+					+ "not allowed in CX spec.", ne.getMessage());
+		}
+	}
+	
+	@Test
+	public void testConvertNodeAttributeIsNamedName() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath());
+		String networkIdStr = UUID.randomUUID().toString();
+		
+		// Load the meta data from file in resources
+		MetaDataCollection mdc = getNetworkMetaData("/bypasstest/metadata");
+		mdc.setElementCount("nodeAttributes", 5L);
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(tmpFolder.getAbsolutePath() + File.separator, 
+				mdc, networkIdStr, null, true);
+		
+		// copy over network aspect files used by conversion
+		copyNetworkAspects("/bypasstest", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
+		String cartesianLayoutFile = tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "nodeAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"po\":64,\"n\":\"node_label_color\",\"v\":\"blue\"}, \n");
+			bw.write(" {\"po\":64,\"n\":\"node_size\",\"v\":\"150.0\",\"d\":\"double\"}, \n");
+			bw.write(" {\"po\":62,\"n\":\"node_label_color\",\"v\":\"red\"}, \n");
+			bw.write(" {\"po\":62,\"n\":\"node_size\",\"v\":\"100.0\",\"d\":\"double\"},\n");
+             bw.write(" {\"po\":62,\"n\":\"name\",\"v\":\"uhoh\"}]\n");
+			
+			bw.flush();
+		}
+		
+		// run conversion
+		converter.convert();
+		List<String> warnings = converter.getWarning();
+		System.out.println("XXXXXXXX: " + warnings);
+		assertEquals(2, warnings.size());
+		assertEquals("CX2-CONVERTER: Node attribute id: 62 is named 'name' which is not allowed in CX spec.", warnings.get(0));
+		assertEquals("CX2-CONVERTER: Duplicate nodes attribute on id: 62. Attribute 'name' has value (Node 1) and (uhoh)", warnings.get(1));
+
+	}
+	
+	@Test
+	public void testConvertNodeAttributeIsNamedRepresents() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath());
+		String networkIdStr = UUID.randomUUID().toString();
+		
+		// Load the meta data from file in resources
+		MetaDataCollection mdc = getNetworkMetaData("/bypasstest/metadata");
+		mdc.setElementCount("nodeAttributes", 5L);
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(tmpFolder.getAbsolutePath() + File.separator, 
+				mdc, networkIdStr, null, true);
+		
+		// copy over network aspect files used by conversion
+		copyNetworkAspects("/bypasstest", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
+		String cartesianLayoutFile = tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "nodeAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"po\":64,\"n\":\"node_label_color\",\"v\":\"blue\"}, \n");
+			bw.write(" {\"po\":64,\"n\":\"node_size\",\"v\":\"150.0\",\"d\":\"double\"}, \n");
+			bw.write(" {\"po\":62,\"n\":\"node_label_color\",\"v\":\"red\"}, \n");
+			bw.write(" {\"po\":62,\"n\":\"node_size\",\"v\":\"100.0\",\"d\":\"double\"},\n");
+             bw.write(" {\"po\":62,\"n\":\"represents\",\"v\":\"uhoh\"}]\n");
+			
+			bw.flush();
+		}
+		
+		// run conversion
+		converter.convert();
+		List<String> warnings = converter.getWarning();
+		System.out.println("XXXXXXXX: " + warnings);
+		assertEquals(1, warnings.size());
+		assertEquals("CX2-CONVERTER: Node attribute id: 62 is named 'represents' which is not allowed in CX spec.", warnings.get(0));
+
+	}
+	
+	@Test
+	public void testConvertEdgeAttributeIsNamedInteractionAlwaysCreateFalse() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath());
+		String networkIdStr = UUID.randomUUID().toString();
+		
+		// Load the meta data from file in resources
+		MetaDataCollection mdc = getNetworkMetaData("/bypasstest/metadata");
+		mdc.setElementCount("edgeAttributes", 5L);
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(tmpFolder.getAbsolutePath() + File.separator, 
+				mdc, networkIdStr, null, false);
+		
+		// copy over network aspect files used by conversion
+		copyNetworkAspects("/bypasstest", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
+		String cartesianLayoutFile = tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "edgeAttributes";
+		File edgeAttrFile = new File(cartesianLayoutFile);
+		assertTrue(edgeAttrFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(edgeAttrFile))){
+			bw.write("[{\"po\":80,\"n\":\"name\",\"v\":\"Node 1 (interacts with) Node 2\"},\n");
+			bw.write(" {\"po\":80,\"n\":\"edge_type\",\"v\":\"2.5\"}, \n");
+			bw.write(" {\"po\":66,\"n\":\"name\",\"v\":\"Node 1 (interacts with) Node 2\"},\n");
+			bw.write(" {\"po\":66,\"n\":\"edge_type\",\"v\":\"0.5\"},\n");
+			bw.write(" {\"po\":66,\"n\":\"interaction\",\"v\":\"wrong\"}]");
+			bw.flush();
+		}
+		
+		// run conversion
+		try {
+			converter.convert();
+			fail("Expected NdexException");
+		} catch(NdexException ne){
+			assertEquals("Edge attribute id: 66 "
+					+ "is named 'interaction' which is "
+					+ "not allowed in CX spec.", ne.getMessage());
+		}
+	}
+	
+	@Test
+	public void testConvertEdgeAttributeIsNamedInteraction() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath());
+		String networkIdStr = UUID.randomUUID().toString();
+		
+		// Load the meta data from file in resources
+		MetaDataCollection mdc = getNetworkMetaData("/bypasstest/metadata");
+		mdc.setElementCount("edgeAttributes", 5L);
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(tmpFolder.getAbsolutePath() + File.separator, 
+				mdc, networkIdStr, null, true);
+		
+		// copy over network aspect files used by conversion
+		copyNetworkAspects("/bypasstest", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
+		String cartesianLayoutFile = tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "edgeAttributes";
+		File edgeAttrFile = new File(cartesianLayoutFile);
+		assertTrue(edgeAttrFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(edgeAttrFile))){
+			bw.write("[{\"po\":80,\"n\":\"name\",\"v\":\"Node 1 (interacts with) Node 2\"},\n");
+			bw.write(" {\"po\":80,\"n\":\"edge_type\",\"v\":\"2.5\"}, \n");
+			bw.write(" {\"po\":66,\"n\":\"name\",\"v\":\"Node 1 (interacts with) Node 2\"},\n");
+			bw.write(" {\"po\":66,\"n\":\"edge_type\",\"v\":\"0.5\"},\n");
+			bw.write(" {\"po\":66,\"n\":\"interaction\",\"v\":\"wrong\"}]");
+			bw.flush();
+		}
+		
+		// run conversion
+		converter.convert();
+		List<String> warnings = converter.getWarning();
+		System.out.println("XXXXXXXX: " + warnings);
+		assertEquals(2, warnings.size());
+		assertEquals("CX2-CONVERTER: Edge attribute id: 66 is named 'interaction' which is not allowed in CX spec.", warnings.get(0));
+		assertEquals("CX2-CONVERTER: Duplicate edges attribute on id: 66. Attribute 'interaction' has value (wrong) and (interacts with)", warnings.get(1));
+	}
+	
+	@Test
+	public void testRudiMappings() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath());
+		String networkIdStr = UUID.randomUUID().toString();
+		
+		// Load the meta data from file in resources
+		MetaDataCollection mdc = getNetworkMetaData("/rudimappings/metadata");
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(tmpFolder.getAbsolutePath() + File.separator, 
+				mdc, networkIdStr, null, true);
+		
+		// copy over network aspect files used by conversion
+		copyNetworkAspects("/rudimappings", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
+		
+		// run conversion
+		List<CxMetadata> metaDataList = converter.convert();
+		
+		//verify metaDataList returns valid values
+		assertEquals(8, metaDataList.size());
+	
+		for (CxMetadata mData : metaDataList){
+			if (mData.getName().equals("networkAttributes") ||
+			    mData.getName().equals("visualProperties") ||
+				mData.getName().equals("visualEditorProperties") ||
+			    mData.getName().equals("attributeDeclarations")){
+				assertEquals((long)1, (long)mData.getElementCount());
+			} else if (mData.getName().equals("nodes")){
+				assertEquals((long)488, (long)mData.getElementCount());
+			} else if (mData.getName().equals("edges")){
+				assertEquals((long)487, (long)mData.getElementCount());
+			} else if (mData.getName().equals("edgeBypasses")){
+				assertEquals((long)1, (long)mData.getElementCount());
+			} else if (mData.getName().equals("cyHiddenAttributes")){
+				assertEquals((long)1, (long)mData.getElementCount());
+			} else if (mData.getName().equals("cyTableColumn")){
+				assertEquals((long)33, (long)mData.getElementCount());
+			} else if (mData.getName().equals("nodeBypasses")){
+				assertEquals((long)1, (long)mData.getElementCount());
+			} else {
+				fail("Unexpected meta data: " + mData.getName());
+			}
+		}
+		
+		//verify we got a network.cx2 file
+		File cx2File = new File(tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator
+		         + CX2NetworkLoader.cx2NetworkFileName);
+		assertTrue(cx2File.isFile());
+		assertTrue(cx2File.length() > 0);
+		
+		//verify aspect files for cx2 are properly created
+		File a2Dir = new File(tmpFolder.getAbsolutePath()
+				+ File.separator + networkIdStr + File.separator + CX2NetworkLoader.cx2AspectDirName);
+		List<String> cx2AspectFileNames = new ArrayList<>();
+		for (String entry : a2Dir.list()){
+			cx2AspectFileNames.add(entry);
+			File fileCheck = new File(a2Dir.getAbsolutePath() + File.separator + entry);
+			assertTrue(entry + " file has 0 size", fileCheck.length() > 0);
+		}
+		assertEquals(8, cx2AspectFileNames.size());
+		assertTrue(cx2AspectFileNames.contains("visualProperties"));
+		assertTrue(cx2AspectFileNames.contains("visualEditorProperties"));
+		assertTrue(cx2AspectFileNames.contains("nodes"));
+		assertTrue(cx2AspectFileNames.contains("edges"));
+		assertTrue(cx2AspectFileNames.contains("networkAttributes"));
+		assertTrue(cx2AspectFileNames.contains("attributeDeclarations"));
+		assertTrue(cx2AspectFileNames.contains("cyTableColumn"));
+		assertTrue(cx2AspectFileNames.contains("cyHiddenAttributes"));
+
+		// @TODO The converter reports duplicate warnings about duplicate network
+		//       attribute cause its checked in analyzeAttributes and again in convert()
+		List<String> warnings = converter.getWarning();
+		assertEquals(0, warnings.size());
 	}
 }
