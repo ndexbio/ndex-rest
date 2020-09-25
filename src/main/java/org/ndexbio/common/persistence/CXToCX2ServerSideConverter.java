@@ -141,9 +141,12 @@ public class CXToCX2ServerSideConverter {
         String cx2AspectDir  = pathPrefix + File.separator + networkId + File.separator + CX2NetworkLoader.cx2AspectDirName + File.separator;
 		Files.createDirectory(Paths.get(cx2AspectDir));
 		
+		boolean attrStatsAlreadyCreated = true;
 		
-		if ( attrStats == null)
+		if ( attrStats == null){
+			attrStatsAlreadyCreated = false;
 			attrStats = analyzeAttributes();
+		}
 		
 		attrDeclarations = attrStats.createCxDeclaration();
 		
@@ -176,7 +179,11 @@ public class CXToCX2ServerSideConverter {
 					NetworkAttributesElement netAttr = a.next();
 					Object attrValue = CXToCX2Converter.convertAttributeValue(netAttr);
 					Object oldV = cx2NetAttr.getAttributes().put(netAttr.getName(), attrValue);
-					if ( oldV !=null) {
+
+					// if attrStats had to be created by this method
+					// skip the duplicate network attribute name check because
+					// analyzeAttributes() performs the check
+					if (attrStatsAlreadyCreated == true && oldV !=null) {
 					   String msg = "Duplicated network attribute name found: " + netAttr.getName();	
 					   if (  alwaysCreate) {
 					   	 addWarning(msg);  
@@ -520,8 +527,15 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<NodeAttributesElement> a = new AspectIterator<>(networkId, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				NodeAttributesElement attr = a.next();
-				if ( !alwaysCreate && (attr.getName().equals("name") || attr.getName().equals("represents")))
-					throw new NdexException ("Node attribute " + attr.getName() + " is not allowed in CX spec.");
+				if (attr.getName().equals("name") || attr.getName().equals("represents")){
+					String errMsg = "Node attribute id: "
+							+ attr.getPropertyOf() + " is named '"
+							+ attr.getName() + "' which is not allowed in CX spec.";				
+					if (!alwaysCreate){
+						throw new NdexException (errMsg);
+					}
+					addWarning(errMsg);
+				}
 				attributeStats.addNodeAttribute(attr);
 			}
 		}
@@ -531,9 +545,12 @@ public class CXToCX2ServerSideConverter {
 			while (a.hasNext()) {
 				EdgeAttributesElement e = a.next();
 				if (  (e.getName().equals("interaction"))) {
+					String errMsg = "Edge attribute id: "
+							+ e.getPropertyOf() + " is named '"
+							+ e.getName() + "' which is not allowed in CX spec.";	
 					if (!alwaysCreate)
-						throw new NdexException ( "Edge attribute interaction is not allowed.");
-					addWarning ( "Edge attribute interaction is not allowed. It should be removed.");
+						throw new NdexException (errMsg);
+					addWarning (errMsg);
 				}	
 				attributeStats.addEdgeAttribute(e);
 			}
