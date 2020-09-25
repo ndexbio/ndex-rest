@@ -80,7 +80,6 @@ public class TestUtil {
 	 */
 	public static MetaDataCollection getNetworkMetaData(Class theClass, final String metaDataResource) throws Exception {
 		JsonFactory jf = new JsonFactory();
-		System.out.println(metaDataResource + "XXXXXXXXXXX: " + theClass.getResource(metaDataResource).getFile());
 		JsonParser jp = jf.createParser(new File(theClass.getResource(metaDataResource).getFile()));
 		return MetaDataCollection.createInstanceFromJson(jp);
 	}
