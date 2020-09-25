@@ -1,0 +1,1 @@
+[{"n":"prov:wasDerivedFrom","v":"cd401ccb-bafb-11ea-aaef-0ac135e8bacf"}, {"n":"prov:wasGeneratedBy","v":"NDEx Neighborhood Query/v1.1 (Depth=1; Query terms=\"kinases\")"}, {"n":"@context","v":"{\"ncbigene\": \"http://identifiers.org/ncbigene/\"}"}, {"n":"rights","v":"Attribution 4.0 International (CC BY 4.0)"}, {"n":"name","v":"Test network for cytoscape mappings"}]
