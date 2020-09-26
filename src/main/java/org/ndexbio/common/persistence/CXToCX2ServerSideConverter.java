@@ -528,10 +528,7 @@ public class CXToCX2ServerSideConverter {
 						throw e;
 					addWarning(e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
-				} catch (NumberFormatException e2) {
-					System.err.println("Network " + networkId + "has error: " + e2.getMessage());
-					throw new NdexException (e2.getMessage());
-				}
+				} 
 			}
 		}
 		
