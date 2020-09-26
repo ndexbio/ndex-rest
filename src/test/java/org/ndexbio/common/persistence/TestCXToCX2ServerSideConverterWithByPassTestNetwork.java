@@ -152,8 +152,7 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 	}
 	
 	@Test
-	public void testConvertMoreThenTwentyWarnings() throws Exception {
-		
+	public void testConvertWithMoreThenTwentyWarnings() throws Exception {
 
 		_mdc.setElementCount("networkAttributes", 22L);
 		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
@@ -183,6 +182,146 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		assertEquals(20, warnings.size());
 		assertEquals("CX2-CONVERTER: Duplicated network attribute 'name' found.",
 				warnings.get(0));
+	}
+	
+	@Test
+	public void testConvertNodeAttributeNumberFormatExceptionAlwaysCreateFalse() throws Exception {
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
+				_mdc, _networkIdStr, null, false);
+		
+		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
+				+ File.separator + _networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "nodeAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"po\":64,\"n\":\"node_label_color\",\"v\":\"blue\"}, \n" +
+                      " {\"po\":64,\"n\":\"node_size\",\"v\":\"150.0\",\"d\":\"double\"}, \n" +
+                      " {\"po\":62,\"n\":\"node_label_color\",\"v\":\"red\"}, \n" +
+                      " {\"po\":62,\"n\":\"node_size\",\"v\":\"bad\",\"d\":\"double\"}]");
+			bw.flush();
+		}
+		
+		// run conversion
+		try {
+			converter.convert();
+		    fail("Expected NdexException");
+		} catch(NdexException ne){
+			assertEquals("For node attribute id: 62 with "
+					+ "name 'node_size' received fatal "
+					+ "parsing error: Non numeric "
+					+ "value 'bad' is declared as "
+					+ "type double.", ne.getMessage());
+		}
+	}
+	
+	@Test
+	public void testConvertNodeAttributeNumberFormatException() throws Exception {
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
+				_mdc, _networkIdStr, null, true);
+		
+		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
+				+ File.separator + _networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "nodeAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"po\":64,\"n\":\"node_label_color\",\"v\":\"blue\"}, \n" +
+                      " {\"po\":64,\"n\":\"node_size\",\"v\":\"150.0\",\"d\":\"double\"}, \n" +
+                      " {\"po\":62,\"n\":\"node_label_color\",\"v\":\"red\"}, \n" +
+                      " {\"po\":62,\"n\":\"node_size\",\"v\":\"bad\",\"d\":\"double\"}]");
+			bw.flush();
+		}
+		
+		// run conversion
+		try {
+			converter.convert();
+		    fail("Expected NdexException");
+		} catch(NdexException ne){
+			assertEquals("For node attribute id: 62 with "
+					+ "name 'node_size' received fatal "
+					+ "parsing error: Non numeric "
+					+ "value 'bad' is declared as "
+					+ "type double.", ne.getMessage());
+		}
+	}
+	
+	@Test
+	public void testConvertEdgeAttributeNumberFormatExceptionAlwaysCreateFalse() throws Exception {
+		
+		_mdc.setElementCount("edgeAttributes", 3L);
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
+				_mdc, _networkIdStr, null, false);
+		
+		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
+				+ File.separator + _networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "edgeAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"po\":80,\"n\":\"name\",\"v\":\"Node 1 (interacts with) Node 2\"},\n" +
+					" {\"po\":66,\"n\":\"name\",\"v\":\"Node 1 (interacts with) Node 2\"},\n" +
+					" {\"po\":66,\"n\":\"edge_type\",\"v\":\"wrong\",\"d\": \"integer\"}]");
+			bw.flush();
+		}
+		
+		// run conversion
+		try {
+			converter.convert();
+		    fail("Expected NdexException");
+		} catch(NdexException ne){
+			assertEquals("For edge attribute id: 66 with "
+					+ "name 'edge_type' received fatal "
+					+ "parsing error: Non numeric "
+					+ "value 'wrong' is declared as "
+					+ "type integer.", ne.getMessage());
+		}
+	}
+	
+	@Test
+	public void testConvertEdgeAttributeNumberFormatException() throws Exception {
+		
+		_mdc.setElementCount("edgeAttributes", 3L);
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
+				_mdc, _networkIdStr, null, true);
+		
+		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
+				+ File.separator + _networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "edgeAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"po\":80,\"n\":\"name\",\"v\":\"Node 1 (interacts with) Node 2\"},\n" +
+					" {\"po\":66,\"n\":\"name\",\"v\":\"Node 1 (interacts with) Node 2\"},\n" +
+					" {\"po\":66,\"n\":\"edge_type\",\"v\":\"wrong\",\"d\": \"integer\"}]");
+			bw.flush();
+		}
+		
+		// run conversion
+		try {
+			converter.convert();
+		    fail("Expected NdexException");
+		} catch(NdexException ne){
+			assertEquals("For edge attribute id: 66 with "
+					+ "name 'edge_type' received fatal "
+					+ "parsing error: Non numeric "
+					+ "value 'wrong' is declared as "
+					+ "type integer.", ne.getMessage());
+		}
 	}
 	
 	

@@ -395,8 +395,14 @@ public class CXToCX2ServerSideConverter {
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 
 				} catch (NumberFormatException e2) {
-					System.err.println("Network " + networkId + "has error: " + e2.getMessage());
-					throw new NdexException (e2.getMessage());
+					// @TODO Check if this scenario should be considered
+					//       fatal if alwaysCreate is true
+					String errMsg = "For node attribute id: "
+							+ cx1nodeAttr.getPropertyOf()
+							+ " with name '" + cx1nodeAttr.getName()
+							+ "' received fatal parsing error: " + e2.getMessage();
+					System.err.println("Network " + networkId + "has error: " + errMsg);
+					throw new NdexException (errMsg);
 				}
 			}
 		}
@@ -440,8 +446,14 @@ public class CXToCX2ServerSideConverter {
 					addWarning (e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 				} catch (NumberFormatException e2) {
-					System.err.println("Network " + networkId + "has error: " + e2.getMessage());
-					throw new NdexException (e2.getMessage());
+					// @TODO Check if this scenario should be considered
+					//       fatal if alwaysCreate is true
+					String errMsg = "For edge attribute id: "
+							+ cx1EdgeAttr.getPropertyOf()
+							+ " with name '" + cx1EdgeAttr.getName()
+							+ "' received fatal parsing error: " + e2.getMessage();
+					System.err.println("Network " + networkId + "has error: " + errMsg);
+					throw new NdexException (errMsg);
 				}
 			}
 		}
