@@ -75,6 +75,8 @@ public class CXToCX2ServerSideConverter {
 
 	public static final String messagePrefix = "CX2-CONVERTER: ";
 	
+	public static final int maximumNumberWarningMessages = 20;
+	
 	AspectAttributeStat attrStats;
 	
 	public List<String> getWarning() {
@@ -111,7 +113,7 @@ public class CXToCX2ServerSideConverter {
      * @param warningStr warning message to add to warnings list
      */
 	private void addWarning(String warningStr) {
-		if (warnings.size() > 20 ) 
+		if (warnings.size() >= maximumNumberWarningMessages)
 			return;
 		
 		warnings.add(messagePrefix + warningStr);		
@@ -177,19 +179,29 @@ public class CXToCX2ServerSideConverter {
 			try (AspectIterator<NetworkAttributesElement> a = new AspectIterator<>(networkId, NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix) ) {
 				while (a.hasNext()) {
 					NetworkAttributesElement netAttr = a.next();
-					Object attrValue = CXToCX2Converter.convertAttributeValue(netAttr);
-					Object oldV = cx2NetAttr.getAttributes().put(netAttr.getName(), attrValue);
+					try {
+						Object attrValue = CXToCX2Converter.convertAttributeValue(netAttr);
+						Object oldV = cx2NetAttr.getAttributes().put(netAttr.getName(), attrValue);
 
-					// if attrStats had to be created by this method
-					// skip the duplicate network attribute name check because
-					// analyzeAttributes() performs the check
-					if (attrStatsAlreadyCreated == true && oldV !=null) {
-					   String msg = "Duplicated network attribute name found: " + netAttr.getName();	
-					   if (  alwaysCreate) {
-					   	 addWarning(msg);  
-					   } else
-						   throw new NdexException(msg);
-					}	
+						// if attrStats had to be created by this method
+						// skip the duplicate network attribute name check because
+						// analyzeAttributes() performs the check
+						if (attrStatsAlreadyCreated == true && oldV !=null) {
+						   String msg = "Duplicated network attribute name found: " + netAttr.getName();	
+						   if (alwaysCreate) {
+							 addWarning(msg);  
+						   } else 
+							   throw new NdexException(msg);
+						}
+					} catch(NumberFormatException nfe){
+						String errMsg = "For network attribute '"
+								+ netAttr.getName() + "' unable to convert value  to '" 
+								+ netAttr.getDataType() + "' : " + nfe.getMessage();
+						if (alwaysCreate){
+							addWarning(errMsg);
+						} else
+							throw new NdexException(errMsg);
+					}
 				}
 			}		
 			if ( !cx2NetAttr.getAttributes().isEmpty()) {

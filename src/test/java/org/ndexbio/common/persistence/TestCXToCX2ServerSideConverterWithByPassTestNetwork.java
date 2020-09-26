@@ -22,19 +22,43 @@ import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.model.exceptions.NdexException;
 
 /**
- *
+ * Runs tests using the bypasstest network stored under src/test/resources/bypasstest
+ * which is copied to a temporary folder before each test using the
+ * setUp() method
  * @author churas
  */
 public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 	
+	/**
+	 * Temporary folder system setup before each test
+	 * and torn down after
+	 */
 	@Rule
     public TemporaryFolder _tmpFolder = new TemporaryFolder();
 	
+	/**
+	 * Set to temp directory before each test via setUp() method
+	 * The data of the network resides in _tmpFolderFile/_networkIdStr/aspects/XXX
+	 */
 	public File _tmpFolderFile = null;
 	
+	/**
+	 * MetaDataCollection object
+	 */
+	public MetaDataCollection _mdc;
+	
+	/**
+	 * Network ID String 
+	 */
 	public final String _networkIdStr = "93FFF875-843C-490A-81B9-5A4282935F9A";
 
 	
+	/**
+	 * Creates temporary directory _tmpFolderFile and 
+	 * copies the bypass network data to _tmpFolderFile/_networkIdStr/aspects/XXX
+	 * Finally this loads _mdc with the 'metadata' from bypass
+	 * @throws Exception 
+	 */
 	@Before
 	public void setUp() throws Exception {
 		_tmpFolderFile = _tmpFolder.newFolder();
@@ -51,6 +75,7 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 										"cyTableColumn");
 		TestUtil.copyNetworkAspects(this.getClass(), "/bypasstest", aspects,
 				_tmpFolderFile.getAbsolutePath() + File.separator + _networkIdStr);
+		_mdc = TestUtil.getNetworkMetaData(this.getClass(), "/bypasstest/metadata");
 	}
 	
 	@After
@@ -61,11 +86,8 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 	@Test
 	public void testConvertBypassTest() throws Exception {
 		
-		// Load the meta data from file in resources
-		MetaDataCollection mdc = TestUtil.getNetworkMetaData(this.getClass(), "/bypasstest/metadata");
-		
 		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
-				mdc, _networkIdStr, null, true);
+				_mdc, _networkIdStr, null, true);
 	
 		// run conversion
 		List<CxMetadata> metaDataList = converter.convert();
@@ -130,14 +152,115 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 	}
 	
 	@Test
-	public void testConvertCartesianCoordinateLacksCorrespondingNode() throws Exception {
+	public void testConvertMoreThenTwentyWarnings() throws Exception {
 		
-		// Load the meta data from file in resources
-		MetaDataCollection mdc = TestUtil.getNetworkMetaData(this.getClass(), "/bypasstest/metadata");
-		mdc.setElementCount("cartesianLyaout", 3L);
+
+		_mdc.setElementCount("networkAttributes", 22L);
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
+				_mdc, _networkIdStr, null, true);
+		
+		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
+				+ File.separator + _networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "networkAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[");
+			for (int i = 1 ;i <= 21 ; i++){
+				bw.write("{\"n\":\"name\",\"v\":\"" + i + "\"},\n");
+			}
+			bw.write(" {\"n\":\"name\",\"v\":\"21\"}]\n");
+             
+			bw.flush();
+		}
+		
+		// run conversion
+		converter.convert();
+		List<String> warnings = converter.getWarning();
+		assertEquals(20, warnings.size());
+		assertEquals("CX2-CONVERTER: Duplicated network attribute 'name' found.",
+				warnings.get(0));
+	}
+	
+	
+	@Test
+	public void testConvertNetworkAttributesNumberFormatExceptionAlwaysCreateFalse() throws Exception {
+		
+
 		
 		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
-				mdc, _networkIdStr, null, true);
+				_mdc, _networkIdStr, null, false);
+		
+		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
+				+ File.separator + _networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "networkAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"n\":\"name\",\"v\":\"node_size_ignored\"},\n");
+			bw.write(" {\"n\":\"description\",\"v\":\"example\"},\n");
+             bw.write(" {\"n\":\"version\",\"v\":\"uhhh\", \"d\": \"integer\"}]");
+			bw.flush();
+		}
+		
+		// run conversion
+		try {
+			converter.convert();
+			fail("Expected NdexException");
+		} catch(NdexException ne){
+			assertEquals("For network attribute 'version' "
+					+ "unable to convert value  to 'integer' "
+					+ ": For input string: \"uhhh\"", ne.getMessage());
+		}
+	}
+	
+	@Test
+	public void testConvertNetworkAttributesNumberFormatException() throws Exception {
+		
+
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
+				_mdc, _networkIdStr, null, true);
+		
+		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
+				+ File.separator + _networkIdStr + File.separator 
+				+ CXNetworkLoader.CX1AspectDir + File.separator + "networkAttributes";
+		File cartFile = new File(cartesianLayoutFile);
+		assertTrue(cartFile.delete());
+
+		// writing out new cartesianLayout aspect with extra node coordinate
+		// that does not match any of the nodes in this network
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(cartFile))){
+			bw.write("[{\"n\":\"name\",\"v\":\"node_size_ignored\"},\n");
+			bw.write(" {\"n\":\"description\",\"v\":\"example\"},\n");
+             bw.write(" {\"n\":\"version\",\"v\":\"uhhh\", \"d\": \"integer\"}]");
+			bw.flush();
+		}
+		
+		// run conversion
+		converter.convert();
+		List<String> warnings = converter.getWarning();
+		assertEquals(1, warnings.size());
+		assertEquals("CX2-CONVERTER: For "
+				+ "network attribute 'version' "
+				+ "unable to convert value  to "
+				+ "'integer' : For input string: \"uhhh\"", warnings.get(0));
+	}
+	
+	@Test
+	public void testConvertCartesianCoordinateLacksCorrespondingNode() throws Exception {
+		
+		// update the number of elements in layout cause we will be adding one
+		_mdc.setElementCount("cartesianLyaout", 3L);
+		
+		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
+				_mdc, _networkIdStr, null, true);
 		
 		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
 				+ File.separator + _networkIdStr + File.separator 
@@ -166,12 +289,11 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 	@Test
 	public void testConvertNodeAttributeIsNamedNameAlwaysCreateFalse() throws Exception {
 		
-		// Load the meta data from file in resources
-		MetaDataCollection mdc = TestUtil.getNetworkMetaData(this.getClass(), "/bypasstest/metadata");
-		mdc.setElementCount("nodeAttributes", 5L);
+		// update node attribute count
+		_mdc.setElementCount("nodeAttributes", 5L);
 		
 		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
-				mdc, _networkIdStr, null, false);
+				_mdc, _networkIdStr, null, false);
 		
 		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
 				+ File.separator + _networkIdStr + File.separator 
@@ -205,12 +327,11 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 	@Test
 	public void testConvertNodeAttributeIsNamedRepresentsAlwaysCreateFalse() throws Exception {
 		
-		// Load the meta data from file in resources
-		MetaDataCollection mdc = TestUtil.getNetworkMetaData(this.getClass(), "/bypasstest/metadata");
-		mdc.setElementCount("nodeAttributes", 5L);
+		//update node attrib count
+		_mdc.setElementCount("nodeAttributes", 5L);
 		
 		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
-				mdc, _networkIdStr, null, false);
+				_mdc, _networkIdStr, null, false);
 		
 		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
 				+ File.separator + _networkIdStr + File.separator 
@@ -272,7 +393,6 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		// run conversion
 		converter.convert();
 		List<String> warnings = converter.getWarning();
-		System.out.println("XXXXXXXX: " + warnings);
 		assertEquals(2, warnings.size());
 		assertEquals("CX2-CONVERTER: Node attribute id: 62 is named 'name' which is not allowed in CX spec.", warnings.get(0));
 		assertEquals("CX2-CONVERTER: Duplicate nodes attribute on id: 62. Attribute 'name' has value (Node 1) and (uhoh)", warnings.get(1));
@@ -282,12 +402,11 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 	@Test
 	public void testConvertNodeAttributeIsNamedRepresents() throws Exception {
 		
-		// Load the meta data from file in resources
-		MetaDataCollection mdc = TestUtil.getNetworkMetaData(this.getClass(), "/bypasstest/metadata");
-		mdc.setElementCount("nodeAttributes", 5L);
+		// update node attrib count
+		_mdc.setElementCount("nodeAttributes", 5L);
 		
 		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
-				mdc, _networkIdStr, null, true);
+				_mdc, _networkIdStr, null, true);
 		
 		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
 				+ File.separator + _networkIdStr + File.separator 
@@ -310,7 +429,6 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		// run conversion
 		converter.convert();
 		List<String> warnings = converter.getWarning();
-		System.out.println("XXXXXXXX: " + warnings);
 		assertEquals(1, warnings.size());
 		assertEquals("CX2-CONVERTER: Node attribute id: 62 is named 'represents' which is not allowed in CX spec.", warnings.get(0));
 
@@ -319,12 +437,11 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 	@Test
 	public void testConvertEdgeAttributeIsNamedInteractionAlwaysCreateFalse() throws Exception {
 		
-		// Load the meta data from file in resources
-		MetaDataCollection mdc = TestUtil.getNetworkMetaData(this.getClass(), "/bypasstest/metadata");
-		mdc.setElementCount("edgeAttributes", 5L);
+		// update edge attr count
+		_mdc.setElementCount("edgeAttributes", 5L);
 		
 		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
-				mdc, _networkIdStr, null, false);
+				_mdc, _networkIdStr, null, false);
 		
 		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
 				+ File.separator + _networkIdStr + File.separator 
@@ -357,12 +474,11 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 	@Test
 	public void testConvertEdgeAttributeIsNamedInteraction() throws Exception {
 		
-		// Load the meta data from file in resources
-		MetaDataCollection mdc = TestUtil.getNetworkMetaData(this.getClass(), "/bypasstest/metadata");
-		mdc.setElementCount("edgeAttributes", 5L);
+		// update edge attr count
+		_mdc.setElementCount("edgeAttributes", 5L);
 		
 		CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(_tmpFolderFile.getAbsolutePath() + File.separator, 
-				mdc, _networkIdStr, null, true);
+				_mdc, _networkIdStr, null, true);
 		
 		String cartesianLayoutFile = _tmpFolderFile.getAbsolutePath()
 				+ File.separator + _networkIdStr + File.separator 
@@ -384,7 +500,6 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		// run conversion
 		converter.convert();
 		List<String> warnings = converter.getWarning();
-		System.out.println("XXXXXXXX: " + warnings);
 		assertEquals(2, warnings.size());
 		assertEquals("CX2-CONVERTER: Edge attribute id: 66 is named 'interaction' which is not allowed in CX spec.", warnings.get(0));
 		assertEquals("CX2-CONVERTER: Duplicate edges attribute on id: 66. Attribute 'interaction' has value (wrong) and (interacts with)", warnings.get(1));
