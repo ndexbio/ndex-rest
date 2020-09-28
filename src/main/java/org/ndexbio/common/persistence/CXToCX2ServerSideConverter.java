@@ -75,6 +75,8 @@ public class CXToCX2ServerSideConverter {
 
 	public static final String messagePrefix = "CX2-CONVERTER: ";
 	
+	public static final int maximumNumberWarningMessages = 20;
+	
 	AspectAttributeStat attrStats;
 	
 	public List<String> getWarning() {
@@ -111,7 +113,7 @@ public class CXToCX2ServerSideConverter {
      * @param warningStr warning message to add to warnings list
      */
 	private void addWarning(String warningStr) {
-		if (warnings.size() > 20 ) 
+		if (warnings.size() >= maximumNumberWarningMessages)
 			return;
 		
 		warnings.add(messagePrefix + warningStr);		
@@ -141,9 +143,12 @@ public class CXToCX2ServerSideConverter {
         String cx2AspectDir  = pathPrefix + File.separator + networkId + File.separator + CX2NetworkLoader.cx2AspectDirName + File.separator;
 		Files.createDirectory(Paths.get(cx2AspectDir));
 		
+		boolean attrStatsAlreadyCreated = true;
 		
-		if ( attrStats == null)
+		if ( attrStats == null){
+			attrStatsAlreadyCreated = false;
 			attrStats = analyzeAttributes();
+		}
 		
 		attrDeclarations = attrStats.createCxDeclaration();
 		
@@ -174,15 +179,29 @@ public class CXToCX2ServerSideConverter {
 			try (AspectIterator<NetworkAttributesElement> a = new AspectIterator<>(networkId, NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix) ) {
 				while (a.hasNext()) {
 					NetworkAttributesElement netAttr = a.next();
-					Object attrValue = CXToCX2Converter.convertAttributeValue(netAttr);
-					Object oldV = cx2NetAttr.getAttributes().put(netAttr.getName(), attrValue);
-					if ( oldV !=null) {
-					   String msg = "Duplicated network attribute name found: " + netAttr.getName();	
-					   if (  alwaysCreate) {
-					   	 addWarning(msg);  
-					   } else
-						   throw new NdexException(msg);
-					}	
+					try {
+						Object attrValue = CXToCX2Converter.convertAttributeValue(netAttr);
+						Object oldV = cx2NetAttr.getAttributes().put(netAttr.getName(), attrValue);
+
+						// if attrStats had to be created by this method
+						// skip the duplicate network attribute name check because
+						// analyzeAttributes() performs the check
+						if (attrStatsAlreadyCreated == true && oldV !=null) {
+						   String msg = "Duplicated network attribute name found: " + netAttr.getName();	
+						   if (alwaysCreate) {
+							 addWarning(msg);  
+						   } else 
+							   throw new NdexException(msg);
+						}
+					} catch(NumberFormatException nfe){
+						String errMsg = "For network attribute '"
+								+ netAttr.getName() + "' unable to convert value  to '" 
+								+ netAttr.getDataType() + "' : " + nfe.getMessage();
+						if (alwaysCreate){
+							addWarning(errMsg);
+						} else
+							throw new NdexException(errMsg);
+					}
 				}
 			}		
 			if ( !cx2NetAttr.getAttributes().isEmpty()) {
@@ -376,8 +395,14 @@ public class CXToCX2ServerSideConverter {
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 
 				} catch (NumberFormatException e2) {
-					System.err.println("Network " + networkId + "has error: " + e2.getMessage());
-					throw new NdexException (e2.getMessage());
+					// @TODO Check if this scenario should be considered
+					//       fatal if alwaysCreate is true
+					String errMsg = "For node attribute id: "
+							+ cx1nodeAttr.getPropertyOf()
+							+ " with name '" + cx1nodeAttr.getName()
+							+ "' received fatal parsing error: " + e2.getMessage();
+					System.err.println("Network " + networkId + "has error: " + errMsg);
+					throw new NdexException (errMsg);
 				}
 			}
 		}
@@ -421,8 +446,14 @@ public class CXToCX2ServerSideConverter {
 					addWarning (e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 				} catch (NumberFormatException e2) {
-					System.err.println("Network " + networkId + "has error: " + e2.getMessage());
-					throw new NdexException (e2.getMessage());
+					// @TODO Check if this scenario should be considered
+					//       fatal if alwaysCreate is true
+					String errMsg = "For edge attribute id: "
+							+ cx1EdgeAttr.getPropertyOf()
+							+ " with name '" + cx1EdgeAttr.getName()
+							+ "' received fatal parsing error: " + e2.getMessage();
+					System.err.println("Network " + networkId + "has error: " + errMsg);
+					throw new NdexException (errMsg);
 				}
 			}
 		}
@@ -509,10 +540,7 @@ public class CXToCX2ServerSideConverter {
 						throw e;
 					addWarning(e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
-				} catch (NumberFormatException e2) {
-					System.err.println("Network " + networkId + "has error: " + e2.getMessage());
-					throw new NdexException (e2.getMessage());
-				}
+				} 
 			}
 		}
 		
@@ -520,8 +548,15 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<NodeAttributesElement> a = new AspectIterator<>(networkId, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				NodeAttributesElement attr = a.next();
-				if ( !alwaysCreate && (attr.getName().equals("name") || attr.getName().equals("represents")))
-					throw new NdexException ("Node attribute " + attr.getName() + " is not allowed in CX spec.");
+				if (attr.getName().equals("name") || attr.getName().equals("represents")){
+					String errMsg = "Node attribute id: "
+							+ attr.getPropertyOf() + " is named '"
+							+ attr.getName() + "' which is not allowed in CX spec.";				
+					if (!alwaysCreate){
+						throw new NdexException (errMsg);
+					}
+					addWarning(errMsg);
+				}
 				attributeStats.addNodeAttribute(attr);
 			}
 		}
@@ -531,9 +566,12 @@ public class CXToCX2ServerSideConverter {
 			while (a.hasNext()) {
 				EdgeAttributesElement e = a.next();
 				if (  (e.getName().equals("interaction"))) {
+					String errMsg = "Edge attribute id: "
+							+ e.getPropertyOf() + " is named '"
+							+ e.getName() + "' which is not allowed in CX spec.";	
 					if (!alwaysCreate)
-						throw new NdexException ( "Edge attribute interaction is not allowed.");
-					addWarning ( "Edge attribute interaction is not allowed. It should be removed.");
+						throw new NdexException (errMsg);
+					addWarning (errMsg);
 				}	
 				attributeStats.addEdgeAttribute(e);
 			}

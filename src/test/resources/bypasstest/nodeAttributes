@@ -1,1 +1,4 @@
-[{"po":64,"n":"node_label_color","v":"blue"}, {"po":64,"n":"node_size","v":"150.0","d":"double"}, {"po":62,"n":"node_label_color","v":"red"}, {"po":62,"n":"node_size","v":"100.0","d":"double"}]
+[{"po":64,"n":"node_label_color","v":"blue"}, 
+ {"po":64,"n":"node_size","v":"150.0","d":"double"}, 
+ {"po":62,"n":"node_label_color","v":"red"}, 
+ {"po":62,"n":"node_size","v":"100.0","d":"double"}]
