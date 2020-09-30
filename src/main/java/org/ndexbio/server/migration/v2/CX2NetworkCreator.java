@@ -49,7 +49,7 @@ public class CX2NetworkCreator {
 
 			try (Connection conn = NdexDatabase.getInstance().getConnection()) {
 
-				String sqlStr = "select \"UUID\" from network where is_deleted=false and iscomplete and error is null";
+				String sqlStr = "select \"UUID\" from network where is_deleted=false and cx2metadata is null and iscomplete and error is null";
 
 				int i = 0;
 				try (NetworkDAO networkdao = new NetworkDAO()) {
