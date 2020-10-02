@@ -768,7 +768,7 @@ public class CXToCX2ServerSideConverter {
 								Map<String, Object> mapEntry = new HashMap<>(2);
 								ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, k);
 								addWarning(cRes);
-								mapEntry.put("v", cRes);
+								mapEntry.put("v", cRes.getResult());
 								mapEntry.put("vp", vpConverter.getNewEdgeOrNodePropertyValue(vpName, v));
 								m.add(mapEntry);
 								counter++;
