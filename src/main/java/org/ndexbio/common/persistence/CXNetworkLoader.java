@@ -51,8 +51,8 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.converter.AspectAttributeStat;
-import org.ndexbio.cx2.converter.CXToCX2Converter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
@@ -110,6 +110,7 @@ public class CXNetworkLoader implements AutoCloseable {
     
     public static final String CX1FileName = "network.cx";
     public static final String CX1AspectDir = "aspects";
+    public static final String CX1ArchiveFileName = "network.arc";
     
 	public static final int defaultSampleSize = 300;
 	public static final int defaultSampleGenerationThreshhold = 1000;
@@ -309,6 +310,10 @@ public class CXNetworkLoader implements AutoCloseable {
 					dao.setFlag(this.networkId, "has_layout", metadata.getMetaDataElement(CartesianLayoutElement.ASPECT_NAME)!=null);
 					dao.unlockNetwork(this.networkId);
 
+					
+					//gzip the archived file.
+					
+					
 				//	dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();
@@ -347,22 +352,29 @@ public class CXNetworkLoader implements AutoCloseable {
 	 * @throws IOException
 	 * @throws NdexException
 	 * @throws FileNotFoundException
+	 * @throws  
 	 */
 	public static void reCreateCXFiles(UUID networkId, MetaDataCollection m, NetworkDAO dao, AspectAttributeStat attrStats, boolean isSingleNetwork) throws JsonParseException, JsonMappingException, SQLException, IOException,
 			NdexException, FileNotFoundException {
 		CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
 		String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
 		
+		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
+		
 		java.nio.file.Path src = Paths.get(tmpFileName);
-		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + CX1FileName);
-		java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.arc");
+		java.nio.file.Path tgt = Paths.get( pathPrefix + networkId + "/" + CX1FileName);
+		
+		String archivedFileName = pathPrefix + networkId + "/" + CX1ArchiveFileName;
+		java.nio.file.Path tgt2 = Paths.get(archivedFileName);
 		
 		Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 		
+		Util.aSyncCompressGZIP(archivedFileName);
+		
 		// create the CX2 file
 		if (isSingleNetwork) {
-			CXToCX2ServerSideConverter cvtr = new CXToCX2ServerSideConverter( Configuration.getInstance().getNdexRoot() + "/data/",
+			CXToCX2ServerSideConverter cvtr = new CXToCX2ServerSideConverter( pathPrefix,
 				m, networkId.toString(), attrStats ,false);
 			dao.setCxMetadata(networkId, cvtr.convert()); 
 		}

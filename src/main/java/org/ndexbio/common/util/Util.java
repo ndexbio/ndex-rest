@@ -30,7 +30,10 @@
  */
 package org.ndexbio.common.util;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -38,6 +41,9 @@ import java.util.List;
 
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.apache.commons.compress.compressors.CompressorException;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
+import org.apache.commons.compress.utils.IOUtils;
 
 public class Util {
 	public static String readFile(String path) 
@@ -102,4 +108,23 @@ public class Util {
 		return i + getNetworkScores(summary.getProperties(), false);
    	}
  	
+ 	
+ 	  
+ 	public static void aSyncCompressGZIP(String fileName) {
+ 		 new Thread( () -> {
+  		 try (OutputStream fo = Files.newOutputStream(Paths.get(fileName + ".gz"));
+ 			     OutputStream gzo = new GzipCompressorOutputStream(fo)) {
+ 			try (InputStream i = Files.newInputStream(Paths.get(fileName))) {
+                IOUtils.copy(i, gzo);
+                File f = new File(fileName);
+                f.delete();
+            }
+ 		} catch (IOException e) {
+ 			System.out.println ("ERROR: Failed to compress archived CX file " +  
+ 					fileName + ". Cause: " + e.getMessage());
+			e.printStackTrace();
+		} 
+ 		 
+ 		 }).start(); 
+ 	}
 }
