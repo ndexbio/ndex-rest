@@ -622,8 +622,11 @@ public class CXToCX2ServerSideConverter {
 	    		Map<String,String> cx1Properties = elmt.getProperties();
 	    		if ( nodeSizeLocked) {
 	    			String size = cx1Properties.get("NODE_SIZE");
-	    			cx1Properties.put("NODE_WIDTH", size);
-	    			cx1Properties.put("NODE_HEIGHT", size);
+	    			if ( size != null) {
+	    				//TODO: need to check if we need to give a warning about upgrading cyNDEx2.
+	    				cx1Properties.put("NODE_WIDTH", size);
+	    				cx1Properties.put("NODE_HEIGHT", size);
+	    			}
 	    		}
 	    		style.getDefaultProps().setNodeProperties(vpConverter.convertEdgeOrNodeVPs(cx1Properties));
 	    		
