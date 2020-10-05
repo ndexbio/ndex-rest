@@ -702,7 +702,7 @@ public class CXToCX2ServerSideConverter {
 	    		
 	    		if ( !nodebp.getVisualProperties().isEmpty())
 	    			holder.getNodeBypasses().add(nodebp);
-	    	} else {  // edge bypasses
+	    	} else if ( po.equals("edges")) {  // edge bypasses
 	    		Map<String,Object> v = vpConverter.convertEdgeOrNodeVPs(elmt.getProperties());
 	    		if ( !v.isEmpty()) {
 	    			CxEdgeBypass edgebp = new CxEdgeBypass();
@@ -710,6 +710,8 @@ public class CXToCX2ServerSideConverter {
 	    			edgebp.setVisualProperties(v);
 	    			holder.getEdgeBypasses().add(edgebp);
 	    		}
+	    	} else {
+	    		throw new NdexException ("'" + po + "' is not a supported Cytoscape visual property group. Please upgrade your cyNDEx-2 app to the latest version in Cytoscape and try again.");
 	    	}
 	    }
 	   
