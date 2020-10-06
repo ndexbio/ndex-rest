@@ -744,8 +744,8 @@ public class CXToCX2ServerSideConverter {
 				mappingObj.setMappingDef(defObj);
 				String defString = entry.getValue().getDefinition();
 				int len = defString.length();
-				if ( len > 30000)
-					throw new NdexException ("Mapping value on " + vpName + " is too long. The maximium length allowed is 30k.");
+				//if ( len > 30000)
+				//	throw new NdexException ("Mapping value on " + vpName + " is too long. The maximium length allowed is 30k.");
 				try {
 					if (mappingType.equals("PASSTHROUGH")) {
 						String mappingAttrName = ConverterUtilities.getPassThroughMappingAttribute(defString);
