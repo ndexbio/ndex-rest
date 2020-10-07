@@ -52,6 +52,7 @@ import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.Util;
+import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.converter.AspectAttributeStat;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
@@ -114,6 +115,7 @@ public class CXNetworkLoader implements AutoCloseable {
     
 	public static final int defaultSampleSize = 300;
 	public static final int defaultSampleGenerationThreshhold = 1000;
+	private static final int maximumNumberWarningMessages = 20;
     
 	protected int sampleGenerationThreshold;
 	
@@ -131,7 +133,6 @@ public class CXNetworkLoader implements AutoCloseable {
 	private AspectElementIdTracker citationIdTracker;
 	private AspectElementIdTracker supportIdTracker;
 		
-//	protected Provenance provenanceHistory;    // comment out for now.
 	protected Set<Long> subNetworkIds;
 		
 	long opaqueCounter ;
@@ -149,10 +150,15 @@ public class CXNetworkLoader implements AutoCloseable {
 	protected List<NdexPropertyValuePair> properties;
 		
 	protected Map<String,CXAspectWriter> aspectTable;
-	protected List<String> warnings;
+	private List<String> warnings;
 	private NetworkDAO dao;
 	private VisibilityType visibility;
 	private Set<String> indexedFields;
+	
+	private boolean foundEdgeInteractionAttr;
+	private boolean foundNodeNameAttr;
+	private boolean foundNodeRepresentAttr;
+	
 	
 	protected AspectAttributeStat attributeStats;
 
@@ -202,10 +208,16 @@ public class CXNetworkLoader implements AutoCloseable {
 			this.sampleGenerationThreshold = defaultSampleGenerationThreshhold;
 		else
 			this.sampleGenerationThreshold = sampleGenerationThreshold;
+		
+		this.foundEdgeInteractionAttr = false;
+		this.foundNodeNameAttr = false;
+		this.foundNodeRepresentAttr = false;
+		
 	}
 	
 	protected UUID getNetworkId() {return this.networkId;}
 	protected NetworkDAO getDAO () {return dao;}
+	protected List<String> getWarnings() {return warnings;}
 	
 	private static CxElementReader2 createCXReader (InputStream in) throws IOException {
 		HashSet<AspectFragmentReader> readers = new HashSet<>(20);
@@ -231,6 +243,14 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(new GeneralAspectFragmentReader<> (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
 //		  readers.add(new GeneralAspectFragmentReader<> (Provenance.ASPECT_NAME,Provenance.class));
 		  return  new CxElementReader2(in, readers,true);
+	}
+	
+	
+	private void addWarning(String warningStr) {
+		if (warnings.size() >= maximumNumberWarningMessages)
+			return;
+		
+		warnings.add( warningStr);		
 	}
 	
 	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException {
@@ -377,6 +397,11 @@ public class CXNetworkLoader implements AutoCloseable {
 			CXToCX2ServerSideConverter cvtr = new CXToCX2ServerSideConverter( pathPrefix,
 				m, networkId.toString(), attrStats ,false);
 			dao.setCxMetadata(networkId, cvtr.convert()); 
+			if ( !cvtr.getWarning().isEmpty()) {
+				List<String> w = cvtr.getWarning(); 
+				w.addAll(0, dao.getWarnings(networkId));
+				dao.setWarning(networkId, w);
+			}
 		}
 	}
 	
@@ -569,7 +594,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
 				  if ( metadata.getMetaDataElement(aspectName) == null) {
-					  warnings.add ("Aspect " + aspectName + " is not defined in MetaData section. NDEx is adding one without a version in it.");
+					  addWarning ("Aspect " + aspectName + " is not defined in MetaData section. NDEx is adding one without a version in it.");
 					  MetaDataElement mElmt = new MetaDataElement();
 					  mElmt.setName(aspectName);
 					  mElmt.setElementCount(this.aspectTable.get(aspectName).getElementCount());
@@ -765,16 +790,28 @@ public class CXNetworkLoader implements AutoCloseable {
 	
 
 	private void addNodeAttribute(NodeAttributesElement e) throws IOException, NdexException{
-		if ( e.getName().equals("name") || e.getName().equals("represents"))
-			throw new NdexException ("Node attribute " + e.getName() + " is not allowed in CX1 spec.");
+		if ( (!this.foundNodeNameAttr) &&e.getName().equals(CxNode.NAME)) { 
+			addWarning ( "Node Attribute 'name' on id " + e.getPropertyOf() + 
+					" is not allowed in CX specification. Please consider recreate this network in the latest version of CyNDEx2 and Cytoscape.");
+			this.foundNodeNameAttr = true;	
+		} else if ((!this.foundNodeRepresentAttr) &&e.getName().equals(CxNode.REPRESENTS)) {		
+			addWarning ( "Node Attribute 'represents' on id " + e.getPropertyOf() + 
+					" is not allowed in CX specification. Please consider recreate this network in the latest version of CyNDEx2 and Cytoscape.");		
+			this.foundNodeRepresentAttr = true;
+		}
 		nodeIdTracker.addReferenceId(e.getPropertyOf(), NodeAttributesElement.ASPECT_NAME);
 		writeCXElement(e);
 		attributeStats.addNodeAttribute(e);
 	}
 	
 	private void addEdgeAttribute(EdgeAttributesElement e) throws IOException, NdexException{
-		if ( e.getName().equals("interaction"))
-			throw new NdexException ( "Edge attribute interaction is not allowed.");
+		if ( e.getName().equals("interaction")) {
+			if ( !this.foundEdgeInteractionAttr) {
+				addWarning ( "Edge Attribute 'interaction' on id " + e.getPropertyOf() + 
+						" is not allowed in CX specification. Please consider recreate this network in the latest version of CyNDEx2 and Cytoscape.");
+				this.foundEdgeInteractionAttr = true;
+			}
+		}	
 		edgeIdTracker.addReferenceId(e.getPropertyOf(), EdgeAttributesElement.ASPECT_NAME);
 		writeCXElement(e);
 		attributeStats.addEdgeAttribute(e);

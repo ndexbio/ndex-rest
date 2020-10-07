@@ -64,7 +64,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 					summary.setName(this.networkName);
 					summary.setDescription(this.description);
 					summary.setVersion(this.version);
-					summary.setWarnings(warnings);
+					summary.setWarnings(getWarnings());
 			   }
 				if ( aspectTable.containsKey(SubNetworkElement.ASPECT_NAME)) {
 					summary.setSubnetworkIds(subNetworkIds);

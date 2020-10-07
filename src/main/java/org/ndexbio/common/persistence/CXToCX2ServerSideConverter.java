@@ -75,7 +75,7 @@ public class CXToCX2ServerSideConverter {
 
 	public static final String messagePrefix = "CX2-CONVERTER: ";
 	
-	public static final int maximumNumberWarningMessages = 20;
+	private static final int maximumNumberWarningMessages = 20;
 	
 	AspectAttributeStat attrStats;
 	
@@ -446,8 +446,17 @@ public class CXToCX2ServerSideConverter {
 					addWarning (e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 				} catch (NumberFormatException e2) {
+					// special case to ignore nulls
+					
+					if ( cx1EdgeAttr.isSingleValue() && cx1EdgeAttr.getValue().toLowerCase().equals("null")) {
+						addWarning("Edge attribute '" + cx1EdgeAttr.getName() + "' on edge " +
+								cx1EdgeAttr.getPropertyOf() + " is " + cx1EdgeAttr.getValue() + ". It will be ignored." );
+						continue;
+					}	
 					// @TODO Check if this scenario should be considered
 					//       fatal if alwaysCreate is true
+					
+					
 					String errMsg = "For edge attribute id: "
 							+ cx1EdgeAttr.getPropertyOf()
 							+ " with name '" + cx1EdgeAttr.getName()

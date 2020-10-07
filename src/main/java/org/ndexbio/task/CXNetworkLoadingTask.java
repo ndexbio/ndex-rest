@@ -46,7 +46,7 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 			e1.printStackTrace();
 			dao.setFlag(networkId, "is_validated", true);
 			dao.setFlag(networkId, "iscomplete", true);
-			dao.setErrorMessage(networkId, e1.getMessage());
+			dao.setErrorMessage(networkId, e1.getMessage() == null ? e1.getClass().getName(): e1.getMessage());
 			dao.unlockNetwork(networkId);
 		} 
 	  } catch (SQLException e) {
