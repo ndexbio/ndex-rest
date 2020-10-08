@@ -752,9 +752,6 @@ public class CXToCX2ServerSideConverter {
 				MappingDefinition defObj = new MappingDefinition();
 				mappingObj.setMappingDef(defObj);
 				String defString = entry.getValue().getDefinition();
-				int len = defString.length();
-				//if ( len > 30000)
-				//	throw new NdexException ("Mapping value on " + vpName + " is too long. The maximium length allowed is 30k.");
 				try {
 					if (mappingType.equals("PASSTHROUGH")) {
 						String mappingAttrName = ConverterUtilities.getPassThroughMappingAttribute(defString);
@@ -791,13 +788,10 @@ public class CXToCX2ServerSideConverter {
 							defObj.setAttributeName(col);
 							defObj.setMapppingList(m);
 						} catch (IOException e) {
-							if (alwaysCreate) {
-								addWarning(e.getMessage());
-								System.err.println(e.getMessage());
-								continue;
-							}
-							// otherwise throw the exception.
-							throw e;
+							addWarning("Corrupted data found in DISCRETE mapping on " + vpName +
+									". Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.\nCause: " + e.getMessage());
+							System.err.println(e.getMessage());
+							continue;
 						}
 
 					} else { // continuous mapping
