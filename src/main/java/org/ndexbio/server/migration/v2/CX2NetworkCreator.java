@@ -14,9 +14,11 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
+import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.persistence.CXToCX2ServerSideConverter;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.model.exceptions.NdexException;
@@ -129,6 +131,14 @@ public class CX2NetworkCreator {
 			warnings.add(CXToCX2ServerSideConverter.messagePrefix + message);				
 			networkdao.setWarning(networkUUID, warnings);
 			System.out.println(networkUUID.toString() + ": " + message);
+		}
+		
+		// gzip the archived cx2 file if it still exists
+		String cx1ArchiveFilePath = rootPath + networkUUID.toString() + "/" + CXNetworkLoader.CX1ArchiveFileName;
+		File f = new File(cx1ArchiveFilePath);
+		if ( f.exists()) {
+			System.out.println("CX1 archive is gzipped.");
+			Util.aSyncCompressGZIP(cx1ArchiveFilePath);
 		}
 		
 		networkdao.commit();

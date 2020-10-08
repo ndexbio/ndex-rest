@@ -87,7 +87,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	
 	//NDEx will auto create index for networks with node count larger than this value
 	// other wise it will delay the creation until the first time this network is queried.
-	static public final int AUTOCREATE_THRESHHOLD= 1; //100;
+	static public final int AUTOCREATE_THRESHHOLD= 100;
 	
 	private int counter ; 
 	private Collection<SolrInputDocument> docs ;

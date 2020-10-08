@@ -115,7 +115,9 @@ public class TestCXToCX2ServerSideConverter {
 		
 		List<String> warnings = converter.getWarning();
 		assertEquals(1, warnings.size());
-		assertTrue(warnings.get(0).startsWith("CX2-CONVERTER: Failed to parse mapping string 'C'"));
+		assertTrue(warnings.get(0).startsWith(
+				"CX2-CONVERTER: Corrupted data found in DISCRETE mapping on NODE_LABEL_POSITION. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.\n" +
+				"Cause: Failed to parse mapping segment 'C' in mapping COL=type,T=string,K=0=smallmolecule,V=0=C,C,c,0.00,0.00,K=1=antibody,V=1=C,C,c,0.00,0.00,K=2=rna,V=2=C,C,c,0.00,0.00,K=3=chemical,V=3=C,C,c,0.00,0.00,K=4=stimulus,V=4=C,C,c,0.00,0.00,K=5=mirna,V=5=C,C,c,0.00,0.00,K=6=mrna,V=6=C,C,c,0.00,0.00,K=7=signal,V=7="));
 	}
 	
 	@Test
@@ -134,13 +136,17 @@ public class TestCXToCX2ServerSideConverter {
 		// copy over network aspect files used by conversion
 		copyNetworkAspects("/wntsignaling", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
 		
-		try {
+		//try {
 			converter.convert();
-			fail("Expected IOException");
-		} catch(IOException e){
-			assertTrue(e.getMessage().startsWith("Failed to parse mapping string 'C' in mapping COL=type"));
-		}
+		//	fail("Expected IOException");
+		//} catch(IOException e){
+		//	assertTrue(e.getMessage().startsWith("Failed to parse mapping string 'C' in mapping COL=type"));
+		//}
 		
+		List<String> warnings = converter.getWarning();
+		
+		assertTrue (warnings.get(0).startsWith("CX2-CONVERTER: Corrupted data found in DISCRETE mapping on NODE_LABEL_POSITION. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.\n" +
+"Cause: Failed to parse mapping segment 'C' in mapping COL=type,T=string,K=0=smallmolecule,V=0=C,C,c,0.00,0.00,K=1=antibody,V=1=C,C,c,0.00,0.00,K=2=rna,V=2=C,C,c,0.00,0.00,K=3=chemical,V=3=C,C,c,0.00,0.00,K=4=stimulus,V=4=C,C,c,0.00,0.00,K=5=mirna,V=5=C,C,c,0.00,0.00,K=6=mrna,V=6=C,C,c,0.00,0.00,K=7=signal,V=7=C,C,c,0.00,0.00"));
 		//TODO Question if conversion fails should files such as network.cx2 remain?
 		//     They seem to still exist after a failure
 	}

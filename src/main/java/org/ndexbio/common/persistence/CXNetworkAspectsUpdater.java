@@ -64,7 +64,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 					summary.setName(this.networkName);
 					summary.setDescription(this.description);
 					summary.setVersion(this.version);
-					summary.setWarnings(warnings);
+					summary.setWarnings(getWarnings());
 			   }
 				if ( aspectTable.containsKey(SubNetworkElement.ASPECT_NAME)) {
 					summary.setSubnetworkIds(subNetworkIds);
@@ -96,20 +96,6 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 			  				
 				//recreate CX file
 				CXNetworkLoader.reCreateCXFiles(networkUUID, metadata, dao, null, this.subNetworkIds.isEmpty());
-				/*CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkUUID, dao );
-				String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkUUID.toString(), g.getMetaData());
-				
-				long fileSize = new File(tmpFileName).length();
-                dao.setNetworkFileSize(networkUUID, fileSize);
-				
-				java.nio.file.Path src = Paths.get(tmpFileName);
-				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkUUID + "/network.cx");
-				java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkUUID + "/network.arc");
-				
-				Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
-				Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
-				
-				 */
 
 			try {
 				dao.unlockNetwork(networkUUID);

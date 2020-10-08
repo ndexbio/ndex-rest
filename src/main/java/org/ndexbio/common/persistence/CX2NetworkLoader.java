@@ -266,8 +266,8 @@ public class CX2NetworkLoader implements AutoCloseable {
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/";
 		
 		java.nio.file.Path src = Paths.get(tmpFileName);
-		java.nio.file.Path tgt = Paths.get( rootPath + cx2NetworkFileName);
-		java.nio.file.Path tgt2 = Paths.get( rootPath + cx2NetworkFileName + ".arc");
+		java.nio.file.Path tgt = Paths.get( pathPrefix + cx2NetworkFileName);
+		java.nio.file.Path tgt2 = Paths.get( pathPrefix + cx2NetworkFileName + ".arc");
 		
 		Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  

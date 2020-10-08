@@ -75,7 +75,7 @@ public class CXToCX2ServerSideConverter {
 
 	public static final String messagePrefix = "CX2-CONVERTER: ";
 	
-	public static final int maximumNumberWarningMessages = 20;
+	private static final int maximumNumberWarningMessages = 20;
 	
 	AspectAttributeStat attrStats;
 	
@@ -446,8 +446,17 @@ public class CXToCX2ServerSideConverter {
 					addWarning (e.getMessage());
 					System.err.println("Network " + networkId + " Ignoring error: " + e.getMessage());
 				} catch (NumberFormatException e2) {
+					// special case to ignore nulls
+					
+					if ( cx1EdgeAttr.isSingleValue() && cx1EdgeAttr.getValue().toLowerCase().equals("null")) {
+						addWarning("Edge attribute '" + cx1EdgeAttr.getName() + "' on edge " +
+								cx1EdgeAttr.getPropertyOf() + " is " + cx1EdgeAttr.getValue() + ". It will be ignored." );
+						continue;
+					}	
 					// @TODO Check if this scenario should be considered
 					//       fatal if alwaysCreate is true
+					
+					
 					String errMsg = "For edge attribute id: "
 							+ cx1EdgeAttr.getPropertyOf()
 							+ " with name '" + cx1EdgeAttr.getName()
@@ -549,12 +558,11 @@ public class CXToCX2ServerSideConverter {
 			while (a.hasNext()) {
 				NodeAttributesElement attr = a.next();
 				if (attr.getName().equals("name") || attr.getName().equals("represents")){
-					String errMsg = "Node attribute id: "
-							+ attr.getPropertyOf() + " is named '"
-							+ attr.getName() + "' which is not allowed in CX spec.";				
-					if (!alwaysCreate){
+					String errMsg = "Attribute '" + attr.getName() + "' on node "
+							+ attr.getPropertyOf() + " is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";				
+					/*if (!alwaysCreate){
 						throw new NdexException (errMsg);
-					}
+					} */
 					addWarning(errMsg);
 				}
 				attributeStats.addNodeAttribute(attr);
@@ -566,11 +574,10 @@ public class CXToCX2ServerSideConverter {
 			while (a.hasNext()) {
 				EdgeAttributesElement e = a.next();
 				if (  (e.getName().equals("interaction"))) {
-					String errMsg = "Edge attribute id: "
-							+ e.getPropertyOf() + " is named '"
-							+ e.getName() + "' which is not allowed in CX spec.";	
-					if (!alwaysCreate)
-						throw new NdexException (errMsg);
+					String errMsg = "Attribute '" + e.getName() + "' on edge "
+							+ e.getPropertyOf() + "' is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";	
+					//if (!alwaysCreate)
+					//	throw new NdexException (errMsg);
 					addWarning (errMsg);
 				}	
 				attributeStats.addEdgeAttribute(e);
@@ -622,8 +629,11 @@ public class CXToCX2ServerSideConverter {
 	    		Map<String,String> cx1Properties = elmt.getProperties();
 	    		if ( nodeSizeLocked) {
 	    			String size = cx1Properties.get("NODE_SIZE");
-	    			cx1Properties.put("NODE_WIDTH", size);
-	    			cx1Properties.put("NODE_HEIGHT", size);
+	    			if ( size != null) {
+	    				//TODO: need to check if we need to give a warning about upgrading cyNDEx2.
+	    				cx1Properties.put("NODE_WIDTH", size);
+	    				cx1Properties.put("NODE_HEIGHT", size);
+	    			}
 	    		}
 	    		style.getDefaultProps().setNodeProperties(vpConverter.convertEdgeOrNodeVPs(cx1Properties));
 	    		
@@ -699,7 +709,7 @@ public class CXToCX2ServerSideConverter {
 	    		
 	    		if ( !nodebp.getVisualProperties().isEmpty())
 	    			holder.getNodeBypasses().add(nodebp);
-	    	} else {  // edge bypasses
+	    	} else if ( po.equals("edges")) {  // edge bypasses
 	    		Map<String,Object> v = vpConverter.convertEdgeOrNodeVPs(elmt.getProperties());
 	    		if ( !v.isEmpty()) {
 	    			CxEdgeBypass edgebp = new CxEdgeBypass();
@@ -707,6 +717,8 @@ public class CXToCX2ServerSideConverter {
 	    			edgebp.setVisualProperties(v);
 	    			holder.getEdgeBypasses().add(edgebp);
 	    		}
+	    	} else {
+	    		throw new NdexException ("'" + po + "' is not a supported Cytoscape visual property group. Please upgrade your cyNDEx-2 app to the latest version in Cytoscape and try again.");
 	    	}
 	    }
 	   
@@ -738,9 +750,6 @@ public class CXToCX2ServerSideConverter {
 				MappingDefinition defObj = new MappingDefinition();
 				mappingObj.setMappingDef(defObj);
 				String defString = entry.getValue().getDefinition();
-				int len = defString.length();
-				if ( len > 30000)
-					throw new NdexException ("Mapping value on " + vpName + " is too long. The maximium length allowed is 30k.");
 				try {
 					if (mappingType.equals("PASSTHROUGH")) {
 						String mappingAttrName = ConverterUtilities.getPassThroughMappingAttribute(defString);
@@ -768,7 +777,7 @@ public class CXToCX2ServerSideConverter {
 								Map<String, Object> mapEntry = new HashMap<>(2);
 								ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, k);
 								addWarning(cRes);
-								mapEntry.put("v", cRes);
+								mapEntry.put("v", cRes.getResult());
 								mapEntry.put("vp", vpConverter.getNewEdgeOrNodePropertyValue(vpName, v));
 								m.add(mapEntry);
 								counter++;
@@ -777,13 +786,10 @@ public class CXToCX2ServerSideConverter {
 							defObj.setAttributeName(col);
 							defObj.setMapppingList(m);
 						} catch (IOException e) {
-							if (alwaysCreate) {
-								addWarning(e.getMessage());
-								System.err.println(e.getMessage());
-								continue;
-							}
-							// otherwise throw the exception.
-							throw e;
+							addWarning("Corrupted data found in DISCRETE mapping on " + vpName +
+									". Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.\nCause: " + e.getMessage());
+							System.err.println(e.getMessage());
+							continue;
 						}
 
 					} else { // continuous mapping

@@ -428,7 +428,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 */
 	public void saveCX2NetworkEntry(NetworkSummary networkSummary, Map<String,CxMetadata> metadata, boolean setModificationTime) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
-				+ "properties = ? ::jsonb, cx2metadata = ? :: json, warnings = ?, subnetworkids = ?, cxformat= ?"
+				+ "properties = ? ::jsonb, cx2metadata = ? :: json, warnings = ?, subnetworkids = ?, cxformat= ?, "
 				+ (setModificationTime? "modification_time = localtimestamp, " : "") 
 				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -1807,10 +1807,14 @@ public class NetworkDAO extends NdexDBDAO {
     public void setErrorMessage(UUID networkId, String errorMessage) {
     	String sql = "update network set error = ? where \"UUID\" = ? and is_deleted=false";
     	
-    	String trimedMsg = ( errorMessage.length()>2000) ?
-    			(errorMessage.substring(0, 1996) + "...") : errorMessage ;
+    	String trimmedMsg = errorMessage;
+    	if ( trimmedMsg == null)
+    		trimmedMsg = "null";
+    	else if ( trimmedMsg.length() > 2000)
+    		trimmedMsg = (errorMessage.substring(0, 1996) + "...");
+    	
     	try ( PreparedStatement pst = db.prepareStatement(sql)) {
-    		pst.setString(1, trimedMsg);
+    		pst.setString(1, trimmedMsg);
     		pst.setObject(2, networkId);
     		int i = pst.executeUpdate();
     		if ( i !=1)
