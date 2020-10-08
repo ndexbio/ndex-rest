@@ -558,12 +558,11 @@ public class CXToCX2ServerSideConverter {
 			while (a.hasNext()) {
 				NodeAttributesElement attr = a.next();
 				if (attr.getName().equals("name") || attr.getName().equals("represents")){
-					String errMsg = "Node attribute id: "
-							+ attr.getPropertyOf() + " is named '"
-							+ attr.getName() + "' which is not allowed in CX spec.";				
-					if (!alwaysCreate){
+					String errMsg = "Attribute '" + attr.getName() + "' on node "
+							+ attr.getPropertyOf() + " is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";				
+					/*if (!alwaysCreate){
 						throw new NdexException (errMsg);
-					}
+					} */
 					addWarning(errMsg);
 				}
 				attributeStats.addNodeAttribute(attr);
@@ -575,11 +574,10 @@ public class CXToCX2ServerSideConverter {
 			while (a.hasNext()) {
 				EdgeAttributesElement e = a.next();
 				if (  (e.getName().equals("interaction"))) {
-					String errMsg = "Edge attribute id: "
-							+ e.getPropertyOf() + " is named '"
-							+ e.getName() + "' which is not allowed in CX spec.";	
-					if (!alwaysCreate)
-						throw new NdexException (errMsg);
+					String errMsg = "Attribute '" + e.getName() + "' on edge "
+							+ e.getPropertyOf() + "' is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";	
+					//if (!alwaysCreate)
+					//	throw new NdexException (errMsg);
 					addWarning (errMsg);
 				}	
 				attributeStats.addEdgeAttribute(e);

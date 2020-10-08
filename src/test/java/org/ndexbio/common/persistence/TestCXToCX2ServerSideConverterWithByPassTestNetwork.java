@@ -457,10 +457,9 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 			converter.convert();
 			fail("Expected NdexException");
 		} catch(NdexException ne){
-			assertEquals("Node attribute id: 62 "
-					+ "is named 'name' which is "
-					+ "not allowed in CX spec.", ne.getMessage());
-		}
+			assertEquals("Duplicate nodes attribute on id: 62. Attribute 'name' has value (Node 1) and (uhoh)",
+					ne.getMessage());
+		} 
 	}
 	
 	@Test
@@ -491,14 +490,12 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		}
 		
 		// run conversion
-		try {
-			converter.convert();
-			fail("Expected NdexException");
-		} catch(NdexException ne){
-			assertEquals("Node attribute id: 62 "
-					+ "is named 'represents' which is "
-					+ "not allowed in CX spec.", ne.getMessage());
-		}
+		converter.convert();
+		assertEquals(1, converter.getWarning().size());
+		String warning1 = converter.getWarning().get(0);
+		assertEquals(
+			"CX2-CONVERTER: Attribute 'represents' on node 62 is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.",
+			warning1);
 	}
 	
 	@Test
@@ -533,7 +530,7 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		converter.convert();
 		List<String> warnings = converter.getWarning();
 		assertEquals(2, warnings.size());
-		assertEquals("CX2-CONVERTER: Node attribute id: 62 is named 'name' which is not allowed in CX spec.", warnings.get(0));
+		assertEquals("CX2-CONVERTER: Attribute 'name' on node 62 is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.", warnings.get(0));
 		assertEquals("CX2-CONVERTER: Duplicate nodes attribute on id: 62. Attribute 'name' has value (Node 1) and (uhoh)", warnings.get(1));
 
 	}
@@ -569,7 +566,7 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		converter.convert();
 		List<String> warnings = converter.getWarning();
 		assertEquals(1, warnings.size());
-		assertEquals("CX2-CONVERTER: Node attribute id: 62 is named 'represents' which is not allowed in CX spec.", warnings.get(0));
+		assertEquals("CX2-CONVERTER: Attribute 'represents' on node 62 is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.", warnings.get(0));
 
 	}
 	
@@ -604,9 +601,7 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 			converter.convert();
 			fail("Expected NdexException");
 		} catch(NdexException ne){
-			assertEquals("Edge attribute id: 66 "
-					+ "is named 'interaction' which is "
-					+ "not allowed in CX spec.", ne.getMessage());
+			assertEquals("Duplicate edges attribute on id: 66. Attribute 'interaction' has value (wrong) and (interacts with)", ne.getMessage());
 		}
 	}
 	
@@ -640,7 +635,7 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		converter.convert();
 		List<String> warnings = converter.getWarning();
 		assertEquals(2, warnings.size());
-		assertEquals("CX2-CONVERTER: Edge attribute id: 66 is named 'interaction' which is not allowed in CX spec.", warnings.get(0));
+		assertEquals("CX2-CONVERTER: Attribute 'interaction' on edge 66' is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.", warnings.get(0));
 		assertEquals("CX2-CONVERTER: Duplicate edges attribute on id: 66. Attribute 'interaction' has value (wrong) and (interacts with)", warnings.get(1));
 	}
 }
