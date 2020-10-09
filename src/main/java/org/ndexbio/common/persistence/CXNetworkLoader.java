@@ -792,11 +792,11 @@ public class CXNetworkLoader implements AutoCloseable {
 	private void addNodeAttribute(NodeAttributesElement e) throws IOException, NdexException{
 		if ( (!this.foundNodeNameAttr) &&e.getName().equals(CxNode.NAME)) { 
 			addWarning ( "Attribute 'name' on node " + e.getPropertyOf() + 
-					" is not allowed in CX specification. Please consider recreate this network in the latest version of CyNDEx2 and Cytoscape.");
+					" is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.");
 			this.foundNodeNameAttr = true;	
 		} else if ((!this.foundNodeRepresentAttr) &&e.getName().equals(CxNode.REPRESENTS)) {		
 			addWarning ( "Attribute 'represents' on node " + e.getPropertyOf() + 
-					" is not allowed in CX specification. Please consider recreate this network in the latest version of CyNDEx2 and Cytoscape.");		
+					" is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.");		
 			this.foundNodeRepresentAttr = true;
 		}
 		nodeIdTracker.addReferenceId(e.getPropertyOf(), NodeAttributesElement.ASPECT_NAME);
@@ -808,7 +808,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		if ( e.getName().equals("interaction")) {
 			if ( !this.foundEdgeInteractionAttr) {
 				addWarning ( "Attribute 'interaction' on id " + e.getPropertyOf() + 
-						" is not allowed in CX specification. Please consider recreate this network in the latest version of CyNDEx2 and Cytoscape.");
+						" is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.");
 				this.foundEdgeInteractionAttr = true;
 			}
 		}	
