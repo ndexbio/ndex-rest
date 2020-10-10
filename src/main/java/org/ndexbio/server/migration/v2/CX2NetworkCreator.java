@@ -1,34 +1,67 @@
 package org.ndexbio.server.migration.v2;
 
-import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.solr.client.solrj.SolrServerException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.common.persistence.CX2NetworkLoader;
-import org.ndexbio.common.persistence.CXNetworkLoader;
-import org.ndexbio.common.persistence.CXToCX2ServerSideConverter;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
-import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
-import org.ndexbio.common.util.Util;
-import org.ndexbio.cx2.aspect.element.core.CxMetadata;
-import org.ndexbio.cxio.metadata.MetaDataCollection;
-import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.server.migration.v2.util.CX2NetworkCreationRunner;
 
 public class CX2NetworkCreator {
 	
 	private static final int edgeCountLimit = 20*1000000; 
+	public static final int NUMBER_WORKERS = 4;
+	public static final long SECONDS_TO_WAIT_FOR_JOBS = 3600*24;
+	public static final int SMALL_NETWORK_EDGECOUNT_CUTOFF = 500000;
 	public CX2NetworkCreator() {
 		
+	}
+	
+	/**
+	 * Queries the database for UUID of networks that are NOT deleted
+	 * and are complete and lack cx2metadata and do NOT have errors
+	 * @return
+	 * @throws IOException
+	 * @throws SQLException 
+	 */
+	public static List<UUID> getIdsOfNetworksToUpdate(final String minEdgeCountCutoff,
+			final String maxEdgeCountCutoff) throws IOException, SQLException {
+		try (Connection conn = NdexDatabase.getInstance().getConnection()) {
+
+			String sqlStr = "select \"UUID\" from network where is_deleted=false "
+					+ "and cx2metadata is null and iscomplete and error is null";
+			if (minEdgeCountCutoff != null){
+				sqlStr += " and edgecount>=" + minEdgeCountCutoff;
+			}
+			if (maxEdgeCountCutoff != null){
+				sqlStr += " and edgecount<=" + maxEdgeCountCutoff;
+			}
+			List<UUID> networksToUpdate = new ArrayList<>();
+			try (NetworkDAO networkdao = new NetworkDAO()) {
+				try (PreparedStatement pst = conn.prepareStatement(sqlStr)) {
+					try (ResultSet rs = pst.executeQuery()) {
+						while (rs.next()) {
+							networksToUpdate.add((UUID) rs.getObject(1));
+						}
+					}
+				}
+			}
+			return networksToUpdate;
+		}
 	}
 	
 	public static void main(String[] args) throws Exception {		
@@ -39,109 +72,90 @@ public class CX2NetworkCreator {
 				configuration.getDBPasswd(), 10);
 
 		String rootPath = Configuration.getInstance().getNdexRoot() + "/data/";
-
+		
+		ExecutorService es = Executors.newFixedThreadPool(NUMBER_WORKERS);
+		
+		boolean onlyUpdateSingleNetwork = false;
+		List<UUID> networksToUpdate = null;
 		try (NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
 			if (args.length == 1) {
-				try (NetworkDAO networkdao = new NetworkDAO()) {
-					UUID networkUUID = UUID.fromString(args[0]);
-					createCX2forNetwork(rootPath, networkUUID, networkdao, globalIdx);
-				}
-				return;
-			}
-
-			try (Connection conn = NdexDatabase.getInstance().getConnection()) {
-
-				String sqlStr = "select \"UUID\" from network where is_deleted=false and cx2metadata is null and iscomplete and error is null";
-
-				int i = 0;
-				try (NetworkDAO networkdao = new NetworkDAO()) {
-					try (PreparedStatement pst = conn.prepareStatement(sqlStr)) {
-						try (ResultSet rs = pst.executeQuery()) {
-							while (rs.next()) {
-								UUID networkUUID = (UUID) rs.getObject(1);
-								
-								createCX2forNetwork(rootPath, networkUUID, networkdao,
-										globalIdx);
-
-								i++;
-								System.out.println(" done (" + i + ").");
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	
-	
-	private static void createCX2forNetwork(String rootPath, UUID networkUUID, NetworkDAO networkdao, 
-			 NetworkGlobalIndexManager globalIdx) throws IOException, SQLException, NdexException, SolrServerException {
-		
-		boolean isSingleNetwork = networkdao.getSubNetworkId(networkUUID).isEmpty();
-		
-		int edgeCount = networkdao.getNetworkEdgeCount(networkUUID);
-
-		if ( isSingleNetwork && edgeCount <= edgeCountLimit) {
-			System.out.print("Recreating cx2 for " + networkUUID.toString() + " ... ");
-			// delete cx2 aspect folder if exists
-			File f = new File(
-					rootPath + networkUUID.toString() + "/" + CX2NetworkLoader.cx2AspectDirName);
-			if (f.exists()) {
-				FileUtils.deleteDirectory(f);
-				System.out.print(" aspect folder deleted ... ");
-			}
-			
-			f = new File (rootPath + networkUUID.toString() + "/" + "net2.cx");
-			if ( f.exists())
-				f.delete();
-			
-			MetaDataCollection mc = networkdao.getMetaDataCollection(networkUUID);
-			try {
-				CXToCX2ServerSideConverter converter = new CXToCX2ServerSideConverter(rootPath, mc,
-						networkUUID.toString(), null, true);
-				List<CxMetadata> cx2mc = converter.convert();
-				networkdao.setCxMetadata(networkUUID, cx2mc);
-				if (converter.getWarning().size() > 0) {
-					List<String> warnings = new java.util.ArrayList<>(
-							networkdao.getWarnings(networkUUID));
-					warnings.removeIf(n -> n.startsWith(CXToCX2ServerSideConverter.messagePrefix));
-					warnings.addAll(converter.getWarning());
-					networkdao.setWarning(networkUUID, warnings);
-				}
-			} catch (NdexException | RuntimeException e) {
-				networkdao.setErrorMessage(networkUUID,
-						CXToCX2ServerSideConverter.messagePrefix + e.getMessage());
-				System.out.println(networkUUID.toString() + " has error. Error message is: " + e.getMessage());
-				globalIdx.deleteNetwork(networkUUID.toString());
-				try (SingleNetworkSolrIdxManager networkIdx = new SingleNetworkSolrIdxManager(networkUUID.toString())) {
-					networkIdx.dropIndex();
-				}
-			}
-		} else {
-			List<String> warnings = new java.util.ArrayList<>(
-					networkdao.getWarnings(networkUUID));
-			warnings.removeIf(n -> n.startsWith(CXToCX2ServerSideConverter.messagePrefix));
-		
-			String message = null;
-			if ( edgeCount > edgeCountLimit) {
-				message = "CX2 network won't be generated on networks that have more than " + edgeCountLimit + " edges.";				
+				onlyUpdateSingleNetwork = true;
+				networksToUpdate = new ArrayList<>();
+				networksToUpdate.add(UUID.fromString(args[0]));
 			} else {
-				message = "CX2 network won't be generated on Cytoscape network collection." ;
+				networksToUpdate = getIdsOfNetworksToUpdate("0",
+						Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF));
 			}
-			warnings.add(CXToCX2ServerSideConverter.messagePrefix + message);				
-			networkdao.setWarning(networkUUID, warnings);
-			System.out.println(networkUUID.toString() + ": " + message);
+			List<Future> futureTasks = new LinkedList<>();
+			System.out.println("Found " + networksToUpdate.size() + " networks to update");
+			try (NetworkDAO networkdao = new NetworkDAO()) {
+				System.out.println("Submitting tasks for processing");
+				for (UUID networkUUID : networksToUpdate){
+					CX2NetworkCreationRunner task = new CX2NetworkCreationRunner(rootPath, networkUUID, networkdao, globalIdx,
+							edgeCountLimit);
+					futureTasks.add(es.submit(task));
+				}
+				waitForTasksToFinish(futureTasks);
+				es.shutdown();
+				if (es.awaitTermination(SECONDS_TO_WAIT_FOR_JOBS, TimeUnit.SECONDS) == false){
+					System.err.println("Time reached before jobs have completed!!!!");
+					return;
+				}
+			
+				if (onlyUpdateSingleNetwork == true){
+					return;
+				}
+				
+				futureTasks.clear();
+				networksToUpdate = getIdsOfNetworksToUpdate(Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF), null);
+				es = Executors.newFixedThreadPool(1);
+				System.out.println("Found " + networksToUpdate.size() 
+						+ " with "
+						+ Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF)
+				         + " or more edges to convert");
+				for (UUID networkUUID : networksToUpdate){
+					CX2NetworkCreationRunner task = new CX2NetworkCreationRunner(rootPath, networkUUID, networkdao, globalIdx,
+							edgeCountLimit);
+					futureTasks.add(es.submit(task));
+				}
+				waitForTasksToFinish(futureTasks);
+				es.shutdown();
+				if (es.awaitTermination(SECONDS_TO_WAIT_FOR_JOBS, TimeUnit.SECONDS) == false){
+					System.err.println("Time reached before jobs have completed!!!!");;
+				}
+			}
 		}
-		
-		// gzip the archived cx2 file if it still exists
-		String cx1ArchiveFilePath = rootPath + networkUUID.toString() + "/" + CXNetworkLoader.CX1ArchiveFileName;
-		File f = new File(cx1ArchiveFilePath);
-		if ( f.exists()) {
-			System.out.println("CX1 archive is gzipped.");
-			Util.aSyncCompressGZIP(cx1ArchiveFilePath);
-		}
-		
-		networkdao.commit();
 	}
 	
+	private static void waitForTasksToFinish(List<Future> futureTasks){
+		while(futureTasks.isEmpty() == false){
+			for (Future ftask : futureTasks){
+				try {
+					if (ftask.isDone()){
+						System.out.println("Completed Task => " + (String)ftask.get());
+						futureTasks.remove(ftask);
+					} else if (ftask.isCancelled()){
+						System.err.println("Task canceled");
+						futureTasks.remove(ftask);
+					}
+
+				} catch(InterruptedException ie){
+					
+				} catch(ExecutionException ee){
+					System.err.println("Task raised an exception: " + ee.getMessage());
+					futureTasks.remove(ftask);
+				}
+				threadSleep();
+			}
+		}
+	}
+	
+	protected static void threadSleep(){
+		try {
+			Thread.sleep(100L);
+		}
+		catch(InterruptedException ie){
+
+		}
+	}
 }
