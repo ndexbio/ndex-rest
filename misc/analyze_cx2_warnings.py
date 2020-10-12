@@ -75,6 +75,19 @@ def _setup_logging(args):
                               disable_existing_loggers=False)
 
 
+def truncate_str(input_str, maxstr_len=512):
+    """
+
+    :param input_str:
+    :return:
+    """
+
+    if input_str is None:
+        return input_str
+    if len(input_str) <= maxstr_len:
+        return input_str
+    return input_str[0:maxstr_len] + '...'
+
 def main(args):
     """
 
@@ -147,6 +160,16 @@ def main(args):
             res = 'CX2-CONVERTER: Duplicate nodes attribute on id: ###. Attribute \'XXX\' has value (XXX) and (XXX)'
         elif wline.startswith('CX2-CONVERTER: Duplicated network attribute '):
             res = 'CX2-CONVERTER: Duplicated network attribute \'XXX\' found.'
+        elif wline.startswith('CX2-CONVERTER: Attribute \'interaction\' on edge '):
+            res = 'CX2-CONVERTER: Attribute \'interaction\' on edge XXX\' is not allowed'
+        elif wline.startswith('CX2-CONVERTER: Corrupted data found in DISCRETE mapping on '):
+            res = 'CX2-CONVERTER: Corrupted data found in DISCRETE mapping on'
+        elif wline.startswith('CX2-CONVERTER: Attribute \'name\' on node'):
+            res = 'CX2-CONVERTER: Attribute \'name\' on node'
+        elif wline.startswith('CX2-CONVERTER: Attribute \'represents\' on node'):
+            res = 'CX2-CONVERTER: Attribute \'represents\' on node'
+        elif wline.startswith('CX2-CONVERTER: Edge attribute \''):
+            res = 'CX2-CONVERTER: Edge attribute \'XXX\' on edge ### is XXX. It will be ignored.'
         else:
             print('ERROR this line did not match anything: ' + wline)
         if res is None:
@@ -160,7 +183,7 @@ def main(args):
     for x in condensed_warnings:
         print(str(warn_count_dict[x]) +
               ' occurrences of => ' +
-              condensed_warnings_example[x] + '\n')
+              truncate_str(condensed_warnings_example[x]) + '\n')
 
 
 if __name__ == '__main__':  # pragma: no cover
