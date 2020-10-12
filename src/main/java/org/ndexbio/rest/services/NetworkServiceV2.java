@@ -1156,15 +1156,16 @@ public class NetworkServiceV2 extends NdexService {
 		
 		//Recreate the CX file 					
 		CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, metadata);
-		g.reCreateCXFile();
+		long cxFileSize = g.reCreateCXFile();
         
 		//Recreate cx2 file
 		if(isSingleNetwork) {
 			CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(networkUUID, cx2metadata);
 			String tmpFilePath = g2.createCX2File();
-			Files.move(Paths.get(tmpFilePath), 
-				Paths.get(fileStoreDir + CX2NetworkLoader.cx2NetworkFileName), 
-				StandardCopyOption.ATOMIC_MOVE);
+			java.nio.file.Path cx2Path = Paths.get(fileStoreDir + CX2NetworkLoader.cx2NetworkFileName);
+			Files.move(Paths.get(tmpFilePath), cx2Path, StandardCopyOption.ATOMIC_MOVE);
+			long cx2FileSize = Files.size(cx2Path);
+			networkDao.setNetworkFileSizes(networkUUID, cxFileSize, cx2FileSize);
 		}
 	}
 
@@ -1807,7 +1808,7 @@ public class NetworkServiceV2 extends NdexService {
 		   // create entry in db. 
 	       try (NetworkDAO dao = new NetworkDAO()) {
 	    	  // NetworkSummary summary = 
-	    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null);
+	    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null,null);
        
 				dao.commit();
 	       }

@@ -30,6 +30,7 @@
  */
 package org.ndexbio.common.persistence;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -380,29 +381,37 @@ public class CXNetworkLoader implements AutoCloseable {
 		String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
 		
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
+		String cxfileDir = pathPrefix + networkId.toString() + "/";
 		
 		java.nio.file.Path src = Paths.get(tmpFileName);
-		java.nio.file.Path tgt = Paths.get( pathPrefix + networkId + "/" + CX1FileName);
+		java.nio.file.Path tgt = Paths.get( cxfileDir + CX1FileName);
 		
-		String archivedFileName = pathPrefix + networkId + "/" + CX1ArchiveFileName;
+		String archivedFileName = cxfileDir + CX1ArchiveFileName;
 		java.nio.file.Path tgt2 = Paths.get(archivedFileName);
 		
 		Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
 		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
 		
-		Util.aSyncCompressGZIP(archivedFileName);
+		
+		Util.asyncCompressGZIP(archivedFileName);
 		
 		// create the CX2 file
 		if (isSingleNetwork) {
 			CXToCX2ServerSideConverter cvtr = new CXToCX2ServerSideConverter( pathPrefix,
 				m, networkId.toString(), attrStats ,false);
-			dao.setCxMetadata(networkId, cvtr.convert()); 
+			dao.setCxMetadata(networkId, cvtr.convert());
+			long cxfileSize = Files.size(tgt);
+			long cx2FileSize = Files.size(Paths.get(cxfileDir + CX2NetworkLoader.cx2NetworkFileName));
+			dao.setNetworkFileSizes(networkId, cxfileSize, cx2FileSize);
 			if ( !cvtr.getWarning().isEmpty()) {
 				List<String> w = cvtr.getWarning(); 
 				w.addAll(0, dao.getWarnings(networkId));
 				dao.setWarning(networkId, w);
 			}
+			
 		}
+		
+		
 	}
 	
 

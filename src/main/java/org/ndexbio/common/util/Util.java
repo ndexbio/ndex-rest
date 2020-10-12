@@ -110,21 +110,21 @@ public class Util {
  	
  	
  	  
- 	public static void aSyncCompressGZIP(String fileName) {
- 		 new Thread( () -> {
-  		 try (OutputStream fo = Files.newOutputStream(Paths.get(fileName + ".gz"));
- 			     OutputStream gzo = new GzipCompressorOutputStream(fo)) {
- 			try (InputStream i = Files.newInputStream(Paths.get(fileName))) {
-                IOUtils.copy(i, gzo);
-                File f = new File(fileName);
-                f.delete();
-            }
- 		} catch (IOException e) {
- 			System.out.println ("ERROR: Failed to compress archived CX file " +  
- 					fileName + ". Cause: " + e.getMessage());
-			e.printStackTrace();
-		} 
- 		 
- 		 }).start(); 
- 	}
+	public static void asyncCompressGZIP(String fileName) {
+		new Thread(() -> {
+			try (OutputStream fo = Files.newOutputStream(Paths.get(fileName + ".gz"));
+					OutputStream gzo = new GzipCompressorOutputStream(fo)) {
+				try (InputStream i = Files.newInputStream(Paths.get(fileName))) {
+					IOUtils.copy(i, gzo);
+					File f = new File(fileName);
+					f.delete();
+				}
+			} catch (IOException e) {
+				System.out.println(
+						"ERROR: Failed to compress archived CX file " + fileName + ". Cause: " + e.getMessage());
+				e.printStackTrace();
+			}
+
+		}).start();
+	}
 }

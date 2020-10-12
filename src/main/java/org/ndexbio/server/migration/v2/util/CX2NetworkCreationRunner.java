@@ -118,7 +118,7 @@ public class CX2NetworkCreationRunner implements Callable {
 			File f = new File(cx1ArchiveFilePath);
 			if ( f.exists()) {
 				_sb.append(" Gzipping CX1 network.arc file. ");
-				Util.aSyncCompressGZIP(cx1ArchiveFilePath);
+				Util.asyncCompressGZIP(cx1ArchiveFilePath);
 			}
 
 			return _sb.toString();

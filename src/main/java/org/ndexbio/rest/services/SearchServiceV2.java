@@ -366,7 +366,7 @@ public class SearchServiceV2 extends NdexService {
 		UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
 	    try (NetworkDAO dao = new NetworkDAO()) {
-	    	   dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName);
+	    	   dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName, null);
     // 	   dao.setProvenance(uuid, entity);
 		   dao.commit();
 	    }
