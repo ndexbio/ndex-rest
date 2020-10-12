@@ -1,0 +1,9 @@
+# update postgres db
+# ALTER TABLE core.network ADD COLUMN cx2metadata jsonb, ADD COLUMN cxformat character varying(20), ADD COLUMN cx2_file_size bigint;
+
+# stop tomcat
+# make sure war has been deployed though
+cd /opt/ndex/tomcat/webapps/ndexbio-rest/WEB-INF
+export ndexConfigurationPath=/opt/ndex/conf/ndex.properties
+java -Xmx36g -classpath lib/*:../../../lib/* org.ndexbio.server.migration.v2.CX2NetworkCreator
+
