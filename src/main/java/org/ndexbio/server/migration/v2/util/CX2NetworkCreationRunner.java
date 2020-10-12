@@ -34,6 +34,14 @@ public class CX2NetworkCreationRunner implements Callable {
 	private int _edgeCountLimit;
 	private StringBuilder _sb; 
 	
+	/**
+	 * Constructor
+	 * @param rootPath path to data directory. Should end with / 
+	 * @param networkUUID UUID of network to update
+	 * @param networkdao database access object for network, should be connected
+	 * @param globalIdx used to clean up solr indexes on network
+	 * @param edgeCountLimit Skip conversion of networks with more edges then this
+	 */
 	public CX2NetworkCreationRunner(final String rootPath, final UUID networkUUID,
 			NetworkDAO networkdao, NetworkGlobalIndexManager globalIdx,
 			final int edgeCountLimit){
@@ -45,12 +53,31 @@ public class CX2NetworkCreationRunner implements Callable {
 		_sb = new StringBuilder();
 	}
 	
-	
+	/**
+	 * This creates CX2 version of network passed in via the constructor.
+	 * This method first locks the network in the database before modification
+	 * and does an unlock at end. 
+	 * 
+	 * The conversion involves creating a new cx2 aspects directory and populating
+	 * that folder with cx2 aspects.
+	 * 
+	 * Finally, if the network.arc file exists, this 
+	 * method also gzips that file appending
+	 * .gz to name.
+	 * 
+	 * 
+	 * @return
+	 * @throws IOException
+	 * @throws SQLException
+	 * @throws NdexException
+	 * @throws SolrServerException 
+	 */
 	@Override
 	public String call() throws IOException, SQLException, NdexException, SolrServerException {
 		
 		try {
 			_networkdao.lockNetwork(_networkUUID);
+
 			if (isOkayToConvertNetworkToCX2()) {
 				_sb.append("Recreating cx2 for ");
 				_sb.append(_networkUUID.toString());
@@ -90,7 +117,7 @@ public class CX2NetworkCreationRunner implements Callable {
 			String cx1ArchiveFilePath = _rootPath + _networkUUID.toString() + "/" + CXNetworkLoader.CX1ArchiveFileName;
 			File f = new File(cx1ArchiveFilePath);
 			if ( f.exists()) {
-				_sb.append(" CX1 archive is gzipped. ");
+				_sb.append(" Gzipping CX1 network.arc file. ");
 				Util.aSyncCompressGZIP(cx1ArchiveFilePath);
 			}
 
@@ -100,6 +127,12 @@ public class CX2NetworkCreationRunner implements Callable {
 		}
 	}
 	
+	/**
+	 * For network passed in via constructor, this method removes the CX2 aspect 
+	 * folder and any data within as 
+	 * well as net2.cx file if it exists
+	 * @throws IOException 
+	 */
 	private void deleteCX2AspectFolderIfExists() throws IOException {
 		File f = new File(
 					_rootPath + _networkUUID.toString() + File.separator + CX2NetworkLoader.cx2AspectDirName);
