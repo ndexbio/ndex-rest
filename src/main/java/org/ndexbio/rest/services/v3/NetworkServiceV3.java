@@ -173,7 +173,7 @@ public class NetworkServiceV3  extends NdexService {
 			   // create entry in db. 
 		       try (NetworkDAO dao = new NetworkDAO()) {
 		    	  // NetworkSummary summary = 
-		    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null);
+		    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null, CX2NetworkLoader.cx2Format);
 	       
 					dao.commit();
 		       }

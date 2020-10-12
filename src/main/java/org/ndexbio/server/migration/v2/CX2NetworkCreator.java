@@ -2,6 +2,8 @@ package org.ndexbio.server.migration.v2;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -101,6 +103,8 @@ public class CX2NetworkCreator {
 						networkUUID.toString(), null, true);
 				List<CxMetadata> cx2mc = converter.convert();
 				networkdao.setCxMetadata(networkUUID, cx2mc);
+				networkdao.setCX2FileSize(networkUUID, 
+						Files.size(Paths.get(rootPath + networkUUID.toString() + "/" + CX2NetworkLoader.cx2NetworkFileName)));
 				if (converter.getWarning().size() > 0) {
 					List<String> warnings = new java.util.ArrayList<>(
 							networkdao.getWarnings(networkUUID));
@@ -138,7 +142,7 @@ public class CX2NetworkCreator {
 		File f = new File(cx1ArchiveFilePath);
 		if ( f.exists()) {
 			System.out.println("CX1 archive is gzipped.");
-			Util.aSyncCompressGZIP(cx1ArchiveFilePath);
+			Util.asyncCompressGZIP(cx1ArchiveFilePath);
 		}
 		
 		networkdao.commit();

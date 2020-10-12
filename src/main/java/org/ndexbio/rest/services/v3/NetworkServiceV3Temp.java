@@ -158,7 +158,7 @@ public class NetworkServiceV3Temp  extends NdexService {
 			   // create entry in db. 
 		       try (NetworkDAO dao = new NetworkDAO()) {
 		    	  // NetworkSummary summary = 
-		    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null);
+		    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null, "cx2");
 	       
 					dao.commit();
 		       }

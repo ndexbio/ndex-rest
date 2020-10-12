@@ -57,6 +57,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
@@ -104,7 +105,7 @@ public class NetworkDAO extends NdexDBDAO {
 	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 			+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
 			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,"
-			+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample "; 
+			+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size "; 
 	
 	public static final String PENDING = "Pending";
 	
@@ -116,10 +117,10 @@ public class NetworkDAO extends NdexDBDAO {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
 		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, name, description, edgecount,nodecount,"
-				+ " islocked, iscomplete, visibility,owneruuid,owner, sourceformat,properties,cxmetadata, version,is_validated, readonly,subnetworkids, cx_file_size,"
-				+ "has_layout, has_sample) "
+				+ " islocked, iscomplete, visibility,owneruuid,owner, sourceformat,properties,cxmetadata, version,is_validated, readonly, warnings, subnetworkids, cx_file_size,"
+				+ "has_layout, has_sample, cx2metadata, cxformat, cx2_file_size) "
 				+ "select ?, current_timestamp, current_timestamp, false, 'Copy of ' || n.name, n.description, n.edgecount, n.nodecount, "
-				+ "false, false, 'PRIVATE',?,?,n.sourceformat, n.properties, n.cxmetadata, n.version,true,false,n.subnetworkids,?, n.has_layout,n.has_sample from network n where n.\"UUID\" = ? and is_deleted = false";
+				+ "false, false, 'PRIVATE',?,?,n.sourceformat, n.properties, n.cxmetadata, n.version,true,false,n.warnings, n.subnetworkids,?, n.has_layout,n.has_sample, n.cx2metadata, n.cxformat, n.cx2_file_size from network n where n.\"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkUUID);
 			pst.setObject(2, ownerId);
@@ -135,19 +136,28 @@ public class NetworkDAO extends NdexDBDAO {
 		return result;
 	}
 	
-	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize, String networkName) throws SQLException {
+	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize,
+			String networkName, String cxformat) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
-		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly, cx_file_size, name) values"
-				+ "(?, ?, ?, false, true, 'PRIVATE',?,?,false,?,?) ";
+		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly, cx_file_size, name, cxformat, cx2_file_size) values"
+				+ "(?, ?, ?, false, true, 'PRIVATE',?,?,false,?,?,?,?) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkUUID);
 			pst.setTimestamp(2, t);
 			pst.setTimestamp(3, t);
 			pst.setObject(4, ownerId);
 			pst.setString(5, ownerUserName);
-			pst.setLong(6, fileSize);
+			if (cxformat !=null && cxformat.equals(CX2NetworkLoader.cx2Format)) {
+				pst.setLong (6,0);
+				pst.setLong(9, fileSize);
+			} else {
+				pst.setLong(6, fileSize);
+				pst.setLong(9, 0);
+			}	
 			pst.setString(7, networkName);
+			pst.setString(8, cxformat);
+			
 			pst.executeUpdate();
 		}
 		NetworkSummary result = new NetworkSummary();
@@ -170,6 +180,32 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 	}
+
+	public void setCX2FileSize(UUID networkID, long cx2FileSize) throws SQLException, NdexException {
+		String sqlStr = "update network set cx2_file_size =? where \"UUID\" = ? and is_deleted=false and readonly=false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(2, networkID);
+			pst.setLong(1, cx2FileSize);
+			int cnt = pst.executeUpdate();
+			if ( cnt !=1) {
+				throw new NdexException ("Failed to Update cx2 file size in db. Reason could be invalid UUID, the network is Locked or the network is readonly.");
+			}
+		}
+	}
+	
+	public void setNetworkFileSizes(UUID networkID, long cxfileSize, long cx2FileSize) throws SQLException, NdexException {
+		String sqlStr = "update network set cx_file_size =?, cx2_file_size = ? where \"UUID\" = ? and is_deleted=false and readonly=false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(3, networkID);
+			pst.setLong(1, cxfileSize);
+			pst.setLong(2, cx2FileSize);
+			int cnt = pst.executeUpdate();
+			if ( cnt !=1) {
+				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID, the network is Locked or the network is readonly.");
+			}
+		}
+	}
+
 	
 	public void deleteNetwork(UUID networkId, UUID userId) throws SQLException, NdexException {
 		String sqlStr = "update network set is_deleted=true,"
@@ -1290,6 +1326,9 @@ public class NetworkDAO extends NdexDBDAO {
 		result.setIsCertified(rs.getBoolean(22));
 		result.setHasLayout(rs.getBoolean(23));
 		result.setHasSample(rs.getBoolean(24));
+		result.setCxFormat(rs.getString(25));
+		result.setCxFileSize(rs.getLong(26));
+		result.setCx2FileSize(rs.getLong(27));
 	}
 	
 	
@@ -1929,7 +1968,7 @@ public class NetworkDAO extends NdexDBDAO {
 				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
 				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_idx_lvl,"
-				+ " n.iscomplete, n.ndexdoi, n.certified,n.has_layout, n.has_sample "
+				+ " n.iscomplete, n.ndexdoi, n.certified,n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size "
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? ) k order by k.modification_time desc"; 
 
 		if ( offset >=0 && limit >0) {
