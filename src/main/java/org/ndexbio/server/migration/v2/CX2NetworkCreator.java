@@ -6,9 +6,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
@@ -21,12 +22,62 @@ import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.server.migration.v2.util.CX2NetworkCreationRunner;
 
+/**
+ * Command line tool to create CX2 versions of networks
+ * this code is installed on. Only networks that are complete, not deleted,
+ * with no errors, and do not already have data in network.cx2metadata field
+ * are processed. 
+ * 
+ * This tool will by default
+ * use a pool of 4 (set via NUMBER_WORKERS) workers to process 
+ * all networks below the size cutoff (set via SMALL_NETWORK_EDGECOUNT_CUTOFF)
+ * Networks that are larger are processed by a single worker.
+ * 
+ * To run (via a terminal):
+ * 
+ * 1) Deploy this ndex-rest.war file on tomcat
+ * 
+ * 2) Open a terminal and change into the following directory:
+ * 
+ *    Example: cd /opt/ndex/tomcat/webapps/ndex-rest/WEB-INF
+ * 
+ * 3) Set ndexConfigurationPath environment variable to ndex.properties
+ *    file 
+ * 
+ *    Example: export ndexConfigurationPath=/opt/ndex/conf/ndex.properties
+ * 
+ * 4) Invoke command by running this:
+ * 
+ *    java -Xmx36g -classpath lib/*:../../../lib/* org.ndexbio.server.migration.v2.CX2NetworkCreator
+ * 
+ * 
+ * 
+ * 
+ * @author churas
+ */
 public class CX2NetworkCreator {
 	
+	/**
+	 * Skip any networks that exceed this edge count
+	 */
 	private static final int edgeCountLimit = 20*1000000; 
+	
+	/**
+	 * Number of workers to concurrently process networks below
+	 * {@code SMALL_NETWORK_EDGECOUNT_CUTOFF} edges
+	 */
 	public static final int NUMBER_WORKERS = 4;
+	
+	/**
+	 * Wait this many seconds for workers to complete there tasks
+	 */
 	public static final long SECONDS_TO_WAIT_FOR_JOBS = 3600*24;
+	
+	/**
+	 * Small network edge count cutoff
+	 */
 	public static final int SMALL_NETWORK_EDGECOUNT_CUTOFF = 500000;
+	
 	public CX2NetworkCreator() {
 		
 	}
@@ -86,7 +137,7 @@ public class CX2NetworkCreator {
 				networksToUpdate = getIdsOfNetworksToUpdate("0",
 						Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF));
 			}
-			List<Future> futureTasks = new LinkedList<>();
+			Queue<Future> futureTasks = new ConcurrentLinkedQueue<>();
 			System.out.println("Found " + networksToUpdate.size() + " networks to update");
 			try (NetworkDAO networkdao = new NetworkDAO()) {
 				System.out.println("Submitting tasks for processing");
@@ -107,32 +158,48 @@ public class CX2NetworkCreator {
 				}
 				
 				futureTasks.clear();
+				futureTasks = null;
+				
 				networksToUpdate = getIdsOfNetworksToUpdate(Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF), null);
-				es = Executors.newFixedThreadPool(1);
-				System.out.println("Found " + networksToUpdate.size() 
+				int remainNetworkCount = networksToUpdate.size();
+				System.out.println("Found " + remainNetworkCount
 						+ " with "
 						+ Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF)
 				         + " or more edges to convert");
+				
 				for (UUID networkUUID : networksToUpdate){
 					CX2NetworkCreationRunner task = new CX2NetworkCreationRunner(rootPath, networkUUID, networkdao, globalIdx,
 							edgeCountLimit);
-					futureTasks.add(es.submit(task));
+					try {
+						System.out.print(Integer.toString(remainNetworkCount) + ": " + networkUUID.toString());
+						String res = task.call();
+						if (res != null){
+							System.out.println(res);
+						}
+					} catch(Exception ex){
+						System.err.println("While updating network:  " 
+								+ networkUUID.toString() + " : caught exception: " + ex.getMessage());
+					} finally {
+						remainNetworkCount--;
+					}
 				}
-				waitForTasksToFinish(futureTasks);
-				es.shutdown();
-				if (es.awaitTermination(SECONDS_TO_WAIT_FOR_JOBS, TimeUnit.SECONDS) == false){
-					System.err.println("Time reached before jobs have completed!!!!");;
-				}
+				
 			}
 		}
 	}
 	
-	private static void waitForTasksToFinish(List<Future> futureTasks){
+	/**
+	 * Given a Queue of future tasks this method loops through the tasks
+	 * outputting results of completed tasks and canceled tasks. Removing them
+	 * from the queue until none remain
+	 * @param futureTasks 
+	 */
+	private static void waitForTasksToFinish(Queue<Future> futureTasks){
 		while(futureTasks.isEmpty() == false){
 			for (Future ftask : futureTasks){
 				try {
 					if (ftask.isDone()){
-						System.out.println("Completed Task => " + (String)ftask.get());
+						System.out.println(futureTasks.size() + " : Completed => " + (String)ftask.get());
 						futureTasks.remove(ftask);
 					} else if (ftask.isCancelled()){
 						System.err.println("Task canceled");
@@ -150,9 +217,12 @@ public class CX2NetworkCreator {
 		}
 	}
 	
+	/**
+	 * Tells thread to sleep for 1 millisecond
+	 */
 	protected static void threadSleep(){
 		try {
-			Thread.sleep(100L);
+			Thread.sleep(1L);
 		}
 		catch(InterruptedException ie){
 
