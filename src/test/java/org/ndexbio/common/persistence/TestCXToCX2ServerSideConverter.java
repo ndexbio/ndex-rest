@@ -244,12 +244,15 @@ public class TestCXToCX2ServerSideConverter {
 		copyNetworkAspects("/cdapshier", tmpFolder.getAbsolutePath() + File.separator + networkIdStr);
 		
 		// run conversion
-		try {
+		//try {
 			converter.convert();
-			fail("Expected NdexException");
-		} catch(NdexException ne){
-			assertEquals("Duplicated network attribute 'version' found.", ne.getMessage());
-		}
+			assertEquals(1, converter.getWarning().size());
+			assertEquals("CX2-CONVERTER: Duplicated network attribute 'version' found.", 
+					converter.getWarning().get(0));
+			//fail("Expected NdexException");
+		//} catch(NdexException ne){
+		//	assertEquals("Duplicated network attribute 'version' found.", ne.getMessage());
+		//}
 	}
 	
 	@Test
