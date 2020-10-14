@@ -186,8 +186,10 @@ public class CXToCX2ServerSideConverter {
 						// if attrStats had to be created by this method
 						// skip the duplicate network attribute name check because
 						// analyzeAttributes() performs the check
-						if (attrStatsAlreadyCreated == true && oldV !=null) {
-						   String msg = "Duplicated network attribute name found: " + netAttr.getName();	
+						if (attrStatsAlreadyCreated == true && oldV !=null && 
+								!attrValue.equals(oldV)) {
+						   String msg = "Inconsistent network attribute value found on attribute '" + netAttr.getName()
+						      + "'. It has value (" + oldV.toString() + ") and (" + netAttr.getValueAsJsonString()+")" ;	
 						   if (alwaysCreate) {
 							 addWarning(msg);  
 						   } else 
@@ -521,6 +523,10 @@ public class CXToCX2ServerSideConverter {
 		
 		AspectAttributeStat attributeStats = new AspectAttributeStat();
 		
+		boolean foundEdgeInteractionAttr = false;
+		boolean foundNodeNameAttr = false;
+		boolean foundNodeRepresentAttr = false;
+		
 		// check nodes aspect
 		try (AspectIterator<NodesElement> nodes = new AspectIterator<>(networkId, NodesElement.ASPECT_NAME, NodesElement.class, pathPrefix) ) {
 			while (nodes.hasNext()) {
@@ -543,7 +549,9 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<NetworkAttributesElement> a = new AspectIterator<>(networkId, NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				try {
-					attributeStats.addNetworkAttribute(a.next());	
+					String warning = attributeStats.addNetworkAttribute(a.next());
+					if ( warning != null)
+						addWarning(warning);
 				} catch ( NdexException e) {
 					if ( !alwaysCreate)
 						throw e;
@@ -557,13 +565,16 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<NodeAttributesElement> a = new AspectIterator<>(networkId, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				NodeAttributesElement attr = a.next();
-				if (attr.getName().equals("name") || attr.getName().equals("represents")){
+				if (attr.getName().equals(CxNode.NAME) && (!foundNodeNameAttr) ){
 					String errMsg = "Attribute '" + attr.getName() + "' on node "
 							+ attr.getPropertyOf() + " is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";				
-					/*if (!alwaysCreate){
-						throw new NdexException (errMsg);
-					} */
-					addWarning(errMsg);
+					addWarning ( errMsg);
+					foundNodeNameAttr = true;
+				} else if ( attr.getName().equals(CxNode.REPRESENTS) && !foundNodeRepresentAttr) {
+					String errMsg = "Attribute '" + attr.getName() + "' on node "
+							+ attr.getPropertyOf() + " is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";				
+					addWarning ( errMsg);
+					foundNodeRepresentAttr = true;
 				}
 				attributeStats.addNodeAttribute(attr);
 			}
@@ -573,12 +584,12 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<EdgeAttributesElement> a = new AspectIterator<>(networkId, EdgeAttributesElement.ASPECT_NAME, EdgeAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				EdgeAttributesElement e = a.next();
-				if (  (e.getName().equals("interaction"))) {
+				if (  (e.getName().equals(CxEdge.INTERACTION) && (!foundEdgeInteractionAttr))) {
 					String errMsg = "Attribute '" + e.getName() + "' on edge "
 							+ e.getPropertyOf() + "' is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";	
-					//if (!alwaysCreate)
-					//	throw new NdexException (errMsg);
+					
 					addWarning (errMsg);
+					foundEdgeInteractionAttr = true;
 				}	
 				attributeStats.addEdgeAttribute(e);
 			}
