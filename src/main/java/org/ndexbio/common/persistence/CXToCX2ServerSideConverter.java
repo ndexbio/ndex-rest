@@ -247,7 +247,9 @@ public class CXToCX2ServerSideConverter {
 							if ( cx1Edge.getInteraction() != null) {
 								EdgeAttributesElement attr = new EdgeAttributesElement(cx1Edge.getId(), CxEdge.INTERACTION, cx1Edge.getInteraction(), ATTRIBUTE_DATA_TYPE.STRING);	
 								try {
-									cx2Edge.addCX1EdgeAttribute(attr, this.attrDeclarations);   
+									String warning = cx2Edge.addCX1EdgeAttribute(attr, this.attrDeclarations);
+									if (warning != null)
+										addWarning(warning);
 								} catch ( NdexException e) {
 									if ( !alwaysCreate) 
 										throw e;
@@ -371,11 +373,15 @@ public class CXToCX2ServerSideConverter {
 										
 				if ( cx1node.getNodeName() != null) {
 					NodeAttributesElement attr = new NodeAttributesElement(nodeId, CxNode.NAME, cx1node.getNodeName(), ATTRIBUTE_DATA_TYPE.STRING);	
-					newNode.addCX1NodeAttribute(attr, this.attrDeclarations);
+					String warning = newNode.addCX1NodeAttribute(attr, this.attrDeclarations);
+					if ( warning != null)
+						addWarning(warning);
 				}   
 				if (cx1node.getNodeRepresents() != null) {
 					NodeAttributesElement attr = new NodeAttributesElement(nodeId, CxNode.REPRESENTS, cx1node.getNodeName(), ATTRIBUTE_DATA_TYPE.STRING);	
-					newNode.addCX1NodeAttribute(attr, this.attrDeclarations);
+					String warning = newNode.addCX1NodeAttribute(attr, this.attrDeclarations);
+					if ( warning != null)
+						addWarning(warning);
 				}    
 				
 				nodeTable.put(nodeId, newNode);
@@ -389,7 +395,10 @@ public class CXToCX2ServerSideConverter {
 				Long nodeId = cx1nodeAttr.getPropertyOf();
 				CxNode newNode = nodeTable.get(nodeId);
 				try {
-					newNode.addCX1NodeAttribute(cx1nodeAttr, this.attrDeclarations);
+					String warning = newNode.addCX1NodeAttribute(cx1nodeAttr, this.attrDeclarations);
+					if ( warning != null) {
+						addWarning(warning);
+					}
 				} catch( NdexException e) {
 					if (!alwaysCreate)
 						throw e;
@@ -441,7 +450,9 @@ public class CXToCX2ServerSideConverter {
 					edgeTable.put(edgeId, newEdge);
 				}
 				try {
-					newEdge.addCX1EdgeAttribute(cx1EdgeAttr, this.attrDeclarations);
+					String warning = newEdge.addCX1EdgeAttribute(cx1EdgeAttr, this.attrDeclarations);
+					if ( warning != null )
+						addWarning(warning);
 				} catch (NdexException e) {
 					if ( !alwaysCreate)
 						throw e;
@@ -757,7 +768,11 @@ public class CXToCX2ServerSideConverter {
 
 				VisualPropertyMapping mappingObj = new VisualPropertyMapping();
 				String mappingType = entry.getValue().getType();
-				mappingObj.setType(VPMappingType.valueOf(mappingType));
+				try {
+					mappingObj.setType(VPMappingType.valueOf(mappingType));
+				} catch ( IllegalArgumentException e) {
+					throw new NdexException ("Invalid mapping type '" + mappingType + "' found on visual property '" +vpName +"'.");
+				}
 				MappingDefinition defObj = new MappingDefinition();
 				mappingObj.setMappingDef(defObj);
 				String defString = entry.getValue().getDefinition();
@@ -798,7 +813,7 @@ public class CXToCX2ServerSideConverter {
 							defObj.setMapppingList(m);
 						} catch (IOException e) {
 							addWarning("Corrupted data found in DISCRETE mapping on " + vpName +
-									". Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.\nCause: " + e.getMessage());
+									". Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network. Cause: " + e.getMessage() );
 							System.err.println(e.getMessage());
 							continue;
 						}
