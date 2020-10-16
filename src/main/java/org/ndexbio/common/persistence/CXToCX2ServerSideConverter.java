@@ -857,7 +857,7 @@ public class CXToCX2ServerSideConverter {
 								throw new NdexException(
 										"error: continuous mapping string is corruptted for " + defString);
 							}
-							ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, OV);
+							ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj("double", OV);
 							addWarning(cRes);
 							
 							Object OVO = cRes.getResult();
