@@ -92,13 +92,13 @@ public class CX2NetworkCreationRunner implements Callable {
 							_networkUUID.toString(), null, true);
 					List<CxMetadata> cx2mc = converter.convert();
 					_networkdao.setCxMetadata(_networkUUID, cx2mc);
-					if (converter.getWarning().size() > 0) {
+					//if (converter.getWarning().size() > 0) {
 						List<String> warnings = new java.util.ArrayList<>(
 								_networkdao.getWarnings(_networkUUID));
 						warnings.removeIf(n -> n.startsWith(CXToCX2ServerSideConverter.messagePrefix));
 						warnings.addAll(converter.getWarning());
 						_networkdao.setWarning(_networkUUID, warnings);
-					}
+					//}
 				} catch (NdexException | RuntimeException e) {
 					_networkdao.setErrorMessage(_networkUUID,
 							CXToCX2ServerSideConverter.messagePrefix + e.getMessage());
