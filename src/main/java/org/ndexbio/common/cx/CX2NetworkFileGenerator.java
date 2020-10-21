@@ -60,7 +60,7 @@ public class CX2NetworkFileGenerator {
 	 * @throws NdexException 
 	 */
 	public CX2NetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
-		this(networkUUID, networkDao.getCxMetaDataList(networkUUID));
+		this(networkUUID, networkDao.getCx2MetaDataList(networkUUID));
 		
 	}	
 	

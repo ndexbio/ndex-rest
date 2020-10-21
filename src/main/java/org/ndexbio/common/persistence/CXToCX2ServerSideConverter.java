@@ -689,7 +689,7 @@ public class CXToCX2ServerSideConverter {
 	    		boolean arrowColorMatchesEdge = (arrowColorMatchesEdgeStr != null && arrowColorMatchesEdgeStr.equals("true"));
 
 	    		if ( arrowColorMatchesEdge ) {
-	    			String ep = cx1Properties.get("EDGE_PAINT");
+	    			String ep = cx1Properties.get("EDGE_UNSELECTED_PAINT");
 	    			cx1Properties.put("EDGE_SOURCE_ARROW_UNSELECTED_PAINT", ep);
 	    			cx1Properties.put("EDGE_STROKE_UNSELECTED_PAINT", ep);
 	    			cx1Properties.put("EDGE_TARGET_ARROW_UNSELECTED_PAINT", ep);
@@ -701,7 +701,7 @@ public class CXToCX2ServerSideConverter {
 	    		SortedMap<String,Mapping> edgeMappings = elmt.getMappings();
 	    		
 	    		if ( arrowColorMatchesEdge) {
-	    			Mapping m = edgeMappings.remove("EDGE_PAINT");
+	    			Mapping m = edgeMappings.remove("EDGE_UNSELECTED_PAINT");
 	    			if ( m !=null) {
 	    				edgeMappings.put("EDGE_SOURCE_ARROW_UNSELECTED_PAINT", m);
 	    				edgeMappings.put("EDGE_STROKE_UNSELECTED_PAINT", m);

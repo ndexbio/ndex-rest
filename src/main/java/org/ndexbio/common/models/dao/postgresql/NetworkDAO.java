@@ -82,7 +82,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
@@ -657,6 +656,7 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 	}	
+	
 	
 	/** 
 	 * return true if the network is showcased in the owner's account.
@@ -1412,7 +1412,7 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws IOException
 	 * @throws NdexException
 	 */
-	public List<CxMetadata> getCxMetaDataList(UUID networkId) throws SQLException, IOException, NdexException {
+	public List<CxMetadata> getCx2MetaDataList(UUID networkId) throws SQLException, IOException, NdexException {
 		String sqlStr = "select cx2metadata from network n where n.\"UUID\" =? and n.is_deleted= false" ;
 		
 		List<CxMetadata> result = new ArrayList<>();
@@ -1434,6 +1434,23 @@ public class NetworkDAO extends NdexDBDAO {
 		
 	}
 
+	public boolean hasCX2(UUID networkId) throws SQLException {
+		String sqlStr = "select 1 from network n where n.\"UUID\" =? and n.is_deleted= false and cx2metadata is not null" ;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					 int s = rs.getInt(1);
+					
+					return s == 1;
+				}
+			}
+		}
+		return false;
+		
+	}
+	
 	public List<String> getWarnings(UUID networkId) throws SQLException {
 		String sqlStr = "select warnings from network n where n.\"UUID\" =? and n.is_deleted= false" ;
 		
@@ -1456,6 +1473,7 @@ public class NetworkDAO extends NdexDBDAO {
 		return result;
 		
 	}
+	
 
 	public void setCxMetadata(UUID networkId, List<CxMetadata> cx2metadata) throws SQLException, JsonProcessingException, NdexException {
 		String sqlStr = "update network set cx2metadata = ? ::jsonb where \"UUID\" = ? and is_deleted=false";
@@ -1782,7 +1800,7 @@ public class NetworkDAO extends NdexDBDAO {
     }
 	
     
-    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws NdexException, SQLException {
+    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws SQLException {
     
     	Permissions p = getNetworkPermissionOnGroup(networkUUID, groupUUID);
 
@@ -1806,7 +1824,7 @@ public class NetworkDAO extends NdexDBDAO {
         		
     }
     
-    public int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws SQLException, NdexException {
+    public int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws SQLException {
     	
     	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
 

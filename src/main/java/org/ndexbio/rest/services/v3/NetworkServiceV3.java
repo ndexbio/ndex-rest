@@ -79,9 +79,8 @@ public class NetworkServiceV3  extends NdexService {
     	String title = null;
     	try (NetworkDAO dao = new NetworkDAO()) {
     		UUID networkUUID = UUID.fromString(networkId);
-    		Set<Long> subNetIds = dao.getSubNetworkId(networkUUID);
-    		if ( !subNetIds.isEmpty()) {
-    			throw new ObjectNotFoundException("CX2 network is not available for Cytoscape collection.");
+    		if ( !dao.hasCX2(networkUUID)) {
+    			throw new ObjectNotFoundException("CX2 network is not available for this network. ");
     		}
      		UUID userId = getLoggedInUserId();
     		if ( userId == null ) {
