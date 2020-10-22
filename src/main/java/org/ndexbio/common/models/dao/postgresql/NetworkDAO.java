@@ -169,38 +169,38 @@ public class NetworkDAO extends NdexDBDAO {
 
 	
 	public void setNetworkFileSize(UUID networkID, long fileSize) throws SQLException, NdexException {
-		String sqlStr = "update network set cx_file_size =? where \"UUID\" = ? and is_deleted=false and readonly=false";
+		String sqlStr = "update network set cx_file_size =? where \"UUID\" = ? and is_deleted=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(2, networkID);
 			pst.setLong(1, fileSize);
 			int cnt = pst.executeUpdate();
 			if ( cnt !=1) {
-				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID, the network is Locked or the network is readonly.");
+				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID.");
 			}
 		}
 	}
 
 	public void setCX2FileSize(UUID networkID, long cx2FileSize) throws SQLException, NdexException {
-		String sqlStr = "update network set cx2_file_size =? where \"UUID\" = ? and is_deleted=false and readonly=false";
+		String sqlStr = "update network set cx2_file_size =? where \"UUID\" = ? and is_deleted=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(2, networkID);
 			pst.setLong(1, cx2FileSize);
 			int cnt = pst.executeUpdate();
 			if ( cnt !=1) {
-				throw new NdexException ("Failed to Update cx2 file size in db. Reason could be invalid UUID, the network is Locked or the network is readonly.");
+				throw new NdexException ("Failed to Update cx2 file size in db. Reason could be invalid UUID.");
 			}
 		}
 	}
 	
 	public void setNetworkFileSizes(UUID networkID, long cxfileSize, long cx2FileSize) throws SQLException, NdexException {
-		String sqlStr = "update network set cx_file_size =?, cx2_file_size = ? where \"UUID\" = ? and is_deleted=false and readonly=false";
+		String sqlStr = "update network set cx_file_size =?, cx2_file_size = ? where \"UUID\" = ? and is_deleted=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(3, networkID);
 			pst.setLong(1, cxfileSize);
 			pst.setLong(2, cx2FileSize);
 			int cnt = pst.executeUpdate();
 			if ( cnt !=1) {
-				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID, the network is Locked or the network is readonly.");
+				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID.");
 			}
 		}
 	}
