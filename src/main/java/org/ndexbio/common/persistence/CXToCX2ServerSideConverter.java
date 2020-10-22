@@ -904,7 +904,9 @@ public class CXToCX2ServerSideConverter {
 					throw new NdexException(
 							"Can't converter " + mappingType + " mapping on " + vpName + ". Cause: " + e.getMessage());
 				}
-				v2NodeMappings.put(newVPName, mappingObj);
+				if ( mappingObj.getType() == VPMappingType.PASSTHROUGH || 
+						mappingObj.getMappingDef().getMapppingList().size()>0)
+				   v2NodeMappings.put(newVPName, mappingObj);
 			}
 		}
 	   
