@@ -2,6 +2,10 @@ package org.ndexbio.server.migration.v2.util;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
@@ -92,6 +96,17 @@ public class CX2NetworkCreationRunner implements Callable {
 							_networkUUID.toString(), null, true);
 					List<CxMetadata> cx2mc = converter.convert();
 					_networkdao.setCxMetadata(_networkUUID, cx2mc);
+					
+					Path cx1File = Paths.get(_rootPath + _networkUUID.toString() + "/" + CXNetworkLoader.CX1FileName);
+					if ( Files.exists(cx1File, LinkOption.NOFOLLOW_LINKS)) {
+						_networkdao.setNetworkFileSizes(_networkUUID,
+							Files.size(cx1File),
+							Files.size(Paths.get(_rootPath + _networkUUID.toString() + "/" + CX2NetworkLoader.cx2NetworkFileName)));
+					} else {
+						_sb.append ( " no cx file found... " );
+						_networkdao.setCX2FileSize(_networkUUID,
+								Files.size(Paths.get(_rootPath + _networkUUID.toString() + "/" + CX2NetworkLoader.cx2NetworkFileName)));
+					}	
 					//if (converter.getWarning().size() > 0) {
 						List<String> warnings = new java.util.ArrayList<>(
 								_networkdao.getWarnings(_networkUUID));

@@ -94,7 +94,7 @@ public class CX2NetworkCreator {
 		try (Connection conn = NdexDatabase.getInstance().getConnection()) {
 
 			String sqlStr = "select \"UUID\" from network where is_deleted=false "
-					+ "and cx2metadata is null and iscomplete and error is null";
+					+ "and cx2_file_size is null and iscomplete and error is null";
 			if (minEdgeCountCutoff != null){
 				sqlStr += " and edgecount>=" + minEdgeCountCutoff;
 			}
@@ -168,7 +168,7 @@ public class CX2NetworkCreator {
 					CX2NetworkCreationRunner task = new CX2NetworkCreationRunner(rootPath, networkUUID, networkdao,
 							globalIdx, edgeCountLimit);
 					try {
-						System.out.print(Integer.toString(remainNetworkCount) + ": " + networkUUID.toString());
+						System.out.print(Integer.toString(remainNetworkCount) + ": " + networkUUID.toString() + " ");
 						String res = task.call();
 						if (res != null) {
 							System.out.println(res);
