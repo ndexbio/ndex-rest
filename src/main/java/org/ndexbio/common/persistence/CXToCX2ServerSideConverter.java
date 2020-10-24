@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import org.apache.commons.io.FileUtils;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
 import org.ndexbio.cx2.aspect.element.core.CxEdgeBypass;
@@ -141,7 +142,13 @@ public class CXToCX2ServerSideConverter {
 				
 		//create the aspect dir
         String cx2AspectDir  = pathPrefix + File.separator + networkId + File.separator + CX2NetworkLoader.cx2AspectDirName + File.separator;
-		Files.createDirectory(Paths.get(cx2AspectDir));
+		
+    	File f = new File(cx2AspectDir);
+    	if (f.exists()) {
+    		FileUtils.deleteDirectory(f);
+    	}
+    	
+        Files.createDirectory(Paths.get(cx2AspectDir));
 		
 		boolean attrStatsAlreadyCreated = true;
 		
