@@ -48,9 +48,15 @@ public abstract class NdexSystemTask  {
 				return new SolrTaskRebuildNetworkIdx(UUID.fromString(t.getResource()), SolrIndexScope.valueOf((String)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrScope)), 
 						  ((Boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrCreateOnly)).booleanValue(),
 						  (Set<String>)t.getAttribute("fields"), 
-						  NetworkIndexLevel.valueOf((String)t.getAttribute("indexLevel")));
+						  NetworkIndexLevel.valueOf((String)t.getAttribute("indexLevel")),
+								  ((Boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.FORMCX2FILE)).booleanValue());
 			case SYS_LOAD_NETWORK:
-				return new CXNetworkLoadingTask (UUID.fromString(t.getResource()),/*(String)t.getAttribute("owner"),*/
+				return new CXNetworkLoadingTask (UUID.fromString(t.getResource()),
+						(Boolean)t.getAttribute("isUpdate"), 
+						(t.getAttribute("visibility") != null ? VisibilityType.valueOf((String)t.getAttribute("visibility")): null),
+						(Set<String>)t.getAttribute("nodeIndexes"));
+			case SYS_LOAD_CX2_NETWORK:
+				return new CX2NetworkLoadingTask(UUID.fromString(t.getResource()),
 						(Boolean)t.getAttribute("isUpdate"), 
 						(t.getAttribute("visibility") != null ? VisibilityType.valueOf((String)t.getAttribute("visibility")): null),
 						(Set<String>)t.getAttribute("nodeIndexes"));

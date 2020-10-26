@@ -7,7 +7,7 @@
 	<groupId>org.ndexbio</groupId>
 	<artifactId>ndexbio-rest</artifactId>
 	<packaging>war</packaging>
-	<version>2.4.5</version>
+	<version>2.5.0-SNAPSHOT</version>
 	<name>ndexbio-rest</name>
 	<url>http://maven.apache.org</url>
 	<inceptionYear>2013</inceptionYear>
@@ -20,18 +20,23 @@
 		<dependency>
 			<groupId>org.ndexbio</groupId>
 			<artifactId>ndex-object-model</artifactId>
-			<version>2.4.5</version>
+			<version>2.5.0-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
-			<version>42.2.5</version>
+			<version>42.2.14</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-dbcp2</artifactId>
 			<version>2.6.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-compress</artifactId>
+			<version>1.20</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
@@ -48,13 +53,19 @@
 			<artifactId>jackson-jaxrs-base</artifactId>
 			<version>${jacksonVersion}</version>
 		</dependency>
-
+<!--
+      	<dependency>
+            <groupId>org.jboss.resteasy</groupId>
+            <artifactId>resteasy-crypto</artifactId>
+            <version>${resteasyVersion}</version>
+        </dependency>
+  -->    
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-jaxrs</artifactId>
 			<version>${resteasyVersion}</version>
 		</dependency>
-
+		
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-jaxb-provider</artifactId>
@@ -72,7 +83,6 @@
 			<artifactId>resteasy-multipart-provider</artifactId>
 			<version>${resteasyVersion}</version>
 		</dependency>
-
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
@@ -257,7 +267,7 @@
 			<plugin>
 				<groupId>org.eclipse.jetty</groupId>
 				<artifactId>jetty-maven-plugin</artifactId>
-				<version>9.2.5.v20141112</version>
+				<version>${jettyVersion}</version>
 			</plugin>
 
 			<!-- the "maven-war-plugin" below generates the "ndexbio-rest-{project.artifactId}-${project.version}.jar" 
@@ -369,14 +379,43 @@
 					</excludes>
 				</configuration>
 			</plugin>
+                        <plugin>
+                            <groupId>org.jacoco</groupId>
+                            <artifactId>jacoco-maven-plugin</artifactId>
+                            <version>0.8.3</version>
+                            <executions>
+                                <execution>
+                                    <id>prepare-agent</id>
+                                    <goals>
+                                        <goal>prepare-agent</goal>
+                                    </goals>
+                                </execution>
+                            </executions>
+                        </plugin>
 
 		</plugins>
 	</build>
+        <reporting>
+            <plugins>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <reportSets>
+                        <reportSet>
+                            <reports>
+                                <!-- select non-aggregate reports -->
+                                <report>report</report>
+                            </reports>
+                        </reportSet>
+                    </reportSets>
+                </plugin>
+            </plugins>
+        </reporting>
 	<properties>
-		<jettyVersion>9.3.18.v20170406</jettyVersion>
+		<jettyVersion>9.3.28.v20191105</jettyVersion>
 		<resteasyVersion>3.1.4.Final</resteasyVersion>
 		<!-- <log4jVersion>2.8.2</log4jVersion> -->
-		<jacksonVersion>2.9.9</jacksonVersion>
+		<jacksonVersion>2.10.4</jacksonVersion>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 </project>

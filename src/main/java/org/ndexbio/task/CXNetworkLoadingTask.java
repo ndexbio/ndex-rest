@@ -18,11 +18,11 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 	
 	private static Logger logger = Logger.getLogger(CXNetworkLoadingTask.class.getName());
 	
-	private UUID networkId;
+	protected UUID networkId;
 //	private String ownerUserName;
-	private boolean isUpdate;
-	private VisibilityType visibility;
-	private Set<String> nodeAttributeIndexList; 
+	protected boolean isUpdate;
+	protected VisibilityType visibility;
+	protected Set<String> nodeAttributeIndexList; 
 	private static final TaskType taskType = TaskType.SYS_LOAD_NETWORK;
 	
 	public CXNetworkLoadingTask (UUID networkUUID, /*String ownerName,*/ boolean isUpdate, 
@@ -44,7 +44,9 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 		} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
 			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
 			e1.printStackTrace();
-			dao.setErrorMessage(networkId, e1.getMessage());
+			dao.setFlag(networkId, "is_validated", true);
+			dao.setFlag(networkId, "iscomplete", true);
+			dao.setErrorMessage(networkId, e1.getMessage() == null ? e1.getClass().getName(): e1.getMessage());
 			dao.unlockNetwork(networkId);
 		} 
 	  } catch (SQLException e) {
@@ -70,6 +72,8 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 	public TaskType getTaskType() {
 		return taskType;
 	}
+	
+	public UUID getNetworkId () { return networkId;}
 
 }
 

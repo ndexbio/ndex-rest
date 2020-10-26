@@ -92,7 +92,6 @@ import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -137,8 +136,7 @@ public class SearchServiceV2 extends NdexService {
 	@AuthenticationNotRequired
 	@Path("/user")
 	@Produces("application/json")
-	@ApiDoc("Returns a list of users based on the range [skipBlocks, blockSize] and the POST data searchParameters. "
-			+ "The searchParameters must contain a 'searchString' parameter. ")
+	
 	public static SolrSearchResult<User> findUsers(
 			SimpleQuery simpleUserQuery, 
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -146,14 +144,12 @@ public class SearchServiceV2 extends NdexService {
 			)
 			throws Exception {
 
-	//	logger.info("[start: Searching user \"{}\"]", simpleUserQuery.getSearchString());
 		accLogger.info("[data]\t[query:" +simpleUserQuery.getSearchString() + "]" );
 		
 		try (UserDAO dao = new UserDAO ()){
 
 			final SolrSearchResult<User> users = dao.findUsers(simpleUserQuery, skipBlocks, blockSize);
 			
-	//		logger.info("[end: Returning {} users from search]", users.getNumFound());			
 			return users;
 		} 
 		
@@ -175,7 +171,6 @@ public class SearchServiceV2 extends NdexService {
 	@AuthenticationNotRequired
 	@Path("/group")
 	@Produces("application/json")
-	@ApiDoc("Returns a list of groups found based on the searchOperator and the POSTed searchParameters.")
 	public static SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize) throws SQLException, IOException, SolrServerException, NdexException  {
@@ -196,10 +191,6 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@Path("/network")
 	@Produces("application/json")
-	@ApiDoc("This method returns a list of NetworkSummary objects based on a POSTed query JSON object. " +
-            "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
-            "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
-            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
 	public NetworkSearchResult searchNetwork(
 			final SimpleNetworkQuery query,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -375,7 +366,7 @@ public class SearchServiceV2 extends NdexService {
 		UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
 	    try (NetworkDAO dao = new NetworkDAO()) {
-	    	   dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName);
+	    	   dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName, null);
     // 	   dao.setProvenance(uuid, entity);
 		   dao.commit();
 	    }
@@ -552,9 +543,7 @@ public class SearchServiceV2 extends NdexService {
 	@POST
 	@Path("/network/{networkId}/advancedquery")
 	@Produces("application/json")
-    @ApiDoc("Retrieves a subnetwork of the network specified by ‘networkId’. The query finds " +
-            "the subnetwork by a filtering the network on conditions defined in filter query object. " +
-            "specified in a POSTed JSON query object. " )
+   
 	public Response advancedQuery(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,			
@@ -616,10 +605,6 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@Path("/network/genes")
 	@Produces("application/json")
-	@ApiDoc("This method returns a list of NetworkSummary objects based on a POSTed query JSON object. " +
-            "The maximum number of NetworkSummary objects to retrieve in the query is set by the integer " +
-            "value 'blockSize' while 'skipBlocks' specifies number of blocks that have already been read. " +
-            "For more information, please click <a href=\"http://www.ndexbio.org/using-the-ndex-server-api/#searchNetwork\">here</a>.")
 	public NetworkSearchResult searchNetworkByGenes(
 			final SimpleQuery geneQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,

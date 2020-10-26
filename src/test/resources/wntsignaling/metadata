@@ -1,0 +1,58 @@
+{
+    "metaData": [
+      {
+        "name": "cyVisualProperties",
+        "elementCount": 3,
+        "version": "1.0",
+        "consistencyGroup": 1,
+        "properties": []
+      },
+      {
+        "name": "nodes",
+        "elementCount": 31,
+        "idCounter": 31,
+        "version": "1.0",
+        "consistencyGroup": 1,
+        "properties": []
+      },
+      {
+        "name": "edges",
+        "elementCount": 72,
+        "idCounter": 72,
+        "version": "1.0",
+        "consistencyGroup": 1,
+        "properties": []
+      },
+      {
+        "name": "networkAttributes",
+        "elementCount": 14,
+        "idCounter": 14,
+        "version": "1.0",
+        "consistencyGroup": 1,
+        "properties": []
+      },
+      {
+        "name": "nodeAttributes",
+        "elementCount": 64,
+        "idCounter": 64,
+        "version": "1.0",
+        "consistencyGroup": 1,
+        "properties": []
+      },
+      {
+        "name": "edgeAttributes",
+        "elementCount": 720,
+        "idCounter": 720,
+        "version": "1.0",
+        "consistencyGroup": 1,
+        "properties": []
+      },
+      {
+        "name": "cartesianLayout",
+        "elementCount": 31,
+        "idCounter": 32,
+        "properties": []
+      }
+    ]
+  }
+}

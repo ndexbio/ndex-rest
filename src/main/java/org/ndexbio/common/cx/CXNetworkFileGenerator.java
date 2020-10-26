@@ -126,18 +126,24 @@ public class CXNetworkFileGenerator {
 		return tmpFileName;
 	}
 	
-	
-	public void reCreateCXFile ( ) throws FileNotFoundException, IOException {
+	/**
+	 * 
+	 * @return file size
+	 * @throws FileNotFoundException
+	 * @throws IOException
+	 */
+	public long reCreateCXFile ( ) throws FileNotFoundException, IOException {
 		String tmpFileName = createNetworkFile(networkId.toString(), metadata);
 			// rename the tmp file
 		java.nio.file.Path src = Paths.get(tmpFileName);
 		java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
-		Files.move(src, tgt, StandardCopyOption.REPLACE_EXISTING);  
+		Files.move(src, tgt, StandardCopyOption.REPLACE_EXISTING);
+		return Files.size(tgt);
 	}
 	
 	//Asyncronous version of CX file recreation. 
 	//TODO:how to catch errors in the runner and put it into db.
-	public static void reCreateCXFileAsync ( String uuidStr, MetaDataCollection metadataCollection) {
+	private static void reCreateCXFileAsync ( String uuidStr, MetaDataCollection metadataCollection) {
 		
 		Thread t = new Thread() {
 		    @Override

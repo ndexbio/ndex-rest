@@ -39,10 +39,12 @@ import java.util.Map;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrQuery.ORDER;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.client.solrj.SolrRequest.METHOD;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
@@ -115,10 +117,10 @@ public class GroupIndexManager implements AutoCloseable{
 		
 			
 		try {
-			QueryResponse rsp = client.query(solrQuery);		
+			QueryResponse rsp = client.query(solrQuery, METHOD.POST);		
 			SolrDocumentList dds = rsp.getResults();
 			return dds;
-		} catch (HttpSolrClient.RemoteSolrException e) {
+		} catch (BaseHttpSolrClient.RemoteSolrException e) {
 			throw NetworkGlobalIndexManager.convertException(e, coreName);
 		}
 		

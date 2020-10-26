@@ -34,7 +34,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -77,17 +76,24 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.cx.CX2NetworkFileGenerator;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXNetworkAspectsUpdater;
+import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Util;
+import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
+import org.ndexbio.cx2.aspect.element.core.CxMetadata;
+import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
+import org.ndexbio.cx2.converter.AspectAttributeStat;
+import org.ndexbio.cx2.converter.CXToCX2Converter;
+import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.core.CXAspectWriter;
@@ -105,13 +111,11 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.SimplePropertyValuePair;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.task.CXNetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
@@ -124,6 +128,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Path("/v2/network")
 public class NetworkServiceV2 extends NdexService {
@@ -132,6 +137,8 @@ public class NetworkServiceV2 extends NdexService {
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
 	
 	static private final String readOnlyParameter = "readOnly";
+	
+	private static final String cx1NetworkFileName = "network.cx";
 
 	public NetworkServiceV2(@Context HttpServletRequest httpRequest
 		//	@Context org.jboss.resteasy.spi.HttpResponse response
@@ -245,8 +252,7 @@ public class NetworkServiceV2 extends NdexService {
     @PUT
 	@Path("/{networkid}/properties")
 	@Produces("application/json")
-    @ApiDoc("Updates the 'properties' field of the network specified by 'networkId' to be the list of " +
-            "NdexPropertyValuePair  objects in the PUT data.")
+    
     public int setNetworkProperties(
     		@PathParam("networkid")final String networkId,
     		final List<NdexPropertyValuePair> properties)
@@ -274,51 +280,28 @@ public class NetworkServiceV2 extends NdexService {
 
 			daoNew.lockNetwork(networkUUID);
 			
+			int i = 0;
 			try {
-				int i = daoNew.setNetworkProperties(networkUUID, properties);
+				i = daoNew.setNetworkProperties(networkUUID, properties);
 
-				NetworkSummary fullSummary = daoNew.getNetworkSummaryById(networkUUID);
-			
-				//update the networkProperty aspect 
-				List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
-				if ( attrs.size() > 0 ) {					
-					try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
-						+ NetworkAttributesElement.ASPECT_NAME) ) {
-						for ( NetworkAttributesElement e : attrs) {
-							writer.writeCXElement(e);	
-							writer.flush();
-						}
-					}
-				}
-			
-				//update metadata
-				MetaDataCollection metadata = daoNew.getMetaDataCollection(networkUUID);
-				MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
-				if ( elmt == null) {
-					elmt = new MetaDataElement();
-				}
-				elmt.setElementCount(Long.valueOf(attrs.size()));
-				daoNew.updateMetadataColleciton(networkUUID, metadata);
+				// recreate files and update db
+				updateNetworkAttributesAspect(daoNew, networkUUID);
 
-				//Recreate the CX file 					
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, /*fullSummary,*/ metadata /*, newProv*/);
-				g.reCreateCXFile();
-				//CXNetworkFileGenerator.reCreateCXFileAsync(networkUUID.toString(),  metadata);
-				
-				// update the solr Index
-				NetworkIndexLevel idxLvl = daoNew.getIndexLevel(networkUUID);
-				if ( idxLvl != NetworkIndexLevel.NONE) {
-					daoNew.setFlag(networkUUID, "iscomplete",false);
-					daoNew.commit();
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl));
-				} else {
-					daoNew.setFlag(networkUUID, "iscomplete", true);
-				}
-				
-				return i;
 			} finally {
 				daoNew.unlockNetwork(networkUUID);				
 			}
+			
+			NetworkIndexLevel idxLvl = daoNew.getIndexLevel(networkUUID);
+			if ( idxLvl != NetworkIndexLevel.NONE) {
+				daoNew.setFlag(networkUUID, "iscomplete",false);
+				daoNew.commit();
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl,false));
+			} else {
+				daoNew.setFlag(networkUUID, "iscomplete", true);
+				daoNew.commit();
+			}
+			
+			return i;
 		} catch (Exception e) {
 			//logger.severe("Error occurred when update network properties: " + e.getMessage());
 			//e.printStackTrace();
@@ -339,9 +322,7 @@ public class NetworkServiceV2 extends NdexService {
 	@GET
 	@Path("/{networkid}/summary")
 	@Produces("application/json")
-	@ApiDoc("Retrieves a NetworkSummary object based on the network specified by 'networkId'. This " +
-            "method returns an error if the network is not found or if the authenticated user does not have " +
-            "READ permission for the network.")
+	
 	public NetworkSummary getNetworkSummary(
 			@PathParam("networkid") final String networkIdStr ,
 			@QueryParam("accesskey") String accessKey /*,
@@ -434,20 +415,44 @@ public class NetworkServiceV2 extends NdexService {
     			throw new UnauthorizedOperationException("User doesn't have access to this network.");
     		}
     		
-			FileInputStream in;
+    		File cx1AspectDir = new File (Configuration.getInstance().getNdexRoot() + "/data/" + networkId 
+    				+ "/" + CXNetworkLoader.CX1AspectDir);
+    		boolean hasCX1AspDir = cx1AspectDir.exists();
+    		
+			FileInputStream in = null;
 			try {
-				in = new FileInputStream(
-						Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" + aspectName);
+				if ( hasCX1AspDir) {
+				   in = new FileInputStream(cx1AspectDir + "/" + aspectName);
+				   if ( limit <= 0) {
+						return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+			    	} 
+				   
+				   PipedInputStream pin = new PipedInputStream();
+					PipedOutputStream out;
+						
+					try {
+							out = new PipedOutputStream(pin);
+					} catch (IOException e) {
+						try {
+							pin.close();
+							in.close();
+						} catch (IOException e1) {
+							e1.printStackTrace();
+						}
+						throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+					}
+						
+					new CXAspectElementsWriterThread(out,in, /*aspectName,*/ limit).start();
+				//	logger.info("[end: Return get one aspect in network {}]", networkId);
+					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
+				} 
+				
 			} catch (FileNotFoundException e) {
 					throw new ObjectNotFoundException("Aspect "+ aspectName + " not found in this network: " + e.getMessage());
 			}
 	    	
-			if ( limit <= 0) {
-		//		logger.info("[end: Return cached network {}]", networkId);
-				return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
-	    	} 
 			
-			
+			//get aspect from cx2 aspects
 			PipedInputStream pin = new PipedInputStream();
 			PipedOutputStream out;
 				
@@ -456,14 +461,13 @@ public class NetworkServiceV2 extends NdexService {
 			} catch (IOException e) {
 				try {
 					pin.close();
-					in.close();
 				} catch (IOException e1) {
 					e1.printStackTrace();
 				}
 				throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
 			}
-				
-			new CXAspectElementsWriterThread(out,in, /*aspectName,*/ limit).start();
+							
+			new CXAspectElementWriter2Thread(out,networkId, aspectName, limit, accLogger).start();
 		//	logger.info("[end: Return get one aspect in network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 		
@@ -503,7 +507,7 @@ public class NetworkServiceV2 extends NdexService {
     		title = dao.getNetworkName(networkUUID);
     	}
   
-		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx";
+		String cxFilePath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + cx1NetworkFileName;
 
     	try {
 			FileInputStream in = new FileInputStream(cxFilePath)  ;
@@ -533,10 +537,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/sample")
-	@ApiDoc("The getSampleNetworkAsCX method enables an application to obtain a sample of the given network as a CX " +
-	        "structure. The sample network is a 500 random edge subnetwork of the original network if it was created by the server automatically. "
-	        + "User can also upload their own sample network if they "
-	        + "")
+
 	public Response getSampleNetworkAsCX(	@PathParam("networkid") final String networkIdStr ,
 			@QueryParam("accesskey") String accessKey)
 			throws IllegalArgumentException, NdexException, SQLException {
@@ -614,8 +615,7 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@PUT
 	@Path("/{networkid}/sample")
-	@ApiDoc("This method enables an application to set the sample network as a CX " +
-	        "structure. The sample network should be small ( no more than 500 edges normally)")
+	
 	public void setSampleNetwork(	@PathParam("networkid") final String networkId,
 			String CXString)
 			throws IllegalArgumentException, NdexException, SQLException, InterruptedException {
@@ -687,7 +687,6 @@ public class NetworkServiceV2 extends NdexService {
 	}
 
 
-	
 
 	/**************************************************************************
 	 * Retrieves array of user membership objects
@@ -797,7 +796,7 @@ public class NetworkServiceV2 extends NdexService {
 			if ( lvl != NetworkIndexLevel.NONE) {
 				networkDao.setFlag(networkId, "iscomplete", false); 
 				networkDao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl, false));
 			}
             return count;
 		} 
@@ -864,7 +863,7 @@ public class NetworkServiceV2 extends NdexService {
 			if ( lvl != NetworkIndexLevel.NONE) {
 				networkDao.setFlag(networkId, "iscomplete", false);
 				networkDao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl, false));
 			}
 			
 			logger.info("[end: Updated permission for network {}]", networkId);
@@ -902,7 +901,16 @@ public class NetworkServiceV2 extends NdexService {
 					if ( !updated) {
 						props.add(new NdexPropertyValuePair("reference", reference.get("reference")));
 					}
+					
+					networkDao.lockNetwork(networkUUID);
+
 					networkDao.updateNetworkProperties(networkUUID,props);
+					
+					// recreate files and update db
+					updateNetworkAttributesAspect(networkDao, networkUUID);
+
+					networkDao.unlockNetwork(networkUUID);
+					
 					networkDao.updateNetworkVisibility(networkUUID, VisibilityType.PUBLIC, true);
 					//networkDao.setFlag(networkUUID, "solr_indexed", true);
 					networkDao.setIndexLevel(networkUUID,  NetworkIndexLevel.ALL);
@@ -910,7 +918,7 @@ public class NetworkServiceV2 extends NdexService {
 					
 					networkDao.setFlag(networkUUID, "iscomplete", false);
 					networkDao.commit();
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,NetworkIndexLevel.ALL));
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,NetworkIndexLevel.ALL, false));
 					
 				} else {
 					if ( networkDao.isCertified(networkUUID))
@@ -985,34 +993,10 @@ public class NetworkServiceV2 extends NdexService {
 					networkDao.lockNetwork(networkUUID);
 				
 					networkDao.updateNetworkProfile(networkUUID, newValues);
+					
+					// recreate files and update db
+					updateNetworkAttributesAspect(networkDao, networkUUID);
 
-					NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
-					
-					//update the networkProperty aspect 
-					List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
-					if ( attrs.size() > 0 ) {					
-						try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
-								+ NetworkAttributesElement.ASPECT_NAME) ) {
-							for ( NetworkAttributesElement e : attrs) {
-								writer.writeCXElement(e);	
-								writer.flush();
-							}
-						}
-					}
-					
-					//update metadata
-					MetaDataCollection metadata = networkDao.getMetaDataCollection(networkUUID);
-					MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
-					if ( elmt == null) {
-						elmt = new MetaDataElement();
-					}
-					elmt.setElementCount(Long.valueOf(attrs.size()));
-					networkDao.updateMetadataColleciton(networkUUID, metadata);
-
-					//Recreate the CX file 					
-					CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, /*fullSummary,*/ metadata /*, newProv*/);
-					g.reCreateCXFile();
-					
 					networkDao.unlockNetwork(networkUUID);
 					
 					// update the solr Index 
@@ -1020,7 +1004,7 @@ public class NetworkServiceV2 extends NdexService {
 					if ( lvl != NetworkIndexLevel.NONE) {
 					  networkDao.setFlag(networkUUID, "iscomplete", false);
 					  networkDao.commit();
-					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,lvl));
+					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,lvl, false));
 					} else {
 						  networkDao.setFlag(networkUUID, "iscomplete", true);
 						  networkDao.commit();
@@ -1040,6 +1024,151 @@ public class NetworkServiceV2 extends NdexService {
 		}  
 	}
 
+	
+	/**
+	 * 
+	 * @param pathPrefix path of the directory that has the CxAttributeDeclaration aspect file. 
+	 * It should end with "/"
+	 * @return the declaration object. null if network has no attributes declared.
+	 * @throws JsonParseException
+	 * @throws JsonMappingException
+	 * @throws IOException
+	 */
+	protected static CxAttributeDeclaration getAttrDeclarations(String pathPrefix) throws JsonParseException, JsonMappingException, IOException {			
+		File attrDeclF = new File ( pathPrefix + CxAttributeDeclaration.ASPECT_NAME);
+		CxAttributeDeclaration[] declarations = null;
+		if ( attrDeclF.exists() ) {
+			ObjectMapper om = new ObjectMapper();
+			declarations = om.readValue(attrDeclF, CxAttributeDeclaration[].class);
+		}
+
+		if ( declarations != null)
+			return declarations[0];
+		
+		return null;
+	}
+	
+	// update the networkAttributes aspect file and also update the metadata in the db.
+	protected static void updateNetworkAttributesAspect(NetworkDAO networkDao, UUID networkUUID) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
+		NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
+		String fileStoreDir = Configuration.getInstance().getNdexRoot() + "/data/" + networkUUID.toString() + "/";
+		String aspectFilePath = fileStoreDir + CXNetworkLoader.CX1AspectDir + "/" + NetworkAttributesElement.ASPECT_NAME;
+		String cx2AspectDirPath = fileStoreDir + CX2NetworkLoader.cx2AspectDirName + "/";
+		
+		boolean isSingleNetwork = fullSummary.getSubnetworkIds().isEmpty();
+		//update the networkAttributes aspect in cx and cx2 
+		List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
+		
+		CxAttributeDeclaration networkAttrDecl = null;
+		if ( attrs.size() > 0 ) {	
+			AspectAttributeStat attributeStats = new AspectAttributeStat();
+			CxNetworkAttribute cx2NetAttr = new CxNetworkAttribute();
+
+			// write cx network attribute aspect file.
+			try (CXAspectWriter writer = new CXAspectWriter(aspectFilePath) ) {
+				for ( NetworkAttributesElement e : attrs) {
+					writer.writeCXElement(e);	
+					writer.flush();
+
+					if ( isSingleNetwork) {
+						attributeStats.addNetworkAttribute(e);
+					
+						Object attrValue = CXToCX2Converter.convertAttributeValue(e);
+						Object oldV = cx2NetAttr.getAttributes().put(e.getName(), attrValue);
+						if ( oldV !=null)
+							throw new NdexException("Duplicated network attribute name found: " + e.getName());
+					}
+				}
+			}
+			
+			// write cx2 network attribute aspect file
+			if ( isSingleNetwork) {
+				networkAttrDecl = attributeStats.createCxDeclaration();
+			
+				try (CX2AspectWriter<CxNetworkAttribute> aspWtr = new CX2AspectWriter<>(cx2AspectDirPath + CxNetworkAttribute.ASPECT_NAME)) {
+					aspWtr.writeCXElement(cx2NetAttr);
+				}
+			}
+		} else { // remove the aspect file if it exists
+			File f = new File ( aspectFilePath);
+			if ( f.exists())
+				f.delete();
+			if ( isSingleNetwork) {
+				f = new File(cx2AspectDirPath + CxNetworkAttribute.ASPECT_NAME);
+				if ( f.exists())
+					f.delete();
+			}
+		}
+		
+				
+		//update cx and cx2 metadata for networkAttributes
+		MetaDataCollection metadata = networkDao.getMetaDataCollection(networkUUID);
+		
+		List<CxMetadata>   cx2metadata = networkDao.getCx2MetaDataList(networkUUID);
+		
+		if ( attrs.size() == 0 ) {
+			metadata.remove(NetworkAttributesElement.ASPECT_NAME);
+			if ( isSingleNetwork)
+				cx2metadata.removeIf( n -> n.getName().equals(CxNetworkAttribute.ASPECT_NAME));
+		} else {
+			MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
+			if ( elmt == null) {
+				elmt = new MetaDataElement(NetworkAttributesElement.ASPECT_NAME, "1.0");
+			}
+			elmt.setElementCount(Long.valueOf(attrs.size()));
+			
+			if ( isSingleNetwork  && ! cx2metadata.stream().anyMatch(
+					(CxMetadata n) -> n.getName().equals(CxNetworkAttribute.ASPECT_NAME) )) {
+			
+				CxMetadata m = new CxMetadata(CxNetworkAttribute.ASPECT_NAME, 1);
+				cx2metadata.add(m);
+			}
+		}
+		networkDao.updateMetadataColleciton(networkUUID, metadata);
+
+		
+		// update attribute declaration aspect and cx2 metadata
+		if ( isSingleNetwork) {
+			CxAttributeDeclaration decls = getAttrDeclarations(cx2AspectDirPath);
+			if (decls == null) {
+				if (networkAttrDecl != null) { // has new attributes
+					decls = new CxAttributeDeclaration();
+					decls.add(CxNetworkAttribute.ASPECT_NAME,
+							networkAttrDecl.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
+					cx2metadata.add(new CxMetadata(CxAttributeDeclaration.ASPECT_NAME, 1));
+				}
+			} else {
+				if (networkAttrDecl != null) {
+					decls.getDeclarations().put(CxNetworkAttribute.ASPECT_NAME,
+							networkAttrDecl.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
+				} else {
+					decls.removeAspectDeclaration(CxNetworkAttribute.ASPECT_NAME);
+					cx2metadata.removeIf((CxMetadata m) -> m.getName().equals(CxAttributeDeclaration.ASPECT_NAME));
+				}
+			}
+
+			networkDao.setCxMetadata(networkUUID, cx2metadata);
+			try (CX2AspectWriter<CxAttributeDeclaration> aspWtr = new CX2AspectWriter<>(
+					cx2AspectDirPath + CxAttributeDeclaration.ASPECT_NAME)) {
+				aspWtr.writeCXElement(decls);
+			}
+
+		}
+		
+		//Recreate the CX file 					
+		CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, metadata);
+		long cxFileSize = g.reCreateCXFile();
+        
+		//Recreate cx2 file
+		if(isSingleNetwork) {
+			CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(networkUUID, cx2metadata);
+			String tmpFilePath = g2.createCX2File();
+			java.nio.file.Path cx2Path = Paths.get(fileStoreDir + CX2NetworkLoader.cx2NetworkFileName);
+			Files.move(Paths.get(tmpFilePath), cx2Path, StandardCopyOption.ATOMIC_MOVE);
+			long cx2FileSize = Files.size(cx2Path);
+			networkDao.setNetworkFileSizes(networkUUID, cxFileSize, cx2FileSize);
+		}
+	}
 
 	@PUT
 	@Path("/{networkid}/summary")
@@ -1081,62 +1210,23 @@ public class NetworkServiceV2 extends NdexService {
 				networkDao.lockNetwork(networkUUID);
 				
 				networkDao.updateNetworkSummary(networkUUID, summary);
-
-		  /*      List<SimplePropertyValuePair> entityProperties = new ArrayList<>();
-
-				if ( summary.getName() != null) {
-				    entityProperties.add( new SimplePropertyValuePair("dc:title", summary.getName()) );
-				}
-						
-				if ( summary.getDescription() != null) {
-			            entityProperties.add( new SimplePropertyValuePair("description", summary.getDescription()) );
-				}
-					
-				if ( summary.getVersion()!=null ) {
-			            entityProperties.add( new SimplePropertyValuePair("version", summary.getVersion()) );
-				} 
-*/
 				
-					NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
+				//recreate files and update db
+				updateNetworkAttributesAspect(networkDao, networkUUID);
 					
-					//update the networkProperty aspect 
-					List<NetworkAttributesElement> attrs = getNetworkAttributeAspectsFromSummary(fullSummary);
-					if ( attrs.size() > 0 ) {					
-						try (CXAspectWriter writer = new CXAspectWriter(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/" 
-								+ NetworkAttributesElement.ASPECT_NAME) ) {
-							for ( NetworkAttributesElement e : attrs) {
-								writer.writeCXElement(e);	
-								writer.flush();
-							}
-						}
-					}
+				networkDao.unlockNetwork(networkUUID);
 					
-					//update metadata
-					MetaDataCollection metadata = networkDao.getMetaDataCollection(networkUUID);
-					MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
-					if ( elmt == null) {
-						elmt = new MetaDataElement();
-					}
-					elmt.setElementCount(Long.valueOf(attrs.size()));
-					networkDao.updateMetadataColleciton(networkUUID, metadata);
-
-					//Recreate the CX file 					
-					CXNetworkFileGenerator g = new CXNetworkFileGenerator(networkUUID, /*fullSummary,*/ metadata /*, newProv*/);
-					g.reCreateCXFile();
-					
-					networkDao.unlockNetwork(networkUUID);
-					
-					// update the solr Index
-					NetworkIndexLevel lvl = networkDao.getIndexLevel(networkUUID);
-					if ( lvl != NetworkIndexLevel.NONE) {
+				// update the solr Index
+				NetworkIndexLevel lvl = networkDao.getIndexLevel(networkUUID);
+				if ( lvl != NetworkIndexLevel.NONE) {
 						  networkDao.setFlag(networkUUID, "iscomplete", false);
 						  networkDao.commit();
-						  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,lvl));
-					} else {
+						  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,lvl,false));
+				} else {
 						  networkDao.setFlag(networkUUID, "iscomplete", true);
 						  networkDao.commit();
-					}
-				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
+				}
+			} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
 					try {
 						networkDao.unlockNetwork(networkUUID);
@@ -1145,9 +1235,9 @@ public class NetworkServiceV2 extends NdexService {
 						e1.printStackTrace();
 					}
 					throw e;
-				}
-				
 			}
+				
+		}
 		
 	}
 
@@ -1204,7 +1294,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 						
-	        UUID tmpNetworkId = storeRawNetwork (input);
+	        UUID tmpNetworkId = storeRawNetworkFromMultipart (input, cx1NetworkFileName);
 
 	        updateNetworkFromSavedFile( networkId, daoNew, tmpNetworkId);
 			
@@ -1244,44 +1334,18 @@ public class NetworkServiceV2 extends NdexService {
 				   extraIndexOnNodes.add(f);
 			   }
 		   }
-		
-		try (UserDAO dao = new UserDAO()) {
-			   dao.checkDiskSpace(getLoggedInUserId());
-		}
     	
         UUID networkId = UUID.fromString(networkIdStr);
 
    //     String ownerAccName = null;
-        try ( NetworkDAO daoNew = new NetworkDAO() ) {
-           User user = getLoggedInUser();
-           
-         try {
-	  	   if( daoNew.isReadOnly(networkId)) {
-				throw new NdexException ("Can't update readonly network.");				
-			} 
-			
-			if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
-		        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
-			} 
-			
-			if ( daoNew.networkIsLocked(networkId)) {
-				daoNew.close();
-				throw new NetworkConcurrentModificationException ();
-			} 
-			
-			daoNew.lockNetwork(networkId);
-			
-	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
-				try (InputStream in = this.getInputStreamFromRequest()) {
-					UUID tmpNetworkId = storeRawNetworkFromStream(in);
-					// UUID tmpNetworkId = storeRawNetwork (input);
+        try ( NetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
+           	
+			try (InputStream in = this.getInputStreamFromRequest()) {
+					UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName);
 
-					updateNetworkFromSavedFile(networkId, daoNew, tmpNetworkId);
-					// daoNew.unlockNetwork(networkId);
-				}
+					updateNetworkFromSavedFile(networkId, daoNew, tmpNetworkId);				
 			
            } catch (SQLException | NdexException | IOException e) {
-        	  // e.printStackTrace();
         	   daoNew.rollback();
         	   daoNew.unlockNetwork(networkId);  
 
@@ -1339,7 +1403,6 @@ public class NetworkServiceV2 extends NdexService {
     	
         UUID networkId = UUID.fromString(networkIdStr);
 
-     //   String ownerAccName = null;
         try ( NetworkDAO daoNew = new NetworkDAO() ) {
            User user = getLoggedInUser();
            
@@ -1358,9 +1421,8 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 			
-	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			
-	        UUID tmpNetworkId = storeRawNetwork (input); //network stored as a temp network
+	        UUID tmpNetworkId = storeRawNetworkFromMultipart (input, cx1NetworkFileName); //network stored as a temp network
 	        
 	    	updateNetworkFromSavedAspects(networkId, daoNew, tmpNetworkId);
 			
@@ -1400,10 +1462,9 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 			
-	//		ownerAccName = daoNew.getNetworkOwnerAcc(networkId);
 			try (InputStream in = this.getInputStreamFromRequest()) {
 
-	        UUID tmpNetworkId = storeRawNetworkFromStream(in); //network stored as a temp network
+	        UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName); //network stored as a temp network
 	        
 	    	updateNetworkFromSavedAspects( networkId, daoNew, tmpNetworkId);
 			}
@@ -1654,7 +1715,7 @@ public class NetworkServiceV2 extends NdexService {
 							NetworkIndexLevel lvl = networkDao.getIndexLevel(networkId);
 							networkDao.commit();
 							if ( lvl != NetworkIndexLevel.NONE) {
-								NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl));
+								NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl,false));
 							} 
 						}
 					}
@@ -1677,7 +1738,7 @@ public class NetworkServiceV2 extends NdexService {
 						if (lvl !=NetworkIndexLevel.NONE) {
 							networkDao.setFlag(networkId, "iscomplete",false);	 				
 							networkDao.commit();
-							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl));
+							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl,true));
 						} else
 							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true)); //delete the entry from global idx.
 														
@@ -1726,7 +1787,7 @@ public class NetworkServiceV2 extends NdexService {
 		   }
 		   
 		   
-		   UUID uuid = storeRawNetwork ( input);
+		   UUID uuid = storeRawNetworkFromMultipart ( input, cx1NetworkFileName);
 		   return processRawNetwork(visibility, extraIndexOnNodes, uuid);
 
 	   	}
@@ -1742,13 +1803,13 @@ public class NetworkServiceV2 extends NdexService {
 		   String urlStr = Configuration.getInstance().getHostURI()  + 
 		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
 		   
-		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/network.cx";
+		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/" + cx1NetworkFileName;
 		   long fileSize = new File(cxFileName).length();
 
 		   // create entry in db. 
 	       try (NetworkDAO dao = new NetworkDAO()) {
 	    	  // NetworkSummary summary = 
-	    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null);
+	    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null,null);
        
 				dao.commit();
 	       }
@@ -1787,7 +1848,7 @@ public class NetworkServiceV2 extends NdexService {
 		   }
 		   
 		   try (InputStream in = this.getInputStreamFromRequest()) {
-			   UUID uuid = storeRawNetworkFromStream(in);
+			   UUID uuid = storeRawNetworkFromStream(in, cx1NetworkFileName);
 			   return processRawNetwork(visibility, extraIndexOnNodes, uuid);
 
 		   }		   
@@ -1795,7 +1856,7 @@ public class NetworkServiceV2 extends NdexService {
 	   	}
 	   
 	   
-	   private static UUID storeRawNetworkFromStream(InputStream in) throws IOException {
+/*	   private static UUID storeRawNetworkFromStream(InputStream in) throws IOException {
 		   
 		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuid.toString();
@@ -1817,9 +1878,9 @@ public class NetworkServiceV2 extends NdexService {
 		   } 
 		   return uuid;
 	   }
+*/	   
 	   
-	   
-	   private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException, BadRequestException {
+	 /*  private static UUID storeRawNetwork (MultipartFormDataInput input) throws IOException, BadRequestException {
 		   Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
 	       			       
 		   //Get file data to save
@@ -1858,7 +1919,7 @@ public class NetworkServiceV2 extends NdexService {
 		   }
 		   return uuid; 
 	   }
-	   
+	   */
 	 
 	   
 	   private static List<NetworkAttributesElement> getNetworkAttributeAspectsFromSummary(NetworkSummary summary) 
@@ -1914,17 +1975,40 @@ public class NetworkServiceV2 extends NdexService {
 				FileAttribute<Set<PosixFilePermission>> attr =
 						    PosixFilePermissions.asFileAttribute(perms);
 				Files.createDirectory(tgt,attr);
+				
+				String srcPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/";
+				String tgtPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/";
 
-			    File srcAspectDir = new File ( Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/aspects");
-			    File tgtAspectDir = new File ( Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/aspects");
-			    FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
-
+			    File srcAspectDir = new File ( srcPathPrefix + CXNetworkLoader.CX1AspectDir);
+			    if ( srcAspectDir.exists()) {
+			    	File tgtAspectDir = new File ( tgtPathPrefix + CXNetworkLoader.CX1AspectDir);
+			    	FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
+			    }
+			    
+			    //copy the cx2 aspect directories
+			    String tgtCX2AspectPathPrefix = tgtPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+			    String srcCX2AspectPathPrefix = srcPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+			    File srcCX2AspectDir = new File (srcCX2AspectPathPrefix );
+			    Files.createDirectories(Paths.get(tgtCX2AspectPathPrefix), attr);
+			    for ( String fname : srcCX2AspectDir.list() ) {
+			    	java.nio.file.Path src = Paths.get(srcPathPrefix + CX2NetworkLoader.cx2AspectDirName , fname);
+			    	if (Files.isSymbolicLink(src)) {
+			    		java.nio.file.Path link = Paths.get(tgtCX2AspectPathPrefix, fname);
+			    		java.nio.file.Path target = Paths.get(tgtPathPrefix + CXNetworkLoader.CX1AspectDir, fname);
+			    		Files.createSymbolicLink(link, target);
+			    	} else {
+			    		Files.copy(Paths.get(srcCX2AspectPathPrefix, fname),
+			    				Paths.get(tgtCX2AspectPathPrefix, fname));
+			    	}
+			    	
+			    }
+			    
 			    String urlStr = Configuration.getInstance().getHostURI()  + 
 			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
 			   // ProvenanceEntity entity = new ProvenanceEntity();
 			  //  entity.setUri(urlStr + "/summary");
 			   
-			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/network.cx";
+			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/" + cx1NetworkFileName;
 			   long fileSize = new File(cxFileName).length();
 
 			   // copy sample 
@@ -1944,11 +2028,17 @@ public class NetworkServiceV2 extends NdexService {
 	
 					CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao /*, new Provenance(copyProv)*/);
 					g.reCreateCXFile();
+					CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(uuid, dao);
+					String tmpFilePath = g2.createCX2File();
+					Files.move(Paths.get(tmpFilePath), 
+							Paths.get(tgtPathPrefix + CX2NetworkLoader.cx2NetworkFileName), 
+							StandardCopyOption.ATOMIC_MOVE); 				
+
 					dao.setFlag(uuid, "iscomplete", true);
 					dao.commit();
 		       }
 		       
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null, NetworkIndexLevel.NONE));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null, NetworkIndexLevel.NONE,false));
 		       			   
 			   URI l = new URI (urlStr);
 

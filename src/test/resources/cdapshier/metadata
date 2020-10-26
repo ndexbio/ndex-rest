@@ -1,0 +1,54 @@
+{
+  "metaData": [
+    {
+      "name": "nodeAttributes",
+      "elementCount": 559,
+      "version": "1.0",
+      "properties": []
+    },
+    {
+      "name": "cyHiddenAttributes",
+      "elementCount": 3,
+      "version": "1.0",
+      "properties": []
+    },
+    {
+      "name": "nodes",
+      "elementCount": 43,
+      "idCounter": 135705,
+      "version": "1.0",
+      "properties": []
+    },
+    {
+      "name": "networkAttributes",
+      "elementCount": 8,
+      "version": "1.0",
+      "properties": []
+    },
+    {
+      "name": "cyTableColumn",
+      "elementCount": 27,
+      "version": "1.0",
+      "properties": []
+    },
+    {
+      "name": "cartesianLayout",
+      "elementCount": 43,
+      "version": "1.0",
+      "properties": []
+    },
+    {
+      "name": "edges",
+      "elementCount": 37,
+      "idCounter": 136315,
+      "version": "1.0",
+      "properties": []
+    },
+    {
+      "name": "cyVisualProperties",
+      "elementCount": 5,
+      "version": "1.0",
+      "properties": []
+    }
+  ]
+}

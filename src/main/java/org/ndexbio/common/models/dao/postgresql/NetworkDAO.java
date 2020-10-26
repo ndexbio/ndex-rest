@@ -57,7 +57,9 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
+import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
+import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
@@ -102,7 +104,7 @@ public class NetworkDAO extends NdexDBDAO {
 	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 			+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
 			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,"
-			+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample "; 
+			+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size "; 
 	
 	public static final String PENDING = "Pending";
 	
@@ -114,10 +116,10 @@ public class NetworkDAO extends NdexDBDAO {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
 		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, name, description, edgecount,nodecount,"
-				+ " islocked, iscomplete, visibility,owneruuid,owner, sourceformat,properties,cxmetadata, version,is_validated, readonly,subnetworkids, cx_file_size,"
-				+ "has_layout, has_sample) "
+				+ " islocked, iscomplete, visibility,owneruuid,owner, sourceformat,properties,cxmetadata, version,is_validated, readonly, warnings, subnetworkids, cx_file_size,"
+				+ "has_layout, has_sample, cx2metadata, cxformat, cx2_file_size) "
 				+ "select ?, current_timestamp, current_timestamp, false, 'Copy of ' || n.name, n.description, n.edgecount, n.nodecount, "
-				+ "false, false, 'PRIVATE',?,?,n.sourceformat, n.properties, n.cxmetadata, n.version,true,false,n.subnetworkids,?, n.has_layout,n.has_sample from network n where n.\"UUID\" = ? and is_deleted = false";
+				+ "false, false, 'PRIVATE',?,?,n.sourceformat, n.properties, n.cxmetadata, n.version,true,false,n.warnings, n.subnetworkids,?, n.has_layout,n.has_sample, n.cx2metadata, n.cxformat, n.cx2_file_size from network n where n.\"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkUUID);
 			pst.setObject(2, ownerId);
@@ -133,19 +135,28 @@ public class NetworkDAO extends NdexDBDAO {
 		return result;
 	}
 	
-	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize, String networkName) throws SQLException {
+	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize,
+			String networkName, String cxformat) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
-		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly, cx_file_size, name) values"
-				+ "(?, ?, ?, false, true, 'PRIVATE',?,?,false,?,?) ";
+		String sqlStr = "insert into network (\"UUID\", creation_time, modification_time, is_deleted, islocked,visibility,owneruuid,owner,readonly, cx_file_size, name, cxformat, cx2_file_size) values"
+				+ "(?, ?, ?, false, true, 'PRIVATE',?,?,false,?,?,?,?) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkUUID);
 			pst.setTimestamp(2, t);
 			pst.setTimestamp(3, t);
 			pst.setObject(4, ownerId);
 			pst.setString(5, ownerUserName);
-			pst.setLong(6, fileSize);
+			if (cxformat !=null && cxformat.equals(CX2NetworkLoader.cx2Format)) {
+				pst.setLong (6,0);
+				pst.setLong(9, fileSize);
+			} else {
+				pst.setLong(6, fileSize);
+				pst.setLong(9, 0);
+			}	
 			pst.setString(7, networkName);
+			pst.setString(8, cxformat);
+			
 			pst.executeUpdate();
 		}
 		NetworkSummary result = new NetworkSummary();
@@ -158,16 +169,42 @@ public class NetworkDAO extends NdexDBDAO {
 
 	
 	public void setNetworkFileSize(UUID networkID, long fileSize) throws SQLException, NdexException {
-		String sqlStr = "update network set cx_file_size =? where \"UUID\" = ? and is_deleted=false and readonly=false";
+		String sqlStr = "update network set cx_file_size =? where \"UUID\" = ? and is_deleted=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(2, networkID);
 			pst.setLong(1, fileSize);
 			int cnt = pst.executeUpdate();
 			if ( cnt !=1) {
-				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID, the network is Locked or the network is readonly.");
+				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID.");
 			}
 		}
 	}
+
+	public void setCX2FileSize(UUID networkID, long cx2FileSize) throws SQLException, NdexException {
+		String sqlStr = "update network set cx2_file_size =? where \"UUID\" = ? and is_deleted=false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(2, networkID);
+			pst.setLong(1, cx2FileSize);
+			int cnt = pst.executeUpdate();
+			if ( cnt !=1) {
+				throw new NdexException ("Failed to Update cx2 file size in db. Reason could be invalid UUID.");
+			}
+		}
+	}
+	
+	public void setNetworkFileSizes(UUID networkID, long cxfileSize, long cx2FileSize) throws SQLException, NdexException {
+		String sqlStr = "update network set cx_file_size =?, cx2_file_size = ? where \"UUID\" = ? and is_deleted=false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(3, networkID);
+			pst.setLong(1, cxfileSize);
+			pst.setLong(2, cx2FileSize);
+			int cnt = pst.executeUpdate();
+			if ( cnt !=1) {
+				throw new NdexException ("Failed to Update network file size in db. Reason could be invalid UUID.");
+			}
+		}
+	}
+
 	
 	public void deleteNetwork(UUID networkId, UUID userId) throws SQLException, NdexException {
 		String sqlStr = "update network set is_deleted=true,"
@@ -208,27 +245,6 @@ public class NetworkDAO extends NdexDBDAO {
 			st.executeUpdate();
 		}		
 		
-	/*	
-		// move the row network to archive folder and delete the folder
-	    String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId.toString();
-        String archivePath = Configuration.getInstance().getNdexRoot() + "/data/_archive/";
-        
-        File archiveDir = new File(archivePath);
-        if (!archiveDir.exists())
-        		archiveDir.mkdir();
-        
-        
-     //   java.nio.file.Path src = Paths.get(pathPrefix+ "/network.cx");     
-	//	java.nio.file.Path tgt = Paths.get(archivePath + "/" + networkId.toString() + ".cx");
-		
-		try {
-		//	Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE); 	
-		
-			FileUtils.deleteDirectory(new File(pathPrefix));
-		} catch (IOException e) {
-			logger.severe("Failed to move file and delete directory: "+ e.getMessage());
-			e.printStackTrace();
-		} */
 	}
 	
 
@@ -247,16 +263,6 @@ public class NetworkDAO extends NdexDBDAO {
 	
 	public String getNetworkName(UUID networkId) throws SQLException, NdexException {
 		return getStringField(networkId, "name");
-	/* String sqlStr = "select name from network where  is_deleted=false and  \"UUID\" = ? ";
-		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setObject(1, networkId);
-			try (ResultSet rs = pst.executeQuery()) {
-				if ( rs.next()) {
-					return rs.getString(1);
-				}
-				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
-			}
-		}	*/
 	}
 
 	public String getNetworkDOI(UUID networkId) throws SQLException, NdexException {
@@ -275,6 +281,26 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}		
 	}
+	
+	public Set<Long> getSubNetworkId(UUID networkId) throws SQLException, ObjectNotFoundException {
+		String sqlStr = "select subnetworkids from network where  is_deleted=false and  \"UUID\" = ? ";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if ( rs.next()) {
+					
+					Array subNetworkIds = rs.getArray(1);
+					if ( subNetworkIds != null) {
+						Long[] subNetIds = (Long[]) subNetworkIds.getArray();
+						return new HashSet<> (Arrays.asList(subNetIds));
+					}
+					return new HashSet<>();
+				}
+				throw new ObjectNotFoundException("Network "+ networkId + " not found.");
+			}
+		}	
+	}
+	
 	
 	public int getNodeCount(UUID networkId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select nodecount from network where  is_deleted=false and  \"UUID\" = ? ";
@@ -339,14 +365,14 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws NdexException 
 	 */
 	
-	public void setFlag(UUID networkId, String fieldName, boolean value) throws SQLException, NdexException {
+	public void setFlag(UUID networkId, String fieldName, boolean value) throws SQLException {
 		String sqlStr = "update network set "
 				+ fieldName + "=" + value + " where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkId);
 			int i = pst.executeUpdate();
 			if ( i != 1)
-				throw new NdexException ("Failed to set network flag entry in db.");
+				throw new SQLException ("Failed to set flag " + fieldName + "="  + value + " in db for network " + networkId.toString());
 		}
 	}
 
@@ -363,7 +389,7 @@ public class NetworkDAO extends NdexDBDAO {
 	public void clearNetworkSummary(UUID networkId, long fileSize) throws SQLException, NdexException {
 		String sqlStr = "update network set modification_time = localtimestamp, name = null,"
 				+ "description = null, edgeCount = null, nodeCount = null, isComplete=false,"
-				+ " properties = null, cxmetadata = null,"
+				+ " properties = null, cxmetadata = null, cx2metadata = null,"
 				+ "version = null, is_validated = false, error = null, warnings = null,subnetworkids = null, cx_file_size = ? where \"UUID\" ='" +
 				 networkId.toString() + "' and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -396,8 +422,8 @@ public class NetworkDAO extends NdexDBDAO {
 			pst.setInt(4, networkSummary.getEdgeCount());
 			pst.setInt(5, networkSummary.getNodeCount());
 			
+			ObjectMapper mapper = new ObjectMapper();
 			if ( networkSummary.getProperties()!=null && networkSummary.getProperties().size() >0 ) {
-				ObjectMapper mapper = new ObjectMapper();
 		        String s = mapper.writeValueAsString( networkSummary.getProperties());
 				pst.setString(6, s);
 			} else {
@@ -405,7 +431,6 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 					
 			if (metadata !=null) {
-				ObjectMapper mapper = new ObjectMapper();
 		        String s = mapper.writeValueAsString( metadata);
 				pst.setString(7, s);
 			}	else 
@@ -428,7 +453,61 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 	}
 
-
+	/**
+	 * Pass in a partial summary to initialize the db entry. Only the name, description, version, edge and node counts are used
+	 * in this function.
+	 * @param networkSummary
+	 * @throws SQLException 
+	 * @throws NdexException 
+	 * @throws JsonProcessingException 
+	 */
+	public void saveCX2NetworkEntry(NetworkSummary networkSummary, Map<String,CxMetadata> metadata, boolean setModificationTime) throws SQLException, NdexException, JsonProcessingException {
+		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
+				+ "properties = ? ::jsonb, cx2metadata = ? :: json, warnings = ?, subnetworkids = ?, cxformat= ?, "
+				+ (setModificationTime? "modification_time = localtimestamp, " : "") 
+				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setString(1,networkSummary.getName());
+			pst.setString(2, networkSummary.getDescription());
+			pst.setString(3, networkSummary.getVersion());
+			pst.setInt(4, networkSummary.getEdgeCount());
+			pst.setInt(5, networkSummary.getNodeCount());
+			
+			ObjectMapper mapper = new ObjectMapper();
+			if ( networkSummary.getProperties()!=null && networkSummary.getProperties().size() >0 ) {
+		        String s = mapper.writeValueAsString( networkSummary.getProperties());
+				pst.setString(6, s);
+			} else {
+				pst.setString(6, null);
+			}
+					
+			if (metadata !=null) {
+		        String s = mapper.writeValueAsString( new ArrayList<>(metadata.values()));
+				pst.setString(7, s);
+			}	else 
+				pst.setString(7, null);
+			
+			// set warnings
+			String[] warningArray = networkSummary.getWarnings().toArray(new String[0]);
+			Array arrayWarnings = db.createArrayOf("text", warningArray);
+			pst.setArray(8, arrayWarnings);
+			
+			//set subnetworkIds
+			Long[] subNetIds = networkSummary.getSubnetworkIds().toArray(new Long[0]);
+			Array subNetworkIds = db.createArrayOf("bigint", subNetIds);
+			pst.setArray(9, subNetworkIds);
+			
+			pst.setString(10, networkSummary.getCxFormat());
+			
+			pst.setObject(11, networkSummary.getExternalId());
+			int i = pst.executeUpdate();
+			if ( i != 1)
+				throw new NdexException ("Failed to update network summary entry in db.");
+		} 
+	}
+	
+	
+/*
 	public void saveNetworkMetaData(UUID networkId, MetaDataCollection metadata) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set  cxmetadata = ? :: json where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -445,7 +524,7 @@ public class NetworkDAO extends NdexDBDAO {
 				throw new NdexException ("Failed to update network metadata entry in db.");
 		}
 	}
-	
+*/	
 	/**
 	 * Only update fields that relates to the network content. Permission related fields are not updated.
 	 * in this function.
@@ -577,6 +656,7 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 	}	
+	
 	
 	/** 
 	 * return true if the network is showcased in the owner's account.
@@ -1246,6 +1326,9 @@ public class NetworkDAO extends NdexDBDAO {
 		result.setIsCertified(rs.getBoolean(22));
 		result.setHasLayout(rs.getBoolean(23));
 		result.setHasSample(rs.getBoolean(24));
+		result.setCxFormat(rs.getString(25));
+		result.setCxFileSize(rs.getLong(26));
+		result.setCx2FileSize(rs.getLong(27));
 	}
 	
 	
@@ -1311,8 +1394,7 @@ public class NetworkDAO extends NdexDBDAO {
 				if ( rs.next()) {
 					String s = rs.getString(1);
 					if ( s != null) {
-						MetaDataCollection metadata = MetaDataCollection.createInstanceFromJson(s);
-						return metadata;
+						return MetaDataCollection.createInstanceFromJson(s);
 					}
 					return new MetaDataCollection();
 				}
@@ -1321,6 +1403,91 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 		
 	}
+
+	/**
+	 * Return null if no metadata is found in the db.
+	 * @param networkId
+	 * @return
+	 * @throws SQLException
+	 * @throws IOException
+	 * @throws NdexException
+	 */
+	public List<CxMetadata> getCx2MetaDataList(UUID networkId) throws SQLException, IOException, NdexException {
+		String sqlStr = "select cx2metadata from network n where n.\"UUID\" =? and n.is_deleted= false" ;
+		
+		List<CxMetadata> result = new ArrayList<>();
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					String s = rs.getString(1);
+					
+					if ( s != null) {
+						ObjectMapper mapper = new ObjectMapper();
+						result = mapper.readValue(s,new TypeReference<List<CxMetadata>>(){});
+						
+					}
+				}
+			}
+		}
+		return result;
+		
+	}
+
+	public boolean hasCX2(UUID networkId) throws SQLException {
+		String sqlStr = "select 1 from network n where n.\"UUID\" =? and n.is_deleted= false and cx2metadata is not null" ;
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					 int s = rs.getInt(1);
+					
+					return s == 1;
+				}
+			}
+		}
+		return false;
+		
+	}
+	
+	public List<String> getWarnings(UUID networkId) throws SQLException {
+		String sqlStr = "select warnings from network n where n.\"UUID\" =? and n.is_deleted= false" ;
+		
+		List<String> result = new ArrayList<>();
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					
+					Array warnings = rs.getArray(1);
+					if ( warnings != null) {
+						String[] wA = (String[]) warnings.getArray();
+						List<String> warningList = Arrays.asList(wA);  
+						return warningList;
+					}  
+					return result;
+				}
+			}
+		}
+		return result;
+		
+	}
+	
+
+	public void setCxMetadata(UUID networkId, List<CxMetadata> cx2metadata) throws SQLException, JsonProcessingException, NdexException {
+		String sqlStr = "update network set cx2metadata = ? ::jsonb where \"UUID\" = ? and is_deleted=false";
+		 try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			ObjectMapper mapper = new ObjectMapper();
+		    String s = mapper.writeValueAsString( cx2metadata);
+			 pst.setString(1, s);
+			 pst.setObject(2, networkId);
+			 int i = pst.executeUpdate();
+			 if ( i !=1 )
+				 throw new NdexException ("Failed to update cx2metadata of Network " + networkId + ". Db record might have been locked.");
+		 }
+	}
+	
 	
 	public void updateMetadataColleciton(UUID networkId, MetaDataCollection metadata) throws SQLException, JsonProcessingException, NdexException {
 		String sqlStr = "update network set cxmetadata = ? ::jsonb where \"UUID\" = ? and is_deleted=false";
@@ -1613,8 +1780,6 @@ public class NetworkDAO extends NdexDBDAO {
     		
     		// keep the old 
     		commit();
-    //		networkIdx.revokeNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.ADMIN, true);
-   // 		networkIdx.grantNetworkPermission(networkUUID.toString(), oldUser.getUserName(), Permissions.WRITE, Permissions.ADMIN, true);
     		
     	} else {
     		String sql = "insert into user_network_membership ( user_id,network_id, permission_type) values (?,?,'"+ permission.toString() + "') "
@@ -1635,7 +1800,7 @@ public class NetworkDAO extends NdexDBDAO {
     }
 	
     
-    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws NdexException, SQLException {
+    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws SQLException {
     
     	Permissions p = getNetworkPermissionOnGroup(networkUUID, groupUUID);
 
@@ -1653,21 +1818,13 @@ public class NetworkDAO extends NdexDBDAO {
         	pst.setObject(2,groupUUID);
         	int c = pst.executeUpdate();
         	commit();
-       // 	if ( c ==1 )  {
-      //  		try (GroupDAO dao = new GroupDAO()) {
-      //  			Group g = dao.getGroupById(groupUUID);
-        			
-        			//update solr index
-            /*		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getGroupName(), p, false); */
-       // 		}               
-        //	} 
+
         	return c;	
         }
         		
     }
     
-    public int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws SQLException, NdexException {
+    public int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws SQLException {
     	
     	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
 
@@ -1707,10 +1864,14 @@ public class NetworkDAO extends NdexDBDAO {
     public void setErrorMessage(UUID networkId, String errorMessage) {
     	String sql = "update network set error = ? where \"UUID\" = ? and is_deleted=false";
     	
-    	String trimedMsg = ( errorMessage.length()>2000) ?
-    			(errorMessage.substring(0, 1996) + "...") : errorMessage ;
+    	String trimmedMsg = errorMessage;
+    	if ( trimmedMsg == null)
+    		trimmedMsg = "null";
+    	else if ( trimmedMsg.length() > 2000)
+    		trimmedMsg = (errorMessage.substring(0, 1996) + "...");
+    	
     	try ( PreparedStatement pst = db.prepareStatement(sql)) {
-    		pst.setString(1, trimedMsg);
+    		pst.setString(1, trimmedMsg);
     		pst.setObject(2, networkId);
     		int i = pst.executeUpdate();
     		if ( i !=1)
@@ -1825,7 +1986,7 @@ public class NetworkDAO extends NdexDBDAO {
 				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
 				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_idx_lvl,"
-				+ " n.iscomplete, n.ndexdoi, n.certified,n.has_layout, n.has_sample "
+				+ " n.iscomplete, n.ndexdoi, n.certified,n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size "
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? ) k order by k.modification_time desc"; 
 
 		if ( offset >=0 && limit >0) {

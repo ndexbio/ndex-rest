@@ -30,7 +30,9 @@
  */
 package org.ndexbio.common.persistence;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -50,6 +52,9 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.common.util.Util;
+import org.ndexbio.cx2.aspect.element.core.CxNode;
+import org.ndexbio.cx2.converter.AspectAttributeStat;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
@@ -96,14 +101,22 @@ import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+
 public class CXNetworkLoader implements AutoCloseable {
 	
     protected static Logger logger = LoggerFactory.getLogger(CXNetworkLoader.class);
 
 	//private static final String nodeName = "name";
     
+    public static final String CX1FileName = "network.cx";
+    public static final String CX1AspectDir = "aspects";
+    public static final String CX1ArchiveFileName = "network.arc";
+    
 	public static final int defaultSampleSize = 300;
 	public static final int defaultSampleGenerationThreshhold = 1000;
+	private static final int maximumNumberWarningMessages = 20;
     
 	protected int sampleGenerationThreshold;
 	
@@ -121,7 +134,6 @@ public class CXNetworkLoader implements AutoCloseable {
 	private AspectElementIdTracker citationIdTracker;
 	private AspectElementIdTracker supportIdTracker;
 		
-//	protected Provenance provenanceHistory;    // comment out for now.
 	protected Set<Long> subNetworkIds;
 		
 	long opaqueCounter ;
@@ -139,11 +151,18 @@ public class CXNetworkLoader implements AutoCloseable {
 	protected List<NdexPropertyValuePair> properties;
 		
 	protected Map<String,CXAspectWriter> aspectTable;
-//	private NetworkGlobalIndexManager globalIdx ;
-	protected List<String> warnings;
+	private List<String> warnings;
 	private NetworkDAO dao;
 	private VisibilityType visibility;
 	private Set<String> indexedFields;
+	
+	private boolean foundEdgeInteractionAttr;
+	private boolean foundNodeNameAttr;
+	private boolean foundNodeRepresentAttr;
+	
+	
+	protected AspectAttributeStat attributeStats;
+
 		
 //	protected String updatedBy;
 	public CXNetworkLoader(UUID networkUUID, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields, int sampleGenerationThreshold) {
@@ -153,15 +172,13 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 //		this.ownerName = ownerUserName;
 		this.networkId = networkUUID;
-		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/aspects/";
+		this.rootPath = Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + CX1AspectDir+ "/";
 		this.networkName = null;
 
 	//	this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
 				
 		serverElementLimit = Configuration.getInstance().getServerElementLimit();
 		
-	//	globalIdx = null;
-
 		warnings = new ArrayList<> ();
 		networkNameIsAssigned = false;
 
@@ -182,6 +199,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		networkName = null;
 		description = null;
 		version = null;
+		attributeStats = new AspectAttributeStat();
 		properties = new ArrayList<>();
 		dao = networkDao;
 	//	updatedBy = updaterUserName;
@@ -191,10 +209,16 @@ public class CXNetworkLoader implements AutoCloseable {
 			this.sampleGenerationThreshold = defaultSampleGenerationThreshhold;
 		else
 			this.sampleGenerationThreshold = sampleGenerationThreshold;
+		
+		this.foundEdgeInteractionAttr = false;
+		this.foundNodeNameAttr = false;
+		this.foundNodeRepresentAttr = false;
+		
 	}
 	
 	protected UUID getNetworkId() {return this.networkId;}
 	protected NetworkDAO getDAO () {return dao;}
+	protected List<String> getWarnings() {return warnings;}
 	
 	private static CxElementReader2 createCXReader (InputStream in) throws IOException {
 		HashSet<AspectFragmentReader> readers = new HashSet<>(20);
@@ -222,6 +246,14 @@ public class CXNetworkLoader implements AutoCloseable {
 		  return  new CxElementReader2(in, readers,true);
 	}
 	
+	
+	private void addWarning(String warningStr) {
+		if (warnings.size() >= maximumNumberWarningMessages)
+			return;
+		
+		warnings.add( warningStr);		
+	}
+	
 	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException {
 		        	    
 	 //   try {
@@ -230,7 +262,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  java.nio.file.Path dir = Paths.get(rootPath);
 		  Files.createDirectory(dir);
 		  
-		  try (	InputStream inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx") ) {
+		  try (	InputStream inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/" + CX1FileName) ) {
 	
 			  persistNetworkData(inputStream, false); 
 		  
@@ -284,19 +316,9 @@ public class CXNetworkLoader implements AutoCloseable {
 			  
 				}
 			  				
-				//recreate CX file
+				//recreate CX and CX2 files
+				reCreateCXFiles(networkId,metadata, dao, this.attributeStats, this.subNetworkIds.isEmpty());
 				
-				CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
-				String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
-				
-				java.nio.file.Path src = Paths.get(tmpFileName);
-				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
-				java.nio.file.Path tgt2 = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.arc");
-				
-				Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
-				Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
-				
-
 				try {
 					if ( !isUpdate) {
 						dao.setFlag(this.networkId, "iscomplete", true);
@@ -309,6 +331,10 @@ public class CXNetworkLoader implements AutoCloseable {
 					dao.setFlag(this.networkId, "has_layout", metadata.getMetaDataElement(CartesianLayoutElement.ASPECT_NAME)!=null);
 					dao.unlockNetwork(this.networkId);
 
+					
+					//gzip the archived file.
+					
+					
 				//	dao.commit();
 				} catch (SQLException e) {
 					dao.rollback();
@@ -319,12 +345,12 @@ public class CXNetworkLoader implements AutoCloseable {
 				boolean needIndividualIndex = this.nodeIdTracker.getDefinedElementSize() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD;
 				if ( isUpdate && indexLevel != NetworkIndexLevel.NONE)  {
 				   if ( needIndividualIndex)
-					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel ));
+					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel,false ));
 				   else 
-				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields, indexLevel ));
+				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields, indexLevel,false ));
 				} else {
 					if (needIndividualIndex)
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,!isUpdate, indexedFields, NetworkIndexLevel.NONE));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,!isUpdate, indexedFields, NetworkIndexLevel.NONE,false));
 					else {
 						dao.setFlag(this.networkId, "iscomplete", true);
 						dao.commit();
@@ -332,6 +358,60 @@ public class CXNetworkLoader implements AutoCloseable {
 				}
 		  }
 
+	}
+
+	/**
+	 * 
+	 * @param networkId
+	 * @param m
+	 * @param dao
+	 * @param attrStats This object will help the cx2 converter to generate metadata for some cx2 aspect. When this 
+	 *        parameter is null, the cx2converter will run analyze attributes in the converter.
+	 * @throws JsonParseException
+	 * @throws JsonMappingException
+	 * @throws SQLException
+	 * @throws IOException
+	 * @throws NdexException
+	 * @throws FileNotFoundException
+	 * @throws  
+	 */
+	public static void reCreateCXFiles(UUID networkId, MetaDataCollection m, NetworkDAO dao, AspectAttributeStat attrStats, boolean isSingleNetwork) throws JsonParseException, JsonMappingException, SQLException, IOException,
+			NdexException, FileNotFoundException {
+		CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
+		String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());
+		
+		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
+		String cxfileDir = pathPrefix + networkId.toString() + "/";
+		
+		java.nio.file.Path src = Paths.get(tmpFileName);
+		java.nio.file.Path tgt = Paths.get( cxfileDir + CX1FileName);
+		
+		String archivedFileName = cxfileDir + CX1ArchiveFileName;
+		java.nio.file.Path tgt2 = Paths.get(archivedFileName);
+		
+		Files.move(tgt, tgt2, StandardCopyOption.ATOMIC_MOVE); 				
+		Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);  
+		
+		
+		Util.asyncCompressGZIP(archivedFileName);
+		
+		// create the CX2 file
+		if (isSingleNetwork) {
+			CXToCX2ServerSideConverter cvtr = new CXToCX2ServerSideConverter( pathPrefix,
+				m, networkId.toString(), attrStats ,false);
+			dao.setCxMetadata(networkId, cvtr.convert());
+			long cxfileSize = Files.size(tgt);
+			long cx2FileSize = Files.size(Paths.get(cxfileDir + CX2NetworkLoader.cx2NetworkFileName));
+			dao.setNetworkFileSizes(networkId, cxfileSize, cx2FileSize);
+			if ( !cvtr.getWarning().isEmpty()) {
+				List<String> w = cvtr.getWarning(); 
+				w.addAll(0, dao.getWarnings(networkId));
+				dao.setWarning(networkId, w);
+			}
+			
+		}
+		
+		
 	}
 	
 
@@ -462,11 +542,13 @@ public class CXNetworkLoader implements AutoCloseable {
 			  for ( MetaDataElement e: metadata) {
 
 				  // check if idCounter is defined in certain espects.
+				  /* this is no longer required so that a CX2 network can be converted back to cx1
 				  if (  (e.getName().equals(NodesElement.ASPECT_NAME) || e.getName().equals(EdgesElement.ASPECT_NAME) || 
 								  e.getName().equals(CitationElement.ASPECT_NAME) || 
 								  e.getName().equals(SupportElement.ASPECT_NAME) ) 
 						  &&  e.getIdCounter() == null ) 
  						   throw new NdexException ( "Idcounter value is not found in metadata of aspect " + e.getName());
+				  */
 				  
 				  //check if elementCount is missing in metadata
 				  Long cntObj = e.getElementCount();
@@ -521,7 +603,7 @@ public class CXNetworkLoader implements AutoCloseable {
 			  // check if all the aspects has metadata
 			  for ( String aspectName : aspectTable.keySet() ){
 				  if ( metadata.getMetaDataElement(aspectName) == null) {
-					  warnings.add ("Aspect " + aspectName + " is not defined in MetaData section. NDEx is adding one without a version in it.");
+					  addWarning ("Aspect " + aspectName + " is not defined in MetaData section. NDEx is adding one without a version in it.");
 					  MetaDataElement mElmt = new MetaDataElement();
 					  mElmt.setName(aspectName);
 					  mElmt.setElementCount(this.aspectTable.get(aspectName).getElementCount());
@@ -575,7 +657,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 
     
-	private void createNetworkAttribute(NetworkAttributesElement e) throws IOException {
+	private void createNetworkAttribute(NetworkAttributesElement e) throws IOException, NdexException {
 		
 		if ( e.getName().equals(NdexClasses.Network_P_name) && ( networkName == null || e.getSubnetwork() == null)) {
 				this.networkName = e.getValue();
@@ -593,13 +675,8 @@ public class CXNetworkLoader implements AutoCloseable {
 					(e.isSingleValue() ? e.getValue(): e.getValueAsJsonString()), e.getDataType().toString()));
 		
 		writeCXElement(e);
-		
-	/*	if (globalIdx !=null) {
-			List<String> indexWarnings = this.globalIdx.addCXNetworkAttrToIndex(e);	
-			if ( !indexWarnings.isEmpty())
-				warnings.addAll(indexWarnings);
-		} */
-		
+		attributeStats.addNetworkAttribute(e);		
+
 	}
 	
 	private void writeCXElement(AspectElement element) throws IOException {
@@ -621,11 +698,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 		nodeIdTracker.addDefinedElementId(node.getId());
 		writeCXElement(node);
-		
-	/*	if (globalIdx !=null) {
-			this.globalIdx.addCXNodeToIndex(node);	
-		}   */
-		
+		attributeStats.addNode(node);
 	}	 
 
 	private void createCXCitation(CitationElement citation) throws NdexException, IOException {
@@ -648,7 +721,9 @@ public class CXNetworkLoader implements AutoCloseable {
 		} else if ( po.equals("nodes")) { 
 			nodeIdTracker.addReferenceId(visualProperty.getApplies_to(), CyVisualPropertiesElement.ASPECT_NAME);
 		}	
-		writeCXElement(visualProperty);		   
+		writeCXElement(visualProperty);		  
+		attributeStats.addCyVisualPropertiesElement(visualProperty);
+
 	}	 
 	
 	private void createCXSupport(SupportElement support) throws NdexException, IOException {
@@ -665,6 +740,8 @@ public class CXNetworkLoader implements AutoCloseable {
 		nodeIdTracker.addReferenceId(ee.getTarget(), EdgesElement.ASPECT_NAME);
 		
 		writeCXElement(ee);	   
+		attributeStats.addEdge(ee);
+
 	}
 	
 	private void createEdgeCitation(EdgeCitationLinksElement elmt) throws IOException {
@@ -721,14 +798,33 @@ public class CXNetworkLoader implements AutoCloseable {
 	}
 	
 
-	private void addNodeAttribute(NodeAttributesElement e) throws IOException{
+	private void addNodeAttribute(NodeAttributesElement e) throws IOException, NdexException{
+		if ( (!this.foundNodeNameAttr) &&e.getName().equals(CxNode.NAME)) { 
+			addWarning ( "Attribute 'name' on node " + e.getPropertyOf() + 
+					" is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.");
+			this.foundNodeNameAttr = true;	
+		} else if ((!this.foundNodeRepresentAttr) &&e.getName().equals(CxNode.REPRESENTS)) {		
+			addWarning ( "Attribute 'represents' on node " + e.getPropertyOf() + 
+					" is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.");		
+			this.foundNodeRepresentAttr = true;
+		}
 		nodeIdTracker.addReferenceId(e.getPropertyOf(), NodeAttributesElement.ASPECT_NAME);
 		writeCXElement(e);
+		attributeStats.addNodeAttribute(e);
 	}
 	
-	private void addEdgeAttribute(EdgeAttributesElement e) throws IOException{
+	private void addEdgeAttribute(EdgeAttributesElement e) throws IOException, NdexException{
+		if ( e.getName().equals("interaction")) {
+			if ( !this.foundEdgeInteractionAttr) {
+				addWarning ( "Attribute 'interaction' on id " + e.getPropertyOf() + 
+						" is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.");
+				this.foundEdgeInteractionAttr = true;
+			}
+		}	
 		edgeIdTracker.addReferenceId(e.getPropertyOf(), EdgeAttributesElement.ASPECT_NAME);
 		writeCXElement(e);
+		attributeStats.addEdgeAttribute(e);
+
 	}
 
 	private void addCartesianLayoutElement(CartesianLayoutElement e) throws IOException{
@@ -750,13 +846,6 @@ public class CXNetworkLoader implements AutoCloseable {
 	public void close() {
 		closeAspectStreams();
 		
-	/*	try {
-			this.inputStream.close();
-		} catch (IOException e) {
-			logger.error("Failed to close input stream when closing CXNetworkLoader: " + e.getMessage());
-		} */
-	/*	if (globalIdx !=null) 
-			this.globalIdx.close(); */
 	}
 
 

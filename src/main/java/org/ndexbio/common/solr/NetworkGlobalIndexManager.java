@@ -50,6 +50,7 @@ import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrQuery.ORDER;
 import org.apache.solr.client.solrj.SolrRequest.METHOD;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
@@ -61,6 +62,9 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.model.tools.SearchUtilities;
 import org.ndexbio.model.tools.TermUtilities;
 import org.ndexbio.common.util.Util;
+import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
+import org.ndexbio.cx2.aspect.element.core.CxNode;
+import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
@@ -257,13 +261,13 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 			
 			SolrDocumentList  dds = rsp.getResults();
 			return dds;
-		} catch (HttpSolrClient.RemoteSolrException e) {
+		} catch (BaseHttpSolrClient.RemoteSolrException e) {
 			throw convertException(e, "ndex-networks");
 		}
 		
 	}
 	
-	protected static NdexException convertException(HttpSolrClient.RemoteSolrException e, String core_name) {
+	protected static NdexException convertException(BaseHttpSolrClient.RemoteSolrException e, String core_name) {
 		if (e.code() == 400) {
 			String err = e.getMessage();
 			Pattern p = Pattern.compile("Error from server at .*/" + core_name +": (.*)");
@@ -366,6 +370,47 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 
 	}
 	
+	public void addCX2NodeToIndex(CxNode node, Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping)  {
+		
+		Map<String,Object> nodeAttrs = node.getAttributes();
+		Object nodeName = nodeAttrs.get(CxNode.NAME);
+		if ( nodeName != null) {
+			   doc.addField(NODE_NAME, nodeName);			
+		}
+		Object represents= nodeAttrs.get(CxNode.REPRESENTS);
+		if ( represents != null) {
+			for (String indexableString : getIndexableString((String)represents)) {
+				   doc.addField(REPRESENTS, indexableString);
+			}
+		}
+	
+		if ( attributeNameMapping.get(SingleNetworkSolrIdxManager.ALIAS)!=null) {
+			
+			for (String v : SingleNetworkSolrIdxManager.getSplitableTerms(SingleNetworkSolrIdxManager.ALIAS, node,
+					attributeNameMapping) ){
+				doc.addField(ALIASES, v);
+			}
+			
+		} 
+		
+		String nodeType = SingleNetworkSolrIdxManager.getSingleIndexableTermFromNode(SingleNetworkSolrIdxManager.TYPE,
+				node, attributeNameMapping);
+		
+		if ( nodeType != null && (nodeType.equalsIgnoreCase(SingleNetworkSolrIdxManager.PROTEINFAMILY) || 
+    			nodeType.equalsIgnoreCase(SingleNetworkSolrIdxManager.COMPLEX) )) {
+    		List<String> memberGenes = SingleNetworkSolrIdxManager.getSplitableTerms (SingleNetworkSolrIdxManager.MEMBER,
+    				node, attributeNameMapping);
+    		for ( String memberIdStr : memberGenes) {
+				for ( String indexableString : getIndexableString(memberIdStr) ){
+					doc.addField(REPRESENTS, indexableString);
+				}
+			}
+    	}
+	
+	}
+
+	
+	
 	public void addCXNodeAttrToIndex(NodeAttributesElement e)  {
 		
 		if ( e.getName().equals(NdexClasses.Node_P_alias)) {
@@ -447,11 +492,11 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		
 		List<String> warnings = new ArrayList<>();
 		if ( e.getName().equals(NdexClasses.Network_P_name) ) {
-			addStringAttribute(e, NAME, warnings);
+			addStringAttrFromAttributeElement(e, NAME, warnings);
 		} else if ( e.getName().equals(NdexClasses.Network_P_desc ) ) {
-			addStringAttribute(e, DESC, warnings);
+			addStringAttrFromAttributeElement(e, DESC, warnings);
 		} else if ( e.getName().equals(NdexClasses.Network_P_version)  ) {
-			addStringAttribute(e, VERSION, warnings);			
+			addStringAttrFromAttributeElement(e, VERSION, warnings);			
 		} else {
 			if ( otherAttributes.contains(e.getName())  ) {
 				addStringListgAttribute(e, e.getName(), warnings);
@@ -462,13 +507,50 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		
 	}
 	
-	private void addStringAttribute(NetworkAttributesElement e, String solrFieldName, List<String>  warnings ) {
+	public List<String> addCX2NetworkAttrToIndex(CxNetworkAttribute e)  {
+		
+		List<String> warnings = new ArrayList<>();
+		if ( e.getNetworkName()!= null) {
+			doc.addField(NAME, e.getNetworkName());
+		} else if ( e.getNetworkDescription() !=null ) {
+			doc.addField(DESC, e.getNetworkDescription());
+		} else if ( e.getNetworkVersion() !=null) {
+			doc.addField(VERSION, e.getNetworkVersion());			
+		}
+		
+		for ( String otherIndexedName: otherAttributes) {
+			if ( e.getAttributes().get(otherIndexedName) !=null) {
+				addStringOrListgObj(e.getAttributes().get(otherIndexedName), otherIndexedName, warnings);
+			}
+		}
+	
+		return warnings;
+		
+	}
+
+	private void addStringAttrFromAttributeElement(NetworkAttributesElement e, String solrFieldName, List<String>  warnings ) {
 		if (e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
 			if ( e.getValue() !=null && e.getValue().length()>0)
 				doc.addField(solrFieldName, e.getValue());
 		} else 
 			warnings.add("Network attribute " + e.getName() + " is not indexed because its data type is not 'string'.");
 	}
+	
+	private void addStringOrListgObj(Object e, String solrFieldName, List<String>  warnings ) {
+		if (e instanceof String) {
+			doc.addField(solrFieldName, e);
+		} else if (e instanceof List<?>) {
+			for ( Object value : ((List<?>)e)) {
+				if ( value instanceof String)
+					doc.addField(solrFieldName, value);
+				else {
+					warnings.add("Network attribute " + solrFieldName +  " is not indexed because its data type is not 'string' or 'list_of_string'.");
+					break;
+				}
+			}
+		} else 
+			warnings.add("Network attribute " + solrFieldName + " is not indexed because its data type is not 'string' or 'list_of_string'.");
+	}	
 	
 	private void addStringListgAttribute(NetworkAttributesElement e, String solrFieldName, List<String>  warnings ) {
 		if (e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
@@ -693,7 +775,8 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		//
 	    List<String> result = new ArrayList<>(2) ;
 		String identifier = null;
-		if ( termString.length() > 8 && termString.substring(0, 7).equalsIgnoreCase("http://") &&
+		if ( termString.length() > 10 && (termString.substring(0, 7).equalsIgnoreCase("http://") ||
+				termString.substring(0, 8).equalsIgnoreCase("https://") )&&
 				(!termString.endsWith("/"))) {
   		  try {
 			URI termStringURI = new URI(termString);

@@ -64,7 +64,6 @@ import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.annotations.ApiDoc;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -105,7 +104,6 @@ public class TaskServiceV2 extends NdexService
     @DELETE
     @Path("/{taskid}")
     @Produces("application/json")
-	@ApiDoc("Delete the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
     public void deleteTask(@PathParam("taskid")final String taskUUID) throws IllegalArgumentException, ObjectNotFoundException, UnauthorizedOperationException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException
     {
 
@@ -152,7 +150,6 @@ public class TaskServiceV2 extends NdexService
     @GET
     @Path("/{taskid}")
     @Produces("application/json")
-	@ApiDoc("Return a JSON task object for the task specified by taskId. Errors if no task found or if authenticated user does not own task.")
     public Task getTask(@PathParam("taskid")final String taskIdStr) throws  UnauthorizedOperationException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException
     {    	
     	Preconditions.checkArgument(!Strings.isNullOrEmpty(taskIdStr), "A task id is required");
@@ -179,7 +176,6 @@ public class TaskServiceV2 extends NdexService
     
 	@GET
 	@Produces("application/json")
-	@ApiDoc("Returns an array of Task objects with the specified status")
 	public List<Task> getTasks(
 		    @QueryParam("status") String status,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,

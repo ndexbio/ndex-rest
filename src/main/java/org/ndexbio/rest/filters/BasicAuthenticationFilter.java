@@ -32,6 +32,7 @@ package org.ndexbio.rest.filters;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +50,6 @@ import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.ext.Provider;
 
 import org.jboss.resteasy.core.ResourceMethodInvoker;
-import org.jboss.resteasy.util.Base64;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.UserIndexManager;
 //import org.ndexbio.model.exceptions.ForbiddenOperationException;
@@ -339,7 +339,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         if (  authenticationStr.startsWith(basicAuthPrefix)) {
         
         	final String encodedAuthInfo = authHeader.get(0).substring(basicAuthPrefix.length());
-        	final String decodedAuthInfo = new String(Base64.decode(encodedAuthInfo));
+        	final String decodedAuthInfo = new String(Base64.getDecoder().decode(encodedAuthInfo));
         
         	String[] result = new String[2];
         

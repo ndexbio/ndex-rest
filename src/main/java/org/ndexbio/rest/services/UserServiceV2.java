@@ -77,7 +77,6 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.rest.annotations.ApiDoc;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Security;
@@ -124,7 +123,6 @@ public class UserServiceV2 extends NdexService {
 	@Path("/{userid}/verification")
 	@NdexOpenFunction
 	@Produces("text/plain")
-	@ApiDoc("Verify the given user with UUID and verificationCode")
 	public static String verifyUser(@PathParam("userid") String userUUID,
 					@QueryParam("verificationCode") String verificationCode		
 			)
@@ -152,8 +150,6 @@ public class UserServiceV2 extends NdexService {
 	@PermitAll
 	@NdexOpenFunction
 	@Produces("text/plain")
-	@ApiDoc("Create a new user based on a JSON object specifying username, password, and emailAddress, returns the new user - including its internal id. "
-			+ "Username and emailAddress must be unique in the database. If email verification is turned on on the server, the user uuid field will be set to null.")
 	public Response createUser(final User newUser, 
 			@QueryParam("idtoken") String id_token)
 			throws Exception {
@@ -340,7 +336,6 @@ public class UserServiceV2 extends NdexService {
 	@PermitAll
 	@Path("")
 	@Produces("application/json")
-	@ApiDoc("Return the user corresponding to the given user account name. Error if this account is not found.")
 	public User getUserByAccountNameOrAuthenticatUser(
 			@QueryParam("username") /*@Encoded*/ final String accountName,
 			@QueryParam("email") final String emailAddress,
@@ -384,7 +379,6 @@ public class UserServiceV2 extends NdexService {
 	@PermitAll
 	@Path("/{userid}")
 	@Produces("application/json")
-	@ApiDoc("Return the user corresponding to user's UUID. Error if no such user is found.")
 	public User getUserByUUID(@PathParam("userid") final String userIdStr)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
 		
@@ -430,7 +424,6 @@ public class UserServiceV2 extends NdexService {
 //	@Consumes(MediaType.APPLICATION_JSON)
 	@PermitAll
 	@Produces("application/json")
-	@ApiDoc("Changes the authenticated user's password to the new password in the POST data.")
 	public void changePassword(
 				@PathParam("userid") final String userId,
 				@QueryParam("forgot") String booleanStr,
@@ -478,8 +471,7 @@ public class UserServiceV2 extends NdexService {
 	@DELETE
 	@Path("/{userid}")
 	@Produces("application/json")
-	@ApiDoc("Deletes the authenticated user. Errors if the user administrates any group or network. Should remove any other objects depending on the user. "
-			+ "If this operation orphans a network or group, an exception will be thrown.")
+
 	public void deleteUser(@PathParam("userid") final String userIdStr)
 			throws Exception {
 
@@ -599,7 +591,6 @@ public class UserServiceV2 extends NdexService {
 	@GET
 	@Path("/{userid}/membership")
 	@Produces("application/json")
-	@ApiDoc("Returns the group membership information of a user.")
 	public static Map<String,String> getMembershipInfo(
 				@PathParam("userid") final String userIdStr,
 			    @QueryParam("groupid") String groupIdStr,
@@ -642,7 +633,6 @@ public class UserServiceV2 extends NdexService {
 	@GET
 	@Path("/{userid}/permission")
 	@Produces("application/json")
-	@ApiDoc("Get the type of permission the logged in user has on the given network. If directOnly is set to true, permissions grant through groups are not included in the result.")
 	public Map<String,String> getNetworkPermissionInfo(
 			@PathParam("userid") final String userIdStr,
 		    @QueryParam("networkid") String networkIdStr,
@@ -688,7 +678,6 @@ public class UserServiceV2 extends NdexService {
 	   @POST
 	   @Path("/{userid}/membershiprequest")
 	   @Produces("text/plain")
-	   @ApiDoc("Create a group membership request.")
 	    public Response createMembershipRequest(
 	    		@PathParam("userid") final String userIdStr,
 	    		final MembershipRequest newRequest) 
@@ -766,7 +755,6 @@ public class UserServiceV2 extends NdexService {
 	   	@GET
 		@Path("/{userid}/permissionrequest/{requestid}")
 		@Produces("application/json")
-		@ApiDoc("")
 		public Request getPermissionRequestById(@PathParam("userid") String userIdStr,
 				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
@@ -790,7 +778,6 @@ public class UserServiceV2 extends NdexService {
 	   	@GET
 		@Path("/{userid}/permissionrequest")
 		@Produces("application/json")
-		@ApiDoc("")
 		public List<Request> getPermissionRequests (
 				 @PathParam("userid") String userIdStr,
 				  @QueryParam("type") String queryType
@@ -832,7 +819,6 @@ public class UserServiceV2 extends NdexService {
 	   	@GET
 		@Path("/{userid}/membershiprequest")
 		@Produces("application/json")
-		@ApiDoc("")
 		public List<Request> getMembershipRequests (
 				 @PathParam("userid") String userIdStr,
 				  @QueryParam("type") String queryType
@@ -875,7 +861,6 @@ public class UserServiceV2 extends NdexService {
 	   	@GET
 			@Path("/{userid}/membershiprequest/{requestid}")
 			@Produces("application/json")
-			@ApiDoc("")
 			public Request getMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
 					 @PathParam("requestid") String requestIdStr
@@ -900,7 +885,6 @@ public class UserServiceV2 extends NdexService {
 	   	@PUT
 		@Path("/{userid}/membershiprequest/{requestid}")
 		@Produces("application/json")
-		@ApiDoc("")
 		public void respondMembershipRequest(
 				 @PathParam("userid") String userIdStr,
 				 @PathParam("requestid") String requestIdStr,
@@ -961,7 +945,6 @@ public class UserServiceV2 extends NdexService {
 	   	@PUT
 		@Path("/{userid}/permissionrequest/{requestid}")
 		@Produces("application/json")
-		@ApiDoc("")
 		public void respondPermissionRequest(
 				 @PathParam("userid") String userIdStr,
 				 @PathParam("requestid") String requestIdStr,
@@ -1014,7 +997,7 @@ public class UserServiceV2 extends NdexService {
 					if(idxLvl != NetworkIndexLevel.NONE) {
 						ndao.setFlag(reqs.getDestinationUUID(), "iscomplete", false);
 						ndao.commit();
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),SolrIndexScope.global,false,null,idxLvl));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),SolrIndexScope.global,false,null,idxLvl, false));
 					}
 				}
 			} else {
@@ -1033,7 +1016,6 @@ public class UserServiceV2 extends NdexService {
 	   	@DELETE
 		@Path("/{userid}/membershiprequest/{requestid}")
 		@Produces("application/json")
-		@ApiDoc("")
 		public void deleteMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
 					 @PathParam("requestid") String requestIdStr
@@ -1061,7 +1043,6 @@ public class UserServiceV2 extends NdexService {
 	   	@DELETE
 		@Path("/{userid}/permissionrequest/{requestid}")
 		@Produces("application/json")
-		@ApiDoc("")
 		public void deletePermissionRequestById(
 					 @PathParam("userid") String userIdStr,
 					 @PathParam("requestid") String requestIdStr
@@ -1085,7 +1066,6 @@ public class UserServiceV2 extends NdexService {
 		@Path("/{userid}/showcase")
 		@Produces("application/json")
 		@PermitAll
-		@ApiDoc("")
 		public List<NetworkSummary> getUserShowcaseNetworks(
 					 @PathParam("userid") String userIdStr
 					) throws SQLException, JsonParseException, JsonMappingException, IOException {

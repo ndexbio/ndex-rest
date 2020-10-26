@@ -1,0 +1,177 @@
+[
+  {
+    "properties_of": "network",
+    "properties": {
+      "NETWORK_ANNOTATION_SELECTION": "false",
+      "NETWORK_BACKGROUND_PAINT": "#FFFFFF",
+      "NETWORK_CENTER_X_LOCATION": "1055.280708545118",
+      "NETWORK_CENTER_Y_LOCATION": "191.41704663395268",
+      "NETWORK_CENTER_Z_LOCATION": "0.0",
+      "NETWORK_DEPTH": "0.0",
+      "NETWORK_EDGE_SELECTION": "true",
+      "NETWORK_FORCE_HIGH_DETAIL": "false",
+      "NETWORK_HEIGHT": "621.0",
+      "NETWORK_NODE_LABEL_SELECTION": "false",
+      "NETWORK_NODE_SELECTION": "true",
+      "NETWORK_SCALE_FACTOR": "0.3309415584414469",
+      "NETWORK_SIZE": "550.0",
+      "NETWORK_TITLE": "funstyle",
+      "NETWORK_WIDTH": "1030.0"
+    }
+  },
+  {
+    "properties_of": "nodes:default",
+    "properties": {
+      "COMPOUND_NODE_PADDING": "30.0",
+      "COMPOUND_NODE_SHAPE": "ROUND_RECTANGLE",
+      "NODE_BORDER_PAINT": "#333333",
+      "NODE_BORDER_STROKE": "SOLID",
+      "NODE_BORDER_TRANSPARENCY": "255",
+      "NODE_BORDER_WIDTH": "1.0",
+      "NODE_CUSTOMGRAPHICS_1": "org.cytoscape.ding.customgraphics.NullCustomGraphics,0,[ Remove Graphics ],",
+      "NODE_CUSTOMGRAPHICS_2": "org.cytoscape.ding.customgraphics.NullCustomGraphics,0,[ Remove Graphics ],",
+      "NODE_CUSTOMGRAPHICS_3": "org.cytoscape.ding.customgraphics.NullCustomGraphics,0,[ Remove Graphics ],",
+      "NODE_CUSTOMGRAPHICS_4": "org.cytoscape.ding.customgraphics.NullCustomGraphics,0,[ Remove Graphics ],",
+      "NODE_CUSTOMGRAPHICS_5": "org.cytoscape.ding.customgraphics.NullCustomGraphics,0,[ Remove Graphics ],",
+      "NODE_CUSTOMGRAPHICS_6": "org.cytoscape.ding.customgraphics.NullCustomGraphics,0,[ Remove Graphics ],",
+      "NODE_CUSTOMGRAPHICS_7": "org.cytoscape.ding.customgraphics.NullCustomGraphics,0,[ Remove Graphics ],",
+      "NODE_CUSTOMGRAPHICS_8": "org.cytoscape.ding.customgraphics.NullCustomGraphics,0,[ Remove Graphics ],",
+      "NODE_CUSTOMGRAPHICS_9": "org.cytoscape.ding.customgraphics.NullCustomGraphics,0,[ Remove Graphics ],",
+      "NODE_CUSTOMGRAPHICS_POSITION_1": "C,C,c,0.00,0.00",
+      "NODE_CUSTOMGRAPHICS_POSITION_2": "C,C,c,0.00,0.00",
+      "NODE_CUSTOMGRAPHICS_POSITION_3": "C,C,c,0.00,0.00",
+      "NODE_CUSTOMGRAPHICS_POSITION_4": "C,C,c,0.00,0.00",
+      "NODE_CUSTOMGRAPHICS_POSITION_5": "C,C,c,0.00,0.00",
+      "NODE_CUSTOMGRAPHICS_POSITION_6": "C,C,c,0.00,0.00",
+      "NODE_CUSTOMGRAPHICS_POSITION_7": "C,C,c,0.00,0.00",
+      "NODE_CUSTOMGRAPHICS_POSITION_8": "C,C,c,0.00,0.00",
+      "NODE_CUSTOMGRAPHICS_POSITION_9": "C,C,c,0.00,0.00",
+      "NODE_CUSTOMGRAPHICS_SIZE_1": "0.0",
+      "NODE_CUSTOMGRAPHICS_SIZE_2": "0.0",
+      "NODE_CUSTOMGRAPHICS_SIZE_3": "0.0",
+      "NODE_CUSTOMGRAPHICS_SIZE_4": "0.0",
+      "NODE_CUSTOMGRAPHICS_SIZE_5": "0.0",
+      "NODE_CUSTOMGRAPHICS_SIZE_6": "0.0",
+      "NODE_CUSTOMGRAPHICS_SIZE_7": "0.0",
+      "NODE_CUSTOMGRAPHICS_SIZE_8": "0.0",
+      "NODE_CUSTOMGRAPHICS_SIZE_9": "0.0",
+      "NODE_CUSTOMPAINT_1": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_1, name=Node Custom Paint 1)",
+      "NODE_CUSTOMPAINT_2": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_2, name=Node Custom Paint 2)",
+      "NODE_CUSTOMPAINT_3": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_3, name=Node Custom Paint 3)",
+      "NODE_CUSTOMPAINT_4": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_4, name=Node Custom Paint 4)",
+      "NODE_CUSTOMPAINT_5": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_5, name=Node Custom Paint 5)",
+      "NODE_CUSTOMPAINT_6": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_6, name=Node Custom Paint 6)",
+      "NODE_CUSTOMPAINT_7": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_7, name=Node Custom Paint 7)",
+      "NODE_CUSTOMPAINT_8": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_8, name=Node Custom Paint 8)",
+      "NODE_CUSTOMPAINT_9": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_9, name=Node Custom Paint 9)",
+      "NODE_DEPTH": "0.0",
+      "NODE_FILL_COLOR": "#CCCCCC",
+      "NODE_HEIGHT": "40.0",
+      "NODE_LABEL_COLOR": "#000000",
+      "NODE_LABEL_FONT_FACE": "Dialog,plain,12",
+      "NODE_LABEL_FONT_SIZE": "12",
+      "NODE_LABEL_POSITION": "S,N,c,0.00,5.00",
+      "NODE_LABEL_TRANSPARENCY": "0",
+      "NODE_LABEL_WIDTH": "200.0",
+      "NODE_NESTED_NETWORK_IMAGE_VISIBLE": "true",
+      "NODE_PAINT": "#787878",
+      "NODE_SELECTED": "false",
+      "NODE_SELECTED_PAINT": "#FFFF00",
+      "NODE_SHAPE": "ELLIPSE",
+      "NODE_SIZE": "10.0",
+      "NODE_TRANSPARENCY": "255",
+      "NODE_VISIBLE": "true",
+      "NODE_WIDTH": "60.0",
+      "NODE_X_LOCATION": "0.0",
+      "NODE_Y_LOCATION": "0.0",
+      "NODE_Z_LOCATION": "0.0"
+    },
+    "dependencies": {
+      "nodeCustomGraphicsSizeSync": "true",
+      "nodeSizeLocked": "true"
+    },
+    "mappings": {
+      "NODE_FILL_COLOR": {
+        "type": "CONTINUOUS",
+        "definition": "COL=CD_AnnotatedMembers_Overlap,T=double,L=0=#FFFFFF,E=0=#FFFFFF,G=0=#FFFFFF,OV=0=0.0,L=1=#FF3333,E=1=#FF3333,G=1=#FF0000,OV=1=1.0"
+      },
+      "NODE_LABEL": {
+        "type": "PASSTHROUGH",
+        "definition": "COL=CD_CommunityName,T=string"
+      },
+      "NODE_LABEL_FONT_SIZE": {
+        "type": "CONTINUOUS",
+        "definition": "COL=CD_MemberList_LogSize,T=double,L=0=1,E=0=10,G=0=10,OV=0=0.0,L=1=21,E=1=21,G=1=1,OV=1=13.420091804602317"
+      },
+      "NODE_LABEL_TRANSPARENCY": {
+        "type": "DISCRETE",
+        "definition": "COL=CD_Labeled,T=boolean,K=0=false,V=0=0,K=1=true,V=1=255"
+      },
+      "NODE_SIZE": {
+        "type": "CONTINUOUS",
+        "definition": "COL=CD_MemberList_LogSize,T=double,L=0=1.0,E=0=10.084033613445378,G=0=10.084033613445378,OV=0=0.0,L=1=101.9307726691751,E=1=101.9307726691751,G=1=1.0,OV=1=13.420091804602317"
+      }
+    }
+  },
+  {
+    "properties_of": "edges:default",
+    "properties": {
+      "EDGE_CURVED": "true",
+      "EDGE_LABEL_COLOR": "#000000",
+      "EDGE_LABEL_FONT_FACE": "Dialog,plain,10",
+      "EDGE_LABEL_FONT_SIZE": "10",
+      "EDGE_LABEL_TRANSPARENCY": "255",
+      "EDGE_LABEL_WIDTH": "200.0",
+      "EDGE_LINE_TYPE": "SOLID",
+      "EDGE_PAINT": "#808080",
+      "EDGE_SELECTED": "false",
+      "EDGE_SELECTED_PAINT": "#FF0000",
+      "EDGE_SOURCE_ARROW_SELECTED_PAINT": "#FFFF00",
+      "EDGE_SOURCE_ARROW_SHAPE": "ARROW",
+      "EDGE_SOURCE_ARROW_SIZE": "6.0",
+      "EDGE_SOURCE_ARROW_UNSELECTED_PAINT": "#000000",
+      "EDGE_STROKE_SELECTED_PAINT": "#FF0000",
+      "EDGE_STROKE_UNSELECTED_PAINT": "#FF9999",
+      "EDGE_TARGET_ARROW_SELECTED_PAINT": "#FFFF00",
+      "EDGE_TARGET_ARROW_SHAPE": "NONE",
+      "EDGE_TARGET_ARROW_SIZE": "4.0",
+      "EDGE_TARGET_ARROW_UNSELECTED_PAINT": "#999999",
+      "EDGE_TRANSPARENCY": "170",
+      "EDGE_UNSELECTED_PAINT": "#999999",
+      "EDGE_VISIBLE": "true",
+      "EDGE_WIDTH": "2.0"
+    },
+    "dependencies": {
+      "arrowColorMatchesEdge": "true"
+    },
+    "mappings": {
+      "EDGE_LABEL_WIDTH": {
+        "type": "DISCRETE",
+        "definition": "COL=shared interaction,T=string,K=0=c-c,V=0=210.0"
+      },
+      "EDGE_STROKE_UNSELECTED_PAINT": {
+        "type": "DISCRETE",
+        "definition": "COL=main_tree_edges,T=string,K=0=dag,V=0=#666666"
+      },
+      "EDGE_VISIBLE": {
+        "type": "DISCRETE",
+        "definition": "COL=interaction,T=string,K=0=c-c,V=0=true"
+      }
+    }
+  },
+  {
+    "properties_of": "edges",
+    "applies_to": 136027,
+    "properties": {
+      "EDGE_BEND": "0.6794583442672412,0.7337140849170194,0.6861970377383886"
+    }
+  },
+  {
+    "properties_of": "edges",
+    "applies_to": 135804,
+    "properties": {
+      "EDGE_BEND": "0.9229849336291389,0.38483608496815114,0.5821688545672334",
+      "EDGE_CURVED": "false"
+    }
+  }
+]
