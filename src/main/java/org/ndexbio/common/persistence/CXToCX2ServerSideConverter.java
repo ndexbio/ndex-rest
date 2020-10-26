@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import org.apache.commons.io.FileUtils;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
 import org.ndexbio.cx2.aspect.element.core.CxEdgeBypass;
@@ -141,7 +142,13 @@ public class CXToCX2ServerSideConverter {
 				
 		//create the aspect dir
         String cx2AspectDir  = pathPrefix + File.separator + networkId + File.separator + CX2NetworkLoader.cx2AspectDirName + File.separator;
-		Files.createDirectory(Paths.get(cx2AspectDir));
+		
+    	File f = new File(cx2AspectDir);
+    	if (f.exists()) {
+    		FileUtils.deleteDirectory(f);
+    	}
+    	
+        Files.createDirectory(Paths.get(cx2AspectDir));
 		
 		boolean attrStatsAlreadyCreated = true;
 		
@@ -186,8 +193,10 @@ public class CXToCX2ServerSideConverter {
 						// if attrStats had to be created by this method
 						// skip the duplicate network attribute name check because
 						// analyzeAttributes() performs the check
-						if (attrStatsAlreadyCreated == true && oldV !=null) {
-						   String msg = "Duplicated network attribute name found: " + netAttr.getName();	
+						if (attrStatsAlreadyCreated == true && oldV !=null && 
+								!attrValue.equals(oldV)) {
+						   String msg = "Inconsistent network attribute value found on attribute '" + netAttr.getName()
+						      + "'. It has value (" + oldV.toString() + ") and (" + netAttr.getValueAsJsonString()+")" ;	
 						   if (alwaysCreate) {
 							 addWarning(msg);  
 						   } else 
@@ -245,7 +254,9 @@ public class CXToCX2ServerSideConverter {
 							if ( cx1Edge.getInteraction() != null) {
 								EdgeAttributesElement attr = new EdgeAttributesElement(cx1Edge.getId(), CxEdge.INTERACTION, cx1Edge.getInteraction(), ATTRIBUTE_DATA_TYPE.STRING);	
 								try {
-									cx2Edge.addCX1EdgeAttribute(attr, this.attrDeclarations);   
+									String warning = cx2Edge.addCX1EdgeAttribute(attr, this.attrDeclarations);
+									if (warning != null)
+										addWarning(warning);
 								} catch ( NdexException e) {
 									if ( !alwaysCreate) 
 										throw e;
@@ -369,11 +380,15 @@ public class CXToCX2ServerSideConverter {
 										
 				if ( cx1node.getNodeName() != null) {
 					NodeAttributesElement attr = new NodeAttributesElement(nodeId, CxNode.NAME, cx1node.getNodeName(), ATTRIBUTE_DATA_TYPE.STRING);	
-					newNode.addCX1NodeAttribute(attr, this.attrDeclarations);
+					String warning = newNode.addCX1NodeAttribute(attr, this.attrDeclarations);
+					if ( warning != null)
+						addWarning(warning);
 				}   
 				if (cx1node.getNodeRepresents() != null) {
 					NodeAttributesElement attr = new NodeAttributesElement(nodeId, CxNode.REPRESENTS, cx1node.getNodeName(), ATTRIBUTE_DATA_TYPE.STRING);	
-					newNode.addCX1NodeAttribute(attr, this.attrDeclarations);
+					String warning = newNode.addCX1NodeAttribute(attr, this.attrDeclarations);
+					if ( warning != null)
+						addWarning(warning);
 				}    
 				
 				nodeTable.put(nodeId, newNode);
@@ -387,7 +402,10 @@ public class CXToCX2ServerSideConverter {
 				Long nodeId = cx1nodeAttr.getPropertyOf();
 				CxNode newNode = nodeTable.get(nodeId);
 				try {
-					newNode.addCX1NodeAttribute(cx1nodeAttr, this.attrDeclarations);
+					String warning = newNode.addCX1NodeAttribute(cx1nodeAttr, this.attrDeclarations);
+					if ( warning != null) {
+						addWarning(warning);
+					}
 				} catch( NdexException e) {
 					if (!alwaysCreate)
 						throw e;
@@ -439,7 +457,9 @@ public class CXToCX2ServerSideConverter {
 					edgeTable.put(edgeId, newEdge);
 				}
 				try {
-					newEdge.addCX1EdgeAttribute(cx1EdgeAttr, this.attrDeclarations);
+					String warning = newEdge.addCX1EdgeAttribute(cx1EdgeAttr, this.attrDeclarations);
+					if ( warning != null )
+						addWarning(warning);
 				} catch (NdexException e) {
 					if ( !alwaysCreate)
 						throw e;
@@ -521,6 +541,10 @@ public class CXToCX2ServerSideConverter {
 		
 		AspectAttributeStat attributeStats = new AspectAttributeStat();
 		
+		boolean foundEdgeInteractionAttr = false;
+		boolean foundNodeNameAttr = false;
+		boolean foundNodeRepresentAttr = false;
+		
 		// check nodes aspect
 		try (AspectIterator<NodesElement> nodes = new AspectIterator<>(networkId, NodesElement.ASPECT_NAME, NodesElement.class, pathPrefix) ) {
 			while (nodes.hasNext()) {
@@ -543,7 +567,9 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<NetworkAttributesElement> a = new AspectIterator<>(networkId, NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				try {
-					attributeStats.addNetworkAttribute(a.next());	
+					String warning = attributeStats.addNetworkAttribute(a.next());
+					if ( warning != null)
+						addWarning(warning);
 				} catch ( NdexException e) {
 					if ( !alwaysCreate)
 						throw e;
@@ -557,13 +583,16 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<NodeAttributesElement> a = new AspectIterator<>(networkId, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				NodeAttributesElement attr = a.next();
-				if (attr.getName().equals("name") || attr.getName().equals("represents")){
+				if (attr.getName().equals(CxNode.NAME) && (!foundNodeNameAttr) ){
 					String errMsg = "Attribute '" + attr.getName() + "' on node "
 							+ attr.getPropertyOf() + " is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";				
-					/*if (!alwaysCreate){
-						throw new NdexException (errMsg);
-					} */
-					addWarning(errMsg);
+					addWarning ( errMsg);
+					foundNodeNameAttr = true;
+				} else if ( attr.getName().equals(CxNode.REPRESENTS) && !foundNodeRepresentAttr) {
+					String errMsg = "Attribute '" + attr.getName() + "' on node "
+							+ attr.getPropertyOf() + " is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";				
+					addWarning ( errMsg);
+					foundNodeRepresentAttr = true;
 				}
 				attributeStats.addNodeAttribute(attr);
 			}
@@ -573,12 +602,12 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<EdgeAttributesElement> a = new AspectIterator<>(networkId, EdgeAttributesElement.ASPECT_NAME, EdgeAttributesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				EdgeAttributesElement e = a.next();
-				if (  (e.getName().equals("interaction"))) {
+				if (  (e.getName().equals(CxEdge.INTERACTION) && (!foundEdgeInteractionAttr))) {
 					String errMsg = "Attribute '" + e.getName() + "' on edge "
 							+ e.getPropertyOf() + "' is not allowed in CX specification. Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.";	
-					//if (!alwaysCreate)
-					//	throw new NdexException (errMsg);
+					
 					addWarning (errMsg);
+					foundEdgeInteractionAttr = true;
 				}	
 				attributeStats.addEdgeAttribute(e);
 			}
@@ -667,7 +696,7 @@ public class CXToCX2ServerSideConverter {
 	    		boolean arrowColorMatchesEdge = (arrowColorMatchesEdgeStr != null && arrowColorMatchesEdgeStr.equals("true"));
 
 	    		if ( arrowColorMatchesEdge ) {
-	    			String ep = cx1Properties.get("EDGE_PAINT");
+	    			String ep = cx1Properties.get("EDGE_UNSELECTED_PAINT");
 	    			cx1Properties.put("EDGE_SOURCE_ARROW_UNSELECTED_PAINT", ep);
 	    			cx1Properties.put("EDGE_STROKE_UNSELECTED_PAINT", ep);
 	    			cx1Properties.put("EDGE_TARGET_ARROW_UNSELECTED_PAINT", ep);
@@ -679,7 +708,7 @@ public class CXToCX2ServerSideConverter {
 	    		SortedMap<String,Mapping> edgeMappings = elmt.getMappings();
 	    		
 	    		if ( arrowColorMatchesEdge) {
-	    			Mapping m = edgeMappings.remove("EDGE_PAINT");
+	    			Mapping m = edgeMappings.remove("EDGE_UNSELECTED_PAINT");
 	    			if ( m !=null) {
 	    				edgeMappings.put("EDGE_SOURCE_ARROW_UNSELECTED_PAINT", m);
 	    				edgeMappings.put("EDGE_STROKE_UNSELECTED_PAINT", m);
@@ -746,7 +775,11 @@ public class CXToCX2ServerSideConverter {
 
 				VisualPropertyMapping mappingObj = new VisualPropertyMapping();
 				String mappingType = entry.getValue().getType();
-				mappingObj.setType(VPMappingType.valueOf(mappingType));
+				try {
+					mappingObj.setType(VPMappingType.valueOf(mappingType));
+				} catch ( IllegalArgumentException e) {
+					throw new NdexException ("Invalid mapping type '" + mappingType + "' found on visual property '" +vpName +"'.");
+				}
 				MappingDefinition defObj = new MappingDefinition();
 				mappingObj.setMappingDef(defObj);
 				String defString = entry.getValue().getDefinition();
@@ -787,7 +820,7 @@ public class CXToCX2ServerSideConverter {
 							defObj.setMapppingList(m);
 						} catch (IOException e) {
 							addWarning("Corrupted data found in DISCRETE mapping on " + vpName +
-									". Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network.\nCause: " + e.getMessage());
+									". Please upgrade your cyNDEx-2 and Cytoscape to the latest version and reload this network. Cause: " + e.getMessage() );
 							System.err.println(e.getMessage());
 							continue;
 						}
@@ -831,7 +864,7 @@ public class CXToCX2ServerSideConverter {
 								throw new NdexException(
 										"error: continuous mapping string is corruptted for " + defString);
 							}
-							ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj(t, OV);
+							ConverterUtilitiesResult cRes = ConverterUtilities.cvtStringValueToObj("double", OV);
 							addWarning(cRes);
 							
 							Object OVO = cRes.getResult();
@@ -878,7 +911,9 @@ public class CXToCX2ServerSideConverter {
 					throw new NdexException(
 							"Can't converter " + mappingType + " mapping on " + vpName + ". Cause: " + e.getMessage());
 				}
-				v2NodeMappings.put(newVPName, mappingObj);
+				if ( mappingObj.getType() == VPMappingType.PASSTHROUGH || 
+						mappingObj.getMappingDef().getMapppingList().size()>0)
+				   v2NodeMappings.put(newVPName, mappingObj);
 			}
 		}
 	   

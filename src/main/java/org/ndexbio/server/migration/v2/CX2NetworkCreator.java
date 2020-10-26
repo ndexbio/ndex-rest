@@ -1,8 +1,6 @@
 package org.ndexbio.server.migration.v2;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -14,10 +12,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
@@ -96,7 +94,7 @@ public class CX2NetworkCreator {
 		try (Connection conn = NdexDatabase.getInstance().getConnection()) {
 
 			String sqlStr = "select \"UUID\" from network where is_deleted=false "
-					+ "and cx2metadata is null and iscomplete and error is null";
+					+ "and cx2_file_size is null and iscomplete and error is null";
 			if (minEdgeCountCutoff != null){
 				sqlStr += " and edgecount>=" + minEdgeCountCutoff;
 			}
@@ -117,7 +115,7 @@ public class CX2NetworkCreator {
 		}
 	}
 	
-	public static void main(String[] args) throws Exception {		
+	public static void main(String[] args) throws Exception {
 
 		Configuration configuration = Configuration.createInstance();
 
@@ -125,9 +123,9 @@ public class CX2NetworkCreator {
 				configuration.getDBPasswd(), 10);
 
 		String rootPath = Configuration.getInstance().getNdexRoot() + "/data/";
-		
+
 		ExecutorService es = Executors.newFixedThreadPool(NUMBER_WORKERS);
-		
+
 		boolean onlyUpdateSingleNetwork = false;
 		List<UUID> networksToUpdate = null;
 		try (NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
@@ -136,56 +134,53 @@ public class CX2NetworkCreator {
 				networksToUpdate = new ArrayList<>();
 				networksToUpdate.add(UUID.fromString(args[0]));
 			} else {
-				networksToUpdate = getIdsOfNetworksToUpdate("0",
-						Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF));
+				networksToUpdate = getIdsOfNetworksToUpdate("0", Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF));
 			}
 			Queue<Future> futureTasks = new ConcurrentLinkedQueue<>();
 			System.out.println("Found " + networksToUpdate.size() + " networks to update");
 			try (NetworkDAO networkdao = new NetworkDAO()) {
 				System.out.println("Submitting tasks for processing");
-				for (UUID networkUUID : networksToUpdate){
-					CX2NetworkCreationRunner task = new CX2NetworkCreationRunner(rootPath, networkUUID, networkdao, globalIdx,
-							edgeCountLimit);
+				for (UUID networkUUID : networksToUpdate) {
+					CX2NetworkCreationRunner task = new CX2NetworkCreationRunner(rootPath, networkUUID, networkdao,
+							globalIdx, edgeCountLimit);
 					futureTasks.add(es.submit(task));
 				}
 				waitForTasksToFinish(futureTasks);
 				es.shutdown();
-				if (es.awaitTermination(SECONDS_TO_WAIT_FOR_JOBS, TimeUnit.SECONDS) == false){
+				if (es.awaitTermination(SECONDS_TO_WAIT_FOR_JOBS, TimeUnit.SECONDS) == false) {
 					System.err.println("Time reached before jobs have completed!!!!");
 					return;
 				}
-			
-				if (onlyUpdateSingleNetwork == true){
+
+				if (onlyUpdateSingleNetwork == true) {
 					return;
 				}
-				
+
 				futureTasks.clear();
 				futureTasks = null;
-				
+
 				networksToUpdate = getIdsOfNetworksToUpdate(Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF), null);
 				int remainNetworkCount = networksToUpdate.size();
-				System.out.println("Found " + remainNetworkCount
-						+ " with "
-						+ Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF)
-				         + " or more edges to convert");
-				
-				for (UUID networkUUID : networksToUpdate){
-					CX2NetworkCreationRunner task = new CX2NetworkCreationRunner(rootPath, networkUUID, networkdao, globalIdx,
-							edgeCountLimit);
+				System.out.println("Found " + remainNetworkCount + " with "
+						+ Integer.toString(SMALL_NETWORK_EDGECOUNT_CUTOFF) + " or more edges to convert");
+
+				for (UUID networkUUID : networksToUpdate) {
+					CX2NetworkCreationRunner task = new CX2NetworkCreationRunner(rootPath, networkUUID, networkdao,
+							globalIdx, edgeCountLimit);
 					try {
-						System.out.print(Integer.toString(remainNetworkCount) + ": " + networkUUID.toString());
+						System.out.print(Integer.toString(remainNetworkCount) + ": " + networkUUID.toString() + " ");
 						String res = task.call();
-						if (res != null){
+						if (res != null) {
 							System.out.println(res);
 						}
-					} catch(Exception ex){
-						System.err.println("While updating network:  " 
-								+ networkUUID.toString() + " : caught exception: " + ex.getMessage());
+					} catch (Exception ex) {
+						System.err.println("While updating network:  " + networkUUID.toString()
+								+ " : caught exception: " + ex.getMessage());
 					} finally {
 						remainNetworkCount--;
 					}
 				}
-				
+
 			}
 		}
 	}

@@ -89,13 +89,13 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 							break;
 						}
 					}
-					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(networkUUID, subNetworkId, metadata, defaultSampleSize);
+					CXNetworkSampleGenerator g = new CXNetworkSampleGenerator(networkUUID, subNetworkId, fullMetaData, defaultSampleSize);
 					g.createSampleNetwork();
 			  
 				}
 			  				
 				//recreate CX file
-				CXNetworkLoader.reCreateCXFiles(networkUUID, metadata, dao, null, this.subNetworkIds.isEmpty());
+				CXNetworkLoader.reCreateCXFiles(networkUUID, fullMetaData, dao, null, this.subNetworkIds.isEmpty());
 
 			try {
 				dao.unlockNetwork(networkUUID);

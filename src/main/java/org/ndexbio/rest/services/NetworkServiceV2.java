@@ -298,6 +298,7 @@ public class NetworkServiceV2 extends NdexService {
 				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl,false));
 			} else {
 				daoNew.setFlag(networkUUID, "iscomplete", true);
+				daoNew.commit();
 			}
 			
 			return i;
@@ -1103,7 +1104,7 @@ public class NetworkServiceV2 extends NdexService {
 		//update cx and cx2 metadata for networkAttributes
 		MetaDataCollection metadata = networkDao.getMetaDataCollection(networkUUID);
 		
-		List<CxMetadata>   cx2metadata = networkDao.getCxMetaDataList(networkUUID);
+		List<CxMetadata>   cx2metadata = networkDao.getCx2MetaDataList(networkUUID);
 		
 		if ( attrs.size() == 0 ) {
 			metadata.remove(NetworkAttributesElement.ASPECT_NAME);
