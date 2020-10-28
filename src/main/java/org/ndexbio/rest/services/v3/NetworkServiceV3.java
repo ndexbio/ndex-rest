@@ -122,7 +122,7 @@ public class NetworkServiceV3  extends NdexService {
 	}  
 	
 	
-	
+/*	
 	   @POST	   
 	   @Path("")
 	   @Produces("text/plain")
@@ -258,7 +258,7 @@ public class NetworkServiceV3  extends NdexService {
 				
 	        }  
 	    	      
-		     NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, /* ownerAccName,*/ true, visibility,extraIndexOnNodes));
+		     NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, true, visibility,extraIndexOnNodes));
 		    // return networkIdStr; 
 	    }
 	    
@@ -302,9 +302,9 @@ public class NetworkServiceV3  extends NdexService {
 	           } 
 	        }	
 	    	      
-		    NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, /* ownerAccName,*/ true, visibility,extraIndexOnNodes));
+		    NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, true, visibility,extraIndexOnNodes));
 	    }
-
+*/
 
 		private static void updateCx2NetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
 				UUID tmpNetworkId) throws SQLException, NdexException, IOException, JsonParseException,

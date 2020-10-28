@@ -385,7 +385,7 @@ public class CXToCX2ServerSideConverter {
 						addWarning(warning);
 				}   
 				if (cx1node.getNodeRepresents() != null) {
-					NodeAttributesElement attr = new NodeAttributesElement(nodeId, CxNode.REPRESENTS, cx1node.getNodeName(), ATTRIBUTE_DATA_TYPE.STRING);	
+					NodeAttributesElement attr = new NodeAttributesElement(nodeId, CxNode.REPRESENTS, cx1node.getNodeRepresents(), ATTRIBUTE_DATA_TYPE.STRING);	
 					String warning = newNode.addCX1NodeAttribute(attr, this.attrDeclarations);
 					if ( warning != null)
 						addWarning(warning);
