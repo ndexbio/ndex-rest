@@ -1,5 +1,6 @@
 package org.ndexbio.common.persistence;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -7,13 +8,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedMap;
 import java.util.TreeMap;
 
 import org.apache.commons.io.FileUtils;
+import org.ndexbio.cx2.aspect.element.core.Cx2Network;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
 import org.ndexbio.cx2.aspect.element.core.CxEdgeBypass;
@@ -23,16 +23,11 @@ import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.CxNodeBypass;
 import org.ndexbio.cx2.aspect.element.core.CxOpaqueAspectElement;
 import org.ndexbio.cx2.aspect.element.core.CxVisualProperty;
-import org.ndexbio.cx2.aspect.element.core.MappingDefinition;
-import org.ndexbio.cx2.aspect.element.core.VPMappingType;
-import org.ndexbio.cx2.aspect.element.core.VisualPropertyMapping;
 import org.ndexbio.cx2.aspect.element.cytoscape.VisualEditorProperties;
 import org.ndexbio.cx2.converter.AspectAttributeStat;
 import org.ndexbio.cx2.converter.CX2VPHolder;
-import org.ndexbio.cx2.converter.CXToCX2Converter;
+import org.ndexbio.cx2.converter.CXToCX2LargeFileConverter;
 import org.ndexbio.cx2.converter.CXToCX2VisualPropertyConverter;
-import org.ndexbio.cx2.converter.ConverterUtilities;
-import org.ndexbio.cx2.converter.MappingValueStringParser;
 import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.cx2.io.CXWriter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
@@ -40,18 +35,18 @@ import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
-import org.ndexbio.cxio.aspects.datamodels.Mapping;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.core.AspectIterator;
+import org.ndexbio.cxio.core.writers.NiceCXCX2Writer;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
+import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.exceptions.NdexException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import java.io.File;
-import org.ndexbio.cx2.converter.ConverterUtilitiesResult;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Convert a CX2 network on the server to CX1. This converter works on the individual aspects on the 
@@ -125,7 +120,7 @@ public class CXToCX2ServerSideConverter {
      * @param cRes Result from ConverterUtilitiesResult along with any 
      *             issues encountered during conversion
      */
-	private void addWarning(final ConverterUtilitiesResult cRes) {
+/*	private void addWarning(final ConverterUtilitiesResult cRes) {
 	    if (cRes == null) {
             return;
         }
@@ -136,7 +131,7 @@ public class CXToCX2ServerSideConverter {
         for (String warning : warnList) {
             addWarning(warning);
         }
-	}
+	} */
 	
 	public List<CxMetadata> convert() throws FileNotFoundException, IOException, NdexException {
 				
@@ -159,7 +154,7 @@ public class CXToCX2ServerSideConverter {
 		
 		attrDeclarations = attrStats.createCxDeclaration();
 		
-		List<CxMetadata> cx2Metadata = getCX2Metadata();
+		List<CxMetadata> cx2Metadata = attrStats.getCX2Metadata( metaDataCollection ,attrDeclarations);
 
 		try (FileOutputStream out = new FileOutputStream(pathPrefix + File.separator + networkId + File.separator + CX2NetworkLoader.cx2NetworkFileName) ) {
 			CXWriter wtr = new CXWriter(out, false);
@@ -187,7 +182,7 @@ public class CXToCX2ServerSideConverter {
 				while (a.hasNext()) {
 					NetworkAttributesElement netAttr = a.next();
 					try {
-						Object attrValue = CXToCX2Converter.convertAttributeValue(netAttr);
+						Object attrValue = AspectAttributeStat.convertAttributeValue(netAttr);
 						Object oldV = cx2NetAttr.getAttributes().put(netAttr.getName(), attrValue);
 
 						// if attrStats had to be created by this method
@@ -213,6 +208,20 @@ public class CXToCX2ServerSideConverter {
 					}
 				}
 			}		
+			
+			// add @context as network attribute if it is a seperate aspect
+			if ( attrStats.hasNamespacesAspect()) {
+				ObjectMapper om = new ObjectMapper();
+				NamespacesElement namespaces = null;
+				try (AspectIterator<NamespacesElement> a = new AspectIterator<>(networkId, NamespacesElement.ASPECT_NAME, NamespacesElement.class, pathPrefix) ) {
+					while (a.hasNext()) {
+						namespaces = a.next();
+					}
+				}	
+				if ( namespaces!=null)
+					cx2NetAttr.add(NamespacesElement.ASPECT_NAME, om.writeValueAsString(namespaces));
+			}
+			
 			if ( !cx2NetAttr.getAttributes().isEmpty()) {
 				List<CxNetworkAttribute> netAttrs = new ArrayList<>(1);
 				netAttrs.add(cx2NetAttr);
@@ -334,7 +343,7 @@ public class CXToCX2ServerSideConverter {
 
 			for ( CxMetadata m : cx2Metadata) {
 				String aspectName = m.getName();
-			    if (! CX2ToCXConverter.cx2SpecialAspects.contains(aspectName) && 
+			    if (! Cx2Network.cx2SpecialAspects.contains(aspectName) && 
 					   !aspectName.equals(CxNode.ASPECT_NAME) && !aspectName.equals(CxEdge.ASPECT_NAME)
 					   && !aspectName.equals(CxVisualProperty.ASPECT_NAME)) {
 					wtr.startAspectFragment(aspectName);
@@ -492,7 +501,7 @@ public class CXToCX2ServerSideConverter {
 	
 	
 	/* warning: this function can only be called after attrStats is initialized */
-	private List<CxMetadata> getCX2Metadata() {
+/*	private List<CxMetadata> getCX2Metadata() {
 		List<CxMetadata> result = new ArrayList<>(metaDataCollection.size());
 				
 		MetaDataElement networkAttribute = metaDataCollection.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
@@ -534,7 +543,7 @@ public class CXToCX2ServerSideConverter {
 		}
 		return result;
 
-	}
+	} */
 	
 	
 	private AspectAttributeStat analyzeAttributes() throws NdexException, IOException {
@@ -628,15 +637,15 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<CyVisualPropertiesElement> a = new AspectIterator<>(networkId, CyVisualPropertiesElement.ASPECT_NAME, CyVisualPropertiesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				CyVisualPropertiesElement e = a.next();
-				addVisuaProperty(e, holder);
+				holder.addVisuaProperty(e, visualDependencies, warnings);
 			}
 		}
 		
 		return holder;
 
-	}
+	} 
    
-	
+	/*
 	   private void addVisuaProperty(CyVisualPropertiesElement elmt,CX2VPHolder holder) throws NdexException, IOException {
 	    	
 		    CxVisualProperty style = holder.getStyle();
@@ -749,7 +758,7 @@ public class CXToCX2ServerSideConverter {
 	    	} else {
 	    		throw new NdexException ("'" + po + "' is not a supported Cytoscape visual property group. Please upgrade your cyNDEx-2 app to the latest version in Cytoscape and try again.");
 	    	}
-	    }
+	    } */
 	   
 	    /**
 	     * Get the default style object from a cx2 style object
@@ -765,7 +774,7 @@ public class CXToCX2ServerSideConverter {
 			return defaultVp;
 	    } */
 	    
-		private void processMappingEntry(SortedMap<String, Mapping> nodeMappings,
+/*		private void processMappingEntry(SortedMap<String, Mapping> nodeMappings,
 				Map<String, VisualPropertyMapping> v2NodeMappings) throws NdexException, IOException {
 			for (Map.Entry<String, Mapping> entry : nodeMappings.entrySet()) {
 				String vpName = entry.getKey();
@@ -915,25 +924,6 @@ public class CXToCX2ServerSideConverter {
 						mappingObj.getMappingDef().getMapppingList().size()>0)
 				   v2NodeMappings.put(newVPName, mappingObj);
 			}
-		}
+		} */
 	   
-
-	
-	// escape ',' with double ',' 
-   /* private static String escapeString(String str) {
-        if (str == null) {
-          return null;
-        }
-        StringBuilder result = new StringBuilder();
-        for (int i=0; i<str.length(); i++) {
-          char curChar = str.charAt(i);
-          if (curChar == COMMA) {
-            // special char
-            result.append(COMMA);
-          }
-          result.append(curChar);
-        }
-        return result.toString();
-      }
-    */
 }

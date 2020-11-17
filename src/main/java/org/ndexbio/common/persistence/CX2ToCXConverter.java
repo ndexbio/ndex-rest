@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
+import org.ndexbio.cx2.aspect.element.core.Cx2Network;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
 import org.ndexbio.cx2.aspect.element.core.CxEdgeBypass;
@@ -39,6 +40,7 @@ import org.ndexbio.cxio.core.NdexCXNetworkWriter;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.cxio.core.writers.NiceCXCX2Writer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -49,12 +51,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  */
 public class CX2ToCXConverter {
-	
-	public static final List<String> cx2SpecialAspects = Arrays.asList(
-			CxAttributeDeclaration.ASPECT_NAME,CxEdgeBypass.ASPECT_NAME,
-			CxNodeBypass.ASPECT_NAME, VisualEditorProperties.ASPECT_NAME,
-			CxNetworkAttribute.ASPECT_NAME);
-		
+			
 	private static final String VM_COL = "COL=";
 	private static final String VM_TYPE = "T=";
     private final  static char COMMA = ',';
@@ -337,7 +334,7 @@ public class CX2ToCXConverter {
 			
 			//write other opaque aspects.
 			for (String aspectName: this.metadataTable.keySet()) {
-				if ( !cx2SpecialAspects.contains(aspectName) && !aspectName.equals(CxNode.ASPECT_NAME)
+				if ( !Cx2Network.cx2SpecialAspects.contains(aspectName) && !aspectName.equals(CxNode.ASPECT_NAME)
 						&& ! aspectName.equals(CxEdge.ASPECT_NAME) && !aspectName.equals(CxVisualProperty.ASPECT_NAME)) {
 					writer.startAspectFragment(aspectName);
 					writer.writeAspectElementsFromNdexAspectFile(aspectPath + aspectName);
@@ -573,7 +570,7 @@ public class CX2ToCXConverter {
 		for (CxMetadata m : metadataTable.values() ) {
 			String aspectName = m.getName();
 			// ignore some aspects 
-			if ( !cx2SpecialAspects.contains(aspectName)) {
+			if ( !Cx2Network.cx2SpecialAspects.contains(aspectName)) {
 				MetaDataElement e ;
 				if (aspectName.equals(CxVisualProperty.ASPECT_NAME)) {
 					e = new MetaDataElement(CyVisualPropertiesElement.ASPECT_NAME, "1.0");

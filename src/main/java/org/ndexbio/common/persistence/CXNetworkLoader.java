@@ -30,7 +30,6 @@
  */
 package org.ndexbio.common.persistence;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -83,6 +82,7 @@ import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
 import org.ndexbio.model.cx.FunctionTermElement;
+import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.NodeCitationLinksElement;
 import org.ndexbio.model.cx.NodeSupportLinksElement;
@@ -792,9 +792,10 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	}
 
-	
 	private void createAspectElement(AspectElement element) throws IOException {
 		writeCXElement(element);
+		if ( element.getAspectName().equals(NamespacesElement.ASPECT_NAME))
+			attributeStats.setHasNamespacesAspect();
 	}
 	
 
