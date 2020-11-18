@@ -92,7 +92,7 @@ import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
 import org.ndexbio.cx2.converter.AspectAttributeStat;
-import org.ndexbio.cx2.converter.CXToCX2Converter;
+import org.ndexbio.cx2.converter.CXToCX2LargeFileConverter;
 import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
@@ -1073,7 +1073,7 @@ public class NetworkServiceV2 extends NdexService {
 					if ( isSingleNetwork) {
 						attributeStats.addNetworkAttribute(e);
 					
-						Object attrValue = CXToCX2Converter.convertAttributeValue(e);
+						Object attrValue = AspectAttributeStat.convertAttributeValue(e);
 						Object oldV = cx2NetAttr.getAttributes().put(e.getName(), attrValue);
 						if ( oldV !=null)
 							throw new NdexException("Duplicated network attribute name found: " + e.getName());
