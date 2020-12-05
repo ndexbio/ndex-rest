@@ -38,10 +38,11 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.TreeSet;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.network.NetworkSummary;
-import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.apache.commons.compress.utils.IOUtils;
 
@@ -126,5 +127,23 @@ public class Util {
 			}
 
 		}).start();
+	}
+	
+	/**
+	 * Generate random numbers between 0 (inclusive) to a bound (exclusive) . 
+	 * @param count number of integers to be generated.
+	 * @param bound upper bound of the random integer
+	 * @return
+	 */
+	public static TreeSet<Long> generateRandomId (int count, long bound) {
+		TreeSet<Long> result = new TreeSet<>();
+		if ( count <1 || count > bound)
+			throw new RuntimeException ("Invalid bound or count parameter.");
+		while ( result.size()<count) {
+			long randomLong = ThreadLocalRandom.current().nextLong(bound);
+			result.add(Long.valueOf(randomLong));
+		}
+		
+		return result;
 	}
 }
