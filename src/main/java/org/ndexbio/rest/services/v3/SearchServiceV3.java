@@ -16,7 +16,6 @@ import javax.ws.rs.DefaultValue;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
@@ -56,11 +55,11 @@ public class SearchServiceV3 extends NdexService  {
 	@PermitAll
 	@POST
 	@Path("/networks/{networkId}/edges")
-	@Produces("application/json")
+	//@Produces("application/json")
 	
-	public Response getEdges(	@PathParam("networkid") final String networkId,
+	public Response getEdges(	@PathParam("networkId") final String networkId,
 				@DefaultValue("-1") @QueryParam("size") int limit,
-				@DefaultValue("desc") @QueryParam("orderby") String orderby,
+				@DefaultValue("desc") @QueryParam("order") String order,
 				@DefaultValue("cx2")  @QueryParam("format") String format,
 				final FilterCriterion queryParameter) throws SQLException, NdexException, JsonParseException, JsonMappingException, IOException
 	{
@@ -72,7 +71,7 @@ public class SearchServiceV3 extends NdexService  {
 				throw new UnauthorizedOperationException("User doesn't have access to this network.");
 			}
 					
-			EdgeFilter filter = new EdgeFilter(networkId, queryParameter, limit, orderby);
+			EdgeFilter filter = new EdgeFilter(networkId, queryParameter, limit, order);
 			Set<CxEdge> result = filter.filterTopN();
 			if (format.equals("cx2"))
 				return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(result).build();
@@ -102,6 +101,7 @@ public class SearchServiceV3 extends NdexService  {
 			List<EdgeAttributesElement> attrs = e.getAttributesAsCX1List(edgeAttrDecls);
 			if ( !attrs.isEmpty())
 				m.put("a", attrs);
+			result.add(m);
 		}
 		return result;
 	}

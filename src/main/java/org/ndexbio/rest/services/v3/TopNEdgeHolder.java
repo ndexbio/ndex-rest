@@ -21,8 +21,8 @@ public class TopNEdgeHolder {
 	public void addEdge (CxEdge edge) {
 		if ( limit <= 0 || edges.size() < limit ) {
 			edges.add(edge);
-		} else if ( comparator.compare(edge, edges.first()) >0 ) {
-			edges.pollFirst();
+		} else if ( comparator.compare(edge, edges.last()) < 0 ) {
+			edges.pollLast();
 			edges.add(edge);
 		}
 	}

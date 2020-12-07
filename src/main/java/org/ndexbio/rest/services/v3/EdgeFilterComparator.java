@@ -34,8 +34,13 @@ public class EdgeFilterComparator implements Comparator<CxEdge> {
 				return -1;
 			
 			ATTRIBUTE_DATA_TYPE type = edgeAttrDeclaration.getDataType();
-			if ( type.isSingleValueType())
-				return compareSingleValue(type, v1,v2);
+			if ( type.isSingleValueType()) {
+				int r0 = compareSingleValue(type, v1,v2);
+				if ( r0 !=0 ) 
+					return r0;
+				
+				return o1.getId().compareTo(o2.getId());
+			}	
 			
 			List<Object> list1 = (List<Object>)v1;
 			List<Object> list2 = (List<Object>) v2;
