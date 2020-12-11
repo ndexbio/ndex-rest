@@ -61,13 +61,15 @@ public class SearchServiceV3 extends NdexService  {
 				@DefaultValue("-1") @QueryParam("size") int limit,
 				@DefaultValue("desc") @QueryParam("order") String order,
 				@DefaultValue("cx2")  @QueryParam("format") String format,
+				@QueryParam("accesskey") String accessKey,
 				final FilterCriterion queryParameter) throws SQLException, NdexException, JsonParseException, JsonMappingException, IOException
 	{
 				
 		UUID networkUUID = UUID.fromString(networkId);
 	    	
 		try (NetworkDAO dao = new NetworkDAO()) {
-			if ( !dao.isReadable(networkUUID, getLoggedInUserId())) {
+			if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
+    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 				throw new UnauthorizedOperationException("User doesn't have access to this network.");
 			}
 					

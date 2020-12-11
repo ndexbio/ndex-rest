@@ -122,9 +122,10 @@ public class NetworkServiceV3  extends NdexService {
 	public Response getEdges (
 			@PathParam("networkid") final String networkId,
 			@DefaultValue("first") @QueryParam("method") String method,
-			@DefaultValue("-1") @QueryParam("size") int limit) throws NdexException, SQLException {
+			@DefaultValue("-1") @QueryParam("size") int limit,
+			@QueryParam("accesskey") String accessKey ) throws NdexException, SQLException {
 		if ( method.equalsIgnoreCase("first"))
-			return getAspectElements(networkId, CxEdge.ASPECT_NAME, limit);
+			return getAspectElements(networkId, CxEdge.ASPECT_NAME, limit, accessKey);
 		else if ( !method.equalsIgnoreCase("random"))
 			throw new NdexException ("Method " + method + " is not supported in this function.");
 		else {
@@ -134,7 +135,8 @@ public class NetworkServiceV3  extends NdexService {
 			UUID networkUUID = UUID.fromString(networkId);
 	    	
 	    	try (NetworkDAO dao = new NetworkDAO()) {
-	    		if ( !dao.isReadable(networkUUID, getLoggedInUserId())) {
+	    		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
+	    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 	    			throw new UnauthorizedOperationException("User doesn't have access to this network.");
 	    		}
 	    		long edgeCount = dao.getNetworkEdgeCount(networkUUID);
@@ -179,13 +181,15 @@ public class NetworkServiceV3  extends NdexService {
 	@Path("/{networkid}/{aspectname}")
 	public Response getAspectElements(	@PathParam("networkid") final String networkId,
 			@PathParam("aspectname") final String aspectName,
-			@DefaultValue("-1") @QueryParam("size") int limit) throws SQLException, NdexException
+			@DefaultValue("-1") @QueryParam("size") int limit,
+			@QueryParam("accesskey") String accessKey ) throws SQLException, NdexException
 		 {
 
     	UUID networkUUID = UUID.fromString(networkId);
     	
     	try (NetworkDAO dao = new NetworkDAO()) {
-    		if ( !dao.isReadable(networkUUID, getLoggedInUserId())) {
+    		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
+    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
     			throw new UnauthorizedOperationException("User doesn't have access to this network.");
     		}
     		
