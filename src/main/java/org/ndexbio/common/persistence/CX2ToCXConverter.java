@@ -447,6 +447,7 @@ public class CX2ToCXConverter {
 		
 		return vp;
 	}
+	
     private static void convertMapping(CyVisualPropertiesElement vp, Map<String,VisualPropertyMapping> mappings, 
     		String aspectName, CxAttributeDeclaration attrDecls) throws NdexException {
     	CX2ToCXVisualPropertyConverter vpCvtr = CX2ToCXVisualPropertyConverter.getInstance();

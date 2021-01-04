@@ -4,23 +4,32 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
@@ -28,7 +37,9 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 
 import org.apache.commons.io.FileUtils;
+import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxAspectElement;
@@ -37,13 +48,17 @@ import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
+import org.ndexbio.task.CX2NetworkLoadingTask;
+import org.ndexbio.task.NdexServerQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -326,7 +341,7 @@ public class NetworkServiceV3  extends NdexService {
 	}
 	
 	
-/*	
+	
 	   @POST	   
 	   @Path("")
 	   @Produces("text/plain")
@@ -393,7 +408,7 @@ public class NetworkServiceV3  extends NdexService {
 		@Path("")
 		@Produces("text/plain")
 		@Consumes("multipart/form-data")
-		public Response createCXNetwork(MultipartFormDataInput input, @QueryParam("visibility") String visibilityStr,
+		public Response createCX2Network(MultipartFormDataInput input, @QueryParam("visibility") String visibilityStr,
 				@QueryParam("indexedfields") String fieldListStr // comma seperated list
 		) throws Exception {
 
@@ -472,7 +487,7 @@ public class NetworkServiceV3  extends NdexService {
 	    @Consumes("multipart/form-data")
 	    @Produces("application/json")
 
-	    public void updateCXNetwork(final @PathParam("networkid") String networkIdStr,
+	    public void updateCX2Network(final @PathParam("networkid") String networkIdStr,
 	    		 @QueryParam("visibility") String visibilityStr,
 			 @QueryParam("extranodeindex") String fieldListStr, // comma seperated list		
 	    		MultipartFormDataInput input) throws Exception 
@@ -508,7 +523,7 @@ public class NetworkServiceV3  extends NdexService {
 	    	      
 		    NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, true, visibility,extraIndexOnNodes));
 	    }
-*/
+
 
 		private static void updateCx2NetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
 				UUID tmpNetworkId) throws SQLException, NdexException, IOException, JsonParseException,
