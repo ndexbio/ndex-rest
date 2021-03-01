@@ -65,7 +65,7 @@ public class CXToCX2ServerSideConverter {
 	//when this value is true, the converter will skip data errors and try to make a guess.
 	private boolean alwaysCreate;
 	
-	CXToCX2VisualPropertyConverter vpConverter;
+//	CXToCX2VisualPropertyConverter vpConverter;
 
 	
 	private static final int maximumNumberWarningMessages = 20;
@@ -93,7 +93,7 @@ public class CXToCX2ServerSideConverter {
 		this.networkId = networkIdStr;
 		this.attrStats = cx1AttributeStats;
 		this.visualDependencies = new VisualEditorProperties();
-		vpConverter = CXToCX2VisualPropertyConverter.getInstance();
+//		vpConverter = CXToCX2VisualPropertyConverter.getInstance();
 		this.alwaysCreate = alwaysCreate;
 		warnings = new ArrayList<>(20);
 	//	this.isCollection = isCytoscapeCollection;
