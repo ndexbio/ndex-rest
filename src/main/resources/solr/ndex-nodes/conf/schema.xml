@@ -15,6 +15,8 @@
    <field name="represents" type="text_ws" indexed="true" stored="false" required="false" multiValued="true" />
    <field name="alias" type="text_ws" indexed="true" stored="false" required="false" multiValued="true" />
 
+   <field name="text" type="text_general" indexed="true" stored="false" multiValued="true"/>
+
  <uniqueKey>id</uniqueKey>
 
     <fieldType name="string" class="solr.StrField" sortMissingLast="true" />

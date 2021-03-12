@@ -64,6 +64,7 @@ import org.ndexbio.rest.services.TaskServiceV2;
 import org.ndexbio.rest.services.UserService;
 import org.ndexbio.rest.services.UserServiceV2;
 import org.ndexbio.rest.services.v3.NetworkServiceV3;
+import org.ndexbio.rest.services.v3.SearchServiceV3;
 
 public class NdexRestApi extends Application
 {
@@ -76,7 +77,6 @@ public class NdexRestApi extends Application
     	_resources.add(GroupServiceV2.class); 
         _resources.add(UserService.class); 
         _resources.add(UserServiceV2.class); 
-  //      _resources.add(RequestService.class);
         _resources.add(RequestServiceV2.class);
         _resources.add(TaskService.class); 
         _resources.add(TaskServiceV2.class); 
@@ -89,6 +89,7 @@ public class NdexRestApi extends Application
         _resources.add(NetworkSetServiceV2.class);
         
         _resources.add(NetworkServiceV3.class);
+        _resources.add(SearchServiceV3.class);
         
         _providers.add(new BasicAuthenticationFilter());
         _providers.add(new NdexDefaultResponseFilter());
