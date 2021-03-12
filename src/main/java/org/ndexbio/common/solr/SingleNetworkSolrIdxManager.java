@@ -311,72 +311,16 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			for (String txt: txtArray) 
 				doc.addField(TEXT, txt.trim());
 		}
-//		if ( relatedTerms !=null && ! relatedTerms.isEmpty() ) 
-//			doc.addField(RELATEDTO, relatedTerms);
+
 		
 		docs.add(doc);
-	//	client.add(doc);
 		counter ++;
 		if ( counter % batchSize == 0 ) {
 			client.add(docs);
-		//	client.commit();
 			docs.clear();
 		}
 
 	}
-
-/*	private void addNodeIndex(long id, String name, List<String> represents) throws SolrServerException, IOException {
-		
-		SolrInputDocument doc = new SolrInputDocument();
-		doc.addField("id",  id );
-		
-		if ( name != null ) 
-			doc.addField(NAME, name);
-		if ( represents !=null && !represents.isEmpty()) {
-			for ( String rterm : represents )
-				doc.addField(REPRESENTS, rterm);
-		}	
-		
-		docs.add(doc);
-	//	client.add(doc);
-		counter ++;
-		if ( counter % batchSize == 0 ) {
-			client.add(docs);
-			client.commit();
-			docs.clear();
-		}
-
-	}
-	
-	
-	public void addNodeAlias(long id, String name, List<String> represents, List<String> alias) throws SolrServerException, IOException {
-		
-		SolrInputDocument doc = new SolrInputDocument();
-		doc.addField("id",  id );
-		
-		if ( name != null ) 
-			doc.addField(NAME, name);
-		if ( represents !=null && !represents.isEmpty()) {
-			for ( String rterm : represents )
-				doc.addField(REPRESENTS, rterm);
-		}	
-		if ( alias !=null && !alias.isEmpty()) {
-			for ( String aTerm : alias )
-				doc.addField(ALIAS, aTerm);
-		}	
-//		if ( relatedTerms !=null && ! relatedTerms.isEmpty() ) 
-//			doc.addField(RELATEDTO, relatedTerms);
-		
-		docs.add(doc);
-	//	client.add(doc);
-		counter ++;
-		if ( counter % batchSize == 0 ) {
-			client.add(docs);
-			client.commit();
-			docs.clear();
-		}
-
-	} */
 
 	
 	private void commit() throws SolrServerException, IOException {
