@@ -23,6 +23,10 @@ import org.ndexbio.cx2.aspect.element.core.CxNodeBypass;
 import org.ndexbio.cx2.aspect.element.core.CxVisualProperty;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cx2.aspect.element.core.DefaultVisualProperties;
+import org.ndexbio.cx2.aspect.element.core.EdgeControlPoint;
+import org.ndexbio.cx2.aspect.element.core.FontFace;
+import org.ndexbio.cx2.aspect.element.core.LabelPosition;
+import org.ndexbio.cx2.aspect.element.core.ObjectPosition;
 import org.ndexbio.cx2.aspect.element.core.VPMappingType;
 import org.ndexbio.cx2.aspect.element.core.VisualPropertyMapping;
 import org.ndexbio.cx2.aspect.element.core.VisualPropertyTable;
@@ -485,6 +489,7 @@ public class CX2ToCXConverter {
 			}
 			case DISCRETE:
 				for ( Map<String,Object> m : mapping.getMappingDef().getMapppingList() ) {
+					  Object vpValue = cvtVPfromRaw(vpName,m.get("vp"));
 					  sb.append(",K=");
 	                  sb.append(counter);
 	                  sb.append("=");
@@ -492,7 +497,7 @@ public class CX2ToCXConverter {
 	                  sb.append(",V=");
 	                  sb.append(counter);
 	                  sb.append("=");
-	                  sb.append(escapeString(vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,m.get("vp"))));
+	                  sb.append(escapeString(vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,vpValue)));
 	                  counter++;
 				}
 		        vp.putMapping(cx1VPName, VPMappingType.DISCRETE.toString(), sb.toString());
@@ -624,6 +629,27 @@ public class CX2ToCXConverter {
           result.append(curChar);
         }
         return result.toString();
-      }
+     }
 
+	private static Object cvtVPfromRaw(String vpName, Object e) {
+		if (vpName.equals("EDGE_LABEL_FONT_FACE") ||
+					vpName.equals("NODE_LABEL_FONT_FACE")) 
+				return FontFace.createFromMap((Map<String,String>)e);
+		
+		if ( vpName.equals("NODE_LABEL_POSITION")) 
+				return LabelPosition.createFromMap((Map<String,Object>)e);
+		
+		if ( vpName.matches(VisualPropertyTable.imagePositionPattern)) 
+				return ObjectPosition.createFromMap((Map<String,Object>)e);
+	
+		if ( vpName.equals("EDGE_CONTROL_POINTS")) {
+				List<Map<String,Object>> rawPoints = (List<Map<String,Object>>)e;
+				return  rawPoints.stream()
+						.map(p -> { return EdgeControlPoint.createFromMap(p);})
+						.collect(Collectors.toList());
+		} 
+		return e;
+	}
+
+    
 }

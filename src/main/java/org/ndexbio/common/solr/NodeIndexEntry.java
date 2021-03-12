@@ -7,18 +7,20 @@ public class NodeIndexEntry {
 
 	private Long id;
 	private String name;
-	private boolean memberIsToBeIndexed;
+	//private boolean memberIsToBeIndexed;
 	private Collection<String> represents;
 	private Collection<String> aliases;
-	private Collection<String> members;
+	//private Collection<String> members;
+	private Collection<String> text;
 	
+
 	public NodeIndexEntry() {
 		setId(null);
 		setName(null);
 		setRepresents(new TreeSet<>());
 		setAliases(new TreeSet<>());
-		setMembers(new TreeSet<>());
-		memberIsToBeIndexed = false;
+		//setMembers(new TreeSet<>());
+	//	memberIsToBeIndexed = false;
 	}
 	
 	public NodeIndexEntry(Long nodeId, String nodeName) {
@@ -26,8 +28,9 @@ public class NodeIndexEntry {
 		setName(nodeName);
 		setRepresents(new TreeSet<>());
 		setAliases(new TreeSet<>());
-		setMembers(new TreeSet<>());
-		memberIsToBeIndexed = false;
+	//	setMembers(new TreeSet<>());
+	//	memberIsToBeIndexed = false;
+		text = new TreeSet<>();
 	}
 
 	public Long getId() {
@@ -62,7 +65,7 @@ public class NodeIndexEntry {
 		this.represents = represents;
 	}
 
-	public Collection<String> getMembers() {
+/*	public Collection<String> getMembers() {
 		return members;
 	}
 
@@ -76,6 +79,19 @@ public class NodeIndexEntry {
 
 	public void setMemberIsToBeIndexed(boolean memberIsToBeIndexed) {
 		this.memberIsToBeIndexed = memberIsToBeIndexed;
-	}
+	}*/
 	
+	
+	public Collection<String> getText() {
+		return text;
+	}
+
+	/*public void setText(Collection<String> text) {
+		this.text = text;
+	} */
+	
+	public void addText(String txt) {
+		text.add(txt);
+	}
+
 }
