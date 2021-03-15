@@ -546,14 +546,19 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	        		if ( dType == null || dType == ATTRIBUTE_DATA_TYPE.STRING) {
 	        			if ( attrValue !=null ) { 
 	        				String s = (String) attrValue;
-	        				if ( s.length() > 1)
+	        				if ( s.length() > 1) {
+	        					if( e==null)
+		        					e = new NodeIndexEntry ( node.getId(),null);
 	        					e.addText(s);
+	        				}	
 	        			}	
 	        		} else {  // list of strings
  	        			List<String> ls = (List<String>)attrValue;
  	        			if (ls != null ) {
  	        				for ( String str: ls) {
  	        					if ( str!=null && str.length()>1) {
+ 	        						if( e==null)
+ 	   	        					   e = new NodeIndexEntry ( node.getId(),null);
  	        						e.addText(str);
  	        					}
  	        				}
