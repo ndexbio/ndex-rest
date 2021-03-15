@@ -628,8 +628,10 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			
 			if ( t == null || t == ATTRIBUTE_DATA_TYPE.STRING) {
 				String v = (String)node.getAttributes().get(actualAttrName);
-				for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
-					result.add( indexableString);
+				if ( v!= null) {
+					for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
+						result.add( indexableString);
+					}
 				}
 			} else if (t == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
 				List<String> vl = (List<String>)node.getAttributes().get(actualAttrName);
