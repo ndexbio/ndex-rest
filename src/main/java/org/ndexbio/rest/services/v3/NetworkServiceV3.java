@@ -16,6 +16,7 @@ import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -44,6 +45,7 @@ import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxAspectElement;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
+import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -130,6 +132,32 @@ public class NetworkServiceV3  extends NdexService {
 		
 	}  
 	
+	
+	
+	@PermitAll
+	@GET
+	@Path("/{networkid}/metaData")
+	@Produces("application/json")
+
+	public List<CxMetadata>  getNetworkCXMetadataCollection(	@PathParam("networkid") final String networkId,
+			@QueryParam("accesskey") String accessKey)
+			throws Exception {
+
+    	UUID networkUUID = UUID.fromString(networkId);
+
+		try (NetworkDAO dao = new NetworkDAO() ) {
+			if ( dao.isReadable(networkUUID, getLoggedInUserId()) || dao.accessKeyIsValid(networkUUID, accessKey)) {
+				List<CxMetadata> mdc = dao.getCx2MetaDataList(networkUUID);
+/*				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				JsonWriter wtr = JsonWriter.createInstance(baos,true);
+				mdc.toJson(wtr);
+				String s = baos.toString();//"java.nio.charset.StandardCharsets.UTF_8");
+				return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(s).build();*/
+		    	return mdc;
+		}
+			throw new UnauthorizedOperationException("User doesn't have access to this network.");
+		}
+	}
 	
 	@PermitAll
 	@GET

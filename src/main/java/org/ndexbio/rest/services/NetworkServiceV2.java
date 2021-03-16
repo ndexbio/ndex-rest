@@ -354,14 +354,11 @@ public class NetworkServiceV2 extends NdexService {
 			@QueryParam("accesskey") String accessKey)
 			throws Exception {
 
-    	logger.info("[start: Getting CX metadata from network {}]", networkId);
-
     	UUID networkUUID = UUID.fromString(networkId);
 
 		try (NetworkDAO dao = new NetworkDAO() ) {
 			if ( dao.isReadable(networkUUID, getLoggedInUserId()) || dao.accessKeyIsValid(networkUUID, accessKey)) {
 				MetaDataCollection mdc = dao.getMetaDataCollection(networkUUID);
-		    	logger.info("[end: Return CX metadata from network {}]", networkId);
 		    	ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				JsonWriter wtr = JsonWriter.createInstance(baos,true);
 				mdc.toJson(wtr);
@@ -384,14 +381,11 @@ public class NetworkServiceV2 extends NdexService {
 			)
 			throws Exception {
 
-    	logger.info("[start: Getting {} metadata from network {}]", aspectName, networkId);
-
     	UUID networkUUID = UUID.fromString(networkId);
 
 		try (NetworkDAO dao = new NetworkDAO() ) {
 			if ( dao.isReadable(networkUUID, getLoggedInUserId())) {
 				MetaDataCollection mdc = dao.getMetaDataCollection(networkUUID);
-		    	logger.info("[end: Return CX metadata from network {}]", networkId);
 		    	return mdc.getMetaDataElement(aspectName);
 			}
 			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -407,7 +401,6 @@ public class NetworkServiceV2 extends NdexService {
 			@DefaultValue("-1") @QueryParam("size") int limit) throws SQLException, NdexException
 		 {
 
-    	logger.info("[start: Getting one aspect in network {}]", networkId);
     	UUID networkUUID = UUID.fromString(networkId);
     	
     	try (NetworkDAO dao = new NetworkDAO()) {
@@ -443,7 +436,6 @@ public class NetworkServiceV2 extends NdexService {
 					}
 						
 					new CXAspectElementsWriterThread(out,in, /*aspectName,*/ limit).start();
-				//	logger.info("[end: Return get one aspect in network {}]", networkId);
 					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 				} 
 				
@@ -468,7 +460,6 @@ public class NetworkServiceV2 extends NdexService {
 			}
 							
 			new CXAspectElementWriter2Thread(out,networkId, aspectName, limit, accLogger).start();
-		//	logger.info("[end: Return get one aspect in network {}]", networkId);
 			return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 		
 		
@@ -513,7 +504,7 @@ public class NetworkServiceV2 extends NdexService {
 			FileInputStream in = new FileInputStream(cxFilePath)  ;
 		
 		//	setZipFlag();
-			logger.info("[end: Return network {}]", networkId);
+//			logger.info("[end: Return network {}]", networkId);
 			ResponseBuilder r = Response.ok();
 			if (isDownload) {
 				if (title == null || title.length() < 1) {
@@ -526,7 +517,7 @@ public class NetworkServiceV2 extends NdexService {
 			return 	r.type(isDownload ? MediaType.APPLICATION_OCTET_STREAM_TYPE : MediaType.APPLICATION_JSON_TYPE)
 					.entity(in).build();
 		} catch (IOException e) {
-			logger.error("[end: Ndex server can't find file: {}]", e.getMessage());
+	//		logger.error("[end: Ndex server can't find file: {}]", e.getMessage());
 			throw new NdexException ("Ndex server can't find file: " + e.getMessage());
 		}
 		
