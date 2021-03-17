@@ -136,10 +136,10 @@ public class NetworkServiceV3  extends NdexService {
 	
 	@PermitAll
 	@GET
-	@Path("/{networkid}/metaData")
+	@Path("/{networkid}/aspects")
 	@Produces("application/json")
 
-	public List<CxMetadata>  getNetworkCXMetadataCollection(	@PathParam("networkid") final String networkId,
+	public List<CxMetadata>  getNetworkCX2Metadata(	@PathParam("networkid") final String networkId,
 			@QueryParam("accesskey") String accessKey)
 			throws Exception {
 
@@ -161,7 +161,7 @@ public class NetworkServiceV3  extends NdexService {
 	
 	@PermitAll
 	@GET
-	@Path("/{networkid}/edges") 
+	@Path("/{networkid}/aspects/edges") 
 	public Response getEdges (
 			@PathParam("networkid") final String networkId,
 			@DefaultValue("first") @QueryParam("method") String method,
@@ -211,8 +211,8 @@ public class NetworkServiceV3  extends NdexService {
 					//	logger.info("[end: Return get one aspect in network {}]", networkId);
 						return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 					
-				} catch (FileNotFoundException e) {
-						throw new ObjectNotFoundException("Aspect CxEdge is not found in this network: " + e.getMessage());
+				} catch (@SuppressWarnings("unused") FileNotFoundException e) {
+						throw new ObjectNotFoundException("Aspect edges is not found in this network.");
 				}
 	    	}	
 		}
@@ -221,7 +221,7 @@ public class NetworkServiceV3  extends NdexService {
 	
 	@PermitAll
 	@GET
-	@Path("/{networkid}/{aspectname}")
+	@Path("/{networkid}/aspects/{aspectname}")
 	public Response getAspectElements(	@PathParam("networkid") final String networkId,
 			@PathParam("aspectname") final String aspectName,
 			@DefaultValue("-1") @QueryParam("size") int limit,
@@ -266,7 +266,7 @@ public class NetworkServiceV3  extends NdexService {
 					return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(pin).build();
 				
 			} catch (FileNotFoundException e) {
-					throw new ObjectNotFoundException("Aspect "+ aspectName + " not found in this network: " + e.getMessage());
+					throw new ObjectNotFoundException("Aspect "+ aspectName + " is not found in this network.");
 			}
 		
     	}
