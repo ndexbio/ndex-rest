@@ -138,7 +138,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 	long opaqueCounter ;
 
-	long serverElementLimit; 
+	//long serverElementLimit; 
 	
 	protected String networkName ;
 	protected String description;
@@ -177,7 +177,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	//	this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
 				
-		serverElementLimit = Configuration.getInstance().getServerElementLimit();
+		//serverElementLimit = Configuration.getInstance().getServerElementLimit();
 		
 		warnings = new ArrayList<> ();
 		networkNameIsAssigned = false;

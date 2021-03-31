@@ -333,6 +333,36 @@ COMMENT ON COLUMN core.network.solr_indexed IS 'true if this network is indexed 
 COMMENT ON COLUMN core.network.solr_idx_lvl IS 'Solr Index level -- null: no index; ''meta'' Index on metadata. ''all'' full index(metadata and nodes)';
 
 
+CREATE TABLE network_arc
+(
+    "UUID" uuid NOT NULL,
+    creation_time timestamp without time zone,
+    modification_time timestamp without time zone,
+    name character varying(500) ,
+    description text,
+    edgecount integer,
+    nodecount integer,
+    visibility character varying(100),
+    owner character varying(100) ,
+    sourceformat character varying(100),
+    properties jsonb,
+    cxmetadata jsonb,
+    version character varying(100) ,
+    is_validated boolean DEFAULT false,
+    error character varying(2000) ,
+    warnings text[] ,
+    show_in_homepage boolean DEFAULT false,
+    subnetworkids bigint[],
+    cx_file_size bigint,
+    solr_idx_lvl character varying(15)  DEFAULT 'NONE'::character varying,
+    has_layout boolean DEFAULT false,
+    has_sample boolean DEFAULT false,
+    cx2metadata jsonb,
+    cx2_file_size bigint,
+    cxformat character varying(20),
+    CONSTRAINT network_arc_pk PRIMARY KEY ("UUID")
+);
+
 --
 -- Name: network_set; Type: TABLE; Schema: core; Owner: ndexserver
 --

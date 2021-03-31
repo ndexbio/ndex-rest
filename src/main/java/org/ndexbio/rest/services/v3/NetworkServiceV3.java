@@ -139,7 +139,7 @@ public class NetworkServiceV3  extends NdexService {
 	@Path("/{networkid}/aspects")
 	@Produces("application/json")
 
-	public List<CxMetadata>  getNetworkCX2Metadata(	@PathParam("networkid") final String networkId,
+	public List<CxMetadata>  getCX2Metadata(	@PathParam("networkid") final String networkId,
 			@QueryParam("accesskey") String accessKey)
 			throws Exception {
 
@@ -148,11 +148,6 @@ public class NetworkServiceV3  extends NdexService {
 		try (NetworkDAO dao = new NetworkDAO() ) {
 			if ( dao.isReadable(networkUUID, getLoggedInUserId()) || dao.accessKeyIsValid(networkUUID, accessKey)) {
 				List<CxMetadata> mdc = dao.getCx2MetaDataList(networkUUID);
-/*				ByteArrayOutputStream baos = new ByteArrayOutputStream();
-				JsonWriter wtr = JsonWriter.createInstance(baos,true);
-				mdc.toJson(wtr);
-				String s = baos.toString();//"java.nio.charset.StandardCharsets.UTF_8");
-				return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(s).build();*/
 		    	return mdc;
 		}
 			throw new UnauthorizedOperationException("User doesn't have access to this network.");

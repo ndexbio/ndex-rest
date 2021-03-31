@@ -73,6 +73,8 @@ public class Configuration
 	private static final String dbUserPropName 	   = "NdexDBUsername";
 	private static final String dbPasswordPropName = "NdexDBDBPassword";
 	
+	private static final String ndexConfigFilePropName = "ndexConfigurationPath";
+	
 	public static final String networkPostEdgeLimit = "NETWORK_POST_ELEMENT_LIMIT";
 	private static final String defaultSolrURL = "http://localhost:8983/solr";
 	
@@ -91,7 +93,9 @@ public class Configuration
    
 	private boolean useADAuthentication ;
 	
-	private long serverElementLimit;
+	//private long serverElementLimit;
+	
+	private String statsDBLink;
 	
 	private Map<String,ImporterExporterEntry> impExpTable;
 	
@@ -152,7 +156,7 @@ public class Configuration
 			}
 			
 			
-			String edgeLimit = getProperty(Configuration.networkPostEdgeLimit);
+		/*	String edgeLimit = getProperty(Configuration.networkPostEdgeLimit);
 			if ( edgeLimit != null ) {
 				try {
 					serverElementLimit = Long.parseLong(edgeLimit);
@@ -161,7 +165,9 @@ public class Configuration
 			//		props.put("ServerPostEdgeLimit", "-1");  //defaultPostEdgeLimit);
 				}
 			} else 
-				serverElementLimit = -1;
+				serverElementLimit = -1;*/
+			
+			statsDBLink = getProperty("STATS_DB_LINK");
             
 			restAPIPrefix = getProperty("RESTAPIPrefix");
 			if ( restAPIPrefix == null) {
@@ -289,7 +295,12 @@ public class Configuration
     {
     	if ( INSTANCE == null)  { 
     		try {
-    			INSTANCE = new Configuration(System.getenv("ndexConfigurationPath"));
+    			String configFilePath = System.getenv(ndexConfigFilePropName);
+    			if ( configFilePath == null)
+    				configFilePath = System.getProperty(ndexConfigFilePropName);
+    			if ( configFilePath == null)
+    				throw new NdexException(ndexConfigFilePropName + " is not defined. This variable needs to be defined as an environment variable or system property.");
+    			INSTANCE = new Configuration(configFilePath);
     		} catch (  NamingException | IOException e) {
     			throw new NdexException ( "Failed to get Configurtion Instance: " + e.getMessage(), e);
     		}
@@ -365,7 +376,8 @@ public class Configuration
     public String getSolrURL() {return this.solrURL; }
     public Level  getLogLevel()  {return this.logLevel;}
     public String getHostURI () { return hostURI; }
-    public long   getServerElementLimit() { return serverElementLimit;}
+    //public long   getServerElementLimit() { return serverElementLimit;}
+    public String getStatsDBLink()   {return statsDBLink;}
     public String getRestAPIPrefix() {return restAPIPrefix;}
 
 	public boolean getUseADAuthentication() {
