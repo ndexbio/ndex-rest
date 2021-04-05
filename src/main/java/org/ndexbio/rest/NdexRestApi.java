@@ -99,8 +99,8 @@ public class NdexRestApi extends Application
         _providers.add(new UnauthorizedOperationExceptionMapper());
         _providers.add(new ForbiddenExceptionMapper());
         _providers.add(new BadRequestExceptionMapper());
-        _providers.add(new DefaultExceptionMapper());
         _providers.add(new NotSupportedExceptionMapper());
+        _providers.add(new DefaultExceptionMapper());
         
         _providers.add(new NdexPreZippedInterceptor());
         CorsFilter corsFilter = new CorsFilter();

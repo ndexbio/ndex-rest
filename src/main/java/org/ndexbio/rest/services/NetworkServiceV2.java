@@ -101,6 +101,7 @@ import org.ndexbio.cxio.core.OpaqueAspectIterator;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
 import org.ndexbio.cxio.util.JsonWriter;
+import org.ndexbio.model.errorcodes.ErrorCode;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.InvalidNetworkException;
@@ -261,6 +262,16 @@ public class NetworkServiceV2 extends NdexService {
 		User user = getLoggedInUser();
 		UUID networkUUID = UUID.fromString(networkId);
 
+		if ( properties.stream().anyMatch(x -> { String n = x.getPredicateString(); 
+		                                    return n.equals(NdexClasses.Network_P_name) || n.equals(NdexClasses.Network_P_desc)
+		                                    		|| n.equals(NdexClasses.Network_P_version);}) ) {
+			throw new BadRequestException (
+					"Property list can't contain 'name', 'description' or 'version'. You need to use the "
+					+ "update network profile function to modify these 3 properties.");
+		}
+		
+		
+		
 		try (NetworkDAO daoNew = new NetworkDAO()) {
 			
 	  	    if(daoNew.isReadOnly(networkUUID)) {
