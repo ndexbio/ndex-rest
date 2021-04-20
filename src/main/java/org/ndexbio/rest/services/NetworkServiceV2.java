@@ -1481,7 +1481,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 			aspectUpdater.update();
 
-		} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
+		} catch ( IOException | NdexException | SQLException | RuntimeException | SolrServerException e1) {
 				logger.error("Error occurred when updating aspects of network " + networkId + ": " + e1.getMessage());
 				e1.printStackTrace();
 				daoNew.setErrorMessage(networkId, e1.getMessage());

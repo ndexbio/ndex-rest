@@ -439,7 +439,7 @@ public class SearchServiceV2 extends NdexService {
 			try (NetworkDAO dao = new NetworkDAO ()) {
 				try ( CXNetworkLoader loader = new CXNetworkLoader(networkUUID, false,dao, VisibilityType.PRIVATE, null, 5000) ) {
 							loader.persistCXNetwork();
-				} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
+				} catch ( IOException | NdexException | SQLException | RuntimeException | SolrServerException e1) {
 					e1.printStackTrace();
 					try {
 						dao.setErrorMessage(networkUUID, e1.getMessage());

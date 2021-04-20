@@ -44,9 +44,11 @@ import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxAspectElement;
+import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cx2.io.CX2AspectWriter;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -508,7 +510,7 @@ public class NetworkServiceV3  extends NdexService {
 	    @PUT
 	    @Path("/{networkid}")
 	    @Consumes("multipart/form-data")
-	    @Produces("application/json")
+	    //@Produces("application/json")
 
 	    public void updateCX2Network(final @PathParam("networkid") String networkIdStr,
 	    		 @QueryParam("visibility") String visibilityStr,
@@ -568,4 +570,60 @@ public class NetworkServiceV3  extends NdexService {
 			daoNew.commit();
 		}
 
+		
+		@PermitAll
+		@GET
+		@Path("/{networkid}/export")
+		
+		public Response exportTSVText( 
+				@PathParam("networkid") final String networkId,
+				@QueryParam("accesskey") String accessKey,
+				@DefaultValue("node")  @QueryParam("type") String type,
+				@DefaultValue("true")  @QueryParam("header") boolean includeHeader,
+				//@DefaultValue("\t")  @QueryParam("dilimiter") String delimiter,
+				@DefaultValue(",")  @QueryParam("listdelimiter") String listDelimiter,
+				@DefaultValue("id")  @QueryParam("nodekey") String nodeKey,
+				@QueryParam("nodeattributes") String nodeAttrStr,
+				@QueryParam("edgeattributes") String edgeAttrStr,
+				@DefaultValue("false")  @QueryParam("quotestringinlist") boolean quoteStringInList
+				) throws NdexException, SQLException, IOException {
+			
+			if  (!type.equals("node") && !type.equals("edge") )
+				throw new BadRequestException("Parameter \"type\" can only be 'node' or 'edge'.");	
+			
+			UUID networkUUID = UUID.fromString(networkId);
+	    	
+	    	try (NetworkDAO dao = new NetworkDAO()) {
+	    		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
+	    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
+	    			throw new UnauthorizedOperationException("User doesn't have access to this network.");
+	    		}
+	    		
+	    		CxAttributeDeclaration attrDecls = Utilities.getAttributeDecls( networkUUID);
+		 		String[] nodeAttrs = ( nodeAttrStr == null ) ? null : nodeAttrStr.split(",");
+	    		String[] edgeAttrs = edgeAttrStr == null? null: edgeAttrStr.split(",");
+	    		
+	    		//TODO: Check if all attributes are valid, and check if delimiter and listDelimiter contains '"'.
+	    		
+				PipedInputStream in = new PipedInputStream();
+				 
+				PipedOutputStream out;
+				
+		 		try {
+					out = new PipedOutputStream(in);
+				} catch (IOException e) {
+					in.close();
+					throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+				}
+		 		
+		 		
+	    		new TSVWriterThread(out, networkUUID, attrDecls, type, includeHeader, listDelimiter, nodeKey, 
+	    				nodeAttrs, edgeAttrs, quoteStringInList).start();
+	    		
+	    		return Response.ok().type("text/tab-separated-values").entity(in).build();
+
+	    	} 	
+		}
+		
+		
 }
