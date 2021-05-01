@@ -151,6 +151,7 @@ public class TSVWriterThread extends Thread {
 				}	
 			}
 			//move interaction to the front if it exists.
+			if ( edgeAttrs != null) {
 			for ( int i = 0; i < edgeAttrs.length; i++) {
 				if ( edgeAttrs[i].equals(CxEdge.INTERACTION)) {
 					if(i!=0) {
@@ -159,6 +160,7 @@ public class TSVWriterThread extends Thread {
 						edgeAttrs[i] = s;
 					}
 				}
+			}
 			}
 		}
 		
