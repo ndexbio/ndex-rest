@@ -17,6 +17,7 @@ import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -47,6 +48,8 @@ import org.ndexbio.cx2.aspect.element.core.CxAspectElement;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
+import org.ndexbio.cx2.aspect.element.core.CxNode;
+import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
@@ -580,7 +583,6 @@ public class NetworkServiceV3  extends NdexService {
 				@QueryParam("accesskey") String accessKey,
 				@DefaultValue("node")  @QueryParam("type") String type,
 				@DefaultValue("true")  @QueryParam("header") boolean includeHeader,
-				//@DefaultValue("\t")  @QueryParam("dilimiter") String delimiter,
 				@DefaultValue(",")  @QueryParam("listdelimiter") String listDelimiter,
 				@DefaultValue("id")  @QueryParam("nodekey") String nodeKey,
 				@QueryParam("nodeattributes") String nodeAttrStr,
@@ -603,7 +605,44 @@ public class NetworkServiceV3  extends NdexService {
 		 		String[] nodeAttrs = ( nodeAttrStr == null ) ? null : nodeAttrStr.split(",");
 	    		String[] edgeAttrs = edgeAttrStr == null? null: edgeAttrStr.split(",");
 	    		
-	    		//TODO: Check if all attributes are valid, and check if delimiter and listDelimiter contains '"'.
+	    		//Check if all attributes are valid, and check if listDelimiter contains '"'.
+	    		if ( nodeAttrs !=null) {
+	    			if ( attrDecls == null)
+	    				throw new UnauthorizedOperationException("This network doesn't have node attributes");
+	    			
+	    			Map<String,DeclarationEntry> decls = attrDecls.getAttributesInAspect(CxNode.ASPECT_NAME);
+	    			if ( decls == null)
+	    				throw new UnauthorizedOperationException("This network doesn't have node attributes");
+	    			for ( String nAttr : nodeAttrs) {
+	    				if ( !decls.containsKey(nAttr))
+	    					throw new UnauthorizedOperationException( CxNode.ASPECT_NAME + " aspect doesn't have attribute " + nAttr);
+	    			}
+	    		}
+	    		if ( edgeAttrs !=null) {
+	    			if ( attrDecls == null)
+	    				throw new UnauthorizedOperationException("This network doesn't have edge attributes");
+	    		
+	    			Map<String,DeclarationEntry> decls = attrDecls.getAttributesInAspect(CxEdge.ASPECT_NAME);
+	    			if ( decls == null)
+	    				throw new UnauthorizedOperationException("This network doesn't have edge attributes");
+	    			for ( String eAttr : edgeAttrs) {
+	    				if ( !decls.containsKey(eAttr))
+	    					throw new UnauthorizedOperationException( CxEdge.ASPECT_NAME + " aspect doesn't have attribute " + eAttr);
+	    			}
+	    		}
+	    		
+	    		if ( listDelimiter.indexOf('"') != -1)
+	    			throw new UnauthorizedOperationException("listdelimiter parameter can't contain '\"'.");
+	    		
+	    		if ( !nodeKey.equals("id")) {
+	    			if ( attrDecls == null )
+	    				throw new UnauthorizedOperationException("This network doesn't have node attributes");
+	    			Map<String,DeclarationEntry> decls = attrDecls.getAttributesInAspect(CxNode.ASPECT_NAME);
+	    			if ( decls == null)
+	    				throw new UnauthorizedOperationException("This network doesn't have node attributes");
+	    			if ( !decls.containsKey(nodeKey))
+	    				throw new UnauthorizedOperationException( CxNode.ASPECT_NAME + " aspect doesn't have attribute " + nodeKey);
+	    		}
 	    		
 				PipedInputStream in = new PipedInputStream();
 				 

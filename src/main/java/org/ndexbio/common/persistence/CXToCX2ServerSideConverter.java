@@ -538,6 +538,13 @@ public class CXToCX2ServerSideConverter {
 				} 
 			}
 		}
+				
+		// check if @context exists.
+		String fname = pathPrefix + networkId + "/aspects/"+ NamespacesElement.ASPECT_NAME;
+		java.nio.file.Path contextAspectFile = Paths.get(fname);
+		if ( Files.exists(contextAspectFile))
+			attributeStats.setHasNamespacesAspect();
+		
 		
 		//check node attributes
 		try (AspectIterator<NodeAttributesElement> a = new AspectIterator<>(networkId, NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix) ) {

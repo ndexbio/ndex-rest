@@ -15,6 +15,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Utilities {
 	
+	/**
+	 * 
+	 * @param networkId
+	 * @return  null if no attributes are declared in any aspects.
+	 * @throws JsonParseException
+	 * @throws JsonMappingException
+	 * @throws IOException
+	 */
 	public static CxAttributeDeclaration getAttributeDecls(UUID networkId) throws JsonParseException, JsonMappingException, IOException {
 		String aspectDir = Configuration.getInstance().getNdexRoot() + File.separator + "data" +File.separator + 
 				networkId + File.separator + CX2NetworkLoader.cx2AspectDirName+  File.separator;
