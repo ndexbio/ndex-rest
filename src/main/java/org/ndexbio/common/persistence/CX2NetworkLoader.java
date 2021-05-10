@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.cx.CX2NetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
@@ -156,7 +157,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 	protected NetworkDAO getDAO () {return dao;}
 	
 	
-	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException {
+	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {
 		        	    
 		  java.nio.file.Path dir = Paths.get(rootPath);
 		  Files.createDirectory(dir);
@@ -239,6 +240,12 @@ public class CX2NetworkLoader implements AutoCloseable {
 
 				NetworkIndexLevel indexLevel = dao.getIndexLevel(networkId);
 				boolean needIndividualIndex = this.nodeIdTracker.getDefinedElementSize() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD;
+				
+				// clear individual index
+				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+					idx2.dropIndex();
+				}
+				
 				if ( isUpdate && indexLevel != NetworkIndexLevel.NONE)  {
 				   if ( needIndividualIndex)
 					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel , true ));

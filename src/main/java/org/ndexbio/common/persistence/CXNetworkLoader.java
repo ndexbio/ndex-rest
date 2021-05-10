@@ -30,7 +30,6 @@
  */
 package org.ndexbio.common.persistence;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -48,6 +47,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
@@ -83,6 +83,7 @@ import org.ndexbio.model.cx.CitationElement;
 import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
 import org.ndexbio.model.cx.FunctionTermElement;
+import org.ndexbio.model.cx.NamespacesElement;
 import org.ndexbio.model.cx.NdexNetworkStatus;
 import org.ndexbio.model.cx.NodeCitationLinksElement;
 import org.ndexbio.model.cx.NodeSupportLinksElement;
@@ -138,7 +139,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 	long opaqueCounter ;
 
-	long serverElementLimit; 
+	//long serverElementLimit; 
 	
 	protected String networkName ;
 	protected String description;
@@ -177,7 +178,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	//	this.inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/network.cx");
 				
-		serverElementLimit = Configuration.getInstance().getServerElementLimit();
+		//serverElementLimit = Configuration.getInstance().getServerElementLimit();
 		
 		warnings = new ArrayList<> ();
 		networkNameIsAssigned = false;
@@ -254,7 +255,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		warnings.add( warningStr);		
 	}
 	
-	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException {
+	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {
 		        	    
 	 //   try {
 	    	
@@ -343,14 +344,20 @@ public class CXNetworkLoader implements AutoCloseable {
 
 				NetworkIndexLevel indexLevel = dao.getIndexLevel(networkId);
 				boolean needIndividualIndex = this.nodeIdTracker.getDefinedElementSize() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD;
+				
+				//clear the individual index 
+				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+					idx2.dropIndex();
+				}
+
 				if ( isUpdate && indexLevel != NetworkIndexLevel.NONE)  {
 				   if ( needIndividualIndex)
-					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel,false ));
+					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel,true ));
 				   else 
-				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields, indexLevel,false ));
+				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields, indexLevel,true ));
 				} else {
 					if (needIndividualIndex)
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,!isUpdate, indexedFields, NetworkIndexLevel.NONE,false));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,!isUpdate, indexedFields, NetworkIndexLevel.NONE,true));
 					else {
 						dao.setFlag(this.networkId, "iscomplete", true);
 						dao.commit();
@@ -792,9 +799,10 @@ public class CXNetworkLoader implements AutoCloseable {
 
 	}
 
-	
 	private void createAspectElement(AspectElement element) throws IOException {
 		writeCXElement(element);
+		if ( element.getAspectName().equals(NamespacesElement.ASPECT_NAME))
+			attributeStats.setHasNamespacesAspect();
 	}
 	
 

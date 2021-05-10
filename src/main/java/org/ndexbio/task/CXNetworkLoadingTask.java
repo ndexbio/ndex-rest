@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 
+import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
@@ -41,7 +42,7 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 	  try (NetworkDAO dao = new NetworkDAO ()) {
 		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, /*ownerUserName,*/ isUpdate,dao, visibility, nodeAttributeIndexList, 0) ) {
 				loader.persistCXNetwork();
-		} catch ( IOException | NdexException | SQLException | RuntimeException e1) {
+		} catch ( IOException | NdexException | SQLException | RuntimeException | SolrServerException e1) {
 			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
 			e1.printStackTrace();
 			dao.setFlag(networkId, "is_validated", true);

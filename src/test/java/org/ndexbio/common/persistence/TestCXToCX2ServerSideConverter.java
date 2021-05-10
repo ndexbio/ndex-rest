@@ -210,7 +210,7 @@ public class TestCXToCX2ServerSideConverter {
 			File fileCheck = new File(a2Dir.getAbsolutePath() + File.separator + entry);
 			assertTrue(entry + " file has 0 size", fileCheck.length() > 0);
 		}
-		assertEquals(8, cx2AspectFileNames.size());
+		assertEquals(9, cx2AspectFileNames.size());
 		assertTrue(cx2AspectFileNames.contains("visualProperties"));
 		assertTrue(cx2AspectFileNames.contains("visualEditorProperties"));
 		assertTrue(cx2AspectFileNames.contains("nodes"));
@@ -219,6 +219,7 @@ public class TestCXToCX2ServerSideConverter {
 		assertTrue(cx2AspectFileNames.contains("attributeDeclarations"));
 		assertTrue(cx2AspectFileNames.contains("cyHiddenAttributes"));
 		assertTrue(cx2AspectFileNames.contains("cyTableColumn"));
+		assertTrue(cx2AspectFileNames.contains("edgeBypasses"));
 
 		List<String> warnings = converter.getWarning();
 		assertEquals(1, warnings.size());

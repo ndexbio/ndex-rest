@@ -37,10 +37,12 @@ import org.ndexbio.model.cx.SupportElement;
 
 /**
  * Note: the node and edge attribute tables are indexed on node and edge id respectively. 
+ * This class is replaced by NiceCXNetwork class in the object model.
  * However, the po field is still in the compact format ( a list) in the attributeElement object. So don't use that field in this model.
  * @author chenjing
  *
  */
+@Deprecated
 public class CXNetwork {
 	private MetaDataCollection metadata;
 	
@@ -61,7 +63,7 @@ public class CXNetwork {
 	
 	private Map<String, Collection<AspectElement>> opaqueAspects;
 	
-	public CXNetwork() {
+	protected CXNetwork() {
 		setMetadata(new MetaDataCollection());
 		namespaces = new NamespacesElement();
 		nodes = new HashMap<>();

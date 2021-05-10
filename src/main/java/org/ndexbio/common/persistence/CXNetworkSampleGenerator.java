@@ -3,6 +3,7 @@ package org.ndexbio.common.persistence;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -13,6 +14,7 @@ import java.util.TreeSet;
 import java.util.UUID;
 
 import org.ndexbio.cxio.core.AspectIterator;
+import org.ndexbio.cxio.core.writers.NiceCXNetworkWriter;
 import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
@@ -27,9 +29,11 @@ import org.ndexbio.model.cx.EdgeCitationLinksElement;
 import org.ndexbio.model.cx.EdgeSupportLinksElement;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.cx.NamespacesElement;
+import org.ndexbio.model.cx.NiceCXNetwork;
 import org.ndexbio.model.cx.NodeCitationLinksElement;
 import org.ndexbio.model.cx.NodeSupportLinksElement;
 import org.ndexbio.model.cx.SupportElement;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.internal.CXNetwork;
 import org.ndexbio.rest.Configuration;
 
@@ -69,9 +73,10 @@ public class CXNetworkSampleGenerator {
 		return result;
 	}
 	
-	public void createSampleNetwork() throws IOException {
+	public void createSampleNetwork() throws IOException, NdexException {
 		
-		CXNetwork result = new CXNetwork();
+		//CXNetwork result = new CXNetwork();
+		NiceCXNetwork result = new NiceCXNetwork();
 
 		MetaDataCollection metadata = new MetaDataCollection();
 		result.setMetadata(metadata);
@@ -295,16 +300,16 @@ public class CXNetworkSampleGenerator {
 				CyVisualPropertiesElement elmt = it.next();
 				if ( elmt.getProperties_of().equals("nodes")) {
 					if ( nodeIds.contains(elmt.getApplies_to())) {
-						result.addOpapqueAspect(elmt);
+						result.addOpaqueAspect(elmt);
 						vpropCount++;
 					}
 				} else if (elmt.getProperties_of().equals("edges")) {
 					if ( edgeIds.contains(elmt.getApplies_to())) {
-						result.addOpapqueAspect(elmt);
+						result.addOpaqueAspect(elmt);
 						vpropCount++;
 					}
 				} else {
-					result.addOpapqueAspect(elmt);
+					result.addOpaqueAspect(elmt);
 					vpropCount++;
 				}
 			}
@@ -327,7 +332,7 @@ public class CXNetworkSampleGenerator {
 
 			while (it.hasNext()) {
 				CyVisualPropertiesElement elmt = it.next();
-				result.addOpapqueAspect(elmt);
+				result.addOpaqueAspect(elmt);
 				vpropCount++;
 			}
 		  }
@@ -488,7 +493,8 @@ public class CXNetworkSampleGenerator {
 		
 		//write the sample network out to disk and update the db.
 		try (FileOutputStream out = new FileOutputStream(Configuration.getInstance().getNdexRoot() + "/data/" + networkId + "/sample.cx")) {
-			result.write(out);
+			NiceCXNetworkWriter writer = new NiceCXNetworkWriter(out, true);
+			writer.writeNiceCXNetwork(result);
 		}
 	}
 	

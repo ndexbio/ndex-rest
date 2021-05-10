@@ -20,6 +20,7 @@ import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
+import org.ndexbio.cxio.core.writers.NiceCXCX2Writer;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.model.exceptions.NdexException;
 
@@ -110,13 +111,13 @@ public class CX2NetworkCreationRunner implements Callable {
 					//if (converter.getWarning().size() > 0) {
 						List<String> warnings = new java.util.ArrayList<>(
 								_networkdao.getWarnings(_networkUUID));
-						warnings.removeIf(n -> n.startsWith(CXToCX2ServerSideConverter.messagePrefix));
+						warnings.removeIf(n -> n.startsWith(NiceCXCX2Writer.messagePrefix));
 						warnings.addAll(converter.getWarning());
 						_networkdao.setWarning(_networkUUID, warnings);
 					//}
 				} catch (NdexException | RuntimeException e) {
 					_networkdao.setErrorMessage(_networkUUID,
-							CXToCX2ServerSideConverter.messagePrefix + e.getMessage());
+							NiceCXCX2Writer.messagePrefix + e.getMessage());
 					_sb.append(_networkUUID.toString());
 					_sb.append(" has error. Error message is: ");
 					_sb.append(e.getMessage());
@@ -188,7 +189,7 @@ public class CX2NetworkCreationRunner implements Callable {
 		
 		List<String> warnings = new java.util.ArrayList<>(
 					_networkdao.getWarnings(_networkUUID));
-		warnings.removeIf(n -> n.startsWith(CXToCX2ServerSideConverter.messagePrefix));
+		warnings.removeIf(n -> n.startsWith(NiceCXCX2Writer.messagePrefix));
 
 		String message = null;
 		if ( edgeCount > _edgeCountLimit) {
@@ -196,7 +197,7 @@ public class CX2NetworkCreationRunner implements Callable {
 		} else {
 			message = "CX2 network won't be generated on Cytoscape network collection." ;
 		}
-		warnings.add(CXToCX2ServerSideConverter.messagePrefix + message);				
+		warnings.add(NiceCXCX2Writer.messagePrefix + message);				
 		_networkdao.setWarning(_networkUUID, warnings);
 		_sb.append(" : ");
 		_sb.append(message);

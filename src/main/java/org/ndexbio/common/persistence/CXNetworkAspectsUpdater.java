@@ -7,7 +7,9 @@ import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.UUID;
 
+import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
@@ -36,7 +38,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 		this.aspectsCXNetworkID = aspectsCXUUID;
 	}
 
-	public void update() throws FileNotFoundException, IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException {
+	public void update() throws FileNotFoundException, IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {
 	
 		try (	InputStream inputStream = new FileInputStream(Configuration.getInstance().getNdexRoot() + "/data/" + aspectsCXNetworkID.toString() + "/network.cx") ) {
 			  persistNetworkData(inputStream, true); 
@@ -105,6 +107,9 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				throw new NdexException("DB error when setting unlock flag: " + e.getMessage(), e);
 			}
 
+			try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(getNetworkId().toString())) {
+				idx2.dropIndex();
+			}
 			NetworkIndexLevel indexLevel = dao.getIndexLevel(networkUUID);
 			if (indexLevel != NetworkIndexLevel.NONE)
 				NdexServerQueue.INSTANCE.addSystemTask(

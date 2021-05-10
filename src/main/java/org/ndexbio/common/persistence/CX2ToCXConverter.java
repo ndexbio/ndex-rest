@@ -6,13 +6,13 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
+import org.ndexbio.cx2.aspect.element.core.Cx2Network;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
 import org.ndexbio.cx2.aspect.element.core.CxEdgeBypass;
@@ -23,8 +23,13 @@ import org.ndexbio.cx2.aspect.element.core.CxNodeBypass;
 import org.ndexbio.cx2.aspect.element.core.CxVisualProperty;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cx2.aspect.element.core.DefaultVisualProperties;
+import org.ndexbio.cx2.aspect.element.core.EdgeControlPoint;
+import org.ndexbio.cx2.aspect.element.core.FontFace;
+import org.ndexbio.cx2.aspect.element.core.LabelPosition;
+import org.ndexbio.cx2.aspect.element.core.ObjectPosition;
 import org.ndexbio.cx2.aspect.element.core.VPMappingType;
 import org.ndexbio.cx2.aspect.element.core.VisualPropertyMapping;
+import org.ndexbio.cx2.aspect.element.core.VisualPropertyTable;
 import org.ndexbio.cx2.aspect.element.cytoscape.VisualEditorProperties;
 import org.ndexbio.cx2.converter.CX2ToCXVisualPropertyConverter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
@@ -49,12 +54,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  */
 public class CX2ToCXConverter {
-	
-	public static final List<String> cx2SpecialAspects = Arrays.asList(
-			CxAttributeDeclaration.ASPECT_NAME,CxEdgeBypass.ASPECT_NAME,
-			CxNodeBypass.ASPECT_NAME, VisualEditorProperties.ASPECT_NAME,
-			CxNetworkAttribute.ASPECT_NAME);
-		
+			
 	private static final String VM_COL = "COL=";
 	private static final String VM_TYPE = "T=";
     private final  static char COMMA = ',';
@@ -270,9 +270,6 @@ public class CX2ToCXConverter {
 				
 				DefaultVisualProperties defaultVPs = vPs[0].getDefaultProps();
 				
-				//convert network default VPs
-				writer.writeElement(getDefaultNetworkVP(defaultVPs));
-				
 				// get the dependency table
 				VisualEditorProperties vep = null;
 				File vsEditorPropsFile = new File ( aspectPath + VisualEditorProperties.ASPECT_NAME);
@@ -281,6 +278,9 @@ public class CX2ToCXConverter {
 					vep = vepr[0];
 				}
 				
+				//convert network default VPs
+				writer.writeElement(getDefaultNetworkVP(defaultVPs, vep));
+
 				// convert node default and node mappings
 				CyVisualPropertiesElement vp = getDefaultNodeVP(vPs[0], vep, this.attrDeclarations );
 				
@@ -301,10 +301,10 @@ public class CX2ToCXConverter {
 								Long.valueOf(bypass.getId()), null);
 						
 						Boolean nodeSizeLocked = (Boolean)vep.getProperties().get("nodeSizeLocked");
-		    			Map<String,Object> bypassProps = bypass.getVisualProperties();
+		    			VisualPropertyTable bypassProps = bypass.getVisualProperties();
 			    		if( nodeSizeLocked.booleanValue()) {
 			    			if (bypassProps.get("NODE_WIDTH") != null ) {
-			    				bypassProps.put("NODE_SIZE", bypassProps.get("NODE_WIDTH"));
+			    				bypassProps.getVisualProperties().put("NODE_SIZE", bypassProps.get("NODE_WIDTH"));
 			    			}
 			    		}
 			    		
@@ -322,7 +322,7 @@ public class CX2ToCXConverter {
 						CyVisualPropertiesElement e = new CyVisualPropertiesElement(EdgesElement.ASPECT_NAME,
 								Long.valueOf(bypass.getId()), null);
 						
-		    			Map<String,Object> bypassProps = bypass.getVisualProperties();
+						VisualPropertyTable bypassProps = bypass.getVisualProperties();
 			    		
 			    		e.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
 			    		
@@ -337,7 +337,7 @@ public class CX2ToCXConverter {
 			
 			//write other opaque aspects.
 			for (String aspectName: this.metadataTable.keySet()) {
-				if ( !cx2SpecialAspects.contains(aspectName) && !aspectName.equals(CxNode.ASPECT_NAME)
+				if ( !Cx2Network.cx2SpecialAspects.contains(aspectName) && !aspectName.equals(CxNode.ASPECT_NAME)
 						&& ! aspectName.equals(CxEdge.ASPECT_NAME) && !aspectName.equals(CxVisualProperty.ASPECT_NAME)) {
 					writer.startAspectFragment(aspectName);
 					writer.writeAspectElementsFromNdexAspectFile(aspectPath + aspectName);
@@ -372,9 +372,19 @@ public class CX2ToCXConverter {
 		}
 	}
 	
-	public static CyVisualPropertiesElement getDefaultNetworkVP (DefaultVisualProperties dvps) {
+	public static CyVisualPropertiesElement getDefaultNetworkVP (DefaultVisualProperties dvps, 
+			VisualEditorProperties vep) {
 		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("network");
 		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertNetworkVPs(dvps.getNetworkProperties()));
+
+		for ( Map.Entry<String,Object> entry: vep.getProperties().entrySet()) {
+			String vpName = entry.getKey();
+			if ( vpName.equals("NETWORK_CENTER_X_LOCATION") || 
+					vpName.equals("NETWORK_CENTER_Y_LOCATION") || 
+					vpName.equals("NETWORK_SCALE_FACTOR"))
+				vp.getProperties().put(vpName, entry.getValue().toString());
+		}
+		
 		return vp;
 	}
 	
@@ -382,7 +392,7 @@ public class CX2ToCXConverter {
 	public static CyVisualPropertiesElement getDefaultNodeVP (CxVisualProperty vps, VisualEditorProperties vep,
 			CxAttributeDeclaration attrDecls) throws NdexException {
 		DefaultVisualProperties defaultVPs = vps.getDefaultProps();
-		Map<String,Object> nodeDefaultVPs =defaultVPs.getNodeProperties();
+		VisualPropertyTable nodeDefaultVPs =defaultVPs.getNodeProperties();
 		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("nodes:default");
 		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(nodeDefaultVPs));
 		
@@ -419,7 +429,7 @@ public class CX2ToCXConverter {
 	public static CyVisualPropertiesElement getDefaultEdgeVP (CxVisualProperty vps, VisualEditorProperties vep,
 			CxAttributeDeclaration attrDecls) throws NdexException {
 		DefaultVisualProperties defaultVPs = vps.getDefaultProps();
-		Map<String,Object> edgeDefaultVPs =defaultVPs.getEdgeProperties();
+		VisualPropertyTable edgeDefaultVPs =defaultVPs.getEdgeProperties();
 		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("edges:default");
 		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(edgeDefaultVPs));
 		
@@ -450,6 +460,7 @@ public class CX2ToCXConverter {
 		
 		return vp;
 	}
+	
     private static void convertMapping(CyVisualPropertiesElement vp, Map<String,VisualPropertyMapping> mappings, 
     		String aspectName, CxAttributeDeclaration attrDecls) throws NdexException {
     	CX2ToCXVisualPropertyConverter vpCvtr = CX2ToCXVisualPropertyConverter.getInstance();
@@ -478,6 +489,7 @@ public class CX2ToCXConverter {
 			}
 			case DISCRETE:
 				for ( Map<String,Object> m : mapping.getMappingDef().getMapppingList() ) {
+					  Object vpValue = cvtVPfromRaw(vpName,m.get("vp"));
 					  sb.append(",K=");
 	                  sb.append(counter);
 	                  sb.append("=");
@@ -485,7 +497,7 @@ public class CX2ToCXConverter {
 	                  sb.append(",V=");
 	                  sb.append(counter);
 	                  sb.append("=");
-	                  sb.append(escapeString(vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,m.get("vp"))));
+	                  sb.append(escapeString(vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,vpValue)));
 	                  counter++;
 				}
 		        vp.putMapping(cx1VPName, VPMappingType.DISCRETE.toString(), sb.toString());
@@ -573,7 +585,7 @@ public class CX2ToCXConverter {
 		for (CxMetadata m : metadataTable.values() ) {
 			String aspectName = m.getName();
 			// ignore some aspects 
-			if ( !cx2SpecialAspects.contains(aspectName)) {
+			if ( !Cx2Network.cx2SpecialAspects.contains(aspectName)) {
 				MetaDataElement e ;
 				if (aspectName.equals(CxVisualProperty.ASPECT_NAME)) {
 					e = new MetaDataElement(CyVisualPropertiesElement.ASPECT_NAME, "1.0");
@@ -617,6 +629,27 @@ public class CX2ToCXConverter {
           result.append(curChar);
         }
         return result.toString();
-      }
+     }
 
+	private static Object cvtVPfromRaw(String vpName, Object e) {
+		if (vpName.equals("EDGE_LABEL_FONT_FACE") ||
+					vpName.equals("NODE_LABEL_FONT_FACE")) 
+				return FontFace.createFromMap((Map<String,String>)e);
+		
+		if ( vpName.equals("NODE_LABEL_POSITION")) 
+				return LabelPosition.createFromMap((Map<String,Object>)e);
+		
+		if ( vpName.matches(VisualPropertyTable.imagePositionPattern)) 
+				return ObjectPosition.createFromMap((Map<String,Object>)e);
+	
+		if ( vpName.equals("EDGE_CONTROL_POINTS")) {
+				List<Map<String,Object>> rawPoints = (List<Map<String,Object>>)e;
+				return  rawPoints.stream()
+						.map(p -> { return EdgeControlPoint.createFromMap(p);})
+						.collect(Collectors.toList());
+		} 
+		return e;
+	}
+
+    
 }

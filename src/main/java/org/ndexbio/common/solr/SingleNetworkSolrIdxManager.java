@@ -37,23 +37,20 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrRequest.METHOD;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.ConfigSetAdminRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
-import org.apache.solr.client.solrj.request.CoreStatus;
-import org.apache.solr.client.solrj.SolrRequest.METHOD;
 import org.apache.solr.client.solrj.response.ConfigSetAdminResponse;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
@@ -66,8 +63,7 @@ import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
-import org.ndexbio.cxio.aspects.datamodels.NodesElement;
-import org.ndexbio.cxio.core.AspectIterator;
+
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.tools.SearchUtilities;
@@ -93,15 +89,14 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private Collection<SolrInputDocument> docs ;
 	
 	public static final String ID = "id";
-//	public  static final String NODE_NAME= "name";
 	public  static final String TYPE = "type";
 	public  static final String COMPLEX = "complex";
 	public  static final String PROTEINFAMILY = "proteinfamily";
 	public  static final String MEMBER= "member";
 	
 	private static final String NAME = "nodeName";
-//	public static final String REPRESENTS = "represents";
 	public static final String ALIAS= "alias";
+	public static final String TEXT = "text";
 		
 	public SingleNetworkSolrIdxManager(String networkUUID) {
 		collectionName = networkUUID;
@@ -117,7 +112,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 		solrQuery.setQuery(SearchUtilities.preprocessSearchTerm(query)).setFields(ID);
     	solrQuery.set("defType", "edismax");
-		solrQuery.set("qf", NAME + " " + CxNode.REPRESENTS + " " + ALIAS);
+		solrQuery.set("qf", NAME + " " + CxNode.REPRESENTS + " " + ALIAS + " " + TEXT);
 		solrQuery.setStart(0);
 		if (limit >0)
 			solrQuery.setRows(limit);
@@ -150,7 +145,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		if ( o11.size() !=0)
 			return true;
 		if ( autoCreate) {
-			mgr.createDefaultIndex(false);
+			mgr.createDefaultIndex();
 			return true;
 		}
 		return false;
@@ -161,7 +156,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	public void createIndex(Set<String> extraIndexFields) throws SolrServerException, IOException, NdexException {
 		
 		if ( extraIndexFields == null) {
-			 createDefaultIndex(false);
+			 createDefaultIndex();
 			 return;
 		}
 		
@@ -215,9 +210,9 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		counter = 0;
 		docs = new ArrayList<>(batchSize);
 			
-		Map<Long,NodeIndexEntry> tab = createIndexDocs(collectionName);
+		Map<Long,NodeIndexEntry> tab = createIndexDocsFromCx2(collectionName);
 		for ( NodeIndexEntry e : tab.values()) {
-			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
+			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases(),e.getText());
 		}
 		
 		commit();
@@ -227,21 +222,20 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		if (extraIndexFields !=null) 
 			throw new NdexException("Additional node attribute indexing is not implmented yet.");
 		
-		createDefaultIndex(true);
+		createDefaultIndex();
 	} 
 	
 	
-	private void createDefaultIndex(boolean isFromCx2) throws SolrServerException, IOException, NdexException {
+	private void createDefaultIndex() throws SolrServerException, IOException, NdexException {
 
 		createNewCore();
 		
-		Map<Long,NodeIndexEntry> tab = isFromCx2 ? createIndexDocsFromCx2(collectionName)
-				  :createIndexDocs(collectionName);
+		Map<Long,NodeIndexEntry> tab =  createIndexDocsFromCx2(collectionName);
 		for ( NodeIndexEntry e : tab.values()) {
-			if ( e.isMemberIsToBeIndexed() && e.getMembers().size()>0) {
+			/*if ( e.isMemberIsToBeIndexed() && e.getMembers().size()>0) {
 				e.getRepresents().addAll(e.getMembers());
-			}
-			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases());
+			}*/
+			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases(),e.getText());
 		}
 		
 		commit();
@@ -296,7 +290,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		 */
 	}
 	
-	private void addNodeIndex(Long id, String name, Collection<String> represents, Collection<String> alias) throws SolrServerException, IOException {
+	private void addNodeIndex(Long id, String name, Collection<String> represents, Collection<String> alias, Collection<String> txtArray) throws SolrServerException, IOException {
 		
 		SolrInputDocument doc = new SolrInputDocument();
 		doc.addField("id",  id );
@@ -311,72 +305,20 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			for ( String aTerm : alias )
 				doc.addField(ALIAS, aTerm.trim());
 		}	
-//		if ( relatedTerms !=null && ! relatedTerms.isEmpty() ) 
-//			doc.addField(RELATEDTO, relatedTerms);
+		if ( txtArray !=null) {
+			for (String txt: txtArray) 
+				doc.addField(TEXT, txt.trim());
+		}
+
 		
 		docs.add(doc);
-	//	client.add(doc);
 		counter ++;
 		if ( counter % batchSize == 0 ) {
 			client.add(docs);
-		//	client.commit();
 			docs.clear();
 		}
 
 	}
-
-/*	private void addNodeIndex(long id, String name, List<String> represents) throws SolrServerException, IOException {
-		
-		SolrInputDocument doc = new SolrInputDocument();
-		doc.addField("id",  id );
-		
-		if ( name != null ) 
-			doc.addField(NAME, name);
-		if ( represents !=null && !represents.isEmpty()) {
-			for ( String rterm : represents )
-				doc.addField(REPRESENTS, rterm);
-		}	
-		
-		docs.add(doc);
-	//	client.add(doc);
-		counter ++;
-		if ( counter % batchSize == 0 ) {
-			client.add(docs);
-			client.commit();
-			docs.clear();
-		}
-
-	}
-	
-	
-	public void addNodeAlias(long id, String name, List<String> represents, List<String> alias) throws SolrServerException, IOException {
-		
-		SolrInputDocument doc = new SolrInputDocument();
-		doc.addField("id",  id );
-		
-		if ( name != null ) 
-			doc.addField(NAME, name);
-		if ( represents !=null && !represents.isEmpty()) {
-			for ( String rterm : represents )
-				doc.addField(REPRESENTS, rterm);
-		}	
-		if ( alias !=null && !alias.isEmpty()) {
-			for ( String aTerm : alias )
-				doc.addField(ALIAS, aTerm);
-		}	
-//		if ( relatedTerms !=null && ! relatedTerms.isEmpty() ) 
-//			doc.addField(RELATEDTO, relatedTerms);
-		
-		docs.add(doc);
-	//	client.add(doc);
-		counter ++;
-		if ( counter % batchSize == 0 ) {
-			client.add(docs);
-			client.commit();
-			docs.clear();
-		}
-
-	} */
 
 	
 	private void commit() throws SolrServerException, IOException {
@@ -398,7 +340,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		}
 	}
 	
-	private static Map<Long,NodeIndexEntry> createIndexDocs(String coreName) throws JsonProcessingException, IOException, NdexException {
+/*	private static Map<Long,NodeIndexEntry> createIndexDocs(String coreName) throws JsonProcessingException, IOException, NdexException {
 		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
 		
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/aspects/"; 
@@ -495,9 +437,9 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 		return result;
 	}
+	*/
 	
-	
-	private  Map<Long,NodeIndexEntry> createIndexDocsFromCx2(String coreName) throws JsonProcessingException, IOException, NdexException {
+	private static  Map<Long,NodeIndexEntry> createIndexDocsFromCx2(String coreName) throws JsonProcessingException, IOException {
 		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
 		
 		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/" + CX2NetworkLoader.cx2AspectDirName + "/"; 
@@ -521,19 +463,11 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		
 		//key is lowercased attribute name that we need to index, 
 		//value is the actual attribute name in the node. This is for doing a case-insensitive lookup of attribute value.
-		//TODO: if 2 attribute names are the same in the case-insensitive lookup, we should raise an error.  
 		Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping = new HashMap<> ();
 		for ( Map.Entry<String,DeclarationEntry> entry: nodeAttributeDecls.entrySet()) {
+			ATTRIBUTE_DATA_TYPE dType = entry.getValue().getDataType();
 			String attrName = entry.getKey();
-			if (attrName.equals(CxNode.NAME)) {
-				if ( entry.getValue().getDataType() == null || 
-						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (CxNode.NAME, entry);
-			} else if (attrName.equals(CxNode.REPRESENTS) ) {
-				if ( entry.getValue().getDataType() == null || 
-						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (CxNode.REPRESENTS, entry);
-			} else if ( attrName.equalsIgnoreCase(ALIAS) ) {
+			if ( attrName.equalsIgnoreCase(ALIAS) ) {
 				if ( entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
 					attributeNameMapping.put (ALIAS, entry);					
 				}
@@ -541,12 +475,10 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
 					attributeNameMapping.put (TYPE, entry);
-			} else if ( attrName.equalsIgnoreCase(MEMBER)) {
-				if ( entry.getValue().getDataType() == null || 
-						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
+			} else if ( attrName.equalsIgnoreCase(MEMBER) && dType == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
 					attributeNameMapping.put (MEMBER, entry);
-			}
-				
+			} else if ( dType == null ||  dType == ATTRIBUTE_DATA_TYPE.STRING || dType == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING)
+				attributeNameMapping.put (attrName, entry);			 	
 		}
 		
 		//go through node aspect
@@ -581,14 +513,58 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	        	}
 	        	
 	        	//process members
-	        	String nodeType = getSingleIndexableTermFromNode(TYPE, node, attributeNameMapping);
-	        	if ( nodeType != null && (nodeType.equalsIgnoreCase(PROTEINFAMILY) || 
-	        			nodeType.equalsIgnoreCase(COMPLEX) )) {
-	        		List<String> memberGenes = getSplitableTerms (MEMBER, node, attributeNameMapping);
-	        		if( e==null)
-	        			e = new NodeIndexEntry ( node.getId(),null);
-	        		e.setMembers(memberGenes);
-	        		e.setMemberIsToBeIndexed(true);
+	        	boolean proteinMembersFound = false;
+	        	Map.Entry<String,DeclarationEntry> typeAttrName = attributeNameMapping.get(TYPE);
+	        	if (typeAttrName !=null ) {
+	        		ATTRIBUTE_DATA_TYPE t = typeAttrName.getValue().getDataType();
+	        		if ( t == null || t == ATTRIBUTE_DATA_TYPE.STRING) {
+	        			String nodeType = (String)node.getAttributes().get(typeAttrName.getKey());
+	        			if ( nodeType != null && (nodeType.equalsIgnoreCase(PROTEINFAMILY) || 
+	        					nodeType.equalsIgnoreCase(COMPLEX) )) {
+	        				List<String> memberGenes = getSplitableTerms (MEMBER, node, attributeNameMapping);
+	        				if( e==null)
+	        					e = new NodeIndexEntry ( node.getId(),null);
+	        				e.getRepresents().addAll(memberGenes);
+	        				proteinMembersFound = true;
+	        			}
+	        		}	
+	        	}
+	        	
+	        	//process the rest of the attributes
+	        	for (Map.Entry<String, Map.Entry<String,DeclarationEntry>> attrDecl:  attributeNameMapping.entrySet()) {
+	        		String attrName = attrDecl.getKey();
+	        		if ( attrName.equals(CxNode.NAME) || attrName.equals(CxNode.REPRESENTS) || 
+	        				attrName.equals(ALIAS))
+	        			continue;
+	        		if ( proteinMembersFound && attrName.equals(MEMBER)) 
+	        			continue;
+	        		
+	        		// process the value
+	        		Map.Entry<String,DeclarationEntry> decl = attrDecl.getValue();
+	        		Object  attrValue = node.getAttributes().get(decl.getKey());
+	        		ATTRIBUTE_DATA_TYPE dType = decl.getValue().getDataType();
+	        		if ( dType == null || dType == ATTRIBUTE_DATA_TYPE.STRING) {
+	        			if ( attrValue !=null ) { 
+	        				String s = (String) attrValue;
+	        				if ( s.length() > 1) {
+	        					if( e==null)
+		        					e = new NodeIndexEntry ( node.getId(),null);
+	        					e.addText(s);
+	        				}	
+	        			}	
+	        		} else {  // list of strings
+ 	        			List<String> ls = (List<String>)attrValue;
+ 	        			if (ls != null ) {
+ 	        				for ( String str: ls) {
+ 	        					if ( str!=null && str.length()>1) {
+ 	        						if( e==null)
+ 	   	        					   e = new NodeIndexEntry ( node.getId(),null);
+ 	        						e.addText(str);
+ 	        					}
+ 	        				}
+ 	        			}
+	        		}
+	        		
 	        	}
 	        	
 	        	if ( e!=null)
@@ -657,14 +633,18 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			
 			if ( t == null || t == ATTRIBUTE_DATA_TYPE.STRING) {
 				String v = (String)node.getAttributes().get(actualAttrName);
-				for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
-					result.add( indexableString);
+				if ( v!= null) {
+					for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
+						result.add( indexableString);
+					}
 				}
 			} else if (t == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
 				List<String> vl = (List<String>)node.getAttributes().get(actualAttrName);
-				for ( String v : vl) {
-					for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
-						result.add( indexableString);
+				if(vl !=null) {
+					for ( String v : vl) {
+						for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
+							result.add( indexableString);
+						}
 					}
 				}
 			} 

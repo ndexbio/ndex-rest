@@ -2149,17 +2149,25 @@ public class NetworkDAO extends NdexDBDAO {
 		if ( accessKey ==null || accessKey.length() == 0)
 			return false;
 		
-		String sqlStr = "select 1 from network where (\"UUID\"=? and access_key_is_on and access_key = ?) or " + 
-		                 " exists (select 1 from network_set s, network_set_member sm where s.\"UUID\" = sm.set_id "
-		                 + "and sm.network_id = ? and s.access_key_is_on and s.access_key = ? and s.is_deleted=false)";
+		String sqlStr = "select 1 from network where (\"UUID\"=? and access_key_is_on and access_key = ?)" ;
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, networkId);
 			p.setString(2, accessKey);
-			p.setObject(3, networkId);
-			p.setString(4, accessKey);
 			try ( ResultSet rs = p.executeQuery()) {
-				return  rs.next();
+				 if (rs.next())
+					 return true;
 			}		
 		}
+		
+		sqlStr = "select 1 from network_set s, network_set_member sm where s.\"UUID\" = sm.set_id "
+                + "and sm.network_id = ? and s.access_key_is_on and s.access_key = ? and s.is_deleted=false";
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			p.setString(2, accessKey);
+			try ( ResultSet rs = p.executeQuery()) {
+				 return rs.next();
+			}		
+		}
+
 	}
 }

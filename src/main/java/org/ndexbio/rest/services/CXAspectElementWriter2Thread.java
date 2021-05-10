@@ -19,6 +19,7 @@ import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.CxNodeBypass;
 import org.ndexbio.cx2.aspect.element.core.CxVisualProperty;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
+import org.ndexbio.cx2.aspect.element.core.VisualPropertyTable;
 import org.ndexbio.cx2.aspect.element.cytoscape.VisualEditorProperties;
 import org.ndexbio.cx2.converter.CX2ToCXVisualPropertyConverter;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
@@ -357,6 +358,8 @@ public class CXAspectElementWriter2Thread extends Thread {
 				evp = om.readValue(f, VisualEditorProperties[].class);
 			}
 
+			VisualEditorProperties editorProperties = evp == null ? null:evp[0];
+			
 			CxAttributeDeclaration attrDeclarations = NetworkServiceV2.getAttrDeclarations(pathPrefix);
 			
 			int i = 0;
@@ -364,7 +367,7 @@ public class CXAspectElementWriter2Thread extends Thread {
 			try (CXAspectWriter wtr = new CXAspectWriter (o)) {
 				
 				if(limit <=0 || i < limit ) {
-					CyVisualPropertiesElement netDefault = CX2ToCXConverter.getDefaultNetworkVP(vp[0].getDefaultProps());
+					CyVisualPropertiesElement netDefault = CX2ToCXConverter.getDefaultNetworkVP(vp[0].getDefaultProps(), editorProperties);
 					wtr.writeCXElement(netDefault);
 					i++;
 				} else
@@ -372,7 +375,7 @@ public class CXAspectElementWriter2Thread extends Thread {
 
 				if (limit <=0 || i < limit ) {
 					CyVisualPropertiesElement cx1vp = CX2ToCXConverter.getDefaultNodeVP(vp[0], 
-						(evp == null ? null:evp[0]), attrDeclarations );
+						editorProperties, attrDeclarations );
 					wtr.writeCXElement(cx1vp);
 					i++;
 				} else 
@@ -381,7 +384,7 @@ public class CXAspectElementWriter2Thread extends Thread {
 				if (limit <=0 || i < limit ) {
 				
 					CyVisualPropertiesElement cx1vp = CX2ToCXConverter.getDefaultEdgeVP(vp[0], 
-						(evp == null ? null:evp[0]), attrDeclarations );
+						editorProperties, attrDeclarations );
 					wtr.writeCXElement(cx1vp);
 					i++;
 				} else 
@@ -399,12 +402,12 @@ public class CXAspectElementWriter2Thread extends Thread {
 							CyVisualPropertiesElement e = new CyVisualPropertiesElement(NodesElement.ASPECT_NAME,
 								Long.valueOf(bypass.getId()), null);
 						
-							Boolean nodeSizeLocked = evp == null? Boolean.FALSE: 
-								(Boolean)evp[0].getProperties().get("nodeSizeLocked");
-							Map<String,Object> bypassProps = bypass.getVisualProperties();
+							Boolean nodeSizeLocked = editorProperties == null? Boolean.FALSE: 
+								(Boolean)editorProperties.getProperties().get("nodeSizeLocked");
+							VisualPropertyTable bypassProps = bypass.getVisualProperties();
 							if( nodeSizeLocked.booleanValue()) {
 								if (bypassProps.get("NODE_WIDTH") != null ) {
-									bypassProps.put("NODE_SIZE", bypassProps.get("NODE_WIDTH"));
+									bypassProps.getVisualProperties().put("NODE_SIZE", bypassProps.get("NODE_WIDTH"));
 								}
 							}
 			    		
@@ -428,7 +431,7 @@ public class CXAspectElementWriter2Thread extends Thread {
 							CyVisualPropertiesElement e = new CyVisualPropertiesElement(EdgesElement.ASPECT_NAME,
 								Long.valueOf(bypass.getId()), null);
 						
-							Map<String,Object> bypassProps = bypass.getVisualProperties();
+							VisualPropertyTable bypassProps = bypass.getVisualProperties();
 							e.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
 			    		
 							wtr.writeCXElement(e);
