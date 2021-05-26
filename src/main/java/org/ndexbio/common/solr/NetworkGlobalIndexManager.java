@@ -573,11 +573,14 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 	
 	public void commit () throws SolrServerException, IOException {
 		client.setBaseURL(solrUrl + "/" + coreName);
-		Collection<SolrInputDocument> docs = new ArrayList<>(1);
-		docs.add(doc);
-		client.add(docs);
-		client.commit(false,true,true);
-		docs.clear();
+		if ( !doc.isEmpty()) {
+			Collection<SolrInputDocument> docs = new ArrayList<>(1);
+			docs.add(doc);
+			client.add(docs);
+			client.commit(false,true,true);
+			docs.clear();
+		} else 
+			client.commit(false,true,true);
 		doc = new SolrInputDocument();
 		nodeMembers = new TreeMap<>();
 
