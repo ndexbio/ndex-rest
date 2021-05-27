@@ -333,7 +333,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 		try (NetworkDAO dao = new NetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null and nodecount >= " 
+			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null and cx2_file_size is not null and nodecount >= " 
 					+ SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ;
 			
 			int i = 0;
