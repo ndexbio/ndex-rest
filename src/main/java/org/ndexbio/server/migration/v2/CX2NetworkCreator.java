@@ -60,7 +60,7 @@ public class CX2NetworkCreator {
 	/**
 	 * Skip any networks that exceed this edge count
 	 */
-	private static final int edgeCountLimit = 20*1000000; 
+	private static final int edgeCountLimit = 65*1000000; 
 	
 	/**
 	 * Number of workers to concurrently process networks below
