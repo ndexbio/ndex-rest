@@ -90,7 +90,7 @@ public class UserStatsMailer implements AutoCloseable {
 		
 		String sqlStr = "select * from dblink("+ dbLinkConnection + "::text, "
 				+ "	'select owner,sum(downloads) from public_download_count "
-				+ "where d_month = date_trunc(''month'',now()) group by owner') as t1 (owner text, total bigint)";
+				+ "where d_month = date_trunc(''month'',now() -  interval ''1'' month) group by owner') as t1 (owner text, total bigint)";
 
 		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
 			try (ResultSet rs = st.executeQuery() ) {
@@ -107,7 +107,7 @@ public class UserStatsMailer implements AutoCloseable {
 	// uuids of the top 20 downloaded networks of this month;
 	private Set<UUID> getTopDownloadedNetworks () throws SQLException {
 		String sqlStr = "select * from dblink("+ dbLinkConnection + "::text, "
-				+ "	'select network_id from public_download_count where d_month = date_trunc(''month'',now()) order by downloads desc limit 20') as t1 (id uuid)";
+				+ "	'select network_id from public_download_count where d_month = date_trunc(''month'',now() -  interval ''1'' month ) order by downloads desc limit 20') as t1 (id uuid)";
 
 		Set<UUID> topDownloads = new TreeSet<>();
 		try (PreparedStatement st = db.prepareStatement(sqlStr)) {
@@ -153,7 +153,7 @@ public class UserStatsMailer implements AutoCloseable {
 				
 			String sqlStr = "select n.name, t1.id, t1.downloads from dblink("+  dbLinkConnection + "::text,\n" 
 					+ "	 'select network_id,downloads from public_download_count where owner = ''" + user.getUserName() 
-					+ "'' and d_month = date_trunc(''month'',now()) order by downloads desc limit 20') as t1 (id uuid, downloads bigint),\n"
+					+ "'' and d_month = date_trunc(''month'',now() - interval ''1'' month ) order by downloads desc limit 20') as t1 (id uuid, downloads bigint),\n"
 					+ "	network n where n.\"UUID\" = t1.id";
 			
 			
