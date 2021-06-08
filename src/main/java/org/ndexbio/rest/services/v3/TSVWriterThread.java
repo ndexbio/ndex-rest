@@ -92,9 +92,9 @@ public class TSVWriterThread extends Thread {
 				+ "/" + CX2NetworkLoader.cx2AspectDirName + "/" + CxNode.ASPECT_NAME) ) {
 
 			ObjectMapper om = new ObjectMapper();
-			Map<String, DeclarationEntry > attrTable = null;
+			Map<String, DeclarationEntry > attrTable = attrDecls == null? 
+					        null: attrDecls.getDeclarations().get(CxNode.ASPECT_NAME);
 			if ( nodeAttrs == null) {
-				attrTable= attrDecls.getDeclarations().get(CxNode.ASPECT_NAME);
 				if (attrTable != null) {
 					nodeAttrs = new String[attrTable.size()];
 					int i = 0;
@@ -103,6 +103,7 @@ public class TSVWriterThread extends Thread {
 					}	
 				}
 			}
+			
 			if ( includeHeader) {
 				writeNodeTSVHeader(attrTable);
 			}

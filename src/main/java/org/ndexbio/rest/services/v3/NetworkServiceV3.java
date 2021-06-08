@@ -632,7 +632,7 @@ public class NetworkServiceV3  extends NdexService {
 	    		}
 	    		
 	    		if ( listDelimiter.indexOf('"') != -1)
-	    			throw new UnauthorizedOperationException("listdelimiter parameter can't contain '\"'.");
+	    			throw new UnauthorizedOperationException("listdelimiter parameter can't contain '\"'\".");
 	    		
 	    		if ( !nodeKey.equals("id")) {
 	    			if ( attrDecls == null )
