@@ -54,9 +54,11 @@ import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxNode;
+import org.ndexbio.cx2.aspect.element.cytoscape.AbstractTableVisualProperty;
 import org.ndexbio.cx2.converter.AspectAttributeStat;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
+import org.ndexbio.cxio.aspects.datamodels.CyTableVisualPropertiesElement;
 import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
@@ -243,6 +245,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		  readers.add(new GeneralAspectFragmentReader<> (EdgeSupportLinksElement.ASPECT_NAME,EdgeSupportLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader<> (NodeCitationLinksElement.ASPECT_NAME,NodeCitationLinksElement.class));
 		  readers.add(new GeneralAspectFragmentReader<> (NodeSupportLinksElement.ASPECT_NAME,NodeSupportLinksElement.class));
+		  readers.add(new GeneralAspectFragmentReader<> (AbstractTableVisualProperty.ASPECT_NAME, CyTableVisualPropertiesElement.class));
 //		  readers.add(new GeneralAspectFragmentReader<> (Provenance.ASPECT_NAME,Provenance.class));
 		  return  new CxElementReader2(in, readers,true);
 	}

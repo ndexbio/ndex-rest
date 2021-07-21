@@ -494,7 +494,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 	}
 	
 	
-	private void createAspectElement(CxAspectElement element) throws IOException {
+	private void createAspectElement(CxAspectElement<?> element) throws IOException {
 		writeCXElement(element);
 	}
 	
