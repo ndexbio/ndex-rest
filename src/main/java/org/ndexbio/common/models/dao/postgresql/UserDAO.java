@@ -50,7 +50,6 @@ import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.common.util.Security;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
@@ -62,6 +61,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SimpleQuery;
 import org.ndexbio.model.object.SolrSearchResult;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.helpers.Security;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -114,7 +114,7 @@ public class UserDAO extends NdexDBDAO {
 				|| Strings.isNullOrEmpty(password))
 			throw new UnauthorizedOperationException("No accountName or password entered.");
 
-		if (!Security.authenticateUser(password, getUserPasswordByAccountName(accountName))) {
+		if (!userPasswordIsCorrect(password, getUserPasswordByAccountName(accountName))) {
 				throw new UnauthorizedOperationException("Invalid accountName or password.");
 		}
 	
@@ -122,6 +122,28 @@ public class UserDAO extends NdexDBDAO {
 		
 	}
 
+	
+	 private static boolean userPasswordIsCorrect(String password, String OUserPasswd) 
+	    		throws Exception {
+	    	
+	        try {
+	        	
+	            String hashedPassword = Security.hashText(password);
+	            
+	            if ( OUserPasswd.equals(hashedPassword)) {
+	            	return true;
+	            }
+	            
+	            return false;
+	            
+	        } catch (NoSuchAlgorithmException e) {
+	        	
+	        	throw e;
+	        	
+	        }
+	        
+	    }
+	
 	/**************************************************************************
 	 * Create a new user
 	 * 

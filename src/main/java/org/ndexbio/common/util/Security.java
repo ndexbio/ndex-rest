@@ -33,7 +33,7 @@ package org.ndexbio.common.util;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-
+@Deprecated
 public class Security
 {
 	/**************************************************************************
@@ -45,7 +45,7 @@ public class Security
 	    *            Accessing the database failed.
 	    * @returns True if the user is authenticated, false otherwise.
 	    **************************************************************************/
-	    public static boolean authenticateUser(String password, String OUserPasswd) 
+	  /*  public static boolean authenticateUser(String password, String OUserPasswd) 
 	    		throws Exception {
 	    	
 	        try {
@@ -64,7 +64,7 @@ public class Security
 	        	
 	        }
 	        
-	    }
+	    } */
    
 
     /**************************************************************************
@@ -74,24 +74,24 @@ public class Security
     *            The byte data.
     * @return A String containing the byte data as hexadecimal text.
     **************************************************************************/
-    public static String convertByteToHex(byte data[])
+ /*   public static String convertByteToHex(byte data[])
     {
         StringBuffer hexData = new StringBuffer();
         for (int byteIndex = 0; byteIndex < data.length; byteIndex++)
             hexData.append(Integer.toString((data[byteIndex] & 0xff) + 0x100, 16).substring(1));
         
         return hexData.toString();
-    }
+    } */
 
     /**************************************************************************
     * Generates a password of 10 random characters.
     * 
     * @return A String containing the random password.
     **************************************************************************/
-    public static String generatePassword()
+   /* public static String generatePassword()
     {
         return generatePassword(10);
-    }
+    }*/
     
     /**************************************************************************
     * Generates a password of random characters.
@@ -100,7 +100,7 @@ public class Security
     *            The length of the password.
     * @return A String containing the random password.
     **************************************************************************/
-    public static String generatePassword(int passwordLength)
+  /*  public static String generatePassword(int passwordLength)
     {
         final String alphaCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
         final String numericCharacters = "0123456789";
@@ -121,7 +121,7 @@ public class Security
         }
         
         return randomPassword.toString();
-    }
+    } */
     
     /**************************************************************************
     * Computes a SHA-512 hash against the supplied text.
@@ -131,13 +131,13 @@ public class Security
     * @return A String containing the SHA-512 hash in hexadecimal format.
      * @throws NoSuchAlgorithmException 
     **************************************************************************/
-    public static String hashText(String textToHash) throws NoSuchAlgorithmException 
+  /*  public static String hashText(String textToHash) throws NoSuchAlgorithmException 
     {
         final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
         sha512.update(textToHash.getBytes());
         
         return convertByteToHex(sha512.digest());
-    }
+    } */
 
        
     /**************************************************************************
@@ -149,8 +149,8 @@ public class Security
     *            The maximum range of values.
     * @return A random number between the range.
     **************************************************************************/
-    public static int randomNumber(int minValue, int maxValue)
+  /*  public static int randomNumber(int minValue, int maxValue)
     {
         return minValue + (int)(Math.random() * ((maxValue - minValue) + 1));
-    }
+    } */
 }
