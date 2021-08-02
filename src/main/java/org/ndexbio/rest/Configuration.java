@@ -57,7 +57,6 @@ import javax.naming.NamingException;
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.rest.helpers.Security;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,7 +120,7 @@ public class Configuration
 	
 	private static byte[] key;
 	
-	private String DOI_Prefix;
+	private String DOIPrefix;
 	private String ezidUser;
 	private String ezidpswd;
 
@@ -240,6 +239,8 @@ public class Configuration
 				ezidUser = authStr.substring(0, idx);
 				ezidpswd = authStr.substring(idx+1);
 			}
+			
+			DOIPrefix = getProperty("DOI_PREFIX");
 			
             // initialize the importer exporter table
             this.impExpTable = new HashMap<>();
@@ -466,4 +467,5 @@ public class Configuration
 	
     public String getDOIUser() {return this.ezidUser;}
     public String getDOIPswd() {return this.ezidpswd;}
+    public String getDOIPrefix() {return DOIPrefix;}
 }

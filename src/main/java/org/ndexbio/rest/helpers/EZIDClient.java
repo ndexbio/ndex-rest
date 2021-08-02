@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
  * @author jingchen
  *
  */
-class EZIDClient {
+public class EZIDClient {
 
     static String SERVER = "https://ezid.cdlib.org";
 
@@ -140,7 +140,8 @@ class EZIDClient {
         return r;
     }
     
-    public static String createDOI (String URL, String creator, String title, String prefix) throws Exception {
+    public static String createDOI (String URL, String creator, String title, String prefix,
+    		String user, String password) throws Exception {
         // Sample POST request.
         System.out.println("Issuing POST request...");
         HashMap<String, String> metadata =
@@ -154,7 +155,8 @@ class EZIDClient {
         
         //String prefix = "10.18119/N9";
         //String prefix = "10.5072/FK2";  //apitest
-        
+        Authenticator.setDefault(new MyAuthenticator(user,password));
+      
         Response r = issueRequest( "POST", "shoulder/doi:" + prefix, metadata);
         
         Pattern p = Pattern.compile("^doi:(\\S+) .*$");
@@ -178,9 +180,10 @@ class EZIDClient {
      
     public static void main (String[] args) throws Exception {
 
-        Authenticator.setDefault(new MyAuthenticator("apitest","apitest"));
 
-        String r = createDOI("https://www.ndexbio.org", "ucsd dev", "NDEx Home Page", "10.5072/FK2");
+        String r = createDOI("https://www.ndexbio.org", "ucsd dev", "NDEx Home Page", "10.5072/FK2", "apitest",
+        		"apitest");
+        
 
         // Sample GET request.
         System.out.println("\nIssuing GET request...");

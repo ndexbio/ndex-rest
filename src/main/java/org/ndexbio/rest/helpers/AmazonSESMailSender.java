@@ -53,9 +53,13 @@ public class AmazonSESMailSender {
     // The port you will connect to on the Amazon SES SMTP endpoint. We are choosing port 25 because we will use
     // STARTTLS to encrypt the connection.
     private int PORT;
+    
+    public void sendEmail(String TO, String BODY, String SUBJECT, String format) throws Exception {
+    	sendEmail(TO, BODY, SUBJECT, format, null);
+    }
 
     //format should be 'plain' or 'html'
-    public void sendEmail(String TO, String BODY, String SUBJECT, String format) throws Exception {
+    public void sendEmail(String TO, String BODY, String SUBJECT, String format, String cc) throws Exception {
 
     	try {
     		  mutex.acquire();
@@ -80,7 +84,9 @@ public class AmazonSESMailSender {
     		        // Create a message with the specified information. 
     		        MimeMessage msg = new MimeMessage(session);
     		        msg.setFrom(new InternetAddress(FROM));
-    		        msg.setRecipient(Message.RecipientType.TO, new InternetAddress(TO));
+    		        if(cc !=null)
+    		        	msg.addRecipient(Message.RecipientType.CC, new InternetAddress(cc));
+    		        msg.addRecipient(Message.RecipientType.TO, new InternetAddress(TO));
     		        msg.setSubject(SUBJECT);
     		        msg.setContent(BODY,"text/" + format);
     		            
