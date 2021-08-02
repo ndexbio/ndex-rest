@@ -168,9 +168,12 @@ public class AdminServiceV2 extends NdexService {
 			throw new ForbiddenOperationException("Attribute 'type' is missing in the request.");
 		switch ( reqType ) {
 		case "DOI": {
+			if ( Configuration.getInstance().getDOIUser() == null)
+				throw new ForbiddenOperationException("DOI creation is not enabled on this server.");
+			
 			String networkIdStr = (String)request.get("networkId");
 			if (networkIdStr == null)
-				throw new ForbiddenOperationException("Attribute 'networkId' is missing in the request");
+				throw new ForbiddenOperationException("Attribute 'networkId' is missing in the request.");
 			
 			boolean isCertified = false;
 			Boolean isCertifiedObj = (Boolean)request.get("isCertified");
