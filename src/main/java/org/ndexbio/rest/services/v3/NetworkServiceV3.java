@@ -700,7 +700,7 @@ public class NetworkServiceV3  extends NdexService {
 			try (NetworkDAO dao = new NetworkDAO() ) {
 				String currentDOI = dao.getNetworkDOI(networkUUID);
 				if ( currentDOI ==null || !currentDOI.equals(NetworkDAO.PENDING)) {
-					throw new ForbiddenOperationException("This operation only works when a DOI is pending pending.");
+					throw new ForbiddenOperationException("This operation only works when a DOI is pending. The current value of DOI is: " + currentDOI );
 				}
 				dao.setDOI(networkUUID, "CREATING");
 				dao.commit();
