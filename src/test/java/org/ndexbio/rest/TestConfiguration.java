@@ -4,6 +4,13 @@ import java.io.File;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
@@ -13,6 +20,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.rest.helpers.Security;
 
 @RunWith(JUnit4.class)
 public class TestConfiguration {
@@ -30,6 +38,10 @@ public class TestConfiguration {
 		sb.append("NdexRoot=");
 		sb.append(ndexrootpath);
 		sb.append("\nHostURI=http://localhost\n");
+		sb.append("NDEX_KEY=effggekk\n");
+		sb.append("DOI_CREATOR=CqmUkFe5kW5sJVMKNQYYLg==\n");
+		
+
 		if (exportertimeout != null) {
 			sb.append(Configuration.NDEX_EXPORTER_TIMEOUT);
 			sb.append("=");
@@ -55,7 +67,7 @@ public class TestConfiguration {
 		try {
 			Configuration.reCreateInstance(configFile);
 			assertEquals(600, Configuration.getInstance().getExporterTimeout());
-		} catch(NdexException ne) {
+		} catch(NdexException | NoSuchAlgorithmException ne) {
 			fail("Caught NdexException: " + ne.getMessage());
 		}
 	}
@@ -68,7 +80,7 @@ public class TestConfiguration {
 		try {
 			Configuration.reCreateInstance(configFile);
 			assertEquals(250, Configuration.getInstance().getExporterTimeout());
-		} catch(NdexException ne) {
+		} catch(NdexException | NoSuchAlgorithmException ne) {
 			fail("Caught NdexException: " + ne.getMessage());
 		}
 	}
@@ -81,11 +93,10 @@ public class TestConfiguration {
 		try {
 			Configuration.reCreateInstance(configFile);
 			assertEquals(600, Configuration.getInstance().getExporterTimeout());
-		} catch(NdexException ne) {
+		} catch(NdexException | NoSuchAlgorithmException ne) {
 			fail("Caught NdexException: " + ne.getMessage());
 		}
 	}
-	
 	
 
 }

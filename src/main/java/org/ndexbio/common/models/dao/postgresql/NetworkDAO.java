@@ -2126,6 +2126,8 @@ public class NetworkDAO extends NdexDBDAO {
 		return accessKey;
 	}
 	
+	
+	
 	public void cancelDOI(UUID networkId) throws SQLException, NdexException {
 		/*if ( isCertified(networkId)) {
 			updateNetworkVisibility(networkId, VisibilityType.PRIVATE, true);

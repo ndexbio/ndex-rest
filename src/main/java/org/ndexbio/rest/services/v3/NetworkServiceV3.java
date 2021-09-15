@@ -13,6 +13,8 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -21,8 +23,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.regex.Matcher;
 
 import javax.annotation.security.PermitAll;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DefaultValue;
@@ -52,12 +58,18 @@ import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.model.exceptions.BadRequestException;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.NdexPropertyValuePair;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
+import org.ndexbio.rest.helpers.AmazonSESMailSender;
+import org.ndexbio.rest.helpers.EZIDClient;
+import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.task.CX2NetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
@@ -664,5 +676,94 @@ public class NetworkServiceV3  extends NdexService {
 	    	} 	
 		}
 		
+		
+		
+		@PermitAll
+		@GET
+		@Path("/{networkid}/DOI")
+		@Produces("text/plain")
+
+		public String mintDOI( 
+				@PathParam("networkid") final String networkId,
+				@QueryParam("key") String key,
+				@QueryParam("email") String submitter
+				) throws Exception {
+
+			String uuidFromKey = Security.decrypt(key,Configuration.getInstance().getSecretKeySpec());
+			String submitterEmail = submitter;
+			
+			if( !networkId.equals(uuidFromKey)) 
+				throw new BadRequestException("Invalid key in the URL.");
+			
+			UUID networkUUID = UUID.fromString(networkId);
+			
+			try (NetworkDAO dao = new NetworkDAO() ) {
+				String currentDOI = dao.getNetworkDOI(networkUUID);
+				if ( currentDOI ==null || !currentDOI.equals(NetworkDAO.PENDING)) {
+					throw new ForbiddenOperationException("This operation only works when a DOI is pending. The current value of DOI is: " + currentDOI );
+				}
+				dao.setDOI(networkUUID, "CREATING");
+				dao.commit();
+				
+				NetworkSummary s = dao.getNetworkSummaryById(networkUUID);
+				
+				String author = null;
+				for (NdexPropertyValuePair p : s.getProperties() ) {
+					if ( p.getPredicateString().equals("author"))
+						author = p.getValue();
+					
+				}
+				if ( author == null)  {
+					dao.setDOI(networkUUID, NetworkDAO.PENDING);
+					dao.commit();
+					throw new NdexException("Property author is missing in the network.");
+				}
+				String id;
+				try {
+					id = EZIDClient.createDOI(
+							Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkId ,
+							author, s.getName(),
+							Configuration.getInstance().getDOIPrefix(),
+							Configuration.getInstance().getDOIUser(),
+							Configuration.getInstance().getDOIPswd());
+				} catch (Exception e) {
+					dao.setDOI(networkUUID, NetworkDAO.PENDING);
+					dao.commit();
+					e.printStackTrace();
+					throw new NdexException("Failed to create DOI in EZID site. Cause: " + e.getMessage());
+					
+				}
+				
+				dao.setDOI(networkUUID, id);
+				dao.commit();
+				
+				//Send confirmation to submitter and admin
+				
+				//Reading in the email template
+				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
+				String adminEmailAddress = Configuration.getInstance().getProperty("NdexSystemUserEmail");
+
+				String messageBody = "Dear NDEx user " + s.getOwner() + ",<p>"
+						+ "Your DOI request for the network<br>"
+						+ s.getName() + "(" + networkId + ")<br>"
+						+ "has been processed.<p>"
+						+ "You digital Object Identifier (DOI) is:<br>"
+						+ id + "<p>"
+						+ "Your identifier's URL form is:<br>"
+						+ "https://doi.org/" + id + "<p>"
+						+ "Please be advised that it can take several hours before your new DOI becomes resolvable.";
+						
+				
+		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", 
+		        		Matcher.quoteReplacement(messageBody)) ;
+
+		        AmazonSESMailSender.getInstance().sendEmail(submitterEmail, 
+		        		  htmlEmail, "A DOI has been created for your NDEx Network", "html",adminEmailAddress);
+
+				
+				return "DOI " + id +" has been created on this network. Confirmation emails have been sent."; 
+			}
+			
+		}
 		
 }

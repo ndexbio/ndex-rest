@@ -35,6 +35,11 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -42,12 +47,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.SecretKeySpec;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.rest.helpers.Security;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,10 +83,14 @@ public class Configuration
 	private static final String dbUserPropName 	   = "NdexDBUsername";
 	private static final String dbPasswordPropName = "NdexDBDBPassword";
 	
-	private static final String ndexConfigFilePropName = "ndexConfigurationPath";
+	public static final String ndexConfigFilePropName = "ndexConfigurationPath";
 	
 	public static final String networkPostEdgeLimit = "NETWORK_POST_ELEMENT_LIMIT";
 	private static final String defaultSolrURL = "http://localhost:8983/solr";
+	
+	private static final String NDEX_KEY = "NDEX_KEY";
+	
+	private static final String DOI_CREATOR="DOI_CREATOR";
 	
 	private static final String DEFAULT_NDEX_EXPORTER_TIMEOUT_VAL="600";
 	private String solrURL;
@@ -98,7 +112,18 @@ public class Configuration
 	private String statsDBLink;
 	
 	private Map<String,ImporterExporterEntry> impExpTable;
+		
+	// variables for DOI creation
+	//private String DOICreator;
+		
+	private SecretKeySpec secretKey;
 	
+	private static byte[] key;
+	
+	private String DOIPrefix;
+	private String ezidUser;
+	private String ezidpswd;
+
 	// Possible values for Log-Level are:
     // trace, debug, info, warn, error, all, off
     // If no Log-Level config parameter specified in /opt/ndex/conf/ndex.properties, or the value is 
@@ -112,6 +137,7 @@ public class Configuration
      * @throws NdexException 
      * @throws IOException 
      * @throws FileNotFoundException 
+     * @throws NoSuchAlgorithmException 
     **************************************************************************/
     private Configuration(final String configPath) throws NamingException, NdexException, FileNotFoundException, IOException
     {
@@ -189,6 +215,33 @@ public class Configuration
 					UserDAO.default_disk_quota = limit.floatValue() > 0 ? (limit.intValue() * 1000000000l) : -1;
 			}
             
+			String ndexKey = getProperty(NDEX_KEY);
+			if ( ndexKey!=null) 
+				prepareSecreteKey(ndexKey);
+			else 
+				_logger.info("NDEX_KEY not found in properties file." );
+			
+			String DOICreator = getProperty(DOI_CREATOR);
+
+			if (DOICreator!=null) {
+				String authStr;
+				try {
+					authStr = Security.decrypt(DOICreator, this.secretKey);
+				} catch (InvalidKeyException | IllegalBlockSizeException | BadPaddingException | NoSuchAlgorithmException
+					| NoSuchPaddingException | NdexException e) {
+					throw new NdexException ("Failed to decode " + DOI_CREATOR +".");
+				}
+				int idx = authStr.indexOf(":");
+	        
+				if ( idx == -1) 
+					throw new NdexException("Malformed authorization value in "+ DOI_CREATOR + " property.");
+        
+				ezidUser = authStr.substring(0, idx);
+				ezidpswd = authStr.substring(idx+1);
+			}
+			
+			DOIPrefix = getProperty("DOI_PREFIX");
+			
             // initialize the importer exporter table
             this.impExpTable = new HashMap<>();
             String impExpConfigFile = this.ndexRoot + "/conf/ndex_importer_exporter.json";
@@ -229,6 +282,20 @@ public class Configuration
             _logger.error("Failed to load the configuration file.", e);
             throw new NdexException ("Failed to load the configuration file. " + e.getMessage());
         } */
+    }
+    
+    private void prepareSecreteKey(String myKey) throws NdexException {
+
+        MessageDigest sha = null;
+        try {
+            key = myKey.getBytes(StandardCharsets.UTF_8);
+            sha = MessageDigest.getInstance("SHA-1");
+            key = sha.digest(key);
+            key = Arrays.copyOf(key, 16);
+            secretKey = new SecretKeySpec(key, "AES");
+        } catch (NoSuchAlgorithmException e) {
+        	throw new NdexException ("Can't find digest algorithm: " + e.getMessage());
+        }
     }
     
     /*
@@ -314,8 +381,9 @@ public class Configuration
      * @param configFilePath
      * @return Instance of {@link org.ndexbio.rest.Configuration} object
      * @throws NdexException
+     * @throws NoSuchAlgorithmException 
      */
-    protected static Configuration reCreateInstance(final String configFilePath) throws NdexException{
+    protected static Configuration reCreateInstance(final String configFilePath) throws NdexException, NoSuchAlgorithmException{
     	
     	try {
     		INSTANCE = new Configuration(configFilePath);
@@ -392,5 +460,12 @@ public class Configuration
 	public String getNdexNetworkCachePath() {
 		return ndexNetworkCachePath;
 	}
-    
+	
+	//public String getDOICreatorString()  {return DOICreator; }
+	
+	public SecretKeySpec getSecretKeySpec() { return this.secretKey;}
+	
+    public String getDOIUser() {return this.ezidUser;}
+    public String getDOIPswd() {return this.ezidpswd;}
+    public String getDOIPrefix() {return DOIPrefix;}
 }

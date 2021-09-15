@@ -30,6 +30,8 @@
  */
 package org.ndexbio.rest.services;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -56,6 +58,7 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.util.Util;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexStatus;
@@ -65,6 +68,7 @@ import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
+import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.server.StandaloneServer;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrIndexScope;
@@ -164,9 +168,12 @@ public class AdminServiceV2 extends NdexService {
 			throw new ForbiddenOperationException("Attribute 'type' is missing in the request.");
 		switch ( reqType ) {
 		case "DOI": {
+			if ( Configuration.getInstance().getDOIUser() == null)
+				throw new ForbiddenOperationException("DOI creation is not enabled on this server.");
+			
 			String networkIdStr = (String)request.get("networkId");
 			if (networkIdStr == null)
-				throw new ForbiddenOperationException("Attribute 'networkId' is missing in the request");
+				throw new ForbiddenOperationException("Attribute 'networkId' is missing in the request.");
 			
 			boolean isCertified = false;
 			Boolean isCertifiedObj = (Boolean)request.get("isCertified");
@@ -184,6 +191,16 @@ public class AdminServiceV2 extends NdexService {
 					throw new ForbiddenOperationException("This network already has a DOI or a pending DOI request.");
 				}
 				
+				if ( request.get("properties") ==null) {
+					throw new BadRequestException("Required Attributes are missing.");
+				}
+					
+				Map<String,Object> objMap =  (Map<String,Object>)request.get("properties");
+
+				String submitterEmail = (String)objMap.get("contactEmail");
+				if ( submitterEmail == null) 
+					throw new BadRequestException("contactEmail is missing in the request.");
+				
 				String key = dao.requestDOI(networkId, isCertified);
 				
 				dao.setFlag(networkId, "iscomplete", false);
@@ -191,28 +208,31 @@ public class AdminServiceV2 extends NdexService {
 				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL,false));
 								
 				String name = dao.getNetworkName(networkId);
-				String url = Configuration.getInstance().getHostURI() + "/#/network/"+ networkId ;
+				String url = Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkId ;
 				
 				if ( dao.getNetworkVisibility(networkId) == VisibilityType.PRIVATE) 
 					url += "?accesskey=" + key;
+				
+				String creationURL = Configuration.getInstance().getHostURI() + "/v3/networks/" + networkId
+						+ "/DOI?key=" + URLEncoder.encode(Security.encrypt(networkId.toString()),StandardCharsets.UTF_8.toString())
+							+"&email=" + 
+								URLEncoder.encode(submitterEmail, StandardCharsets.UTF_8.toString());
 				
 				//Reading in the email template
 				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
 
 				String messageBody = "Dear NDEx Administrator,<p>User " + user.getUserName() + " requests a DOI on network '" +
-				        name + "' (UUID: " + networkId + "). Please follow this <a href=\""+ url + "\">link</a> to access this network.<br>";
+				        name + "' (UUID: " + networkId + "). Please follow this <a href=\""+ url + "\">link</a> to access this network. <br>";
 				
-				if (request.get("properties") !=null ) {
-					  Map<String,Object> objMap =  (Map<String,Object>)request.get("properties");
-					  StringBuilder stringMapTable = new StringBuilder();
-					  stringMapTable.append("<table>");
+				StringBuilder stringMapTable = new StringBuilder();
+				stringMapTable.append("<table>");
 
-					  for (Map.Entry<String,Object> pair : objMap.entrySet()) {
+				for (Map.Entry<String,Object> pair : objMap.entrySet()) {
 					     stringMapTable.append("<tr><td><b>" + pair.getKey() + ":</b></td><td>" +pair.getValue() + "</td></tr>");
-					  }
-					  stringMapTable.append("</table>");
-					  messageBody += "<p>Additional information: <br>" + stringMapTable.toString() ;
 				}
+				stringMapTable.append("</table>");
+				messageBody += "<p>Additional information: <br>" + stringMapTable.toString() 
+				 + "<p> To create DOI for this network, please click <a href=\"" + creationURL + "\">here</a>.";
 				
 		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", 
 		        		Matcher.quoteReplacement(messageBody)) ;

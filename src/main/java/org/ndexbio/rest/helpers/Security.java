@@ -31,11 +31,30 @@
 package org.ndexbio.rest.helpers;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.util.Base64;
 import java.util.List;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.MultivaluedMap;
+
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.rest.Configuration;
 
 public class Security
 {
@@ -129,7 +148,7 @@ public class Security
     *            The text to compute the hash against.
     * @return A String containing the SHA-512 hash in hexadecimal format.
     **************************************************************************/
-    public static String hashText(String textToHash) throws Exception
+    public static String hashText(String textToHash) throws NoSuchAlgorithmException
     {
         final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
         sha512.update(textToHash.getBytes());
@@ -174,4 +193,88 @@ public class Security
     {
         return minValue + (int)(Math.random() * ((maxValue - minValue) + 1));
     }
+    
+ /*   private static SecretKey getKeyFromPassword()
+    	    throws NoSuchAlgorithmException, InvalidKeySpecException {
+    	    
+    	    SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+    	    KeySpec spec = new PBEKeySpec(Configuration.getInstance().getNDExKey().toCharArray(), 
+    	    		"InKeSpEx".getBytes(), 65536, 256);
+    	    SecretKey secret = new SecretKeySpec(factory.generateSecret(spec)
+    	        .getEncoded(), "AES");
+    	    return secret;
+    	}
+    
+    private static IvParameterSpec generateIv() {
+        byte[] iv = new byte[16];
+        new SecureRandom().nextBytes(iv);
+        return new IvParameterSpec(iv);
+    }
+    
+    public static String encrypt(String algorithm, String input, SecretKey key,
+    	    IvParameterSpec iv) throws NoSuchPaddingException, NoSuchAlgorithmException,
+    	    InvalidAlgorithmParameterException, InvalidKeyException,
+    	    BadPaddingException, IllegalBlockSizeException {
+    	    
+    	    Cipher cipher = Cipher.getInstance(algorithm);
+    	    cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+    	    byte[] cipherText = cipher.doFinal(input.getBytes());
+    	    return Base64.getEncoder()
+    	        .encodeToString(cipherText);
+    	}*/
+    
+    public static String encrypt(String strToEncrypt) throws NoSuchAlgorithmException, 
+    NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
+       // try {
+         //   SecretKeySpec secretKey = ;
+         /*   if (secretKey == null) {
+            	throw new NdexException("NDEx key was not found in server configuration.");
+            } */	
+            Cipher cipher = Cipher.getInstance("AES");
+            cipher.init(Cipher.ENCRYPT_MODE, Configuration.getInstance().getSecretKeySpec());
+            return Base64.getEncoder().encodeToString(cipher.doFinal(strToEncrypt.getBytes("UTF-8")));
+       // } catch (Exception e) {
+       //     System.out.println("Error while encrypting: " + e.toString());
+       // }
+       // return null;
+    }
+    
+    public static String decrypt(String strToDecrypt,  SecretKeySpec secretKey ) throws IllegalBlockSizeException, BadPaddingException, NdexException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException {
+        if (secretKey == null)
+            	throw new NdexException("NDEx key was not found in server configuration.");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        return new String(cipher.doFinal(Base64.getDecoder().decode(strToDecrypt)));
+      
+    }
+
+    /**
+     * 
+     * @param args
+     * @throws NdexException
+     * @throws UnsupportedEncodingException 
+     * @throws BadPaddingException 
+     * @throws IllegalBlockSizeException 
+     * @throws NoSuchPaddingException 
+     * @throws NoSuchAlgorithmException 
+     * @throws InvalidKeyException 
+     */
+    public static void main(String[] args) throws NdexException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
+
+    	System.setProperty(Configuration.ndexConfigFilePropName, "/opt/ndex/conf/ndex.properties");
+		Configuration.createInstance();
+		
+		if ( args.length != 2) {
+			System.out.println("Usage: org.ndexbio.rest.helpers <username> <password>");
+		} else {
+			String username = args[0];
+			String password = args[1];
+			
+			System.out.println(encrypt(username+":"+password));
+			
+		}
+		
+		
+    	
+    }	
 }
