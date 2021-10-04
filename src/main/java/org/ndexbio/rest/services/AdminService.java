@@ -81,14 +81,14 @@ public class AdminService extends NdexService {
 	@Produces("application/json")
 	public NdexStatus getStatus() throws NdexException, SQLException	{
 
-		logger.info("[start: Getting status]");
+	//	logger.info("[start: Getting status]");
 		
 		try (Connection db =NdexDatabase.getInstance().getConnection()){
 			
 			NdexStatus status = new NdexStatus();
-			status.setNetworkCount(AdminService.getClassCount(db,"network"));
-			status.setUserCount(AdminService.getClassCount(db,"ndex_user"));
-			status.setGroupCount(AdminService.getClassCount(db,"ndex_group")); 
+			status.setNetworkCount(AdminServiceV2.getClassCount(db,"network"));
+			status.setUserCount(AdminServiceV2.getClassCount(db,"ndex_user"));
+			status.setGroupCount(AdminServiceV2.getClassCount(db,"ndex_group")); 
 
 			Map<String,Object> props = status.getProperties();
 			
@@ -98,7 +98,7 @@ public class AdminService extends NdexService {
 					int i = Integer.parseInt(edgeLimit);
 					props.put(postElementLimitProp, Integer.toString(i));
 				} catch( NumberFormatException e) {
-					logger.error("[Invalid value in server property {}]", Configuration.networkPostEdgeLimit);
+//					logger.error("[Invalid value in server property {}]", Configuration.networkPostEdgeLimit);
 			//		props.put("ServerPostEdgeLimit", "-1");  //defaultPostEdgeLimit);
 				}
 			} /* else {
@@ -108,7 +108,7 @@ public class AdminService extends NdexService {
 			props.put("ServerResultLimit", "10000");
 			props.put("ServerVersion", ndexServerVersion);
 			status.setProperties(props);
-			logger.info("[end: Got status]");
+	//		logger.info("[end: Got status]");
 			
 			
 			return status;
@@ -152,7 +152,7 @@ public class AdminService extends NdexService {
 	}
 
 	
-	private static int getClassCount(Connection db,String className) throws SQLException, NdexException {
+	/*private static int getClassCount(Connection db,String className) throws SQLException, NdexException {
 
 		String queryStr = "select reltuples as cnt from pg_class where relname = ?";
 		try (PreparedStatement st = db.prepareStatement(queryStr)) { 
@@ -166,7 +166,7 @@ public class AdminService extends NdexService {
 		
 		throw new NdexException("Failed to get Ndex db statistics.");
 
-	} 
+	} */
 	
 
 }

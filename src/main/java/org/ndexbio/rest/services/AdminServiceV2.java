@@ -321,7 +321,7 @@ public class AdminServiceV2 extends NdexService {
 	}
 
 	
-	private static int getClassCount(Connection db,String className) throws SQLException, NdexException {
+	protected static int getClassCount(Connection db,String className) throws SQLException, NdexException {
 
 		String queryStr = "select reltuples as cnt from pg_class where relname = ?";
 		try (PreparedStatement st = db.prepareStatement(queryStr)) { 

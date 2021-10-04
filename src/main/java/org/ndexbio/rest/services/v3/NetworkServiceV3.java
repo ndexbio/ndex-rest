@@ -718,10 +718,16 @@ public class NetworkServiceV3  extends NdexService {
 					dao.commit();
 					throw new NdexException("Property author is missing in the network.");
 				}
+				
+				String url = Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkId;
+				
+				if ( dao.getNetworkVisibility(networkUUID) == VisibilityType.PRIVATE) 
+					url += "?accesskey=" + key;
+
 				String id;
 				try {
 					id = EZIDClient.createDOI(
-							Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkId ,
+							url ,
 							author, s.getName(),
 							Configuration.getInstance().getDOIPrefix(),
 							Configuration.getInstance().getDOIUser(),
