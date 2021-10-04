@@ -721,8 +721,9 @@ public class NetworkServiceV3  extends NdexService {
 				
 				String url = Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkId;
 				
-				if ( dao.getNetworkVisibility(networkUUID) == VisibilityType.PRIVATE) 
-					url += "?accesskey=" + key;
+				if ( dao.getNetworkVisibility(networkUUID) == VisibilityType.PRIVATE) {
+					url += "?accesskey=" + dao.getNetworkAccessKey(networkUUID);
+				}
 
 				String id;
 				try {
