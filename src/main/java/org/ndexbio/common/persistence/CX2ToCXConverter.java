@@ -292,44 +292,51 @@ public class CX2ToCXConverter {
 				writer.writeElement(vp);
 				
 				// add node bypasses
-				try (FileInputStream inputStream = new FileInputStream(aspectPath + CxNodeBypass.ASPECT_NAME)) {
-					Iterator<CxNodeBypass> it = om.readerFor(CxNodeBypass.class).readValues(inputStream);
-					
-					while (it.hasNext()) {
-						CxNodeBypass bypass = it.next();
-						CyVisualPropertiesElement e = new CyVisualPropertiesElement(NodesElement.ASPECT_NAME,
-								Long.valueOf(bypass.getId()), null);
-						
-						Boolean nodeSizeLocked = (Boolean)vep.getProperties().get("nodeSizeLocked");
-		    			VisualPropertyTable bypassProps = bypass.getVisualProperties();
-			    		if( nodeSizeLocked.booleanValue()) {
-			    			if (bypassProps.get("NODE_WIDTH") != null ) {
-			    				bypassProps.getVisualProperties().put("NODE_SIZE", bypassProps.get("NODE_WIDTH"));
-			    			}
-			    		}
-			    		
-			    		e.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
-			    		
-						writer.writeElement(e);
-					}	
-				}
-				// add edge bypasses
-				try (FileInputStream inputStream = new FileInputStream(aspectPath + CxEdgeBypass.ASPECT_NAME)) {
-					Iterator<CxEdgeBypass> it = om.readerFor(CxEdgeBypass.class).readValues(inputStream);
-					
-					while (it.hasNext()) {
-						CxEdgeBypass bypass = it.next();
-						CyVisualPropertiesElement e = new CyVisualPropertiesElement(EdgesElement.ASPECT_NAME,
-								Long.valueOf(bypass.getId()), null);
-						
-						VisualPropertyTable bypassProps = bypass.getVisualProperties();
-			    		
-			    		e.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
-			    		
-						writer.writeElement(e);
-					}	
+				if (this.metadataTable.get(CxNodeBypass.ASPECT_NAME) != null) {
+					try (FileInputStream inputStream = new FileInputStream(aspectPath + CxNodeBypass.ASPECT_NAME)) {
+						Iterator<CxNodeBypass> it = om.readerFor(CxNodeBypass.class).readValues(inputStream);
+
+						while (it.hasNext()) {
+							CxNodeBypass bypass = it.next();
+							CyVisualPropertiesElement e = new CyVisualPropertiesElement(NodesElement.ASPECT_NAME,
+									Long.valueOf(bypass.getId()), null);
+
+							boolean nodeSizeLocked = (vep == null) ? false
+									: ((Boolean) vep.getProperties().get("nodeSizeLocked")).booleanValue();
+							VisualPropertyTable bypassProps = bypass.getVisualProperties();
+							if (nodeSizeLocked) {
+								if (bypassProps.get("NODE_WIDTH") != null) {
+									bypassProps.getVisualProperties().put("NODE_SIZE", bypassProps.get("NODE_WIDTH"));
+								}
+							}
+
+							e.setProperties(
+									CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
+
+							writer.writeElement(e);
+						}
+					}
 				}
 				
+				// add edge bypasses
+				if (this.metadataTable.get(CxEdgeBypass.ASPECT_NAME) != null) {
+					try (FileInputStream inputStream = new FileInputStream(aspectPath + CxEdgeBypass.ASPECT_NAME)) {
+						Iterator<CxEdgeBypass> it = om.readerFor(CxEdgeBypass.class).readValues(inputStream);
+
+						while (it.hasNext()) {
+							CxEdgeBypass bypass = it.next();
+							CyVisualPropertiesElement e = new CyVisualPropertiesElement(EdgesElement.ASPECT_NAME,
+									Long.valueOf(bypass.getId()), null);
+
+							VisualPropertyTable bypassProps = bypass.getVisualProperties();
+
+							e.setProperties(
+									CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
+
+							writer.writeElement(e);
+						}
+					}
+				}
 				writer.closeFragment();
 				writer.endAspectFragment();
 				
@@ -377,14 +384,15 @@ public class CX2ToCXConverter {
 		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("network");
 		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertNetworkVPs(dvps.getNetworkProperties()));
 
-		for ( Map.Entry<String,Object> entry: vep.getProperties().entrySet()) {
-			String vpName = entry.getKey();
-			if ( vpName.equals("NETWORK_CENTER_X_LOCATION") || 
+		if ( vep != null ) {
+			for ( Map.Entry<String,Object> entry: vep.getProperties().entrySet()) {
+				String vpName = entry.getKey();
+				if ( vpName.equals("NETWORK_CENTER_X_LOCATION") || 
 					vpName.equals("NETWORK_CENTER_Y_LOCATION") || 
 					vpName.equals("NETWORK_SCALE_FACTOR"))
-				vp.getProperties().put(vpName, entry.getValue().toString());
+					vp.getProperties().put(vpName, entry.getValue().toString());
+			}
 		}
-		
 		return vp;
 	}
 	
