@@ -480,7 +480,7 @@ public class CXNetworkSampleGenerator {
 				while (it.hasNext()) {
 					SupportElement e = it.next();
 					if ( supportIds.contains(e.getId()))
-						result.addSupport(e);
+						result.addOpaqueAspect(e);
 				}
 			}
 			
