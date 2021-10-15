@@ -183,8 +183,8 @@ public class CX2NetworkLoader implements AutoCloseable {
 				summary.setCreationTime(t);
 				summary.setModificationTime(t);
 				
-				summary.setProperties(networkAttributes.toV1PropertyList(attributeDeclarations.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME)));
 				if (networkAttributes!=null ) {
+					summary.setProperties(networkAttributes.toV1PropertyList(attributeDeclarations.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME)));
 					summary.setName(networkAttributes.getNetworkName());
 					summary.setDescription(networkAttributes.getNetworkDescription());
 					summary.setVersion(networkAttributes.getNetworkVersion());
