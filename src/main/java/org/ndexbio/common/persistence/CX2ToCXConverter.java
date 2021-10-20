@@ -93,6 +93,7 @@ public class CX2ToCXConverter {
 		networkAttrCount = 0;
 		
 		String aspectPath = pathPrefix + CX2NetworkLoader.cx2AspectDirName + "/";
+		String cx1AspectPath = pathPrefix + CXNetworkLoader.CX1AspectDir + "/";
 		
 		try (FileOutputStream out = new FileOutputStream(pathPrefix + CXNetworkLoader.CX1FileName)) {
 			NdexCXNetworkWriter writer = new NdexCXNetworkWriter(out,true);
@@ -529,7 +530,25 @@ public class CX2ToCXConverter {
 					if ( minVP == null && maxVP == null)
 						throw new NdexException ("minVPValue and maxVPValue are both missing in CONTINUOUS mapping of " + vpName + " on column " + colName);
 					
+					
+					
 					if ( counter == 0) { // first range
+						
+						if ( minV != null) {  // no out of range definition
+							ov = minV.toString();
+							L = vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,minVP);
+							E = L;
+							G = L;
+							sb.append(createMappingStr(cyCounter,L,E,G,ov));
+			                cyCounter++;
+			                
+			                ov = maxV.toString();
+		                	L = vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,maxVP);
+		                	E=L;
+		                	G=L;
+							sb.append(createMappingStr(cyCounter,L,E,G,ov));
+		                	cyCounter++;
+						}
 					    L = vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,maxVP);
 					    ov = maxV.toString();
 					    if ( includeMax.booleanValue()) 
@@ -540,22 +559,7 @@ public class CX2ToCXConverter {
 							E=G;
 						
 						// create the mapping point
-						sb.append(",L=");
-		                sb.append(cyCounter);
-		                sb.append("=");
-		                sb.append(escapeString(L));
-		                sb.append(",E=");
-		                sb.append(cyCounter);
-		                sb.append("=");
-		                sb.append(escapeString(E));
-		                sb.append(",G=");
-		                sb.append(cyCounter);
-		                sb.append("=");
-		                sb.append(escapeString(G));
-		                sb.append(",OV=");
-		                sb.append(cyCounter);
-		                sb.append("=");
-		                sb.append(escapeString(ov));
+						sb.append(createMappingStr(cyCounter,L,E,G,ov));
 		                cyCounter++;
 		                
 		                // prepare for the next point
@@ -580,6 +584,24 @@ public class CX2ToCXConverter {
 			}		
 			
 		}
+    }
+    
+    private static String createMappingStr(int cyCounter, String L, String E, String G, String ov) {
+    	return ",L=" + cyCounter
+        +"="
+        +escapeString(L)
+        +",E="
+        +cyCounter
+        +"="
+        +escapeString(E)
+        +",G="
+        +cyCounter
+        +"="
+        +escapeString(G)
+        +",OV="
+        +cyCounter
+        +"="
+        +escapeString(ov);
     }
 	
 	private MetaDataCollection createCX1PreMetadata() {
