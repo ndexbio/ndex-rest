@@ -479,8 +479,12 @@ public class CX2ToCXConverter {
 			String cx1VPName = vpCvtr.getCx1EdgeOrNodeProperty(vpName);
 			VisualPropertyMapping mapping = cx2Mapping.getValue();
 			String colName = mapping.getMappingDef().getAttributeName();
-			ATTRIBUTE_DATA_TYPE type = attrDecls.getAttributesInAspect(aspectName)
-						.get(colName).getDataType();
+			DeclarationEntry decl = attrDecls.getAttributesInAspect(aspectName).get(colName);
+			if ( decl == null) {
+				throw new NdexException("Mapping on visual property " + vpName + " uses a non-exist attribute '"+
+			     colName + "' in aspect " + aspectName+ ".");
+			}
+			ATTRIBUTE_DATA_TYPE type = decl.getDataType();
 			// workaround the cyndex list type handling issue
 			if ( !type.isSingleValueType())
 				type = type.elementType();
