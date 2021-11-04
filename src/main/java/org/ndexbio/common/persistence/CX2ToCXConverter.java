@@ -665,13 +665,13 @@ public class CX2ToCXConverter {
         return result.toString();
      }
 
-	private static Object cvtVPfromRaw(String vpName, Object e) {
+	private static Object cvtVPfromRaw(String vpName, Object e) throws NdexException {
 		if (vpName.equals("EDGE_LABEL_FONT_FACE") ||
 					vpName.equals("NODE_LABEL_FONT_FACE")) 
 				return FontFace.createFromMap((Map<String,String>)e);
 		
 		if ( vpName.equals("NODE_LABEL_POSITION")) 
-				return LabelPosition.createFromMap((Map<String,Object>)e);
+				return LabelPosition.createFromLabelPositionMap((Map<String,Object>)e);
 		
 		if ( vpName.matches(VisualPropertyTable.imagePositionPattern)) 
 				return ObjectPosition.createFromMap((Map<String,Object>)e);
