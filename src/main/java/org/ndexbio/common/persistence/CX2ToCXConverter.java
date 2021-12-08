@@ -495,7 +495,10 @@ public class CX2ToCXConverter {
 	        sb.append(VM_TYPE);
 	        sb.append(type.toString());
             int counter = 0;
-			switch ( mapping.getType()) {
+            VPMappingType mappingType = mapping.getType();
+            if ( mappingType == null)
+            	throw new NdexException("Mapping type is missing for visual property " + vpName);
+			switch ( mappingType) {
 			case PASSTHROUGH: {
 		        vp.putMapping(cx1VPName, VPMappingType.PASSTHROUGH.toString(), sb.toString());
 				break;
