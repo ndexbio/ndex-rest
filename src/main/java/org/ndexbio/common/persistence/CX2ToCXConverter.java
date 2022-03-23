@@ -91,8 +91,9 @@ public class CX2ToCXConverter {
 
 	}
 	
-	void convert() throws FileNotFoundException, IOException, NdexException {
+	MetaDataCollection convert() throws FileNotFoundException, IOException, NdexException {
 		
+		MetaDataCollection cx1Metadata = createCX1PreMetadata();
 		nodeAttrCount = 0;
 		edgeAttrCount = 0;
 		networkAttrCount = 0;
@@ -107,7 +108,7 @@ public class CX2ToCXConverter {
 			NdexCXNetworkWriter writer = new NdexCXNetworkWriter(out,true);
 			writer.start();
 			
-			writer.writeMetadata(createCX1PreMetadata());
+			writer.writeMetadata(cx1Metadata);
 			
 			//write networkAttribute
 			Map<String,DeclarationEntry> netAttrDecls = attrDeclarations.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME);
@@ -405,21 +406,24 @@ public class CX2ToCXConverter {
 			//write post meatadata 
 			if ( (nodeAttrCount + edgeAttrCount + networkAttrCount) > 0) {
 				MetaDataCollection c = new MetaDataCollection ();
-				if ( networkAttrCount > 0) {
+			/*	if ( networkAttrCount > 0) {
 					MetaDataElement me = new MetaDataElement(NetworkAttributesElement.ASPECT_NAME, "1.0");
 					me.setElementCount(Long.valueOf(networkAttrCount));
 					c.add(me);
-				}			
+					cx1Metadata.add(me);
+				} */			
 				
 				if ( nodeAttrCount > 0 ) {
 					MetaDataElement me = new MetaDataElement(NodeAttributesElement.ASPECT_NAME, "1.0");
 					me.setElementCount(Long.valueOf(nodeAttrCount));
 					c.add(me);
+					cx1Metadata.add(me);
 				}
 				if ( edgeAttrCount > 0 ) {
 					MetaDataElement me = new MetaDataElement(EdgeAttributesElement.ASPECT_NAME, "1.0");
 					me.setElementCount(Long.valueOf(edgeAttrCount));
 					c.add(me);
+					cx1Metadata.add(me);
 				}
 				writer.writeMetadata(c);
 			}
@@ -427,6 +431,8 @@ public class CX2ToCXConverter {
 			//finish up.
 			writer.end();
 		}
+		
+		return cx1Metadata;
 	}
 	
 	public static CyVisualPropertiesElement getDefaultNetworkVP (DefaultVisualProperties dvps, 
