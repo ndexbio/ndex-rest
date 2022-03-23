@@ -36,6 +36,13 @@ public class CX2NetworkLoadingTask extends CXNetworkLoadingTask {
 			e1.printStackTrace();
 			dao.setFlag(networkId, "is_validated", true);
 			dao.setFlag(networkId, "iscomplete", true);
+			dao.setFlag(networkId,"readonly", false);
+			try {
+				dao.updateNetworkVisibility(networkId, VisibilityType.PRIVATE, true);
+			} catch (NdexException e) {
+				System.out.print("Error when updating network visibility: " + e.getMessage());
+				e.printStackTrace();
+			}
 			dao.setErrorMessage(networkId, e1.getMessage() == null? "Unknow server error.": e1.getMessage() );
 			dao.unlockNetwork(networkId);
 		} 

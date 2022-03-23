@@ -443,6 +443,13 @@ public class SearchServiceV2 extends NdexService {
 					e1.printStackTrace();
 					try {
 						dao.setErrorMessage(networkUUID, e1.getMessage());
+						dao.setFlag(networkUUID, "readonly", false);	 
+						try {
+							dao.updateNetworkVisibility(networkUUID, VisibilityType.PRIVATE, true);
+						} catch (NdexException e) {
+							System.out.print("Error when updating network visibility: " + e.getMessage());
+							e.printStackTrace();
+						}
 						dao.unlockNetwork(networkUUID);
 					} catch (SQLException e) {
 						System.out.println("Failed to set Error for network " + networkUUID);
