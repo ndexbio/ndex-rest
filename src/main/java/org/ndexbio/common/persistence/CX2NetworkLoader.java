@@ -69,6 +69,7 @@ import org.ndexbio.cx2.io.CXReader;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.aspects.datamodels.SubNetworkElement;
+import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -183,8 +184,8 @@ public class CX2NetworkLoader implements AutoCloseable {
 				summary.setCreationTime(t);
 				summary.setModificationTime(t);
 				
-				summary.setProperties(networkAttributes.toV1PropertyList(attributeDeclarations.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME)));
 				if (networkAttributes!=null ) {
+					summary.setProperties(networkAttributes.toV1PropertyList(attributeDeclarations.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME)));
 					summary.setName(networkAttributes.getNetworkName());
 					summary.setDescription(networkAttributes.getNetworkDescription());
 					summary.setVersion(networkAttributes.getNetworkVersion());
@@ -219,9 +220,11 @@ public class CX2NetworkLoader implements AutoCloseable {
 				} */
 			  				
 				//recreate CX and CX2 files
-				reCreateCXFiles();//networkId,dao);
+				MetaDataCollection cx1Metadata = reCreateCXFiles();//networkId,dao);
 				
 				try {
+					dao.updateMetadataColleciton(networkId, cx1Metadata);
+					
 					if ( !isUpdate) {
 						dao.setFlag(this.networkId, "iscomplete", true);
 					} 
@@ -263,7 +266,8 @@ public class CX2NetworkLoader implements AutoCloseable {
 
 	}
 
-	public void reCreateCXFiles( ) throws JsonParseException, JsonMappingException, SQLException, IOException,
+	// return cx1 metadata created from the cx2 to cx converter.
+	private MetaDataCollection reCreateCXFiles( ) throws JsonParseException, JsonMappingException, SQLException, IOException,
 			NdexException, FileNotFoundException {
 		
 		
@@ -283,7 +287,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		CX2ToCXConverter cvtr = new CX2ToCXConverter(pathPrefix, this.attributeDeclarations, 
 				this.metadataTable, this.hasLayout, this.networkAttributes);
 		
-		cvtr.convert();
+		return cvtr.convert();
 	}
 	
 

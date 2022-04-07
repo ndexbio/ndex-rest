@@ -5,6 +5,10 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -40,6 +44,7 @@ import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
+import org.ndexbio.cxio.core.CXAspectWriter;
 import org.ndexbio.cxio.core.NdexCXNetworkWriter;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
@@ -86,38 +91,46 @@ public class CX2ToCXConverter {
 
 	}
 	
-	void convert() throws FileNotFoundException, IOException, NdexException {
+	MetaDataCollection convert() throws FileNotFoundException, IOException, NdexException {
 		
+		MetaDataCollection cx1Metadata = createCX1PreMetadata();
 		nodeAttrCount = 0;
 		edgeAttrCount = 0;
 		networkAttrCount = 0;
 		
 		String aspectPath = pathPrefix + CX2NetworkLoader.cx2AspectDirName + "/";
 		
+		String cx1AspectPath = pathPrefix + CXNetworkLoader.CX1AspectDir + "/";
+		java.nio.file.Path dir = Paths.get(cx1AspectPath);
+		Files.createDirectory(dir);
+		
 		try (FileOutputStream out = new FileOutputStream(pathPrefix + CXNetworkLoader.CX1FileName)) {
 			NdexCXNetworkWriter writer = new NdexCXNetworkWriter(out,true);
 			writer.start();
 			
-			writer.writeMetadata(createCX1PreMetadata());
+			writer.writeMetadata(cx1Metadata);
 			
 			//write networkAttribute
 			Map<String,DeclarationEntry> netAttrDecls = attrDeclarations.getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME);
 			if ( netAttrDecls!= null && !netAttrDecls.isEmpty()) {
+				networkAttributes.extendToFullNode(netAttrDecls);
 				writer.startAspectFragment(CxNetworkAttribute.ASPECT_NAME);
 				writer.openFragment();
-				networkAttributes.extendToFullNode(netAttrDecls);
-				for (Map.Entry<String,Object> e : this.networkAttributes.getAttributes().entrySet()) {
-					ATTRIBUTE_DATA_TYPE attrType = netAttrDecls.get(e.getKey()).getDataType();
-					NetworkAttributesElement na;
-					if ( attrType.isSingleValueType()) {
-					  na = new NetworkAttributesElement(null, e.getKey(), e.getValue().toString(), attrType);
-					} else {
-						List<Object> listV = (List<Object>)e.getValue();
-						na = new NetworkAttributesElement(null, e.getKey(),
-								listV.stream().map(s -> s.toString()).collect(Collectors.toList()), attrType);
+				try (CXAspectWriter cx1aspectWtr = new CXAspectWriter(cx1AspectPath + NetworkAttributesElement.ASPECT_NAME) ) {
+					for (Map.Entry<String, Object> e : this.networkAttributes.getAttributes().entrySet()) {
+						ATTRIBUTE_DATA_TYPE attrType = netAttrDecls.get(e.getKey()).getDataType();
+						NetworkAttributesElement na;
+						if (attrType.isSingleValueType()) {
+							na = new NetworkAttributesElement(null, e.getKey(), e.getValue().toString(), attrType);
+						} else {
+							List<Object> listV = (List<Object>) e.getValue();
+							na = new NetworkAttributesElement(null, e.getKey(),
+									listV.stream().map(s -> s.toString()).collect(Collectors.toList()), attrType);
+						}
+						writer.writeElement(na);
+						cx1aspectWtr.writeCXElement(na);
+						networkAttrCount++;
 					}
-					writer.writeElement(na);
-					networkAttrCount ++;
 				}
 				writer.closeFragment();
 				writer.endAspectFragment();
@@ -136,18 +149,21 @@ public class CX2ToCXConverter {
 				try (FileInputStream inputStream = new FileInputStream(aspectPath + "nodes")) {
 
 					Iterator<CxNode> it = om.readerFor(CxNode.class).readValues(inputStream);
-					
-					while (it.hasNext()) {
-						CxNode n = it.next();
-						n.extendToFullNode(nodeAttrDecls);
-						NodesElement node = new NodesElement(n.getId(), (String)n.getAttributes().get(CxNode.NAME),
-								(String)n.getAttributes().get(CxNode.REPRESENTS));
-						writer.writeElement(node);
-						
-						if ( hasLayout) {
-							coordinates.add(new CartesianLayoutElement(n.getId(), n.getX(), n.getY(), n.getZ()));
+					try (CXAspectWriter cx1aspectWtr = new CXAspectWriter(cx1AspectPath + NodesElement.ASPECT_NAME) ) {
+
+						while (it.hasNext()) {
+							CxNode n = it.next();
+							n.extendToFullNode(nodeAttrDecls);
+							NodesElement node = new NodesElement(n.getId(), (String) n.getAttributes().get(CxNode.NAME),
+									(String) n.getAttributes().get(CxNode.REPRESENTS));
+							writer.writeElement(node);
+							cx1aspectWtr.writeCXElement(node);
+
+							if (hasLayout) {
+								coordinates.add(new CartesianLayoutElement(n.getId(), n.getX(), n.getY(), n.getZ()));
+							}
 						}
-					}	
+					}
 				}
 				writer.closeFragment();
 				writer.endAspectFragment();
@@ -156,8 +172,13 @@ public class CX2ToCXConverter {
 				if(hasLayout) {
 					writer.startAspectFragment(CartesianLayoutElement.ASPECT_NAME);
 					writer.openFragment();
-					for (CartesianLayoutElement e : coordinates) 
-						writer.writeElement(e);
+					try (CXAspectWriter cx1aspectWtr = new CXAspectWriter(cx1AspectPath + CartesianLayoutElement.ASPECT_NAME) ) {
+
+						for (CartesianLayoutElement e : coordinates) {
+							writer.writeElement(e);
+							cx1aspectWtr.writeCXElement(e);
+						}
+					}
 					writer.closeFragment();
 					writer.endAspectFragment();
 				}
@@ -169,24 +190,30 @@ public class CX2ToCXConverter {
 
 					Iterator<CxNode> it = om.readerFor(CxNode.class).readValues(inputStream);
 					
-					while (it.hasNext()) {
-						CxNode n = it.next();
-						n.extendToFullNode(nodeAttrDecls);
-						Map<String,Object> attrs = n.getAttributes();
-						for (Map.Entry<String,Object> e : attrs.entrySet()) {
-							String attrName = e.getKey();
-							if ( !attrName.equals(CxNode.NAME) && !attrName.equals(CxNode.REPRESENTS)) {
-								ATTRIBUTE_DATA_TYPE attrType = nodeAttrDecls.get(attrName).getDataType();
-								NodeAttributesElement na;
-								if ( attrType.isSingleValueType()) {
-									na = new NodeAttributesElement(n.getId(), e.getKey(), e.getValue().toString(), attrType);
-								} else {
-									List<Object> listV = (List<Object>)e.getValue();
-									na = new NodeAttributesElement(n.getId(), e.getKey(),
-										listV.stream().map(s -> s.toString()).collect(Collectors.toList()), attrType);
+					try (CXAspectWriter cx1aspectWtr = new CXAspectWriter(cx1AspectPath + NodeAttributesElement.ASPECT_NAME) ) {
+						while (it.hasNext()) {
+							CxNode n = it.next();
+							n.extendToFullNode(nodeAttrDecls);
+							Map<String, Object> attrs = n.getAttributes();
+
+							for (Map.Entry<String, Object> e : attrs.entrySet()) {
+								String attrName = e.getKey();
+								if (!attrName.equals(CxNode.NAME) && !attrName.equals(CxNode.REPRESENTS)) {
+									ATTRIBUTE_DATA_TYPE attrType = nodeAttrDecls.get(attrName).getDataType();
+									NodeAttributesElement na;
+									if (attrType.isSingleValueType()) {
+										na = new NodeAttributesElement(n.getId(), e.getKey(), e.getValue().toString(),
+												attrType);
+									} else {
+										List<Object> listV = (List<Object>) e.getValue();
+										na = new NodeAttributesElement(n.getId(), e.getKey(),
+												listV.stream().map(s -> s.toString()).collect(Collectors.toList()),
+												attrType);
+									}
+									writer.writeElement(na);
+									cx1aspectWtr.writeCXElement(na);
+									nodeAttrCount++;
 								}
-								writer.writeElement(na);
-								nodeAttrCount ++;
 							}
 						}
 					}	
@@ -205,20 +232,22 @@ public class CX2ToCXConverter {
 				try (FileInputStream inputStream = new FileInputStream(aspectPath + CxEdge.ASPECT_NAME)) {
 
 					Iterator<CxEdge> it = om.readerFor(CxEdge.class).readValues(inputStream);
-					
-					while (it.hasNext()) {
-						CxEdge edge = it.next();
-						EdgesElement e;
-						if (edgeAttrDecls.get(CxEdge.INTERACTION) !=null ) {
-							edge.extendToFullNode(edgeAttrDecls);
-						    e = new EdgesElement(edge.getId(), edge.getSource(),
-								edge.getTarget(), (String)edge.getAttributes().get(CxEdge.INTERACTION));
-						} else {
-							e =  new EdgesElement(edge.getId(), edge.getSource(),
-									edge.getTarget(), null);
+					try (CXAspectWriter cx1aspectWtr = new CXAspectWriter(cx1AspectPath + EdgesElement.ASPECT_NAME) ) {
+
+						while (it.hasNext()) {
+							CxEdge edge = it.next();
+							EdgesElement e;
+							if (edgeAttrDecls.get(CxEdge.INTERACTION) != null) {
+								edge.extendToFullNode(edgeAttrDecls);
+								e = new EdgesElement(edge.getId(), edge.getSource(), edge.getTarget(),
+										(String) edge.getAttributes().get(CxEdge.INTERACTION));
+							} else {
+								e = new EdgesElement(edge.getId(), edge.getSource(), edge.getTarget(), null);
+							}
+							writer.writeElement(e);
+							cx1aspectWtr.writeCXElement(e);
 						}
-						writer.writeElement(e);
-					}	
+					}
 				}
 				writer.closeFragment();
 				writer.endAspectFragment();
@@ -230,28 +259,33 @@ public class CX2ToCXConverter {
 				try (FileInputStream inputStream = new FileInputStream(aspectPath + CxEdge.ASPECT_NAME)) {
 
 					Iterator<CxEdge> it = om.readerFor(CxEdge.class).readValues(inputStream);
+					try (CXAspectWriter cx1aspectWtr = new CXAspectWriter(cx1AspectPath + EdgeAttributesElement.ASPECT_NAME) ) {
 					
-					while (it.hasNext()) {
-						CxEdge edge = it.next();
-						edge.extendToFullNode(edgeAttrDecls);
-						Map<String,Object> attrs = edge.getAttributes();
-						for (Map.Entry<String,Object> e : attrs.entrySet()) {
-							String attrName = e.getKey();
-							if ( !attrName.equals(CxEdge.INTERACTION)) {
-								ATTRIBUTE_DATA_TYPE attrType = edgeAttrDecls.get(attrName).getDataType();
-								EdgeAttributesElement ea;
-								if ( attrType.isSingleValueType()) {
-									ea = new EdgeAttributesElement(edge.getId(), e.getKey(), e.getValue().toString(), attrType);
-								} else {
-									List<Object> listV = (List<Object>)e.getValue();
-									ea = new EdgeAttributesElement(edge.getId(), e.getKey(),
-										listV.stream().map(s -> s.toString()).collect(Collectors.toList()), attrType);
+						while (it.hasNext()) {
+							CxEdge edge = it.next();
+							edge.extendToFullNode(edgeAttrDecls);
+							Map<String, Object> attrs = edge.getAttributes();
+							for (Map.Entry<String, Object> e : attrs.entrySet()) {
+								String attrName = e.getKey();
+								if (!attrName.equals(CxEdge.INTERACTION)) {
+									ATTRIBUTE_DATA_TYPE attrType = edgeAttrDecls.get(attrName).getDataType();
+									EdgeAttributesElement ea;
+									if (attrType.isSingleValueType()) {
+										ea = new EdgeAttributesElement(edge.getId(), e.getKey(),
+												e.getValue().toString(), attrType);
+									} else {
+										List<Object> listV = (List<Object>) e.getValue();
+										ea = new EdgeAttributesElement(edge.getId(), e.getKey(),
+												listV.stream().map(s -> s.toString()).collect(Collectors.toList()),
+												attrType);
+									}
+									writer.writeElement(ea);
+									cx1aspectWtr.writeCXElement(ea);
+									edgeAttrCount++;
 								}
-								writer.writeElement(ea);
-								edgeAttrCount ++;
 							}
 						}
-					}	
+					}
 				}
 				writer.closeFragment();
 				writer.endAspectFragment();
@@ -263,77 +297,89 @@ public class CX2ToCXConverter {
 				
 				writer.startAspectFragment(CyVisualPropertiesElement.ASPECT_NAME);
 				writer.openFragment();
+				try (CXAspectWriter cx1aspectWtr = new CXAspectWriter(cx1AspectPath + CyVisualPropertiesElement.ASPECT_NAME) ) {
 
-				File vsFile = new File(aspectPath + CxVisualProperty.ASPECT_NAME);
-				
-				CxVisualProperty[] vPs = om.readValue(vsFile, CxVisualProperty[].class); 
-				
-				DefaultVisualProperties defaultVPs = vPs[0].getDefaultProps();
-				
-				// get the dependency table
-				VisualEditorProperties vep = null;
-				File vsEditorPropsFile = new File ( aspectPath + VisualEditorProperties.ASPECT_NAME);
-				if (vsEditorPropsFile.exists()) {
-					VisualEditorProperties[] vepr = om.readValue(vsEditorPropsFile, VisualEditorProperties[].class);
-					vep = vepr[0];
-				}
-				
-				//convert network default VPs
-				writer.writeElement(getDefaultNetworkVP(defaultVPs, vep));
+					File vsFile = new File(aspectPath + CxVisualProperty.ASPECT_NAME);
 
-				// convert node default and node mappings
-				CyVisualPropertiesElement vp = getDefaultNodeVP(vPs[0], vep, this.attrDeclarations );
-				
-				writer.writeElement(vp);
-				
-				// convert edge default and edge mappings
-				vp = getDefaultEdgeVP(vPs[0], vep, this.attrDeclarations);
-				
-				writer.writeElement(vp);
-				
-				// add node bypasses
-				if (this.metadataTable.get(CxNodeBypass.ASPECT_NAME) != null) {
-					try (FileInputStream inputStream = new FileInputStream(aspectPath + CxNodeBypass.ASPECT_NAME)) {
-						Iterator<CxNodeBypass> it = om.readerFor(CxNodeBypass.class).readValues(inputStream);
+					CxVisualProperty[] vPs = om.readValue(vsFile, CxVisualProperty[].class);
 
-						while (it.hasNext()) {
-							CxNodeBypass bypass = it.next();
-							CyVisualPropertiesElement e = new CyVisualPropertiesElement(NodesElement.ASPECT_NAME,
-									Long.valueOf(bypass.getId()), null);
+					DefaultVisualProperties defaultVPs = vPs[0].getDefaultProps();
 
-							boolean nodeSizeLocked = (vep == null) ? false
-									: ((Boolean) vep.getProperties().get("nodeSizeLocked")).booleanValue();
-							VisualPropertyTable bypassProps = bypass.getVisualProperties();
-							if (nodeSizeLocked) {
-								if (bypassProps.get("NODE_WIDTH") != null) {
-									bypassProps.getVisualProperties().put("NODE_SIZE", bypassProps.get("NODE_WIDTH"));
+					// get the dependency table
+					VisualEditorProperties vep = null;
+					File vsEditorPropsFile = new File(aspectPath + VisualEditorProperties.ASPECT_NAME);
+					if (vsEditorPropsFile.exists()) {
+						VisualEditorProperties[] vepr = om.readValue(vsEditorPropsFile, VisualEditorProperties[].class);
+						vep = vepr[0];
+					}
+
+					// convert network default VPs
+					CyVisualPropertiesElement netDefault = getDefaultNetworkVP(defaultVPs, vep);
+					writer.writeElement(netDefault);
+					cx1aspectWtr.writeCXElement(netDefault);
+
+					// convert node default and node mappings
+					CyVisualPropertiesElement vp = getDefaultNodeVP(vPs[0], vep, this.attrDeclarations);
+
+					writer.writeElement(vp);
+					cx1aspectWtr.writeCXElement(vp);
+
+					// convert edge default and edge mappings
+					vp = getDefaultEdgeVP(vPs[0], vep, this.attrDeclarations);
+
+					writer.writeElement(vp);
+					cx1aspectWtr.writeCXElement(vp);
+
+
+					// add node bypasses
+					if (this.metadataTable.get(CxNodeBypass.ASPECT_NAME) != null) {
+						try (FileInputStream inputStream = new FileInputStream(aspectPath + CxNodeBypass.ASPECT_NAME)) {
+							Iterator<CxNodeBypass> it = om.readerFor(CxNodeBypass.class).readValues(inputStream);
+
+							while (it.hasNext()) {
+								CxNodeBypass bypass = it.next();
+								CyVisualPropertiesElement e = new CyVisualPropertiesElement(NodesElement.ASPECT_NAME,
+										Long.valueOf(bypass.getId()), null);
+
+								boolean nodeSizeLocked = (vep == null) ? false
+										: ((Boolean) vep.getProperties().get("nodeSizeLocked")).booleanValue();
+								VisualPropertyTable bypassProps = bypass.getVisualProperties();
+								if (nodeSizeLocked) {
+									if (bypassProps.get("NODE_WIDTH") != null) {
+										bypassProps.getVisualProperties().put("NODE_SIZE",
+												bypassProps.get("NODE_WIDTH"));
+									}
 								}
+
+								e.setProperties(
+										CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
+
+								writer.writeElement(e);
+								cx1aspectWtr.writeCXElement(e);
+
 							}
-
-							e.setProperties(
-									CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
-
-							writer.writeElement(e);
 						}
 					}
-				}
-				
-				// add edge bypasses
-				if (this.metadataTable.get(CxEdgeBypass.ASPECT_NAME) != null) {
-					try (FileInputStream inputStream = new FileInputStream(aspectPath + CxEdgeBypass.ASPECT_NAME)) {
-						Iterator<CxEdgeBypass> it = om.readerFor(CxEdgeBypass.class).readValues(inputStream);
 
-						while (it.hasNext()) {
-							CxEdgeBypass bypass = it.next();
-							CyVisualPropertiesElement e = new CyVisualPropertiesElement(EdgesElement.ASPECT_NAME,
-									Long.valueOf(bypass.getId()), null);
+					// add edge bypasses
+					if (this.metadataTable.get(CxEdgeBypass.ASPECT_NAME) != null) {
+						try (FileInputStream inputStream = new FileInputStream(aspectPath + CxEdgeBypass.ASPECT_NAME)) {
+							Iterator<CxEdgeBypass> it = om.readerFor(CxEdgeBypass.class).readValues(inputStream);
 
-							VisualPropertyTable bypassProps = bypass.getVisualProperties();
+							while (it.hasNext()) {
+								CxEdgeBypass bypass = it.next();
+								CyVisualPropertiesElement e = new CyVisualPropertiesElement(EdgesElement.ASPECT_NAME,
+										Long.valueOf(bypass.getId()), null);
 
-							e.setProperties(
-									CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
+								VisualPropertyTable bypassProps = bypass.getVisualProperties();
 
-							writer.writeElement(e);
+								e.setProperties(
+										CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(bypassProps));
+
+								writer.writeElement(e);
+								cx1aspectWtr.writeCXElement(e);
+
+							}
 						}
 					}
 				}
@@ -349,27 +395,35 @@ public class CX2ToCXConverter {
 					writer.startAspectFragment(aspectName);
 					writer.writeAspectElementsFromNdexAspectFile(aspectPath + aspectName);
 					writer.endAspectFragment();
+					
+				    Path copied = Paths.get(cx1AspectPath + aspectName);
+				    Path originalPath = Paths.get(aspectPath + aspectName);
+				    Files.copy(originalPath, copied, StandardCopyOption.REPLACE_EXISTING);
+
 				}
 			}
 			
 			//write post meatadata 
 			if ( (nodeAttrCount + edgeAttrCount + networkAttrCount) > 0) {
 				MetaDataCollection c = new MetaDataCollection ();
-				if ( networkAttrCount > 0) {
+			/*	if ( networkAttrCount > 0) {
 					MetaDataElement me = new MetaDataElement(NetworkAttributesElement.ASPECT_NAME, "1.0");
 					me.setElementCount(Long.valueOf(networkAttrCount));
 					c.add(me);
-				}			
+					cx1Metadata.add(me);
+				} */			
 				
 				if ( nodeAttrCount > 0 ) {
 					MetaDataElement me = new MetaDataElement(NodeAttributesElement.ASPECT_NAME, "1.0");
 					me.setElementCount(Long.valueOf(nodeAttrCount));
 					c.add(me);
+					cx1Metadata.add(me);
 				}
 				if ( edgeAttrCount > 0 ) {
 					MetaDataElement me = new MetaDataElement(EdgeAttributesElement.ASPECT_NAME, "1.0");
 					me.setElementCount(Long.valueOf(edgeAttrCount));
 					c.add(me);
+					cx1Metadata.add(me);
 				}
 				writer.writeMetadata(c);
 			}
@@ -377,6 +431,8 @@ public class CX2ToCXConverter {
 			//finish up.
 			writer.end();
 		}
+		
+		return cx1Metadata;
 	}
 	
 	public static CyVisualPropertiesElement getDefaultNetworkVP (DefaultVisualProperties dvps, 
@@ -478,8 +534,12 @@ public class CX2ToCXConverter {
 			String cx1VPName = vpCvtr.getCx1EdgeOrNodeProperty(vpName);
 			VisualPropertyMapping mapping = cx2Mapping.getValue();
 			String colName = mapping.getMappingDef().getAttributeName();
-			ATTRIBUTE_DATA_TYPE type = attrDecls.getAttributesInAspect(aspectName)
-						.get(colName).getDataType();
+			DeclarationEntry decl = attrDecls.getAttributesInAspect(aspectName).get(colName);
+			if ( decl == null) {
+				throw new NdexException("Mapping on visual property " + vpName + " uses a non-exist attribute '"+
+			     colName + "' in aspect " + aspectName+ ".");
+			}
+			ATTRIBUTE_DATA_TYPE type = decl.getDataType();
 			// workaround the cyndex list type handling issue
 			if ( !type.isSingleValueType())
 				type = type.elementType();
@@ -490,7 +550,10 @@ public class CX2ToCXConverter {
 	        sb.append(VM_TYPE);
 	        sb.append(type.toString());
             int counter = 0;
-			switch ( mapping.getType()) {
+            VPMappingType mappingType = mapping.getType();
+            if ( mappingType == null)
+            	throw new NdexException("Mapping type is missing for visual property " + vpName);
+			switch ( mappingType) {
 			case PASSTHROUGH: {
 		        vp.putMapping(cx1VPName, VPMappingType.PASSTHROUGH.toString(), sb.toString());
 				break;
@@ -529,7 +592,25 @@ public class CX2ToCXConverter {
 					if ( minVP == null && maxVP == null)
 						throw new NdexException ("minVPValue and maxVPValue are both missing in CONTINUOUS mapping of " + vpName + " on column " + colName);
 					
+					
+					
 					if ( counter == 0) { // first range
+						
+						if ( minV != null) {  // no out of range definition
+							ov = minV.toString();
+							L = vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,minVP);
+							E = L;
+							G = L;
+							sb.append(createMappingStr(cyCounter,L,E,G,ov));
+			                cyCounter++;
+			                
+			                ov = maxV.toString();
+		                	L = vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,maxVP);
+		                	E=L;
+		                	G=L;
+							sb.append(createMappingStr(cyCounter,L,E,G,ov));
+		                	cyCounter++;
+						}
 					    L = vpCvtr.getCx1EdgeOrNodePropertyValue(vpName,maxVP);
 					    ov = maxV.toString();
 					    if ( includeMax.booleanValue()) 
@@ -540,22 +621,7 @@ public class CX2ToCXConverter {
 							E=G;
 						
 						// create the mapping point
-						sb.append(",L=");
-		                sb.append(cyCounter);
-		                sb.append("=");
-		                sb.append(escapeString(L));
-		                sb.append(",E=");
-		                sb.append(cyCounter);
-		                sb.append("=");
-		                sb.append(escapeString(E));
-		                sb.append(",G=");
-		                sb.append(cyCounter);
-		                sb.append("=");
-		                sb.append(escapeString(G));
-		                sb.append(",OV=");
-		                sb.append(cyCounter);
-		                sb.append("=");
-		                sb.append(escapeString(ov));
+						sb.append(createMappingStr(cyCounter,L,E,G,ov));
 		                cyCounter++;
 		                
 		                // prepare for the next point
@@ -580,6 +646,24 @@ public class CX2ToCXConverter {
 			}		
 			
 		}
+    }
+    
+    private static String createMappingStr(int cyCounter, String L, String E, String G, String ov) {
+    	return ",L=" + cyCounter
+        +"="
+        +escapeString(L)
+        +",E="
+        +cyCounter
+        +"="
+        +escapeString(E)
+        +",G="
+        +cyCounter
+        +"="
+        +escapeString(G)
+        +",OV="
+        +cyCounter
+        +"="
+        +escapeString(ov);
     }
 	
 	private MetaDataCollection createCX1PreMetadata() {
@@ -639,13 +723,13 @@ public class CX2ToCXConverter {
         return result.toString();
      }
 
-	private static Object cvtVPfromRaw(String vpName, Object e) {
+	private static Object cvtVPfromRaw(String vpName, Object e) throws NdexException {
 		if (vpName.equals("EDGE_LABEL_FONT_FACE") ||
 					vpName.equals("NODE_LABEL_FONT_FACE")) 
 				return FontFace.createFromMap((Map<String,String>)e);
 		
 		if ( vpName.equals("NODE_LABEL_POSITION")) 
-				return LabelPosition.createFromMap((Map<String,Object>)e);
+				return LabelPosition.createFromLabelPositionMap((Map<String,Object>)e);
 		
 		if ( vpName.matches(VisualPropertyTable.imagePositionPattern)) 
 				return ObjectPosition.createFromMap((Map<String,Object>)e);
