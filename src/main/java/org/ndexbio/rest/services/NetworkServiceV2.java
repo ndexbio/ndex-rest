@@ -1114,9 +1114,10 @@ public class NetworkServiceV2 extends NdexService {
 			MetaDataElement elmt = metadata.getMetaDataElement(NetworkAttributesElement.ASPECT_NAME);
 			if ( elmt == null) {
 				elmt = new MetaDataElement(NetworkAttributesElement.ASPECT_NAME, "1.0");
+				metadata.add(elmt);
 			}
 			elmt.setElementCount(Long.valueOf(attrs.size()));
-			
+						
 			if ( isSingleNetwork  && ! cx2metadata.stream().anyMatch(
 					(CxMetadata n) -> n.getName().equals(CxNetworkAttribute.ASPECT_NAME) )) {
 			
