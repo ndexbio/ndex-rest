@@ -226,7 +226,8 @@ public class NetworkDAO extends NdexDBDAO {
 				"insert into group_network_membership_arc (group_id, network_id, permission_type) " + 
 						" select group_id, network_id, permission_type from group_network_membership where network_id = ?",
 				"delete from group_network_membership where network_id = ?",
-				"delete from network_set_member where network_id = ?"
+				"delete from network_set_member where network_id = ?",
+				"delete from cyweb_workspace_network where network_id= ?"
 			};
 
 		for (String cmd : sqlCmds) {

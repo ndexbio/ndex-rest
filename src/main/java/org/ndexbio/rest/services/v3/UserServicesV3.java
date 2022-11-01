@@ -6,20 +6,16 @@ import java.util.List;
 import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 
 import org.ndexbio.common.models.dao.postgresql.CyWebWorkspaceDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CyWebWorkspace;
-import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.services.NdexService;
 
 import com.fasterxml.jackson.core.JsonParseException;

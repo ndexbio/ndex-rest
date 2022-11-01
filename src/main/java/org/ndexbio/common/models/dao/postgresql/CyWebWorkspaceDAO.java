@@ -13,13 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.CyWebWorkspace;
-import org.ndexbio.model.object.Group;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -27,7 +25,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 
 public class CyWebWorkspaceDAO extends NdexDBDAO {
 
@@ -93,7 +90,7 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 			}
 			
 			if ( workspace.getNetworkIDs()!=null && !workspace.getNetworkIDs().isEmpty()) {
-			insertStr = "insert into cyweb_workspace_network (workspaceid,networkid) values(?,?)";
+			insertStr = "insert into cyweb_workspace_network (workspace_id,network_id) values(?,?)";
 			try (PreparedStatement st = db.prepareStatement(insertStr) ) {
 			
 				for ( UUID netId : workspace.getNetworkIDs()) {
@@ -113,7 +110,7 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 	public CyWebWorkspace getWorkspace(UUID workspaceId, UUID ownerUUID) throws ObjectNotFoundException, SQLException, JsonMappingException, JsonProcessingException {
 		
 		String sqlStr = "SELECT * FROM cyweb_workspace where \"UUID\" = '" + workspaceId + "' :: uuid and is_deleted = false and owner_uuid='" +ownerUUID.toString() + "' ::uuid";
-		String sqlStr1 = "SELECT networkid FROM cyweb_workspace_network where workspaceid = '" + workspaceId + "' :: uuid";
+		String sqlStr1 = "SELECT network_id FROM cyweb_workspace_network where workspace_id = '" + workspaceId + "' :: uuid";
 
 		CyWebWorkspace result = new CyWebWorkspace();
 		try (Statement st = db.createStatement()) {
@@ -178,12 +175,12 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 				
 		}
 
-		String delStr = "delete from cyweb_workspace_network where workspaceid = '" + workspace.getWorkspaceId() + "'::uuid";
+		String delStr = "delete from cyweb_workspace_network where workspace_id = '" + workspace.getWorkspaceId() + "'::uuid";
 		try (PreparedStatement st = db.prepareStatement(delStr) ) {
 			st.executeUpdate();
 		}	
 		
-		String insertStr = "insert into cyweb_workspace_network (workspaceid,networkid) values(?,?)";
+		String insertStr = "insert into cyweb_workspace_network (workspace_id,network_id) values(?,?)";
 		try (PreparedStatement st = db.prepareStatement(insertStr) ) {
 			
 			for ( UUID netId : workspace.getNetworkIDs()) {
@@ -207,7 +204,7 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 				throw new ObjectNotFoundException("Workspace not found for this user.");
 		}	
 
-		String delStr = "delete from cyweb_workspace_network where workspaceid = '" + workspaceId +"'::uuid";
+		String delStr = "delete from cyweb_workspace_network where workspace_id = '" + workspaceId +"'::uuid";
 		try (PreparedStatement st = db.prepareStatement(delStr) ) {
 			st.executeUpdate();
 		}	
@@ -271,12 +268,12 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 			}				
 		}
 
-		String delStr = "delete from cyweb_workspace_network where workspaceid = '" + workspaceId + "'::uuid";
+		String delStr = "delete from cyweb_workspace_network where workspace_id = '" + workspaceId + "'::uuid";
 		try (PreparedStatement st = db.prepareStatement(delStr) ) {
 			st.executeUpdate();
 		}	
 		
-		String insertStr = "insert into cyweb_workspace_network (workspaceid,networkid) values(?,?)";
+		String insertStr = "insert into cyweb_workspace_network (workspace_id,network_id) values(?,?)";
 		try (PreparedStatement st = db.prepareStatement(insertStr) ) {
 			
 			for ( UUID netId : networkIds) {

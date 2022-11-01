@@ -6,7 +6,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -21,11 +20,9 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.ndexbio.common.models.dao.postgresql.CyWebWorkspaceDAO;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CyWebWorkspace;
-import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.NdexService;
 
