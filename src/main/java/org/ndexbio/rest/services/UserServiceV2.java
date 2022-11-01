@@ -1090,7 +1090,7 @@ public class UserServiceV2 extends NdexService {
 
 			UUID userId = UUID.fromString(userIdStr);
 			if ( !userId.equals(getLoggedInUserId()))
-				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
+				throw new UnauthorizedOperationException("Userid has to be the same as the autheticated user's");
 			
 			try (NetworkDAO dao = new NetworkDAO()) {
 				return dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
