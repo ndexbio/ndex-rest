@@ -236,7 +236,7 @@ public class SearchServiceV2 extends NdexService {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
-			checkIfQueryIsAllowed(networkId, dao);
+			//checkIfQueryIsAllowed(networkId, dao);
 			getSolrIdxReady(networkId, dao);
 
 		}   
