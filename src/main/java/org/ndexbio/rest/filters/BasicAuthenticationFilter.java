@@ -32,6 +32,8 @@ package org.ndexbio.rest.filters;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -62,11 +64,14 @@ import org.ndexbio.rest.services.AuthenticationNotRequired;
 import org.ndexbio.rest.services.NdexOpenFunction;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
+import org.ndexbio.security.KeyCloakOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
+import org.ndexbio.security.OAuthAuthenticator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import com.auth0.jwt.exceptions.TokenExpiredException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -96,7 +101,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     //		new ServerResponse("User not found.", 401, new Headers<>());
     //private static final ServerResponse FORBIDDEN = new ServerResponse("Forbidden.", 403, new Headers<>());
     private static LDAPAuthenticator ADAuthenticator = null;
-    private static GoogleOpenIDAuthenticator googleOAuthAuthenticator = null;
+    private static OAuthAuthenticator oAuthAuthenticator = null;
     
     private boolean authenticatedUserOnly = false;
     private static final String AUTHENTICATED_USER_ONLY="AUTHENTICATED_USER_ONLY";
@@ -118,11 +123,24 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     	String value = config.getProperty(AUTHENTICATED_USER_ONLY);
 		_logger.info("authenticatedUserOnly setting is " + value);
 		
-		String useGoogleOAuth = config.getProperty(USE_GOOGLE_OAUTH);
-		if ( useGoogleOAuth !=null && useGoogleOAuth.equalsIgnoreCase("true")) {
-			googleOAuthAuthenticator = new GoogleOpenIDAuthenticator(config);
-			NdexService.setGoogleAuthenticator(googleOAuthAuthenticator);
-		}
+
+		String useKeyCloak = config.getProperty("USE_KEYCLOAK_AUTHENTICATION");
+		if ( useKeyCloak!=null && useKeyCloak.equalsIgnoreCase("true") ) {
+			String issuer = config.getRequiredProperty("KEYCLOAK_ISSUER");
+			String publicKey = config.getRequiredProperty("KEYCLOAK_PUBLIC_KEY");
+			try {
+				oAuthAuthenticator = new KeyCloakOpenIDAuthenticator(publicKey, issuer);
+			} catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+				throw new NdexException("Failed to create Auth filter. Cause: " + e.getMessage());
+			}
+			NdexService.setOAuthAuthenticator(oAuthAuthenticator);
+		} else {	
+		   String useGoogleOAuth = config.getProperty(USE_GOOGLE_OAUTH);
+		   if ( useGoogleOAuth !=null && useGoogleOAuth.equalsIgnoreCase("true")) {
+			  oAuthAuthenticator = new GoogleOpenIDAuthenticator(config);
+			  NdexService.setOAuthAuthenticator(oAuthAuthenticator);
+		   }
+		}   
 
     	if ( value !=null && Boolean.parseBoolean(value)) {
     		_logger.info("Server running in authenticatedUserOnly mode.");
@@ -159,12 +177,12 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             if(authInfo != null) {  // server need to authenticate the user.
 
             	if (authInfo.length == 1) { // google OAuth for now
-            		if ( googleOAuthAuthenticator == null) {
+            		if ( oAuthAuthenticator == null) {
             			throw new NdexException("Google OAuth is not enabled in NDEx server.");
             		}
   
             		String token = authInfo[0].substring(7);
-            		authUser = googleOAuthAuthenticator.getUserByIdToken(token);
+            		authUser = oAuthAuthenticator.getUserByIdToken(token);
             		authType = "G";	
             	} else {
             
@@ -207,6 +225,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
             		authorizationException = new UnauthorizedOperationException("Credentials in HTTP head is invalid.");
             	}           	
             }
+        } catch (TokenExpiredException e ) {
+        	_logger.info("OAuth access token expired. Cause: " +e.getMessage());
+        	authorizationException = new UnauthorizedOperationException("Failed to authenticate user. Cause; " + e.getMessage());
+        	
         } catch (SecurityException | UnauthorizedOperationException e2 ) {
             _logger.info("Failed to authenticate a user: " + (authInfo == null? "": authInfo[0]) + " Path:" +
             		requestContext.getUriInfo().getPath(), e2);

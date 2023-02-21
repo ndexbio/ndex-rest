@@ -81,7 +81,7 @@ public class StandaloneServer {
 			throw e;
 		}
  */   	
-		server = new Server(8080);
+		server = new Server(8580);
 		ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
 		context.setContextPath("/ndexbio-rest");
 		ServletHolder h = new ServletHolder(new NdexHttpServletDispatcher());

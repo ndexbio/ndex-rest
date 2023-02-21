@@ -62,6 +62,7 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
+import org.ndexbio.security.OAuthAuthenticator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,7 +71,7 @@ public abstract class NdexService
 	public static final String NdexZipFlag = "NdexZipped";
 	
     protected HttpServletRequest _httpRequest;
-    private static GoogleOpenIDAuthenticator googleAuthtenticator = null;
+    private static OAuthAuthenticator oauthAuthenticator = null;
     
 	static Logger logger = LoggerFactory.getLogger(NdexService.class);
 
@@ -118,9 +119,9 @@ public abstract class NdexService
     		return _httpRequest.getInputStream();
     }
     
-    protected static GoogleOpenIDAuthenticator getGoogleAuthenticator() {return googleAuthtenticator;}
-    public static void setGoogleAuthenticator(GoogleOpenIDAuthenticator a) {
-    	googleAuthtenticator = a;
+    protected static OAuthAuthenticator getOAuthAuthenticator() {return oauthAuthenticator;}
+    public static void setOAuthAuthenticator(OAuthAuthenticator a) {
+    	oauthAuthenticator = a;
     }
     
 	protected static UUID getUserIdFromBasicAuthString(String encodedAuthInfo) throws Exception {
