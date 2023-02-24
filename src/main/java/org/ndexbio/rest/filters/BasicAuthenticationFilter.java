@@ -130,6 +130,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 			String publicKey = config.getRequiredProperty("KEYCLOAK_PUBLIC_KEY");
 			try {
 				oAuthAuthenticator = new KeyCloakOpenIDAuthenticator(publicKey, issuer);
+				System.out.println("KeyCloak authenticator created.");
 			} catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
 				throw new NdexException("Failed to create Auth filter. Cause: " + e.getMessage());
 			}
