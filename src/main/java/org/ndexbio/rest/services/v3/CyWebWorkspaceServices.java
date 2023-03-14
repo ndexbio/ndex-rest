@@ -23,12 +23,14 @@ import org.ndexbio.common.models.dao.postgresql.CyWebWorkspaceDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CyWebWorkspace;
+import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.NdexService;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Path("/v3/workspaces")
 public class CyWebWorkspaceServices extends NdexService {
@@ -39,25 +41,26 @@ public class CyWebWorkspaceServices extends NdexService {
 
 	
 	@POST
-	@Produces("text/plain")
+	@Produces("application/json")
 	@Consumes(MediaType.APPLICATION_JSON)
 
 	public Response createWorkspace(final CyWebWorkspace newWorkspace)
 			throws Exception {
 		UUID ownerId = getLoggedInUserId();
 		
-		URI l;
+		//URI l;
+		NdexObjectUpdateStatus status;
 		try (CyWebWorkspaceDAO dao = new CyWebWorkspaceDAO ()){
-			CyWebWorkspace ws = dao.createWorkspace(newWorkspace, ownerId);
+			status = dao.createWorkspace(newWorkspace, ownerId);
 			dao.commit();
-			l = new URI(Configuration.getInstance().getHostURI() 
-					+ "/v3/workspaces/" + ws.getWorkspaceId());
-
+			
 		}
 		
+		ObjectMapper om = new ObjectMapper();
 		
-		
-		return Response.created(l).entity(l).build();	
+		return Response.created(new URI(Configuration.getInstance().getHostURI() 
+				+ "/v3/workspaces/" + status.getUuid().toString())).
+				header("Access-Control-Expose-Headers", "Location").entity(om.writeValueAsString(status)).build();	
 	}
 	
 	
@@ -83,8 +86,8 @@ public class CyWebWorkspaceServices extends NdexService {
     @PUT
 	@Path("/{workspaceid}")
 	@Consumes(MediaType.APPLICATION_JSON)
-
-	public void updateWorkspace(@PathParam("workspaceid") final String workspaceIdStr,
+	@Produces("application/json")
+	public NdexObjectUpdateStatus updateWorkspace(@PathParam("workspaceid") final String workspaceIdStr,
 								final CyWebWorkspace newWorkspace)
 			throws Exception {
 		UUID ownerId = getLoggedInUserId();
@@ -92,8 +95,9 @@ public class CyWebWorkspaceServices extends NdexService {
 		newWorkspace.setWorkspaceId(workspaceUUID);
 		
 		try (CyWebWorkspaceDAO dao = new CyWebWorkspaceDAO ()){
-			dao.updateWorkspace(newWorkspace, ownerId);
+			NdexObjectUpdateStatus s = dao.updateWorkspace(newWorkspace, ownerId);
 			dao.commit();
+			return s;
 		}
 		
 	}

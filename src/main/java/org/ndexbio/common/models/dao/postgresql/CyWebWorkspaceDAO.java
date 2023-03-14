@@ -18,6 +18,7 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.CyWebWorkspace;
+import org.ndexbio.model.object.NdexObjectUpdateStatus;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -54,7 +55,7 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 	 * @throws JsonParseException 
 	    * @returns CyWebWorkspace object, from the NDEx Object Model
     **************************************************************************/
-	public CyWebWorkspace createWorkspace(CyWebWorkspace workspace, UUID ownerUUID)
+	public NdexObjectUpdateStatus createWorkspace(CyWebWorkspace workspace, UUID ownerUUID)
 			throws NdexException, IllegalArgumentException, DuplicateObjectException, JsonParseException, JsonMappingException, SQLException, IOException {
 
 			Preconditions.checkArgument(null != workspace, 
@@ -66,11 +67,13 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 			ObjectMapper mapper = new ObjectMapper();
 			UUID id = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 			
+			NdexObjectUpdateStatus status;
 			try (PreparedStatement st = db.prepareStatement(insertStr) ) {
-				workspace.setExternalId(id);
+			
 				Timestamp current = new Timestamp(Calendar.getInstance().getTimeInMillis());
-				workspace.setCreationTime(current);
-				workspace.setModificationTime(current);
+				status = new NdexObjectUpdateStatus(id, current);
+//				workspace.setCreationTime(current);
+//				workspace.setModificationTime(current);
 				
 				st.setObject(1, id);
 				st.setTimestamp(2, current);
@@ -103,7 +106,7 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 			}   }
 			}
 			
-			return workspace;
+			return status;
 
 		}
 	
@@ -146,7 +149,7 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 	}
 	
 	
-	public void updateWorkspace(CyWebWorkspace workspace, UUID ownerUUID) throws SQLException, NdexException, JsonProcessingException {
+	public NdexObjectUpdateStatus updateWorkspace(CyWebWorkspace workspace, UUID ownerUUID) throws SQLException, NdexException, JsonProcessingException {
 		
 		String updateStr = "update cyweb_workspace set modification_time = ?, name=?, options = ? ::json "
 				+ " where \"UUID\" = '"+ workspace.getWorkspaceId() +	"' :: uuid and owner_uuid='" + ownerUUID
@@ -154,9 +157,12 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 
 		ObjectMapper mapper = new ObjectMapper();
 		
+		NdexObjectUpdateStatus status;
+		
 		try (PreparedStatement st = db.prepareStatement(updateStr) ) {
 			Timestamp current = new Timestamp(Calendar.getInstance().getTimeInMillis());
 			
+			status = new NdexObjectUpdateStatus(workspace.getExternalId(), current);
 			st.setTimestamp(1, current);
 			st.setString ( 2, workspace.getName());
 			if ( workspace.getOptions()!=null) {
@@ -187,10 +193,13 @@ public class CyWebWorkspaceDAO extends NdexDBDAO {
 				st.setObject(1, workspace.getWorkspaceId());
 				st.setObject(2, netId);
 			
-			int rowsInserted = st.executeUpdate();
-			if ( rowsInserted != 1)
-				throw new NdexException ( "Failed to update workspace network ids " +  workspace.getName()  + " to database.");
-		}   }
+				int rowsInserted = st.executeUpdate();
+				if ( rowsInserted != 1)
+					throw new NdexException ( "Failed to update workspace network ids " +  workspace.getName()  + " to database.");
+			}   
+		}
+		
+		return status;
 	}
 	
 	

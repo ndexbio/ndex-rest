@@ -13,8 +13,6 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -26,9 +24,6 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 
 import javax.annotation.security.PermitAll;
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DefaultValue;
@@ -62,6 +57,7 @@ import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -384,7 +380,7 @@ public class NetworkServiceV3  extends NdexService {
 	
 	   @POST	   
 	   @Path("")
-	   @Produces("text/plain")
+	   @Produces("application/json")
 	   @Consumes(MediaType.APPLICATION_JSON)
 	   public Response createNetworkJson( 
 			   @QueryParam("visibility") String visibilityStr,
@@ -422,31 +418,33 @@ public class NetworkServiceV3  extends NdexService {
 			String uuidStr = uuid.toString();
 			   accLogger.info("[data]\t[uuid:" +uuidStr + "]" );
 		   
-			   String urlStr = Configuration.getInstance().getHostURI()  + 
-			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
+			   String urlStr = Configuration.getInstance().getHostURI() +"/v3/networks/"+ uuidStr;
 			   
 			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/" + CX2NetworkLoader.cx2NetworkFileName;
 			   long fileSize = new File(cxFileName).length();
 
 			   // create entry in db. 
+			   NdexObjectUpdateStatus status;
 		       try (NetworkDAO dao = new NetworkDAO()) {
-		    	  // NetworkSummary summary = 
+		    	   status = 
 		    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null, CX2NetworkLoader.cx2Format);
 	       
-					dao.commit();
+				   dao.commit();
 		       }
 		       
 		       NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(uuid, false, visibility, extraIndexOnNodes));		   
 			   URI l = new URI (urlStr);
+			   ObjectMapper om = new ObjectMapper();
 
-			   return Response.created(l).build();
+			   return Response.created(l).header("Access-Control-Expose-Headers", "Location")
+					   .entity(om.writeValueAsString(status)).build();
 		}
 		
 		
 		@POST
 
 		@Path("")
-		@Produces("text/plain")
+		@Produces("application/json")
 		@Consumes("multipart/form-data")
 		public Response createCX2Network(MultipartFormDataInput input, @QueryParam("visibility") String visibilityStr,
 				@QueryParam("indexedfields") String fieldListStr // comma seperated list
@@ -479,7 +477,7 @@ public class NetworkServiceV3  extends NdexService {
 	    @Consumes(MediaType.APPLICATION_JSON)
 	    @Produces("application/json")
 
-	    public void updateNetworkJson(final @PathParam("networkid") String networkIdStr,
+	    public NdexObjectUpdateStatus updateNetworkJson(final @PathParam("networkid") String networkIdStr,
 	    		 @QueryParam("visibility") String visibilityStr,
 			 @QueryParam("extranodeindex") String fieldListStr // comma seperated list		
 	    		) throws Exception 
@@ -498,13 +496,14 @@ public class NetworkServiceV3  extends NdexService {
 			   }
 				    	
 	        UUID networkId = UUID.fromString(networkIdStr);
-
+	        
+	        NdexObjectUpdateStatus s;
 	        try ( NetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
 				
 				try (InputStream in = this.getInputStreamFromRequest()) {
 						UUID tmpNetworkId = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
 
-						updateCx2NetworkFromSavedFile(networkId, daoNew, tmpNetworkId);
+					s =	updateCx2NetworkFromSavedFile(networkId, daoNew, tmpNetworkId);
 				
 	           } catch (SQLException | NdexException | IOException e) {
 	        	  // e.printStackTrace();
@@ -518,16 +517,16 @@ public class NetworkServiceV3  extends NdexService {
 	        }  
 	    	      
 		     NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, true, visibility,extraIndexOnNodes));
-		    // return networkIdStr; 
+		     return s; 
 	    }
 	    
 	    
 	    @PUT
 	    @Path("/{networkid}")
 	    @Consumes("multipart/form-data")
-	    //@Produces("application/json")
+	    @Produces("application/json")
 
-	    public void updateCX2Network(final @PathParam("networkid") String networkIdStr,
+	    public NdexObjectUpdateStatus updateCX2Network(final @PathParam("networkid") String networkIdStr,
 	    		 @QueryParam("visibility") String visibilityStr,
 			 @QueryParam("extranodeindex") String fieldListStr, // comma seperated list		
 	    		MultipartFormDataInput input) throws Exception 
@@ -546,12 +545,14 @@ public class NetworkServiceV3  extends NdexService {
 			   }
 	    	
 	        UUID networkId = UUID.fromString(networkIdStr);
-
+	        
+            NdexObjectUpdateStatus s;
+            
 	        try ( NetworkDAO daoNew =lockNetworkForUpdate(networkId) ) {
 				try {			
 					UUID tmpNetworkId = storeRawNetworkFromMultipart (input, CX2NetworkLoader.cx2NetworkFileName);
 
-					updateCx2NetworkFromSavedFile( networkId, daoNew, tmpNetworkId);
+					s = updateCx2NetworkFromSavedFile( networkId, daoNew, tmpNetworkId);
 				
 				} catch (SQLException | NdexException | IOException e) {
 	        	   e.printStackTrace();
@@ -562,17 +563,19 @@ public class NetworkServiceV3  extends NdexService {
 	        }	
 	    	      
 		    NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, true, visibility,extraIndexOnNodes));
+		    
+		    return s;
 	    }
 
 
-		private static void updateCx2NetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
+		private static NdexObjectUpdateStatus updateCx2NetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
 				UUID tmpNetworkId) throws SQLException, NdexException, IOException, JsonParseException,
 				JsonMappingException, ObjectNotFoundException {
 			String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString()
 					+ "/" + CX2NetworkLoader.cx2NetworkFileName;
 			long fileSize = new File(cxFileName).length();
 
-			daoNew.clearNetworkSummary(networkId, fileSize);
+			NdexObjectUpdateStatus status = daoNew.clearNetworkSummary(networkId, fileSize);
 
 			java.nio.file.Path src = Paths
 					.get(Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId);
@@ -583,6 +586,7 @@ public class NetworkServiceV3  extends NdexService {
 			Files.move(src, tgt, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 
 			daoNew.commit();
+			return status;
 		}
 
 		

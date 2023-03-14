@@ -67,6 +67,7 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
+import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.Permissions;
@@ -135,7 +136,7 @@ public class NetworkDAO extends NdexDBDAO {
 		return result;
 	}
 	
-	public NetworkSummary CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize,
+	public NdexObjectUpdateStatus CreateEmptyNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize,
 			String networkName, String cxformat) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
@@ -159,10 +160,9 @@ public class NetworkDAO extends NdexDBDAO {
 			
 			pst.executeUpdate();
 		}
-		NetworkSummary result = new NetworkSummary();
-		result.setCreationTime(t);
+		NdexObjectUpdateStatus result = new NdexObjectUpdateStatus();
 		result.setModificationTime(t);
-		result.setExternalId(networkUUID);
+		result.setUuid(networkUUID);
 		return result;
 	}
 	
@@ -387,18 +387,21 @@ public class NetworkDAO extends NdexDBDAO {
 	 * @throws NdexException 
 	 */
 	
-	public void clearNetworkSummary(UUID networkId, long fileSize) throws SQLException, NdexException {
-		String sqlStr = "update network set modification_time = localtimestamp, name = null,"
+	public NdexObjectUpdateStatus clearNetworkSummary(UUID networkId, long fileSize) throws SQLException, NdexException {
+		String sqlStr = "update network set modification_time = ?, name = null,"
 				+ "description = null, edgeCount = null, nodeCount = null, isComplete=false,"
 				+ " properties = null, cxmetadata = null, cx2metadata = null,"
 				+ "version = null, is_validated = false, error = null, warnings = null,subnetworkids = null, cx_file_size = ? where \"UUID\" ='" +
 				 networkId.toString() + "' and is_deleted = false";
+		Timestamp t = new Timestamp(System.currentTimeMillis());
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setLong(1, fileSize);
+			pst.setTimestamp( 1, t);
+			pst.setLong(2, fileSize);
 			int i = pst.executeUpdate();
 			if ( i != 1)
 				throw new NdexException ("Failed to reset network "+ networkId + "'s entry in db.");
 		}
+		return new NdexObjectUpdateStatus(networkId, t);
 	
 	}
 	
