@@ -136,6 +136,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 			}
 			NdexService.setOAuthAuthenticator(oAuthAuthenticator);
 		} else {	
+			System.out.println("KeyCloak not configured, trying google oauth.");	
 		   String useGoogleOAuth = config.getProperty(USE_GOOGLE_OAUTH);
 		   if ( useGoogleOAuth !=null && useGoogleOAuth.equalsIgnoreCase("true")) {
 			  oAuthAuthenticator = new GoogleOpenIDAuthenticator(config);
