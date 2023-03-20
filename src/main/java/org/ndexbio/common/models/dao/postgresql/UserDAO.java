@@ -314,7 +314,7 @@ public class UserDAO extends NdexDBDAO {
 	public User getUserByEmail(String email, boolean fullRecord) throws NdexException,
 	IllegalArgumentException, ObjectNotFoundException, SQLException, JsonParseException, JsonMappingException, IOException {
 
-			String sqlStr = "SELECT * FROM " + NdexClasses.User + " where email_addr = ? and is_deleted = false";
+			String sqlStr = "SELECT * FROM " + NdexClasses.User + " where email_addr = ? and is_deleted = false and is_verified = true";
 
 			try (PreparedStatement st = db.prepareStatement(sqlStr)) {
 				st.setString(1, email);

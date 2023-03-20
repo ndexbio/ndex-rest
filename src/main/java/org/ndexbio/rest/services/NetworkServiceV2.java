@@ -496,9 +496,9 @@ public class NetworkServiceV2 extends NdexService {
     			if ( auth_token != null) {
     				userId = getUserIdFromBasicAuthString(auth_token);
     			} else if ( id_token !=null) {
-    				if ( getGoogleAuthenticator() == null)
+    				if ( getOAuthAuthenticator() == null)
     					throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
-    				userId = getGoogleAuthenticator().getUserUUIDByIdToken(id_token);
+    				userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
     			}
     		}
     		if ( ! dao.isReadable(networkUUID, userId) && (!dao.accessKeyIsValid(networkUUID, accessKey))) 

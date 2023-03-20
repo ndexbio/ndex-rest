@@ -21,6 +21,7 @@ import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
@@ -143,7 +144,9 @@ public class UserStatsMailer implements AutoCloseable {
 		String asterisk = "<strong style=\"color:red\"> * </Strong>";
 		
 		try (UserDAO dao = new UserDAO()){
+			
 			final User user = dao.getUserByAccountName(userEntry.getKey(),true,true);
+			
 			
 			Boolean emailStats = user.getProperties() == null? null : ((Boolean)user.getProperties().get("emailUsageStats"));
 			if ( emailStats!=null && !emailStats.booleanValue()) {
@@ -207,7 +210,10 @@ public class UserStatsMailer implements AutoCloseable {
 				  //logger.info("Notified " + u.getUserName() + " one accepted request.");
 				 System.out.println( "Stats sent to user " + user.getUserName() );
 			}
-		} 
+		} catch (ObjectNotFoundException e) {
+			// don't send emails to deleted users.
+			System.out.println ("User " + userEntry.getKey() + " no longer exists. Won't send email out." );
+		}
 		
 		
 	}

@@ -82,6 +82,7 @@ import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
+import org.ndexbio.security.OAuthAuthenticator;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrIndexScope;
 import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
@@ -155,8 +156,8 @@ public class UserServiceV2 extends NdexService {
 			throws Exception {
 		
 		//check if we need to create user from OAuth.
-		if ( id_token !=null && getGoogleAuthenticator() != null) {
-			User user = createUserFromIdToken (newUser, id_token, getGoogleAuthenticator());
+		if ( id_token !=null && getOAuthAuthenticator() != null) {
+			User user = createUserFromIdToken (newUser, id_token, getOAuthAuthenticator());
 			if ( user.getExternalId() != null) {
 				  URI l = new URI (Configuration.getInstance().getHostURI()  + 
 				            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ user.getExternalId());
@@ -261,28 +262,15 @@ public class UserServiceV2 extends NdexService {
 			
 			String url = Configuration.getInstance().getHostURI()  + 
 		            Configuration.getInstance().getRestAPIPrefix()+"/user?username=" + URLEncoder.encode(newUser.getUserName().toLowerCase(), "UTF-8");
-			return Response.accepted().location(new URI (url)).build();
+			return Response.accepted().location(new URI (url)).header("Access-Control-Expose-Headers", "Location").build();
 		} 
 	}
 	
 
-	private static User createUserFromIdToken(User tmpUser, String idTokenString , GoogleOpenIDAuthenticator authenticator) throws Exception {
-		Payload payload = authenticator.getPayloadFromIdToken(idTokenString);
-
-			  // Print user identifier
-			  String userId = payload.getSubject();
-			  System.out.println("User ID: " + userId);
+	private static User createUserFromIdToken(User tmpUser, String idTokenString , OAuthAuthenticator authenticator) throws Exception {
 
 			  // Get profile information from payload
-			  User newUser = new User();
-			  newUser.setUserName(tmpUser.getUserName()==null? payload.getEmail(): tmpUser.getUserName());
-			  newUser.setEmailAddress(payload.getEmail());
-			  newUser.setFirstName((String) payload.get("given_name"));
-			  String pictureUrl = (String) payload.get("picture");
-			  if ( pictureUrl !=null) 
-				  newUser.setImage(pictureUrl);
-			  newUser.setLastName((String) payload.get("family_name"));
-			  newUser.setDisplayName((String) payload.get("name"));
+			  User newUser =  authenticator.generateUserFromToken(tmpUser, idTokenString) ;
 			  
 			  String newPassword = Security.generatePassword();
 			  newUser.setPassword(newPassword);	
@@ -1090,7 +1078,7 @@ public class UserServiceV2 extends NdexService {
 
 			UUID userId = UUID.fromString(userIdStr);
 			if ( !userId.equals(getLoggedInUserId()))
-				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
+				throw new UnauthorizedOperationException("Userid has to be the same as the autheticated user's");
 			
 			try (NetworkDAO dao = new NetworkDAO()) {
 				return dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
