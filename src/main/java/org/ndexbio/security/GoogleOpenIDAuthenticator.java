@@ -68,7 +68,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.apache.ApacheHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
 
-public class GoogleOpenIDAuthenticator {
+public class GoogleOpenIDAuthenticator implements OAuthAuthenticator{
 
 //	private static final String GOOGLE_OAUTH_KEY = "GOOGLE_OAUTH_KEY";
 	private static final String GOOGLE_OAUTH_CLIENT_ID = "GOOGLE_OAUTH_CLIENT_ID";
@@ -375,4 +375,27 @@ public class GoogleOpenIDAuthenticator {
 		 return theString;
 	}
 	
+	
+	public User generateUserFromToken(User tmpUser, String idToken) throws UnauthorizedOperationException, GeneralSecurityException, IOException {
+	
+		Payload payload = getPayloadFromIdToken(idToken);
+
+		  // Print user identifier
+		  //String userId = payload.getSubject();
+		  //System.out.println("User ID: " + userId);
+
+		  // Get profile information from payload
+		  User newUser = new User();
+		  newUser.setUserName(tmpUser.getUserName()==null? payload.getEmail(): tmpUser.getUserName());
+		  newUser.setEmailAddress(payload.getEmail());
+		  newUser.setFirstName((String) payload.get("given_name"));
+		  String pictureUrl = (String) payload.get("picture");
+		  if ( pictureUrl !=null) 
+			  newUser.setImage(pictureUrl);
+		  newUser.setLastName((String) payload.get("family_name"));
+		  newUser.setDisplayName((String) payload.get("name"));
+		  
+		return newUser;
+	}
+
 }

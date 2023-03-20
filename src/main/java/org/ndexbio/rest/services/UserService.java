@@ -73,6 +73,7 @@ import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
+import org.ndexbio.security.OAuthAuthenticator;
 import org.ndexbio.security.OAuthTokenRenewRequest;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -520,7 +521,7 @@ public class UserService extends NdexService {
 	}*/
 	
 	
-	@POST
+/*	@POST
 	@PermitAll
 	@NdexOpenFunction
 	@Path("/google/authenticate/renew")
@@ -530,7 +531,7 @@ public class UserService extends NdexService {
 		
 		logger.info("[start: renew Google access token by refresh token]");
 
-		GoogleOpenIDAuthenticator authenticator = getGoogleAuthenticator();
+		OAuthAuthenticator authenticator = getOAuthAuthenticator();
 		if ( authenticator ==null ) {
 			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
 			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
@@ -553,7 +554,7 @@ public class UserService extends NdexService {
 	public void revokeGoogleAccessToken(@PathParam("accessToken") String accessToken)
 			throws NdexException, ClientProtocolException, IOException {
 		
-		GoogleOpenIDAuthenticator authenticator = getGoogleAuthenticator();
+		GoogleOpenIDAuthenticator authenticator = getOAuthAuthenticator();
 		if ( authenticator ==null ) {
 			logger.error("[end: Unauthorized user from google. Server is not configure to support this.]");
 			throw new UnauthorizedOperationException("Server is not configured to Support Google OAuth.");
@@ -562,7 +563,7 @@ public class UserService extends NdexService {
 		authenticator.revokeAccessToken(accessToken);
  	    
 	}
-	
+	*/
 	
 	/**************************************************************************
 	 * Changes a user's password.
