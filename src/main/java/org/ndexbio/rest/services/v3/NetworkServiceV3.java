@@ -59,7 +59,9 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.NdexPropertyValuePair;
+import org.ndexbio.model.object.network.NetworkSummaryV3;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.NetworkSummaryFormat;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -776,5 +778,35 @@ public class NetworkServiceV3  extends NdexService {
 			}
 			
 		}
+		
+		@PermitAll
+		@GET
+		@Path("/{networkid}/summary")
+		@Produces("application/json")
+		
+		public NetworkSummaryV3 getNetworkSummaryV3(
+				@PathParam("networkid") final String networkIdStr ,
+				@QueryParam("accesskey") String accessKey ,
+				@QueryParam("format") String format
+				/*@Context org.jboss.resteasy.spi.HttpResponse response*/ )
+
+				throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+			
+			NetworkSummaryFormat fmt = NetworkSummaryFormat.valueOf(format);
+					
+			try (NetworkDAO dao = new NetworkDAO())  {
+				UUID userId = getLoggedInUserId();
+				UUID networkId = UUID.fromString(networkIdStr);
+				if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
+					NetworkSummaryV3 summary = dao.getNetworkMetadataById(networkId,fmt);
+
+					return summary;
+				}
+					
+				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
+			}  
+				
+				
+		} 
 		
 }

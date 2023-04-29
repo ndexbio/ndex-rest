@@ -60,6 +60,9 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
+import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
+import org.ndexbio.cx2.converter.ConverterUtilities;
+import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
@@ -75,6 +78,9 @@ import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
+import org.ndexbio.model.object.network.NetworkSummaryV3;
+import org.ndexbio.model.object.network.NetworkSummaryFormat;
+import org.ndexbio.model.object.network.NetworkProperties;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 
@@ -1163,7 +1169,7 @@ public class NetworkDAO extends NdexDBDAO {
 	}
 	
 	public NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
-		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
+		// be careful when modify the order or the select clause because populateNetworkSummaryFromResultSet function depends on the order.
 		String sqlStr = networkSummarySelectClause + " from network n where n.\"UUID\" = ? and n.is_deleted= false";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, networkId);
@@ -1178,6 +1184,112 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 	}
+
+	
+	public NetworkSummaryV3 getNetworkMetadataById (UUID networkId, NetworkSummaryFormat format) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException {
+		// be careful when modify the order or the select clause because populateNetworkSummaryFromResultSet function depends on the order.
+		String sqlStr = generateMetadataQueryStr(format) + " from network n where n.\"UUID\" = ? and n.is_deleted= false";
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, networkId);
+			try ( ResultSet rs = p.executeQuery()) {
+				if ( rs.next()) {
+					NetworkSummaryV3 result = new NetworkSummaryV3();
+					populateNetworkMetadataFromResultSet(result,rs,format);
+					
+					return result;
+				}
+				throw new ObjectNotFoundException("Network " + networkId + " not found in db.");
+			}
+		}
+	}
+	
+	private String generateMetadataQueryStr (NetworkSummaryFormat format) {
+
+		String propClause= ",n.name,n.description,n.version, n.properties ";
+		
+		String result = "select n.\"UUID\",n.modification_time ";
+		if (format == NetworkSummaryFormat.UPDATE) 
+			return result;
+		if ( format == NetworkSummaryFormat.PROPERTIES) {
+			return result += propClause; 
+		}
+		
+		result += ", n.creation_time, n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid, n.error, n.readonly, n.warnings, n.show_in_homepage,"
+				+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size ";
+		if (format == NetworkSummaryFormat.NDEXONLY)
+			return result;
+		return result += propClause;
+	}
+
+	private void populateNetworkMetadataFromResultSet(NetworkSummaryV3 result, ResultSet rs, NetworkSummaryFormat format) throws JsonMappingException, JsonProcessingException, SQLException, NdexException {
+		
+		result.setUuid((UUID)rs.getObject("UUID"));
+		result.setModificationTime(rs.getTimestamp("modification_time"));
+
+		if ( format == NetworkSummaryFormat.UPDATE)
+			return ;
+		
+		if ( format != NetworkSummaryFormat.NDEXONLY ) {
+			NetworkProperties props = result.getProperties(); 
+			props.setProperty(CxNetworkAttribute.nameAttribute, "string", rs.getString("name"));
+			props.setProperty(CxNetworkAttribute.descriptionAttribute, "string", rs.getString("description"));
+			props.setProperty(CxNetworkAttribute.versionAttribute, "string", rs.getString("version"));
+			
+			String proptiesStr = rs.getString("properties");
+			if ( proptiesStr != null) {
+				ObjectMapper mapper = new ObjectMapper(); 
+				
+				List<NdexPropertyValuePair> o = mapper.readValue(proptiesStr, new TypeReference<List<NdexPropertyValuePair>>() {/*do nothing*/}); 		
+				if( o != null) {
+					for ( NdexPropertyValuePair propPair : o ) {
+					  String typeStr = propPair.getDataType() == null ? "string": propPair.getDataType();
+					  ATTRIBUTE_DATA_TYPE t = ATTRIBUTE_DATA_TYPE.fromCxLabel(typeStr);
+					  props.setProperty(propPair.getPredicateString(), typeStr,
+							  ConverterUtilities.cvtPropPairStringValueToObj(t,propPair.getValue()) );	
+					}
+				}
+			}
+		}
+		
+		if ( format == NetworkSummaryFormat.PROPERTIES)
+			return ;
+	
+		result.setCreationTime(rs.getTimestamp("creation_time"));
+		result.setEdgeCount(rs.getInt("edgecount"));
+		result.setNodeCount(rs.getInt("nodecount"));
+		result.setVisibility(VisibilityType.valueOf(rs.getString("visibility")));
+		result.setOwner(rs.getString("owner"));
+		result.setOwnerUUID((UUID)rs.getObject("owneruuid"));
+	
+		
+		//result.setIsValid(rs.getBoolean(13));
+		result.setErrorMessage(rs.getString("error"));
+		result.setIsReadOnly(rs.getBoolean("readonly"));
+		Array warnings = rs.getArray("warnings");
+		if ( warnings != null) {
+			String[] wA = (String[]) warnings.getArray();
+			List<String> warningList = Arrays.asList(wA);  
+			result.setWarnings(warningList);
+		}  
+		
+		result.setIsShowcase(rs.getBoolean("show_in_homepage"));
+	
+		Array subNetworkIds = rs.getArray("subnetworkids");
+		if ( subNetworkIds != null) {
+			Long[] subNetIds = (Long[]) subNetworkIds.getArray();
+			result.setSubnetworkIds(new HashSet<> (Arrays.asList(subNetIds)));
+		}
+		
+		result.setIndexLevel(NetworkIndexLevel.valueOf(rs.getString("solr_idx_lvl")));
+		result.setCompleted(rs.getBoolean("iscomplete"));
+		result.setDoi(rs.getString("ndexdoi"));
+		result.setIsCertified(rs.getBoolean("certified"));
+		result.setHasLayout(rs.getBoolean("has_layout"));
+		result.setHasSample(rs.getBoolean("has_sample"));
+		//result.setCxFormat(rs.getString(25));
+		result.setCxFileSize(rs.getLong("cx_file_size"));
+		result.setCx2FileSize(rs.getLong("cx2_file_size"));
+	} 
 	
 	public int getNetworkEdgeCount (UUID networkId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select n.edgecount from network n where n.\"UUID\" = ? and n.is_deleted= false";
