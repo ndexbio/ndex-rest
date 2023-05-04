@@ -337,7 +337,7 @@ public class NetworkServiceV2 extends NdexService {
 			@QueryParam("accesskey") String accessKey /*,
 			@Context org.jboss.resteasy.spi.HttpResponse response*/)
 
-			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+			throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();

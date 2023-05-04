@@ -1202,37 +1202,40 @@ public class NetworkDAO extends NdexDBDAO {
 			}
 		}
 	}
-	
-	private String generateMetadataQueryStr (NetworkSummaryFormat format) {
 
-		String propClause= ",n.name,n.description,n.version, n.properties ";
+	private static String summaryPropClause= ",n.name,n.description,n.version, n.properties ";
+	
+	private static String generateMetadataQueryStr (NetworkSummaryFormat format) {
 		
-		String result = "select n.\"UUID\",n.modification_time ";
+		String result = "select n.\"UUID\",n.modification_time,n.updated_by ";
 		if (format == NetworkSummaryFormat.UPDATE) 
 			return result;
 		if ( format == NetworkSummaryFormat.PROPERTIES) {
-			return result += propClause; 
+			return result += summaryPropClause; 
 		}
 		
-		result += ", n.creation_time, n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid, n.error, n.readonly, n.warnings, n.show_in_homepage,"
+		result += ",n.creation_time, n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid, n.error, n.readonly, n.warnings, n.show_in_homepage,"
 				+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size ";
-		if (format == NetworkSummaryFormat.NDEXONLY)
-			return result;
-		return result += propClause;
+		if (format == NetworkSummaryFormat.COMPACT)
+			return result + ",n.name,n.description ";
+		return result += summaryPropClause;
 	}
 
-	private void populateNetworkMetadataFromResultSet(NetworkSummaryV3 result, ResultSet rs, NetworkSummaryFormat format) throws JsonMappingException, JsonProcessingException, SQLException, NdexException {
+	private static void populateNetworkMetadataFromResultSet(NetworkSummaryV3 result, ResultSet rs, NetworkSummaryFormat format) throws JsonMappingException, JsonProcessingException, SQLException, NdexException {
 		
 		result.setUuid((UUID)rs.getObject("UUID"));
 		result.setModificationTime(rs.getTimestamp("modification_time"));
+		result.setUpdatedBy(rs.getString("updated_by"));
 
 		if ( format == NetworkSummaryFormat.UPDATE)
 			return ;
 		
-		if ( format != NetworkSummaryFormat.NDEXONLY ) {
-			NetworkProperties props = result.getProperties(); 
-			props.setProperty(CxNetworkAttribute.nameAttribute, "string", rs.getString("name"));
-			props.setProperty(CxNetworkAttribute.descriptionAttribute, "string", rs.getString("description"));
+		result.setName(rs.getString("name"));
+		result.setDescription(rs.getString("description"));
+
+		if ( format != NetworkSummaryFormat.COMPACT ) {
+			NetworkProperties props = new NetworkProperties();
+			result.setProperties( props); 
 			props.setProperty(CxNetworkAttribute.versionAttribute, "string", rs.getString("version"));
 			
 			String proptiesStr = rs.getString("properties");
@@ -1352,7 +1355,7 @@ public class NetworkDAO extends NdexDBDAO {
 	
 	
 	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId, String accessKey) throws SQLException, JsonParseException, JsonMappingException, IOException {
-		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
+		// be careful when modify the order or the select clause because populateNetworkSummaryFromResultSet function depends on the order.
 		
 		List<NetworkSummary> result = new ArrayList<>(networkIdstrList.size());
 		
@@ -1380,6 +1383,45 @@ public class NetworkDAO extends NdexDBDAO {
 				while ( rs.next()) {
 					NetworkSummary s = new NetworkSummary();
 					populateNetworkSummaryFromResultSet(s,rs);
+					result.add(s);
+				}
+			}
+		}
+		return result;
+	}
+	
+	public List<NetworkSummaryV3> getNetworkV3SummariesByIdStrList (List<String> networkIdstrList, UUID userId, String accessKey, NetworkSummaryFormat fmt) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException {
+		// be careful when modify the order or the select clause because populateNetworkSummaryFromResultSet function depends on the order.
+		
+		List<NetworkSummaryV3> result = new ArrayList<>(networkIdstrList.size());
+		
+		if ( networkIdstrList.isEmpty()) return result;
+		
+		StringBuffer cnd = new StringBuffer() ;
+		for ( String idstr : networkIdstrList ) {
+			if (cnd.length()>1)
+				cnd.append(',');
+			cnd.append('\'');
+			cnd.append(idstr);
+			cnd.append('\'');			
+		}
+		
+		String selectClause = generateMetadataQueryStr(fmt);
+		
+		String sqlStr = accessKey == null ? (selectClause
+				+ " from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
+				  : (  selectClause //networkSummarySelectClause 
+							+ "from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
+				            +  ") or ( n.access_key_is_on and n.access_key = '" + accessKey + "') or " + 
+					                 " exists (select 1 from network_set s, network_set_member sm where s.\"UUID\" = sm.set_id "
+							                 + "and sm.network_id = n.\"UUID\" and s.access_key_is_on and s.access_key = '"+ accessKey + "' and s.is_deleted=false))" );
+		
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			try ( ResultSet rs = p.executeQuery()) {
+				while ( rs.next()) {
+					NetworkSummaryV3 s = new NetworkSummaryV3();
+					populateNetworkMetadataFromResultSet(s, rs, fmt);
+					//populateNetworkSummaryFromResultSet(s,rs);
 					result.add(s);
 				}
 			}

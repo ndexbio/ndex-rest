@@ -787,26 +787,57 @@ public class NetworkServiceV3  extends NdexService {
 		public NetworkSummaryV3 getNetworkSummaryV3(
 				@PathParam("networkid") final String networkIdStr ,
 				@QueryParam("accesskey") String accessKey ,
-				@QueryParam("format") String format
+				@DefaultValue("FULL") @QueryParam("format") String format
 				/*@Context org.jboss.resteasy.spi.HttpResponse response*/ )
 
-				throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+				throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 			
-			NetworkSummaryFormat fmt = NetworkSummaryFormat.valueOf(format);
+			try {
+			NetworkSummaryFormat fmt = NetworkSummaryFormat.valueOf(format.toUpperCase());
 					
 			try (NetworkDAO dao = new NetworkDAO())  {
 				UUID userId = getLoggedInUserId();
 				UUID networkId = UUID.fromString(networkIdStr);
 				if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
 					NetworkSummaryV3 summary = dao.getNetworkMetadataById(networkId,fmt);
-
-					return summary;
+					return summary;	
 				}
 					
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
-			}  
-				
-				
+			}  	
+			} catch(IllegalArgumentException e) {
+				throw new BadRequestException("Format " + format + " is unsupported. Error message: " + e.getMessage());
+			}
 		} 
+		
+		@PermitAll
+		@POST
+		@Path("/summary")
+		@Produces("application/json")
+		public List<NetworkSummaryV3> getNetworkSummaries(
+				@QueryParam("accesskey") String accessKey,
+				List<String> networkIdStrs,
+				@DefaultValue("FULL") @QueryParam("format") String format)
+				throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+
+			try {
+				NetworkSummaryFormat fmt = NetworkSummaryFormat.valueOf(format.toUpperCase());
+
+				if (networkIdStrs == null)
+					throw new ForbiddenOperationException("A network UUID list is required.");
+
+				if (networkIdStrs.size() > 2000)
+					throw new NdexException("You can only send up to 2000 network ids in this function.");
+
+				accLogger.info("[data]\t[uuidcounts:" + networkIdStrs.size() + "]");
+
+				try (NetworkDAO dao = new NetworkDAO()) {
+					UUID userId = getLoggedInUserId();
+					return dao.getNetworkV3SummariesByIdStrList(networkIdStrs, userId, accessKey, fmt);
+				}
+			} catch (IllegalArgumentException e) {
+				throw new BadRequestException("Format " + format + " is unsupported. Error message: " + e.getMessage());
+			}
+		}	
 		
 }
