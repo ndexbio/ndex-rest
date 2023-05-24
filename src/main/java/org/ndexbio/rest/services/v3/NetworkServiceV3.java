@@ -810,34 +810,5 @@ public class NetworkServiceV3  extends NdexService {
 			}
 		} 
 		
-		@PermitAll
-		@POST
-		@Path("/summary")
-		@Produces("application/json")
-		public List<NetworkSummaryV3> getNetworkSummaries(
-				@QueryParam("accesskey") String accessKey,
-				List<String> networkIdStrs,
-				@DefaultValue("FULL") @QueryParam("format") String format)
-				throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-
-			try {
-				NetworkSummaryFormat fmt = NetworkSummaryFormat.valueOf(format.toUpperCase());
-
-				if (networkIdStrs == null)
-					throw new ForbiddenOperationException("A network UUID list is required.");
-
-				if (networkIdStrs.size() > 2000)
-					throw new NdexException("You can only send up to 2000 network ids in this function.");
-
-				accLogger.info("[data]\t[uuidcounts:" + networkIdStrs.size() + "]");
-
-				try (NetworkDAO dao = new NetworkDAO()) {
-					UUID userId = getLoggedInUserId();
-					return dao.getNetworkV3SummariesByIdStrList(networkIdStrs, userId, accessKey, fmt);
-				}
-			} catch (IllegalArgumentException e) {
-				throw new BadRequestException("Format " + format + " is unsupported. Error message: " + e.getMessage());
-			}
-		}	
-		
+	
 }

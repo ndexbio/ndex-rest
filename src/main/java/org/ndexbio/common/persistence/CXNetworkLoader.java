@@ -454,9 +454,10 @@ public class CXNetworkLoader implements AutoCloseable {
 					EdgesElement ee = (EdgesElement) elmt;
 					createCXEdge(ee);
 					break;
-				case NodeAttributesElement.ASPECT_NAME:  // node attributes
-					addNodeAttribute((NodeAttributesElement) elmt );
+				case NodeAttributesElement.ASPECT_NAME: { // node attributes 
+					addNodeAttribute((NodeAttributesElement) elmt);
 					break;
+				}	
 				case EdgeAttributesElement.ASPECT_NAME:
 					addEdgeAttribute((EdgeAttributesElement) elmt);
 					break;
@@ -835,7 +836,6 @@ public class CXNetworkLoader implements AutoCloseable {
 		edgeIdTracker.addReferenceId(e.getPropertyOf(), EdgeAttributesElement.ASPECT_NAME);
 		writeCXElement(e);
 		attributeStats.addEdgeAttribute(e);
-
 	}
 
 	private void addCartesianLayoutElement(CartesianLayoutElement e) throws IOException{

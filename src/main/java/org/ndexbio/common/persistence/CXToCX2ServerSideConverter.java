@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import org.apache.commons.io.FileUtils;
+import org.ndexbio.cx2.aspect.element.core.AttributeDeclaredAspect;
 import org.ndexbio.cx2.aspect.element.core.Cx2Network;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
@@ -179,9 +180,11 @@ public class CXToCX2ServerSideConverter {
 				while (a.hasNext()) {
 					NetworkAttributesElement netAttr = a.next();
 					try {
-						Object attrValue = AspectAttributeStat.convertAttributeValue(netAttr);
+						List<String> warnings = new ArrayList<>();
+						Object attrValue = AttributeDeclaredAspect.convertAttributeValue(netAttr,warnings);
 						Object oldV = cx2NetAttr.getAttributes().put(netAttr.getName(), attrValue);
-
+                        warnings.stream().forEach((x)->addWarning(x));
+						
 						// if attrStats had to be created by this method
 						// skip the duplicate network attribute name check because
 						// analyzeAttributes() performs the check
@@ -194,6 +197,7 @@ public class CXToCX2ServerSideConverter {
 						   } else 
 							   throw new NdexException(msg);
 						}
+						
 					} catch(NumberFormatException nfe){
 						String errMsg = "For network attribute '"
 								+ netAttr.getName() + "' unable to convert value  to '" 
@@ -577,6 +581,7 @@ public class CXToCX2ServerSideConverter {
 					foundEdgeInteractionAttr = true;
 				}	
 				attributeStats.addEdgeAttribute(e);
+				
 			}
 		}
 		

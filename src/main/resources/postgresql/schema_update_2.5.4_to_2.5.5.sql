@@ -1,0 +1,1 @@
+ALTER TABLE IF EXISTS core.network ADD COLUMN IF NOT EXISTS updated_by character varying(100);
