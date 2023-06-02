@@ -209,6 +209,9 @@ public class SearchServiceV3 extends NdexService  {
 			final CXSimplePathQuery queryParameters
 			) throws NdexException, SQLException, URISyntaxException, SolrServerException, IOException   {
 		
+		if ( saveAsNetwork )
+			throw new NdexException("Saving CX2 result is not implemented yet.");
+		
 		accLogger.info("[data]\t[depth:"+ queryParameters.getSearchDepth() + "][query:" + queryParameters.getSearchString() + "]" );		
 		
 		if ( queryParameters.getSearchDepth() <1) {
