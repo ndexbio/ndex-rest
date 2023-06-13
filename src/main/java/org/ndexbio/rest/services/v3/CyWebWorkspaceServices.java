@@ -136,7 +136,7 @@ public class CyWebWorkspaceServices extends NdexService {
  	@Path("/{workspaceid}/networkids")
  	@Consumes(MediaType.APPLICATION_JSON)
  	
-    public void renameWorkspace(@PathParam("workspaceid") final String workspaceIdStr,
+    public void updateWorkspaceNetworks(@PathParam("workspaceid") final String workspaceIdStr,
  			final List<UUID> networkIds)
  					throws Exception {
      	UUID ownerId = getLoggedInUserId();

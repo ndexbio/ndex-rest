@@ -42,6 +42,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.FilterCriterion;
 import org.ndexbio.model.object.CXSimplePathQuery;
+import org.ndexbio.model.tools.EdgeFilter;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
@@ -85,8 +86,11 @@ public class SearchServiceV3 extends NdexService  {
     				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 				throw new UnauthorizedOperationException("User doesn't have access to this network.");
 			}
+			
+			String cx2AspectDir = Configuration.getInstance().getNdexRoot() + File.separator + "data" +File.separator + networkId
+					+ File.separator + CX2NetworkLoader.cx2AspectDirName+  File.separator;
 					
-			EdgeFilter filter = new EdgeFilter(networkId, queryParameter, limit, order);
+			EdgeFilter filter = new EdgeFilter(queryParameter, limit, order, cx2AspectDir);
 			Set<CxEdge> result = filter.filterTopN();
 			if (format.equals("cx2"))
 				return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(result).build();
