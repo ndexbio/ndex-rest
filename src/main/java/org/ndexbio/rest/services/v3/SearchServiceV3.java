@@ -135,6 +135,7 @@ public class SearchServiceV3 extends NdexService  {
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
 			@DefaultValue("false") @QueryParam("save") boolean saveAsNetwork,
+			@DefaultValue("false") @QueryParam("preserveCoordinates") boolean preserveNodeCoordinates,			
 			final CXSimplePathQuery queryParameters
 			) throws NdexException, SQLException, URISyntaxException, SolrServerException, IOException   {
 		
@@ -176,7 +177,8 @@ public class SearchServiceV3 extends NdexService  {
 		Client client = ClientBuilder.newBuilder().build();
 		
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
-        WebTarget target = client.target(prefix + networkId + "/query?outputCX2=true");
+		String param = preserveNodeCoordinates ? "&perserveCoordinates=true" : "";
+        WebTarget target = client.target(prefix + networkId + "/query?outputCX2=true" + param);
         Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
         
         if ( response.getStatus()!=200) {
@@ -210,6 +212,7 @@ public class SearchServiceV3 extends NdexService  {
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
 			@DefaultValue("false") @QueryParam("save") boolean saveAsNetwork,
+			@DefaultValue("false") @QueryParam("preserveCoordinates") boolean preserveNodeCoordinates,
 			final CXSimplePathQuery queryParameters
 			) throws NdexException, SQLException, URISyntaxException, SolrServerException, IOException   {
 		
@@ -262,7 +265,8 @@ public class SearchServiceV3 extends NdexService  {
 		queryEntity.put("edgeLimit", queryParameters.getEdgeLimit());
 		queryEntity */
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
-        WebTarget target = client.target(prefix + networkId + "/interconnectquery?outputCX2=true");
+		String param = preserveNodeCoordinates ? "&perserveCoordinates=true" : "";
+        WebTarget target = client.target(prefix + networkId + "/interconnectquery?outputCX2=true" + param);
         Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
         
         if ( response.getStatus()!=200) {
