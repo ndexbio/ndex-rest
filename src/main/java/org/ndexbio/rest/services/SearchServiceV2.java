@@ -719,9 +719,10 @@ public class SearchServiceV2 extends NdexService {
         	if ( id !=null)
         		expendedTerms.add(id);
         	
-        	String term = (String) termObj.get("uniprot.Swiss-Prot");
+        	addTermsToExpensionSet(termObj.get("uniprot.Swiss-Prot"), expendedTerms);
+        	/*String term = (String) termObj.get("uniprot.Swiss-Prot");
         	if ( term !=null)
-        		expendedTerms.add(term);
+        		expendedTerms.add(term);*/
         	
         	addTermsToExpensionSet (termObj.get("alias"), expendedTerms);
         	addTermsToExpensionSet (termObj.get("uniprot.TrEMBL"), expendedTerms);
