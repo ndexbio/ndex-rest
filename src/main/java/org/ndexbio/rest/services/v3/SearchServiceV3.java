@@ -41,6 +41,7 @@ import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.FilterCriterion;
+import org.ndexbio.model.network.query.FilteredDirectQuery;
 import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.tools.EdgeFilter;
 import org.ndexbio.rest.Configuration;
@@ -289,5 +290,60 @@ public class SearchServiceV3 extends NdexService  {
         return Response.ok().entity(in).build();
 		
 	}
+	
+/*	
+	@PermitAll
+	@POST
+	@Path("/networks/{networkId}/filteredDirectQuery")
+	@Produces("application/json")
+	
+	public Response filteredDirectQuery(
+			@PathParam("networkId") final String networkIdStr,
+			@QueryParam("accesskey") String accessKey,
+			@DefaultValue("false") @QueryParam("preserveCoordinates") boolean preserveNodeCoordinates,
+			final FilteredDirectQuery queryObject
+			) throws NdexException, SQLException, URISyntaxException, SolrServerException, IOException   {
+		
 
+		UUID networkId = UUID.fromString(networkIdStr);
+
+		UUID userId = getLoggedInUserId();
+		
+		String networkName;
+
+		try (NetworkDAO dao = new NetworkDAO())  {
+			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
+				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
+			}
+//			SearchServiceV2.getSolrIdxReady(networkId, dao);
+			//TODO: get the modification time.
+			networkName = dao.getNetworkName(networkId);
+			
+			
+		}   
+	
+		Client client = ClientBuilder.newBuilder().build();
+		
+		
+		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
+		String param = preserveNodeCoordinates ? "&perserveCoordinates=true" : "";
+        WebTarget target = client.target(prefix + networkId + "/interconnectquery?outputCX2=true" + param);
+        Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
+        
+        if ( response.getStatus()!=200) {
+        		NDExError obj = response.readEntity(NDExError.class);
+        		throw new NdexException(obj.getMessage());
+        }
+        
+      //     String value = response.readEntity(String.class);
+       //    response.close();  
+        InputStream in = response.readEntity(InputStream.class);
+        if (saveAsNetwork) {
+  
+    			return SearchServiceV2.saveQueryResult(networkName, userId, getLoggedInUser().getUserName(), in);
+        }  
+        return Response.ok().entity(in).build();
+		
+	}
+*/
 }
