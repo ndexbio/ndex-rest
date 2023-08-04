@@ -202,12 +202,12 @@ public class CX2ToCXConverter {
 									ATTRIBUTE_DATA_TYPE attrType = nodeAttrDecls.get(attrName).getDataType();
 									NodeAttributesElement na;
 									if (attrType.isSingleValueType()) {
-										na = new NodeAttributesElement(n.getId(), e.getKey(), e.getValue().toString(),
+										na = new NodeAttributesElement(n.getId(), e.getKey(), (e.getValue()==null? null:e.getValue().toString()),
 												attrType);
 									} else {
 										List<Object> listV = (List<Object>) e.getValue();
 										na = new NodeAttributesElement(n.getId(), e.getKey(),
-												listV.stream().map(s -> s.toString()).collect(Collectors.toList()),
+												listV.stream().map(s -> (s==null? null: s.toString())).collect(Collectors.toList()),
 												attrType);
 									}
 									writer.writeElement(na);
@@ -272,11 +272,11 @@ public class CX2ToCXConverter {
 									EdgeAttributesElement ea;
 									if (attrType.isSingleValueType()) {
 										ea = new EdgeAttributesElement(edge.getId(), e.getKey(),
-												e.getValue().toString(), attrType);
+												(e.getValue() == null? null: e.getValue().toString()), attrType);
 									} else {
 										List<Object> listV = (List<Object>) e.getValue();
 										ea = new EdgeAttributesElement(edge.getId(), e.getKey(),
-												listV.stream().map(s -> s.toString()).collect(Collectors.toList()),
+												listV.stream().map(s -> (s==null? null: s.toString())).collect(Collectors.toList()),
 												attrType);
 									}
 									writer.writeElement(ea);
