@@ -237,7 +237,7 @@ public class CX2ToCXConverter {
 						while (it.hasNext()) {
 							CxEdge edge = it.next();
 							EdgesElement e;
-							if (edgeAttrDecls.get(CxEdge.INTERACTION) != null) {
+							if (edgeAttrDecls != null) {
 								edge.extendToFullNode(edgeAttrDecls);
 								e = new EdgesElement(edge.getId(), edge.getSource(), edge.getTarget(),
 										(String) edge.getAttributes().get(CxEdge.INTERACTION));

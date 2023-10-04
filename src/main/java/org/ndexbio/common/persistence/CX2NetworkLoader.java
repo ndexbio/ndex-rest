@@ -415,6 +415,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		 }
 	}
 
+	//No need to expend the attributes because default value and aliases.
 	private void createNetworkAttribute(CxNetworkAttribute e) throws IOException, NdexException {
 		
 		if ( this.networkAttributes == null)
