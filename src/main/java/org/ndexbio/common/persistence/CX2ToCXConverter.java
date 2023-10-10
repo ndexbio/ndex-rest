@@ -46,6 +46,7 @@ import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.core.CXAspectWriter;
 import org.ndexbio.cxio.core.NdexCXNetworkWriter;
+import org.ndexbio.cxio.core.writers.NiceCXCX2Writer;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
 import org.ndexbio.model.exceptions.NdexException;
@@ -76,17 +77,21 @@ public class CX2ToCXConverter {
 	private int nodeAttrCount;
 	private int edgeAttrCount;
 	private int networkAttrCount;
+	
+	private List<String> warnings;
+
 	/**
 	 * 
 	 * @param rootPath the directory of a CX2 network on the server. 
 	 */
 	CX2ToCXConverter(String rootPath, CxAttributeDeclaration attributeDeclarations,
-			Map<String, CxMetadata> metadata, boolean hasLayout, CxNetworkAttribute networkAttrs) {
+			Map<String, CxMetadata> metadata, boolean hasLayout, CxNetworkAttribute networkAttrs, List<String> warningHolder) {
 		pathPrefix = rootPath;
 		this.attrDeclarations = attributeDeclarations;
 		this.metadataTable = metadata;
 		this.hasLayout = hasLayout;
 		this.networkAttributes = networkAttrs;
+		this.warnings = warningHolder;
 		//this.vpCvtr = CX2ToCXVisualPropertyConverter.getInstance();
 
 	}
@@ -319,13 +324,13 @@ public class CX2ToCXConverter {
 					cx1aspectWtr.writeCXElement(netDefault);
 
 					// convert node default and node mappings
-					CyVisualPropertiesElement vp = getDefaultNodeVP(vPs[0], vep, this.attrDeclarations);
+					CyVisualPropertiesElement vp = getDefaultNodeVP(vPs[0], vep, this.attrDeclarations, warnings);
 
 					writer.writeElement(vp);
 					cx1aspectWtr.writeCXElement(vp);
 
 					// convert edge default and edge mappings
-					vp = getDefaultEdgeVP(vPs[0], vep, this.attrDeclarations);
+					vp = getDefaultEdgeVP(vPs[0], vep, this.attrDeclarations,warnings);
 
 					writer.writeElement(vp);
 					cx1aspectWtr.writeCXElement(vp);
@@ -454,7 +459,7 @@ public class CX2ToCXConverter {
 	
 	
 	public static CyVisualPropertiesElement getDefaultNodeVP (CxVisualProperty vps, VisualEditorProperties vep,
-			CxAttributeDeclaration attrDecls) throws NdexException {
+			CxAttributeDeclaration attrDecls, List<String> warningHolder) throws NdexException {
 		DefaultVisualProperties defaultVPs = vps.getDefaultProps();
 		VisualPropertyTable nodeDefaultVPs =defaultVPs.getNodeProperties();
 		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("nodes:default");
@@ -484,14 +489,14 @@ public class CX2ToCXConverter {
 				nodeMappings.put("NODE_SIZE", m);
 		}
 		
-		convertMapping(vp, nodeMappings, CxNode.ASPECT_NAME, attrDecls);
+		convertMapping(vp, nodeMappings, CxNode.ASPECT_NAME, attrDecls, warningHolder);
 
 		return vp;
 	}
 	
 	
 	public static CyVisualPropertiesElement getDefaultEdgeVP (CxVisualProperty vps, VisualEditorProperties vep,
-			CxAttributeDeclaration attrDecls) throws NdexException {
+			CxAttributeDeclaration attrDecls, List<String> warningHolder) throws NdexException {
 		DefaultVisualProperties defaultVPs = vps.getDefaultProps();
 		VisualPropertyTable edgeDefaultVPs =defaultVPs.getEdgeProperties();
 		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("edges:default");
@@ -520,13 +525,13 @@ public class CX2ToCXConverter {
 				edgeMappings.put("EDGE_PAINT", m);
 		}
 		
-		convertMapping(vp, edgeMappings, CxEdge.ASPECT_NAME, attrDecls);
+		convertMapping(vp, edgeMappings, CxEdge.ASPECT_NAME, attrDecls, warningHolder);
 		
 		return vp;
 	}
 	
     private static void convertMapping(CyVisualPropertiesElement vp, Map<String,VisualPropertyMapping> mappings, 
-    		String aspectName, CxAttributeDeclaration attrDecls) throws NdexException {
+    		String aspectName, CxAttributeDeclaration attrDecls, List<String> holder) throws NdexException {
     	CX2ToCXVisualPropertyConverter vpCvtr = CX2ToCXVisualPropertyConverter.getInstance();
     	
     	for ( Map.Entry<String, VisualPropertyMapping> cx2Mapping: mappings.entrySet()) {
@@ -534,12 +539,20 @@ public class CX2ToCXConverter {
 			String cx1VPName = vpCvtr.getCx1EdgeOrNodeProperty(vpName);
 			VisualPropertyMapping mapping = cx2Mapping.getValue();
 			String colName = mapping.getMappingDef().getAttributeName();
-			DeclarationEntry decl = attrDecls.getAttributesInAspect(aspectName).get(colName);
-			if ( decl == null) {
-				throw new NdexException("Mapping on visual property " + vpName + " uses a non-exist attribute '"+
-			     colName + "' in aspect " + aspectName+ ".");
+			Map<String,DeclarationEntry> attrs = attrDecls.getAttributesInAspect(aspectName);
+			
+			//DeclarationEntry decl = attrs.get(colName);
+			ATTRIBUTE_DATA_TYPE type;
+			
+			if ( attrs ==null || attrs.get(colName) == null) {
+				addWarning(holder, "Mapping on visual property " + vpName + " references a missing attribute '"+
+			     colName + "' in " + aspectName+ ".");
+				type = mapping.getMappingDef().getAttributeType();
+				if ( type == null)
+					throw new NdexException("Mapping error: " + vpName + " lacks data type on attribute '" + colName + "'.");
+			} else {
+				type =  attrs.get(colName).getDataType();
 			}
-			ATTRIBUTE_DATA_TYPE type = decl.getDataType();
 			// workaround the cyndex list type handling issue
 			if ( !type.isSingleValueType())
 				type = type.elementType();
@@ -741,6 +754,18 @@ public class CX2ToCXConverter {
 						.collect(Collectors.toList());
 		} 
 		return e;
+	}
+
+	public List<String> getWarnings() {
+		return warnings;
+	}
+
+	private static void addWarning(List<String> holder, String warning) {
+		
+	  if (holder.size() >= CXToCX2ServerSideConverter.maximumNumberWarningMessages)
+			return;
+		
+		holder.add(warning);		
 	}
 
     

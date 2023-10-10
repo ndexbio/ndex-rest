@@ -69,7 +69,7 @@ public class CXToCX2ServerSideConverter {
 //	CXToCX2VisualPropertyConverter vpConverter;
 
 	
-	private static final int maximumNumberWarningMessages = 20;
+	public static final int maximumNumberWarningMessages = 20;
 	
 	AspectAttributeStat attrStats;
 	
@@ -600,7 +600,7 @@ public class CXToCX2ServerSideConverter {
 		try (AspectIterator<CyVisualPropertiesElement> a = new AspectIterator<>(networkId, CyVisualPropertiesElement.ASPECT_NAME, CyVisualPropertiesElement.class, pathPrefix) ) {
 			while (a.hasNext()) {
 				CyVisualPropertiesElement e = a.next();
-				holder.addVisuaProperty(e, visualDependencies, warnings);
+				holder.addVisuaProperty(e, visualDependencies, warnings, attrDeclarations);
 			}
 		}
 		
