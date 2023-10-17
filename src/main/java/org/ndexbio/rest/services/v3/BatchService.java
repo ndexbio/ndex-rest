@@ -101,7 +101,7 @@ public class BatchService extends NdexService {
 	
 	@PermitAll
 	@POST
-	@Path("/network/summary")
+	@Path("/networks/summary")
 	@Produces("application/json")
 	public List<NetworkSummaryV3> getNetworkSummaries(
 			@QueryParam("accesskey") String accessKey,
