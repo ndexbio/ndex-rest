@@ -353,6 +353,11 @@ public class CX2NetworkLoader implements AutoCloseable {
 		
 		//save the metadata
 		metadataTable = cxreader.getMetadata();
+		
+		// add warnings from the status aspect.
+		if ( cxreader.getWarning()!=null)
+			warnings.add("Message from status aspect: "+cxreader.getWarning());
+		
 		  
 		if(metadataTable !=null) {
 			  			  			  
