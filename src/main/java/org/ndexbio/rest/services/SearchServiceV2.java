@@ -346,7 +346,7 @@ public class SearchServiceV2 extends NdexService {
         
 	}
 
-	private static void getSolrIdxReady(UUID networkId, NetworkDAO dao)
+	public static void getSolrIdxReady(UUID networkId, NetworkDAO dao)
 			throws SQLException, ObjectNotFoundException, SolrServerException, IOException, NdexException {
 		int nodeCount = dao.getNodeCount(networkId);
 		
@@ -360,7 +360,7 @@ public class SearchServiceV2 extends NdexService {
 		}
 	}
 	
-	private Response saveQueryResult(String networkName, UUID ownerUUID,String ownerName,
+	public static Response saveQueryResult(String networkName, UUID ownerUUID,String ownerName,
 			InputStream in) throws SQLException, URISyntaxException {
 		// create a network entry in db
 		UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
@@ -383,7 +383,7 @@ public class SearchServiceV2 extends NdexService {
 
 	}
 	
-	private class  NetworkStreamSaverThread extends Thread 
+/*	private class  NetworkStreamSaverThread extends Thread 
 	{
 		UUID networkUUID;
 		InputStream input;
@@ -462,7 +462,7 @@ public class SearchServiceV2 extends NdexService {
 			}			
 			
 		}
-	}
+	} */
 
 	@PermitAll
 	@POST
@@ -719,9 +719,10 @@ public class SearchServiceV2 extends NdexService {
         	if ( id !=null)
         		expendedTerms.add(id);
         	
-        	String term = (String) termObj.get("uniprot.Swiss-Prot");
+        	addTermsToExpensionSet(termObj.get("uniprot.Swiss-Prot"), expendedTerms);
+        	/*String term = (String) termObj.get("uniprot.Swiss-Prot");
         	if ( term !=null)
-        		expendedTerms.add(term);
+        		expendedTerms.add(term);*/
         	
         	addTermsToExpensionSet (termObj.get("alias"), expendedTerms);
         	addTermsToExpensionSet (termObj.get("uniprot.TrEMBL"), expendedTerms);

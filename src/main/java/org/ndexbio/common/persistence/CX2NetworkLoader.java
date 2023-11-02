@@ -224,6 +224,8 @@ public class CX2NetworkLoader implements AutoCloseable {
 				
 				try {
 					dao.updateMetadataColleciton(networkId, cx1Metadata);
+					if ( warnings.size()>0)
+						dao.setWarning(networkId, warnings);
 					
 					if ( !isUpdate) {
 						dao.setFlag(this.networkId, "iscomplete", true);
@@ -285,7 +287,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		
 		// TODO: zip the archive and convert to CX file
 		CX2ToCXConverter cvtr = new CX2ToCXConverter(pathPrefix, this.attributeDeclarations, 
-				this.metadataTable, this.hasLayout, this.networkAttributes);
+				this.metadataTable, this.hasLayout, this.networkAttributes, warnings);
 		
 		return cvtr.convert();
 	}
@@ -351,6 +353,11 @@ public class CX2NetworkLoader implements AutoCloseable {
 		
 		//save the metadata
 		metadataTable = cxreader.getMetadata();
+		
+		// add warnings from the status aspect.
+		if ( cxreader.getWarning()!=null)
+			warnings.add("Message from Status aspect: "+cxreader.getWarning());
+		
 		  
 		if(metadataTable !=null) {
 			  			  			  
@@ -415,6 +422,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 		 }
 	}
 
+	//No need to expend the attributes because default value and aliases.
 	private void createNetworkAttribute(CxNetworkAttribute e) throws IOException, NdexException {
 		
 		if ( this.networkAttributes == null)

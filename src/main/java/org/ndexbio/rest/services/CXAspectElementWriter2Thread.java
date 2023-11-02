@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -344,6 +345,8 @@ public class CXAspectElementWriter2Thread extends Thread {
 		private void writeCyVisualProperties() throws JsonParseException, JsonMappingException, IOException, NdexException {
 			String fileName = pathPrefix + CxVisualProperty.ASPECT_NAME;
 			ObjectMapper om = new ObjectMapper();
+			List<String> warnings = new ArrayList<>(20);
+			
 			
 			CxVisualProperty[] vp = null;
 			File f = new File ( fileName);
@@ -375,7 +378,7 @@ public class CXAspectElementWriter2Thread extends Thread {
 
 				if (limit <=0 || i < limit ) {
 					CyVisualPropertiesElement cx1vp = CX2ToCXConverter.getDefaultNodeVP(vp[0], 
-						editorProperties, attrDeclarations );
+						editorProperties, attrDeclarations,warnings );
 					wtr.writeCXElement(cx1vp);
 					i++;
 				} else 
@@ -384,7 +387,7 @@ public class CXAspectElementWriter2Thread extends Thread {
 				if (limit <=0 || i < limit ) {
 				
 					CyVisualPropertiesElement cx1vp = CX2ToCXConverter.getDefaultEdgeVP(vp[0], 
-						editorProperties, attrDeclarations );
+						editorProperties, attrDeclarations , warnings);
 					wtr.writeCXElement(cx1vp);
 					i++;
 				} else 

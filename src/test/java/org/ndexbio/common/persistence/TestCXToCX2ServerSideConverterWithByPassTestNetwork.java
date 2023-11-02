@@ -355,7 +355,7 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		} catch(NdexException ne){
 			assertEquals("For network attribute 'version' "
 					+ "unable to convert value  to 'integer' "
-					+ ": For input string: \"uhhh\"", ne.getMessage());
+					+ ": Non numeric value 'uhhh' is declared as type integer.", ne.getMessage());
 		}
 	}
 	
@@ -389,7 +389,7 @@ public class TestCXToCX2ServerSideConverterWithByPassTestNetwork {
 		assertEquals("CX2-CONVERTER: For "
 				+ "network attribute 'version' "
 				+ "unable to convert value  to "
-				+ "'integer' : For input string: \"uhhh\"", warnings.get(0));
+				+ "'integer' : Non numeric value 'uhhh' is declared as type integer.", warnings.get(0));
 	}
 	
 	@Test

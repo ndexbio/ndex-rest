@@ -222,7 +222,7 @@ public class TestCXToCX2ServerSideConverter {
 		assertTrue(cx2AspectFileNames.contains("edgeBypasses"));
 
 		List<String> warnings = converter.getWarning();
-		assertEquals(1, warnings.size());
+		assertEquals(3, warnings.size());
 		assertEquals("CX2-CONVERTER: Duplicated network attribute 'version' found.", warnings.get(0));
 		
 		
@@ -247,7 +247,7 @@ public class TestCXToCX2ServerSideConverter {
 		// run conversion
 		//try {
 			converter.convert();
-			assertEquals(1, converter.getWarning().size());
+			assertEquals(3, converter.getWarning().size());
 			assertEquals("CX2-CONVERTER: Duplicated network attribute 'version' found.", 
 					converter.getWarning().get(0));
 			//fail("Expected NdexException");

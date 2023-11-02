@@ -88,6 +88,7 @@ import org.ndexbio.common.persistence.CXNetworkAspectsUpdater;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Util;
+import org.ndexbio.cx2.aspect.element.core.AttributeDeclaredAspect;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
@@ -337,7 +338,7 @@ public class NetworkServiceV2 extends NdexService {
 			@QueryParam("accesskey") String accessKey /*,
 			@Context org.jboss.resteasy.spi.HttpResponse response*/)
 
-			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+			throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
 		try (NetworkDAO dao = new NetworkDAO())  {
 			UUID userId = getLoggedInUserId();
@@ -1072,8 +1073,11 @@ public class NetworkServiceV2 extends NdexService {
 
 					if ( isSingleNetwork) {
 						attributeStats.addNetworkAttribute(e);
-					
-						Object attrValue = AspectAttributeStat.convertAttributeValue(e);
+					    List<String> warnings = new ArrayList<>(); 
+						Object attrValue = AttributeDeclaredAspect.convertAttributeValue(e, warnings);
+						if (!warnings.isEmpty())
+						  throw new NdexException("Value of attribute " + e.getName() + " is "+  e.getValue() + ", which is not a supported double value in CX2." );
+						
 						Object oldV = cx2NetAttr.getAttributes().put(e.getName(), attrValue);
 						if ( oldV !=null)
 							throw new NdexException("Duplicated network attribute name found: " + e.getName());
