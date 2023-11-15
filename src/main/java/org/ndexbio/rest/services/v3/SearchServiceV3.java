@@ -3,6 +3,8 @@ package org.ndexbio.rest.services.v3;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -34,15 +36,22 @@ import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
+import org.ndexbio.cx2.aspect.element.core.CxMetadata;
+import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
+import org.ndexbio.cxio.core.AspectIterator;
+import org.ndexbio.cxio.util.CxConstants;
 import org.ndexbio.model.errorcodes.NDExError;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.network.query.CXObjectFilter;
 import org.ndexbio.model.network.query.FilterCriterion;
 import org.ndexbio.model.network.query.FilteredDirectQuery;
 import org.ndexbio.model.object.CXSimplePathQuery;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.tools.EdgeFilter;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -51,7 +60,10 @@ import org.ndexbio.rest.services.SearchServiceV2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -61,6 +73,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class SearchServiceV3 extends NdexService  {
 
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
+	
+	static final HashMap<String,Object> EMPTYOBJECT = new HashMap<>();
 	
 	public SearchServiceV3(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
@@ -289,6 +303,150 @@ public class SearchServiceV3 extends NdexService  {
         }  
         return Response.ok().entity(in).build();
 		
+	}
+	
+	
+	@PermitAll
+	@POST
+	@Path("/networks/{networkId}/nodes")
+	@Produces("application/json")
+
+	
+	public Response getNodeAttributes (@PathParam("networkId") final String networkIdStr,
+			@QueryParam("accesskey") String accessKey,
+			final CXObjectFilter filterObject) throws SQLException, IOException, NdexException {
+		
+		if(filterObject.getAttributeNames().size()==0) {
+			throw new BadRequestException("At least one attribute name is reqired in the 'attributeNames' field.");
+		}
+		
+		try (NetworkDAO dao = new NetworkDAO())  {
+			UUID userId = getLoggedInUserId();
+			UUID networkId = UUID.fromString(networkIdStr);
+			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
+				List<CxMetadata> md = dao.getCx2MetaDataList(networkId);
+			
+				String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkIdStr + "/aspects_cx2/";
+			
+				// get attribute declaration
+				CxAttributeDeclaration decl= null;
+				if (!md.stream().anyMatch(m -> m.getName().equals(CxNode.ASPECT_NAME))) 
+					return Response.ok().type(MediaType.APPLICATION_JSON_TYPE)
+							.entity(CxConstants.EMPTYOBJECT).build();
+
+			
+				if (md.stream().anyMatch(m -> m.getName().equals(CxAttributeDeclaration.ASPECT_NAME))) {
+					try (AspectIterator<CxAttributeDeclaration> ei = new AspectIterator<>( pathPrefix + CxAttributeDeclaration.ASPECT_NAME, CxAttributeDeclaration.class)) {
+						while (ei.hasNext()) {
+							decl = ei.next();
+							break;
+						}
+					}
+				}
+				if ( decl == null) {
+					decl = new CxAttributeDeclaration();
+				}	
+				
+				//check if the attributes exists
+				Map<String, DeclarationEntry> nodeAttrDecl = decl.getAttributesInAspect(CxNode.ASPECT_NAME);
+				if ( nodeAttrDecl == null)
+					throw new ObjectNotFoundException("This network has no attributes on nodes.");
+				
+				for (String attrName : filterObject.getAttributeNames()) {
+					if (nodeAttrDecl.get(attrName)==null)
+						throw new ObjectNotFoundException("Node attribute '"+attrName+"' is not found in this network.");
+				}
+				
+				PipedInputStream in = new PipedInputStream();
+				 
+				PipedOutputStream out;
+
+				try {
+					out = new PipedOutputStream(in);
+				} catch (IOException e) {
+					in.close();
+					throw new NdexException("IOExcetion when creating the piped output stream: "+ e.getMessage());
+				}
+				
+				new NodeAttrsFilterThread(out,filterObject, nodeAttrDecl, pathPrefix).start();
+				return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(in).build();
+			
+			}
+			
+			throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
+		}
+	}
+	
+	protected class NodeAttrsFilterThread extends Thread {
+		
+		private PipedOutputStream out;
+		private Set<Long> ids;
+		private String pathPrefix;
+		private Set<String> attrNames;
+		private Map<String, DeclarationEntry> decls;
+		
+		
+		public NodeAttrsFilterThread(PipedOutputStream out, 
+				CXObjectFilter filterObject, Map<String, DeclarationEntry> nodeAttrDecl,
+				String pathPrefix) {
+			this.out = out;
+			ids = filterObject.getIds();
+			this.attrNames = filterObject.getAttributeNames();
+			this.pathPrefix= pathPrefix;
+			this.decls = nodeAttrDecl;
+
+		}
+		
+		@Override
+		public void run() {
+			
+			int count = 0;
+
+			JsonFactory factory = new JsonFactory();
+		    JsonGenerator generator;
+			try {
+				generator = factory.createGenerator(out);
+		        generator.writeStartObject(); // Start the object
+		        generator.setCodec(new ObjectMapper());
+		        
+		        //iterate throw the node aspect and return the filtered result
+		        try (AspectIterator<CxNode> ei = new AspectIterator<>( pathPrefix + CxNode.ASPECT_NAME, CxNode.class)) {
+		        	while (ei.hasNext()) {
+		        		if ( count == ids.size())
+		        			break;
+					
+		        		CxNode n = ei.next();
+		        		if ( ids.contains(n.getId())) {
+		        			Map<String,Object> attrs = new HashMap<>();
+		        			for (String attrName : attrNames) {
+		        				attrs.put(attrName, n.getWelldoneAttributeValue(attrName, decls.get(attrName)));
+		        			}		        	        
+		        	        generator.writeFieldName(n.getId().toString());
+		    		        generator.writeObject(attrs);
+		        	        count ++;
+		        		}
+		        	}
+		            generator.writeEndObject(); // End the object
+		            generator.close();
+		        } catch (JsonProcessingException e) {
+		        	// TODO Auto-generated catch block
+		        	e.printStackTrace();
+		        } catch (NdexException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}	
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} finally {		
+				try {
+					out.flush();
+					out.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
 	}
 	
 /*	
