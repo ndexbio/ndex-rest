@@ -30,8 +30,6 @@
  */
 package org.ndexbio.rest.services;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -49,7 +47,6 @@ import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
@@ -72,7 +69,6 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.EZIDClient;
-import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.server.StandaloneServer;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrIndexScope;
@@ -299,6 +295,7 @@ public class AdminServiceV2 extends NdexService {
 	 *    1) add support for Tomcat
 	 *    2) only allow privileged users to shut down Tomcat.
 	 */
+	@SuppressWarnings("static-method")
 	@GET
 	@PermitAll
 	@NdexOpenFunction
