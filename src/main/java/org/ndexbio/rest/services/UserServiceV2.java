@@ -333,7 +333,7 @@ public class UserServiceV2 extends NdexService {
 
 		if ( booleanStr!=null) {
 			if ( !booleanStr.toLowerCase().equals("true"))
-				throw new IllegalArgumentException("Paramber valid can only be true.");
+				throw new IllegalArgumentException("The 'valid' parameter must be set to 'true'.");
 			return authenticateUser();
 		}
 		
