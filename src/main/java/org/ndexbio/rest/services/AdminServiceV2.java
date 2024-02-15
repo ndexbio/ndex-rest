@@ -30,8 +30,6 @@
  */
 package org.ndexbio.rest.services;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -61,14 +59,16 @@ import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NdexStatus;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.NdexHttpServletDispatcher;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
-import org.ndexbio.rest.helpers.Security;
+import org.ndexbio.rest.helpers.EZIDClient;
 import org.ndexbio.rest.server.StandaloneServer;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrIndexScope;
@@ -201,13 +201,13 @@ public class AdminServiceV2 extends NdexService {
 				if ( submitterEmail == null) 
 					throw new BadRequestException("contactEmail is missing in the request.");
 				
-				String key = dao.requestDOI(networkId, isCertified);
+				dao.requestDOI(networkId, isCertified);
 				
 				dao.setFlag(networkId, "iscomplete", false);
 				dao.commit();
 				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL,false));
 								
-				String name = dao.getNetworkName(networkId);
+			/*	String name = dao.getNetworkName(networkId);
 				String url = Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkId ;
 				
 				if ( dao.getNetworkVisibility(networkId) == VisibilityType.PRIVATE) 
@@ -216,8 +216,10 @@ public class AdminServiceV2 extends NdexService {
 				String creationURL = Configuration.getInstance().getHostURI() + "/v3/networks/" + networkId
 						+ "/DOI?key=" + URLEncoder.encode(Security.encrypt(networkId.toString()),StandardCharsets.UTF_8.toString())
 							+"&email=" + 
-								URLEncoder.encode(submitterEmail, StandardCharsets.UTF_8.toString());
+								URLEncoder.encode(submitterEmail, StandardCharsets.UTF_8.toString());*/
 				
+				mintDOI(networkId, submitterEmail);
+				/*
 				//Reading in the email template
 				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
 
@@ -238,7 +240,7 @@ public class AdminServiceV2 extends NdexService {
 		        		Matcher.quoteReplacement(messageBody)) ;
 
 		        AmazonSESMailSender.getInstance().sendEmail(adminEmailAddress, 
-		        		  htmlEmail, "DOI request on NDEx Network", "html");
+		        		  htmlEmail, "DOI request on NDEx Network", "html");*/
 			}
 			break;
 		}	
@@ -293,6 +295,7 @@ public class AdminServiceV2 extends NdexService {
 	 *    1) add support for Tomcat
 	 *    2) only allow privileged users to shut down Tomcat.
 	 */
+	@SuppressWarnings("static-method")
 	@GET
 	@PermitAll
 	@NdexOpenFunction
@@ -337,5 +340,100 @@ public class AdminServiceV2 extends NdexService {
 
 	} 
 	
+	
+	private static String mintDOI( 
+			UUID networkUUID,
+			String submitter
+			) throws Exception {
+
+	//	String uuidFromKey = Security.decrypt(key,Configuration.getInstance().getSecretKeySpec());
+		String submitterEmail = submitter;
+		
+		/*if( !networkId.equals(uuidFromKey)) 
+			throw new BadRequestException("Invalid key in the URL."); */
+		
+		// UUID networkUUID = UUID.fromString(networkId);
+		
+		try (NetworkDAO dao = new NetworkDAO() ) {
+			String currentDOI = dao.getNetworkDOI(networkUUID);
+			if ( currentDOI ==null || !currentDOI.equals(NetworkDAO.PENDING)) {
+				throw new ForbiddenOperationException("This operation only works when a DOI is pending. The current value of DOI is: " + currentDOI );
+			}
+			dao.setDOI(networkUUID, "CREATING");
+			dao.commit();
+			
+			NetworkSummary s = dao.getNetworkSummaryById(networkUUID);
+			
+			String author = null;
+			for (NdexPropertyValuePair p : s.getProperties() ) {
+				if ( p.getPredicateString().equals("author"))
+					author = p.getValue();
+				
+			}
+			if ( author == null)  {
+				dao.setDOI(networkUUID, NetworkDAO.PENDING);
+				dao.commit();
+				throw new NdexException("Property author is missing in the network.");
+			}
+			
+			String url = Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkUUID.toString();
+			
+			if ( dao.getNetworkVisibility(networkUUID) == VisibilityType.PRIVATE) {
+				url += "?accesskey=" + dao.getNetworkAccessKey(networkUUID);
+			}
+
+			String id;
+			try {
+				id = EZIDClient.createDOI(
+						url ,
+						author, s.getName(),
+						Configuration.getInstance().getDOIPrefix(),
+						Configuration.getInstance().getDOIUser(),
+						Configuration.getInstance().getDOIPswd());
+			} catch (Exception e) {
+				dao.setDOI(networkUUID, NetworkDAO.PENDING);
+				List<String> warnings = dao.getWarnings(networkUUID);
+				if (warnings == null)
+					warnings = new ArrayList<>();
+				warnings.add("Failed to create DOI in EZID site. Cause: " + e.getMessage());
+				dao.setWarning(networkUUID, warnings);
+				dao.commit();
+				e.printStackTrace();
+				throw new NdexException("Failed to create DOI in EZID site. Cause: " + e.getMessage());
+				
+			}
+			
+			dao.setDOI(networkUUID, id);
+			dao.commit();
+			
+			//Send confirmation to submitter and admin
+			
+			//Reading in the email template
+			String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
+			String adminEmailAddress = Configuration.getInstance().getProperty("NdexSystemUserEmail");
+
+			String messageBody = "Dear NDEx user " + s.getOwner() + ",<p>"
+					+ "Your DOI request for the network<br>"
+					+ s.getName() + "(" + networkUUID.toString() + ")<br>"
+					+ "has been processed.<p>"
+					+ "You digital Object Identifier (DOI) is:<br>"
+					+ id + "<p>"
+					+ "Your identifier's URL form is:<br>"
+					+ "https://doi.org/" + id + "<p>"
+					+ "Please be advised that it can take several hours before your new DOI becomes resolvable.";
+					
+			
+	        String htmlEmail = emailTemplate.replaceFirst("%%____%%", 
+	        		Matcher.quoteReplacement(messageBody)) ;
+
+	        AmazonSESMailSender.getInstance().sendEmail(submitterEmail, 
+	        		  htmlEmail, "A DOI has been created for your NDEx Network", "html",adminEmailAddress);
+
+			
+			return "DOI " + id +" has been created on this network. Confirmation emails have been sent."; 
+		}
+		
+	}
+
 
 }
