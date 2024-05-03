@@ -267,7 +267,7 @@ public class UserServiceV2 extends NdexService {
 	}
 	
 
-	private static User createUserFromIdToken(User tmpUser, String idTokenString , OAuthAuthenticator authenticator) throws Exception {
+	public static User createUserFromIdToken(User tmpUser, String idTokenString , OAuthAuthenticator authenticator) throws Exception {
 
 			  // Get profile information from payload
 			  User newUser =  authenticator.generateUserFromToken(tmpUser, idTokenString) ;
@@ -531,12 +531,14 @@ public class UserServiceV2 extends NdexService {
 
 	public void updateUser(@PathParam("userid") final String userId, final User updatedUser)
 			throws Exception {
+		
+		String newEmail = updatedUser.getEmailAddress();
 		Preconditions.checkArgument(UUID.fromString(userId).equals(updatedUser.getExternalId()), 
 				"UUID in updated user data doesn't match user ID in the URL.");
 		Preconditions.checkArgument(updatedUser.getExternalId().equals(getLoggedInUserId()), 
 				"UUID in URL doesn't match the user ID of the signed in user's.");
-		Preconditions.checkArgument(null != updatedUser.getEmailAddress() && 
-				   updatedUser.getEmailAddress().length()>=6, 
+		Preconditions.checkArgument(null != newEmail && 
+				newEmail.length()>=6, 
 				"A valid email address is required.");
 		
 		
@@ -553,11 +555,24 @@ public class UserServiceV2 extends NdexService {
 		try (UserDAO dao = new UserDAO ()){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			try (UserIndexManager mgr = new UserIndexManager()) {
+				// check if email address has been changed.
+				if( !oldEmail.equals(newEmail)) {
+					// check if other user with the same email address exists.	
+                    User u = dao.getUserByEmail(newEmail, false);
+					if (u != null && !u.getExternalId().equals(user.getExternalId())) {
+						throw new NdexException("User with email address " + newEmail + " already exists.");
+					}
+					//check if there are any account using the new email address
+					u = dao.getUserByAccountName(newEmail, false, false);
+					if (u != null && !u.getExternalId().equals(user.getExternalId())) {
+						throw new NdexException("User with account name " + newEmail + " already exists.");
+					}
+				}					
 				mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
 				dao.commit();
 			}
 			
-			if ( !oldEmail.equals(updatedUser.getEmailAddress())) {
+			if ( !oldEmail.equals(newEmail)) {
 				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
 
 				String messageBody = "Dear " + user.getFirstName() + " " + user.getLastName()+ 

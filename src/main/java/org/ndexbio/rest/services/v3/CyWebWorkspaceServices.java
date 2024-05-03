@@ -20,6 +20,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.ndexbio.common.models.dao.postgresql.CyWebWorkspaceDAO;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CyWebWorkspace;
@@ -90,6 +91,9 @@ public class CyWebWorkspaceServices extends NdexService {
 	public NdexObjectUpdateStatus updateWorkspace(@PathParam("workspaceid") final String workspaceIdStr,
 								final CyWebWorkspace newWorkspace)
 			throws Exception {
+		if (newWorkspace.getName() == null)
+			throw new BadRequestException("Workspace name is required.");
+		
 		UUID ownerId = getLoggedInUserId();
 		UUID workspaceUUID = UUID.fromString(workspaceIdStr);
 		newWorkspace.setWorkspaceId(workspaceUUID);
@@ -121,6 +125,8 @@ public class CyWebWorkspaceServices extends NdexService {
 	public void renameWorkspace(@PathParam("workspaceid") final String workspaceIdStr,
 			final CyWebWorkspace newWorkspace)
 					throws Exception {
+		if (newWorkspace.getName() == null)
+			throw new BadRequestException("Workspace name is required.");
     	UUID ownerId = getLoggedInUserId();
     	UUID workspaceUUID = UUID.fromString(workspaceIdStr);
     	newWorkspace.setWorkspaceId(workspaceUUID);
