@@ -55,7 +55,9 @@ public class TestNetworkExportTask {
     		exptask.call_aux();
     		fail("Expected exception");
     	} catch(NullPointerException npe) {
-    		assertEquals(null, npe.getMessage());
+			// newer versions of java like 21 output more information
+			// when a nullpointerexception is created instead of null
+			assertTrue(npe.getMessage() == null || npe.getMessage().contains("is null"));
     	} catch(Exception ex) {
     		fail("Expected NullPointerException");
     	}
