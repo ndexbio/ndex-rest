@@ -95,11 +95,13 @@ public class NdexDatabase {
 	public static synchronized NdexDatabase createNdexDatabase ( String dbURL, String dbUserName,
 			String dbPassword, int size) throws NdexException {
 		if(INSTANCE == null) {
-	         INSTANCE = new NdexDatabase(dbURL, dbUserName, dbPassword, size);
-	         return INSTANCE;
+			logger.info("Creating database instance via thread: " +
+					Thread.currentThread().getName());
+	        INSTANCE = new NdexDatabase(dbURL, dbUserName, dbPassword, size);
+	        return INSTANCE;
 		} 
 		
-		throw new NdexException("Database has already been opened.");
+		throw new NdexException("Database has already been opened. Exception on thread: " + Thread.currentThread().getName());
 		
 	}
 
