@@ -43,7 +43,7 @@
 <!--          <servlet-class>org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher</servlet-class> -->
         <servlet-class>org.ndexbio.rest.NdexHttpServletDispatcher</servlet-class>
         <init-param>
-        	<param-name>javax.ws.rs.Application</param-name>
+        	<param-name>jakarta.ws.rs.Application</param-name>
         	<param-value>org.ndexbio.rest.NdexRestApi</param-value>
         </init-param>
         <load-on-startup>1</load-on-startup>
@@ -53,11 +53,6 @@
         <servlet-name>Resteasy</servlet-name>
         <url-pattern>/*</url-pattern>
     </servlet-mapping>
-
-    <context-param>
-         <param-name>resteasy.scan</param-name>
-        <param-value>true</param-value>   
-    </context-param>
 
     <context-param>
         <param-name>resteasy.servlet.mapping.prefix</param-name>
