@@ -37,6 +37,34 @@
 	</repositories>
 
 	<dependencies>
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+			<version>4.0.2</version>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.ws.rs</groupId>
+			<artifactId>jakarta.ws.rs-api</artifactId>
+			<version>4.0.0</version>
+		</dependency>
+		<dependency>
+		    <groupId>jakarta.mail</groupId>
+			<artifactId>jakarta.mail-api</artifactId>
+			<version>2.1.3</version>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
+			<version>6.0.0</version>
+			<scope>provided</scope>
+		</dependency>
+		
+		<dependency>
+			<groupId>jakarta.annotation</groupId>
+			<artifactId>jakarta.annotation-api</artifactId>
+			<version>3.0.0</version>
+		</dependency>
+
 
 		<dependency>
 			<groupId>org.ndexbio</groupId>
@@ -58,6 +86,11 @@
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-compress</artifactId>
 			<version>1.21</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.14.0</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
@@ -89,10 +122,20 @@
   -->    
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
-			<artifactId>resteasy-jaxrs</artifactId>
+			<artifactId>resteasy-client</artifactId>
 			<version>${resteasyVersion}</version>
 		</dependency>
-		
+		<dependency>
+			<groupId>org.jboss.resteasy</groupId>
+			<artifactId>resteasy-core</artifactId>
+			<version>${resteasyVersion}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.jboss.resteasy</groupId>
+			<artifactId>resteasy-core-spi</artifactId>
+			<version>${resteasyVersion}</version>
+		</dependency>
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-jaxb-provider</artifactId>
@@ -143,7 +186,7 @@
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.2.3</version>
+			<version>1.5.6</version>
 		</dependency>
 
 		<dependency>
@@ -160,7 +203,7 @@
 		<dependency>
 			<groupId>com.fasterxml.uuid</groupId>
 			<artifactId>java-uuid-generator</artifactId>
-			<version>3.2.0</version>
+			<version>5.0.0</version>
 		</dependency>
 		<dependency>
     		<groupId>com.google.guava</groupId>
@@ -187,7 +230,7 @@
 		<dependency>
 			<groupId>org.apache.maven.scm</groupId>
 			<artifactId>maven-scm-provider-gitexe</artifactId>
-			<version>1.8.1</version>
+			<version>2.1.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.maven.scm</groupId>
@@ -240,11 +283,11 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.8.1</version>
+				<version>3.13.0</version>
 				<configuration>
 				 <!--  	<release>11</release>  -->
-				    <source>11</source>
-					<target>11</target> 
+				    <source>17</source>
+					<target>17</target> 
 				</configuration>
 			</plugin>
 			<plugin>
@@ -414,7 +457,7 @@
                         <plugin>
                             <groupId>org.jacoco</groupId>
                             <artifactId>jacoco-maven-plugin</artifactId>
-                            <version>0.8.3</version>
+                            <version>0.8.12</version>
                             <executions>
                                 <execution>
                                     <id>prepare-agent</id>
@@ -444,8 +487,8 @@
             </plugins>
         </reporting>
 	<properties>
-		<jettyVersion>9.3.28.v20191105</jettyVersion>
-		<resteasyVersion>3.1.4.Final</resteasyVersion>
+		<jettyVersion>11.0.20</jettyVersion>
+		<resteasyVersion>6.2.8.Final</resteasyVersion>
 		<!-- <log4jVersion>2.8.2</log4jVersion> -->
 		<jacksonVersion>2.14.3</jacksonVersion>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

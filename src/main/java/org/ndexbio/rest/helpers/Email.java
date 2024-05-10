@@ -32,13 +32,13 @@ package org.ndexbio.rest.helpers;
 
 import java.util.Properties;
 
-import javax.mail.Message;
-import javax.mail.MessagingException;
-import javax.mail.PasswordAuthentication;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
+import jakarta.mail.Message;
+import jakarta.mail.MessagingException;
+import jakarta.mail.PasswordAuthentication;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.Configuration;
@@ -120,7 +120,7 @@ public class Email
     public static void sendEmail(final String senderAddress, final String recipientAddresses[], final String subject, final String emailText, final Properties smtpProperties, final String smtpUsername, final String smtpPassword) throws MessagingException
     {
         Session smtpSession = Session.getInstance(smtpProperties,
-            new javax.mail.Authenticator()
+            new jakarta.mail.Authenticator()
             {
                 @Override
 				protected PasswordAuthentication getPasswordAuthentication()
