@@ -120,6 +120,11 @@
             <version>${resteasyVersion}</version>
         </dependency>
   -->    
+        <dependency>
+            <groupId>org.jboss.resteasy</groupId>
+            <artifactId>resteasy-servlet-initializer</artifactId>
+            <version>${resteasyVersion}</version>
+        </dependency>
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-client</artifactId>
