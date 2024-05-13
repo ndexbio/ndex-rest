@@ -35,6 +35,9 @@ import java.util.Set;
 
 import jakarta.ws.rs.core.Application;
 
+import io.swagger.v3.jaxrs2.integration.resources.AcceptHeaderOpenApiResource;
+import io.swagger.v3.jaxrs2.integration.resources.OpenApiResource;
+
 import org.jboss.resteasy.plugins.interceptors.CorsFilter;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.exceptions.mappers.BadRequestExceptionMapper;
@@ -96,6 +99,8 @@ public class NdexRestApi extends Application
         _resources.add(CyWebWorkspaceServices.class);
         _resources.add(UserServicesV3.class);
         _resources.add(BatchService.class);
+		_resources.add(OpenApiResource.class);
+		_resources.add(AcceptHeaderOpenApiResource.class);
         
         
         
