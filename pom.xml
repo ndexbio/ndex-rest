@@ -178,17 +178,12 @@
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-multipart-provider</artifactId>
 			<version>${resteasyVersion}</version>
-		</dependency>
-		
-		<!-- Enable this to expose resteasy/registry which lists all 
-             endpoints being served by resteasy. Also need to 
-             uncomment line in web.xml for this to work					
+		</dependency>				
 		<dependency>
 			<groupId>org.jboss.resteasy</groupId>
 			<artifactId>resteasy-stats</artifactId>
 			<version>${resteasyVersion}</version>
 		</dependency>
-        -->
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
