@@ -57,10 +57,15 @@
         <param-name>resteasy.servlet.mapping.prefix</param-name>
         <param-value>/</param-value>
     </context-param>
+	
+	<!-- enable this and the resteasy stats maven dependency in pom.xml 
+         to access resteasy/registry which lists all endpoints being served
+		 by resteasy
 	<context-param>
         <param-name>resteasy.resources</param-name>
         <param-value>org.jboss.resteasy.plugins.stats.RegistryStatsResource</param-value>
     </context-param>
+	-->
 
 	<!--<filter>
 		<filter-name>CrossOriginResourceSharingFilter</filter-name>
