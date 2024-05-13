@@ -40,7 +40,6 @@
 
     <servlet>
         <servlet-name>Resteasy</servlet-name>
-<!--          <servlet-class>org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher</servlet-class> -->
         <servlet-class>org.ndexbio.rest.NdexHttpServletDispatcher</servlet-class>
         <init-param>
         	<param-name>jakarta.ws.rs.Application</param-name>
@@ -57,6 +56,10 @@
     <context-param>
         <param-name>resteasy.servlet.mapping.prefix</param-name>
         <param-value>/</param-value>
+    </context-param>
+	<context-param>
+        <param-name>resteasy.resources</param-name>
+        <param-value>org.jboss.resteasy.plugins.stats.RegistryStatsResource</param-value>
     </context-param>
 
 	<!--<filter>
