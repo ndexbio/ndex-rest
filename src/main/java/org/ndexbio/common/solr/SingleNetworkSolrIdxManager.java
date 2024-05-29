@@ -467,18 +467,17 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		for ( Map.Entry<String,DeclarationEntry> entry: nodeAttributeDecls.entrySet()) {
 			ATTRIBUTE_DATA_TYPE dType = entry.getValue().getDataType();
 			String attrName = entry.getKey();
-			if ( attrName.equalsIgnoreCase(ALIAS) ) {
-				if ( entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
-					attributeNameMapping.put (ALIAS, entry);					
-				}
-			} else if ( attrName.equalsIgnoreCase(TYPE)) {
-				if ( entry.getValue().getDataType() == null || 
-						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (TYPE, entry);
-			} else if ( attrName.equalsIgnoreCase(MEMBER) && dType == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
-					attributeNameMapping.put (MEMBER, entry);
-			} else if ( dType == null ||  dType == ATTRIBUTE_DATA_TYPE.STRING || dType == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING)
-				attributeNameMapping.put (attrName, entry);			 	
+			
+			if ( dType == null || dType == ATTRIBUTE_DATA_TYPE.STRING || dType == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
+				if( attrName.equalsIgnoreCase(ALIAS)) {
+                    attributeNameMapping.put (ALIAS, entry);					
+                } else if ( attrName.equalsIgnoreCase(TYPE)) {
+                    attributeNameMapping.put (TYPE, entry);
+                } else if ( attrName.equalsIgnoreCase(MEMBER)) {
+                    attributeNameMapping.put (MEMBER, entry);
+                } else 
+                    attributeNameMapping.put (attrName, entry);
+			}	 	
 		}
 		
 		//go through node aspect
@@ -602,7 +601,6 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 		return result;
 	}
 
-	
 	protected static String getSingleIndexableTermFromNode (String attrName, CxNode node, 
 			Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping) {		
 	
