@@ -420,17 +420,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	private static void rebuildUserIndex() throws Exception {
 		logger.info("Start rebuild user index.");
 		try (UserIndexManager umgr = new UserIndexManager()) {
-			/*String coreName = UserIndexManager.coreName;
-			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
-			creator.setCoreName(coreName);
-			creator.setConfigSet(coreName);
-			CoreAdminResponse foo = creator.process(umgr.client);
-
-			if (foo.getStatus() != 0) {
-				throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
-						+ foo.getResponseHeader().toString());
-			}
-			logger.info("Solr core " + coreName + " created.");*/
+			umgr.createCoreIfNotExists();
 
 			try (UserDAO dao = new UserDAO()) {
 				@SuppressWarnings("resource")
@@ -463,17 +453,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	private static void rebuildGroupIndex() throws Exception {
 		logger.info("Start rebuild group index.");
 		try (GroupIndexManager umgr = new GroupIndexManager()) {
-		/*	String coreName = GroupIndexManager.coreName;
-			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
-			creator.setCoreName(coreName);
-			creator.setConfigSet(coreName);
-			CoreAdminResponse foo = creator.process(umgr.client);
-
-			if (foo.getStatus() != 0) {
-				throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
-						+ foo.getResponseHeader().toString());
-			}
-			logger.info("Solr core " + coreName + " created.");*/
+	        umgr.createCoreIfNotExists();
 
 			try (GroupDAO dao = new GroupDAO()) {
 				@SuppressWarnings("resource")
