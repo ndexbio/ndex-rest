@@ -245,11 +245,10 @@
 			<artifactId>commons-collections4</artifactId>
 			<version>4.4</version>
 		</dependency>
-		<!-- TODO api-client is failing after 1.30.11 needs TLC -->
 		<dependency>
 			<groupId>com.google.api-client</groupId>
 			<artifactId>google-api-client</artifactId>
-			<version>1.30.11</version>
+			<version>2.6.0</version>
 		</dependency>
 		<dependency>
 			<groupId>com.google.oauth-client</groupId>
