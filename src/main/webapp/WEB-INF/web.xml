@@ -45,6 +45,22 @@
         	<param-name>jakarta.ws.rs.Application</param-name>
         	<param-value>org.ndexbio.rest.NdexRestApi</param-value>
         </init-param>
+		<init-param>
+		  <param-name>openApi.configuration.resourcePackages</param-name>
+		  <param-value>org.ndexbio.rest.services,org.ndexbio.model</param-value>
+		</init-param>
+		<init-param>
+			<param-name>openApi.configuration.scannerClass</param-name>
+			<param-value>org.ndexbio.rest.services.SwaggerScanner</param-value>
+		</init-param>
+		<init-param>
+			<param-name>openApi.configuration.filterClass</param-name>
+			<param-value>org.ndexbio.rest.filters.SwaggerFilter</param-value>
+		</init-param>
+		<init-param>
+		  <param-name>openApi.configuration.prettyPrint</param-name>
+		  <param-value>true</param-value>
+		</init-param>
         <load-on-startup>1</load-on-startup>
     </servlet>
 
