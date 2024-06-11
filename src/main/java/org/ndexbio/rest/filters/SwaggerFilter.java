@@ -85,11 +85,11 @@ public class SwaggerFilter extends AbstractSpecFilter {
         return Optional.of(openAPI);
     }
 
-    private String getServerUrl(){
+    protected String getServerUrl(){
 		return Configuration.getInstance().getHostURI();
     }
     
-    private String getSwaggerDescription(){
+    protected String getSwaggerDescription(){
 		String currentYear = Year.now().toString();
 		return "This [OpenAPI Specification](https://github.com/OAI/OpenAPI-Specification) document defines the **N**etwork **D**ata **Ex**change (**NDEx**) REST API which is used to communicate with NDEx public and private servers.\n"
 				+ "\nThis document and all references to the NDEx REST API, source code and ancillary documentation are copyrighted: *© 2013-"
@@ -102,7 +102,7 @@ public class SwaggerFilter extends AbstractSpecFilter {
 				+ "API endpoints are supported.";
     }
     
-    private String getSwaggerTitle(){
+    protected String getSwaggerTitle(){
 		return "NDEx " + getVersion() + " REST API";
     }
 
@@ -151,7 +151,7 @@ public class SwaggerFilter extends AbstractSpecFilter {
      * Reads /META-INFO/MANIFEST.MF for version and build information
      * setting _version and _buildNumber to those values if found.
      */
-    private String getVersion(){
+    protected String getVersion(){
         String jarPath = SwaggerFilter.class.getProtectionDomain().getCodeSource().getLocation().getPath();
 
         JarFile jar = null;
