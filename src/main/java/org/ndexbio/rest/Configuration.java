@@ -428,6 +428,8 @@ public class Configuration
     {
         return _configurationProperties.getProperty(propertyName);
     }
+	
+	
 
       
     
@@ -448,6 +450,14 @@ public class Configuration
     public String getDBUser() { return _configurationProperties.getProperty(dbUserPropName); }
     public String getDBPasswd () { return _configurationProperties.getProperty(dbPasswordPropName); }
     
+	/**
+	 * Gets admin email address from NdexSystemUserEmail property
+	 * 
+	 * @return address or support@ndexbio.org if not set in configuration
+	 */
+	public String getAdminUserEmail(){
+		return _configurationProperties.getProperty("NdexSystemUserEmail", "support@ndexbio.org");
+	}
     /**
      * Gets Exporter timeout in seconds from configuration
      * with default set to 600 seconds.
