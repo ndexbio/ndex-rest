@@ -80,7 +80,6 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Security;
-import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.security.OAuthAuthenticator;
 import org.ndexbio.task.NdexServerQueue;
@@ -89,7 +88,6 @@ import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
