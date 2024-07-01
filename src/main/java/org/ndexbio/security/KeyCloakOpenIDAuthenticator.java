@@ -44,20 +44,38 @@ public class KeyCloakOpenIDAuthenticator implements OAuthAuthenticator {
 	
 	private String getUserEmailFromIdToken(String idToken) {
 	
-		DecodedJWT jwt = JWT.decode(idToken);
+		DecodedJWT jwt = getDecodedJWT(idToken);
+				
+		return jwt.getClaim("email").asString();
 		
-		verifier.verify(jwt);
-		
-		String email = jwt.getClaim("email").asString();
-		
-		return email;
 	}
 
+	//decode the token and verify it.
+	private DecodedJWT getDecodedJWT(String idToken) {
+		DecodedJWT jwt = JWT.decode(idToken);
+		verifier.verify(jwt);
+		return jwt;
+	}
 
 	@Override
 	public UUID getUserUUIDByIdToken(String idTokenString) throws GeneralSecurityException, IOException,
 			IllegalArgumentException, ObjectNotFoundException, NdexException {
+		String username = getUserNameFromIdToken(idTokenString);
+		//try to get user by username	
+		if (username != null) {
+			try (UserDAO userDao = new UserDAO()) {
+				User u = userDao.getUserByAccountName(username, true, false);
+				return u.getExternalId();
+			} catch (SQLException e1) {
+				e1.printStackTrace();
+				throw new NdexException("SQL Error when getting user by username: " + e1.getMessage());
+			}
+		}
+
+		//if username is not specified in id token, try to get user by email
 		String email = getUserEmailFromIdToken(idTokenString);
+		if ( email == null)
+			throw new UnauthorizedOperationException("Email is not found in the token.");
 		try (UserDAO userDao = new UserDAO()) {
 			UUID userUUID = userDao.getUUIDByEmail(email.toLowerCase());
 			return userUUID;
@@ -68,16 +86,42 @@ public class KeyCloakOpenIDAuthenticator implements OAuthAuthenticator {
 	}
 
 
+	private String getUserNameFromIdToken(String idToken) {
+		DecodedJWT jwt = getDecodedJWT(idToken);
+
+		return jwt.getClaim("preferred_username").asString();
+
+	}
+	
 	@Override
 	public User getUserByIdToken(String idTokenString) throws GeneralSecurityException, IOException,
 			IllegalArgumentException, ObjectNotFoundException, NdexException {
+		
+		//Try to get user by username first
+		String username = getUserNameFromIdToken(idTokenString);
+		if (username != null) {
+			try (UserDAO userDao = new UserDAO()) {
+				User u = userDao.getUserByAccountName(username, true, true);
+				return u;
+			} 
+			catch (ObjectNotFoundException e) {
+				// Didn't find the user by username. Go to the next step. 
+		    }
+			catch (SQLException e1) {
+				throw new NdexException("SQL Error when getting user by username: " + e1.getMessage());
+			}
+		}
+		//Try to get user by email and return the user
 		String email = getUserEmailFromIdToken(idTokenString);
+		if ( email == null)
+			throw new UnauthorizedOperationException("No username or email is specified in the token.");
+		
 		 try (UserDAO userDao = new UserDAO()) {
 			 User user = userDao.getUserByEmail(email.toLowerCase(),true);
 			 return user;	
 		 }	catch ( SQLException e1) {
 			 e1.printStackTrace();
-			  throw new UnauthorizedOperationException("SQL Error when getting user by email: " + e1.getMessage());
+			  throw new NdexException("SQL Error when getting user by email: " + e1.getMessage());
 		 }	
 	}
 
@@ -98,7 +142,8 @@ public class KeyCloakOpenIDAuthenticator implements OAuthAuthenticator {
 		  newUser.setLastName(jwt.getClaim("family_name").asString());
 		  newUser.setDisplayName(jwt.getClaim("name").asString());
 		  
-		return newUser;	}
+		return newUser;	
+	}
 	
 	
 }
