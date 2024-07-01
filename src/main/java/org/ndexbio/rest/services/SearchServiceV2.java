@@ -191,6 +191,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@Path("/network")
 	@Produces("application/json")
+	// TODO: need to node accountName is a filter and you cannot use wildcards
 	public NetworkSearchResult searchNetwork(
 			final SimpleNetworkQuery query,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
