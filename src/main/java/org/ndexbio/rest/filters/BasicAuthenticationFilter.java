@@ -341,7 +341,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         ObjectMapper mapper = new ObjectMapper();
         HashMap<String,String> m2 = new HashMap<>(m.size());
         for (Map.Entry<String,List<String>> e:  m.entrySet()) {
-        	m2.put(e.getKey(), e.getValue() == null? "": e.getValue().get(0));
+        	if ( !e.getKey().equals("key"))
+        		m2.put(e.getKey(), e.getValue() == null? "": e.getValue().get(0));
         }
         return mapper.writeValueAsString(m2).replaceAll("\n"," ");
     }

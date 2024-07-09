@@ -64,6 +64,17 @@ public class AdminServiceV3 extends NdexService {
 	        try {
 	            InetAddress inetAddress = InetAddress.getByName(clientIp);
 	            clientHostname = inetAddress.getHostName();
+	            String hostStr = Configuration.getInstance().getProperty("ALLOWED_ADMIN_HOSTS");
+				if (hostStr == null || hostStr.length() == 0)
+					throw new NdexException(
+							"ALLOWED_ADMIN_HOSTS property is not set in ndex.properties file. Please contact your system administrator.");
+	            String[] hosts = hostStr.split("[,\\s]+");
+	            boolean isAllowed = false;
+	            for (String host : hosts)
+                	isAllowed = isAllowed || host.equals(clientHostname);
+	            if (!isAllowed)
+	            	throw new UnauthorizedOperationException("Host " + clientHostname + " is not allowed to access this service.");
+	            
 	        } catch (UnknownHostException e) {
 	            // Handle the exception
 	            e.printStackTrace();
@@ -80,6 +91,8 @@ public class AdminServiceV3 extends NdexService {
 			String pwsd2 =new String(Base64.getDecoder().decode(accessKey));
 			if ( !pswd.equals(pwsd2))
                 throw new UnauthorizedOperationException("Access key is not valid.");
+			
+			
 			
 			//update user's password
 			try (UserDAO dao = new UserDAO ()) {
