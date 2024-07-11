@@ -69,6 +69,8 @@ public class KeyCloakOpenIDAuthenticator implements OAuthAuthenticator {
 			} catch (SQLException e1) {
 				e1.printStackTrace();
 				throw new NdexException("SQL Error when getting user by username: " + e1.getMessage());
+			} catch (ObjectNotFoundException e) {
+				// Didn't find the user by username. Go to the next step.
 			}
 		}
 
