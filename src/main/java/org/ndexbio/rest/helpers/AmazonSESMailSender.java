@@ -3,8 +3,8 @@ package org.ndexbio.rest.helpers;
 import java.util.Properties;
 import java.util.concurrent.Semaphore;
 
-import javax.mail.*;
-import javax.mail.internet.*;
+import jakarta.mail.*;
+import jakarta.mail.internet.*;
 
 import org.ndexbio.rest.Configuration;
 import org.slf4j.Logger;

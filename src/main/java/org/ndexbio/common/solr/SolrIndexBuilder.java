@@ -420,6 +420,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	private static void rebuildUserIndex() throws Exception {
 		logger.info("Start rebuild user index.");
 		try (UserIndexManager umgr = new UserIndexManager()) {
+			umgr.createCoreIfNotExists();
 			/*String coreName = UserIndexManager.coreName;
 			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
 			creator.setCoreName(coreName);
@@ -463,6 +464,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	private static void rebuildGroupIndex() throws Exception {
 		logger.info("Start rebuild group index.");
 		try (GroupIndexManager umgr = new GroupIndexManager()) {
+			umgr.createCoreIfNotExists();
 		/*	String coreName = GroupIndexManager.coreName;
 			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
 			creator.setCoreName(coreName);

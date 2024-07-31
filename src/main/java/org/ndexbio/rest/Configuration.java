@@ -131,6 +131,30 @@ public class Configuration
 	// Please see http://logback.qos.ch/manual/architecture.html for description of log levels	
 	private Level logLevel;
     
+	/**
+	 * This constructor should only be used for unit tests. To 
+	 * get an instance of this object please use {@link Configuration#getInstance() }
+	 * 
+	 * @deprecated Should only be used for unit tests
+	 */
+	@Deprecated
+	public Configuration(){
+		INSTANCE = this;
+	}
+	
+	/**
+	 * This should only be used for unit tests.
+	 * To 
+	 * get an instance of this object please use 
+	 * {@link Configuration#getInstance() }
+	 * @deprecated Should only be used for unit tests
+	 * @param config 
+	 */
+	@Deprecated
+	public static void setInstance(Configuration config){
+		INSTANCE = config;
+	}
+	
     /**************************************************************************
     * Default constructor. Made private to prevent instantiation. 
      * @throws NamingException 
@@ -337,7 +361,7 @@ public class Configuration
 	public Collection<ImporterExporterEntry> getImporterExporters () {
 		return impExpTable.values();
 	}
-    
+	
     /**************************************************************************
     * Gets the singleton instance. 
      * @throws NdexException 
@@ -383,6 +407,7 @@ public class Configuration
      * @throws NdexException
      * @throws NoSuchAlgorithmException 
      */
+	@Deprecated
     protected static Configuration reCreateInstance(final String configFilePath) throws NdexException, NoSuchAlgorithmException{
     	
     	try {
@@ -403,6 +428,8 @@ public class Configuration
     {
         return _configurationProperties.getProperty(propertyName);
     }
+	
+	
 
       
     
@@ -423,6 +450,14 @@ public class Configuration
     public String getDBUser() { return _configurationProperties.getProperty(dbUserPropName); }
     public String getDBPasswd () { return _configurationProperties.getProperty(dbPasswordPropName); }
     
+	/**
+	 * Gets admin email address from NdexSystemUserEmail property
+	 * 
+	 * @return address or support@ndexbio.org if not set in configuration
+	 */
+	public String getAdminUserEmail(){
+		return _configurationProperties.getProperty("NdexSystemUserEmail", "support@ndexbio.org");
+	}
     /**
      * Gets Exporter timeout in seconds from configuration
      * with default set to 600 seconds.
