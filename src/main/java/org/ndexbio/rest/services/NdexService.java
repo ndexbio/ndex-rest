@@ -55,6 +55,7 @@ import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.BadRequestException;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -231,11 +232,13 @@ public abstract class NdexService
 	        User user = getLoggedInUser();
 	           
 		  	   if( daoNew.isReadOnly(networkId)) {
-					throw new NdexException ("Can't update readonly network.");				
+		  		    daoNew.close();
+					throw new ForbiddenOperationException ("Error: Unable to update a read-only network.");				
 				} 
 				
 				if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
-			        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
+					daoNew.close();
+			        throw new UnauthorizedOperationException("You do not have write permissions for this network.");
 				} 
 				
 				if ( daoNew.networkIsLocked(networkId)) {
@@ -243,7 +246,16 @@ public abstract class NdexService
 					throw new NetworkConcurrentModificationException ();
 			   } 
 				
-			daoNew.lockNetwork(networkId);
+			try {
+				daoNew.lockNetwork(networkId);
+			} catch (SQLException sqlErr) {
+				daoNew.close();
+				throw new NdexException("Failed to lock network " + networkId.toString() + 
+						". Cause: " + sqlErr.getMessage());
+			} catch (NetworkConcurrentModificationException e) {
+				daoNew.close();
+				throw e;
+			}
 			
 			return daoNew;
 		   
