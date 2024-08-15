@@ -55,6 +55,7 @@ import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.BadRequestException;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -232,7 +233,7 @@ public abstract class NdexService
 	           
 		  	   if( daoNew.isReadOnly(networkId)) {
 		  		    daoNew.close();
-					throw new NdexException ("Error: Unable to update a read-only network.");				
+					throw new ForbiddenOperationException ("Error: Unable to update a read-only network.");				
 				} 
 				
 				if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
