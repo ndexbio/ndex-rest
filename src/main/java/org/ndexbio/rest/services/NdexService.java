@@ -231,10 +231,12 @@ public abstract class NdexService
 	        User user = getLoggedInUser();
 	           
 		  	   if( daoNew.isReadOnly(networkId)) {
+		  		    daoNew.close();
 					throw new NdexException ("Can't update readonly network.");				
 				} 
 				
 				if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
+					daoNew.close();
 			        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
 				} 
 				
@@ -243,7 +245,16 @@ public abstract class NdexService
 					throw new NetworkConcurrentModificationException ();
 			   } 
 				
-			daoNew.lockNetwork(networkId);
+			try {
+				daoNew.lockNetwork(networkId);
+			} catch (SQLException sqlErr) {
+				daoNew.close();
+				throw new NdexException("Failed to lock network " + networkId.toString() + 
+						". Cause: " + sqlErr.getMessage());
+			} catch (NetworkConcurrentModificationException e) {
+				daoNew.close();
+				throw e;
+			}
 			
 			return daoNew;
 		   
