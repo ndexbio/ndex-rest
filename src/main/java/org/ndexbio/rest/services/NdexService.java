@@ -232,12 +232,12 @@ public abstract class NdexService
 	           
 		  	   if( daoNew.isReadOnly(networkId)) {
 		  		    daoNew.close();
-					throw new NdexException ("Can't update readonly network.");				
+					throw new NdexException ("Error: Unable to update a read-only network.");				
 				} 
 				
 				if ( !daoNew.isWriteable(networkId, user.getExternalId())) {
 					daoNew.close();
-			        throw new UnauthorizedOperationException("User doesn't have write permissions for this network.");
+			        throw new UnauthorizedOperationException("You do not have write permissions for this network.");
 				} 
 				
 				if ( daoNew.networkIsLocked(networkId)) {
