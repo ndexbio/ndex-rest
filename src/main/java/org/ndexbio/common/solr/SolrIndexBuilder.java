@@ -135,10 +135,11 @@ public class SolrIndexBuilder implements AutoCloseable {
 						
 				  }	
 				  globalIdx.commit();
-			
-				  dao.unlockNetwork(networkid);
+
 				  logger.info("Solr index of network " + networkid + " created.");
 			  } 
+		  } finally {
+			  dao.unlockNetwork(networkid);
 		  }	 
 		}  
 	}
@@ -385,7 +386,13 @@ public class SolrIndexBuilder implements AutoCloseable {
 				try ( ResultSet rs = pst.executeQuery()) {
 					while (rs.next()) {
 				       //int nodeCount = rs.getInt(2);
-					   rebuildNetworkIndex((UUID)rs.getObject(1), false);
+					   UUID networkId = (UUID)rs.getObject(1);
+					   try {
+						   
+						   rebuildNetworkIndex(networkId, false);
+					   } catch(Exception ex){
+						   logger.error("Failed to rebuild index for network: " + networkId.toString());
+					   }
 					   i ++;
 					   if ( i % 500 == 0 ) {
 						   System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
@@ -518,9 +525,9 @@ public class SolrIndexBuilder implements AutoCloseable {
 		if ( args.length == 1) {
 			switch ( args[0]) {
 			case "all":
-				builder.rebuildAll();
 				SolrIndexBuilder.rebuildUserIndex();
 				SolrIndexBuilder.rebuildGroupIndex();
+				builder.rebuildAll();
 				break;
 			case "user":
 				SolrIndexBuilder.rebuildUserIndex();
@@ -544,7 +551,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 			}
 			logger.info("Index rebuild process finished.");
 		} else {
-			System.out.println("Supported argument: all/user/group/global-networks/all-local/<networkUUID>");
+			System.err.println("Supported argument: all/user/group/all-networks-online/global-networks/all-local/<networkUUID>");
 			//System.out.println("For the boolean argument after network ID, true means rebuild the Single Network index.");
 		}
 		
