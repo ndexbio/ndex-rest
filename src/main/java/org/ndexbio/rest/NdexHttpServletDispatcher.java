@@ -38,7 +38,7 @@ import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.logging.Logger;
 
-import javax.servlet.ServletContext;
+import jakarta.servlet.ServletContext;
 
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.access.NdexDatabase;
@@ -83,8 +83,8 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 
 	
 	@Override
-	public void init(javax.servlet.ServletConfig servletConfig)
-	          throws javax.servlet.ServletException {
+	public void init(jakarta.servlet.ServletConfig servletConfig)
+	          throws jakarta.servlet.ServletException {
 		super.init(servletConfig);
 			
 		//Configuration configuration = null;
@@ -109,7 +109,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	    			configuration.getDBUser(),
 	    			configuration.getDBPasswd(), size);
     	
-			logger.info("Db created for " + configuration.getDBURL());
+			logger.info("Db created for " + configuration.getDBURL() + " and thread: " + Thread.currentThread().getName());
 
 			// create solr core for network indexes if needed.
 			try (NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager()) {
@@ -162,7 +162,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			
 		} catch ( Exception e) {
 			e.printStackTrace();
-			throw new javax.servlet.ServletException("Failed to start Ndex server. Cause: " + e.getMessage(), e);
+			throw new jakarta.servlet.ServletException("Failed to start Ndex server. Cause: " + e.getMessage(), e);
 		}
 		
 		

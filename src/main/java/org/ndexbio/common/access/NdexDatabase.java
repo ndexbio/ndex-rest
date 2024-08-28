@@ -95,17 +95,20 @@ public class NdexDatabase {
 	public static synchronized NdexDatabase createNdexDatabase ( String dbURL, String dbUserName,
 			String dbPassword, int size) throws NdexException {
 		if(INSTANCE == null) {
-	         INSTANCE = new NdexDatabase(dbURL, dbUserName, dbPassword, size);
-	         return INSTANCE;
-		} 
+			logger.info("Creating database instance via thread: " +
+					Thread.currentThread().getName());
+	        INSTANCE = new NdexDatabase(dbURL, dbUserName, dbPassword, size);
+	        return INSTANCE;
+		}
+		logger.info("Database has already been opened. Returning existing instance. on thread: " + Thread.currentThread().getName());
 		
-		throw new NdexException("Database has already been opened.");
-		
+		return INSTANCE;
 	}
 
 	
 	
 	public static synchronized NdexDatabase getInstance() {
+		logger.info("Getting Database on thread: " + Thread.currentThread().getName());
 	      return INSTANCE;
 	}
     
@@ -115,9 +118,9 @@ public class NdexDatabase {
     		INSTANCE.connectionPool.close();
     		INSTANCE.connectionPool = null;
     		INSTANCE = null;
-    		logger.info("Database closed.");
+    		logger.info("Database closed. on thread: " + Thread.currentThread().getName());
     	} else 
-    		logger.info("Database is already closed.");
+    		logger.info("Database is already closed. on thread: " + Thread.currentThread().getName());
     }
     
     /**

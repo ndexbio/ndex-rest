@@ -33,7 +33,10 @@ package org.ndexbio.rest;
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.ws.rs.core.Application;
+import jakarta.ws.rs.core.Application;
+
+import io.swagger.v3.jaxrs2.integration.resources.AcceptHeaderOpenApiResource;
+import io.swagger.v3.jaxrs2.integration.resources.OpenApiResource;
 
 import org.jboss.resteasy.plugins.interceptors.CorsFilter;
 import org.ndexbio.model.exceptions.NdexException;
@@ -63,6 +66,7 @@ import org.ndexbio.rest.services.TaskService;
 import org.ndexbio.rest.services.TaskServiceV2;
 import org.ndexbio.rest.services.UserService;
 import org.ndexbio.rest.services.UserServiceV2;
+import org.ndexbio.rest.services.v3.AdminServiceV3;
 import org.ndexbio.rest.services.v3.BatchService;
 import org.ndexbio.rest.services.v3.CyWebWorkspaceServices;
 import org.ndexbio.rest.services.v3.NetworkServiceV3;
@@ -96,9 +100,12 @@ public class NdexRestApi extends Application
         _resources.add(CyWebWorkspaceServices.class);
         _resources.add(UserServicesV3.class);
         _resources.add(BatchService.class);
+		_resources.add(OpenApiResource.class);
+		_resources.add(AcceptHeaderOpenApiResource.class);
+        _resources.add(AdminServiceV3.class); //
+
         
-        
-        
+         
         _providers.add(new BasicAuthenticationFilter());
         _providers.add(new NdexDefaultResponseFilter());
         _providers.add(new DuplicateObjectExceptionMapper());

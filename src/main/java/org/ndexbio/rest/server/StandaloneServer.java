@@ -85,7 +85,7 @@ public class StandaloneServer {
 		ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
 		context.setContextPath("/ndexbio-rest");
 		ServletHolder h = new ServletHolder(new NdexHttpServletDispatcher());
-		h.setInitParameter("javax.ws.rs.Application", "org.ndexbio.rest.NdexRestApi");
+		h.setInitParameter("jakarta.ws.rs.Application", "org.ndexbio.rest.NdexRestApi");
 		context.addServlet(h, "/*");
 		server.setHandler(context);
 		

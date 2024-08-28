@@ -106,6 +106,27 @@ public class UserIndexManager implements AutoCloseable{
 		
 	}
 	
+	/**
+	 * Removes index from SOLR completely (tosses filesystem data)
+	 * @throws IOException
+	 * @throws SolrServerException
+	 * @throws NdexException 
+	 */
+	public void dropIndex() throws IOException, SolrServerException, NdexException {
+		try {
+			client.setBaseURL(solrUrl);
+		//	CollectionAdminRequest.deleteCollection(collectionName).process(client);
+			
+			CoreAdminRequest.unloadCore(UserIndexManager.coreName, true, true, client);
+		} catch (HttpSolrClient.RemoteSolrException e4) {
+			System.out.println(e4.code() + " - " + e4.getMessage());
+			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
+				e4.printStackTrace();
+				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
+			}	
+		} 
+	}
+	
 	public SolrDocumentList searchUsers (String searchTerms, int limit, int offset) 
 			throws SolrServerException, IOException, NdexException {
 		client.setBaseURL(solrUrl+ "/" + coreName);

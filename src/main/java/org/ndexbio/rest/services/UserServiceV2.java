@@ -41,19 +41,19 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 
-import javax.annotation.security.PermitAll;
-import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.DefaultValue;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.Response;
+import jakarta.annotation.security.PermitAll;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
@@ -80,7 +80,6 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
 import org.ndexbio.rest.helpers.Security;
-import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.LDAPAuthenticator;
 import org.ndexbio.security.OAuthAuthenticator;
 import org.ndexbio.task.NdexServerQueue;
@@ -89,9 +88,9 @@ import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import jakarta.ws.rs.Consumes;
 
 @Path("/v2/user")
 public class UserServiceV2 extends NdexService {
@@ -151,6 +150,7 @@ public class UserServiceV2 extends NdexService {
 	@PermitAll
 	@NdexOpenFunction
 	@Produces("text/plain")
+	@Consumes("application/json")
 	public Response createUser(final User newUser, 
 			@QueryParam("idtoken") String id_token)
 			throws Exception {
@@ -267,7 +267,7 @@ public class UserServiceV2 extends NdexService {
 	}
 	
 
-	private static User createUserFromIdToken(User tmpUser, String idTokenString , OAuthAuthenticator authenticator) throws Exception {
+	public static User createUserFromIdToken(User tmpUser, String idTokenString , OAuthAuthenticator authenticator) throws Exception {
 
 			  // Get profile information from payload
 			  User newUser =  authenticator.generateUserFromToken(tmpUser, idTokenString) ;
@@ -531,12 +531,14 @@ public class UserServiceV2 extends NdexService {
 
 	public void updateUser(@PathParam("userid") final String userId, final User updatedUser)
 			throws Exception {
+		
+		String newEmail = updatedUser.getEmailAddress();
 		Preconditions.checkArgument(UUID.fromString(userId).equals(updatedUser.getExternalId()), 
 				"UUID in updated user data doesn't match user ID in the URL.");
 		Preconditions.checkArgument(updatedUser.getExternalId().equals(getLoggedInUserId()), 
 				"UUID in URL doesn't match the user ID of the signed in user's.");
-		Preconditions.checkArgument(null != updatedUser.getEmailAddress() && 
-				   updatedUser.getEmailAddress().length()>=6, 
+		Preconditions.checkArgument(null != newEmail && 
+				newEmail.length()>=6, 
 				"A valid email address is required.");
 		
 		
@@ -553,11 +555,24 @@ public class UserServiceV2 extends NdexService {
 		try (UserDAO dao = new UserDAO ()){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
 			try (UserIndexManager mgr = new UserIndexManager()) {
+				// check if email address has been changed.
+				if( !oldEmail.equals(newEmail)) {
+					// check if other user with the same email address exists.	
+                    User u = dao.getUserByEmail(newEmail, false);
+					if (u != null && !u.getExternalId().equals(user.getExternalId())) {
+						throw new NdexException("User with email address " + newEmail + " already exists.");
+					}
+					//check if there are any account using the new email address
+					u = dao.getUserByAccountName(newEmail, false, false);
+					if (u != null && !u.getExternalId().equals(user.getExternalId())) {
+						throw new NdexException("User with account name " + newEmail + " already exists.");
+					}
+				}					
 				mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
 				dao.commit();
 			}
 			
-			if ( !oldEmail.equals(updatedUser.getEmailAddress())) {
+			if ( !oldEmail.equals(newEmail)) {
 				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
 
 				String messageBody = "Dear " + user.getFirstName() + " " + user.getLastName()+ 

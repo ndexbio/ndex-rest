@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <schema name="ndex_neworks" version="1.6">
- 
+
    <field name="_version_" type="plong" indexed="true" stored="true"/>
 
    <field name="_root_" type="string" indexed="true" stored="false"/>
 
-   <field name="uuid" type="string" indexed="true" stored="true" required="true" multiValued="false" /> 
-        
+   <field name="uuid" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+
    <field name="name" type="text_general" indexed="true" stored="false" multiValued="true"/>
    <field name="description" type="text_general" indexed="true" stored="false" multiValued="true"/>
    <field name="version" type="text_ws" indexed="true" stored="false" multiValued="true"/>
@@ -23,16 +23,16 @@
    <field name="grpAdmin" type="string" indexed="true" stored="false"  multiValued="true"/>
    <field name="visibility" type="string" indexed="true" stored="false"  multiValued="false"/>
    <field name="labels" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   
+
   <!-- some fields that should be useful for biological networks -->
    <field name="nodeName" type="text_ws" indexed="true" stored="false"  multiValued="true"/>
    <field name="NCBIGeneID" type="text_ws" indexed="true" stored="false" multiValued="true" />
    <field name="geneSymbol" type="text_ws" indexed="true" stored="false"  multiValued="true" />
    <field name="represents" type="text_ws" indexed="true" stored="false"  multiValued="true" />
    <field name="alias" type="text_ws" indexed="true" stored="false"  multiValued="true" />
-<!--  <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />   -->  
-   
-   
+<!--  <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />   -->
+
+
    <!-- Collaborator required index fields   -->
    <field name="objectCategory" type="text_general" indexed="true" stored="false" multiValued="true"/>
    <field name="networkType" type="text_general" indexed="true" stored="false" multiValued="true"/>
@@ -58,7 +58,7 @@
         NOTE: This field is not indexed by default, since it is also copied to "text"
         using copyField below. This is to save space. Use this field for returning and
         highlighting document content. Use the "text" field to search the content. -->
-   <!--      
+   <!--
    <field name="content" type="text_general" indexed="false" stored="true" multiValued="true"/>
     -->
 
@@ -73,15 +73,15 @@
    <field name="payloads" type="payloads" indexed="true" stored="false"/>
 
 
-   <!-- uncomment the following to ignore any fields that don't already match an existing 
-        field name or dynamic field, rather than reporting them as an error. 
-        alternately, change the type="ignored" to some other type e.g. "text" if you want 
-        unknown fields indexed and/or stored by default --> 
+   <!-- uncomment the following to ignore any fields that don't already match an existing
+        field name or dynamic field, rather than reporting them as an error.
+        alternately, change the type="ignored" to some other type e.g. "text" if you want
+        unknown fields indexed and/or stored by default -->
    <!--dynamicField name="*" type="ignored" multiValued="true" /-->
-   
+
  <uniqueKey>uuid</uniqueKey>
 
-<!-- 
+<!--
    <copyField source="name" dest="text"/>
    <copyField source="description" dest="text"/>
    <copyField source="objectCategory" dest="text"/>
@@ -127,7 +127,7 @@
     <fieldType name="pfloat" class="solr.FloatPointField" docValues="true"/>
     <fieldType name="plong" class="solr.LongPointField" docValues="true"/>
     <fieldType name="pdouble" class="solr.DoublePointField" docValues="true"/>
-    
+
     <fieldType name="pints" class="solr.IntPointField" docValues="true" multiValued="true"/>
     <fieldType name="pfloats" class="solr.FloatPointField" docValues="true" multiValued="true"/>
     <fieldType name="plongs" class="solr.LongPointField" docValues="true" multiValued="true"/>
@@ -142,11 +142,11 @@
 
     <!-- The "RandomSortField" is not used to store or search any
          data.  You can declare fields of this type it in your schema
-         to generate pseudo-random orderings of your docs for sorting 
+         to generate pseudo-random orderings of your docs for sorting
          or function purposes.  The ordering is generated based on the field
          name and the version of the index. As long as the index version
          remains unchanged, and the same field name is reused,
-         the ordering of the docs will be consistent.  
+         the ordering of the docs will be consistent.
          If you want different psuedo-random orderings of documents,
          for the same version of the index, use a dynamicField and
          change the field name in the request.
@@ -186,7 +186,7 @@
       <analyzer>
         <tokenizer class="solr.StandardTokenizerFactory"/>
         <filter class="solr.ManagedStopFilterFactory" managed="english" />
-        <filter class="solr.ManagedSynonymFilterFactory" managed="english" />
+        <filter class="solr.ManagedSynonymGraphFilterFactory" managed="english" />
       </analyzer>
     </fieldType>
 
@@ -216,7 +216,7 @@
    <!-- SortableTextField generaly functions exactly like TextField,
          except that it supports, and by default uses, docValues for sorting (or faceting)
          on the first 1024 characters of the original field values (which is configurable).
-         
+
          This makes it a bit more useful then TextField in many situations, but the trade-off
          is that it takes up more space on disk; which is why it's not used in place of TextField
          for every fieldType in this _default schema.
@@ -395,13 +395,13 @@
         <filter class="solr.TrimFilterFactory" />
         <!-- The PatternReplaceFilter gives you the flexibility to use
              Java Regular expression to replace any sequence of characters
-             matching a pattern with an arbitrary replacement string, 
+             matching a pattern with an arbitrary replacement string,
              which may include back references to portions of the original
              string matched by the pattern.
-             
+
              See the Java Regular Expression documentation for more
              information on pattern and replacement string syntax.
-             
+
              http://docs.oracle.com/javase/8/docs/api/java/util/regex/package-summary.html
           -->
         <filter class="solr.PatternReplaceFilterFactory"
@@ -409,7 +409,7 @@
         />
       </analyzer>
     </fieldType>
-    
+
     <fieldType name="phonetic" stored="false" indexed="true" class="solr.TextField" >
       <analyzer>
         <tokenizer class="solr.StandardTokenizerFactory"/>
@@ -423,7 +423,7 @@
         <!--
         The DelimitedPayloadTokenFilter can put payloads on tokens... for example,
         a token of "foo|1.4"  would be indexed as "foo" with a payload of 1.4f
-        Attributes of the DelimitedPayloadTokenFilterFactory : 
+        Attributes of the DelimitedPayloadTokenFilterFactory :
          "delimiter" - a one character delimiter. Default is | (pipe)
    "encoder" - how to encode the following value into a playload
       float -> org.apache.lucene.analysis.payloads.FloatEncoder,
@@ -443,7 +443,7 @@
       </analyzer>
     </fieldType>
 
-    <!-- 
+    <!--
       Example of using PathHierarchyTokenizerFactory at index time, so
       queries for paths match documents at that path, or in descendent paths
     -->
@@ -455,7 +455,7 @@
   <tokenizer class="solr.KeywordTokenizerFactory" />
       </analyzer>
     </fieldType>
-    <!-- 
+    <!--
       Example of using PathHierarchyTokenizerFactory at query time, so
       queries for paths match documents at that path, or in ancestor paths
     -->
@@ -469,12 +469,12 @@
     </fieldType>
 
     <!-- since fields of this type are by default not stored or indexed,
-         any data added to them will be ignored outright.  --> 
+         any data added to them will be ignored outright.  -->
     <fieldType name="ignored" stored="false" indexed="false" multiValued="true" class="solr.StrField" />
 
     <!-- This point type indexes the coordinates as separate fields (subFields)
       If subFieldType is defined, it references a type, and a dynamic field
-      definition is created matching *___<typename>.  Alternately, if 
+      definition is created matching *___<typename>.  Alternately, if
       subFieldSuffix is defined, that is used to create the subFields.
       Example: if subFieldType="double", then the coordinates would be
         indexed in fields myloc_0___double,myloc_1___double.

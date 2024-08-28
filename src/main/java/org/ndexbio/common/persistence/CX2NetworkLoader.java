@@ -516,7 +516,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 			try {
 				entry.getValue().close();
 			} catch (IOException e) {
-				logger.error("Failed to close output stream when closing CXNetworkLoader: " + e.getMessage());
+				logger.error("Failed to close CX2AspectWriter for aspect: \" + entry.getKey()",e);
 			}
 		}
 	}
