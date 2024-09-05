@@ -108,7 +108,6 @@ public class NdexDatabase {
 	
 	
 	public static synchronized NdexDatabase getInstance() {
-		logger.info("Getting Database on thread: " + Thread.currentThread().getName());
 	      return INSTANCE;
 	}
     
