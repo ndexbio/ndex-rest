@@ -37,15 +37,29 @@
          xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">
 
     <display-name>NDEx RESTful API</display-name>
-
     <servlet>
         <servlet-name>Resteasy</servlet-name>
-<!--          <servlet-class>org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher</servlet-class> -->
         <servlet-class>org.ndexbio.rest.NdexHttpServletDispatcher</servlet-class>
         <init-param>
-        	<param-name>javax.ws.rs.Application</param-name>
+        	<param-name>jakarta.ws.rs.Application</param-name>
         	<param-value>org.ndexbio.rest.NdexRestApi</param-value>
         </init-param>
+		<init-param>
+		  <param-name>openApi.configuration.resourcePackages</param-name>
+		  <param-value>org.ndexbio.rest.services,org.ndexbio.model</param-value>
+		</init-param>
+		<init-param>
+			<param-name>openApi.configuration.scannerClass</param-name>
+			<param-value>org.ndexbio.rest.services.SwaggerScanner</param-value>
+		</init-param>
+		<init-param>
+			<param-name>openApi.configuration.filterClass</param-name>
+			<param-value>org.ndexbio.rest.filters.SwaggerFilter</param-value>
+		</init-param>
+		<init-param>
+		  <param-name>openApi.configuration.prettyPrint</param-name>
+		  <param-value>true</param-value>
+		</init-param>
         <load-on-startup>1</load-on-startup>
     </servlet>
 
@@ -53,16 +67,24 @@
         <servlet-name>Resteasy</servlet-name>
         <url-pattern>/*</url-pattern>
     </servlet-mapping>
-
-    <context-param>
-         <param-name>resteasy.scan</param-name>
-        <param-value>true</param-value>   
-    </context-param>
+	<servlet-mapping>
+		<servlet-name>default</servlet-name>
+		<url-pattern>/swagger/*</url-pattern>
+	</servlet-mapping>
 
     <context-param>
         <param-name>resteasy.servlet.mapping.prefix</param-name>
         <param-value>/</param-value>
     </context-param>
+	
+	<!-- enable this and the resteasy stats maven dependency in pom.xml 
+         to access resteasy/registry which lists all endpoints being served
+		 by resteasy
+	<context-param>
+        <param-name>resteasy.resources</param-name>
+        <param-value>org.jboss.resteasy.plugins.stats.RegistryStatsResource</param-value>
+    </context-param>
+	-->
 
 	<!--<filter>
 		<filter-name>CrossOriginResourceSharingFilter</filter-name>

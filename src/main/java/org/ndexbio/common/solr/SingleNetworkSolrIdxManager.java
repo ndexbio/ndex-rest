@@ -272,7 +272,6 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 			
 			CoreAdminRequest.unloadCore(collectionName, true, true, client);
 		} catch (HttpSolrClient.RemoteSolrException e4) {
-			System.out.println(e4.code() + " - " + e4.getMessage());
 			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
 				e4.printStackTrace();
 				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());

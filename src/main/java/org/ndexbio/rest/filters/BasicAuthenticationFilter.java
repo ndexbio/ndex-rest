@@ -39,17 +39,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.annotation.security.PermitAll;
-import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.container.ContainerRequestContext;
-import javax.ws.rs.container.ContainerRequestFilter;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.ResponseBuilder;
-import javax.ws.rs.core.Response.Status;
-import javax.ws.rs.core.UriInfo;
-import javax.ws.rs.ext.Provider;
+import jakarta.annotation.security.PermitAll;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.container.ContainerRequestContext;
+import jakarta.ws.rs.container.ContainerRequestFilter;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.Response.ResponseBuilder;
+import jakarta.ws.rs.core.Response.Status;
+import jakarta.ws.rs.core.UriInfo;
+import jakarta.ws.rs.ext.Provider;
 
 import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -130,13 +130,13 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 			String publicKey = config.getRequiredProperty("KEYCLOAK_PUBLIC_KEY");
 			try {
 				oAuthAuthenticator = new KeyCloakOpenIDAuthenticator(publicKey, issuer);
-				System.out.println("KeyCloak authenticator created.");
+				_logger.info("KeyCloak authenticator created.");
 			} catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
 				throw new NdexException("Failed to create Auth filter. Cause: " + e.getMessage());
 			}
 			NdexService.setOAuthAuthenticator(oAuthAuthenticator);
 		} else {	
-			System.out.println("KeyCloak not configured, trying google oauth.");	
+			_logger.info("KeyCloak not configured, trying google oauth.");	
 		   String useGoogleOAuth = config.getProperty(USE_GOOGLE_OAUTH);
 		   if ( useGoogleOAuth !=null && useGoogleOAuth.equalsIgnoreCase("true")) {
 			  oAuthAuthenticator = new GoogleOpenIDAuthenticator(config);
@@ -170,6 +170,16 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 		// write the log context
 		MDC.put("RequestsUniqueId", 
 				"tid:"+System.currentTimeMillis() + "-" + getCounter() /*+ Thread.currentThread().getId()*/);
+		
+		// if requested method name is getOpenApi then let it thru because
+		// someone is requesting openapi.json or openapi.yaml and that does 
+		// not need authentication
+		if (method != null && method.getName() != null &&
+				method.getName().equalsIgnoreCase("getOpenApi")){
+			_logger.info("Bypassing authentication because getOpenApi endpoint requested");
+			accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method,authType));
+			return;
+		}
 
 		NdexException authorizationException = null;
         try
@@ -331,7 +341,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         ObjectMapper mapper = new ObjectMapper();
         HashMap<String,String> m2 = new HashMap<>(m.size());
         for (Map.Entry<String,List<String>> e:  m.entrySet()) {
-        	m2.put(e.getKey(), e.getValue() == null? "": e.getValue().get(0));
+        	if ( !e.getKey().equals("key"))
+        		m2.put(e.getKey(), e.getValue() == null? "": e.getValue().get(0));
         }
         return mapper.writeValueAsString(m2).replaceAll("\n"," ");
     }

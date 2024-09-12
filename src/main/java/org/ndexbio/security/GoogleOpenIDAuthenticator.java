@@ -65,8 +65,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.http.apache.ApacheHttpTransport;
-import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 
 public class GoogleOpenIDAuthenticator implements OAuthAuthenticator{
 
@@ -132,18 +132,14 @@ public class GoogleOpenIDAuthenticator implements OAuthAuthenticator{
 			 }	
 	}
 	
-    public Payload getPayloadFromIdToken(String idTokenString) throws GeneralSecurityException, IOException, UnauthorizedOperationException {
-    	ApacheHttpTransport.Builder builder = new ApacheHttpTransport.Builder();
-		
-		GoogleIdTokenVerifier localVerifier = new GoogleIdTokenVerifier.Builder(builder.build(), new JacksonFactory())
+    public GoogleIdToken.Payload getPayloadFromIdToken(String idTokenString) throws GeneralSecurityException, IOException, UnauthorizedOperationException {
+        GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(GoogleNetHttpTransport.newTrustedTransport(), GsonFactory.getDefaultInstance())
 			    .setAudience(Collections.singletonList(clientID))
-			    // Or, if multiple clients access the backend:
-			    //.setAudience(Arrays.asList(CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3))
 			    .build();
 		
-		GoogleIdToken idToken = localVerifier.verify(idTokenString);
+        GoogleIdToken idToken = verifier.verify(idTokenString);
 		if (idToken != null) {
-			return  idToken.getPayload();
+            return idToken.getPayload();
 		}
 		throw new UnauthorizedOperationException("Invalid OAuth ID token.");
     }
