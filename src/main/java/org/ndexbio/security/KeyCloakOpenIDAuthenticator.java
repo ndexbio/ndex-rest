@@ -103,7 +103,9 @@ public class KeyCloakOpenIDAuthenticator implements OAuthAuthenticator {
 		String username = getUserNameFromIdToken(idTokenString);
 		if (username != null) {
 			try (UserDAO userDao = new UserDAO()) {
-				User u = userDao.getUserByAccountName(username, true, true);
+				User u = userDao.getUserByAccountName(username, false, true);
+				if ( !u.getIsVerified())
+                    throw new UnauthorizedOperationException("User account is not verified yet. Please check email for verification link.");
 				return u;
 			} 
 			catch (ObjectNotFoundException e) {
