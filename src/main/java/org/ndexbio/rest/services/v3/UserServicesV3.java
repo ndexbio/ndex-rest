@@ -86,6 +86,8 @@ public class UserServicesV3 extends NdexService {
 		//check if we need to create user from OAuth.
         try {
         	User user = getOAuthAuthenticator().getUserByIdToken(idToken);
+			if ( !user.getIsVerified())
+					throw UnauthorizedOperationException.createUnVerifiedAccountError(user.getUserName(), user.getEmailAddress());
         	return user;
 		} catch (ObjectNotFoundException e) {
 			//create user from id token
