@@ -70,7 +70,7 @@ public class UserServicesV3 extends NdexService {
 	@Path("/signin")
 	@Produces("application/json")
   	
-	public User singInByIdToken(
+	public User signInByIdToken(
 			 Map<String,String> payload
 		) throws Exception  {
 
