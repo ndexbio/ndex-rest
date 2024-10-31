@@ -463,6 +463,9 @@ public class CX2ToCXConverter {
 		DefaultVisualProperties defaultVPs = vps.getDefaultProps();
 		VisualPropertyTable nodeDefaultVPs =defaultVPs.getNodeProperties();
 		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("nodes:default");
+		//set default value of dependencies in vp
+		vp.getDependencies().put(VisualEditorProperties.NODE_SIZE_LOCKED, "false");
+		vp.getDependencies().put(VisualEditorProperties.NODE_CUSTOM_GRAPHICS_SIZE_SYNC, "true");
 		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(nodeDefaultVPs));
 		
 		// set node dependency
@@ -472,12 +475,12 @@ public class CX2ToCXConverter {
 			SortedMap<String, String> nodeVPDependencies = vp.getDependencies();
 			if ( deps.get("nodeSizeLocked") != null ) {
 				nodeSizeLocked = ((Boolean)deps.get("nodeSizeLocked")).booleanValue();
-				nodeVPDependencies.put("nodeSizeLocked", Boolean.toString(nodeSizeLocked));
+				nodeVPDependencies.put(VisualEditorProperties.NODE_SIZE_LOCKED, Boolean.toString(nodeSizeLocked));
 				vp.getProperties().put("NODE_SIZE", vp.getProperties().get("NODE_WIDTH"));
 			}
-			if ( deps.get("nodeCustomGraphicsSizeSync") !=null ) {
-				nodeVPDependencies.put("nodeCustomGraphicsSizeSync", 
-						deps.get("nodeCustomGraphicsSizeSync").toString()); 
+			if ( deps.get(VisualEditorProperties.NODE_CUSTOM_GRAPHICS_SIZE_SYNC) !=null ) {
+				nodeVPDependencies.put(VisualEditorProperties.NODE_CUSTOM_GRAPHICS_SIZE_SYNC, 
+						deps.get(VisualEditorProperties.NODE_CUSTOM_GRAPHICS_SIZE_SYNC).toString()); 
 			}
 		}
 		
@@ -500,6 +503,8 @@ public class CX2ToCXConverter {
 		DefaultVisualProperties defaultVPs = vps.getDefaultProps();
 		VisualPropertyTable edgeDefaultVPs =defaultVPs.getEdgeProperties();
 		CyVisualPropertiesElement vp = new CyVisualPropertiesElement ("edges:default");
+		//set default value of dependencies in vp
+		vp.getDependencies().put(VisualEditorProperties.ARROW_COLOR_MATCHES_EDGES, "false");
 		vp.setProperties(CX2ToCXVisualPropertyConverter.getInstance().convertEdgeOrNodeVPs(edgeDefaultVPs));
 		
 		// set edge dependency
@@ -508,9 +513,9 @@ public class CX2ToCXConverter {
 		if ( vep != null ) {
 			Map<String,Object> deps = vep.getProperties();
 			SortedMap<String, String> edgeVPDependencies = vp.getDependencies();
-			if ( deps.get("arrowColorMatchesEdge") != null ) {
-				arrowColorMatchesEdge = ((Boolean)deps.get("arrowColorMatchesEdge")).booleanValue();
-				edgeVPDependencies.put("arrowColorMatchesEdge", Boolean.toString(arrowColorMatchesEdge));
+			if ( deps.get(VisualEditorProperties.ARROW_COLOR_MATCHES_EDGES) != null ) {
+				arrowColorMatchesEdge = ((Boolean)deps.get(VisualEditorProperties.ARROW_COLOR_MATCHES_EDGES)).booleanValue();
+				edgeVPDependencies.put(VisualEditorProperties.ARROW_COLOR_MATCHES_EDGES, Boolean.toString(arrowColorMatchesEdge));
 				vp.getProperties().put("EDGE_PAINT", vp.getProperties().get("EDGE_STROKE_UNSELECTED_PAINT"));	
 			}
 		}

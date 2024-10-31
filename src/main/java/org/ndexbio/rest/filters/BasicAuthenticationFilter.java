@@ -74,6 +74,7 @@ import org.slf4j.MDC;
 import com.auth0.jwt.exceptions.TokenExpiredException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.ndexbio.model.errorcodes.ErrorCode;
 
 /*
  * class represents a RestEasy request filter that will validate
@@ -241,9 +242,24 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         	_logger.info("OAuth access token expired. Cause: " +e.getMessage());
         	authorizationException = new UnauthorizedOperationException("Failed to authenticate user. Cause; " + e.getMessage());
         	
-        } catch (SecurityException | UnauthorizedOperationException e2 ) {
+        } catch(UnauthorizedOperationException uoe) {
+			
+			if (uoe.getNDExError().getErrorCode() == ErrorCode.NDEx_User_Account_Not_Verified){
+				_logger.info("Failed to authenticate a unverified user: " + (authInfo == null? "": authInfo[0]) + " Path:" +
+            		requestContext.getUriInfo().getPath(), uoe);
+				authorizationException = uoe;
+			} else {
+				_logger.info("Failed to authenticate a user due to invalid password: " + (authInfo == null? "": authInfo[0]) + " Path:" +
+            		requestContext.getUriInfo().getPath(), uoe);
+				// instantiate NdexException exception, transform it to JSON, and send it back to the client 
+				authorizationException = 
+            		new UnauthorizedOperationException("Invalid password for user " + (authInfo == null? "": authInfo[0]) + ".");
+			}
+		} 
+		catch (SecurityException e2 ) {
             _logger.info("Failed to authenticate a user: " + (authInfo == null? "": authInfo[0]) + " Path:" +
             		requestContext.getUriInfo().getPath(), e2);
+			
         	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
             authorizationException = 
             		new UnauthorizedOperationException("Invalid password for user " + (authInfo == null? "": authInfo[0]) + ".");
