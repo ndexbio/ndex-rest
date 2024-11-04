@@ -70,7 +70,7 @@ public class UserServicesV3 extends NdexService {
 	@Path("/signin")
 	@Produces("application/json")
   	
-	public User singInByIdToken(
+	public User signInByIdToken(
 			 Map<String,String> payload
 		) throws Exception  {
 
@@ -86,14 +86,15 @@ public class UserServicesV3 extends NdexService {
 		//check if we need to create user from OAuth.
         try {
         	User user = getOAuthAuthenticator().getUserByIdToken(idToken);
+			//if ( !user.getIsVerified())
+			//		throw UnauthorizedOperationException.createUnVerifiedAccountError(user.getUserName(), user.getEmailAddress());
         	return user;
 		} catch (ObjectNotFoundException e) {
 			//create user from id token
 			User user = UserServiceV2.createUserFromIdToken (new User(), idToken, getOAuthAuthenticator());
 			return user;
 		} // catch other exceptions from the getUerByIdToken	
-		catch (IOException | IllegalArgumentException | UnauthorizedOperationException | BadRequestException
-				e) {
+		catch (IOException | IllegalArgumentException | BadRequestException e) {
 			throw new BadRequestException("Sign-in failed: " + e.getMessage());
 		}
 		        

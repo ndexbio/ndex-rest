@@ -65,6 +65,8 @@ public class KeyCloakOpenIDAuthenticator implements OAuthAuthenticator {
 		if (username != null) {
 			try (UserDAO userDao = new UserDAO()) {
 				User u = userDao.getUserByAccountName(username, true, false);
+				if ( !u.getIsVerified())
+					throw UnauthorizedOperationException.createUnVerifiedAccountError(u.getUserName(), u.getEmailAddress());
 				return u.getExternalId();
 			} catch (SQLException e1) {
 				e1.printStackTrace();
@@ -103,7 +105,10 @@ public class KeyCloakOpenIDAuthenticator implements OAuthAuthenticator {
 		String username = getUserNameFromIdToken(idTokenString);
 		if (username != null) {
 			try (UserDAO userDao = new UserDAO()) {
-				User u = userDao.getUserByAccountName(username, true, true);
+				User u = userDao.getUserByAccountName(username, false, true);
+				if ( !u.getIsVerified())
+					throw UnauthorizedOperationException.createUnVerifiedAccountError(u.getUserName(), u.getEmailAddress());
+                    
 				return u;
 			} 
 			catch (ObjectNotFoundException e) {
