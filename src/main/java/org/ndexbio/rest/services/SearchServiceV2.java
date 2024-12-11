@@ -99,6 +99,8 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 @Path("/v2/search")
 public class SearchServiceV2 extends NdexService {
 	
@@ -135,6 +137,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/user")
+	@Operation(summary = "Search Users", description = "Returns a SearchResult object which contains an array of User objects and the total hit count of the search.")
 	@Produces("application/json")
 	
 	public static SolrSearchResult<User> findUsers(
@@ -170,6 +173,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/group")
+	@Operation(summary = "Search Groups", description = "Returns a SearchResult object which contains an array of Group objects and the total hit count of the search.")
 	@Produces("application/json")
 	public static SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -190,6 +194,7 @@ public class SearchServiceV2 extends NdexService {
 	@POST
 	@PermitAll
 	@Path("/network")
+	@Operation(summary = "Search Networks", description = "Returns a SearchResult object which contains an array of NetworkSummary objects and total hit count of the search.")
 	@Produces("application/json")
 	// TODO: need to node accountName is a filter and you cannot use wildcards
 	public NetworkSearchResult searchNetwork(
@@ -275,6 +280,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/query")
+	@Operation(summary = "Query Network", description = "Returns a CX network that is a 'neighborhood' subnetwork of the network specified by networkid.")
 	@Produces("application/json")
 
 	public Response queryNetworkAsCX(
@@ -468,6 +474,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/interconnectquery")
+	@Operation(summary = "Interconnect Query", description = "Returns a CX network that is a 'neighborhood' subnetwork where all the paths must start and end at one of the query nodes in the network specified by networkid.")
 	@Produces("application/json")
 
 	public Response interconnectQuery(
@@ -550,6 +557,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/advancedquery")
+	@Operation(summary = "Advanced Query", description = "This method retrieves a filtered subnetwork of the network specified by ‘networkId’ based on a POSTed JSON query object.")
 	@Produces("application/json")
    
 	public Response advancedQuery(
@@ -612,6 +620,7 @@ public class SearchServiceV2 extends NdexService {
 	@POST
 	@PermitAll
 	@Path("/network/genes")
+	@Operation(summary = "Search Networks by Gene/Protein", description = "Returns a SearchResult object which contains an array of NetworkSummary objects and total hit count of the search.")
 	@Produces("application/json")
 	public NetworkSearchResult searchNetworkByGenes(
 			final SimpleQuery geneQuery,
