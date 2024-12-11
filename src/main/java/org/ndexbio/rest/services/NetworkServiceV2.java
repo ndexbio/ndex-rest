@@ -130,6 +130,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 @Path("/v2/network")
 public class NetworkServiceV2 extends NdexService {
 	
@@ -1319,6 +1321,7 @@ public class NetworkServiceV2 extends NdexService {
 
     @PUT
     @Path("/{networkid}")
+	@Operation(summary = "Update a Network", description = "Update the specified network with new content, based on CX data.")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces("application/json")
 
@@ -1767,6 +1770,7 @@ public class NetworkServiceV2 extends NdexService {
 	//	@PermitAll
 
 	   @Path("")
+	   @Operation(summary = "Create a CX Network", description = "Create a network from CX data.")
 	   @Produces("text/plain")
 	   @Consumes("multipart/form-data")
 	   public Response createCXNetwork( MultipartFormDataInput input,
@@ -1947,109 +1951,110 @@ public class NetworkServiceV2 extends NdexService {
 		}
 	   
 	   
-	   	@POST
-		   @Path("/{networkid}/copy")
-		   @Produces("text/plain")
-		   public Response cloneNetwork( @PathParam("networkid") final String srcNetworkUUIDStr) throws Exception
-		   {
+	   @POST
+	   @Path("/{networkid}/copy")
+	   @Operation(summary = "Clone a Network", description = "This function clones the network specified by networkid to the signed in user’s account. It returns the URL of cloned network to the client.")
+	   @Produces("text/plain")
+	   public Response cloneNetwork( @PathParam("networkid") final String srcNetworkUUIDStr) throws Exception
+	   {
+	   
+		   try (UserDAO dao = new UserDAO()) {
+			   dao.checkDiskSpace(getLoggedInUserId());
+		   }
 		   
-			   try (UserDAO dao = new UserDAO()) {
-				   dao.checkDiskSpace(getLoggedInUserId());
+		   UUID srcNetUUID = UUID.fromString(srcNetworkUUIDStr);
+		   
+		   try ( NetworkDAO dao = new NetworkDAO ()) {
+			   if ( ! dao.isReadable(srcNetUUID, getLoggedInUserId()) ) 
+	                throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+	    		
+			   if (!dao.networkIsValid(srcNetUUID)) {
+				   throw new NdexException ("Invalid networks can not be copied.");
 			   }
-			   
-			   UUID srcNetUUID = UUID.fromString(srcNetworkUUIDStr);
-			   
-			   try ( NetworkDAO dao = new NetworkDAO ()) {
-				   if ( ! dao.isReadable(srcNetUUID, getLoggedInUserId()) ) 
-		                throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-		    		
-				   if (!dao.networkIsValid(srcNetUUID)) {
-					   throw new NdexException ("Invalid networks can not be copied.");
-				   }
-			   }
-			   
-			   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-			   String uuidStr = uuid.toString();
-			   
-			//	java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString());
-				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr);
-				
-				//Create dir
-				Set<PosixFilePermission> perms =
-						    PosixFilePermissions.fromString("rwxrwxr-x");
-				FileAttribute<Set<PosixFilePermission>> attr =
-						    PosixFilePermissions.asFileAttribute(perms);
-				Files.createDirectory(tgt,attr);
-				
-				String srcPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/";
-				String tgtPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/";
+		   }
+		   
+		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   String uuidStr = uuid.toString();
+		   
+		//	java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString());
+			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr);
+			
+			//Create dir
+			Set<PosixFilePermission> perms =
+					    PosixFilePermissions.fromString("rwxrwxr-x");
+			FileAttribute<Set<PosixFilePermission>> attr =
+					    PosixFilePermissions.asFileAttribute(perms);
+			Files.createDirectory(tgt,attr);
+			
+			String srcPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/";
+			String tgtPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/";
 
-			    File srcAspectDir = new File ( srcPathPrefix + CXNetworkLoader.CX1AspectDir);
-			    if ( srcAspectDir.exists()) {
-			    	File tgtAspectDir = new File ( tgtPathPrefix + CXNetworkLoader.CX1AspectDir);
-			    	FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
-			    }
-			    
-			    //copy the cx2 aspect directories
-			    String tgtCX2AspectPathPrefix = tgtPathPrefix + CX2NetworkLoader.cx2AspectDirName;
-			    String srcCX2AspectPathPrefix = srcPathPrefix + CX2NetworkLoader.cx2AspectDirName;
-			    File srcCX2AspectDir = new File (srcCX2AspectPathPrefix );
-			    Files.createDirectories(Paths.get(tgtCX2AspectPathPrefix), attr);
-			    for ( String fname : srcCX2AspectDir.list() ) {
-			    	java.nio.file.Path src = Paths.get(srcPathPrefix + CX2NetworkLoader.cx2AspectDirName , fname);
-			    	if (Files.isSymbolicLink(src)) {
-			    		java.nio.file.Path link = Paths.get(tgtCX2AspectPathPrefix, fname);
-			    		java.nio.file.Path target = Paths.get(tgtPathPrefix + CXNetworkLoader.CX1AspectDir, fname);
-			    		Files.createSymbolicLink(link, target);
-			    	} else {
-			    		Files.copy(Paths.get(srcCX2AspectPathPrefix, fname),
-			    				Paths.get(tgtCX2AspectPathPrefix, fname));
-			    	}
-			    	
-			    }
-			    
-			    String urlStr = Configuration.getInstance().getHostURI()  + 
-			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
-			   // ProvenanceEntity entity = new ProvenanceEntity();
-			  //  entity.setUri(urlStr + "/summary");
-			   
-			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/" + cx1NetworkFileName;
-			   long fileSize = new File(cxFileName).length();
+		    File srcAspectDir = new File ( srcPathPrefix + CXNetworkLoader.CX1AspectDir);
+		    if ( srcAspectDir.exists()) {
+		    	File tgtAspectDir = new File ( tgtPathPrefix + CXNetworkLoader.CX1AspectDir);
+		    	FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
+		    }
+		    
+		    //copy the cx2 aspect directories
+		    String tgtCX2AspectPathPrefix = tgtPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+		    String srcCX2AspectPathPrefix = srcPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+		    File srcCX2AspectDir = new File (srcCX2AspectPathPrefix );
+		    Files.createDirectories(Paths.get(tgtCX2AspectPathPrefix), attr);
+		    for ( String fname : srcCX2AspectDir.list() ) {
+		    	java.nio.file.Path src = Paths.get(srcPathPrefix + CX2NetworkLoader.cx2AspectDirName , fname);
+		    	if (Files.isSymbolicLink(src)) {
+		    		java.nio.file.Path link = Paths.get(tgtCX2AspectPathPrefix, fname);
+		    		java.nio.file.Path target = Paths.get(tgtPathPrefix + CXNetworkLoader.CX1AspectDir, fname);
+		    		Files.createSymbolicLink(link, target);
+		    	} else {
+		    		Files.copy(Paths.get(srcCX2AspectPathPrefix, fname),
+		    				Paths.get(tgtCX2AspectPathPrefix, fname));
+		    	}
+		    	
+		    }
+		    
+		    String urlStr = Configuration.getInstance().getHostURI()  + 
+		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
+		   // ProvenanceEntity entity = new ProvenanceEntity();
+		  //  entity.setUri(urlStr + "/summary");
+		   
+		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/" + cx1NetworkFileName;
+		   long fileSize = new File(cxFileName).length();
 
-			   // copy sample 
-			   java.nio.file.Path srcSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/sample.cx");
-			   if ( Files.exists(srcSample, LinkOption.NOFOLLOW_LINKS)) {
-				   java.nio.file.Path tgtSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/sample.cx");
-				   Files.copy(srcSample, tgtSample);
-			   }
-			   
-			   
-			   //TODO: generate prov:wasDerivedFrom and prov:wasGeneratedby field in both db record and the recreated CX file.
-			   // Need to handle the case when this network was a clone (means it already has prov:wasGeneratedBy and wasDerivedFrom attributes
-			   // create entry in db. 
-		       try (NetworkDAO dao = new NetworkDAO()) {
-		    //	   NetworkSummary summary = 
-		    			   dao.CreateCloneNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize, srcNetUUID);
-	
-					CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao /*, new Provenance(copyProv)*/);
-					g.reCreateCXFile();
-					CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(uuid, dao);
-					String tmpFilePath = g2.createCX2File();
-					Files.move(Paths.get(tmpFilePath), 
-							Paths.get(tgtPathPrefix + CX2NetworkLoader.cx2NetworkFileName), 
-							StandardCopyOption.ATOMIC_MOVE); 				
+		   // copy sample 
+		   java.nio.file.Path srcSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/sample.cx");
+		   if ( Files.exists(srcSample, LinkOption.NOFOLLOW_LINKS)) {
+			   java.nio.file.Path tgtSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/sample.cx");
+			   Files.copy(srcSample, tgtSample);
+		   }
+		   
+		   
+		   //TODO: generate prov:wasDerivedFrom and prov:wasGeneratedby field in both db record and the recreated CX file.
+		   // Need to handle the case when this network was a clone (means it already has prov:wasGeneratedBy and wasDerivedFrom attributes
+		   // create entry in db. 
+	       try (NetworkDAO dao = new NetworkDAO()) {
+	    //	   NetworkSummary summary = 
+	    			   dao.CreateCloneNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize, srcNetUUID);
 
-					dao.setFlag(uuid, "iscomplete", true);
-					dao.commit();
-		       }
-		       
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null, NetworkIndexLevel.NONE,false));
-		       			   
-			   URI l = new URI (urlStr);
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao /*, new Provenance(copyProv)*/);
+				g.reCreateCXFile();
+				CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(uuid, dao);
+				String tmpFilePath = g2.createCX2File();
+				Files.move(Paths.get(tmpFilePath), 
+						Paths.get(tgtPathPrefix + CX2NetworkLoader.cx2NetworkFileName), 
+						StandardCopyOption.ATOMIC_MOVE); 				
 
-			   return Response.created(l).entity(l).build();
+				dao.setFlag(uuid, "iscomplete", true);
+				dao.commit();
+	       }
+	       
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null, NetworkIndexLevel.NONE,false));
+	       			   
+		   URI l = new URI (urlStr);
 
-		   	}
+		   return Response.created(l).entity(l).build();
+
+	   	}
 		  
 
 	    @POST
