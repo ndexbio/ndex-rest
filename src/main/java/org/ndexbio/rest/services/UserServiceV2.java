@@ -90,6 +90,8 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.ws.rs.Consumes;
 
 @Path("/v2/user")
@@ -121,6 +123,7 @@ public class UserServiceV2 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("/{userid}/verification")
+	@Operation(summary = "Verify a User", description = "Verify the given user with UUID and verificationCode.")
 	@NdexOpenFunction
 	@Produces("text/plain")
 	public static String verifyUser(@PathParam("userid") String userUUID,
@@ -149,6 +152,7 @@ public class UserServiceV2 extends NdexService {
 	@POST
 	@PermitAll
 	@NdexOpenFunction
+	@Operation(summary = "Create User", description = "Create a new user based on a JSON object specifying username, password, and emailAddress.")
 	@Produces("text/plain")
 	@Consumes("application/json")
 	public Response createUser(final User newUser, 
@@ -323,6 +327,7 @@ public class UserServiceV2 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("")
+	@Operation(summary = "Get User By userName or email", description = "Return the user corresponding to the provided user name.")
 	@Produces("application/json")
 	public User getUserByAccountNameOrAuthenticatUser(
 			@QueryParam("username") /*@Encoded*/ final String accountName,
@@ -366,6 +371,7 @@ public class UserServiceV2 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("/{userid}")
+	@Operation(summary = "Get User By UUID", description = "Returns the user JSON object corresponding to the user’s UUID provided in the userid route parameter.")
 	@Produces("application/json")
 	public User getUserByUUID(@PathParam("userid") final String userIdStr)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
@@ -409,6 +415,7 @@ public class UserServiceV2 extends NdexService {
 	
 	@PUT
 	@Path("/{userid}/password")
+	@Operation(summary = "Change Password", description = "Changes the authenticated user's password to the new password in the PUT body.")
 //	@Consumes(MediaType.APPLICATION_JSON)
 	@PermitAll
 	@Produces("application/json")
@@ -458,6 +465,7 @@ public class UserServiceV2 extends NdexService {
 	 **************************************************************************/
 	@DELETE
 	@Path("/{userid}")
+	@Operation(summary = "Delete User", description = "Deletes the authenticated user, removing any other objects in the database that depend on the user.")
 	@Produces("application/json")
 
 	public void deleteUser(@PathParam("userid") final String userIdStr)
@@ -527,6 +535,7 @@ public class UserServiceV2 extends NdexService {
 	 **************************************************************************/
 	@PUT
 	@Path("/{userid}")
+	@Operation(summary = "Update User", description = "Updates the authenticated user based on the serialized user object in the PUT data.")
 	@Produces("application/json")
 
 	public void updateUser(@PathParam("userid") final String userId, final User updatedUser)
@@ -593,6 +602,7 @@ public class UserServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{userid}/membership")
+	@Operation(summary = "Get User's Membership", description = "Returns the permission that the user specified in the URL has on the given group.")
 	@Produces("application/json")
 	public static Map<String,String> getMembershipInfo(
 				@PathParam("userid") final String userIdStr,
@@ -680,6 +690,7 @@ public class UserServiceV2 extends NdexService {
 	
 	   @POST
 	   @Path("/{userid}/membershiprequest")
+	   @Operation(summary = "Create Membership Request", description = "Create a request to the group admin for the authenticated user to join the specified group.")
 	   @Produces("text/plain")
 	    public Response createMembershipRequest(
 	    		@PathParam("userid") final String userIdStr,
@@ -717,6 +728,7 @@ public class UserServiceV2 extends NdexService {
 
 	   @POST
 	   @Path("/{userid}/permissionrequest")
+	   @Operation(summary = "Create User Permission Request", description = "Creates a request to ask the owner of the network for permission for access by the authenticated user.")
 	   @Produces("text/plain")
 	    public Response createPermissionRequest(
 	    		@PathParam("userid") final String userIdStr,
@@ -757,6 +769,7 @@ public class UserServiceV2 extends NdexService {
 	   
 	   	@GET
 		@Path("/{userid}/permissionrequest/{requestid}")
+		@Operation(summary = "Get a User's Permission Requests by id", description = "Returns the permission request object specified by requestid.")
 		@Produces("application/json")
 		public Request getPermissionRequestById(@PathParam("userid") String userIdStr,
 				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
@@ -780,6 +793,7 @@ public class UserServiceV2 extends NdexService {
 	
 	   	@GET
 		@Path("/{userid}/permissionrequest")
+		@Operation(summary = "Get a User's Permission Requests", description = "Returns a JSON array of permission request objects in which the authenticated user is either the recipient or the sender.")
 		@Produces("application/json")
 		public List<Request> getPermissionRequests (
 				 @PathParam("userid") String userIdStr,
@@ -821,6 +835,7 @@ public class UserServiceV2 extends NdexService {
 
 	   	@GET
 		@Path("/{userid}/membershiprequest")
+		@Operation(summary = "Get a User's Permission Requests", description = "Returns a JSON array of permission request objects in which the authenticated user is either the recipient or the sender.")
 		@Produces("application/json")
 		public List<Request> getMembershipRequests (
 				 @PathParam("userid") String userIdStr,
@@ -863,6 +878,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@GET
 			@Path("/{userid}/membershiprequest/{requestid}")
+		@Operation(summary = "Get a User's Membership Request by id", description = "Returns the membership request object specified by requestid.")
 			@Produces("application/json")
 			public Request getMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
@@ -1067,6 +1083,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@GET
 		@Path("/{userid}/showcase")
+		@Operation(summary = "Get User's Showcase Networks", description = "This function returns a list of network summary objects that the user who is specified by userid chose to display in his or her home page. For authenticated users, this function returns the networks that the authenticated user can read, for anonymous users, this function returns only public networks.")
 		@Produces("application/json")
 		@PermitAll
 		public List<NetworkSummary> getUserShowcaseNetworks(
@@ -1084,6 +1101,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	  	@GET
 		@Path("/{userid}/networksummary")
+		@Operation(summary = "Get User's Account Page Networks", description = "This is a function designed to support My Account pages in NDEx applications. It returns a list of NetworkSummary objects to display.")
 		@Produces("application/json")
 		public List<NetworkSummary> getNetworkSummariesForMyAccountPage(
 						@PathParam("userid") String userIdStr,
@@ -1104,6 +1122,7 @@ public class UserServiceV2 extends NdexService {
 
 	  	@GET
 		@Path("/{userid}/networkcount")
+		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary and networkSet objects for this page.")
 		@Produces("application/json")
 		public Map<String,Integer> getNumNetworksForMyAccountPage(
 						 @PathParam("userid") String userIdStr
@@ -1127,6 +1146,7 @@ public class UserServiceV2 extends NdexService {
 	  	
 	   	@GET
 		@Path("/{userid}/networksets")
+		@Operation(summary = "Get All Network Sets owned by a user", description = "Get a list of network sets that are owned by a user.")
 		@Produces("application/json")
 		@PermitAll
 
