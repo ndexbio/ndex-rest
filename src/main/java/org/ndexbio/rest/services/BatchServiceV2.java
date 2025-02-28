@@ -41,14 +41,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import jakarta.annotation.security.PermitAll;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.core.Context;
-
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
@@ -75,6 +67,15 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.swagger.v3.oas.annotations.Operation;
+import jakarta.annotation.security.PermitAll;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+
 @Path("/v2/batch")
 public class BatchServiceV2 extends NdexService {
 	
@@ -98,6 +99,7 @@ public class BatchServiceV2 extends NdexService {
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/user")
+	@Operation(summary = "Get Users By UUIDs", description = "Returns a JSON array of User objects selected by the POSTed JSON array of user UUIDs.")
 	@Produces("application/json")
 	public static List<User> getUsersByUUIDs(
 			List<String> userIdStrs)
@@ -128,6 +130,7 @@ public class BatchServiceV2 extends NdexService {
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/group")
+	@Operation(summary = "Get Groups By UUIDs", description = "Returns a JSON array of Group objects selected by the POSTed JSON array of Group UUIDs. The number of POSTed group UUIDs is limited to 2000.")
 	@Produces("application/json")
 	public static List<Group> getGroupsByUUIDs(List<String> groupIdStrs)
 			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
@@ -154,6 +157,7 @@ public class BatchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/summary")
+	@Operation(summary = "Get Network Summaries By UUIDs", description = "Return a JSON array of network summary objects selected by the POSTed JSON array of Network UUIDs.")
 	@Produces("application/json")
 	public List<NetworkSummary> getNetworkSummaries(
 			@QueryParam("accesskey") String accessKey,
@@ -177,6 +181,7 @@ public class BatchServiceV2 extends NdexService {
 	
 	@POST
 	@Path("/network/permission")
+	@Operation(summary = "Get Network Permissions By UUIDs", description = "This function returns what permissions the authenticated user has on the given list of network ids.")
 	@Produces("application/json")
 	public Map<String,String> getNetworkPermissions(
 			List<String> networkIdStrs)
@@ -198,6 +203,7 @@ public class BatchServiceV2 extends NdexService {
 	
 	@POST
 	@Path("/network/export")
+	@Operation(summary = "Export Networks", description = "Creates network export tasks for the set of networks specified by the networkIds property in the network export request object in the POST data.")
 	@Produces("application/json")
 	public Map<UUID,UUID> exportNetworks(NetworkExportRequestV2 exportRequest)
 

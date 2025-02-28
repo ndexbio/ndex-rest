@@ -76,6 +76,8 @@ import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 
 @Path("/v2/admin")
 public class AdminServiceV2 extends NdexService {
@@ -104,6 +106,7 @@ public class AdminServiceV2 extends NdexService {
 	@PermitAll
 	@NdexOpenFunction
 	@Path("/status")
+	@Operation(summary = "Get Server Status", description = "Get the current status of the server. Use this function to check if the server is running and which version it is. The default value for parameter format is 'standard'.")
 	@Produces("application/json")
 	public NdexStatus getStatus(
 			@DefaultValue("short") @QueryParam("format") String format) throws NdexException, SQLException	{
@@ -158,6 +161,7 @@ public class AdminServiceV2 extends NdexService {
 	
 	@POST
 	@Path("/request")
+	@Operation(summary = "Create a request for admins", description = "General function for creating admin related requests. The posted object has a 'type' attribute which tells the type of a request.")
 	@Produces("application/json")
 	public void addRequest(
 			 Map<String,Object> request) throws Exception	{

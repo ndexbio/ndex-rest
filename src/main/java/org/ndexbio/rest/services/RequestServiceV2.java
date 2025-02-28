@@ -51,6 +51,8 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 @Path("/v2/request")
 public class RequestServiceV2 extends NdexService
 {
@@ -186,6 +188,7 @@ public class RequestServiceV2 extends NdexService
     **************************************************************************/
     @PUT
     @Path("/{requestid}/properties")
+	@Operation(summary = "Update Request Properties", description = "This function update the properties field of the request.")
     @Produces("application/json")
 	
     public void updateRequestProperties(@PathParam("requestid")final String requestId, final Map<String,Object> properties)

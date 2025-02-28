@@ -101,6 +101,7 @@ public class NetworkServiceV3  extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}")
+	@Operation(summary = "Get Network in CX2 format", description = "Returns the specified network in CX2 format. This is performed as a monolithic operation, so it is typically advisable for applications to first use the getNetworkSummary method to check the node and edge counts for a network before retrieving the network.")
 
 	public Response getCX2Network(	@PathParam("networkid") final String networkId,
 			@QueryParam("download") boolean isDownload,
@@ -497,6 +498,7 @@ public class NetworkServiceV3  extends NdexService {
 		
 	    @PUT
 	    @Path("/{networkid}")
+		@Operation(summary = "Update a Network", description = "Update the specified network with new content, based on CX2 data. If the content type is multipart/form-data, the CX2 data is in the CXNetworkStream field of PUTed multipart/form-data.  If the content type is application/json, the CX data is in the payload. Errors if the CX data is not provided Errors if the UUID does not correspond to an existing network on the NDEx Server for which the authenticated user owns or for which they have WRITE permission.")
 	    @Consumes(MediaType.APPLICATION_JSON)
 	    @Produces("application/json")
 
@@ -616,7 +618,8 @@ public class NetworkServiceV3  extends NdexService {
 		@PermitAll
 		@GET
 		@Path("/{networkid}/export")
-		
+		@Operation(summary = "Export nodes or edges in TSV format", description = "Returns the nodes or edges of this network specified by networkid in TSV format. Content type of the response is text/tab-separated-values.")
+
 		public Response exportTSVText( 
 				@PathParam("networkid") final String networkId,
 				@QueryParam("accesskey") String accessKey,
@@ -803,6 +806,7 @@ public class NetworkServiceV3  extends NdexService {
 		@PermitAll
 		@GET
 		@Path("/{networkid}/summary")
+		@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId. A NetworkSummary object is a subset of a network object. It is used to convey basic information about a network in this API. NOTE: If value of ‘completed’ is False this result may not contain all attributes below (name, description, version might be missing, nodeCount and edgeCount will be zero, properties will be empty, etc…)")
 		@Produces("application/json")
 		
 		public NetworkSummaryV3 getNetworkSummaryV3(

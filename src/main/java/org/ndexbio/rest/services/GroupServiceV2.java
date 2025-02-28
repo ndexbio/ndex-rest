@@ -72,6 +72,8 @@ import org.ndexbio.rest.Configuration;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 @Path("/v2/group")
 public class GroupServiceV2 extends NdexService {
 
@@ -103,7 +105,7 @@ public class GroupServiceV2 extends NdexService {
 	 */
 	@POST
 	@Produces("text/plain")
-
+	@Operation(summary = "Create Group", description = "Create a group owned by the authenticated user based on the supplied group JSON object.")
 	public Response createGroup(final Group newGroup)
 			throws  Exception {
 	
@@ -143,6 +145,7 @@ public class GroupServiceV2 extends NdexService {
 	
 	@DELETE
 	@Path("/{groupid}")
+	@Operation(summary = "Delete Group", description = "Delete the group specified by groupId.")
 	@Produces("application/json")
 	public void deleteGroup(@PathParam("groupid") final String groupId)
 			throws Exception {
@@ -176,6 +179,7 @@ public class GroupServiceV2 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("/{groupid}")
+	@Operation(summary = "Get a Group", description = "Returns a group JSON structure for the group specified by groupId.")
 	@Produces("application/json")
 	public Group getGroup(@PathParam("groupid") final String groupId)
 			throws ObjectNotFoundException, NdexException, SQLException {
@@ -199,6 +203,7 @@ public class GroupServiceV2 extends NdexService {
 	 **************************************************************************/
 	@PUT
 	@Path("/{groupid}")
+	@Operation(summary = "Update Group", description = "Updates the group metadata corresponding to the POSTed group JSON object.")
 	@Produces("application/json")
 	
 	public void updateGroup(final Group updatedGroup, 
@@ -238,7 +243,8 @@ public class GroupServiceV2 extends NdexService {
 	 **************************************************************************/
 	@PUT
 	@Path("/{groupid}/membership")
-	
+	@Operation(summary = "Add or Update a Group Member", description = "Updates the membership corresponding to the GroupMembership type specified in the URL parameter.")
+
 	public void updateMember(@PathParam("groupid") final String group_id,
 			@QueryParam("userid") final String user_id,
 			@QueryParam("type")  final Permissions permission
@@ -283,6 +289,7 @@ public class GroupServiceV2 extends NdexService {
 	 */
 	@DELETE
 	@Path("/{groupid}/membership")
+	@Operation(summary = "Remove a Group Member", description = "Removes the member specified by userUUID from the group specified by groupUUID.")
 	@Produces("application/json")
 	
 	public void removeGroupMember(@PathParam("groupid") final String groupIdStr,
@@ -316,6 +323,7 @@ public class GroupServiceV2 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("/{groupid}/permission")
+	@Operation(summary = "Get Network Permissions of a Group", description = "Returns network permissions for the specified group.")
 	@Produces("application/json")
 	public Map<String,String> getGroupNetworkPermissions(@PathParam("groupid") final String groupIdStr,
 		    @QueryParam("networkid") String networkIdStr,
@@ -374,6 +382,7 @@ public class GroupServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{groupid}/membership")
+	@Operation(summary = "Get Members of a Group", description = "This function returns user membership JSON objects of type membershiptype for a group. If the 'type' parameter is omitted, all membership types will be returned.")
 	@Produces("application/json")
 	@PermitAll
 	public List<Membership> getGroupUserMemberships(@PathParam("groupid") final String groupIdStr,
@@ -403,6 +412,7 @@ public class GroupServiceV2 extends NdexService {
 	
 	   @POST
 	   @Path("/{groupid}/permissionrequest")
+	   @Operation(summary = "Create User Permission Request", description = "Creates a request to ask the owner of the network for permission for access by the authenticated user.")
 	   @Produces("text/plain")
 	 
 	    public Response createRequest(
@@ -445,6 +455,7 @@ public class GroupServiceV2 extends NdexService {
 	   
 	    @GET
 		@Path("/{groupid}/permissionrequest")
+	    @Operation(summary = "Get a User’s Permission Requests", description = "Returns a JSON array of permission request objects in which the authenticated user is either the recipient or the sender.")
 		@Produces("application/json")
 	
 		public List<Request> getPermissionRequests(@PathParam("groupid") final String groupIdStr,
@@ -476,6 +487,7 @@ public class GroupServiceV2 extends NdexService {
 	
 	   	@GET
 		@Path("/{groupid}/permissionrequest/{requestid}")
+		@Operation(summary = "Get a User's Permission Requests by id", description = "Returns the permission request object specified by requestid.")
 		@Produces("application/json")
 		public Request getPermissionRequestById(@PathParam("groupid") String groupIdStr,
 				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {

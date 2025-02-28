@@ -35,6 +35,8 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 
 @Path("/v2/networkset")
 public class NetworkSetServiceV2 extends NdexService {
@@ -46,6 +48,7 @@ public class NetworkSetServiceV2 extends NdexService {
 
 	
 	@POST
+	@Operation(summary = "Create a Network Set", description = "Create a network set.")
 	@Produces("text/plain")
 	public Response createNetworkSet(final NetworkSet newNetworkSet)
 			throws  DuplicateObjectException,
@@ -71,6 +74,7 @@ public class NetworkSetServiceV2 extends NdexService {
 	
 	@PUT
 	@Path("/{networksetid}")
+	@Operation(summary = "Update a Network Set", description = "Updates a project based on the serialized project object in the PUT data.")
 	public void updateNetworkSet(final NetworkSet newNetworkSet,
 			@PathParam("networksetid") final String id)
 			throws  DuplicateObjectException,
@@ -93,6 +97,7 @@ public class NetworkSetServiceV2 extends NdexService {
 	
 	@DELETE
 	@Path("/{networksetid}")
+	@Operation(summary = "Delete a Network Set", description = "Delete a network set.")
 	@Produces("application/json")
 	public void deleteNetworkSet(@PathParam("networksetid") final String networkSetIdStr)
 			throws NdexException, SQLException {
@@ -112,6 +117,7 @@ public class NetworkSetServiceV2 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("/{networksetid}")
+	@Operation(summary = "Get a Network Set", description = "Gets a Network Set.")
 	@Produces("application/json")
 	public NetworkSet getNetworkSet(@PathParam("networksetid") final String networkSetIdStr,
 			@QueryParam("accesskey") String accessKey)
@@ -127,6 +133,7 @@ public class NetworkSetServiceV2 extends NdexService {
 
 	@POST
 	@Path("/{networksetid}/members")
+	@Operation(summary = "Add networks to Network Set", description = "Add a list of networks to this set. The posted data is a list of network ids. All the networks should be visible to the owner of network set.")
 	@Produces("text/plain")
 	public Response addNetworksToSet(final List<UUID> networkIds,
 				@PathParam("networksetid") final String networkSetIdStr )
@@ -154,6 +161,7 @@ public class NetworkSetServiceV2 extends NdexService {
 	
 	@DELETE
 	@Path("/{networksetid}/members")
+	@Operation(summary = "Delete networks from Network Set", description = "Delete networks from a networks set. Posted data is a list of network ids.")
 	@Produces("application/json")
 	public void deleteNetworkSet(final List<UUID> networkIds,
 			@PathParam("networksetid") final String networkSetIdStr )
@@ -175,6 +183,7 @@ public class NetworkSetServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{networksetid}/accesskey")
+	@Operation(summary = "Get Access key of Network Set", description = "This function returns an access key to the user. This access key will allow any user to have read access to member networks of this network set regardless if that user has READ privilege on that network.")
 	@Produces("application/json")
 	public Map<String,String> getNetworkSetAccessKey(@PathParam("networksetid") final String networkSetIdStr)
 			throws IllegalArgumentException, NdexException, SQLException {
@@ -195,6 +204,7 @@ public class NetworkSetServiceV2 extends NdexService {
 		
 	@PUT
 	@Path("/{networksetid}/accesskey")
+	@Operation(summary = "Disable/Enable Access Key on Network Set", description = "This function turns on/off the access key. It returns the key when it is enabled, and returns http code 204 when it is disabled.")
 	@Produces("application/json")	
 	public  Map<String,String> disableNetworkAccessKey(@PathParam("networksetid") final String networkSetIdStr,
 			@QueryParam("action") String action)
@@ -226,6 +236,7 @@ public class NetworkSetServiceV2 extends NdexService {
 	
 	@PUT
 	@Path("/{networksetid}/systemproperty")
+	@Operation(summary = "Update Network Set System Properties", description = "Network Set System properties are the properties that describe the network set’s status in a particular NDEx server.")
 	@Produces("application/json")
   
 	public void setNetworkFlag(
