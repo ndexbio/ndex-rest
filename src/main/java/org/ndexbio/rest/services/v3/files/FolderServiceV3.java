@@ -1,26 +1,17 @@
 package org.ndexbio.rest.services.v3.files;
 
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.net.URI;
 import java.sql.SQLException;
 import java.util.UUID;
 
 import org.ndexbio.common.models.dao.postgresql.FolderDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
-import org.ndexbio.model.object.NetworkSet;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
@@ -45,7 +36,6 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.Response.ResponseBuilder;
 
 
 @Path("/v3/files/folders")
