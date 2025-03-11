@@ -102,7 +102,7 @@ public class FolderServiceV3 extends NdexService {
     			}
     		}
     		if ( ! dao.isReadable(folderUUID, userId) && (!dao.accessKeyIsValid(folderUUID, accessKey))) 
-                throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+                throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
     		folder = dao.getFolder(folderUUID, userId, accessKey);
     	}
     	
@@ -121,7 +121,7 @@ public class FolderServiceV3 extends NdexService {
 		try (FolderDAO dao = new FolderDAO()){
 			
 			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
-				throw new UnauthorizedOperationException("Signed in user is not the owner of this network set.");
+				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
 				
 			dao.deleteFolder(folderId);
 			dao.commit();
@@ -137,14 +137,11 @@ public class FolderServiceV3 extends NdexService {
 			@PathParam("folderid") final String folderIdStr)
 			throws  DuplicateObjectException,
 			NdexException,  SQLException, JsonProcessingException {
-	
-//		if ( newFolder.getName() == null || newFolder.getName().length() == 0) 
-//			throw new NdexException ("Network set name is required.");
-		
+
 		UUID folderId = UUID.fromString(folderIdStr);
 		try (FolderDAO dao = new FolderDAO()){
 			if ( !dao.isFolderOwner(folderId, getLoggedInUserId()))
-				throw new UnauthorizedOperationException("Signed in user is not the owner of this network set.");
+				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
 			
 			dao.updateFolder(folderId, folder.getName(), folder.getParent(), getLoggedInUserId());
 			dao.commit();	

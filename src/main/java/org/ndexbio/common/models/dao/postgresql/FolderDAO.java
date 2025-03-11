@@ -8,7 +8,7 @@ import java.sql.Timestamp;
 import java.util.UUID;
 import java.util.logging.Logger;
 
-import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Folder;
@@ -48,55 +48,57 @@ public class FolderDAO extends NdexDBDAO {
 	}
 	
 	protected static String createIsReadableConditionStr(UUID userId) {
-		// TODO !
-		if ( userId == null)
-			return "n.visibility='PUBLIC'";
-		return "( n.visibility='PUBLIC' or n.owneruuid = '" + userId + "' ::uuid or " + 
-			" exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = '"+ userId + "' limit 1) or " +
-		    " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
-		    + "and gn1.network_id = n.\"UUID\" and gu.user_id = '"+ userId + "' limit 1) )";
+	    if (userId == null) {
+	        // Anonymous user => only PUBLIC is allowed
+	        return "f.visibility='PUBLIC'";
+	    }
+	    // Non-anonymous => public or same owner or has permission
+	    return "( f.visibility='PUBLIC' "
+	         + "  OR f.owneruuid = '" + userId + "'::uuid "
+	         + "  OR EXISTS ( "
+	         + "       SELECT 1 "
+	         + "       FROM folder_permission fp "
+	         + "       WHERE fp.folder_id = f.\"UUID\" "
+	         + "         AND fp.user_id = '" + userId + "'::uuid "
+	         + "         AND fp.permission IN ('read','edit') "
+	         + "       LIMIT 1 "
+	         + "     ) "
+	         + ")";
 	}
 	
 	public boolean isReadable(UUID folderID, UUID userId) throws SQLException, ObjectNotFoundException {
-		return true;
-//		String sqlStr = "select (" + createIsReadableConditionStr(userId) + ") from network n where n.\"UUID\" = ? and n.is_deleted=false ";		
-//			
-//		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-//			pst.setObject(1, networkID);
-//
-//			try ( ResultSet rs = pst.executeQuery()) {
-//				if ( rs.next()) 
-//					return rs.getBoolean(1);
-//				 
-//				throw new ObjectNotFoundException("Network", networkID);
-//			}
-//		}
+		String sqlStr = "SELECT (" 
+		        + createIsReadableConditionStr(userId) 
+		        + ") "
+		        + "FROM folder f "
+		        + "WHERE f.\"UUID\" = ? "
+		        + "  AND f.is_deleted = false";
+		
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, folderID);
+		
+			try (ResultSet rs = pst.executeQuery()) {
+				if (rs.next())
+					return rs.getBoolean(1);
+				throw new ObjectNotFoundException("Folder", folderID);
+			}
+		}
 	}
 	
 	public boolean accessKeyIsValid(UUID folderId, String accessKey) throws SQLException {
-//		if ( accessKey ==null || accessKey.length() == 0)
-//			return false;
-//		
-//		String sqlStr = "select 1 from network where (\"UUID\"=? and access_key_is_on and access_key = ?)" ;
-//		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-//			p.setObject(1, networkId);
-//			p.setString(2, accessKey);
-//			try ( ResultSet rs = p.executeQuery()) {
-//				 if (rs.next())
-//					 return true;
-//			}		
-//		}
-//		
-//		sqlStr = "select 1 from network_set s, network_set_member sm where s.\"UUID\" = sm.set_id "
-//                + "and sm.network_id = ? and s.access_key_is_on and s.access_key = ? and s.is_deleted=false";
-//		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-//			p.setObject(1, networkId);
-//			p.setString(2, accessKey);
-//			try ( ResultSet rs = p.executeQuery()) {
-//				 return rs.next();
-//			}		
-//		}
-		return true;
+		if ( accessKey == null || accessKey.isEmpty())
+			return false;
+		
+		String sqlStr = "select 1 from f where (\"UUID\"=? and access_key_is_on and access_key = ?)" ;
+		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
+			p.setObject(1, folderId);
+			p.setString(2, accessKey);
+			try ( ResultSet rs = p.executeQuery()) {
+				 if (rs.next())
+					 return true;
+			}		
+		}
+	    return false;
 
 	}
 	
@@ -147,21 +149,41 @@ public class FolderDAO extends NdexDBDAO {
 		
 	}
 	
-	public void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId) throws SQLException, DuplicateObjectException, JsonProcessingException {
+	public void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId) throws SQLException, JsonProcessingException, NdexException {
+		
+	    if (name == null && parentId == null) {
+	        throw new NdexException("No updates requested (both name and parent are null).");
+	    }
+	    
 		Timestamp t = new Timestamp(System.currentTimeMillis());
-		
-		//TODO: checkDuplicateName(name, ownerId, setId);
-		
-		// needs verification -- don't update if nothing passed in parent or name
-		String sqlStr = "update folder set modification_time = ?, name = ?, parent = ? where \"UUID\"=? and is_deleted=false";
+	    
+	    StringBuilder sb = new StringBuilder("update folder set modification_time=?");
+	    if (name != null) {
+	        sb.append(", name=?");
+	    }
+	    if (parentId != null) {
+	        sb.append(", parent=?");
+	    }
+	    sb.append(" WHERE \"UUID\"=? AND is_deleted=false");
 				
-		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setTimestamp(1, t);
-			pst.setString(2, name);
-			pst.setObject(3, parentId);
-			pst.setObject(4, folderId);
-			pst.executeUpdate();
-		}	
+	    try (PreparedStatement pst = db.prepareStatement(sb.toString())) {
+	        int idx = 1;
+	        pst.setTimestamp(idx++, t);
+	        if (name != null) {
+	            pst.setString(idx++, name);
+	        }
+	        if (parentId != null) {
+	            pst.setObject(idx++, parentId);
+	        }
+	        pst.setObject(idx++, folderId);
+	        
+	        int updated = pst.executeUpdate();
+	        if (updated == 0) {
+	            throw new NdexException(
+	                "Failed to update folder. Folder " + folderId + " may not exist or is deleted."
+	            );
+	        }
+	    }
 	}
 
 }
