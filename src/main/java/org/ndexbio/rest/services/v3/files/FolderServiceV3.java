@@ -133,7 +133,7 @@ public class FolderServiceV3 extends NdexService {
 	@Consumes("application/json")
 	@Produces("application/json")
 	@Operation(summary = "Update a Folder", description = "Updates a folder based on data passed in the body.")
-	public void updateFolder(final Folder folder,
+	public void updateFolder(final FolderRequest request,
 			@PathParam("folderid") final String folderIdStr)
 			throws  DuplicateObjectException,
 			NdexException,  SQLException, JsonProcessingException {
@@ -143,7 +143,7 @@ public class FolderServiceV3 extends NdexService {
 			if ( !dao.isFolderOwner(folderId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
 			
-			dao.updateFolder(folderId, folder.getName(), folder.getParent(), getLoggedInUserId());
+			dao.updateFolder(folderId, request.getName(), request.getParent(), getLoggedInUserId());
 			dao.commit();	
 			return ;
 		} 
