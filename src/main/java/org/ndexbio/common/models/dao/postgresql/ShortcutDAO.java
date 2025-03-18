@@ -5,6 +5,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -151,5 +153,38 @@ public class ShortcutDAO extends NdexDBDAO {
 			pst.executeUpdate();
 		}
 	}
+	
+	public List<Shortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException {
+	    List<Shortcut> result = new ArrayList<>();
+
+	    String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent " +
+	                 " FROM shortcut " +
+	                 " WHERE owneruuid=? AND is_deleted=false " +
+	                 " ORDER BY name " +
+	                 " LIMIT ?";
+
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, ownerId);
+	        pst.setInt(2, limit);
+
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                Shortcut s = new Shortcut();
+	                s.setExternalId((UUID) rs.getObject("UUID"));
+	                s.setName(rs.getString("name"));
+	                s.setCreationTime(rs.getTimestamp("creation_time"));
+	                s.setModificationTime(rs.getTimestamp("modification_time"));
+	                s.setIsDeleted(rs.getBoolean("is_deleted"));
+	                s.setTarget((UUID) rs.getObject("target"));
+	                s.setParent((UUID) rs.getObject("parent"));
+
+	                result.add(s);
+	            }
+	        }
+	    }
+
+	    return result;
+	}
+
 
 }

@@ -282,6 +282,38 @@ public class FolderDAO extends NdexDBDAO {
 
 	    return results;
 	}
+	
+	public List<Folder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException {
+	    List<Folder> result = new ArrayList<>();
+
+	    String sql = "SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted " +
+	                 " FROM folder " +
+	                 " WHERE owneruuid=? AND is_deleted=false " +
+	                 " ORDER BY name " +
+	                 " LIMIT ?";
+
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, ownerId);
+	        pst.setInt(2, limit);
+
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                Folder f = new Folder();
+	                f.setExternalId((UUID) rs.getObject("UUID"));
+	                f.setName(rs.getString("name"));
+	                f.setParent((UUID) rs.getObject("parent"));
+	                f.setCreationTime(rs.getTimestamp("creation_time"));
+	                f.setModificationTime(rs.getTimestamp("modification_time"));
+	                f.setIsDeleted(rs.getBoolean("is_deleted"));
+
+	                result.add(f);
+	            }
+	        }
+	    }
+
+	    return result;
+	}
+
 
 
 

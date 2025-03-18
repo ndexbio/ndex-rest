@@ -2,6 +2,7 @@ package org.ndexbio.rest.services.v3.files;
 
 import java.net.URI;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.UUID;
 
 import org.ndexbio.common.models.dao.postgresql.ShortcutDAO;
@@ -26,6 +27,7 @@ import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -153,5 +155,24 @@ public class ShortcutServiceV3 extends NdexService {
 			return;
 		} 
 	}
+	
+	@GET
+	@Path("/")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response listMyShortcuts(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to list your shortcuts.");
+	    }
+
+	    List<Shortcut> shortcuts;
+	    try (ShortcutDAO dao = new ShortcutDAO()) {
+	        shortcuts = dao.listShortcutsOfUser(userId, limit);
+	    }
+
+	    return Response.ok(shortcuts).build();
+	}
+
 
 }

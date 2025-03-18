@@ -29,6 +29,7 @@ import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -236,6 +237,25 @@ public class FolderServiceV3 extends NdexService {
 
 	    return Response.ok(items).build();
 	}
+	
+	@GET
+	@Path("/")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to list your folders.");
+	    }
+
+	    List<Folder> folders;
+	    try (FolderDAO dao = new FolderDAO()) {
+	        folders = dao.listFoldersOfUser(userId, limit);
+	    }
+
+	    return Response.ok(folders).build();
+	}
+
 
 
 
