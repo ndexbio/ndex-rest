@@ -11,9 +11,7 @@ import java.sql.Timestamp;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.TrashRestoreRequest;
 
-/**
- * DAO for listing and permanently removing trashed items (folders/networks/shortcuts).
- */
+
 public class TrashDAO extends NdexDBDAO {
 
     public TrashDAO() throws SQLException {
@@ -152,7 +150,6 @@ public class TrashDAO extends NdexDBDAO {
 
     /**
      * Permanently deletes all trashed (is_deleted=true) items owned by this user.
-     * This means physically removing them from the DB (and related permission/membership rows).
      */
     
     public void permanentlyDeleteAllTrashedItemsOfUser(UUID ownerId) throws SQLException {
