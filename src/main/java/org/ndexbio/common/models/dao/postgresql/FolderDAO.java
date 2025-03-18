@@ -5,12 +5,16 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileCount;
+import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 
@@ -185,5 +189,100 @@ public class FolderDAO extends NdexDBDAO {
 	        }
 	    }
 	}
+	
+	public FileCount getFolderChildCounts(UUID folderId) throws SQLException {
+	    FileCount fc = new FileCount();
+
+	    // Count sub-folders
+	    String subfoldersSql = 
+	        "SELECT COUNT(*) FROM folder WHERE parent=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(subfoldersSql)) {
+	        pst.setObject(1, folderId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            if (rs.next()) {
+	                fc.setFolder(rs.getLong(1));
+	            }
+	        }
+	    }
+
+	    // Count networks
+	    String subNetworksSql = 
+	        "SELECT COUNT(*) FROM network WHERE parent=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(subNetworksSql)) {
+	        pst.setObject(1, folderId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            if (rs.next()) {
+	                fc.setNetwork(rs.getLong(1));
+	            }
+	        }
+	    }
+
+	    // Count shortcuts
+	    String subShortcutsSql = 
+	        "SELECT COUNT(*) FROM shortcut WHERE parent=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(subShortcutsSql)) {
+	        pst.setObject(1, folderId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            if (rs.next()) {
+	                fc.setShortcut(rs.getLong(1));
+	            }
+	        }
+	    }
+
+	    return fc;
+	}
+	
+	public List<FileItemSummary> listItemsInFolder(UUID folderId) throws SQLException {
+	    List<FileItemSummary> results = new ArrayList<>();
+
+	    // 1) Subfolders
+	    String folderSql = 
+	        "SELECT \"UUID\", name FROM folder " +
+	        "WHERE parent=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(folderSql)) {
+	        pst.setObject(1, folderId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                UUID uuid = (UUID) rs.getObject(1);
+	                String name = rs.getString(2);
+	                results.add(new FileItemSummary(uuid, "folder", name));
+	            }
+	        }
+	    }
+
+	    // 2) Networks
+	    String networkSql = 
+	        "SELECT \"UUID\", name FROM network " +
+	        "WHERE parent=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(networkSql)) {
+	        pst.setObject(1, folderId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                UUID uuid = (UUID) rs.getObject(1);
+	                String name = rs.getString(2);
+	                results.add(new FileItemSummary(uuid, "network", name));
+	            }
+	        }
+	    }
+
+	    // 3) Shortcuts
+	    String shortcutSql = 
+	        "SELECT \"UUID\", name FROM shortcut " +
+	        "WHERE parent=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(shortcutSql)) {
+	        pst.setObject(1, folderId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                UUID uuid = (UUID) rs.getObject(1);
+	                String name = rs.getString(2);
+	                results.add(new FileItemSummary(uuid, "shortcut", name));
+	            }
+	        }
+	    }
+
+	    return results;
+	}
+
+
 
 }

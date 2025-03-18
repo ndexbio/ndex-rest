@@ -2,6 +2,7 @@ package org.ndexbio.rest.services.v3.files;
 
 import java.net.URI;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.UUID;
 
 import org.ndexbio.common.models.dao.postgresql.FolderDAO;
@@ -9,6 +10,8 @@ import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileCount;
+import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
@@ -148,5 +151,92 @@ public class FolderServiceV3 extends NdexService {
 			return ;
 		} 
 	}
+	
+	@PermitAll
+	@GET
+	@Path("/{folderid}/count")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getChildCount(
+	        @PathParam("folderid") final String folderIdStr,
+	        @QueryParam("accesskey") String accessKey,
+	        @QueryParam("id_token") String id_token,
+	        @QueryParam("auth_token") String auth_token
+	) throws Exception {
+
+	    UUID folderUUID = UUID.fromString(folderIdStr);
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        if (auth_token != null) {
+	            userId = getUserIdFromBasicAuthString(auth_token);
+	        } else if (id_token != null) {
+	            if (getOAuthAuthenticator() == null) {
+	                throw new UnauthorizedOperationException(
+	                    "Google OAuth is not enabled on this server."
+	                );
+	            }
+	            userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
+	        }
+	    }
+
+	    try (FolderDAO dao = new FolderDAO()) {
+	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
+	            throw new UnauthorizedOperationException(
+	                "User doesn't have read access to this folder."
+	            );
+	        }
+	    }
+
+	    FileCount result;
+	    try (FolderDAO dao = new FolderDAO()) {
+	        result = dao.getFolderChildCounts(folderUUID);
+	    }
+
+	    return Response.ok()
+	                   .type(MediaType.APPLICATION_JSON_TYPE)
+	                   .entity(result)
+	                   .build();
+	}
+	
+	@PermitAll
+	@GET
+	@Path("/{folderid}/list")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response listItemsInFolder(
+	        @PathParam("folderid") final String folderIdStr,
+	        @QueryParam("accesskey") String accessKey,
+	        @QueryParam("id_token") String id_token,
+	        @QueryParam("auth_token") String auth_token
+	) throws Exception {
+
+	    UUID folderUUID = UUID.fromString(folderIdStr);
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        if (auth_token != null) {
+	            userId = getUserIdFromBasicAuthString(auth_token);
+	        } else if (id_token != null) {
+	            if (getOAuthAuthenticator() == null) {
+	                throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
+	            }
+	            userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
+	        }
+	    }
+
+	    try (FolderDAO dao = new FolderDAO()) {
+	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
+	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
+	        }
+	    }
+
+	    List<FileItemSummary> items;
+	    try (FolderDAO dao = new FolderDAO()) {
+	        items = dao.listItemsInFolder(folderUUID);
+	    }
+
+	    return Response.ok(items).build();
+	}
+
+
 
 }
