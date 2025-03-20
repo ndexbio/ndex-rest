@@ -64,6 +64,8 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ch.qos.logback.classic.Level;
+import org.ndexbio.common.models.dao.DAOFactory;
+import org.ndexbio.common.models.dao.postgresql.PostgresDAOFactory;
 
 
 public class Configuration
@@ -123,6 +125,8 @@ public class Configuration
 	private String DOIPrefix;
 	private String ezidUser;
 	private String ezidpswd;
+	
+	private DAOFactory daoFactory;
 
 	// Possible values for Log-Level are:
     // trace, debug, info, warn, error, all, off
@@ -184,6 +188,9 @@ public class Configuration
         	try (FileReader reader = new FileReader(configFilePath)) {
         		_configurationProperties.load(reader);
         	}
+			
+			// create postgres DAO factory
+			this.daoFactory = new PostgresDAOFactory();
             
             dbURL 	= getRequiredProperty("NdexDBURL");
             solrURL = getProperty(SOLR_URL);
@@ -401,7 +408,7 @@ public class Configuration
     
     /**
      * Added to enable testing. 
-     * @deprecated Dont use this is for testing only
+     * @deprecated Dont use, this is for testing only
      * @param configFilePath
      * @return Instance of {@link org.ndexbio.rest.Configuration} object
      * @throws NdexException
@@ -418,6 +425,15 @@ public class Configuration
         return INSTANCE;
     }
     
+	/**
+	 * Sets DAOFactory to use. This replaces factory set in 
+	 * internal configuration and exists for testing purposes
+	 * @param factory DAOFactory to use to get DAO objects
+	 */
+	public void setDAOFactory(DAOFactory factory){
+		daoFactory = factory;
+	}
+	
     /**************************************************************************
     * Gets the value of a property from configuration.
     * 
@@ -503,4 +519,6 @@ public class Configuration
     public String getDOIUser() {return this.ezidUser;}
     public String getDOIPswd() {return this.ezidpswd;}
     public String getDOIPrefix() {return DOIPrefix;}
+	
+	public DAOFactory getDAOFactory() {return daoFactory;}
 }

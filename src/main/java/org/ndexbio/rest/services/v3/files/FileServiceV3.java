@@ -3,7 +3,6 @@ package org.ndexbio.rest.services.v3.files;
 import java.util.List;
 import java.util.UUID;
 
-import org.ndexbio.common.models.dao.postgresql.FileDAO;
 import org.ndexbio.common.models.dao.postgresql.TrashDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -17,7 +16,6 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -25,6 +23,8 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.ndexbio.common.models.dao.FileDAO;
+import org.ndexbio.rest.Configuration;
 
 @Path("/v3/files")
 public class FileServiceV3 extends NdexService {
@@ -44,7 +44,7 @@ public class FileServiceV3 extends NdexService {
 	        throw new UnauthorizedOperationException("You must be signed in to see your file counts.");
 	    }
 
-	    try (FileDAO dao = new FileDAO()) {
+	    try (FileDAO dao = Configuration.getInstance().getDAOFactory().getFileDAO()) {
 	       FileCount counts = dao.getOwnedFileCounts(userId);
 	       return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(counts).build();
 	    }
