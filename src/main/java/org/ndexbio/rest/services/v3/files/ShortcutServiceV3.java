@@ -5,7 +5,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-import org.ndexbio.common.models.dao.postgresql.ShortcutDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
@@ -67,7 +67,7 @@ public class ShortcutServiceV3 extends NdexService {
 		UUID shortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		
 		NdexObjectUpdateStatus status;
-		try (ShortcutDAO dao = new ShortcutDAO()) {
+		try (PostgresShortcutDAO dao = new PostgresShortcutDAO()) {
 			status = dao.createShortcut(shortcutUUID, getLoggedInUser().getExternalId(), request.getParent(), request.getName(), request.getTarget());
 			dao.commit();
 		}
@@ -95,7 +95,7 @@ public class ShortcutServiceV3 extends NdexService {
 		
     	Shortcut shortcut = null;
     	
-    	try (ShortcutDAO dao = new ShortcutDAO()) {
+    	try (PostgresShortcutDAO dao = new PostgresShortcutDAO()) {
     		UUID shortcutUUID = UUID.fromString(shortcutId);
 
      		UUID userId = getLoggedInUserId();
@@ -125,7 +125,7 @@ public class ShortcutServiceV3 extends NdexService {
 			throws NdexException, SQLException {
 		
 		UUID shortcutId = UUID.fromString(shortcutIdStr);
-		try (ShortcutDAO dao = new ShortcutDAO()){
+		try (PostgresShortcutDAO dao = new PostgresShortcutDAO()){
 			
 			if (!dao.isShortcutOwner(shortcutId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this shortcut.");
@@ -146,7 +146,7 @@ public class ShortcutServiceV3 extends NdexService {
 			NdexException,  SQLException, JsonProcessingException {
 
 		UUID shortcutId = UUID.fromString(shortcutIdStr);
-		try (ShortcutDAO dao = new ShortcutDAO()){
+		try (PostgresShortcutDAO dao = new PostgresShortcutDAO()){
 			if ( !dao.isShortcutOwner(shortcutId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this shortcut.");
 			
@@ -167,7 +167,7 @@ public class ShortcutServiceV3 extends NdexService {
 	    }
 
 	    List<Shortcut> shortcuts;
-	    try (ShortcutDAO dao = new ShortcutDAO()) {
+	    try (PostgresShortcutDAO dao = new PostgresShortcutDAO()) {
 	        shortcuts = dao.listShortcutsOfUser(userId, limit);
 	    }
 

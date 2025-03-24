@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
+import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -22,14 +23,15 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
-public class FolderDAO extends NdexDBDAO {
+public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	
-	private static Logger logger = Logger.getLogger(FolderDAO.class.getName());
+	private static Logger logger = Logger.getLogger(PostgresFolderDAO.class.getName());
 
-	public FolderDAO() throws SQLException {
+	public PostgresFolderDAO() throws SQLException {
 		super();
 	}
 	
+	@Override
 	public NdexObjectUpdateStatus createFolder(final UUID folderUUID, final UUID ownerId, final UUID parentUUID, final String name) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
@@ -70,6 +72,7 @@ public class FolderDAO extends NdexDBDAO {
 	         + ")";
 	}
 	
+	@Override
 	public boolean isReadable(UUID folderID, UUID userId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "SELECT (" 
 		        + createIsReadableConditionStr(userId) 
@@ -89,6 +92,7 @@ public class FolderDAO extends NdexDBDAO {
 		}
 	}
 	
+	@Override
 	public boolean accessKeyIsValid(UUID folderId, String accessKey) throws SQLException {
 		if ( accessKey == null || accessKey.isEmpty())
 			return false;
@@ -106,6 +110,7 @@ public class FolderDAO extends NdexDBDAO {
 
 	}
 	
+	@Override
 	public Folder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
 		Folder result = new Folder();
@@ -129,6 +134,7 @@ public class FolderDAO extends NdexDBDAO {
 		return result;
 	}
 	
+	@Override
 	public boolean isFolderOwner(UUID folderId, UUID ownerId) throws SQLException {
 		String sqlStr = "select 1 from folder where \"UUID\" = ? and owneruuid = ? and is_deleted=false";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
@@ -140,6 +146,7 @@ public class FolderDAO extends NdexDBDAO {
 		}
 	}
 	
+	@Override
 	public void deleteFolder(UUID folderId) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
@@ -153,6 +160,7 @@ public class FolderDAO extends NdexDBDAO {
 		
 	}
 	
+	@Override
 	public void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId) throws SQLException, JsonProcessingException, NdexException {
 		
 	    if (name == null && parentId == null) {
@@ -190,6 +198,7 @@ public class FolderDAO extends NdexDBDAO {
 	    }
 	}
 	
+	@Override
 	public FileCount getFolderChildCounts(UUID folderId) throws SQLException {
 	    FileCount fc = new FileCount();
 
@@ -232,6 +241,7 @@ public class FolderDAO extends NdexDBDAO {
 	    return fc;
 	}
 	
+	@Override
 	public List<FileItemSummary> listItemsInFolder(UUID folderId) throws SQLException {
 	    List<FileItemSummary> results = new ArrayList<>();
 
@@ -283,6 +293,7 @@ public class FolderDAO extends NdexDBDAO {
 	    return results;
 	}
 	
+	@Override
 	public List<Folder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException {
 	    List<Folder> result = new ArrayList<>();
 

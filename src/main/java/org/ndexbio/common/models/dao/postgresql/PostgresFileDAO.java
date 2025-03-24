@@ -7,7 +7,7 @@ import java.util.UUID;
 import java.util.logging.Logger;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.postgresql.NdexDBDAO;
-import org.ndexbio.common.models.dao.postgresql.ShortcutDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
 
 import org.ndexbio.model.object.FileCount;
 

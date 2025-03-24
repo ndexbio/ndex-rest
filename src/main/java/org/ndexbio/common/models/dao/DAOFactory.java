@@ -15,4 +15,6 @@ public interface DAOFactory {
 	 */
 	FileDAO getFileDAO() throws SQLException;
 	
+	FolderDAO getFolderDAO() throws SQLException;
+	
 }

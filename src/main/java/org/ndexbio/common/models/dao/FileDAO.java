@@ -2,6 +2,8 @@ package org.ndexbio.common.models.dao;
 
 import java.sql.SQLException;
 import java.util.UUID;
+
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.FileCount;
 
 /**

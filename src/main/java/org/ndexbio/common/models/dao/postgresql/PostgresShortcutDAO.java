@@ -20,11 +20,11 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
-public class ShortcutDAO extends NdexDBDAO {
+public class PostgresShortcutDAO extends NdexDBDAO {
 	
-	private static Logger logger = Logger.getLogger(ShortcutDAO.class.getName());
+	private static Logger logger = Logger.getLogger(PostgresShortcutDAO.class.getName());
 
-	public ShortcutDAO() throws SQLException {
+	public PostgresShortcutDAO() throws SQLException {
 		super();
 	}
 	

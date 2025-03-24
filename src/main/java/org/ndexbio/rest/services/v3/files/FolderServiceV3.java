@@ -5,7 +5,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-import org.ndexbio.common.models.dao.postgresql.FolderDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresFolderDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
@@ -64,7 +64,7 @@ public class FolderServiceV3 extends NdexService {
 		
 		// create entry in db. 
 		NdexObjectUpdateStatus status;
-		try (FolderDAO dao = new FolderDAO()) {
+		try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
 			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), request.getParent(), request.getName());
 			dao.commit();
 		}
@@ -92,7 +92,7 @@ public class FolderServiceV3 extends NdexService {
 		
     	Folder folder = null;
     	
-    	try (FolderDAO dao = new FolderDAO()) {
+    	try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
     		UUID folderUUID = UUID.fromString(folderId);
 
      		UUID userId = getLoggedInUserId();
@@ -122,7 +122,7 @@ public class FolderServiceV3 extends NdexService {
 			throws NdexException, SQLException {
 		
 		UUID folderId = UUID.fromString(folderIdStr);
-		try (FolderDAO dao = new FolderDAO()){
+		try (PostgresFolderDAO dao = new PostgresFolderDAO()){
 			
 			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
@@ -143,7 +143,7 @@ public class FolderServiceV3 extends NdexService {
 			NdexException,  SQLException, JsonProcessingException {
 
 		UUID folderId = UUID.fromString(folderIdStr);
-		try (FolderDAO dao = new FolderDAO()){
+		try (PostgresFolderDAO dao = new PostgresFolderDAO()){
 			if ( !dao.isFolderOwner(folderId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
 			
@@ -180,7 +180,7 @@ public class FolderServiceV3 extends NdexService {
 	        }
 	    }
 
-	    try (FolderDAO dao = new FolderDAO()) {
+	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
 	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
 	            throw new UnauthorizedOperationException(
 	                "User doesn't have read access to this folder."
@@ -189,7 +189,7 @@ public class FolderServiceV3 extends NdexService {
 	    }
 
 	    FileCount result;
-	    try (FolderDAO dao = new FolderDAO()) {
+	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
 	        result = dao.getFolderChildCounts(folderUUID);
 	    }
 
@@ -224,14 +224,14 @@ public class FolderServiceV3 extends NdexService {
 	        }
 	    }
 
-	    try (FolderDAO dao = new FolderDAO()) {
+	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
 	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
 	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
 	        }
 	    }
 
 	    List<FileItemSummary> items;
-	    try (FolderDAO dao = new FolderDAO()) {
+	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
 	        items = dao.listItemsInFolder(folderUUID);
 	    }
 
@@ -249,7 +249,7 @@ public class FolderServiceV3 extends NdexService {
 	    }
 
 	    List<Folder> folders;
-	    try (FolderDAO dao = new FolderDAO()) {
+	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
 	        folders = dao.listFoldersOfUser(userId, limit);
 	    }
 
