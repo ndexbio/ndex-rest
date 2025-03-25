@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 
 public interface FolderDAO extends AutoCloseable {
 	
+	void commit() throws SQLException;
+	
 	NdexObjectUpdateStatus createFolder(final UUID folderUUID, final UUID ownerId, final UUID parentUUID, final String name) throws SQLException;
 	
 	boolean isReadable(UUID folderID, UUID userId) throws SQLException, ObjectNotFoundException;

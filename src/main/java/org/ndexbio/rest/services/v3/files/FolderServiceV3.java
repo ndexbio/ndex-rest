@@ -5,7 +5,8 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-import org.ndexbio.common.models.dao.postgresql.PostgresFolderDAO;
+import org.ndexbio.common.models.dao.FileDAO;
+import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
@@ -64,7 +65,7 @@ public class FolderServiceV3 extends NdexService {
 		
 		// create entry in db. 
 		NdexObjectUpdateStatus status;
-		try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), request.getParent(), request.getName());
 			dao.commit();
 		}
@@ -92,7 +93,7 @@ public class FolderServiceV3 extends NdexService {
 		
     	Folder folder = null;
     	
-    	try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
+    	try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
     		UUID folderUUID = UUID.fromString(folderId);
 
      		UUID userId = getLoggedInUserId();
@@ -122,13 +123,15 @@ public class FolderServiceV3 extends NdexService {
 			throws NdexException, SQLException {
 		
 		UUID folderId = UUID.fromString(folderIdStr);
-		try (PostgresFolderDAO dao = new PostgresFolderDAO()){
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()){
 			
 			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
 				
 			dao.deleteFolder(folderId);
 			dao.commit();
+		} catch (Exception e) {
+			throw new NdexException(e.getMessage());
 		} 
 	}
 	
@@ -143,13 +146,15 @@ public class FolderServiceV3 extends NdexService {
 			NdexException,  SQLException, JsonProcessingException {
 
 		UUID folderId = UUID.fromString(folderIdStr);
-		try (PostgresFolderDAO dao = new PostgresFolderDAO()){
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()){
 			if ( !dao.isFolderOwner(folderId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
 			
 			dao.updateFolder(folderId, request.getName(), request.getParent(), getLoggedInUserId());
 			dao.commit();	
 			return ;
+		} catch (Exception e) {
+			throw new NdexException(e.getMessage());
 		} 
 	}
 	
@@ -180,7 +185,7 @@ public class FolderServiceV3 extends NdexService {
 	        }
 	    }
 
-	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
+	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
 	            throw new UnauthorizedOperationException(
 	                "User doesn't have read access to this folder."
@@ -189,7 +194,7 @@ public class FolderServiceV3 extends NdexService {
 	    }
 
 	    FileCount result;
-	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
+	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        result = dao.getFolderChildCounts(folderUUID);
 	    }
 
@@ -224,14 +229,14 @@ public class FolderServiceV3 extends NdexService {
 	        }
 	    }
 
-	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
+	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
 	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
 	        }
 	    }
 
 	    List<FileItemSummary> items;
-	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
+	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        items = dao.listItemsInFolder(folderUUID);
 	    }
 
@@ -249,7 +254,7 @@ public class FolderServiceV3 extends NdexService {
 	    }
 
 	    List<Folder> folders;
-	    try (PostgresFolderDAO dao = new PostgresFolderDAO()) {
+	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        folders = dao.listFoldersOfUser(userId, limit);
 	    }
 

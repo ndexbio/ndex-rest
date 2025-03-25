@@ -17,4 +17,6 @@ public interface DAOFactory {
 	
 	FolderDAO getFolderDAO() throws SQLException;
 	
+	ShortcutDAO getShortcutDAO() throws SQLException;
+	
 }

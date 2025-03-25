@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
+import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -20,7 +21,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
-public class PostgresShortcutDAO extends NdexDBDAO {
+public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	
 	private static Logger logger = Logger.getLogger(PostgresShortcutDAO.class.getName());
 
@@ -28,6 +29,7 @@ public class PostgresShortcutDAO extends NdexDBDAO {
 		super();
 	}
 	
+	@Override
 	public NdexObjectUpdateStatus createShortcut(final UUID shortcutUUID, final UUID ownerId, final UUID parentUUID, final String name, final UUID targetUUID) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
@@ -62,6 +64,7 @@ public class PostgresShortcutDAO extends NdexDBDAO {
 	         + ")";
 	}
 	
+	@Override
 	public boolean isReadable(UUID shortcutID, UUID userId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select (" + createIsReadableConditionStr(userId) + ") from shortcut s where s.\"UUID\" = ? and s.is_deleted=false ";		
 			
@@ -77,6 +80,7 @@ public class PostgresShortcutDAO extends NdexDBDAO {
 		}
 	}
 	
+	@Override
 	public boolean accessKeyIsValid(UUID shortcutId, String accessKey) throws SQLException {
 		if ( accessKey ==null || accessKey.length() == 0)
 			return false;
@@ -94,6 +98,7 @@ public class PostgresShortcutDAO extends NdexDBDAO {
 
 	}
 	
+	@Override
 	public Shortcut getShortcut(UUID shortcutId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
 		Shortcut result = new Shortcut();
@@ -118,6 +123,7 @@ public class PostgresShortcutDAO extends NdexDBDAO {
 		return result;
 	}
 	
+	@Override
 	public boolean isShortcutOwner(UUID shortcutId, UUID ownerId) throws SQLException {
 		String sqlStr = "select 1 from shortcut where \"UUID\" = ? and owneruuid = ? and is_deleted=false";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
@@ -129,6 +135,7 @@ public class PostgresShortcutDAO extends NdexDBDAO {
 		}
 	}
 	
+	@Override
 	public void deleteShortcut(UUID shortcutId) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
@@ -142,6 +149,7 @@ public class PostgresShortcutDAO extends NdexDBDAO {
 		
 	}
 	
+	@Override
 	public void updateShortcut(UUID shortcutId, String name, UUID ownerId) throws SQLException, JsonProcessingException, NdexException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		String sqlStr = "update shortcut set modification_time = ?, name = ? where \"UUID\"=? and is_deleted=false";
@@ -154,6 +162,7 @@ public class PostgresShortcutDAO extends NdexDBDAO {
 		}
 	}
 	
+	@Override
 	public List<Shortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException {
 	    List<Shortcut> result = new ArrayList<>();
 
