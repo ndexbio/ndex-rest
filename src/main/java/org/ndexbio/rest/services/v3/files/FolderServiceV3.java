@@ -191,17 +191,15 @@ public class FolderServiceV3 extends NdexService {
 	                "User doesn't have read access to this folder."
 	            );
 	        }
-	    }
-
-	    FileCount result;
-	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	        FileCount result;
 	        result = dao.getFolderChildCounts(folderUUID);
-	    }
-
-	    return Response.ok()
+	        
+		    return Response.ok()
 	                   .type(MediaType.APPLICATION_JSON_TYPE)
 	                   .entity(result)
 	                   .build();
+	    }
+
 	}
 	
 	@PermitAll
@@ -233,14 +231,12 @@ public class FolderServiceV3 extends NdexService {
 	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
 	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
 	        }
-	    }
-
-	    List<FileItemSummary> items;
-	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	        
+	        List<FileItemSummary> items;
 	        items = dao.listItemsInFolder(folderUUID);
+	        return Response.ok(items).build();
 	    }
-
-	    return Response.ok(items).build();
+	    
 	}
 	
 	@GET
