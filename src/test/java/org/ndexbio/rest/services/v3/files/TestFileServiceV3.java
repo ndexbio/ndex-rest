@@ -4,6 +4,9 @@ package org.ndexbio.rest.services.v3.files;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.core.Response.Status;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.easymock.EasyMock;
 import org.ndexbio.rest.Configuration;
@@ -17,10 +20,14 @@ import org.junit.Before;
 import org.jboss.resteasy.spi.Dispatcher;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.FileDAO;
+import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.model.errorcodes.NDExError;
 import org.ndexbio.model.object.FileCount;
+import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.TrashRestoreRequest;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
+import jakarta.ws.rs.core.MediaType;
 
 /**
  *
@@ -136,4 +143,92 @@ public class TestFileServiceV3 {
             //_folder.delete();
         }
     }
+	
+	@Test
+	public void testListTrashSuccess() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    // Prepare mock data
+	    List<FileItemSummary> trashedItems = new ArrayList<>();
+	    trashedItems.add(new FileItemSummary(UUID.randomUUID(), "folder", "Test Folder"));
+	    trashedItems.add(new FileItemSummary(UUID.randomUUID(), "network", "Test Network"));
+
+	    // Mock DAO and DAOFactory
+	    TrashDAO mockTrashDAO = createMock(TrashDAO.class);
+	    expect(mockTrashDAO.listTrashedItemsOfUser(userID)).andReturn(trashedItems);
+	    mockTrashDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockTrashDAO);
+
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getTrashDAO()).andReturn(mockTrashDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+	    
+	    // HTTP request
+	    MockHttpRequest request = MockHttpRequest.get("/v3/files/trash");
+	    dispatcher.invoke(request, response);
+
+	    // Assert response
+	    assertEquals(Status.OK.getStatusCode(), response.getStatus());
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    FileItemSummary[] result = mapper.readValue(response.getOutput(), FileItemSummary[].class);
+
+	    assertEquals(2, result.length);
+	    assertEquals("folder", result[0].getType());
+	    assertEquals("Test Folder", result[0].getName());
+	}
+	
+	@Test
+	public void testRestoreItemsFromTrashSuccess() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    // Prepare restore request
+	    TrashRestoreRequest requestPayload = new TrashRestoreRequest();
+	    List<UUID> networks = new ArrayList<>();
+	    networks.add(UUID.randomUUID());
+	    requestPayload.setNetworks(networks);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(requestPayload);
+
+	    // Use anyObject matcher to avoid object identity issues
+	    TrashDAO mockTrashDAO = createMock(TrashDAO.class);
+	    mockTrashDAO.restoreTrashedItems(EasyMock.eq(userID), EasyMock.anyObject(TrashRestoreRequest.class));
+	    EasyMock.expectLastCall().once();
+	    mockTrashDAO.commit();
+	    EasyMock.expectLastCall().once();
+	    mockTrashDAO.close();
+	    EasyMock.expectLastCall().once();
+	    replay(mockTrashDAO);
+
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getTrashDAO()).andReturn(mockTrashDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest request = MockHttpRequest.post("/v3/files/trash/restore")
+	            .content(json)
+	            .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(request, response);
+
+	    assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());
+	}
+
+
+
 }

@@ -4,7 +4,6 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
-import org.ndexbio.common.models.dao.postgresql.TrashDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CopyRequest;
@@ -31,6 +30,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.ndexbio.common.models.dao.FileDAO;
+import org.ndexbio.common.models.dao.TrashDAO;
 
 @Path("/v3/files")
 public class FileServiceV3 extends NdexService {
@@ -66,7 +66,7 @@ public class FileServiceV3 extends NdexService {
 	    }
 
 	    List<FileItemSummary> trashedItems;
-	    try (TrashDAO dao = new TrashDAO()) {
+	    try (TrashDAO dao = Configuration.getInstance().getDAOFactory().getTrashDAO()) {
 	        trashedItems = dao.listTrashedItemsOfUser(userId);
 	    }
 
@@ -90,7 +90,7 @@ public class FileServiceV3 extends NdexService {
 	        throw new NdexException("No items to restore.");
 	    }
 
-	    try (TrashDAO dao = new TrashDAO()) {
+	    try (TrashDAO dao = Configuration.getInstance().getDAOFactory().getTrashDAO()) {
 	        dao.restoreTrashedItems(userId, request);
 	        dao.commit();
 	        

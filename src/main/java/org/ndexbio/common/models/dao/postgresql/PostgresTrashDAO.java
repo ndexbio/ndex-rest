@@ -8,13 +8,14 @@ import java.util.List;
 import java.util.UUID;
 import java.sql.Timestamp;
 
+import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.TrashRestoreRequest;
 
 
-public class TrashDAO extends NdexDBDAO {
+public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
 
-    public TrashDAO() throws SQLException {
+    public PostgresTrashDAO() throws SQLException {
         super();
     }
 
