@@ -122,7 +122,7 @@ public class ShortcutServiceV3 extends NdexService {
 	@Operation(summary = "Delete a Shortcut", description = "Delete a shortcut.")
 	@Produces("application/json")
 	public void deleteShortcut(@PathParam("shortcutid") final String shortcutIdStr)
-			throws NdexException, SQLException {
+			throws NdexException, SQLException, Exception {
 		
 		UUID shortcutId = UUID.fromString(shortcutIdStr);
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()){
@@ -132,9 +132,7 @@ public class ShortcutServiceV3 extends NdexService {
 				
 			dao.deleteShortcut(shortcutId);
 			dao.commit();
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
-		} 
+		}
 	}
 	
 	@PUT
@@ -145,7 +143,7 @@ public class ShortcutServiceV3 extends NdexService {
 	public void updateShortcut(@QueryParam("name") String nameStr,
 			@PathParam("shortcutid") final String shortcutIdStr)
 			throws  DuplicateObjectException,
-			NdexException,  SQLException, JsonProcessingException {
+			NdexException,  SQLException, JsonProcessingException, Exception {
 
 		UUID shortcutId = UUID.fromString(shortcutIdStr);
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()){
@@ -155,9 +153,7 @@ public class ShortcutServiceV3 extends NdexService {
 			dao.updateShortcut(shortcutId, nameStr, getLoggedInUserId());
 			dao.commit();	
 			return;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
-		} 
+		}
 	}
 	
 	@GET

@@ -16,6 +16,7 @@ import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,7 @@ public class TestShortcutServiceV3 {
         mockHttpServletRequest = createMock(HttpServletRequest.class);
         dispatcher = MockDispatcherFactory.createDispatcher();
         dispatcher.getRegistry().addSingletonResource(new ShortcutServiceV3(mockHttpServletRequest));
+        dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
         response = new MockHttpResponse();
     }
 
@@ -203,7 +205,7 @@ public class TestShortcutServiceV3 {
         MockHttpRequest request = MockHttpRequest.get("/v3/files/shortcuts/" + shortcutId);
         dispatcher.invoke(request, response);
 
-        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
     }
     
     @Test
@@ -261,7 +263,7 @@ public class TestShortcutServiceV3 {
         MockHttpRequest request = MockHttpRequest.delete("/v3/files/shortcuts/" + shortcutId);
         dispatcher.invoke(request, response);
 
-        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
         assertTrue(new String(response.getOutput()).contains("not the owner"));
     }
 
@@ -323,7 +325,7 @@ public class TestShortcutServiceV3 {
                 .contentType(MediaType.APPLICATION_JSON);
 
         dispatcher.invoke(request, response);
-        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
         assertTrue(new String(response.getOutput()).contains("not the owner"));
     }
 
@@ -366,13 +368,23 @@ public class TestShortcutServiceV3 {
 
     @Test
     public void testListMyShortcutsUnauthorized() throws Exception {
-        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
         replay(mockHttpServletRequest);
+
+        ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
+        replay(shortcutDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getShortcutDAO()).andReturn(shortcutDAO).anyTimes();
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
 
         MockHttpRequest request = MockHttpRequest.get("/v3/files/shortcuts/");
         dispatcher.invoke(request, response);
 
-        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus()); // Due to missing user
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
     }
+
 
 }
