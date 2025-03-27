@@ -39,6 +39,18 @@ public class TestFolderServiceV3 {
         dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
         response = new MockHttpResponse();
     }
+    
+    @Test
+    public void testCreateFolderRequestNull() throws Exception {
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        MockHttpRequest request = MockHttpRequest.post("/v3/files/folders/")
+                .contentType(MediaType.APPLICATION_JSON);
+        dispatcher.invoke(request, response);
+
+        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+    }
 
     @Test
     public void testCreateFolderSuccess() throws Exception {
@@ -81,6 +93,73 @@ public class TestFolderServiceV3 {
 
         assertEquals(Status.CREATED.getStatusCode(), response.getStatus());
     }
+    
+    @Test
+    public void testGetFolderUnauthorized() throws Exception {
+        UUID folderId = UUID.randomUUID();
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.isReadable(folderId, null)).andReturn(false);
+        expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
+        folderDAO.close();
+        expectLastCall();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId);
+        dispatcher.invoke(request, response);
+        
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+    }
+
+    
+    @Test
+    public void testGetFolderSuccess() throws Exception {
+        UUID folderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).anyTimes();
+        replay(mockHttpServletRequest);
+
+        org.ndexbio.model.object.Folder folder = new org.ndexbio.model.object.Folder();
+        folder.setName("Folder Success");
+        folder.setExternalId(folderId);
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.isReadable(folderId, userId)).andReturn(true);
+        expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
+        expect(folderDAO.getFolder(folderId, userId, null)).andReturn(folder);
+        folderDAO.close();
+        expectLastCall();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId);
+        dispatcher.invoke(request, response);
+
+        assertEquals(Status.OK.getStatusCode(), response.getStatus());
+
+        ObjectMapper mapper = new ObjectMapper();
+        org.ndexbio.model.object.Folder result = mapper.readValue(response.getOutput(), org.ndexbio.model.object.Folder.class);
+        assertEquals("Folder Success", result.getName());
+        assertEquals(folderId, result.getExternalId());
+    }
+
 
     @Test
     public void testListMyFoldersSuccess() throws Exception {
@@ -115,6 +194,17 @@ public class TestFolderServiceV3 {
     }
     
     @Test
+    public void testListMyFoldersUnauthorized() throws Exception {
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/");
+        dispatcher.invoke(request, response);
+
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+    }
+    
+    @Test
     public void testDeleteFolderUnauthorized() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID folderId = UUID.randomUUID();
@@ -139,8 +229,46 @@ public class TestFolderServiceV3 {
         MockHttpRequest request = MockHttpRequest.delete("/v3/files/folders/" + folderId);
         dispatcher.invoke(request, response);
 
-        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
     }
+    
+    @Test
+    public void testUpdateFolderUnauthorized() throws Exception {
+        UUID folderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).times(2);
+        replay(mockHttpServletRequest);
+
+        FolderRequest requestBody = new FolderRequest();
+        requestBody.setName("Unauthorized Folder Update");
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.isFolderOwner(folderId, userId)).andReturn(false);
+        folderDAO.close();
+        expectLastCall();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        ObjectMapper mapper = new ObjectMapper();
+        byte[] requestJson = mapper.writeValueAsBytes(requestBody);
+
+        MockHttpRequest request = MockHttpRequest.put("/v3/files/folders/" + folderId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson);
+
+        dispatcher.invoke(request, response);
+
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+    }
+
     
     @Test
     public void testUpdateFolderSuccess() throws Exception {
@@ -184,10 +312,32 @@ public class TestFolderServiceV3 {
     
     @Test
     public void testGetFolderChildCountUnauthorized() throws Exception {
-        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + UUID.randomUUID() + "/count");
+        UUID folderId = UUID.randomUUID();
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.isReadable(folderId, null)).andReturn(false);
+        expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
+        folderDAO.close();
+        expectLastCall();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId + "/count");
         dispatcher.invoke(request, response);
-        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
     }
+
     
     @Test
     public void testGetFolderChildCountSuccess() throws Exception {
@@ -226,10 +376,31 @@ public class TestFolderServiceV3 {
     @Test
     public void testListItemsInFolderUnauthorized() throws Exception {
         UUID folderId = UUID.randomUUID();
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.isReadable(folderId, null)).andReturn(false);
+        expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
+        folderDAO.close();
+        expectLastCall();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+
         MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId + "/list");
         dispatcher.invoke(request, response);
-        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
     }
+
 
     @Test
     public void testListItemsInFolderSuccess() throws Exception {

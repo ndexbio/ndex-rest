@@ -120,7 +120,7 @@ public class FolderServiceV3 extends NdexService {
 	@Operation(summary = "Delete a Folder", description = "Delete a folder.")
 	@Produces("application/json")
 	public void deleteFolder(@PathParam("folderid") final String folderIdStr)
-			throws NdexException, SQLException {
+			throws Exception, NdexException, SQLException {
 		
 		UUID folderId = UUID.fromString(folderIdStr);
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()){
@@ -130,8 +130,6 @@ public class FolderServiceV3 extends NdexService {
 				
 			dao.deleteFolder(folderId);
 			dao.commit();
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
 		} 
 	}
 	
@@ -143,7 +141,7 @@ public class FolderServiceV3 extends NdexService {
 	public void updateFolder(final FolderRequest request,
 			@PathParam("folderid") final String folderIdStr)
 			throws  DuplicateObjectException,
-			NdexException,  SQLException, JsonProcessingException {
+			NdexException,  SQLException, JsonProcessingException, Exception {
 
 		UUID folderId = UUID.fromString(folderIdStr);
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()){
@@ -153,9 +151,7 @@ public class FolderServiceV3 extends NdexService {
 			dao.updateFolder(folderId, request.getName(), request.getParent(), getLoggedInUserId());
 			dao.commit();	
 			return ;
-		} catch (Exception e) {
-			throw new NdexException(e.getMessage());
-		} 
+		}
 	}
 	
 	@PermitAll
