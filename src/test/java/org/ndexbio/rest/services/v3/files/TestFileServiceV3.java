@@ -145,6 +145,22 @@ public class TestFileServiceV3 {
     }
 	
 	@Test
+	public void testListTrashUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    MockHttpRequest request = MockHttpRequest.get("/v3/files/trash");
+	    dispatcher.invoke(request, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in to view your trash.", er.getMessage());
+	}
+
+	
+	@Test
 	public void testListTrashSuccess() throws Exception {
 	    UUID userID = UUID.randomUUID();
 	    User fakeUser = new User();
@@ -184,6 +200,29 @@ public class TestFileServiceV3 {
 	    assertEquals(2, result.length);
 	    assertEquals("folder", result[0].getType());
 	    assertEquals("Test Folder", result[0].getName());
+	}
+	
+	@Test
+	public void testRestoreItemsFromTrashUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    // Empty restore request payload
+	    TrashRestoreRequest requestPayload = new TrashRestoreRequest();
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(requestPayload);
+
+	    MockHttpRequest request = MockHttpRequest
+	        .post("/v3/files/trash/restore")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(request, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in to restore items from trash.", er.getMessage());
 	}
 	
 	@Test
