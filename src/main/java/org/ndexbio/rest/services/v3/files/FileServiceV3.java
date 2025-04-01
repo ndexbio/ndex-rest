@@ -4,12 +4,16 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
+import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CopyRequest;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
+import org.ndexbio.common.models.dao.ShortcutDAO;
+import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.TrashRestoreRequest;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -31,6 +35,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
+
 
 @Path("/v3/files")
 public class FileServiceV3 extends NdexService {
@@ -148,7 +153,8 @@ public class FileServiceV3 extends NdexService {
 	                break;
 	                
 	            case "shortcut":
-	            	break;
+					status = copyShortcut(request.getFrom_uuid(), userId, request.getTo_path(), accessKey, id_token, auth_token);
+					break;
 
 	            default:
 	                throw new NdexException("Unsupported type: " + type);
@@ -157,6 +163,9 @@ public class FileServiceV3 extends NdexService {
 	        throw e;
 	    }
 	    
+	    if (status == null) {
+	        throw new NdexException("Copy operation failed - no status returned");
+	    }
 		String urlStr = Configuration.getInstance().getHostURI() + "/v3/files/" + type + "s/" + status.getUuid().toString();
 		
 		URI l = new URI (urlStr);
@@ -166,4 +175,17 @@ public class FileServiceV3 extends NdexService {
 				.entity(om.writeValueAsString(status)).build();
 	}
 
+	private NdexObjectUpdateStatus copyShortcut(UUID fromUUID, UUID userId, UUID toPath, String accessKey, String id_token, String auth_token) throws Exception {
+		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+			Shortcut sourceShortcut = dao.getShortcut(fromUUID, userId, accessKey);
+			ShortcutRequest request = new ShortcutRequest();
+			request.setName(sourceShortcut.getName());
+			request.setTarget(sourceShortcut.getTarget());
+			request.setParent(toPath);
+			UUID newShortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+			NdexObjectUpdateStatus status = dao.createShortcut(newShortcutUUID, userId, toPath, request.getName(), request.getTarget());
+			dao.commit();
+			return status;
+		}
+	}
 }
