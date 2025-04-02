@@ -5,7 +5,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
