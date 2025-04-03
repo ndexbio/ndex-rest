@@ -3,6 +3,8 @@ package org.ndexbio.rest.services.v3.files;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.NdexException;
@@ -11,6 +13,7 @@ import org.ndexbio.model.object.CopyRequest;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
+import org.ndexbio.model.object.SharingMemberRequest;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.ShortcutRequest;
@@ -35,6 +38,9 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.SharingRemoveRequest;
 
 
 @Path("/v3/files")
@@ -150,7 +156,7 @@ public class FileServiceV3 extends NdexService {
 
 	            case "network":
 	                // status = copyNetwork(request.getFrom_uuid(), userId, request.getTo_path(), accessKey, id_token, auth_token);
-	                break;
+	            	throw new NdexException("Coping network is not supported yet. It is in development.");
 	                
 	            case "shortcut":
 					status = copyShortcut(request.getFrom_uuid(), userId, request.getTo_path(), accessKey, id_token, auth_token);
@@ -188,4 +194,133 @@ public class FileServiceV3 extends NdexService {
 			return status;
 		}
 	}
+	
+	@POST
+	@Path("/sharing/add_member")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response addMember(List<SharingMemberRequest> requests) throws Exception {
+	    UUID currentUserId = getLoggedInUserId();
+	    if (currentUserId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to add members.");
+	    }
+
+	    NdexObjectUpdateStatus status = null;
+	    for (SharingMemberRequest request : requests) {
+	        String type = request.getType().toLowerCase();
+	        UUID targetId = request.getUuid();
+	        
+	        for (Map.Entry<UUID, String> entry : request.getMembers().entrySet()) {
+	            UUID memberId = entry.getKey();
+	            String permission = entry.getValue();
+
+	            switch (type) {
+	                case "folder":
+	                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	                        status = dao.addFolderPermission(targetId, memberId, permission);
+	                        dao.commit();
+	                    }
+	                    break;
+	                case "network":
+	                    throw new NdexException("Network sharing is not supported yet");
+	                default:
+	                    throw new NdexException("Unsupported sharing type: " + type);
+	            }
+	        }
+	    }
+
+	    ObjectMapper om = new ObjectMapper();
+	    
+	    return Response.ok()
+	                   .type(MediaType.APPLICATION_JSON_TYPE)
+	                   .entity(om.writeValueAsString(status))
+	                   .build();
+	}
+
+	@POST
+	@Path("/sharing/update_member")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response updateMember(List<SharingMemberRequest> requests) throws Exception {
+	    UUID currentUserId = getLoggedInUserId();
+	    if (currentUserId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to update member permissions.");
+	    }
+
+	    for (SharingMemberRequest request : requests) {
+	        String type = request.getType().toLowerCase();
+	        UUID targetId = request.getUuid();
+	        
+	        for (Map.Entry<UUID, String> entry : request.getMembers().entrySet()) {
+	            UUID memberId = entry.getKey();
+	            String permission = entry.getValue();
+
+	            switch (type) {
+	                case "folder":
+	                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	                        dao.updateFolderPermission(targetId, memberId, permission);
+	                        dao.commit();
+	                    }
+	                    break;
+	                case "network":
+	                    throw new NdexException("Network sharing is not supported yet");
+	                default:
+	                    throw new NdexException("Unsupported sharing type: " + type);
+	            }
+	        }
+	    }
+
+	    ObjectMapper om = new ObjectMapper();
+	    Map<String, Object> response = new HashMap<>();
+	    response.put("status", "success");
+	    response.put("message", "Successfully updated permissions for " + requests.size() + " sharing requests");
+	    
+	    return Response.ok()
+	                   .type(MediaType.APPLICATION_JSON_TYPE)
+	                   .entity(om.writeValueAsString(response))
+	                   .build();
+	}
+
+	@POST
+	@Path("/sharing/remove_member")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response removeMember(List<SharingRemoveRequest> requests) throws Exception {
+	    UUID currentUserId = getLoggedInUserId();
+	    if (currentUserId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to remove member permissions.");
+	    }
+
+	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	        if (requests != null) {
+	            for (SharingRemoveRequest req : requests) {
+	                if (!dao.isFolderOwner(req.getUuid(), currentUserId)) {
+	                    throw new UnauthorizedOperationException(
+	                        "You are not the owner of folder " + req.getUuid()
+	                    );
+	                }
+
+	                // For each user in the 'members' list
+	                if (req.getMembers() != null) {
+	                    for (UUID userIdToRemove : req.getMembers()) {
+	                        dao.removeFolderPermission(req.getUuid(), userIdToRemove);
+	                        // If row doesn't exist, does nothing
+	                    }
+	                }
+	            }
+	        }
+
+	        dao.commit();
+	    }
+
+	    ObjectMapper om = new ObjectMapper();
+	    Map<String, Object> response = new HashMap<>();
+	    response.put("status", "success");
+	    
+	    return Response.ok()
+	                   .type(MediaType.APPLICATION_JSON_TYPE)
+	                   .entity(om.writeValueAsString(response))
+	                   .build();
+	}
+
 }

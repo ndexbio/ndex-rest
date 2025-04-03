@@ -324,8 +324,89 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    return result;
 	}
+	
+//	public void setFolderPermission(UUID folderId, UUID userId, String permission) throws SQLException, NdexException {
+//	    String sql = 
+//	        "INSERT INTO folder_permission (folder_id, user_id, permission) " +
+//	        "VALUES (?, ?, ?) " +
+//	        "ON CONFLICT (folder_id, user_id) DO UPDATE SET permission = EXCLUDED.permission";
+//
+//	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+//	        pst.setObject(1, folderId);
+//	        pst.setObject(2, userId);
+//	        pst.setString(3, permission);
+//	        pst.executeUpdate();
+//	    }
+//	}
+	
+	/**
+	 * Adds a new permission row. 
+	 * Fails (throws NdexException) if there's already a row for (folderId, userId).
+	 * @return 
+	 */
+	public NdexObjectUpdateStatus addFolderPermission(UUID folderId, UUID userId, String permission) throws SQLException, NdexException {
+	    String sql = 
+	        "INSERT INTO folder_permission (folder_id, user_id, permission) "
+	      + "VALUES (?, ?, ?)";
 
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, folderId);
+	        pst.setObject(2, userId);
+	        pst.setString(3, permission);
+	        pst.executeUpdate();
 
+	    } catch (org.postgresql.util.PSQLException e) {
+	        if ("23505".equals(e.getSQLState())) {
+	            // 23505 = unique_violation in Postgres
+	            throw new NdexException(
+	                "Permission already exists for user " + userId 
+	                + " on folder " + folderId
+	            );
+	        }
+	        throw e;
+	    }
+	    
+	    Timestamp t = new Timestamp(System.currentTimeMillis());
+		NdexObjectUpdateStatus result = new NdexObjectUpdateStatus();
+		result.setModificationTime(t);
+		return result;
+	}
 
+	/**
+	 * Updates an existing folder permission row.
+	 * Fails if there is no row to update for that (folderId, userId).
+	 */
+	public void updateFolderPermission(UUID folderId, UUID userId, String permission) 
+	        throws SQLException, NdexException {
+
+	    String sql = 
+	        "UPDATE folder_permission "
+	      + "SET permission = ? "
+	      + "WHERE folder_id = ? AND user_id = ?";
+
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setString(1, permission);
+	        pst.setObject(2, folderId);
+	        pst.setObject(3, userId);
+
+	        int rowCount = pst.executeUpdate();
+	        if (rowCount == 0) {
+	            // Means no matching row existed
+	            throw new NdexException(
+	                "No existing permission found for user " + userId 
+	                + " on folder " + folderId
+	            );
+	        }
+	    }
+	}
+
+	public void removeFolderPermission(UUID folderId, UUID userId) throws SQLException {
+	    String sql = "DELETE FROM folder_permission WHERE folder_id = ? AND user_id = ?";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, folderId);
+	        pst.setObject(2, userId);
+	        pst.executeUpdate();
+	    }
+	}
 
 }
