@@ -1,6 +1,7 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -22,6 +23,8 @@ import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+
+import jakarta.xml.bind.DatatypeConverter;
 
 public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	
@@ -97,7 +100,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		if ( accessKey == null || accessKey.isEmpty())
 			return false;
 		
-		String sqlStr = "select 1 from f where (\"UUID\"=? and access_key_is_on and access_key = ?)" ;
+		String sqlStr = "select 1 from folder f where (\"UUID\"=? and access_key_is_on and access_key = ?)" ;
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, folderId);
 			p.setString(2, accessKey);
@@ -408,5 +411,72 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        pst.executeUpdate();
 	    }
 	}
+	
+	public String enableFolderAccessKey(UUID folderId) throws SQLException, NdexException {
+	    String oldKey = null;
+	    boolean keyIsOn = false;
+
+	    String selectSql = "SELECT access_key, access_key_is_on FROM folder WHERE \"UUID\"=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(selectSql)) {
+	        pst.setObject(1, folderId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            if (!rs.next()) {
+	                throw new NdexException("Folder " + folderId + " not found or is deleted.");
+	            }
+	            oldKey = rs.getString("access_key");
+	            keyIsOn = rs.getBoolean("access_key_is_on");
+	        }
+	    }
+
+	    if (keyIsOn && oldKey != null && !oldKey.isEmpty()) {
+	        // Already shared, just return existing key
+	        return oldKey;
+	    }
+
+	    // If we need to generate a new key:
+	    if (oldKey == null || oldKey.isEmpty()) {
+	        oldKey = generateRandomKey();
+	    }
+
+	    String updateSql = "UPDATE folder SET access_key=?, access_key_is_on=true WHERE \"UUID\"=?";
+	    try (PreparedStatement pst = db.prepareStatement(updateSql)) {
+	        pst.setString(1, oldKey);
+	        pst.setObject(2, folderId);
+	        pst.executeUpdate();
+	    }
+
+	    return oldKey;
+	}
+
+	public void disableFolderAccessKey(UUID folderId) throws SQLException, NdexException {
+	    String sql = "UPDATE folder SET access_key_is_on=false WHERE \"UUID\"=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, folderId);
+	        int updated = pst.executeUpdate();
+	        if (updated == 0) {
+	            throw new NdexException("Folder " + folderId + " not found or is deleted.");
+	        }
+	    }
+	}
+
+	public void transferFolder(UUID folderId, UUID newOwnerId) throws SQLException, NdexException {
+	    String sql = "UPDATE folder SET owneruuid=? WHERE \"UUID\"=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, newOwnerId);
+	        pst.setObject(2, folderId);
+	        int updated = pst.executeUpdate();
+	        if (updated == 0) {
+	            throw new NdexException("Folder " + folderId + " not found, or is deleted.");
+	        }
+	    }
+	}
+
+	private String generateRandomKey() {
+	    // TODO: 16 random bytes
+	    byte[] randomBytes = new byte[16];
+	    new SecureRandom().nextBytes(randomBytes);
+	    return DatatypeConverter.printHexBinary(randomBytes).toLowerCase();
+	}
+
 
 }

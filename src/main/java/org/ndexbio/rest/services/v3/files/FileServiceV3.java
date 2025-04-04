@@ -17,6 +17,7 @@ import org.ndexbio.model.object.SharingMemberRequest;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.ShortcutRequest;
+import org.ndexbio.model.object.TransferRequest;
 import org.ndexbio.model.object.TrashRestoreRequest;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -41,6 +42,7 @@ import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SharingRemoveRequest;
+import org.ndexbio.model.object.SharingSimpleRequest;
 
 
 @Path("/v3/files")
@@ -321,6 +323,123 @@ public class FileServiceV3 extends NdexService {
 	                   .type(MediaType.APPLICATION_JSON_TYPE)
 	                   .entity(om.writeValueAsString(response))
 	                   .build();
+	}
+	
+	@POST
+	@Path("/sharing/share")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response shareObject(SharingSimpleRequest request) throws Exception {
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to share.");
+	    }
+
+	    String type = (request.getType() == null) ? "" : request.getType().trim().toLowerCase();
+
+	    String accessKey;
+	    switch (type) {
+	    	case "network":
+	    		throw new NdexException("Sharing networks is not implemented yet.");
+	        case "folder":
+	            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	                if (!dao.isFolderOwner(request.getUuid(), userId)) {
+	                    throw new UnauthorizedOperationException("You are not the owner of folder " + request.getUuid());
+	                }
+	                accessKey = dao.enableFolderAccessKey(request.getUuid());
+	                dao.commit();
+	            }
+	            break;
+
+	        case "shortcut":
+	        	throw new NdexException("Sharing shortcut is not supported. Please share the folder or network the shortcut points to instead.");
+
+	        default:
+	            throw new NdexException("Unknown type: " + type);
+	    }
+
+	    Map<String,String> response = new HashMap<>();
+	    response.put("accessKey", accessKey);
+	    return Response.ok(response).build();
+	}
+	
+	@POST
+	@Path("/sharing/unshare")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response unshareObject(SharingSimpleRequest request) throws Exception {
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to unshare.");
+	    }
+
+	    String type = (request.getType() == null) ? "" : request.getType().trim().toLowerCase();
+
+	    switch (type) {
+    		case "network":
+    			throw new NdexException("Unshare network is not implemented yet.");
+	        case "folder":
+	            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	                if (!dao.isFolderOwner(request.getUuid(), userId)) {
+	                    throw new UnauthorizedOperationException("You are not the owner of folder " + request.getUuid());
+	                }
+	                dao.disableFolderAccessKey(request.getUuid());
+	                dao.commit();
+	            }
+	            break;
+
+	        case "shortcut":
+	        	throw new NdexException("Shortcuts are not sharable. Unshare is not supported.");
+	        default:
+	            throw new NdexException("Unknown type: " + type);
+	    }
+	    return Response.noContent().build();
+	}
+	
+	@POST
+	@Path("/sharing/transfer")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response transferObjects(List<TransferRequest> requests) throws Exception {
+
+	    UUID currentUserId = getLoggedInUserId();
+	    if (currentUserId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to transfer objects.");
+	    }
+
+	    if (requests == null || requests.isEmpty()) {
+	        return Response.noContent().build();
+	    }
+
+	    for (TransferRequest item : requests) {
+	        String type = (item.getType() == null) ? "" : item.getType().toLowerCase();
+	        if (item.getTo_user() == null) {
+	            throw new NdexException("Missing 'to_user' in request.");
+	        }
+
+	        switch (type) {
+	        	case "network":
+	        		throw new NdexException("Transfer of networks is not implemented yet.");
+	            case "folder":
+	                try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	                    if (!dao.isFolderOwner(item.getUuid(), currentUserId)) {
+	                        throw new UnauthorizedOperationException(
+	                            "You are not the owner of folder " + item.getUuid()
+	                        );
+	                    }
+	                    dao.transferFolder(item.getUuid(), item.getTo_user());
+	                    dao.commit();
+	                }
+	                break;
+
+	            case "shortcut":
+	            	throw new NdexException("Transfer of shortcuts is not supported.");
+	            default:
+	                throw new NdexException("Unknown type: " + type);
+	        }
+	    }
+
+	    return Response.noContent().build();
 	}
 
 }

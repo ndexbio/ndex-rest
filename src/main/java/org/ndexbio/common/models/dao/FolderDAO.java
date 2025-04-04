@@ -46,5 +46,11 @@ public interface FolderDAO extends AutoCloseable {
 	void updateFolderPermission(UUID folderId, UUID userId, String permission) throws SQLException, NdexException;
 	
 	void removeFolderPermission(UUID folderId, UUID userId) throws SQLException;
+	
+	String enableFolderAccessKey(UUID folderId) throws SQLException, NdexException;
+	
+	void disableFolderAccessKey(UUID folderId) throws SQLException, NdexException;
+	
+	void transferFolder(UUID folderId, UUID newOwnerId) throws SQLException, NdexException;
 
 }
