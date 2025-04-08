@@ -160,8 +160,7 @@ public class TestShortcutServiceV3 {
 
         ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
         expect(shortcutDAO.isReadable(shortcutId, userId)).andReturn(true);
-        expect(shortcutDAO.accessKeyIsValid(shortcutId, null)).andReturn(false);
-        expect(shortcutDAO.getShortcut(shortcutId, userId, null)).andReturn(mockShortcut);
+        expect(shortcutDAO.getShortcut(shortcutId, userId)).andReturn(mockShortcut);
         shortcutDAO.close();
         expectLastCall();
         replay(shortcutDAO);
@@ -192,7 +191,6 @@ public class TestShortcutServiceV3 {
 
         ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
         expect(shortcutDAO.isReadable(shortcutId, null)).andReturn(false);
-        expect(shortcutDAO.accessKeyIsValid(shortcutId, null)).andReturn(false);
         shortcutDAO.close();
         expectLastCall();
         replay(shortcutDAO);

@@ -160,7 +160,7 @@ public class FileServiceV3 extends NdexService {
 	            	throw new NdexException("Coping network is not supported yet. It is in development.");
 	                
 	            case "shortcut":
-					status = copyShortcut(request.getFrom_uuid(), userId, request.getTo_path(), accessKey, id_token, auth_token);
+					status = copyShortcut(request.getFrom_uuid(), userId, request.getTo_path(), id_token, auth_token);
 					break;
 
 	            default:
@@ -182,9 +182,9 @@ public class FileServiceV3 extends NdexService {
 				.entity(om.writeValueAsString(status)).build();
 	}
 
-	private NdexObjectUpdateStatus copyShortcut(UUID fromUUID, UUID userId, UUID toPath, String accessKey, String id_token, String auth_token) throws Exception {
+	private NdexObjectUpdateStatus copyShortcut(UUID fromUUID, UUID userId, UUID toPath, String id_token, String auth_token) throws Exception {
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-			Shortcut sourceShortcut = dao.getShortcut(fromUUID, userId, accessKey);
+			Shortcut sourceShortcut = dao.getShortcut(fromUUID, userId);
 			ShortcutRequest request = new ShortcutRequest();
 			request.setName(sourceShortcut.getName());
 			request.setTarget(sourceShortcut.getTarget());

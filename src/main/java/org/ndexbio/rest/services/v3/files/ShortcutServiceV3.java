@@ -54,6 +54,10 @@ public class ShortcutServiceV3 extends NdexService {
 	@Path("/")
 	@Consumes("application/json")
 	@Produces("application/json")
+	@Operation(
+			summary = "Create a Shortcut",
+			description = "Creates a new shortcut object in the user’s account. The request must contain a `name` and a `target` UUID."
+		)
 	public Response createShortcut(final ShortcutRequest request) throws Exception {
 		if (request == null) {
 			throw new Exception("No shortcut request provided.");
@@ -86,10 +90,11 @@ public class ShortcutServiceV3 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{shortcutid}")
-	@Operation(summary = "Get Shortcut", description = "XXX")
-
+	@Operation(
+			summary = "Get a Shortcut",
+			description = "Retrieves the specified shortcut if the current user has read access, either by authentication or a valid access key."
+		)
 	public Response getShortcut(	@PathParam("shortcutid") final String shortcutId,
-			@QueryParam("accesskey") String accessKey,
 			@QueryParam("id_token") String id_token,
 			@QueryParam("auth_token") String auth_token)
 			throws Exception {
@@ -109,9 +114,9 @@ public class ShortcutServiceV3 extends NdexService {
     				userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
     			}
     		}
-    		if ( ! dao.isReadable(shortcutUUID, userId) && (!dao.accessKeyIsValid(shortcutUUID, accessKey))) 
+    		if ( ! dao.isReadable(shortcutUUID, userId)) 
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-    		shortcut = dao.getShortcut(shortcutUUID, userId, accessKey);
+    		shortcut = dao.getShortcut(shortcutUUID, userId);
     	}
 
     	return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(shortcut).build();

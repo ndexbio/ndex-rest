@@ -81,25 +81,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	}
 	
 	@Override
-	public boolean accessKeyIsValid(UUID shortcutId, String accessKey) throws SQLException {
-		if ( accessKey ==null || accessKey.length() == 0)
-			return false;
-		
-		String sqlStr = "select 1 from shortcut where (\"UUID\"=? and access_key_is_on and access_key = ?)" ;
-		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-			p.setObject(1, shortcutId);
-			p.setString(2, accessKey);
-			try ( ResultSet rs = p.executeQuery()) {
-				 if (rs.next())
-					 return true;
-			}		
-		}
-		return true;
-
-	}
-	
-	@Override
-	public Shortcut getShortcut(UUID shortcutId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
+	public Shortcut getShortcut(UUID shortcutId, UUID userId) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
 		Shortcut result = new Shortcut();
 		String sqlStr = "select creation_time, modification_time, name, target, parent, is_deleted from shortcut where \"UUID\"=?";

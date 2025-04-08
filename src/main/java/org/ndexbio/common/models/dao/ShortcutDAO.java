@@ -22,10 +22,8 @@ public interface ShortcutDAO extends AutoCloseable {
 	NdexObjectUpdateStatus createShortcut(final UUID shortcutUUID, final UUID ownerId, final UUID parentUUID, final String name, final UUID targetUUID) throws SQLException;
 	
 	boolean isReadable(UUID shortcutID, UUID userId) throws SQLException, ObjectNotFoundException;
-	
-	boolean accessKeyIsValid(UUID shortcutId, String accessKey) throws SQLException;
-	
-	Shortcut getShortcut(UUID shortcutId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException;
+		
+	Shortcut getShortcut(UUID shortcutId, UUID userId) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException;
 	
 	boolean isShortcutOwner(UUID shortcutId, UUID ownerId) throws SQLException;
 	
