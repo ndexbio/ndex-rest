@@ -55,6 +55,10 @@ public class FolderServiceV3 extends NdexService {
 	@Path("/")
 	@Consumes("application/json")
 	@Produces("application/json")
+    @Operation(
+            summary = "Create a Folder",
+            description = "Creates a new folder object in the user’s account. The request body must include a name; optionally, a parent folder UUID."
+        )
 	public Response createFolder(final FolderRequest request) throws Exception {
 		if (request == null) {
 			throw new Exception("oo");
@@ -82,8 +86,10 @@ public class FolderServiceV3 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{folderid}")
-	@Operation(summary = "Get Folder", description = "XXX")
-
+    @Operation(
+            summary = "Get a Folder",
+            description = "Retrieves the specified folder if the current user has read access or if valid access key is provided."
+        )
 	public Response getFolder(	@PathParam("folderid") final String folderId,
 			@QueryParam("accesskey") String accessKey,
 			@QueryParam("id_token") String id_token,
@@ -116,7 +122,10 @@ public class FolderServiceV3 extends NdexService {
 	
 	@DELETE
 	@Path("/{folderid}")
-	@Operation(summary = "Delete a Folder", description = "Delete a folder.")
+    @Operation(
+            summary = "Delete a Folder",
+            description = "Deletes the specified folder if the current user is the owner. This is a logical delete unless otherwise specified (in future updates)."
+        )
 	@Produces("application/json")
 	public void deleteFolder(@PathParam("folderid") final String folderIdStr)
 			throws Exception, NdexException, SQLException {
@@ -136,7 +145,10 @@ public class FolderServiceV3 extends NdexService {
 	@Path("/{folderid}")
 	@Consumes("application/json")
 	@Produces("application/json")
-	@Operation(summary = "Update a Folder", description = "Updates a folder based on data passed in the body.")
+    @Operation(
+            summary = "Update a Folder",
+            description = "Renames or moves a folder based on data passed in the request body. The user must be the folder’s owner."
+        )
 	public void updateFolder(final FolderRequest request,
 			@PathParam("folderid") final String folderIdStr)
 			throws  DuplicateObjectException,
@@ -157,6 +169,10 @@ public class FolderServiceV3 extends NdexService {
 	@GET
 	@Path("/{folderid}/count")
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary = "Get Item Counts Within a Folder",
+            description = "Returns counts of how many networks, subfolders, and shortcuts exist directly under the specified folder."
+        )
 	public Response getChildCount(
 	        @PathParam("folderid") final String folderIdStr,
 	        @QueryParam("accesskey") String accessKey,
@@ -201,6 +217,10 @@ public class FolderServiceV3 extends NdexService {
 	@GET
 	@Path("/{folderid}/list")
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary = "List Items in a Folder",
+            description = "Retrieves a list of immediate child objects (folders, networks, shortcuts) in the specified folder, if the user has read access or access key. It will be changed in future updates to only list items to which user has access."
+        )
 	public Response listItemsInFolder(
 	        @PathParam("folderid") final String folderIdStr,
 	        @QueryParam("accesskey") String accessKey,
@@ -237,6 +257,10 @@ public class FolderServiceV3 extends NdexService {
 	@GET
 	@Path("/")
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary = "List My Folders",
+            description = "Lists all folders owned by the current user. Supports an optional limit query parameter."
+        )
 	public Response listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
