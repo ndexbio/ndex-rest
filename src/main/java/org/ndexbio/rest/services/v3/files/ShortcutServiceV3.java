@@ -125,7 +125,10 @@ public class ShortcutServiceV3 extends NdexService {
 	
 	@DELETE
 	@Path("/{shortcutid}")
-	@Operation(summary = "Delete a Shortcut", description = "Delete a shortcut.")
+	@Operation(
+			summary = "Delete a Shortcut",
+			description = "Logically deletes the specified shortcut if the current user is the owner. Throws an error if user is not the owner."
+		)
 	@Produces("application/json")
 	public void deleteShortcut(@PathParam("shortcutid") final String shortcutIdStr)
 			throws NdexException, SQLException, Exception {
@@ -145,7 +148,10 @@ public class ShortcutServiceV3 extends NdexService {
 	@Path("/{shortcutid}")
 	@Consumes("application/json")
 	@Produces("application/json")
-	@Operation(summary = "Rename or move a Shortcut", description = "Rename or move a shortcut.")
+	@Operation(
+			summary = "Rename or move a Shortcut",
+			description = "Updates the shortcut's name or parent folder. Throws an error if user is not the owner."
+		)
 	public void updateShortcut(final ShortcutRequest request,
 			@PathParam("shortcutid") final String shortcutIdStr)
 			throws  DuplicateObjectException,
@@ -165,6 +171,10 @@ public class ShortcutServiceV3 extends NdexService {
 	@GET
 	@Path("/")
 	@Produces(MediaType.APPLICATION_JSON)
+	@Operation(
+			summary = "List my Shortcuts",
+			description = "Lists all shortcuts owned by the current user, up to the given limit."
+		)
 	public Response listMyShortcuts(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
