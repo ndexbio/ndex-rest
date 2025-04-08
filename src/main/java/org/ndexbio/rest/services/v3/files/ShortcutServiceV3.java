@@ -127,7 +127,7 @@ public class ShortcutServiceV3 extends NdexService {
 	@Path("/{shortcutid}")
 	@Operation(
 			summary = "Delete a Shortcut",
-			description = "Logically deletes the specified shortcut if the current user is the owner. Throws an error if user is not the owner."
+			description = "Logically deletes the specified shortcut if the current user is the owner. This is a logical delete unless otherwise specified (in future updates)."
 		)
 	@Produces("application/json")
 	public void deleteShortcut(@PathParam("shortcutid") final String shortcutIdStr)
