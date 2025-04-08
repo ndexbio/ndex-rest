@@ -150,16 +150,40 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	}
 	
 	@Override
-	public void updateShortcut(UUID shortcutId, String name, UUID ownerId) throws SQLException, JsonProcessingException, NdexException {
-		Timestamp t = new Timestamp(System.currentTimeMillis());
-		String sqlStr = "update shortcut set modification_time = ?, name = ? where \"UUID\"=? and is_deleted=false";
+	public void updateShortcut(UUID shortcutId, String name, UUID parentId, UUID ownerId) throws SQLException, JsonProcessingException, NdexException {
+	    if (name == null && parentId == null) {
+	        throw new NdexException("No updates requested (both name and parent are null).");
+	    }
 		
-		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setTimestamp(1, t);
-			pst.setString(2, name);
-			pst.setObject(3, shortcutId);
-			pst.executeUpdate();
-		}
+		Timestamp t = new Timestamp(System.currentTimeMillis());
+	    
+	    StringBuilder sb = new StringBuilder("update shortcut set modification_time=?");
+	    if (name != null) {
+	        sb.append(", name=?");
+	    }
+	    if (parentId != null) {
+	        sb.append(", parent=?");
+	    }
+	    sb.append(" WHERE \"UUID\"=? AND is_deleted=false");
+				
+	    try (PreparedStatement pst = db.prepareStatement(sb.toString())) {
+	        int idx = 1;
+	        pst.setTimestamp(idx++, t);
+	        if (name != null) {
+	            pst.setString(idx++, name);
+	        }
+	        if (parentId != null) {
+	            pst.setObject(idx++, parentId);
+	        }
+	        pst.setObject(idx++, shortcutId);
+	        
+	        int updated = pst.executeUpdate();
+	        if (updated == 0) {
+	            throw new NdexException(
+	                "Failed to update folder. Shortcut " + shortcutId + " may not exist or is deleted."
+	            );
+	        }
+	    }
 	}
 	
 	@Override

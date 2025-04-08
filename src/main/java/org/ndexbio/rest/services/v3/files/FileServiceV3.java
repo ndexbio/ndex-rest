@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -41,7 +42,6 @@ import jakarta.ws.rs.core.Response;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.common.models.dao.FolderDAO;
-import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SharingRemoveRequest;
 import org.ndexbio.model.object.SharingSimpleRequest;
 
@@ -113,7 +113,6 @@ public class FileServiceV3 extends NdexService {
 	    
 	}
 	
-	/*
 	@DELETE
 	@Path("/trash")
 	public Response clearTrash() throws Exception {
@@ -122,14 +121,13 @@ public class FileServiceV3 extends NdexService {
 	        throw new UnauthorizedOperationException("You must be logged in to clear your trash.");
 	    }
 
-	    try (TrashDAO dao = new TrashDAO()) {
+	    try (TrashDAO dao = Configuration.getInstance().getDAOFactory().getTrashDAO()) {
 	        dao.permanentlyDeleteAllTrashedItemsOfUser(userId);
 	        dao.commit();
 	    }
 
 	    return Response.noContent().build();
 	}
-	*/
 	
 	@POST
 	@Path("/copy")

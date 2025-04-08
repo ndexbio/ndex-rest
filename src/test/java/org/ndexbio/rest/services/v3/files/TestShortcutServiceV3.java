@@ -11,6 +11,7 @@ import org.junit.Test;
 import org.jboss.resteasy.spi.Dispatcher;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.ShortcutDAO;
+import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.ShortcutRequest;
@@ -279,7 +280,7 @@ public class TestShortcutServiceV3 {
 
         ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
         expect(shortcutDAO.isShortcutOwner(shortcutId, userId)).andReturn(true);
-        shortcutDAO.updateShortcut(shortcutId, "New Name", userId);
+        shortcutDAO.updateShortcut(shortcutId, "New Name", null, userId);
         expectLastCall();
         shortcutDAO.commit();
         expectLastCall();
@@ -292,9 +293,16 @@ public class TestShortcutServiceV3 {
         replay(daoFactory);
 
         Configuration.getInstance().setDAOFactory(daoFactory);
+        
+        FolderRequest requestBody = new FolderRequest();
+        requestBody.setName("New Name");
+        
+        ObjectMapper mapper = new ObjectMapper();
+        byte[] json = mapper.writeValueAsBytes(requestBody);
 
-        MockHttpRequest request = MockHttpRequest.put("/v3/files/shortcuts/" + shortcutId + "?name=New%20Name")
-                .contentType(MediaType.APPLICATION_JSON);
+        MockHttpRequest request = MockHttpRequest.put("/v3/files/shortcuts/" + shortcutId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json);
 
         dispatcher.invoke(request, response);
         assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());

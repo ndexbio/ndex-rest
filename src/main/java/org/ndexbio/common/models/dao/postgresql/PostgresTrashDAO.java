@@ -154,47 +154,47 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
      */
     
     public void permanentlyDeleteAllTrashedItemsOfUser(UUID ownerId) throws SQLException {
-    	/**
-        // 1) Remove membership for networks (remove group_network_membership?)
-        String deleteNetMembership = 
-            "DELETE FROM user_network_membership " +
-            " WHERE networkid IN ( " +
-            "   SELECT \"UUID\" FROM network WHERE owneruuid=? AND is_deleted=true " +
-            " )";
-        try (PreparedStatement pst = db.prepareStatement(deleteNetMembership)) {
-            pst.setObject(1, ownerId);
-            pst.executeUpdate();
-        }
-
-        String deleteGroupNetMembership =
-            "DELETE FROM group_network_membership " +
-            " WHERE network_id IN ( " +
-            "   SELECT \"UUID\" FROM network WHERE owneruuid=? AND is_deleted=true " +
-            " )";
-        try (PreparedStatement pst = db.prepareStatement(deleteGroupNetMembership)) {
-            pst.setObject(1, ownerId);
-            pst.executeUpdate();
-        }
-
-        // 2) Remove networks
-        String deleteNetworks = 
-            "DELETE FROM network WHERE owneruuid=? AND is_deleted=true";
-        try (PreparedStatement pst = db.prepareStatement(deleteNetworks)) {
-            pst.setObject(1, ownerId);
-            pst.executeUpdate();
-        }
+    	
+//        // 1) Remove membership for networks (remove group_network_membership?)
+//        String deleteNetMembership = 
+//            "DELETE FROM user_network_membership " +
+//            " WHERE networkid IN ( " +
+//            "   SELECT \"UUID\" FROM network WHERE owneruuid=? AND is_deleted=true " +
+//            " )";
+//        try (PreparedStatement pst = db.prepareStatement(deleteNetMembership)) {
+//            pst.setObject(1, ownerId);
+//            pst.executeUpdate();
+//        }
+//
+//        String deleteGroupNetMembership =
+//            "DELETE FROM group_network_membership " +
+//            " WHERE network_id IN ( " +
+//            "   SELECT \"UUID\" FROM network WHERE owneruuid=? AND is_deleted=true " +
+//            " )";
+//        try (PreparedStatement pst = db.prepareStatement(deleteGroupNetMembership)) {
+//            pst.setObject(1, ownerId);
+//            pst.executeUpdate();
+//        }
+//
+//        // 2) Remove networks
+//        String deleteNetworks = 
+//            "DELETE FROM network WHERE owneruuid=? AND is_deleted=true";
+//        try (PreparedStatement pst = db.prepareStatement(deleteNetworks)) {
+//            pst.setObject(1, ownerId);
+//            pst.executeUpdate();
+//        }
         
 
-        // 3) remove folder_permissions for trashed folders
-        String deleteFolderPermissions =
-            "DELETE FROM folder_permission " +
-            " WHERE folder_id IN (" +
-            "   SELECT \"UUID\" FROM folder WHERE owneruuid=? AND is_deleted=true" +
-            " )";
-        try (PreparedStatement pst = db.prepareStatement(deleteFolderPermissions)) {
-            pst.setObject(1, ownerId);
-            pst.executeUpdate();
-        }
+//        // 3) remove folder_permissions for trashed folders
+//        String deleteFolderPermissions =
+//            "DELETE FROM folder_permission " +
+//            " WHERE folder_id IN (" +
+//            "   SELECT \"UUID\" FROM folder WHERE owneruuid=? AND is_deleted=true" +
+//            " )";
+//        try (PreparedStatement pst = db.prepareStatement(deleteFolderPermissions)) {
+//            pst.setObject(1, ownerId);
+//            pst.executeUpdate();
+//        }
 
         // 4) remove shortcuts
         String deleteShortcuts = 
@@ -204,14 +204,13 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
             pst.executeUpdate();
         }
 
-        // 5) remove folders
-        String deleteFolders = 
-            "DELETE FROM folder WHERE owneruuid=? AND is_deleted=true";
-        try (PreparedStatement pst = db.prepareStatement(deleteFolders)) {
-            pst.setObject(1, ownerId);
-            pst.executeUpdate();
-        }
-        */
+//        // 5) remove folders
+//        String deleteFolders = 
+//            "DELETE FROM folder WHERE owneruuid=? AND is_deleted=true";
+//        try (PreparedStatement pst = db.prepareStatement(deleteFolders)) {
+//            pst.setObject(1, ownerId);
+//            pst.executeUpdate();
+//        }
 
     }
 

@@ -10,6 +10,7 @@ import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.ShortcutRequest;
@@ -139,8 +140,8 @@ public class ShortcutServiceV3 extends NdexService {
 	@Path("/{shortcutid}")
 	@Consumes("application/json")
 	@Produces("application/json")
-	@Operation(summary = "Rename a Shortcut", description = "Rename a shortcut.")
-	public void updateShortcut(@QueryParam("name") String nameStr,
+	@Operation(summary = "Rename or move a Shortcut", description = "Rename or move a shortcut.")
+	public void updateShortcut(final ShortcutRequest request,
 			@PathParam("shortcutid") final String shortcutIdStr)
 			throws  DuplicateObjectException,
 			NdexException,  SQLException, JsonProcessingException, Exception {
@@ -150,7 +151,7 @@ public class ShortcutServiceV3 extends NdexService {
 			if ( !dao.isShortcutOwner(shortcutId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this shortcut.");
 			
-			dao.updateShortcut(shortcutId, nameStr, getLoggedInUserId());
+			dao.updateShortcut(shortcutId, request.getName(), request.getParent(), getLoggedInUserId());
 			dao.commit();	
 			return;
 		}
