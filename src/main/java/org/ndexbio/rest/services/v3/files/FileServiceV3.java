@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -440,6 +441,26 @@ public class FileServiceV3 extends NdexService {
 	    }
 
 	    return Response.noContent().build();
+	}
+
+	@POST
+	@Path("/sharing/list")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response listSharedObjects(
+	    @QueryParam("limit") @DefaultValue("100") int limit
+	) throws Exception {
+	
+	    UUID currentUserId = getLoggedInUserId();
+	    if (currentUserId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in.");
+	    }
+
+	    List<UUID> folderIds;
+	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	        folderIds = dao.listSharedFolderIds(currentUserId);
+	    }
+	    return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(folderIds).build();
 	}
 
 }

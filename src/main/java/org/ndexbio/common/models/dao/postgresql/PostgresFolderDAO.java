@@ -472,11 +472,34 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	}
 
 	private String generateRandomKey() {
-	    // TODO: 16 random bytes
+	    // TODO: decide how the key should look, now it is 16 random bytes
 	    byte[] randomBytes = new byte[16];
 	    new SecureRandom().nextBytes(randomBytes);
 	    return DatatypeConverter.printHexBinary(randomBytes).toLowerCase();
 	}
+	
+    public List<UUID> listSharedFolderIds(UUID userId) throws SQLException {
+        String sql = 
+            "SELECT f.\"UUID\" " +
+            "FROM folder_permission fp " +
+            "JOIN folder f ON f.\"UUID\" = fp.folder_id " +
+            "WHERE fp.user_id=? " +
+            "  AND f.owneruuid<>? " +
+            "  AND f.is_deleted=false " +
+            "  AND (fp.permission='read' OR fp.permission='edit')";
+        
+        List<UUID> folderIds = new ArrayList<>();
+        try (PreparedStatement pst = db.prepareStatement(sql)) {
+            pst.setObject(1, userId);
+            pst.setObject(2, userId);
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) {
+                    folderIds.add((UUID) rs.getObject(1));
+                }
+            }
+        }
+        return folderIds;
+    }
 
 
 }

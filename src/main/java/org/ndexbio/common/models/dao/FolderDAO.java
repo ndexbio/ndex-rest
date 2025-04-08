@@ -52,5 +52,7 @@ public interface FolderDAO extends AutoCloseable {
 	void disableFolderAccessKey(UUID folderId) throws SQLException, NdexException;
 	
 	void transferFolder(UUID folderId, UUID newOwnerId) throws SQLException, NdexException;
+	
+	List<UUID> listSharedFolderIds(UUID userId) throws SQLException;
 
 }
