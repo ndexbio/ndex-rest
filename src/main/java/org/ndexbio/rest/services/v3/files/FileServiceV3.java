@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -58,6 +59,10 @@ public class FileServiceV3 extends NdexService {
 	@GET
 	@Path("/count")
 	@Produces("application/json")
+    @Operation(
+            summary     = "Get my object counts",
+            description = "Returns the number of networks, folders and shortcuts owned by the current user."
+        )
 	public Response getCount() throws Exception {
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -73,6 +78,10 @@ public class FileServiceV3 extends NdexService {
 	@GET
 	@Path("/trash")
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "List items in my trash",
+            description = "Returns all folders, networks and shortcuts currently in the authenticated user’s trash bin."
+        )
 	public Response listTrash() throws Exception {
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -91,6 +100,10 @@ public class FileServiceV3 extends NdexService {
 	@Path("/trash/restore")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "Restore objects from trash",
+            description = "Restores the supplied folders / networks / shortcuts from the trash bin back to their original locations."
+        )
 	public void restoreItemsFromTrash(TrashRestoreRequest request) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
@@ -115,6 +128,10 @@ public class FileServiceV3 extends NdexService {
 	
 	@DELETE
 	@Path("/trash")
+    @Operation(
+            summary     = "Empty my trash bin",
+            description = "Permanently deletes all items in the authenticated user’s trash. Only shortcuts for now, rest will be added!"
+        )
 	public Response clearTrash() throws Exception {
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -133,6 +150,15 @@ public class FileServiceV3 extends NdexService {
 	@Path("/copy")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "Copy an object",
+            description = """
+                          Makes a copy of the supplied object.
+                          Coping shortcuts is supported. 
+                          Copying folders is not supported – suggest creating a shortcut instead.  
+                          Copying networks is under development and will throw an exception.
+                          """
+        )
 	public Response copyFile(final CopyRequest request,
 			@QueryParam("accesskey") String accessKey,
 			@QueryParam("id_token") String id_token,
@@ -200,6 +226,13 @@ public class FileServiceV3 extends NdexService {
 	@Path("/sharing/add_member")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "Add permissions to folder or network",
+            description = """
+                          Grants READ or EDIT permission on a folder.  
+                          Network support is not implemented yet and will raise an exception.
+                          """
+        )
 	public Response addMember(List<SharingMemberRequest> requests) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
@@ -242,6 +275,10 @@ public class FileServiceV3 extends NdexService {
 	@Path("/sharing/update_member")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "Update permissions",
+            description = "Modifies READ / EDIT permission for existing members on a folder. Network support is not implemented yet."
+        )
 	public Response updateMember(List<SharingMemberRequest> requests) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
@@ -286,6 +323,10 @@ public class FileServiceV3 extends NdexService {
 	@Path("/sharing/remove_member")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "Remove member permissions",
+            description = "Revokes access for the supplied users on a folder. Network support is not implemented yet."
+        )
 	public Response removeMember(List<SharingRemoveRequest> requests) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
@@ -328,6 +369,14 @@ public class FileServiceV3 extends NdexService {
 	@Path("/sharing/share")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "Generate a public access‑key (share)",
+            description = """
+                          Enables the access‑key on a folder (anonymous READ).  
+                          Network sharing is not yet implemented and will throw exceptions.
+                          Shortcuts cannot be shared - instead share objects that they point to.
+                          """
+        )
 	public Response shareObject(SharingSimpleRequest request) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
@@ -366,6 +415,14 @@ public class FileServiceV3 extends NdexService {
 	@POST
 	@Path("/sharing/unshare")
 	@Consumes(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "Disable public access‑key (unshare)",
+            description = """
+                          Disables the access‑key on a folder.  
+                          Network un‑share is not implemented yet.
+                          Shortcut un-share is not supported.
+                          """
+        )
 	public Response unshareObject(SharingSimpleRequest request) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
@@ -399,6 +456,14 @@ public class FileServiceV3 extends NdexService {
 	@POST
 	@Path("/sharing/transfer")
 	@Consumes(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "Transfer folder ownership",
+            description = """
+                          Transfers ownership of one or more folders to another user.  
+                          Transfer of networks is not yet implemented and will throw exceptions.
+                          Transfer of shortcuts is not supported.
+                          """
+        )
 	public Response transferObjects(List<TransferRequest> requests) throws Exception {
 
 	    UUID currentUserId = getLoggedInUserId();
@@ -445,6 +510,13 @@ public class FileServiceV3 extends NdexService {
 	@Path("/sharing/list")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary     = "List objects shared with me",
+            description = """
+                          Returns IDs of folders (and in the future networks) for which the current user has READ or EDIT permission but is not the owner.
+                          Only folder IDs are returned for now; network support is planned.
+                          """
+        )
 	public Response listSharedObjects(
 	    @QueryParam("limit") @DefaultValue("100") int limit
 	) throws Exception {
