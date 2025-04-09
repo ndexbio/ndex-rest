@@ -13,6 +13,7 @@ import org.ndexbio.model.object.CopyRequest;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SharingMemberRequest;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.object.Shortcut;
@@ -42,6 +43,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.object.SharingRemoveRequest;
 import org.ndexbio.model.object.SharingSimpleRequest;
@@ -169,9 +171,15 @@ public class FileServiceV3 extends NdexService {
 	    }
 
 	    UUID userId = getLoggedInUserId();
-	    if (userId == null) {
-	        throw new UnauthorizedOperationException("You must be logged in to copy an object.");
-	    }
+		if ( userId == null ) {
+			if ( auth_token != null) {
+				userId = getUserIdFromBasicAuthString(auth_token);
+			} else if ( id_token !=null) {
+				if ( getOAuthAuthenticator() == null)
+					throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
+				userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
+			}
+		}
 
 	    NdexObjectUpdateStatus status = null;
 	    String type = request.getType().toLowerCase().trim();
@@ -186,7 +194,7 @@ public class FileServiceV3 extends NdexService {
 	            	throw new NdexException("Coping network is not supported yet. It is in development.");
 	                
 	            case "shortcut":
-					status = copyShortcut(request.getFrom_uuid(), userId, request.getTo_path(), id_token, auth_token);
+					status = copyShortcut(request.getFrom_uuid(), userId, request.getTo_path());
 					break;
 
 	            default:
@@ -208,7 +216,7 @@ public class FileServiceV3 extends NdexService {
 				.entity(om.writeValueAsString(status)).build();
 	}
 
-	private NdexObjectUpdateStatus copyShortcut(UUID fromUUID, UUID userId, UUID toPath, String id_token, String auth_token) throws Exception {
+	private NdexObjectUpdateStatus copyShortcut(UUID fromUUID, UUID userId, UUID toPath) throws Exception {
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
 			Shortcut sourceShortcut = dao.getShortcut(fromUUID, userId);
 			ShortcutRequest request = new ShortcutRequest();
@@ -277,7 +285,7 @@ public class FileServiceV3 extends NdexService {
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
             summary     = "Update permissions",
-            description = "Modifies READ / EDIT permission for existing members on a folder. Network support is not implemented yet."
+            description = "Modifies READ / EDIT permission for existing members on a folder or a network."
         )
 	public Response updateMember(List<SharingMemberRequest> requests) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
@@ -292,16 +300,32 @@ public class FileServiceV3 extends NdexService {
 	        for (Map.Entry<UUID, String> entry : request.getMembers().entrySet()) {
 	            UUID memberId = entry.getKey();
 	            String permission = entry.getValue();
+                Permissions newPerm = switch (permission.toUpperCase()) {
+	                case "EDIT" -> Permissions.WRITE;
+	                case "READ" -> Permissions.READ;
+	                default     -> throw new NdexException(
+	                        "Unsupported permission '" + permission + "' in NDEx V3.");
+                };
 
 	            switch (type) {
 	                case "folder":
 	                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	                        dao.updateFolderPermission(targetId, memberId, permission);
+	                        if (!dao.isFolderOwner(targetId, currentUserId))
+	                            throw new UnauthorizedOperationException(
+	                                "Only folder owners can grant permissions. You are not the owner of folder " + targetId);
+	                        
+	                        dao.updateFolderPermission(targetId, memberId, newPerm.toString());
 	                        dao.commit();
 	                    }
 	                    break;
 	                case "network":
-	                    throw new NdexException("Network sharing is not supported yet");
+	                    try (NetworkDAO dao = new NetworkDAO()) {
+	                        if (!dao.isAdmin(targetId, currentUserId))
+	                            throw new UnauthorizedOperationException(
+	                                "Only network admins can grant permissions. You are not an administrator of network " + targetId);
+
+	                        dao.grantPrivilegeToUser(targetId, memberId, newPerm);
+	                    }
 	                default:
 	                    throw new NdexException("Unsupported sharing type: " + type);
 	            }
@@ -323,47 +347,62 @@ public class FileServiceV3 extends NdexService {
 	@Path("/sharing/remove_member")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
-    @Operation(
-            summary     = "Remove member permissions",
-            description = "Revokes access for the supplied users on a folder. Network support is not implemented yet."
-        )
-	public Response removeMember(List<SharingRemoveRequest> requests) throws Exception {
-	    UUID currentUserId = getLoggedInUserId();
-	    if (currentUserId == null) {
-	        throw new UnauthorizedOperationException("You must be logged in to remove member permissions.");
-	    }
+	@Operation(
+		    summary     = "Remove member permissions",
+		    description = """
+		                  Revokes READ / EDIT permissions for the supplied users on a folder or a network.  
+		                  Any other type will raise an exception.
+		                  """
+		)
+		public Response removeMember(List<SharingRemoveRequest> requests) throws Exception {
 
-	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        if (requests != null) {
-	            for (SharingRemoveRequest req : requests) {
-	                if (!dao.isFolderOwner(req.getUuid(), currentUserId)) {
-	                    throw new UnauthorizedOperationException(
-	                        "You are not the owner of folder " + req.getUuid()
-	                    );
-	                }
+		    UUID currentUserId = getLoggedInUserId();
+		    if (currentUserId == null)
+		        throw new UnauthorizedOperationException("You must be logged in to remove member permissions.");
 
-	                // For each user in the 'members' list
-	                if (req.getMembers() != null) {
-	                    for (UUID userIdToRemove : req.getMembers()) {
-	                        dao.removeFolderPermission(req.getUuid(), userIdToRemove);
-	                        // If row doesn't exist, does nothing
-	                    }
-	                }
-	            }
-	        }
+		    Map<String,String> result = new HashMap<>();          // <target‑UUID, status>
 
-	        dao.commit();
-	    }
+		    for (SharingRemoveRequest req : requests) {
 
-	    ObjectMapper om = new ObjectMapper();
-	    Map<String, Object> response = new HashMap<>();
-	    response.put("status", "success");
-	    
-	    return Response.ok()
-	                   .type(MediaType.APPLICATION_JSON_TYPE)
-	                   .entity(om.writeValueAsString(response))
-	                   .build();
-	}
+		        String type     = req.getType().toLowerCase();
+		        UUID   targetId = req.getUuid();
+
+		        switch (type) {
+		        case "folder" -> {
+		            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+
+		                if (!dao.isFolderOwner(targetId, currentUserId))
+		                    throw new UnauthorizedOperationException(
+		                        "You are not the owner of folder " + targetId);
+
+		                if (req.getMembers() != null)
+		                    for (UUID u : req.getMembers())
+		                        dao.removeFolderPermission(targetId, u);
+
+		                dao.commit();
+		                result.put(targetId.toString(), "folder permissions removed");
+		            }
+		        }
+		        case "network" -> {
+		            try (NetworkDAO dao = new NetworkDAO()) {
+
+		                if (!dao.isAdmin(targetId, currentUserId))
+		                    throw new UnauthorizedOperationException(
+		                        "You are not an administrator of network " + targetId);
+
+		                if (req.getMembers() != null)
+		                    for (UUID u : req.getMembers())
+		                        dao.revokeUserPrivilege(targetId, u);     // commits internally
+
+		                result.put(targetId.toString(), "network permissions removed");
+		            }
+		        }
+		        default -> throw new NdexException("Unsupported sharing type: " + type);
+		        }
+		    }
+
+		    return Response.ok(result).build();
+		}
 	
 	@POST
 	@Path("/sharing/share")
