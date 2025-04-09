@@ -563,9 +563,13 @@ public class UserServiceV2 extends NdexService {
 						throw new NdexException("User with email address " + newEmail + " already exists.");
 					}
 					//check if there are any account using the new email address
-					u = dao.getUserByAccountName(newEmail, false, false);
-					if (u != null && !u.getExternalId().equals(user.getExternalId())) {
-						throw new NdexException("User with account name " + newEmail + " already exists.");
+					try { 
+						u = dao.getUserByAccountName(newEmail, false, false);					
+					    if (u != null && !u.getExternalId().equals(user.getExternalId())) {
+						   throw new NdexException("User with account name " + newEmail + " already exists.");
+					     }
+					} catch (ObjectNotFoundException e) {   
+						// do nothing. It is expected that the account name is not found.
 					}
 				}					
 				mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
