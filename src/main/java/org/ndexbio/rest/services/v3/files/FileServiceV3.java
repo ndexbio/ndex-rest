@@ -237,8 +237,8 @@ public class FileServiceV3 extends NdexService {
     @Operation(
             summary     = "Add permissions to folder or network",
             description = """
-                          Grants READ or EDIT permission on a folder.  
-                          Network support is not implemented yet and will raise an exception.
+                          Grants READ or EDIT permission on folders or networks. 
+                          Network permission can be granted or updated.
                           """
         )
 	public Response addMember(List<SharingMemberRequest> requests) throws Exception {
@@ -246,8 +246,9 @@ public class FileServiceV3 extends NdexService {
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to add members.");
 	    }
+	    
+	    Map<String,String> result = new HashMap<>();            // <target‑UUID, status>
 
-	    NdexObjectUpdateStatus status = null;
 	    for (SharingMemberRequest request : requests) {
 	        String type = request.getType().toLowerCase();
 	        UUID targetId = request.getUuid();
@@ -255,16 +256,33 @@ public class FileServiceV3 extends NdexService {
 	        for (Map.Entry<UUID, String> entry : request.getMembers().entrySet()) {
 	            UUID memberId = entry.getKey();
 	            String permission = entry.getValue();
+	            
+                Permissions newPerm = switch (permission.toUpperCase()) {
+	                case "EDIT" -> Permissions.WRITE;
+	                case "READ" -> Permissions.READ;
+	                default     -> throw new NdexException(
+	                        "Unsupported permission '" + permission + "' in NDEx V3.");
+                };
 
 	            switch (type) {
 	                case "folder":
 	                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	                        status = dao.addFolderPermission(targetId, memberId, permission);
+	                        dao.addFolderPermission(targetId, memberId, newPerm.toString());
 	                        dao.commit();
+	                        result.put(targetId.toString(), "folder permission granted");
 	                    }
 	                    break;
 	                case "network":
-	                    throw new NdexException("Network sharing is not supported yet");
+	                    try (NetworkDAO dao = new NetworkDAO()) {
+
+	                        if (!dao.isAdmin(targetId, currentUserId))
+	                            throw new UnauthorizedOperationException(
+	                                "You are not an administrator of network " + targetId);
+
+
+	                        dao.grantPrivilegeToUser(targetId, memberId, newPerm);   // commits internally
+	                        result.put(targetId.toString(), "network permission granted");
+	                    }
 	                default:
 	                    throw new NdexException("Unsupported sharing type: " + type);
 	            }
@@ -275,7 +293,7 @@ public class FileServiceV3 extends NdexService {
 	    
 	    return Response.ok()
 	                   .type(MediaType.APPLICATION_JSON_TYPE)
-	                   .entity(om.writeValueAsString(status))
+	                   .entity(om.writeValueAsString(result))
 	                   .build();
 	}
 
@@ -292,6 +310,8 @@ public class FileServiceV3 extends NdexService {
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to update member permissions.");
 	    }
+	    
+	    Map<String,String> result = new HashMap<>(); 
 
 	    for (SharingMemberRequest request : requests) {
 	        String type = request.getType().toLowerCase();
@@ -316,6 +336,7 @@ public class FileServiceV3 extends NdexService {
 	                        
 	                        dao.updateFolderPermission(targetId, memberId, newPerm.toString());
 	                        dao.commit();
+	                        result.put(targetId.toString(), "folder permission updated.");
 	                    }
 	                    break;
 	                case "network":
@@ -325,6 +346,7 @@ public class FileServiceV3 extends NdexService {
 	                                "Only network admins can grant permissions. You are not an administrator of network " + targetId);
 
 	                        dao.grantPrivilegeToUser(targetId, memberId, newPerm);
+	                        result.put(targetId.toString(), "network permission updated.");
 	                    }
 	                default:
 	                    throw new NdexException("Unsupported sharing type: " + type);
@@ -333,13 +355,10 @@ public class FileServiceV3 extends NdexService {
 	    }
 
 	    ObjectMapper om = new ObjectMapper();
-	    Map<String, Object> response = new HashMap<>();
-	    response.put("status", "success");
-	    response.put("message", "Successfully updated permissions for " + requests.size() + " sharing requests");
 	    
 	    return Response.ok()
 	                   .type(MediaType.APPLICATION_JSON_TYPE)
-	                   .entity(om.writeValueAsString(response))
+	                   .entity(om.writeValueAsString(result))
 	                   .build();
 	}
 
@@ -400,8 +419,13 @@ public class FileServiceV3 extends NdexService {
 		        default -> throw new NdexException("Unsupported sharing type: " + type);
 		        }
 		    }
+		    
+		    ObjectMapper om = new ObjectMapper();
 
-		    return Response.ok(result).build();
+		    return Response.ok()
+	                   .type(MediaType.APPLICATION_JSON_TYPE)
+	                   .entity(om.writeValueAsString(result))
+	                   .build();
 		}
 	
 	@POST
@@ -428,7 +452,14 @@ public class FileServiceV3 extends NdexService {
 	    String accessKey;
 	    switch (type) {
 	    	case "network":
-	    		throw new NdexException("Sharing networks is not implemented yet.");
+	            try (NetworkDAO dao = new NetworkDAO()) {
+
+	                if (!dao.isAdmin(request.getUuid(), userId))
+	                    throw new UnauthorizedOperationException("You are not an administrator of network " + request.getUuid());
+
+	                accessKey = dao.enableNetworkAccessKey(request.getUuid());   // creates or re‑uses existing key
+	                dao.commit();
+	            }
 	        case "folder":
 	            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	                if (!dao.isFolderOwner(request.getUuid(), userId)) {
@@ -473,7 +504,14 @@ public class FileServiceV3 extends NdexService {
 
 	    switch (type) {
     		case "network":
-    			throw new NdexException("Unshare network is not implemented yet.");
+    	        try (NetworkDAO dao = new NetworkDAO()) {
+
+    	            if (!dao.isAdmin(request.getUuid(), userId))
+    	                throw new UnauthorizedOperationException("You are not an administrator of network " + request.getUuid());
+
+    	            dao.disableNetworkAccessKey(request.getUuid());
+    	            dao.commit();
+    	        }
 	        case "folder":
 	            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	                if (!dao.isFolderOwner(request.getUuid(), userId)) {
