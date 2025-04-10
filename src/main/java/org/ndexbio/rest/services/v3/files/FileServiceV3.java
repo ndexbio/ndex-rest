@@ -258,7 +258,7 @@ public class FileServiceV3 extends NdexService {
 	            String permission = entry.getValue();
 	            
                 Permissions newPerm = switch (permission.toUpperCase()) {
-	                case "EDIT" -> Permissions.WRITE;
+	                case "EDIT" -> Permissions.EDIT;
 	                case "READ" -> Permissions.READ;
 	                default     -> throw new NdexException(
 	                        "Unsupported permission '" + permission + "' in NDEx V3.");
@@ -267,7 +267,7 @@ public class FileServiceV3 extends NdexService {
 	            switch (type) {
 	                case "folder":
 	                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	                        dao.addFolderPermission(targetId, memberId, newPerm.toString());
+	                        dao.addFolderPermission(targetId, memberId, permission.toUpperCase());
 	                        dao.commit();
 	                        result.put(targetId.toString(), "folder permission granted");
 	                    }
@@ -321,7 +321,7 @@ public class FileServiceV3 extends NdexService {
 	            UUID memberId = entry.getKey();
 	            String permission = entry.getValue();
                 Permissions newPerm = switch (permission.toUpperCase()) {
-	                case "EDIT" -> Permissions.WRITE;
+	                case "EDIT" -> Permissions.EDIT;
 	                case "READ" -> Permissions.READ;
 	                default     -> throw new NdexException(
 	                        "Unsupported permission '" + permission + "' in NDEx V3.");

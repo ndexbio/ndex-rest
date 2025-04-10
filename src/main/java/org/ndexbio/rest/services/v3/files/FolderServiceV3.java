@@ -217,19 +217,22 @@ public class FolderServiceV3 extends NdexService {
 	@GET
 	@Path("/{folderid}/list")
 	@Produces(MediaType.APPLICATION_JSON)
-    @Operation(
-            summary = "List Items in a Folder",
-            description = "Retrieves a list of immediate child objects (folders, networks, shortcuts) in the specified folder, if the user has read access or access key. It will be changed in future updates to only list items to which user has access."
-        )
+	@Operation(
+	    summary     = "List items in a folder",
+	    description = """
+	                  If *folderid* is a UUID, returns the immediate children of that folder  
+	                  (folders / networks / shortcuts) provided the caller is an owner or has read access or a valid access‑key.  
+	                  If *folderid* is the literal string **“home”**, returns **all** top‑level items
+	                  owned by the signed‑in user (parent = NULL).
+	                  """
+	)
 	public Response listItemsInFolder(
-	        @PathParam("folderid") final String folderIdStr,
+	        @PathParam("folderid")  final String folderIdStr,
 	        @QueryParam("accesskey") String accessKey,
-	        @QueryParam("id_token") String id_token,
+	        @QueryParam("id_token")  String id_token,
 	        @QueryParam("auth_token") String auth_token
 	) throws Exception {
-
-	    UUID folderUUID = UUID.fromString(folderIdStr);
-
+		
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
 	        if (auth_token != null) {
@@ -242,6 +245,19 @@ public class FolderServiceV3 extends NdexService {
 	        }
 	    }
 
+	    /* ---------------------------------------------------------------- home case */
+	    if ("home".equalsIgnoreCase(folderIdStr)) {
+
+	        List<FileItemSummary> items;
+	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	            items = dao.listRootItemsOfUser(userId);
+	        }
+	        return Response.ok(items).build();
+	    }
+
+	    /* ------------------------------------------------------------- normal folder */
+	    UUID folderUUID = UUID.fromString(folderIdStr);
+
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
 	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
@@ -251,8 +267,8 @@ public class FolderServiceV3 extends NdexService {
 	        items = dao.listItemsInFolder(folderUUID);
 	        return Response.ok(items).build();
 	    }
-	    
 	}
+	
 	
 	@GET
 	@Path("/")

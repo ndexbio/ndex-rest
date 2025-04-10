@@ -296,6 +296,64 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return results;
 	}
 	
+	/** 
+	 * List “home” items
+	 * Returns every folder / network / shortcut that                       
+	 * 	• is **owned** by the given user, and                              
+	 * 	• has no parent (i.e. it lives at the top level).                  
+	 */
+	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId) throws SQLException {
+
+	    List<FileItemSummary> results = new ArrayList<>();
+
+	    /* 1) Folders ------------------------------------------------------ */
+	    String sql = """
+	        SELECT "UUID", name
+	          FROM folder
+	         WHERE owneruuid = ? AND parent IS NULL AND is_deleted = FALSE
+	        """;
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, ownerId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next())
+	                results.add(new FileItemSummary(
+	                        (UUID) rs.getObject(1), "folder", rs.getString(2)));
+	        }
+	    }
+
+	    /* 2) Networks ----------------------------------------------------- */
+	    sql = """
+	        SELECT "UUID", name
+	          FROM network
+	         WHERE owneruuid = ? AND parent IS NULL AND is_deleted = FALSE
+	        """;
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, ownerId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next())
+	                results.add(new FileItemSummary(
+	                        (UUID) rs.getObject(1), "network", rs.getString(2)));
+	        }
+	    }
+
+	    /* 3) Shortcuts ---------------------------------------------------- */
+	    sql = """
+	        SELECT "UUID", name
+	          FROM shortcut
+	         WHERE owneruuid = ? AND parent IS NULL AND is_deleted = FALSE
+	        """;
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, ownerId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next())
+	                results.add(new FileItemSummary(
+	                        (UUID) rs.getObject(1), "shortcut", rs.getString(2)));
+	        }
+	    }
+
+	    return results;
+	}
+	
 	@Override
 	public List<Folder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException {
 	    List<Folder> result = new ArrayList<>();
