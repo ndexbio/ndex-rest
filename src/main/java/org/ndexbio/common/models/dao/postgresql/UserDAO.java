@@ -545,7 +545,7 @@ public class UserDAO extends NdexDBDAO {
 	 **************************************************************************/
 	public User updateUser(User updatedUser, UUID id)
 			throws IllegalArgumentException, NdexException,
-			ObjectNotFoundException, SQLException, JsonProcessingException {
+			 SQLException, JsonProcessingException {
 
 		Preconditions.checkArgument(id != null, "A user id is required");
 		Preconditions.checkArgument(updatedUser != null,
