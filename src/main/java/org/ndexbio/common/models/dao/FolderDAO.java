@@ -37,9 +37,9 @@ public interface FolderDAO extends AutoCloseable {
 	
 	FileCount getFolderChildCounts(UUID folderId) throws SQLException;
 	
-	List<FileItemSummary> listItemsInFolder(UUID folderId) throws SQLException;
+	List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact) throws SQLException;
 	
-	List<FileItemSummary> listRootItemsOfUser(UUID ownerId) throws SQLException;
+	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact) throws SQLException;
 	
 	List<Folder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException;
 	

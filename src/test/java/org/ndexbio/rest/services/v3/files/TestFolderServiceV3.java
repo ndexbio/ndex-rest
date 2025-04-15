@@ -418,7 +418,7 @@ public class TestFolderServiceV3 {
         FolderDAO folderDAO = createMock(FolderDAO.class);
         expect(folderDAO.isReadable(folderId, userId)).andReturn(true);
         expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
-        expect(folderDAO.listItemsInFolder(folderId)).andReturn(items);
+        expect(folderDAO.listItemsInFolder(folderId, false)).andReturn(items);
         folderDAO.close();
         expectLastCall();
         replay(folderDAO);

@@ -228,10 +228,13 @@ public class FolderServiceV3 extends NdexService {
 	)
 	public Response listItemsInFolder(
 	        @PathParam("folderid")  final String folderIdStr,
+	        @QueryParam("format")   @DefaultValue("update") String format,
 	        @QueryParam("accesskey") String accessKey,
 	        @QueryParam("id_token")  String id_token,
 	        @QueryParam("auth_token") String auth_token
 	) throws Exception {
+		
+		boolean compact = "compact".equalsIgnoreCase(format);
 		
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -250,7 +253,7 @@ public class FolderServiceV3 extends NdexService {
 
 	        List<FileItemSummary> items;
 	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	            items = dao.listRootItemsOfUser(userId);
+	            items = dao.listRootItemsOfUser(userId, compact);
 	        }
 	        return Response.ok(items).build();
 	    }
@@ -264,7 +267,7 @@ public class FolderServiceV3 extends NdexService {
 	        }
 	        
 	        List<FileItemSummary> items;
-	        items = dao.listItemsInFolder(folderUUID);
+	        items = dao.listItemsInFolder(folderUUID, compact);
 	        return Response.ok(items).build();
 	    }
 	}

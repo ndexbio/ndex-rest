@@ -7,7 +7,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -244,114 +246,134 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return fc;
 	}
 	
-	@Override
-	public List<FileItemSummary> listItemsInFolder(UUID folderId) throws SQLException {
+
+	public List<FileItemSummary> listItemsInFolder(UUID folderId,
+	                                               boolean compact) throws SQLException {
+
 	    List<FileItemSummary> results = new ArrayList<>();
+	    final String baseCols = "\"UUID\", name, modification_time, updated_by";
 
-	    // 1) Subfolders
-	    String folderSql = 
-	        "SELECT \"UUID\", name FROM folder " +
-	        "WHERE parent=? AND is_deleted=false";
-	    try (PreparedStatement pst = db.prepareStatement(folderSql)) {
+	    /* ───────────────────────────── 1) Folders ─────────────────────────── */
+	    String sql = "SELECT " + baseCols + " FROM folder "
+	               + "WHERE parent=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, folderId);
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
-	                UUID uuid = (UUID) rs.getObject(1);
-	                String name = rs.getString(2);
-	                results.add(new FileItemSummary(uuid, "folder", name));
+	                results.add(new FileItemSummary(
+	                    (UUID) rs.getObject(1), "folder",
+	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    compact ? Map.of() : null));          // empty {} if compact
 	            }
 	        }
 	    }
 
-	    // 2) Networks
-	    String networkSql = 
-	        "SELECT \"UUID\", name FROM network " +
-	        "WHERE parent=? AND is_deleted=false";
-	    try (PreparedStatement pst = db.prepareStatement(networkSql)) {
+	    /* ───────────────────────────── 2) Networks ────────────────────────── */
+	    sql = "SELECT " + baseCols
+	        + (compact ? ", description, edgecount, visibility" : "")
+	        + " FROM network WHERE parent=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, folderId);
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
-	                UUID uuid = (UUID) rs.getObject(1);
-	                String name = rs.getString(2);
-	                results.add(new FileItemSummary(uuid, "network", name));
+	                Map<String,Object> attr = null;
+	                if (compact) {
+	                    attr = Map.of(
+	                        "description", rs.getString(5),
+	                        "edges",        rs.getInt   (6),
+	                        "visibility",   rs.getString(7));
+	                }
+	                results.add(new FileItemSummary(
+	                    (UUID) rs.getObject(1), "network",
+	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    attr));
 	            }
 	        }
 	    }
 
-	    // 3) Shortcuts
-	    String shortcutSql = 
-	        "SELECT \"UUID\", name FROM shortcut " +
-	        "WHERE parent=? AND is_deleted=false";
-	    try (PreparedStatement pst = db.prepareStatement(shortcutSql)) {
+	    /* ───────────────────────────── 3) Shortcuts ───────────────────────── */
+	    sql = "SELECT " + baseCols + " FROM shortcut "
+	        + "WHERE parent=? AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, folderId);
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
-	                UUID uuid = (UUID) rs.getObject(1);
-	                String name = rs.getString(2);
-	                results.add(new FileItemSummary(uuid, "shortcut", name));
+	                results.add(new FileItemSummary(
+	                    (UUID) rs.getObject(1), "shortcut",
+	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    compact ? Map.of() : null));
 	            }
 	        }
 	    }
 
 	    return results;
 	}
+
 	
-	/** 
+	/**
 	 * List “home” items
-	 * Returns every folder / network / shortcut that                       
-	 * 	• is **owned** by the given user, and                              
-	 * 	• has no parent (i.e. it lives at the top level).                  
+	 * Returns every folder / network / shortcut that
+	 *   • is owned by the given user, and
+	 *   • has no parent (i.e. it lives at the top level).
 	 */
-	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId) throws SQLException {
+	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact)
+	        throws SQLException {
 
-	    List<FileItemSummary> results = new ArrayList<>();
+	    List<FileItemSummary> r = new ArrayList<>();
+	    final String baseCols = "\"UUID\", name, modification_time, updated_by";
 
-	    /* 1) Folders ------------------------------------------------------ */
-	    String sql = """
-	        SELECT "UUID", name
-	          FROM folder
-	         WHERE owneruuid = ? AND parent IS NULL AND is_deleted = FALSE
-	        """;
+	    /* folders */
+	    String sql = "SELECT " + baseCols + " FROM folder "
+	               + "WHERE owneruuid=? AND parent IS NULL AND is_deleted=false";
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, ownerId);
 	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next())
-	                results.add(new FileItemSummary(
-	                        (UUID) rs.getObject(1), "folder", rs.getString(2)));
+	            while (rs.next()) {
+	                r.add(new FileItemSummary(
+	                    (UUID) rs.getObject(1), "folder",
+	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    compact ? Map.of() : null));
+	            }
 	        }
 	    }
 
-	    /* 2) Networks ----------------------------------------------------- */
-	    sql = """
-	        SELECT "UUID", name
-	          FROM network
-	         WHERE owneruuid = ? AND parent IS NULL AND is_deleted = FALSE
-	        """;
+	    /* networks */
+	    sql = "SELECT " + baseCols
+	        + (compact ? ", description, edgecount, visibility" : "")
+	        + " FROM network WHERE owneruuid=? AND parent IS NULL AND is_deleted=false";
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, ownerId);
 	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next())
-	                results.add(new FileItemSummary(
-	                        (UUID) rs.getObject(1), "network", rs.getString(2)));
+	            while (rs.next()) {
+	            	Map<String,Object> attr = new HashMap<>();
+	            	if (compact) {
+		            	attr.put("description", rs.getString(5));
+		            	attr.put("edges",        rs.getInt(6));
+		            	attr.put("visibility",   rs.getString(7));
+	            	}
+	                r.add(new FileItemSummary(
+	                    (UUID) rs.getObject(1), "network",
+	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    attr));
+	            }
 	        }
 	    }
 
-	    /* 3) Shortcuts ---------------------------------------------------- */
-	    sql = """
-	        SELECT "UUID", name
-	          FROM shortcut
-	         WHERE owneruuid = ? AND parent IS NULL AND is_deleted = FALSE
-	        """;
+	    /* shortcuts */
+	    sql = "SELECT " + baseCols + " FROM shortcut "
+	        + "WHERE owneruuid=? AND parent IS NULL AND is_deleted=false";
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, ownerId);
 	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next())
-	                results.add(new FileItemSummary(
-	                        (UUID) rs.getObject(1), "shortcut", rs.getString(2)));
+	            while (rs.next()) {
+	                r.add(new FileItemSummary(
+	                    (UUID) rs.getObject(1), "shortcut",
+	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    compact ? Map.of() : null));
+	            }
 	        }
 	    }
-
-	    return results;
+	    return r;
 	}
 	
 	@Override
