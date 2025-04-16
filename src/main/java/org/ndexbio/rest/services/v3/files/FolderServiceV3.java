@@ -61,7 +61,7 @@ public class FolderServiceV3 extends NdexService {
         )
 	public Response createFolder(final FolderRequest request) throws Exception {
 		if (request == null) {
-			throw new Exception("oo");
+			throw new Exception("No folder request data was provided!");
 		}
 		
 		UUID folderUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
