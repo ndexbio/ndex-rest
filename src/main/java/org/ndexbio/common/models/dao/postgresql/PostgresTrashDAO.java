@@ -10,6 +10,7 @@ import java.sql.Timestamp;
 
 import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.TrashRestoreRequest;
 
 
@@ -37,7 +38,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     results.add(
                         new FileItemSummary(
                             (UUID) rs.getObject("UUID"),
-                            "folder",
+                            FileType.FOLDER,
                             rs.getString("name")
                         )
                     );
@@ -56,7 +57,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     results.add(
                         new FileItemSummary(
                             (UUID) rs.getObject("UUID"),
-                            "network",
+                            FileType.NETWORK,
                             rs.getString("name")
                         )
                     );
@@ -75,7 +76,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     results.add(
                         new FileItemSummary(
                             (UUID) rs.getObject("UUID"),
-                            "shortcut",
+                            FileType.SHORTCUT,
                             rs.getString("name")
                         )
                     );

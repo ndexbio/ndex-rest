@@ -1,6 +1,7 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
+import java.nio.file.spi.FileTypeDetector;
 import java.security.SecureRandom;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -19,8 +20,10 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
+import org.ndexbio.model.object.Permissions;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -261,7 +264,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
 	                results.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), "folder",
+	                    (UUID) rs.getObject(1), FileType.FOLDER,
 	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
 	                    compact ? Map.of() : null));          // empty {} if compact
 	            }
@@ -284,7 +287,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                        "visibility",   rs.getString(7));
 	                }
 	                results.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), "network",
+	                    (UUID) rs.getObject(1), FileType.NETWORK,
 	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
 	                    attr));
 	            }
@@ -299,7 +302,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
 	                results.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), "shortcut",
+	                    (UUID) rs.getObject(1), FileType.SHORTCUT,
 	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
 	                    compact ? Map.of() : null));
 	            }
@@ -330,7 +333,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
 	                r.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), "folder",
+	                    (UUID) rs.getObject(1), FileType.FOLDER,
 	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
 	                    compact ? Map.of() : null));
 	            }
@@ -352,7 +355,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		            	attr.put("visibility",   rs.getString(7));
 	            	}
 	                r.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), "network",
+	                    (UUID) rs.getObject(1), FileType.NETWORK,
 	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
 	                    attr));
 	            }
@@ -367,7 +370,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
 	                r.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), "shortcut",
+	                    (UUID) rs.getObject(1), FileType.SHORTCUT,
 	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
 	                    compact ? Map.of() : null));
 	            }
@@ -408,79 +411,27 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return result;
 	}
 	
-//	public void setFolderPermission(UUID folderId, UUID userId, String permission) throws SQLException, NdexException {
-//	    String sql = 
-//	        "INSERT INTO folder_permission (folder_id, user_id, permission) " +
-//	        "VALUES (?, ?, ?) " +
-//	        "ON CONFLICT (folder_id, user_id) DO UPDATE SET permission = EXCLUDED.permission";
-//
-//	    try (PreparedStatement pst = db.prepareStatement(sql)) {
-//	        pst.setObject(1, folderId);
-//	        pst.setObject(2, userId);
-//	        pst.setString(3, permission);
-//	        pst.executeUpdate();
-//	    }
-//	}
-	
 	/**
-	 * Adds a new permission row. 
-	 * Fails (throws NdexException) if there's already a row for (folderId, userId).
+	 * Adds new or updates a permission row. 
 	 * @return 
 	 */
-	public NdexObjectUpdateStatus addFolderPermission(UUID folderId, UUID userId, String permission) throws SQLException, NdexException {
+	public NdexObjectUpdateStatus setFolderPermission(UUID folderId, UUID userId, Permissions permission) throws SQLException, NdexException {
 	    String sql = 
-	        "INSERT INTO folder_permission (folder_id, user_id, permission) "
-	      + "VALUES (?, ?, ?)";
+	        "INSERT INTO folder_permission (folder_id, user_id, permission) " +
+	        "VALUES (?, ?, ?) " +
+	        "ON CONFLICT (folder_id, user_id) DO UPDATE SET permission = EXCLUDED.permission";
 
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, folderId);
 	        pst.setObject(2, userId);
-	        pst.setString(3, permission);
+	        pst.setString(3, permission.toString());
 	        pst.executeUpdate();
-
-	    } catch (org.postgresql.util.PSQLException e) {
-	        if ("23505".equals(e.getSQLState())) {
-	            // 23505 = unique_violation in Postgres
-	            throw new NdexException(
-	                "Permission already exists for user " + userId 
-	                + " on folder " + folderId
-	            );
-	        }
-	        throw e;
 	    }
 	    
 	    Timestamp t = new Timestamp(System.currentTimeMillis());
 		NdexObjectUpdateStatus result = new NdexObjectUpdateStatus();
 		result.setModificationTime(t);
 		return result;
-	}
-
-	/**
-	 * Updates an existing folder permission row.
-	 * Fails if there is no row to update for that (folderId, userId).
-	 */
-	public void updateFolderPermission(UUID folderId, UUID userId, String permission) 
-	        throws SQLException, NdexException {
-
-	    String sql = 
-	        "UPDATE folder_permission "
-	      + "SET permission = ? "
-	      + "WHERE folder_id = ? AND user_id = ?";
-
-	    try (PreparedStatement pst = db.prepareStatement(sql)) {
-	        pst.setString(1, permission);
-	        pst.setObject(2, folderId);
-	        pst.setObject(3, userId);
-
-	        int rowCount = pst.executeUpdate();
-	        if (rowCount == 0) {
-	            // Means no matching row existed
-	            throw new NdexException(
-	                "No existing permission found for user " + userId 
-	                + " on folder " + folderId
-	            );
-	        }
-	    }
 	}
 
 	public void removeFolderPermission(UUID folderId, UUID userId) throws SQLException {

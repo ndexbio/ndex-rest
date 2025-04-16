@@ -24,6 +24,7 @@ import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.model.errorcodes.NDExError;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.TrashRestoreRequest;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
@@ -171,8 +172,8 @@ public class TestFileServiceV3 {
 
 	    // Prepare mock data
 	    List<FileItemSummary> trashedItems = new ArrayList<>();
-	    trashedItems.add(new FileItemSummary(UUID.randomUUID(), "folder", "Test Folder"));
-	    trashedItems.add(new FileItemSummary(UUID.randomUUID(), "network", "Test Network"));
+	    trashedItems.add(new FileItemSummary(UUID.randomUUID(), FileType.FOLDER, "Test Folder"));
+	    trashedItems.add(new FileItemSummary(UUID.randomUUID(), FileType.NETWORK, "Test Network"));
 
 	    // Mock DAO and DAOFactory
 	    TrashDAO mockTrashDAO = createMock(TrashDAO.class);
@@ -198,7 +199,7 @@ public class TestFileServiceV3 {
 	    FileItemSummary[] result = mapper.readValue(response.getOutput(), FileItemSummary[].class);
 
 	    assertEquals(2, result.length);
-	    assertEquals("folder", result[0].getType());
+	    assertEquals(FileType.FOLDER, result[0].getType());
 	    assertEquals("Test Folder", result[0].getName());
 	}
 	

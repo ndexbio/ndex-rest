@@ -12,6 +12,7 @@ import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
+import org.ndexbio.model.object.Permissions;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -43,9 +44,7 @@ public interface FolderDAO extends AutoCloseable {
 	
 	List<Folder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException;
 	
-	NdexObjectUpdateStatus addFolderPermission(UUID folderId, UUID userId, String permission) throws SQLException, NdexException;
-	
-	void updateFolderPermission(UUID folderId, UUID userId, String permission) throws SQLException, NdexException;
+	NdexObjectUpdateStatus setFolderPermission(UUID folderId, UUID userId, Permissions permission) throws SQLException, NdexException;
 	
 	void removeFolderPermission(UUID folderId, UUID userId) throws SQLException;
 	

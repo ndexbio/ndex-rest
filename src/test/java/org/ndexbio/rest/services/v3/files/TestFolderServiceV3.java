@@ -17,6 +17,7 @@ import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.User;
@@ -413,7 +414,7 @@ public class TestFolderServiceV3 {
         replay(mockHttpServletRequest);
 
         List<FileItemSummary> items = new ArrayList<>();
-        items.add(new FileItemSummary(UUID.randomUUID(), "network", "Net 1"));
+        items.add(new FileItemSummary(UUID.randomUUID(), FileType.NETWORK, "Net 1"));
 
         FolderDAO folderDAO = createMock(FolderDAO.class);
         expect(folderDAO.isReadable(folderId, userId)).andReturn(true);
@@ -436,7 +437,7 @@ public class TestFolderServiceV3 {
         ObjectMapper mapper = new ObjectMapper();
         FileItemSummary[] result = mapper.readValue(response.getOutput(), FileItemSummary[].class);
         assertEquals(1, result.length);
-        assertEquals("network", result[0].getType());
+        assertEquals(FileType.NETWORK, result[0].getType());
     }
     
 }
