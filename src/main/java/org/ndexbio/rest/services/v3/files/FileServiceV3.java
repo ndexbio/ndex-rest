@@ -237,7 +237,7 @@ public class FileServiceV3 extends NdexService {
     @Operation(
             summary     = "Add permissions to folder or network",
             description = """
-                          Grants READ or EDIT permission on folders or networks. 
+                          Grants READ or WRITE permission on folders or networks. 
                           Network permission can be granted or updated.
                           """
         )
@@ -258,7 +258,7 @@ public class FileServiceV3 extends NdexService {
 	            String permission = entry.getValue();
 	            
                 Permissions newPerm = switch (permission.toUpperCase()) {
-	                case "EDIT" -> Permissions.EDIT;
+	                case "WRITE" -> Permissions.WRITE;
 	                case "READ" -> Permissions.READ;
 	                default     -> throw new NdexException(
 	                        "Unsupported permission '" + permission + "' in NDEx V3.");
@@ -303,7 +303,7 @@ public class FileServiceV3 extends NdexService {
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
             summary     = "Update permissions",
-            description = "Modifies READ / EDIT permission for existing members on a folder or a network."
+            description = "Modifies READ / WRITE permission for existing members on a folder or a network."
         )
 	public Response updateMember(List<SharingMemberRequest> requests) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
@@ -321,7 +321,7 @@ public class FileServiceV3 extends NdexService {
 	            UUID memberId = entry.getKey();
 	            String permission = entry.getValue();
                 Permissions newPerm = switch (permission.toUpperCase()) {
-	                case "EDIT" -> Permissions.EDIT;
+	                case "WRITE" -> Permissions.WRITE;
 	                case "READ" -> Permissions.READ;
 	                default     -> throw new NdexException(
 	                        "Unsupported permission '" + permission + "' in NDEx V3.");
@@ -369,7 +369,7 @@ public class FileServiceV3 extends NdexService {
 	@Operation(
 		    summary     = "Remove member permissions",
 		    description = """
-		                  Revokes READ / EDIT permissions for the supplied users on a folder or a network.  
+		                  Revokes READ / WRITE permissions for the supplied users on a folder or a network.  
 		                  Any other type will raise an exception.
 		                  """
 		)
@@ -590,7 +590,7 @@ public class FileServiceV3 extends NdexService {
     @Operation(
             summary     = "List objects shared with me",
             description = """
-                          Returns IDs of folders (and in the future networks) for which the current user has READ or EDIT permission but is not the owner.
+                          Returns IDs of folders (and in the future networks) for which the current user has READ or WRITE permission but is not the owner.
                           Only folder IDs are returned for now; network support is planned.
                           """
         )
