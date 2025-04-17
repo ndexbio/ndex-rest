@@ -242,7 +242,7 @@ public class FileServiceV3 extends NdexService {
                           Deletes permission if set to null for a user.
                           """
         )
-	public Response addMember(List<SharingMemberRequest> requests) throws Exception {
+	public Response addMember(SharingMemberRequest request) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to add members.");
@@ -250,55 +250,53 @@ public class FileServiceV3 extends NdexService {
 	    
 	    Map<String,String> result = new HashMap<>();            // <target‑UUID, status>
 
-	    for (SharingMemberRequest request : requests) {
-	    	Map<UUID, FileType> files = request.getFiles();
-	        
-	        for (Map.Entry<UUID, Permissions> entry : request.getMembers().entrySet()) {
-	            UUID memberId = entry.getKey();
-	            Permissions permission = entry.getValue();
-            
-	            for (Map.Entry<UUID, FileType> file : files.entrySet()) {
-	            	UUID targetId = file.getKey();
-			        FileType type = file.getValue();	
-		            switch (type) {
-		                case FOLDER:
-		                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-		                    	if (permission == null) {
-		                    		dao.removeFolderPermission(targetId, memberId);
-		                    		dao.commit();
-		                    		result.put(targetId.toString(), "folder permissions removed");
-		                    	}
-		                    	else {
-			                        dao.setFolderPermission(targetId, memberId, permission);
-			                        dao.commit();
-			                        result.put(targetId.toString(), "folder permission granted");
-		                    	}
-		                    }
-		                    break;
-		                case NETWORK:
-		                    try (NetworkDAO dao = new NetworkDAO()) {
-	
-		                        if (!dao.isAdmin(targetId, currentUserId))
-		                            throw new UnauthorizedOperationException(
-		                                "You are not an administrator of network " + targetId);
-		                        
-		                        if (permission == null) {
-            		                dao.revokeUserPrivilege(targetId, memberId);     // commits internally       
-            		                result.put(targetId.toString(), "network permissions removed");
-		                        }
-		                        else {
-			                        dao.grantPrivilegeToUser(targetId, memberId, permission);   // commits internally
-			                        result.put(targetId.toString(), "network permission granted");		                        	
-		                        }
-		                    }
-		                    break;
-	                default:
-	                    throw new NdexException("Unsupported sharing type: " + type);
-	            }
-	            	
-	            }
-	        }
-	    }
+    	Map<UUID, FileType> files = request.getFiles();
+        
+        for (Map.Entry<UUID, Permissions> entry : request.getMembers().entrySet()) {
+            UUID memberId = entry.getKey();
+            Permissions permission = entry.getValue();
+        
+            for (Map.Entry<UUID, FileType> file : files.entrySet()) {
+            	UUID targetId = file.getKey();
+		        FileType type = file.getValue();	
+	            switch (type) {
+	                case FOLDER:
+	                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	                    	if (permission == null) {
+	                    		dao.removeFolderPermission(targetId, memberId);
+	                    		dao.commit();
+	                    		result.put(targetId.toString(), "folder permissions removed");
+	                    	}
+	                    	else {
+		                        dao.setFolderPermission(targetId, memberId, permission);
+		                        dao.commit();
+		                        result.put(targetId.toString(), "folder permission granted");
+	                    	}
+	                    }
+	                    break;
+	                case NETWORK:
+	                    try (NetworkDAO dao = new NetworkDAO()) {
+
+	                        if (!dao.isAdmin(targetId, currentUserId))
+	                            throw new UnauthorizedOperationException(
+	                                "You are not an administrator of network " + targetId);
+	                        
+	                        if (permission == null) {
+        		                dao.revokeUserPrivilege(targetId, memberId);     // commits internally       
+        		                result.put(targetId.toString(), "network permissions removed");
+	                        }
+	                        else {
+		                        dao.grantPrivilegeToUser(targetId, memberId, permission);   // commits internally
+		                        result.put(targetId.toString(), "network permission granted");		                        	
+	                        }
+	                    }
+	                    break;
+                default:
+                    throw new NdexException("Unsupported sharing type: " + type);
+	           }
+            	
+           }
+        }
 
 	    ObjectMapper om = new ObjectMapper();
 	    
@@ -326,39 +324,41 @@ public class FileServiceV3 extends NdexService {
 	    if (userId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to share.");
 	    }
-
-	    FileType type = request.getType();
-
-	    String accessKey;
-	    switch (type) {
-	    	case NETWORK:
-	            try (NetworkDAO dao = new NetworkDAO()) {
-
-	                if (!dao.isAdmin(request.getUuid(), userId))
-	                    throw new UnauthorizedOperationException("You are not an administrator of network " + request.getUuid());
-
-	                accessKey = dao.enableNetworkAccessKey(request.getUuid());   // creates or re‑uses existing key
-	                dao.commit();
-	            }
-	        case FOLDER:
-	            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	                if (!dao.isFolderOwner(request.getUuid(), userId)) {
-	                    throw new UnauthorizedOperationException("You are not the owner of folder " + request.getUuid());
-	                }
-	                accessKey = dao.enableFolderAccessKey(request.getUuid());
-	                dao.commit();
-	            }
-	            break;
-
-	        case SHORTCUT:
-	        	throw new NdexException("Sharing shortcut is not supported. Please share the folder or network the shortcut points to instead.");
-
-	        default:
-	            throw new NdexException("Unknown type: " + type);
+	    
+	    Map<UUID,String> response = new HashMap<>();
+	    Map<UUID, FileType> files = request.getFiles();
+	    
+	    for (Map.Entry<UUID, FileType> file : files.entrySet()) {
+		    String accessKey;
+		    FileType type = file.getValue();
+		    switch (type) {
+		    	case NETWORK:
+		            try (NetworkDAO dao = new NetworkDAO()) {
+	
+		                if (!dao.isAdmin(file.getKey(), userId))
+		                    throw new UnauthorizedOperationException("You are not an administrator of network " + file.getKey());
+	
+		                accessKey = dao.enableNetworkAccessKey(file.getKey());   // creates or re‑uses existing key
+		                dao.commit();
+		            }
+		        case FOLDER:
+		            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+		                if (!dao.isFolderOwner(file.getKey(), userId)) {
+		                    throw new UnauthorizedOperationException("You are not the owner of folder " + file.getKey());
+		                }
+		                accessKey = dao.enableFolderAccessKey(file.getKey());
+		                dao.commit();
+		            }
+		            break;
+	
+		        case SHORTCUT:
+		        	throw new NdexException("Sharing shortcut is not supported. Please share the folder or network the shortcut points to instead.");
+	
+		        default:
+		            throw new NdexException("Unknown type: " + type);
+		    }
+		    response.put(file.getKey(), accessKey);
 	    }
-
-	    Map<String,String> response = new HashMap<>();
-	    response.put("accessKey", accessKey);
 	    return Response.ok(response).build();
 	}
 	
@@ -380,32 +380,35 @@ public class FileServiceV3 extends NdexService {
 	        throw new UnauthorizedOperationException("You must be logged in to unshare.");
 	    }
 
-	    FileType type = request.getType();
-
-	    switch (type) {
-    		case NETWORK:
-    	        try (NetworkDAO dao = new NetworkDAO()) {
-
-    	            if (!dao.isAdmin(request.getUuid(), userId))
-    	                throw new UnauthorizedOperationException("You are not an administrator of network " + request.getUuid());
-
-    	            dao.disableNetworkAccessKey(request.getUuid());
-    	            dao.commit();
-    	        }
-	        case FOLDER:
-	            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	                if (!dao.isFolderOwner(request.getUuid(), userId)) {
-	                    throw new UnauthorizedOperationException("You are not the owner of folder " + request.getUuid());
-	                }
-	                dao.disableFolderAccessKey(request.getUuid());
-	                dao.commit();
-	            }
-	            break;
-
-	        case SHORTCUT:
-	        	throw new NdexException("Shortcuts are not sharable. Unshare is not supported.");
-	        default:
-	            throw new NdexException("Unknown type: " + type);
+	    Map<UUID, FileType> files = request.getFiles();
+	    
+	    for (Map.Entry<UUID, FileType> file : files.entrySet()) {
+	    	FileType type = file.getValue();
+		    switch (type) {
+	    		case NETWORK:
+	    	        try (NetworkDAO dao = new NetworkDAO()) {
+	
+	    	            if (!dao.isAdmin(file.getKey(), userId))
+	    	                throw new UnauthorizedOperationException("You are not an administrator of network " + file.getKey());
+	
+	    	            dao.disableNetworkAccessKey(file.getKey());
+	    	            dao.commit();
+	    	        }
+		        case FOLDER:
+		            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+		                if (!dao.isFolderOwner(file.getKey(), userId)) {
+		                    throw new UnauthorizedOperationException("You are not the owner of folder " + file.getKey());
+		                }
+		                dao.disableFolderAccessKey(file.getKey());
+		                dao.commit();
+		            }
+		            break;
+	
+		        case SHORTCUT:
+		        	throw new NdexException("Shortcuts are not sharable. Unshare is not supported.");
+		        default:
+		            throw new NdexException("Unknown type: " + type);
+		    }
 	    }
 	    return Response.noContent().build();
 	}
@@ -421,38 +424,41 @@ public class FileServiceV3 extends NdexService {
                           Transfer of shortcuts is not supported.
                           """
         )
-	public Response transferObjects(List<TransferRequest> requests) throws Exception {
+	public Response transferObjects(TransferRequest request) throws Exception {
 
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to transfer objects.");
 	    }
 
-	    if (requests == null || requests.isEmpty()) {
-	        return Response.noContent().build();
+	    if (request == null) {
+	    	throw new NdexException("No request provided!");
 	    }
+	    
+	    Map<UUID, FileType> files = request.getFiles();
+	    
+	    for (Map.Entry<UUID, FileType> file : files.entrySet()) {
 
-	    for (TransferRequest item : requests) {
-	        FileType type = item.getType();
-	        if (item.getTo_user() == null) {
-	            throw new NdexException("Missing 'to_user' in request.");
+	        FileType type = file.getValue();
+	        if (request.getNewOwner() == null) {
+	            throw new NdexException("Missing new user uuid in request.");
 	        }
-
+	
 	        switch (type) {
 	        	case NETWORK:
 	        		throw new NdexException("Transfer of networks is not implemented yet.");
 	            case FOLDER:
 	                try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	                    if (!dao.isFolderOwner(item.getUuid(), currentUserId)) {
+	                    if (!dao.isFolderOwner(file.getKey(), currentUserId)) {
 	                        throw new UnauthorizedOperationException(
-	                            "You are not the owner of folder " + item.getUuid()
+	                            "You are not the owner of folder " + file.getKey()
 	                        );
 	                    }
-	                    dao.transferFolder(item.getUuid(), item.getTo_user());
+	                    dao.transferFolder(file.getKey(), request.getNewOwner());
 	                    dao.commit();
 	                }
 	                break;
-
+	
 	            case SHORTCUT:
 	            	throw new NdexException("Transfer of shortcuts is not supported.");
 	            default:
