@@ -3,6 +3,7 @@ package org.ndexbio.common.models.dao;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.ndexbio.model.exceptions.NdexException;
@@ -47,6 +48,8 @@ public interface FolderDAO extends AutoCloseable {
 	NdexObjectUpdateStatus setFolderPermission(UUID folderId, UUID userId, Permissions permission) throws SQLException, NdexException;
 	
 	void removeFolderPermission(UUID folderId, UUID userId) throws SQLException;
+	
+	Map<String, String> getFolderPermissions(UUID folderId) throws SQLException;
 	
 	String enableFolderAccessKey(UUID folderId) throws SQLException, NdexException;
 	

@@ -4,7 +4,9 @@ import java.net.URI;
 import java.security.Permission;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.ndexbio.common.util.NdexUUIDFactory;
@@ -303,6 +305,60 @@ public class FileServiceV3 extends NdexService {
 	    return Response.ok()
 	                   .type(MediaType.APPLICATION_JSON_TYPE)
 	                   .entity(om.writeValueAsString(result))
+	                   .build();
+	}
+	
+	@POST
+	@Path("/sharing/members/list")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	@Operation(
+	    summary = "List users with access to specified files",
+	    description = "Returns a list of users and their permissions for the given folders and networks."
+	)
+	public Response listMembers(Map<UUID, FileType> files) throws Exception {
+	    UUID currentUserId = getLoggedInUserId();
+	    if (currentUserId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to view file permissions.");
+	    }
+
+	    List<Map<Object, Object>> response = new ArrayList<>();
+
+	    for (Map.Entry<UUID, FileType> fileEntry : files.entrySet()) {
+	        UUID fileUUID = fileEntry.getKey();
+	        FileType fileType = fileEntry.getValue();
+
+	        Map<String, String> userPermissions = new HashMap<>();
+
+	        switch (fileType) {
+	            case FOLDER:
+	                try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	                    userPermissions = folderDAO.getFolderPermissions(fileUUID);
+	                }
+	                break;
+
+	            case NETWORK:
+	                try (NetworkDAO networkDAO = new NetworkDAO()) {
+	                    userPermissions = networkDAO.getNetworkUserPermissions(fileUUID, null, -1, -1);
+	                }
+	                break;
+
+	            default:
+	                throw new NdexException("Unsupported file type: " + fileType);
+	        }
+
+	        Map<Object, Object> fileInfo = new HashMap<>();
+	        fileInfo.put(fileUUID, fileType);
+	        fileInfo.put("members", userPermissions);
+
+	        response.add(fileInfo);
+	    }
+
+	    ObjectMapper om = new ObjectMapper();
+	    
+	    return Response.ok()
+	                   .type(MediaType.APPLICATION_JSON_TYPE)
+	                   .entity(om.writeValueAsString(response))
 	                   .build();
 	}
 	

@@ -443,6 +443,23 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 	}
 	
+	public Map<String, String> getFolderPermissions(UUID folderId) throws SQLException {
+	    Map<String, String> permissionsMap = new HashMap<>();
+	    String sql = "SELECT user_id, permission FROM folder_permission WHERE folder_id=?";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, folderId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                permissionsMap.put(
+	                    rs.getObject("user_id").toString(),
+	                    rs.getString("permission")
+	                );
+	            }
+	        }
+	    }
+	    return permissionsMap;
+	}
+	
 	public String enableFolderAccessKey(UUID folderId) throws SQLException, NdexException {
 	    String oldKey = null;
 	    boolean keyIsOn = false;
