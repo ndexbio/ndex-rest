@@ -140,7 +140,7 @@ public class NetworkServiceV2 extends NdexService {
 	
 	static private final String readOnlyParameter = "readOnly";
 	
-	private static final String cx1NetworkFileName = "network.cx";
+	public static final String cx1NetworkFileName = "network.cx";
 
 	public NetworkServiceV2(@Context HttpServletRequest httpRequest
 		//	@Context org.jboss.resteasy.spi.HttpResponse response

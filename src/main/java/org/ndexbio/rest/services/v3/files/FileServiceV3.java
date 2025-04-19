@@ -1,11 +1,19 @@
 package org.ndexbio.rest.services.v3.files;
 
+import java.io.File;
 import java.net.URI;
-import java.security.Permission;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -24,9 +32,14 @@ import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.TransferRequest;
 import org.ndexbio.model.object.TrashRestoreRequest;
+import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
+import org.ndexbio.rest.services.NetworkServiceV2;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrIndexScope;
+import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,9 +58,16 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+
+import org.apache.commons.io.FileUtils;
+import org.ndexbio.common.cx.CX2NetworkFileGenerator;
+import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.persistence.CX2NetworkLoader;
+import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.object.SharingSimpleRequest;
 
@@ -169,7 +189,7 @@ public class FileServiceV3 extends NdexService {
 			@QueryParam("id_token") String id_token,
 			@QueryParam("auth_token") String auth_token) throws Exception {
 
-	    if (request == null || request.getFrom_uuid() == null || request.getType() == null) {
+	    if (request == null || request.getFileId() == null || request.getType() == null) {
 	        throw new NdexException("Request must include 'from_uuid' and 'type'.");
 	    }
 
@@ -193,11 +213,93 @@ public class FileServiceV3 extends NdexService {
 	            	throw new NdexException("Coping folder is not supported. Create shortcut instead");
 
 	            case NETWORK:
-	                // status = copyNetwork(request.getFrom_uuid(), userId, request.getTo_path(), accessKey, id_token, auth_token);
-	            	throw new NdexException("Coping network is not supported yet. It is in development.");
-	                
+	     		   try (UserDAO dao = new UserDAO()) {
+	    			   dao.checkDiskSpace(getLoggedInUserId());
+	    		   }
+	    		   
+	    		   UUID srcNetUUID = request.getFileId();
+	    		   
+	    		   try ( NetworkDAO dao = new NetworkDAO ()) {
+	    			   if ( ! dao.isReadable(srcNetUUID, getLoggedInUserId()) ) 
+	    	                throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+	    	    		
+	    			   if (!dao.networkIsValid(srcNetUUID)) {
+	    				   throw new NdexException ("Invalid networks can not be copied.");
+	    			   }
+	    		   }
+	    		   
+	    		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+	    		   String uuidStr = uuid.toString();
+	    		   
+	    			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr);
+	    			
+	    			//Create dir
+	    			Set<PosixFilePermission> perms =
+	    					    PosixFilePermissions.fromString("rwxrwxr-x");
+	    			FileAttribute<Set<PosixFilePermission>> attr =
+	    					    PosixFilePermissions.asFileAttribute(perms);
+	    			Files.createDirectory(tgt,attr);
+	    			
+	    			String srcPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/";
+	    			String tgtPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/";
+
+	    		    File srcAspectDir = new File ( srcPathPrefix + CXNetworkLoader.CX1AspectDir);
+	    		    if ( srcAspectDir.exists()) {
+	    		    	File tgtAspectDir = new File ( tgtPathPrefix + CXNetworkLoader.CX1AspectDir);
+	    		    	FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
+	    		    }
+	    		    
+	    		    //copy the cx2 aspect directories
+	    		    String tgtCX2AspectPathPrefix = tgtPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+	    		    String srcCX2AspectPathPrefix = srcPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+	    		    File srcCX2AspectDir = new File (srcCX2AspectPathPrefix );
+	    		    Files.createDirectories(Paths.get(tgtCX2AspectPathPrefix), attr);
+	    		    for ( String fname : srcCX2AspectDir.list() ) {
+	    		    	java.nio.file.Path src = Paths.get(srcPathPrefix + CX2NetworkLoader.cx2AspectDirName , fname);
+	    		    	if (Files.isSymbolicLink(src)) {
+	    		    		java.nio.file.Path link = Paths.get(tgtCX2AspectPathPrefix, fname);
+	    		    		java.nio.file.Path target = Paths.get(tgtPathPrefix + CXNetworkLoader.CX1AspectDir, fname);
+	    		    		Files.createSymbolicLink(link, target);
+	    		    	} else {
+	    		    		Files.copy(Paths.get(srcCX2AspectPathPrefix, fname),
+	    		    				Paths.get(tgtCX2AspectPathPrefix, fname));
+	    		    	}
+	    		    	
+	    		    }
+	    		   
+	    		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/" + NetworkServiceV2.cx1NetworkFileName;
+	    		   long fileSize = new File(cxFileName).length();
+
+	    		   // copy sample 
+	    		   java.nio.file.Path srcSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/sample.cx");
+	    		   if ( Files.exists(srcSample, LinkOption.NOFOLLOW_LINKS)) {
+	    			   java.nio.file.Path tgtSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/sample.cx");
+	    			   Files.copy(srcSample, tgtSample);
+	    		   }
+
+	    	       try (NetworkDAO dao = new NetworkDAO()) {
+	    	    	   dao.CreateCloneNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize, srcNetUUID);
+
+	    				CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao);
+	    				g.reCreateCXFile();
+	    				CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(uuid, dao);
+	    				String tmpFilePath = g2.createCX2File();
+	    				Files.move(Paths.get(tmpFilePath), 
+	    						Paths.get(tgtPathPrefix + CX2NetworkLoader.cx2NetworkFileName), 
+	    						StandardCopyOption.ATOMIC_MOVE); 				
+
+	    				dao.setFlag(uuid, "iscomplete", true);
+	    				dao.commit();
+	    	       }
+	    	       
+	    			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null, NetworkIndexLevel.NONE,false));
+	                status = new NdexObjectUpdateStatus();
+	                status.setUuid(uuid);
+	                status.setModificationTime(new Timestamp(System.currentTimeMillis()));
+
+	                break;
 	            case SHORTCUT:
-					status = copyShortcut(request.getFrom_uuid(), userId, request.getTo_path());
+					status = copyShortcut(request.getFileId(), userId, request.getTargetId());
 					break;
 
 	            default:
@@ -210,7 +312,7 @@ public class FileServiceV3 extends NdexService {
 	    if (status == null) {
 	        throw new NdexException("Copy operation failed - no status returned");
 	    }
-		String urlStr = Configuration.getInstance().getHostURI() + "/v3/files/" + type + "s/" + status.getUuid().toString();
+		String urlStr = Configuration.getInstance().getHostURI() + "/v3/files/" + type.toString().toLowerCase() + "s/" + status.getUuid().toString();
 		
 		URI l = new URI (urlStr);
 		ObjectMapper om = new ObjectMapper();
@@ -259,37 +361,40 @@ public class FileServiceV3 extends NdexService {
             Permissions permission = entry.getValue();
         
             for (Map.Entry<UUID, FileType> file : files.entrySet()) {
-            	UUID targetId = file.getKey();
+            	UUID fileId = file.getKey();
 		        FileType type = file.getValue();	
 	            switch (type) {
 	                case FOLDER:
 	                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	            			if (!dao.isFolderOwner(fileId, getLoggedInUserId()))
+	            				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
+	            			
 	                    	if (permission == null) {
-	                    		dao.removeFolderPermission(targetId, memberId);
+	                    		dao.removeFolderPermission(fileId, memberId);
 	                    		dao.commit();
-	                    		result.put(targetId.toString(), "folder permissions removed");
+	                    		result.put(fileId.toString(), "folder permissions removed");
 	                    	}
 	                    	else {
-		                        dao.setFolderPermission(targetId, memberId, permission);
+		                        dao.setFolderPermission(fileId, memberId, permission);
 		                        dao.commit();
-		                        result.put(targetId.toString(), "folder permission granted");
+		                        result.put(fileId.toString(), "folder permission granted");
 	                    	}
 	                    }
 	                    break;
 	                case NETWORK:
 	                    try (NetworkDAO dao = new NetworkDAO()) {
 
-	                        if (!dao.isAdmin(targetId, currentUserId))
+	                        if (!dao.isAdmin(fileId, currentUserId))
 	                            throw new UnauthorizedOperationException(
-	                                "You are not an administrator of network " + targetId);
+	                                "You are not an administrator of network " + fileId);
 	                        
 	                        if (permission == null) {
-        		                dao.revokeUserPrivilege(targetId, memberId);     // commits internally       
-        		                result.put(targetId.toString(), "network permissions removed");
+        		                dao.revokeUserPrivilege(fileId, memberId);     // commits internally       
+        		                result.put(fileId.toString(), "network permissions removed");
 	                        }
 	                        else {
-		                        dao.grantPrivilegeToUser(targetId, memberId, permission);   // commits internally
-		                        result.put(targetId.toString(), "network permission granted");		                        	
+		                        dao.grantPrivilegeToUser(fileId, memberId, permission);   // commits internally
+		                        result.put(fileId.toString(), "network permission granted");		                        	
 	                        }
 	                    }
 	                    break;
@@ -333,12 +438,19 @@ public class FileServiceV3 extends NdexService {
 	        switch (fileType) {
 	            case FOLDER:
 	                try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+            			if (!folderDAO.isFolderOwner(fileUUID, getLoggedInUserId()))
+            				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
+            			
 	                    userPermissions = folderDAO.getFolderPermissions(fileUUID);
 	                }
 	                break;
 
 	            case NETWORK:
 	                try (NetworkDAO networkDAO = new NetworkDAO()) {
+                        if (!networkDAO.isAdmin(fileUUID, currentUserId))
+                            throw new UnauthorizedOperationException(
+                                "You are not an administrator of network " + fileUUID);
+                        
 	                    userPermissions = networkDAO.getNetworkUserPermissions(fileUUID, null, -1, -1);
 	                }
 	                break;
