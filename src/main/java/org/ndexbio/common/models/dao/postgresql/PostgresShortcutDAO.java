@@ -14,6 +14,7 @@ import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Shortcut;
 
@@ -84,7 +85,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	public Shortcut getShortcut(UUID shortcutId, UUID userId) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
 		Shortcut result = new Shortcut();
-		String sqlStr = "select creation_time, modification_time, name, target, parent, is_deleted from shortcut where \"UUID\"=?";
+		String sqlStr = "select creation_time, modification_time, name, target, parent, is_deleted, target_type from shortcut where \"UUID\"=?";
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, shortcutId);
@@ -97,6 +98,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 					result.setTarget((UUID)(rs.getObject(4)));
 					result.setParent((UUID)(rs.getObject(5)));
 					result.setIsDeleted(rs.getBoolean(6));
+					result.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
 				} else
 					throw new ObjectNotFoundException("Shortcut" + shortcutId + " not found in db.");
 			}
@@ -172,7 +174,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	public List<Shortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException {
 	    List<Shortcut> result = new ArrayList<>();
 
-	    String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent " +
+	    String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type " +
 	                 " FROM shortcut " +
 	                 " WHERE owneruuid=? AND is_deleted=false " +
 	                 " ORDER BY name " +
@@ -192,6 +194,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	                s.setIsDeleted(rs.getBoolean("is_deleted"));
 	                s.setTarget((UUID) rs.getObject("target"));
 	                s.setParent((UUID) rs.getObject("parent"));
+	                s.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
 
 	                result.add(s);
 	            }
