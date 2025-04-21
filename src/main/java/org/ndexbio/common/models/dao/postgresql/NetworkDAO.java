@@ -2330,4 +2330,23 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 
 	}
+
+	/**
+	 * Sets the parent folder for a network.
+	 * @param networkId The UUID of the network
+	 * @param parentId The UUID of the parent folder
+	 * @throws SQLException If there is a database error
+	 * @throws NdexException If the network is not found or the update fails
+	 */
+	public void setNetworkFolder(UUID networkId, UUID parentId) throws SQLException, NdexException {
+		String sqlStr = "update network set parent = ? where \"UUID\" = ? and is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			pst.setObject(1, parentId);
+			pst.setObject(2, networkId);
+			int i = pst.executeUpdate();
+			if (i != 1) {
+				throw new NdexException("Failed to set network folder in db.");
+			}
+		}
+	}
 }
