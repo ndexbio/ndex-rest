@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Shortcut;
 
@@ -19,7 +20,7 @@ public interface ShortcutDAO extends AutoCloseable {
 	
 	void commit() throws SQLException;
 	
-	NdexObjectUpdateStatus createShortcut(final UUID shortcutUUID, final UUID ownerId, final UUID parentUUID, final String name, final UUID targetUUID) throws SQLException;
+	NdexObjectUpdateStatus createShortcut(final UUID shortcutUUID, final UUID ownerId, final UUID parentUUID, final String name, final UUID targetUUID, final FileType targetType) throws SQLException;
 	
 	boolean isReadable(UUID shortcutID, UUID userId) throws SQLException, ObjectNotFoundException;
 		

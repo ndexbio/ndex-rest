@@ -73,7 +73,7 @@ public class ShortcutServiceV3 extends NdexService {
 		
 		NdexObjectUpdateStatus status;
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-			status = dao.createShortcut(shortcutUUID, getLoggedInUser().getExternalId(), request.getParent(), request.getName(), request.getTarget());
+			status = dao.createShortcut(shortcutUUID, getLoggedInUser().getExternalId(), request.getParent(), request.getName(), request.getTarget(), request.getTargetType());
 			dao.commit();
 		}
 		

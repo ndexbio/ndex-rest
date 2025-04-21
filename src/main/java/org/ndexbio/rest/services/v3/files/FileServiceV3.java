@@ -2,6 +2,7 @@ package org.ndexbio.rest.services.v3.files;
 
 import java.io.File;
 import java.net.URI;
+import java.net.Authenticator.RequestorType;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Paths;
@@ -362,8 +363,9 @@ public class FileServiceV3 extends NdexService {
 			request.setName(sourceShortcut.getName());
 			request.setTarget(sourceShortcut.getTarget());
 			request.setParent(toPath);
+			request.setTargetType(sourceShortcut.getTargetType());
 			UUID newShortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-			NdexObjectUpdateStatus status = dao.createShortcut(newShortcutUUID, userId, toPath, request.getName(), request.getTarget());
+			NdexObjectUpdateStatus status = dao.createShortcut(newShortcutUUID, userId, toPath, request.getName(), request.getTarget(), request.getTargetType());
 			dao.commit();
 			return status;
 		}

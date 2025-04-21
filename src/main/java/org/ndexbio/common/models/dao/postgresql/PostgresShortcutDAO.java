@@ -31,7 +31,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	}
 	
 	@Override
-	public NdexObjectUpdateStatus createShortcut(final UUID shortcutUUID, final UUID ownerId, final UUID parentUUID, final String name, final UUID targetUUID) throws SQLException {
+	public NdexObjectUpdateStatus createShortcut(final UUID shortcutUUID, final UUID ownerId, final UUID parentUUID, final String name, final UUID targetUUID, final FileType targetType) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
 		String sqlStr = "insert into shortcut (\"UUID\", creation_time, modification_time, is_deleted, name, target_type, target, visibility, owneruuid, parent) values"
@@ -41,7 +41,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 			pst.setTimestamp(2, t);
 			pst.setTimestamp(3, t);
 			pst.setString(4, name);
-			pst.setString(5, "folder"); //TODO: add a method to check type of target
+			pst.setString(5, targetType.toString());
 			pst.setObject(6, targetUUID);
 			pst.setObject(7, ownerId);
 			pst.setObject(8, parentUUID);

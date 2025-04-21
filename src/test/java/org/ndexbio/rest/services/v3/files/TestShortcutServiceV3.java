@@ -11,6 +11,7 @@ import org.junit.Test;
 import org.jboss.resteasy.spi.Dispatcher;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.ShortcutDAO;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Shortcut;
@@ -54,11 +55,12 @@ public class TestShortcutServiceV3 {
         requestBody.setName("My Shortcut");
         requestBody.setTarget(UUID.randomUUID());
         requestBody.setParent(UUID.randomUUID());
+        requestBody.setTargetType(FileType.FOLDER);
 
         ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
         NdexObjectUpdateStatus status = new NdexObjectUpdateStatus();
         status.setUuid(shortcutId);
-        expect(shortcutDAO.createShortcut(anyObject(UUID.class), eq(userId), eq(requestBody.getParent()), eq("My Shortcut"), eq(requestBody.getTarget()))).andReturn(status);
+        expect(shortcutDAO.createShortcut(anyObject(UUID.class), eq(userId), eq(requestBody.getParent()), eq("My Shortcut"), eq(requestBody.getTarget()), eq(FileType.FOLDER))).andReturn(status);
         shortcutDAO.commit();
         expectLastCall();
         shortcutDAO.close();
