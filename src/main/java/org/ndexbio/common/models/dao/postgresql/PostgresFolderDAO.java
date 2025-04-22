@@ -297,11 +297,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            while (rs.next()) {
 	                Map<String, Object> attr = null;
 	                if (compact) {
-	                    attr = Map.of(
-	                        "description", rs.getString(5),
-	                        "edges", rs.getInt(6),
-	                        "visibility", rs.getString(7)
-	                    );
+	                	attr = new HashMap<>();
+	                	attr.put("description", rs.getString(5));
+	                	attr.put("edges", rs.getInt(6));
+	                	attr.put("visibility", rs.getString(7));
 	                }
 	                results.add(new FileItemSummary(
 	                    (UUID) rs.getObject(1), FileType.NETWORK,
@@ -313,7 +312,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    /* ────────────── 3) Shortcuts ─────────────── */
 	    sql = "SELECT " + baseCols
-	        + (compact ? (home ? ", target_type" : ", target_type") : "")
+	        + (compact ? ", target_type" : "")
 	        + " FROM shortcut WHERE "
 	        + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
@@ -322,7 +321,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            while (rs.next()) {
 	                Map<String, Object> attr = null;
 	                if (compact) {
-	                    attr = Map.of("target_type", rs.getString(5));
+	                	attr = new HashMap<>();
+	                	attr.put("target_type", rs.getString(5));
 	                }
 	                results.add(new FileItemSummary(
 	                    (UUID) rs.getObject(1), FileType.SHORTCUT,
