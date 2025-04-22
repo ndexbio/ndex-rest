@@ -10,6 +10,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.jboss.resteasy.spi.Dispatcher;
 import org.ndexbio.common.models.dao.DAOFactory;
+import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.FolderRequest;
@@ -45,6 +46,9 @@ public class TestShortcutServiceV3 {
     public void testCreateShortcutSuccess() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID shortcutId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+
         User user = new User();
         user.setExternalId(userId);
 
@@ -53,24 +57,35 @@ public class TestShortcutServiceV3 {
 
         ShortcutRequest requestBody = new ShortcutRequest();
         requestBody.setName("My Shortcut");
-        requestBody.setTarget(UUID.randomUUID());
-        requestBody.setParent(UUID.randomUUID());
+        requestBody.setTarget(targetId);
+        requestBody.setParent(parentId);
         requestBody.setTargetType(FileType.FOLDER);
 
+        // Mock ShortcutDAO
         ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
         NdexObjectUpdateStatus status = new NdexObjectUpdateStatus();
         status.setUuid(shortcutId);
-        expect(shortcutDAO.createShortcut(anyObject(UUID.class), eq(userId), eq(requestBody.getParent()), eq("My Shortcut"), eq(requestBody.getTarget()), eq(FileType.FOLDER))).andReturn(status);
+        expect(shortcutDAO.createShortcut(anyObject(UUID.class), eq(userId), eq(parentId), eq("My Shortcut"), eq(targetId), eq(FileType.FOLDER))).andReturn(status);
         shortcutDAO.commit();
         expectLastCall();
         shortcutDAO.close();
         expectLastCall();
         replay(shortcutDAO);
 
+        // Mock FolderDAO with isReadable = true
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.isReadable(targetId, userId)).andReturn(true);
+        folderDAO.close();
+        expectLastCall();
+        replay(folderDAO);
+
+        // Mock DAOFactory
         DAOFactory daoFactory = createMock(DAOFactory.class);
         expect(daoFactory.getShortcutDAO()).andReturn(shortcutDAO);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO);
         replay(daoFactory);
 
+        // Inject mocked DAOFactory
         Configuration.getInstance().setDAOFactory(daoFactory);
 
         ObjectMapper mapper = new ObjectMapper();
@@ -84,6 +99,7 @@ public class TestShortcutServiceV3 {
         assertEquals(Status.CREATED.getStatusCode(), response.getStatus());
     }
     
+    @Test
     public void testCreateShortcutWithNullRequest() throws Exception {
         expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
         replay(mockHttpServletRequest);
@@ -280,7 +296,7 @@ public class TestShortcutServiceV3 {
 
         ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
         expect(shortcutDAO.isShortcutOwner(shortcutId, userId)).andReturn(true);
-        shortcutDAO.updateShortcut(shortcutId, "New Name", null, userId);
+        shortcutDAO.updateShortcut(shortcutId, "New Name", null);
         expectLastCall();
         shortcutDAO.commit();
         expectLastCall();

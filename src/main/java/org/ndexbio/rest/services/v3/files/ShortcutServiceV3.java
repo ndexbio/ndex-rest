@@ -6,10 +6,13 @@ import java.util.List;
 import java.util.UUID;
 
 import org.ndexbio.common.models.dao.ShortcutDAO;
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Shortcut;
@@ -56,7 +59,7 @@ public class ShortcutServiceV3 extends NdexService {
 	@Produces("application/json")
 	@Operation(
 			summary = "Create a Shortcut",
-			description = "Creates a new shortcut object in the user’s account. The request must contain a `name` and a `target` UUID."
+			description = "Creates a new shortcut object in the user's account. The request must contain a `name` and a `target` UUID."
 		)
 	public Response createShortcut(final ShortcutRequest request) throws Exception {
 		if (request == null) {
@@ -68,12 +71,35 @@ public class ShortcutServiceV3 extends NdexService {
         if (request.getTarget() == null) {
             throw new Exception("Shortcut 'target' cannot be null.");
         }
+        if (request.getTargetType() == null) {
+            throw new Exception("Shortcut 'target_type' cannot be null.");
+        }
+        UUID userId = getLoggedInUser().getExternalId();
+		
+		switch (request.getTargetType()) {
+			case FOLDER:
+				try (FolderDAO folderDao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+					if (!folderDao.isReadable(request.getTarget(), userId)) {
+						throw new NdexException("Target folder does not exist or is not accessible.");
+					}
+				}
+				break;
+			case NETWORK:
+				try (NetworkDAO networkDao = new NetworkDAO()) {
+					if (!networkDao.isReadable(request.getTarget(), userId)) {
+						throw new NdexException("Target network does not exist or is not accessible.");
+					}
+				}
+				break;
+			default:
+				throw new NdexException("Unsupported target type: " + request.getTargetType());
+		}
 		
 		UUID shortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		
 		NdexObjectUpdateStatus status;
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-			status = dao.createShortcut(shortcutUUID, getLoggedInUser().getExternalId(), request.getParent(), request.getName(), request.getTarget(), request.getTargetType());
+			status = dao.createShortcut(shortcutUUID, userId, request.getParent(), request.getName(), request.getTarget(), request.getTargetType());
 			dao.commit();
 		}
 		
@@ -162,7 +188,7 @@ public class ShortcutServiceV3 extends NdexService {
 			if ( !dao.isShortcutOwner(shortcutId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this shortcut.");
 			
-			dao.updateShortcut(shortcutId, request.getName(), request.getParent(), getLoggedInUserId());
+			dao.updateShortcut(shortcutId, request.getName(), request.getParent());
 			dao.commit();	
 			return;
 		}

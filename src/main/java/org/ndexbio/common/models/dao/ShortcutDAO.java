@@ -30,7 +30,7 @@ public interface ShortcutDAO extends AutoCloseable {
 	
 	void deleteShortcut(UUID shortcutId) throws SQLException;
 	
-	void updateShortcut(UUID shortcutId, String name, UUID parentId, UUID ownerId) throws SQLException, JsonProcessingException, NdexException;
+	void updateShortcut(UUID shortcutId, String name, UUID parentId) throws SQLException, JsonProcessingException, NdexException;
 	
 	List<Shortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException;
 

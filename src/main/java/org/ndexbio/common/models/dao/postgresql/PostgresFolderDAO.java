@@ -74,7 +74,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	         + "       FROM folder_permission fp "
 	         + "       WHERE fp.folder_id = f.\"UUID\" "
 	         + "         AND fp.user_id = '" + userId + "'::uuid "
-	         + "         AND fp.permission IN ('read','edit') "
 	         + "       LIMIT 1 "
 	         + "     ) "
 	         + ")";

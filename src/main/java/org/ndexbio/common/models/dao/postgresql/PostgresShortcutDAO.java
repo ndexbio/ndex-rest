@@ -134,7 +134,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	}
 	
 	@Override
-	public void updateShortcut(UUID shortcutId, String name, UUID parentId, UUID ownerId) throws SQLException, JsonProcessingException, NdexException {
+	public void updateShortcut(UUID shortcutId, String name, UUID parentId) throws SQLException, JsonProcessingException, NdexException {
 	    if (name == null && parentId == null) {
 	        throw new NdexException("No updates requested (both name and parent are null).");
 	    }
