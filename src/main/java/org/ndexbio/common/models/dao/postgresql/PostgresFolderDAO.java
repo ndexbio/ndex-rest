@@ -24,6 +24,7 @@ import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.network.VisibilityType;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -503,6 +504,18 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
             }
         }
         return folderIds;
+    }
+    
+    public void setFolderVisibility(UUID folderId, VisibilityType visibility) throws SQLException, NdexException {
+        String sql = "UPDATE folder SET visibility = ? WHERE \"UUID\" = ? AND is_deleted = false";
+        try (PreparedStatement pst = db.prepareStatement(sql)) {
+            pst.setString(1, visibility.toString());
+            pst.setObject(2, folderId);
+            int updated = pst.executeUpdate();
+            if (updated != 1) {
+                throw new NdexException("Failed to update visibility for folder " + folderId);
+            }
+        }
     }
 
 

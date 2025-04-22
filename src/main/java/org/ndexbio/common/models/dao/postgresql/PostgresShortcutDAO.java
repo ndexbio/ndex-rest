@@ -17,6 +17,7 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.network.VisibilityType;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -202,6 +203,18 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	    }
 
 	    return result;
+	}
+	
+	public void setShortcutVisibility(UUID shortcutId, VisibilityType visibility) throws SQLException, NdexException {
+	    String sql = "UPDATE shortcut SET visibility = ? WHERE \"UUID\" = ? AND is_deleted = false";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setString(1, visibility.toString());
+	        pst.setObject(2, shortcutId);
+	        int updated = pst.executeUpdate();
+	        if (updated != 1) {
+	            throw new NdexException("Failed to update visibility for shortcut " + shortcutId);
+	        }
+	    }
 	}
 
 

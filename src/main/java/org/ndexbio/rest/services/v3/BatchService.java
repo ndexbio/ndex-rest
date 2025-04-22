@@ -43,14 +43,19 @@ import java.util.stream.Collectors;
 
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
@@ -59,8 +64,11 @@ import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Group;
+import org.ndexbio.model.object.MoveNetworksRequest;
 import org.ndexbio.model.object.NetworkExportRequestV2;
+import org.ndexbio.model.object.SetVisibilityRequest;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
@@ -79,6 +87,8 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.swagger.v3.oas.annotations.Operation;
 
 @Path("/v3/batch")
 public class BatchService extends NdexService {
@@ -128,6 +138,92 @@ public class BatchService extends NdexService {
 			throw new BadRequestException("Format " + format + " is unsupported. Error message: " + e.getMessage());
 		}
 	}	
+	
+	@POST
+	@Path("/networks/move")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Operation(
+	    summary = "Move networks to a folder",
+	    description = "Moves a list of networks to the specified target folder. User must be the owner of the networks."
+	)
+	public Response moveNetworksToFolder(final MoveNetworksRequest request) throws Exception {
+	    if (request == null || request.getTargetFolder() == null || request.getNetworks() == null || request.getNetworks().isEmpty()) {
+	        throw new BadRequestException("Request must contain a target folder UUID and a non-empty list of network UUIDs.");
+	    }
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        throw new NdexException("User must be logged in to move networks.");
+	    }
+
+	    try (NetworkDAO networkDao = new NetworkDAO()) {
+	        for (UUID netId : request.getNetworks()) {
+	        	if (!networkDao.isAdmin(netId, userId)) {
+	                throw new NdexException("User does not own network " + netId);
+	            }
+
+	            networkDao.setNetworkFolder(netId, request.getTargetFolder());
+	        }
+	        networkDao.commit();
+	    }
+
+	    return Response.noContent().build();
+	}
+	
+    @POST
+    @Path("/files/setvisibility")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setVisibility(SetVisibilityRequest request) throws Exception {
+        if (request == null || request.getVisibility() == null || request.getItems() == null) {
+            throw new NdexException("Missing required parameters: visibility and items.");
+        }
+
+        UUID userId = getLoggedInUserId();
+        if (userId == null) {
+            throw new NdexException("User is not logged in.");
+        }
+
+        for (Map.Entry<UUID, FileType> item : request.getItems().entrySet()) {
+            UUID uuid = item.getKey();
+            FileType type = item.getValue();
+
+            switch (type) {
+                case NETWORK:
+                    try (NetworkDAO dao = new NetworkDAO()) {
+                        if (!dao.isAdmin(uuid, userId)) {
+                            throw new NdexException("Not the owner of network " + uuid);
+                        }
+                        dao.updateNetworkVisibility(uuid, request.getVisibility(), true);
+                        dao.commit();
+                    }
+                    break;
+                case FOLDER:
+                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+                        if (!dao.isFolderOwner(uuid, userId)) {
+                            throw new NdexException("Not the owner of folder " + uuid);
+                        }
+                        dao.setFolderVisibility(uuid, request.getVisibility());
+                        dao.commit();
+                    }
+                    break;
+                case SHORTCUT:
+                    try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+                        if (!dao.isShortcutOwner(uuid, userId)) {
+                            throw new NdexException("Not the owner of shortcut " + uuid);
+                        }
+                        dao.setShortcutVisibility(uuid, request.getVisibility());
+                        dao.commit();
+                    }
+                    break;
+                default:
+                    throw new NdexException("Unsupported file type: " + type);
+            }
+        }
+
+        return Response.ok().build();
+    }
+
 	
 
 }

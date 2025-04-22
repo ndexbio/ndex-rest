@@ -11,6 +11,7 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.network.VisibilityType;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -33,5 +34,7 @@ public interface ShortcutDAO extends AutoCloseable {
 	void updateShortcut(UUID shortcutId, String name, UUID parentId) throws SQLException, JsonProcessingException, NdexException;
 	
 	List<Shortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException;
+	
+	void setShortcutVisibility(UUID shortcutId, VisibilityType visibility) throws SQLException, NdexException;
 
 }

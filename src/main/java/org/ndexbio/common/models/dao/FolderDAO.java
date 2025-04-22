@@ -14,6 +14,7 @@ import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.network.VisibilityType;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -58,5 +59,7 @@ public interface FolderDAO extends AutoCloseable {
 	void transferFolder(UUID folderId, UUID newOwnerId) throws SQLException, NdexException;
 	
 	List<UUID> listSharedFolderIds(UUID userId) throws SQLException;
+	
+	void setFolderVisibility(UUID folderId, VisibilityType visibility) throws SQLException, NdexException;
 
 }
