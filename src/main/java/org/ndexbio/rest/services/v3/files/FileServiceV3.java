@@ -360,7 +360,7 @@ public class FileServiceV3 extends NdexService {
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
 			Shortcut sourceShortcut = dao.getShortcut(fromUUID, userId);
 			ShortcutRequest request = new ShortcutRequest();
-			request.setName(sourceShortcut.getName());
+			request.setName("Copy of " + sourceShortcut.getName());
 			request.setTarget(sourceShortcut.getTarget());
 			request.setParent(toPath);
 			request.setTargetType(sourceShortcut.getTargetType());
