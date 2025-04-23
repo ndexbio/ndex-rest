@@ -177,11 +177,24 @@ public class FolderServiceV3 extends NdexService {
 			NdexException,  SQLException, JsonProcessingException, Exception {
 
 		UUID folderId = UUID.fromString(folderIdStr);
+		UUID userId = getLoggedInUserId();
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()){
-			if ( !dao.isFolderOwner(folderId, getLoggedInUserId()))
+			if ( !dao.isFolderOwner(folderId, userId))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
+
+			UUID parentUUID = request.getParent();
+			if (parentUUID != null && !parentUUID.toString().isEmpty()) {
+				if (!dao.isFolderOwner(parentUUID, userId)) {
+					// If not owner, check if user has WRITE permission
+					Map<String, String> permissions = dao.getFolderPermissions(parentUUID);
+					String userPermission = permissions.get(userId.toString());
+					if (userPermission == null || !userPermission.equals(Permissions.WRITE.toString())) {
+						throw new UnauthorizedOperationException("User doesn't have write access to the parent folder.");
+					}
+				}
+			}
 			
-			dao.updateFolder(folderId, request.getName(), request.getParent(), getLoggedInUserId());
+			dao.updateFolder(folderId, request.getName(), parentUUID, userId);
 			dao.commit();	
 			return ;
 		}
