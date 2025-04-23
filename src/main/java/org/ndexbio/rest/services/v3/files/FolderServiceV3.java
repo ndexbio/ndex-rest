@@ -1,8 +1,10 @@
 package org.ndexbio.rest.services.v3.files;
 
 import java.net.URI;
+import java.security.Permission;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.ndexbio.common.models.dao.FolderDAO;
@@ -16,6 +18,7 @@ import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
@@ -65,12 +68,30 @@ public class FolderServiceV3 extends NdexService {
 			throw new Exception("No folder request data was provided!");
 		}
 		
+		if (request.getName() == null || request.getName().trim().isEmpty()) {
+			throw new Exception("Folder name cannot be empty.");
+		}
+		
+		UUID parentUUID = request.getParent();
+		if (parentUUID != null && !parentUUID.toString().isEmpty()) {
+			try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+				if (!dao.isFolderOwner(parentUUID, getLoggedInUser().getExternalId())) {
+					// If not owner, check if user has WRITE permission
+					Map<String, String> permissions = dao.getFolderPermissions(parentUUID);
+					String userPermission = permissions.get(getLoggedInUser().getExternalId().toString());
+					if (userPermission == null || !userPermission.equals(Permissions.WRITE.toString())) {
+						throw new UnauthorizedOperationException("User doesn't have write access to the parent folder.");
+					}
+				}
+			}
+		}
+		
 		UUID folderUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		
 		// create entry in db. 
 		NdexObjectUpdateStatus status;
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), request.getParent(), request.getName());
+			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName());
 			dao.commit();
 		}
 
@@ -82,7 +103,7 @@ public class FolderServiceV3 extends NdexService {
 	   return Response.created(l).header("Access-Control-Expose-Headers", "Location")
 		   .entity(om.writeValueAsString(status)).build();
 	
-		}
+	}
 	
 	@PermitAll
 	@GET
