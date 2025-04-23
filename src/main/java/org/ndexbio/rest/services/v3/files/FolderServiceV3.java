@@ -12,6 +12,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
@@ -57,7 +58,7 @@ public class FolderServiceV3 extends NdexService {
 	@Produces("application/json")
     @Operation(
             summary = "Create a Folder",
-            description = "Creates a new folder object in the user’s account. The request body must include a name; optionally, a parent folder UUID."
+            description = "Creates a new folder object in the user's account. The request body must include a name; optionally, a parent folder UUID."
         )
 	public Response createFolder(final FolderRequest request) throws Exception {
 		if (request == null) {
@@ -147,7 +148,7 @@ public class FolderServiceV3 extends NdexService {
 	@Produces("application/json")
     @Operation(
             summary = "Update a Folder",
-            description = "Renames or moves a folder based on data passed in the request body. The user must be the folder’s owner."
+            description = "Renames or moves a folder based on data passed in the request body. The user must be the folder's owner."
         )
 	public void updateFolder(final FolderRequest request,
 			@PathParam("folderid") final String folderIdStr)
@@ -222,19 +223,27 @@ public class FolderServiceV3 extends NdexService {
 	    description = """
 	                  If *folderid* is a UUID, returns the immediate children of that folder  
 	                  (folders / networks / shortcuts) provided the caller is an owner or has read access or a valid access‑key.  
-	                  If *folderid* is the literal string **“home”**, returns **all** top‑level items
-	                  owned by the signed‑in user (parent = NULL).
+	                  If *folderid* is the literal string **"home"**, returns **all** top‑level items
+	                  owned by the signed‑in user (parent = NULL).
+	                  The type parameter can be used to filter results:
+	                  - network: returns networks and shortcuts with target_type network
+	                  - folder: returns folders and shortcuts with target_type folder
 	                  """
 	)
 	public Response listItemsInFolder(
 	        @PathParam("folderid")  final String folderIdStr,
 	        @QueryParam("format")   @DefaultValue("update") String format,
+	        @QueryParam("type")     String type,
 	        @QueryParam("accesskey") String accessKey,
 	        @QueryParam("id_token")  String id_token,
 	        @QueryParam("auth_token") String auth_token
 	) throws Exception {
 		
 		boolean compact = "compact".equalsIgnoreCase(format);
+		FileType fileType = null;
+		if (type != null) {
+			fileType = FileType.valueOf(type.toUpperCase());
+		}
 		
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -250,10 +259,9 @@ public class FolderServiceV3 extends NdexService {
 
 	    /* ---------------------------------------------------------------- home case */
 	    if ("home".equalsIgnoreCase(folderIdStr)) {
-
 	        List<FileItemSummary> items;
 	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	            items = dao.listRootItemsOfUser(userId, compact);
+	            items = dao.listRootItemsOfUser(userId, compact, fileType);
 	        }
 	        return Response.ok(items).build();
 	    }
@@ -267,7 +275,7 @@ public class FolderServiceV3 extends NdexService {
 	        }
 	        
 	        List<FileItemSummary> items;
-	        items = dao.listItemsInFolder(folderUUID, compact);
+	        items = dao.listItemsInFolder(folderUUID, compact, fileType);
 	        return Response.ok(items).build();
 	    }
 	}

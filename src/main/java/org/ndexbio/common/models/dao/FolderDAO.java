@@ -11,6 +11,7 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
@@ -40,9 +41,9 @@ public interface FolderDAO extends AutoCloseable {
 	
 	FileCount getFolderChildCounts(UUID folderId) throws SQLException;
 	
-	List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact) throws SQLException;
+	List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type) throws SQLException;
 	
-	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact) throws SQLException;
+	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException;
 	
 	List<Folder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException;
 	

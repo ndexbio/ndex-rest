@@ -1,7 +1,6 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
-import java.nio.file.spi.FileTypeDetector;
 import java.security.SecureRandom;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -249,12 +248,12 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return fc;
 	}
 	
-	public List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact) throws SQLException {
-	    return listItemsInFolderOrHome(folderId, compact, false);
+	public List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type) throws SQLException {
+	    return listItemsInFolderOrHome(folderId, compact, false, type);
 	}
 	
-	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact) throws SQLException {
-	    return listItemsInFolderOrHome(ownerId, compact, true);
+	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException {
+	    return listItemsInFolderOrHome(ownerId, compact, true, type);
 	}
 
 	/**
@@ -265,65 +264,77 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	 *                  - if {@code home} is {@code true}, this is a user (owner) UUID.
 	 * @param compact if true, return {@code compact}, if false {@code update} form of metadata
 	 * @param home if true, return root-level (home) items for the given user
+	 * @param type if not null, filter by type (network or folder)
 	 * @return list of folders, networks, and shortcuts
 	 * @throws SQLException if database access fails
 	 */
-	private List<FileItemSummary> listItemsInFolderOrHome(UUID contextId, boolean compact, boolean home) throws SQLException {
+	private List<FileItemSummary> listItemsInFolderOrHome(UUID contextId, boolean compact, boolean home, FileType type) throws SQLException {
 	    List<FileItemSummary> results = new ArrayList<>();
 	    final String baseCols = "\"UUID\", name, modification_time, updated_by";
 
 	    /* ────────────── 1) Folders ─────────────── */
-	    String sql = "SELECT " + baseCols + " FROM folder WHERE "
-	               + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
-	    try (PreparedStatement pst = db.prepareStatement(sql)) {
-	        pst.setObject(1, contextId);
-	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next()) {
-	                results.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), FileType.FOLDER,
-	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                    compact ? Map.of() : null));
+	    if (type == null || type == FileType.FOLDER) {
+	        String sql = "SELECT " + baseCols + " FROM folder WHERE "
+	                   + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
+	        try (PreparedStatement pst = db.prepareStatement(sql)) {
+	            pst.setObject(1, contextId);
+	            try (ResultSet rs = pst.executeQuery()) {
+	                while (rs.next()) {
+	                    results.add(new FileItemSummary(
+	                        (UUID) rs.getObject(1), FileType.FOLDER,
+	                        rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                        compact ? Map.of() : null));
+	                }
 	            }
 	        }
 	    }
 
 	    /* ────────────── 2) Networks ─────────────── */
-	    sql = "SELECT " + baseCols
-	        + (compact ? ", description, edgecount, visibility" : "")
-	        + " FROM network WHERE "
-	        + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
-	    try (PreparedStatement pst = db.prepareStatement(sql)) {
-	        pst.setObject(1, contextId);
-	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next()) {
-	                Map<String, Object> attr = null;
-	                if (compact) {
-	                	attr = new HashMap<>();
-	                	attr.put("description", rs.getString(5));
-	                	attr.put("edges", rs.getInt(6));
-	                	attr.put("visibility", rs.getString(7));
+	    if (type == null || type == FileType.NETWORK) {
+	        String sql = "SELECT " + baseCols
+	            + (compact ? ", description, edgecount, visibility" : "")
+	            + " FROM network WHERE "
+	            + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
+	        try (PreparedStatement pst = db.prepareStatement(sql)) {
+	            pst.setObject(1, contextId);
+	            try (ResultSet rs = pst.executeQuery()) {
+	                while (rs.next()) {
+	                    Map<String, Object> attr = null;
+	                    if (compact) {
+	                        attr = new HashMap<>();
+	                        attr.put("description", rs.getString(5));
+	                        attr.put("edges", rs.getInt(6));
+	                        attr.put("visibility", rs.getString(7));
+	                    }
+	                    results.add(new FileItemSummary(
+	                        (UUID) rs.getObject(1), FileType.NETWORK,
+	                        rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                        attr));
 	                }
-	                results.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), FileType.NETWORK,
-	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                    attr));
 	            }
 	        }
 	    }
 
 	    /* ────────────── 3) Shortcuts ─────────────── */
-	    sql = "SELECT " + baseCols
-	        + (compact ? ", target_type" : "")
+	    String sql = "SELECT " + baseCols
+	        + ", target_type"
 	        + " FROM shortcut WHERE "
-	        + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
+	        + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") 
+	        + " AND is_deleted=false";
+	    if (type != null) {
+	        sql += " AND target_type=?";
+	    }
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, contextId);
+	        if (type != null) {
+	            pst.setString(2, type.toString());
+	        }
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
 	                Map<String, Object> attr = null;
 	                if (compact) {
-	                	attr = new HashMap<>();
-	                	attr.put("target_type", rs.getString(5));
+	                    attr = new HashMap<>();
+	                    attr.put("target_type", rs.getString(5));
 	                }
 	                results.add(new FileItemSummary(
 	                    (UUID) rs.getObject(1), FileType.SHORTCUT,
