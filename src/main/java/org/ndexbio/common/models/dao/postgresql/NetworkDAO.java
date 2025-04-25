@@ -68,6 +68,8 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Membership;
 import org.ndexbio.model.object.MembershipType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
@@ -75,6 +77,7 @@ import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ProvenanceEntity;
+import org.ndexbio.model.object.SharedFile;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
@@ -1681,7 +1684,6 @@ public class NetworkDAO extends NdexDBDAO {
 	
 
 	
-	
 	/**************************************************************************
 	    * getNetworkUserMemberships
 	    *
@@ -2348,5 +2350,34 @@ public class NetworkDAO extends NdexDBDAO {
 				throw new NdexException("Failed to set network folder in db.");
 			}
 		}
+	}
+
+	public List<SharedFile> listSharedNetworks(UUID userId) throws SQLException {
+		String sql = "SELECT n.\"UUID\", n.owneruuid, n.owner, n.name " +
+		            "FROM user_network_membership nm " +
+		            "JOIN network n ON n.\"UUID\" = nm.network_id " +
+		            "WHERE nm.user_id=? " +
+		            "  AND n.owneruuid<>? " +
+		            "  AND n.is_deleted=false";
+		
+		List<SharedFile> result = new ArrayList<>();
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			pst.setObject(1, userId);
+			pst.setObject(2, userId);
+			try (ResultSet rs = pst.executeQuery()) {
+				while (rs.next()) {
+					SharedFile networkInfo = new SharedFile();
+					networkInfo.setUuid((UUID) rs.getObject(1));
+					networkInfo.setType(FileType.NETWORK);
+					networkInfo.setOwnerId((UUID) rs.getObject(2));
+					networkInfo.setOwner(rs.getString(3));
+					FileItemSummary networkSummary = new FileItemSummary();
+					networkSummary.setName(rs.getString(4));
+					networkInfo.setFileSummary(networkSummary);
+					result.add(networkInfo);
+				}
+			}
+		}
+		return result;
 	}
 }

@@ -23,6 +23,7 @@ import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.SharedFile;
 import org.ndexbio.model.object.network.VisibilityType;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -248,10 +249,12 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return fc;
 	}
 	
+	@Override
 	public List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type) throws SQLException {
 	    return listItemsInFolderOrHome(folderId, compact, false, type);
 	}
 	
+	@Override
 	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException {
 	    return listItemsInFolderOrHome(ownerId, compact, true, type);
 	}
@@ -383,6 +386,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	 * Adds new or updates a permission row. 
 	 * @return 
 	 */
+	@Override
 	public NdexObjectUpdateStatus setFolderPermission(UUID folderId, UUID userId, Permissions permission) throws SQLException, NdexException {
 	    String sql = 
 	        "INSERT INTO folder_permission (folder_id, user_id, permission) " +
@@ -402,6 +406,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		return result;
 	}
 
+	@Override
 	public void removeFolderPermission(UUID folderId, UUID userId) throws SQLException {
 	    String sql = "DELETE FROM folder_permission WHERE folder_id = ? AND user_id = ?";
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
@@ -411,6 +416,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 	}
 	
+	@Override
 	public Map<String, String> getFolderPermissions(UUID folderId) throws SQLException {
 	    Map<String, String> permissionsMap = new HashMap<>();
 	    String sql = "SELECT user_id, permission FROM folder_permission WHERE folder_id=?";
@@ -428,6 +434,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return permissionsMap;
 	}
 	
+	@Override
 	public String enableFolderAccessKey(UUID folderId) throws SQLException, NdexException {
 	    String oldKey = null;
 	    boolean keyIsOn = false;
@@ -464,6 +471,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return oldKey;
 	}
 
+	@Override
 	public void disableFolderAccessKey(UUID folderId) throws SQLException, NdexException {
 	    String sql = "UPDATE folder SET access_key_is_on=false WHERE \"UUID\"=? AND is_deleted=false";
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
@@ -475,6 +483,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 	}
 
+	@Override
 	public void transferFolder(UUID folderId, UUID newOwnerId) throws SQLException, NdexException {
 	    String sql = "UPDATE folder SET owneruuid=? WHERE \"UUID\"=? AND is_deleted=false";
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
@@ -493,30 +502,39 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    new SecureRandom().nextBytes(randomBytes);
 	    return DatatypeConverter.printHexBinary(randomBytes).toLowerCase();
 	}
-	
-    public List<UUID> listSharedFolderIds(UUID userId) throws SQLException {
-        String sql = 
-            "SELECT f.\"UUID\" " +
-            "FROM folder_permission fp " +
-            "JOIN folder f ON f.\"UUID\" = fp.folder_id " +
-            "WHERE fp.user_id=? " +
-            "  AND f.owneruuid<>? " +
-            "  AND f.is_deleted=false " +
-            "  AND (fp.permission='read' OR fp.permission='edit')";
+    
+    @Override
+    public List<SharedFile> listSharedFolders(UUID userId) throws SQLException {
+        String sql = "SELECT f.\"UUID\", f.owneruuid, u.user_name, f.name " +
+                    "FROM folder_permission fp " +
+                    "JOIN folder f ON f.\"UUID\" = fp.folder_id " +
+                    "JOIN ndex_user u ON f.owneruuid = u.\"UUID\" " +
+                    "WHERE fp.user_id=? " +
+                    "  AND f.owneruuid<>? " +
+                    "  AND f.is_deleted=false";
         
-        List<UUID> folderIds = new ArrayList<>();
+        List<SharedFile> result = new ArrayList<>();
         try (PreparedStatement pst = db.prepareStatement(sql)) {
             pst.setObject(1, userId);
             pst.setObject(2, userId);
             try (ResultSet rs = pst.executeQuery()) {
                 while (rs.next()) {
-                    folderIds.add((UUID) rs.getObject(1));
+                    SharedFile folderInfo = new SharedFile();
+                    folderInfo.setUuid((UUID) rs.getObject(1));
+                    folderInfo.setType(FileType.FOLDER);
+                    folderInfo.setOwnerId((UUID) rs.getObject(2));
+                    folderInfo.setOwner(rs.getString(3));
+					FileItemSummary folderSummary = new FileItemSummary();
+					folderSummary.setName(rs.getString(4));
+					folderInfo.setFileSummary(folderSummary);
+                    result.add(folderInfo);
                 }
             }
         }
-        return folderIds;
+        return result;
     }
     
+    @Override
     public void setFolderVisibility(UUID folderId, VisibilityType visibility) throws SQLException, NdexException {
         String sql = "UPDATE folder SET visibility = ? WHERE \"UUID\" = ? AND is_deleted = false";
         try (PreparedStatement pst = db.prepareStatement(sql)) {

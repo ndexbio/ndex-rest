@@ -27,6 +27,7 @@ import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.SharedFile;
 import org.ndexbio.model.object.SharingMemberRequest;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.object.Shortcut;
@@ -71,6 +72,8 @@ import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.object.SharingSimpleRequest;
+import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.Folder;
 
 
 @Path("/v3/files")
@@ -678,9 +681,9 @@ public class FileServiceV3 extends NdexService {
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
-            summary     = "List objects shared with me",
+    		summary = "List shared objects",
             description = """
-                          Returns IDs of folders (and in the future networks) for which the current user has READ or WRITE permission but is not the owner.
+                          Returns a list of folders (and in the future networks) that have been shared with the authenticated user.
                           Only folder IDs are returned for now; network support is planned.
                           """
         )
@@ -693,11 +696,17 @@ public class FileServiceV3 extends NdexService {
 	        throw new UnauthorizedOperationException("You must be logged in.");
 	    }
 
-	    List<UUID> folderIds;
+	    List<SharedFile> fileInfo;
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        folderIds = dao.listSharedFolderIds(currentUserId);
+	    	fileInfo = dao.listSharedFolders(currentUserId);
 	    }
-	    return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(folderIds).build();
+	    
+		try (NetworkDAO networkDao = new NetworkDAO()) {
+			fileInfo.addAll(networkDao.listSharedNetworks(currentUserId));
+		}
+		
+		
+	    return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(fileInfo).build();
 	}
-
+	
 }
