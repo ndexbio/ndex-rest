@@ -146,11 +146,20 @@ public class FolderServiceV3 extends NdexService {
 	@Path("/{folderid}")
     @Operation(
             summary = "Delete a Folder",
-            description = "Deletes the specified folder if the current user is the owner. This is a logical delete unless otherwise specified (in future updates)."
+            description = """
+                         Deletes the specified folder if the current user is the owner.
+                         
+                         Query Parameters:
+                         - force: If true, deletes the folder and all its contents. If false (default), only deletes empty folders.
+                         - permanent: If true, permanently deletes the folder from the database. If false (default), performs a logical delete (sets is_deleted flag).
+                         """
         )
 	@Produces("application/json")
-	public void deleteFolder(@PathParam("folderid") final String folderIdStr)
-			throws Exception, NdexException, SQLException {
+	public void deleteFolder(
+	        @PathParam("folderid") final String folderIdStr,
+	        @QueryParam("force") @DefaultValue("false") boolean force,
+	        @QueryParam("permanent") @DefaultValue("false") boolean permanent
+	) throws Exception, NdexException, SQLException {
 		
 		UUID folderId = UUID.fromString(folderIdStr);
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()){
@@ -158,7 +167,7 @@ public class FolderServiceV3 extends NdexService {
 			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
 				
-			dao.deleteFolder(folderId);
+			dao.deleteFolder(folderId, force, permanent);
 			dao.commit();
 		} 
 	}

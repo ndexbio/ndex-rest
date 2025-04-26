@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -154,18 +155,133 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		}
 	}
 	
+	private List<UUID> getDescendantFolders(UUID folderId) throws SQLException {
+	    List<UUID> descendants = new ArrayList<>();
+	    getDescendantFoldersRecursive(folderId, descendants);
+	    return descendants;
+	}
+
+	private void getDescendantFoldersRecursive(UUID parentId, List<UUID> descendants) throws SQLException {
+	    String sql = "SELECT \"UUID\" FROM folder WHERE parent = ? AND is_deleted = false";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, parentId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                UUID childId = (UUID) rs.getObject(1);
+	                descendants.add(childId);
+	                getDescendantFoldersRecursive(childId, descendants);
+	            }
+	        }
+	    }
+	}
+
 	@Override
-	public void deleteFolder(UUID folderId) throws SQLException {
-		Timestamp t = new Timestamp(System.currentTimeMillis());
-		
-		String sqlStr = "update folder set modification_time = ?, is_deleted = true  where \"UUID\"=?";
-				
-		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setTimestamp(1, t);
-			pst.setObject(2, folderId);
-			pst.executeUpdate();
-		}
-		
+	public void deleteFolder(UUID folderId, boolean force, boolean permanent) throws SQLException {
+	    Timestamp t = new Timestamp(System.currentTimeMillis());
+	    
+	    if (!force) {
+	        // Check if folder is empty
+	        FileCount counts = getFolderChildCounts(folderId);
+	        if (counts.getFolder() > 0 || counts.getNetwork() > 0 || counts.getShortcut() > 0) {
+	            throw new SQLException("Folder is not empty. Use force=true to delete non-empty folders.");
+	        }
+	    }
+	    
+	    if (permanent) {
+	        if (force) {
+	            // Get all descendant folders recursively
+	            List<UUID> descendantFolders = getDescendantFolders(folderId);
+	            
+	            // Delete all networks in the folder tree
+	            String deleteNetworksSql = "DELETE FROM network WHERE parent IN (?, " + 
+	                String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            try (PreparedStatement pst = db.prepareStatement(deleteNetworksSql)) {
+	                pst.setObject(1, folderId);
+	                for (int i = 0; i < descendantFolders.size(); i++) {
+	                    pst.setObject(i + 2, descendantFolders.get(i));
+	                }
+	                pst.executeUpdate();
+	            }
+	            
+	            // Delete all shortcuts in the folder tree
+	            String deleteShortcutsSql = "DELETE FROM shortcut WHERE parent IN (?, " + 
+	                String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            try (PreparedStatement pst = db.prepareStatement(deleteShortcutsSql)) {
+	                pst.setObject(1, folderId);
+	                for (int i = 0; i < descendantFolders.size(); i++) {
+	                    pst.setObject(i + 2, descendantFolders.get(i));
+	                }
+	                pst.executeUpdate();
+	            }
+	            
+	            // Delete all subfolders
+	            String deleteSubfoldersSql = "DELETE FROM folder WHERE \"UUID\" IN (?, " + 
+	                String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            try (PreparedStatement pst = db.prepareStatement(deleteSubfoldersSql)) {
+	                pst.setObject(1, folderId);
+	                for (int i = 0; i < descendantFolders.size(); i++) {
+	                    pst.setObject(i + 2, descendantFolders.get(i));
+	                }
+	                pst.executeUpdate();
+	            }
+	        } else {
+	            // Just delete the folder itself
+	            String deleteFolderSql = "DELETE FROM folder WHERE \"UUID\"=?";
+	            try (PreparedStatement pst = db.prepareStatement(deleteFolderSql)) {
+	                pst.setObject(1, folderId);
+	                pst.executeUpdate();
+	            }
+	        }
+	    } else {
+	        if (force) {
+	            // Get all descendant folders recursively
+	            List<UUID> descendantFolders = getDescendantFolders(folderId);
+	            
+	            // Mark all networks as deleted
+	            String markNetworksSql = "UPDATE network SET modification_time = ?, is_deleted = true " +
+	                "WHERE parent IN (?, " + String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            try (PreparedStatement pst = db.prepareStatement(markNetworksSql)) {
+	                pst.setTimestamp(1, t);
+	                pst.setObject(2, folderId);
+	                for (int i = 0; i < descendantFolders.size(); i++) {
+	                    pst.setObject(i + 3, descendantFolders.get(i));
+	                }
+	                pst.executeUpdate();
+	            }
+	            
+	            // Mark all shortcuts as deleted
+	            String markShortcutsSql = "UPDATE shortcut SET modification_time = ?, is_deleted = true " +
+	                "WHERE parent IN (?, " + String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            try (PreparedStatement pst = db.prepareStatement(markShortcutsSql)) {
+	                pst.setTimestamp(1, t);
+	                pst.setObject(2, folderId);
+	                for (int i = 0; i < descendantFolders.size(); i++) {
+	                    pst.setObject(i + 3, descendantFolders.get(i));
+	                }
+	                pst.executeUpdate();
+	            }
+	            
+	            // Mark all folders as deleted
+	            String markFoldersSql = "UPDATE folder SET modification_time = ?, is_deleted = true " +
+	                "WHERE \"UUID\" IN (?, " + String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            try (PreparedStatement pst = db.prepareStatement(markFoldersSql)) {
+	                pst.setTimestamp(1, t);
+	                pst.setObject(2, folderId);
+	                for (int i = 0; i < descendantFolders.size(); i++) {
+	                    pst.setObject(i + 3, descendantFolders.get(i));
+	                }
+	                pst.executeUpdate();
+	            }
+	        } else {
+	            // Just mark the folder as deleted
+	            String sqlStr = "UPDATE folder SET modification_time = ?, is_deleted = true WHERE \"UUID\"=?";
+	            try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+	                pst.setTimestamp(1, t);
+	                pst.setObject(2, folderId);
+	                pst.executeUpdate();
+	            }
+	        }
+	    }
 	}
 	
 	@Override

@@ -36,7 +36,7 @@ public interface FolderDAO extends AutoCloseable {
 	
 	boolean isFolderOwner(UUID folderId, UUID ownerId) throws SQLException;
 	
-	void deleteFolder(UUID folderId) throws SQLException;
+	void deleteFolder(UUID folderId, boolean force, boolean permanent) throws SQLException;
 	
 	void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId) throws SQLException, JsonProcessingException, NdexException;
 	
