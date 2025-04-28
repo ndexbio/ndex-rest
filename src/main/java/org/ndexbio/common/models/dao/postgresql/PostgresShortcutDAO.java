@@ -121,17 +121,23 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	}
 	
 	@Override
-	public void deleteShortcut(UUID shortcutId) throws SQLException {
+	public void deleteShortcut(UUID shortcutId, boolean permanent) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
-		String sqlStr = "update shortcut set modification_time = ?, is_deleted = true  where \"UUID\"=?";
-				
-		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-			pst.setTimestamp(1, t);
-			pst.setObject(2, shortcutId);
-			pst.executeUpdate();
+		if (permanent) {
+			String sqlStr = "DELETE FROM shortcut WHERE \"UUID\"=?";
+			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+				pst.setObject(1, shortcutId);
+				pst.executeUpdate();
+			}
+		} else {
+			String sqlStr = "UPDATE shortcut SET modification_time = ?, is_deleted = true WHERE \"UUID\"=?";
+			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+				pst.setTimestamp(1, t);
+				pst.setObject(2, shortcutId);
+				pst.executeUpdate();
+			}
 		}
-		
 	}
 	
 	@Override

@@ -153,11 +153,19 @@ public class ShortcutServiceV3 extends NdexService {
 	@Path("/{shortcutid}")
 	@Operation(
 			summary = "Delete a Shortcut",
-			description = "Logically deletes the specified shortcut if the current user is the owner. This is a logical delete unless otherwise specified (in future updates)."
+			description = """
+                         Deletes the specified shortcut if the current user is the owner.
+                         
+                         Query Parameters:
+                         - permanent: If true, permanently deletes the shortcut from the database. 
+                           If false (default), performs a logical delete (sets is_deleted flag).
+                         """
 		)
 	@Produces("application/json")
-	public void deleteShortcut(@PathParam("shortcutid") final String shortcutIdStr)
-			throws NdexException, SQLException, Exception {
+	public void deleteShortcut(
+	        @PathParam("shortcutid") final String shortcutIdStr,
+	        @QueryParam("permanent") @DefaultValue("false") boolean permanent
+	) throws NdexException, SQLException, Exception {
 		
 		UUID shortcutId = UUID.fromString(shortcutIdStr);
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()){
@@ -165,7 +173,7 @@ public class ShortcutServiceV3 extends NdexService {
 			if (!dao.isShortcutOwner(shortcutId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this shortcut.");
 				
-			dao.deleteShortcut(shortcutId);
+			dao.deleteShortcut(shortcutId, permanent);
 			dao.commit();
 		}
 	}

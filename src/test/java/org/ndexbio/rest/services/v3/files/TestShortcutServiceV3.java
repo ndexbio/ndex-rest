@@ -237,7 +237,7 @@ public class TestShortcutServiceV3 {
 
         ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
         expect(shortcutDAO.isShortcutOwner(shortcutId, userId)).andReturn(true);
-        shortcutDAO.deleteShortcut(shortcutId);
+        shortcutDAO.deleteShortcut(shortcutId, false);
         expectLastCall();
         shortcutDAO.commit();
         expectLastCall();

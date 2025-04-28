@@ -29,7 +29,7 @@ public interface ShortcutDAO extends AutoCloseable {
 	
 	boolean isShortcutOwner(UUID shortcutId, UUID ownerId) throws SQLException;
 	
-	void deleteShortcut(UUID shortcutId) throws SQLException;
+	void deleteShortcut(UUID shortcutId, boolean permanent) throws SQLException;
 	
 	void updateShortcut(UUID shortcutId, String name, UUID parentId) throws SQLException, JsonProcessingException, NdexException;
 	
