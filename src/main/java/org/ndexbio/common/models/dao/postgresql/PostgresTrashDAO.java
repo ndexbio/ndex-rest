@@ -11,6 +11,7 @@ import java.sql.Timestamp;
 import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.TrashRestoreRequest;
 
 
@@ -87,68 +88,210 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
         return results;
     }
     
+    @Override
     public void restoreTrashedItems(UUID userId, TrashRestoreRequest request) throws SQLException {
-        Timestamp now = new Timestamp(System.currentTimeMillis());
-
-        // 1) Restore networks
-        List<UUID> networkList = request.getNetworks();
-        if (networkList != null && !networkList.isEmpty()) {
-            restoreItems("network", networkList, userId, now);
+        Timestamp t = new Timestamp(System.currentTimeMillis());
+        
+        // Restore folders first
+        if (request.getFolders() != null) {
+            for (UUID folderId : request.getFolders()) {
+                // Check if parent folder exists and is not deleted
+                String checkParentSql = "SELECT parent FROM folder WHERE \"UUID\"=? AND is_deleted=true";
+                UUID parentId = null;
+                try (PreparedStatement pst = db.prepareStatement(checkParentSql)) {
+                    pst.setObject(1, folderId);
+                    try (ResultSet rs = pst.executeQuery()) {
+                        if (rs.next()) {
+                            parentId = (UUID) rs.getObject(1);
+                        }
+                    }
+                }
+                
+                // If parent exists and is not deleted, check if user has write access
+                boolean restoreToParent = false;
+                if (parentId != null) {
+                    String checkParentAccessSql = "SELECT 1 FROM folder WHERE \"UUID\"=? AND is_deleted=false AND " +
+                        "(owneruuid=? OR EXISTS (SELECT 1 FROM folder_permission WHERE folder_id=? AND user_id=? AND permission=?))";
+                    try (PreparedStatement pst = db.prepareStatement(checkParentAccessSql)) {
+                        pst.setObject(1, parentId);
+                        pst.setObject(2, userId);
+                        pst.setObject(3, parentId);
+                        pst.setObject(4, userId);
+                        pst.setObject(5, Permissions.WRITE.toString());
+                        try (ResultSet rs = pst.executeQuery()) {
+                            restoreToParent = rs.next();
+                        }
+                    }
+                }
+                
+                // Restore folder and its contents
+                String restoreFolderSql = "UPDATE folder SET is_deleted=false, modification_time=? WHERE \"UUID\"=?";
+                try (PreparedStatement pst = db.prepareStatement(restoreFolderSql)) {
+                    pst.setTimestamp(1, t);
+                    pst.setObject(2, folderId);
+                    pst.executeUpdate();
+                }
+                
+                // If parent doesn't exist or user doesn't have access, move to home
+                if (!restoreToParent) {
+                    String moveToHomeSql = "UPDATE folder SET parent=NULL WHERE \"UUID\"=?";
+                    try (PreparedStatement pst = db.prepareStatement(moveToHomeSql)) {
+                        pst.setObject(1, folderId);
+                        pst.executeUpdate();
+                    }
+                }
+                
+                // Recursively restore contents of this folder
+                restoreFolderContents(folderId, userId, t);
+            }
         }
-
-        // 2) Restore folders
-        List<UUID> folderList = request.getFolders();
-        if (folderList != null && !folderList.isEmpty()) {
-            restoreItems("folder", folderList, userId, now);
+        
+        // Restore networks
+        if (request.getNetworks() != null) {
+            for (UUID networkId : request.getNetworks()) {
+                // Check if parent folder exists and is not deleted
+                String checkParentSql = "SELECT parent FROM network WHERE \"UUID\"=? AND is_deleted=true";
+                UUID parentId = null;
+                try (PreparedStatement pst = db.prepareStatement(checkParentSql)) {
+                    pst.setObject(1, networkId);
+                    try (ResultSet rs = pst.executeQuery()) {
+                        if (rs.next()) {
+                            parentId = (UUID) rs.getObject(1);
+                        }
+                    }
+                }
+                
+                // If parent exists and is not deleted, check if user has access
+                boolean restoreToParent = false;
+                if (parentId != null) {
+                    String checkParentAccessSql = "SELECT 1 FROM folder WHERE \"UUID\"=? AND is_deleted=false AND " +
+                        "(owneruuid=? OR EXISTS (SELECT 1 FROM folder_permission WHERE folder_id=? AND user_id=? AND permission=?))";
+                    try (PreparedStatement pst = db.prepareStatement(checkParentAccessSql)) {
+                        pst.setObject(1, parentId);
+                        pst.setObject(2, userId);
+                        pst.setObject(3, parentId);
+                        pst.setObject(4, userId);
+                        pst.setObject(5, Permissions.WRITE.toString());
+                        try (ResultSet rs = pst.executeQuery()) {
+                            restoreToParent = rs.next();
+                        }
+                    }
+                }
+                
+                // Restore network
+                String restoreNetworkSql = "UPDATE network SET is_deleted=false, modification_time=? WHERE \"UUID\"=?";
+                try (PreparedStatement pst = db.prepareStatement(restoreNetworkSql)) {
+                    pst.setTimestamp(1, t);
+                    pst.setObject(2, networkId);
+                    pst.executeUpdate();
+                }
+                
+                // If parent doesn't exist or user doesn't have access, move to home
+                if (!restoreToParent) {
+                    String moveToHomeSql = "UPDATE network SET parent=NULL WHERE \"UUID\"=?";
+                    try (PreparedStatement pst = db.prepareStatement(moveToHomeSql)) {
+                        pst.setObject(1, networkId);
+                        pst.executeUpdate();
+                    }
+                }
+            }
         }
-
-        // 3) Restore shortcuts
-        List<UUID> shortcutList = request.getShortcuts();
-        if (shortcutList != null && !shortcutList.isEmpty()) {
-            restoreItems("shortcut", shortcutList, userId, now);
+        
+        // Restore shortcuts
+        if (request.getShortcuts() != null) {
+            for (UUID shortcutId : request.getShortcuts()) {
+                // Check if parent folder exists and is not deleted
+                String checkParentSql = "SELECT parent FROM shortcut WHERE \"UUID\"=? AND is_deleted=true";
+                UUID parentId = null;
+                try (PreparedStatement pst = db.prepareStatement(checkParentSql)) {
+                    pst.setObject(1, shortcutId);
+                    try (ResultSet rs = pst.executeQuery()) {
+                        if (rs.next()) {
+                            parentId = (UUID) rs.getObject(1);
+                        }
+                    }
+                }
+                
+                // If parent exists and is not deleted, check if user has access
+                boolean restoreToParent = false;
+                if (parentId != null) {
+                    String checkParentAccessSql = "SELECT 1 FROM folder WHERE \"UUID\"=? AND is_deleted=false AND " +
+                        "(owneruuid=? OR EXISTS (SELECT 1 FROM folder_permission WHERE folder_id=? AND user_id=? AND permission=?))";
+                    try (PreparedStatement pst = db.prepareStatement(checkParentAccessSql)) {
+                        pst.setObject(1, parentId);
+                        pst.setObject(2, userId);
+                        pst.setObject(3, parentId);
+                        pst.setObject(4, userId);
+                        try (ResultSet rs = pst.executeQuery()) {
+                            restoreToParent = rs.next();
+                        }
+                    }
+                }
+                
+                // Restore shortcut
+                String restoreShortcutSql = "UPDATE shortcut SET is_deleted=false, modification_time=? WHERE \"UUID\"=?";
+                try (PreparedStatement pst = db.prepareStatement(restoreShortcutSql)) {
+                    pst.setTimestamp(1, t);
+                    pst.setObject(2, shortcutId);
+                    pst.executeUpdate();
+                }
+                
+                // If parent doesn't exist or user doesn't have access, move to home
+                if (!restoreToParent) {
+                    String moveToHomeSql = "UPDATE shortcut SET parent=NULL WHERE \"UUID\"=?";
+                    try (PreparedStatement pst = db.prepareStatement(moveToHomeSql)) {
+                        pst.setObject(1, shortcutId);
+                        pst.executeUpdate();
+                    }
+                }
+            }
         }
     }
 
     /**
-     * Sets is_deleted=false and modification_time=? 
-     * for a batch of items in the given table, if they belong to userId.
-     *
-     * @param tableName   "network", "folder", or "shortcut"
-     * @param uuids       list of UUIDs to restore
-     * @param userId      the owner
-     * @param restoreTime the timestamp for modification_time
+     * Recursively restores all contents of a folder that were deleted with it.
+     * This includes subfolders, networks, and shortcuts.
      */
-    private void restoreItems(String tableName, List<UUID> uuids, UUID userId, Timestamp restoreTime) 
-            throws SQLException {
-
-        // Build an IN clause (?,?,...) based on the size of uuids
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < uuids.size(); i++) {
-            if (i > 0) sb.append(", ");
-            sb.append("?");
+    private void restoreFolderContents(UUID folderId, UUID userId, Timestamp t) throws SQLException {
+        // Restore subfolders
+        String getSubfoldersSql = "SELECT \"UUID\" FROM folder WHERE parent=? AND is_deleted=true";
+        List<UUID> subfolderIds = new ArrayList<>();
+        try (PreparedStatement pst = db.prepareStatement(getSubfoldersSql)) {
+            pst.setObject(1, folderId);
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) {
+                    subfolderIds.add((UUID) rs.getObject(1));
+                }
+            }
         }
         
-        // Build clause and add table name to clause
-        String sql = String.format(
-            "UPDATE %s SET is_deleted=false, modification_time=? " +
-            " WHERE owneruuid=? AND is_deleted=true AND \"UUID\" IN (%s)",
-            tableName,
-            sb.toString()
-        );
-
-        try (PreparedStatement pst = db.prepareStatement(sql)) {
-            pst.setTimestamp(1, restoreTime);
-            pst.setObject(2, userId);
-
-            // Fill the UUID placeholders
-            int index = 3;
-            for (UUID u : uuids) {
-                pst.setObject(index++, u);
+        // Restore each subfolder and its contents
+        for (UUID subfolderId : subfolderIds) {
+            String restoreFolderSql = "UPDATE folder SET is_deleted=false, modification_time=? WHERE \"UUID\"=?";
+            try (PreparedStatement pst = db.prepareStatement(restoreFolderSql)) {
+                pst.setTimestamp(1, t);
+                pst.setObject(2, subfolderId);
+                pst.executeUpdate();
             }
+            restoreFolderContents(subfolderId, userId, t);
+        }
+        
+        // Restore networks in this folder
+        String restoreNetworksSql = "UPDATE network SET is_deleted=false, modification_time=? WHERE parent=? AND is_deleted=true";
+        try (PreparedStatement pst = db.prepareStatement(restoreNetworksSql)) {
+            pst.setTimestamp(1, t);
+            pst.setObject(2, folderId);
+            pst.executeUpdate();
+        }
+        
+        // Restore shortcuts in this folder
+        String restoreShortcutsSql = "UPDATE shortcut SET is_deleted=false, modification_time=? WHERE parent=? AND is_deleted=true";
+        try (PreparedStatement pst = db.prepareStatement(restoreShortcutsSql)) {
+            pst.setTimestamp(1, t);
+            pst.setObject(2, folderId);
             pst.executeUpdate();
         }
     }
-
 
     /**
      * Permanently deletes all trashed (is_deleted=true) items owned by this user.
