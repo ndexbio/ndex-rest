@@ -60,6 +60,10 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.core.Response.Status;
+import jakarta.ws.rs.NotFoundException;
+import java.sql.SQLException;
 
 import org.apache.commons.io.FileUtils;
 import org.ndexbio.common.cx.CX2NetworkFileGenerator;
@@ -174,6 +178,54 @@ public class FileServiceV3 extends NdexService {
 
 	    return Response.noContent().build();
 	}
+	
+	@DELETE
+    @Path("/trash/{uuid}")
+    @Operation(summary = "Permanently delete a specific item from trash",
+              description = "Permanently deletes a specific item (folder, network, or shortcut) from the trash. " +
+                          "The item must be in the trash (is_deleted=true) to be permanently deleted.")
+    public void permanentlyDeleteTrashedItem(@PathParam("uuid") final String itemIdStr) throws Exception, NdexException, SQLException {
+        UUID itemId = UUID.fromString(itemIdStr);
+        
+        // First get the item type
+        FileType type;
+        try (TrashDAO dao = Configuration.getInstance().getDAOFactory().getTrashDAO()) {
+            type = dao.getTrashedItemType(itemId);
+            if (type == null) {
+                throw new NotFoundException("Item not found in trash.");
+            }
+            
+			switch (type) {
+				case FOLDER:
+					try (FolderDAO folderDao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+						if (!folderDao.isFolderOwner(itemId, getLoggedInUserId())) {
+							throw new UnauthorizedOperationException("User does not have permission to delete this item.");
+						}
+					}
+					break;
+				case NETWORK:
+					try (NetworkDAO networkDao = new NetworkDAO()) {
+						if (!networkDao.isAdmin(itemId, getLoggedInUserId())) {
+							throw new UnauthorizedOperationException("User does not have permission to delete this item.");
+						}
+					}
+					break;
+				case SHORTCUT:
+					try (ShortcutDAO shortcutDao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+						if (!shortcutDao.isShortcutOwner(itemId, getLoggedInUserId())) {
+							throw new UnauthorizedOperationException("User does not have permission to delete this item.");
+						}
+					}
+					break;
+				default:
+					break;
+			}
+            
+            // Permanently delete the item
+            dao.permanentlyDeleteTrashedItem(itemId, type);
+            dao.commit();
+        }
+    }
 	
 	@POST
 	@Path("/copy")

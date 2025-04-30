@@ -4,6 +4,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.sql.Timestamp;
@@ -356,6 +357,140 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
             pst.executeUpdate();
         }
 
+    }
+
+    @Override
+    public void permanentlyDeleteTrashedItem(UUID itemId, FileType type) throws SQLException {
+        switch (type) {
+            case FOLDER:
+                // First get all descendant folders recursively
+                String getDescendantsSql = 
+                    "WITH RECURSIVE folder_tree AS (" +
+                    "  SELECT \"UUID\" FROM folder WHERE \"UUID\"=? AND is_deleted=true " +
+                    "  UNION ALL " +
+                    "  SELECT f.\"UUID\" FROM folder f " +
+                    "  JOIN folder_tree ft ON f.parent = ft.\"UUID\" " +
+                    "  WHERE f.is_deleted=true" +
+                    ") SELECT \"UUID\" FROM folder_tree";
+                
+                List<UUID> descendantFolders = new ArrayList<>();
+                try (PreparedStatement pst = db.prepareStatement(getDescendantsSql)) {
+                    pst.setObject(1, itemId);
+                    try (ResultSet rs = pst.executeQuery()) {
+                        while (rs.next()) {
+                            descendantFolders.add((UUID) rs.getObject(1));
+                        }
+                    }
+                }
+                
+	            int totalPlaceholders = 1 + descendantFolders.size(); // 1 for folderId + rest
+
+	            String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
+                
+                // Delete all networks in the folder tree
+                String deleteNetworksSql = "DELETE FROM network WHERE parent IN (" + placeholders +  ")";
+                try (PreparedStatement pst = db.prepareStatement(deleteNetworksSql)) {
+                    pst.setObject(1, itemId);
+                    for (int i = 0; i < descendantFolders.size(); i++) {
+                        pst.setObject(i + 2, descendantFolders.get(i));
+                    }
+                    pst.executeUpdate();
+                }
+                
+                // Delete all shortcuts in the folder tree
+                String deleteShortcutsSql = "DELETE FROM shortcut WHERE parent IN (" + placeholders +  ")";
+                try (PreparedStatement pst = db.prepareStatement(deleteShortcutsSql)) {
+                    pst.setObject(1, itemId);
+                    for (int i = 0; i < descendantFolders.size(); i++) {
+                        pst.setObject(i + 2, descendantFolders.get(i));
+                    }
+                    pst.executeUpdate();
+                }
+                
+                // Delete all folder permissions in the folder tree
+                String deleteFolderPermissionsSql = "DELETE FROM folder_permission WHERE folder_id IN (" + placeholders +  ")";
+                try (PreparedStatement pst = db.prepareStatement(deleteFolderPermissionsSql)) {
+                    pst.setObject(1, itemId);
+                    for (int i = 0; i < descendantFolders.size(); i++) {
+                        pst.setObject(i + 2, descendantFolders.get(i));
+                    }
+                    pst.executeUpdate();
+                }
+                
+                // Finally delete all folders in the tree
+                String deleteFoldersSql = "DELETE FROM folder WHERE \"UUID\" IN (" + placeholders +  ")";
+                try (PreparedStatement pst = db.prepareStatement(deleteFoldersSql)) {
+                    pst.setObject(1, itemId);
+                    for (int i = 0; i < descendantFolders.size(); i++) {
+                        pst.setObject(i + 2, descendantFolders.get(i));
+                    }
+                    int updated = pst.executeUpdate();
+                    if (updated == 0) {
+                        throw new SQLException("Folder not found in trash or not deleted.");
+                    }
+                }
+                break;
+                
+            case NETWORK:
+                // First delete network memberships
+                String deleteNetMembership = "DELETE FROM user_network_membership WHERE networkid=?";
+                try (PreparedStatement pst = db.prepareStatement(deleteNetMembership)) {
+                    pst.setObject(1, itemId);
+                    pst.executeUpdate();
+                }
+                
+                String deleteGroupNetMembership = "DELETE FROM group_network_membership WHERE network_id=?";
+                try (PreparedStatement pst = db.prepareStatement(deleteGroupNetMembership)) {
+                    pst.setObject(1, itemId);
+                    pst.executeUpdate();
+                }
+                
+                // Then delete the network
+                String deleteNetwork = "DELETE FROM network WHERE \"UUID\"=? AND is_deleted=true";
+                try (PreparedStatement pst = db.prepareStatement(deleteNetwork)) {
+                    pst.setObject(1, itemId);
+                    int updated = pst.executeUpdate();
+                    if (updated == 0) {
+                        throw new SQLException("Network not found in trash or not deleted.");
+                    }
+                }
+                break;
+                
+            case SHORTCUT:
+                String deleteShortcut = "DELETE FROM shortcut WHERE \"UUID\"=? AND is_deleted=true";
+                try (PreparedStatement pst = db.prepareStatement(deleteShortcut)) {
+                    pst.setObject(1, itemId);
+                    int updated = pst.executeUpdate();
+                    if (updated == 0) {
+                        throw new SQLException("Shortcut not found in trash or not deleted.");
+                    }
+                }
+                break;
+                
+            default:
+                throw new SQLException("Unsupported file type: " + type);
+        }
+    }
+
+    @Override
+    public FileType getTrashedItemType(UUID itemId) throws SQLException {
+        String sql = "SELECT " + FileType.FOLDER.toString() + " FROM folder WHERE \"UUID\"=? AND is_deleted=true " +
+                    "UNION ALL " +
+                    "SELECT " + FileType.NETWORK.toString() + " FROM network WHERE \"UUID\"=? AND is_deleted=true " +
+                    "UNION ALL " +
+                    "SELECT " + FileType.SHORTCUT.toString() + " FROM shortcut WHERE \"UUID\"=? AND is_deleted=true";
+        
+        try (PreparedStatement pst = db.prepareStatement(sql)) {
+            pst.setObject(1, itemId);
+            pst.setObject(2, itemId);
+            pst.setObject(3, itemId);
+            try (ResultSet rs = pst.executeQuery()) {
+                if (rs.next()) {
+                    return FileType.valueOf(rs.getString(1));
+                }
+                return null;
+            }
+        }
     }
 
 }

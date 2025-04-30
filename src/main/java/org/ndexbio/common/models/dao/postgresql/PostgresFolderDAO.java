@@ -26,6 +26,7 @@ import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SharedFile;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.ndexbio.model.object.ShortcutTargetStatus;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -189,12 +190,15 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    
 	    if (permanent) {
 	        if (force) {
+	        	
 	            // Get all descendant folders recursively
 	            List<UUID> descendantFolders = getDescendantFolders(folderId);
+	            int totalPlaceholders = 1 + descendantFolders.size(); // 1 for folderId + rest
+
+	            String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
 	            
 	            // Delete all networks in the folder tree
-	            String deleteNetworksSql = "DELETE FROM network WHERE parent IN (?, " + 
-	                String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            String deleteNetworksSql = "DELETE FROM network WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(deleteNetworksSql)) {
 	                pst.setObject(1, folderId);
 	                for (int i = 0; i < descendantFolders.size(); i++) {
@@ -204,8 +208,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            }
 	            
 	            // Delete all shortcuts in the folder tree
-	            String deleteShortcutsSql = "DELETE FROM shortcut WHERE parent IN (?, " + 
-	                String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            String deleteShortcutsSql = "DELETE FROM shortcut WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(deleteShortcutsSql)) {
 	                pst.setObject(1, folderId);
 	                for (int i = 0; i < descendantFolders.size(); i++) {
@@ -215,8 +218,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            }
 	            
 	            // Delete all subfolders
-	            String deleteSubfoldersSql = "DELETE FROM folder WHERE \"UUID\" IN (?, " + 
-	                String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            String deleteSubfoldersSql = "DELETE FROM folder WHERE \"UUID\" IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(deleteSubfoldersSql)) {
 	                pst.setObject(1, folderId);
 	                for (int i = 0; i < descendantFolders.size(); i++) {
@@ -236,10 +238,13 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        if (force) {
 	            // Get all descendant folders recursively
 	            List<UUID> descendantFolders = getDescendantFolders(folderId);
+	            int totalPlaceholders = 1 + descendantFolders.size(); // 1 for folderId + rest
+
+	            String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
 	            
 	            // Mark all networks as deleted
 	            String markNetworksSql = "UPDATE network SET modification_time = ?, is_deleted = true " +
-	                "WHERE parent IN (?, " + String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	                "WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(markNetworksSql)) {
 	                pst.setTimestamp(1, t);
 	                pst.setObject(2, folderId);
@@ -251,7 +256,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            
 	            // Mark all shortcuts as deleted
 	            String markShortcutsSql = "UPDATE shortcut SET modification_time = ?, is_deleted = true " +
-	                "WHERE parent IN (?, " + String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            	"WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(markShortcutsSql)) {
 	                pst.setTimestamp(1, t);
 	                pst.setObject(2, folderId);
@@ -263,7 +268,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            
 	            // Mark all folders as deleted
 	            String markFoldersSql = "UPDATE folder SET modification_time = ?, is_deleted = true " +
-	                "WHERE \"UUID\" IN (?, " + String.join(",", Collections.nCopies(descendantFolders.size(), "?")) + ")";
+	            	"WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(markFoldersSql)) {
 	                pst.setTimestamp(1, t);
 	                pst.setObject(2, folderId);
@@ -436,7 +441,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    /* ────────────── 3) Shortcuts ─────────────── */
 	    String sql = "SELECT " + baseCols
-	        + ", target_type"
+	        + ", target_type, target"
 	        + " FROM shortcut WHERE "
 	        + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") 
 	        + " AND is_deleted=false";
@@ -453,7 +458,30 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                Map<String, Object> attr = null;
 	                if (compact) {
 	                    attr = new HashMap<>();
-	                    attr.put("target_type", rs.getString(5));
+						String targetType = rs.getString(5);
+						UUID targetId = (UUID) rs.getObject(6);
+	                    attr.put("target_type", targetType);
+						attr.put("target", targetId);
+	                    
+	                    // Check target status
+	                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
+	                    
+	                    if (targetId != null) {
+	                        String checkTargetSql = "SELECT is_deleted FROM " + 
+	                            (targetType.equals("FOLDER") ? "folder" : "network") + 
+	                            " WHERE \"UUID\"=?";
+	                        try (PreparedStatement checkPst = db.prepareStatement(checkTargetSql)) {
+	                            checkPst.setObject(1, targetId);
+	                            try (ResultSet checkRs = checkPst.executeQuery()) {
+	                                if (checkRs.next()) {
+	                                    targetStatus = checkRs.getBoolean(1) ? 
+	                                        ShortcutTargetStatus.IN_TRASH : 
+	                                        ShortcutTargetStatus.ACTIVE;
+	                                }
+	                            }
+	                        }
+	                    }
+	                    attr.put("target_status", targetStatus.toString());
 	                }
 	                results.add(new FileItemSummary(
 	                    (UUID) rs.getObject(1), FileType.SHORTCUT,
@@ -663,5 +691,66 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
         }
     }
 
+    public List<Map<String, Object>> listItemsInFolderOrHome(UUID userId, UUID folderId) throws SQLException {
+        String sql = "SELECT f.folder_id, f.owner_id, f.name, f.parent_id, f.is_deleted, f.creation_time, f.modification_time, " +
+                    "       s.target_type, s.target, " +
+                    "       n.\"UUID\", n.name as network_name, n.owneruuid, n.is_deleted as network_deleted, " +
+                    "       u.user_name, u.first_name, u.last_name " +
+                    "FROM folder f " +
+                    "LEFT JOIN shortcut s ON f.folder_id = s.folder_id " +
+                    "LEFT JOIN network n ON f.folder_id = n.folder_id " +
+                    "LEFT JOIN ndex_user u ON f.owner_id = u.uuid " +
+                    "WHERE f.owner_id = ? AND (f.parent_id = ? OR (? IS NULL AND f.parent_id IS NULL)) " +
+                    "ORDER BY f.name";
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        try (PreparedStatement pst = db.prepareStatement(sql)) {
+            pst.setObject(1, userId);
+            pst.setObject(2, folderId);
+            pst.setObject(3, folderId);
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("id", rs.getObject("folder_id"));
+                    item.put("name", rs.getString("name"));
+                    item.put("type", "FOLDER");
+                    item.put("ownerId", rs.getObject("owner_id"));
+                    item.put("owner", rs.getString("user_name"));
+                    item.put("parentId", rs.getObject("parent_id"));
+                    item.put("isDeleted", rs.getBoolean("is_deleted"));
+                    item.put("creationTime", rs.getTimestamp("creation_time"));
+                    item.put("modificationTime", rs.getTimestamp("modification_time"));
+
+                    // Check if this folder has a shortcut
+                    if (rs.getObject("target_type") != null) {
+                        String targetType = rs.getString("target_type");
+                        UUID targetId = (UUID) rs.getObject("target");
+                        
+                        // Check target status
+                        ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
+                        if (targetId != null) {
+                            String checkTargetSql = "SELECT is_deleted FROM " + 
+                                                  (targetType.equals("NETWORK") ? "network" : "folder") + 
+                                                  " WHERE " + (targetType.equals("NETWORK") ? "\"UUID\"" : "folder_id") + " = ?";
+                            try (PreparedStatement checkPst = db.prepareStatement(checkTargetSql)) {
+                                checkPst.setObject(1, targetId);
+                                try (ResultSet checkRs = checkPst.executeQuery()) {
+                                    if (checkRs.next()) {
+                                        targetStatus = checkRs.getBoolean("is_deleted") ? 
+                                            ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        item.put("shortcutTargetStatus", targetStatus);
+                    }
+
+                    result.add(item);
+                }
+            }
+        }
+        return result;
+    }
 
 }
