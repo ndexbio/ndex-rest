@@ -600,6 +600,7 @@ public class FileServiceV3 extends NdexService {
 		                accessKey = dao.enableNetworkAccessKey(file.getKey());   // creates or re‑uses existing key
 		                dao.commit();
 		            }
+		            break;
 		        case FOLDER:
 		            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 		                if (!dao.isFolderOwner(file.getKey(), userId)) {
@@ -653,6 +654,7 @@ public class FileServiceV3 extends NdexService {
 	    	            dao.disableNetworkAccessKey(file.getKey());
 	    	            dao.commit();
 	    	        }
+	    	        break;
 		        case FOLDER:
 		            try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 		                if (!dao.isFolderOwner(file.getKey(), userId)) {
