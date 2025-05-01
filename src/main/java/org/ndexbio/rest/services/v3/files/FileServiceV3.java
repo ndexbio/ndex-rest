@@ -2,7 +2,6 @@ package org.ndexbio.rest.services.v3.files;
 
 import java.io.File;
 import java.net.URI;
-import java.net.Authenticator.RequestorType;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Paths;
@@ -61,7 +60,6 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.core.Response.Status;
 import jakarta.ws.rs.NotFoundException;
 import java.sql.SQLException;
 
@@ -76,8 +74,6 @@ import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.object.SharingSimpleRequest;
-import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.Folder;
 
 
 @Path("/v3/files")

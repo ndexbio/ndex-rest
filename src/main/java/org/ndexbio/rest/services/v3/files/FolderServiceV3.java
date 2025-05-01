@@ -1,7 +1,6 @@
 package org.ndexbio.rest.services.v3.files;
 
 import java.net.URI;
-import java.security.Permission;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;

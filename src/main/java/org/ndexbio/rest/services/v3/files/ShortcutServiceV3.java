@@ -12,8 +12,6 @@ import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.ShortcutRequest;
