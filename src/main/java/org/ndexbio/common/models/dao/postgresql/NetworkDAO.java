@@ -2380,4 +2380,40 @@ public class NetworkDAO extends NdexDBDAO {
 		}
 		return result;
 	}
+	
+	public void deleteNetworkLogical(UUID networkId, UUID userId) throws SQLException, NdexException {
+		Timestamp t = new Timestamp(System.currentTimeMillis());
+        String markNetworksSql = "UPDATE network SET modification_time = ?, is_deleted = true WHERE network_id=?";
+            try (PreparedStatement pst = db.prepareStatement(markNetworksSql)) {
+                pst.setTimestamp(1, t);
+                pst.setObject(2, networkId);
+                pst.executeUpdate();
+            }
+	}
+
+	public void deleteNetworkPermanently(UUID networkId, UUID userId) throws SQLException, NdexException {
+		// First delete network memberships
+		String deleteNetMembership = "DELETE FROM user_network_membership WHERE network_id=?";
+		try (PreparedStatement pst = db.prepareStatement(deleteNetMembership)) {
+			pst.setObject(1, networkId);
+			pst.executeUpdate();
+		}
+		
+		String deleteGroupNetMembership = "DELETE FROM group_network_membership WHERE network_id=?";
+		try (PreparedStatement pst = db.prepareStatement(deleteGroupNetMembership)) {
+			pst.setObject(1, networkId);
+			pst.executeUpdate();
+		}
+		
+		// Then delete the network
+		String deleteNetwork = "DELETE FROM network WHERE \"UUID\"=? AND owneruuid=? AND is_deleted=false";
+		try (PreparedStatement pst = db.prepareStatement(deleteNetwork)) {
+			pst.setObject(1, networkId);
+			pst.setObject(2, userId);
+			int updated = pst.executeUpdate();
+			if (updated == 0) {
+				throw new SQLException("Network not found or not owned by user.");
+			}
+		}
+	}
 }

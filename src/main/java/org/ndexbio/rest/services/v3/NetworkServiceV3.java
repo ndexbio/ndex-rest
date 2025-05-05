@@ -27,6 +27,7 @@ import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -71,6 +72,7 @@ import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.task.CX2NetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteNetwork;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -806,7 +808,7 @@ public class NetworkServiceV3  extends NdexService {
 		@PermitAll
 		@GET
 		@Path("/{networkid}/summary")
-		@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId. A NetworkSummary object is a subset of a network object. It is used to convey basic information about a network in this API. NOTE: If value of ‘completed’ is False this result may not contain all attributes below (name, description, version might be missing, nodeCount and edgeCount will be zero, properties will be empty, etc…)")
+		@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId. A NetworkSummary object is a subset of a network object. It is used to convey basic information about a network in this API. NOTE: If value of 'completed' is False this result may not contain all attributes below (name, description, version might be missing, nodeCount and edgeCount will be zero, properties will be empty, etc…)")
 		@Produces("application/json")
 		
 		public NetworkSummaryV3 getNetworkSummaryV3(
@@ -835,5 +837,50 @@ public class NetworkServiceV3  extends NdexService {
 			}
 		} 
 		
-	
+		@DELETE
+		@Path("/{networkid}")
+		@Operation(summary = "Delete a Network", description = "Deletes the network specified by networkId. If permanent is true, the network will be permanently deleted. Otherwise, it will be soft deleted.")
+		@Produces("application/json")
+		public void deleteNetwork(
+		    @PathParam("networkid") final String id,
+		    @QueryParam("permanent") @DefaultValue("false") boolean permanent
+		) throws NdexException, SQLException, JsonProcessingException {
+		    try (NetworkDAO networkDao = new NetworkDAO()) {
+		        UUID networkId = UUID.fromString(id);
+		        UUID userId = getLoggedInUser().getExternalId();
+		        
+		        if (!networkDao.isAdmin(networkId, userId)) {
+		            throw new UnauthorizedOperationException("Only network owner can delete a network.");
+		        }
+		        
+		        if (networkDao.isReadOnly(networkId)) {
+		            throw new NdexException("Can't delete a read-only network.");
+		        }
+		        
+		        if (networkDao.networkIsLocked(networkId)) {
+		            throw new NdexException("Network is locked by another updating process. Please try again.");
+		        }
+
+		        if (permanent) {
+		            // Perform permanent deletion
+		            networkDao.deleteNetworkPermanently(networkId, userId);
+		            networkDao.commit();
+
+		            // Delete network files from filesystem
+		            String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId.toString();
+		            try {
+		                FileUtils.deleteDirectory(new File(pathPrefix));
+		            } catch (IOException e) {
+		                throw new NdexException("Failed to delete network files. Error: " + e.getMessage());
+		            }
+		            
+			        // Update search index -- TODO: does it need to be done with soft delete?
+			        NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId));
+		        } else {
+		            // Perform soft deletion
+		            networkDao.deleteNetwork(networkId, userId);
+		            networkDao.commit();
+		        }
+		    }
+		}
 }
