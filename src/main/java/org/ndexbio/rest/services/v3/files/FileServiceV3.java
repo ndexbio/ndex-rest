@@ -191,32 +191,6 @@ public class FileServiceV3 extends NdexService {
                 throw new NotFoundException("Item not found in trash.");
             }
             
-			switch (type) {
-				case FOLDER:
-					try (FolderDAO folderDao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-						if (!folderDao.isFolderOwner(itemId, getLoggedInUserId())) {
-							throw new UnauthorizedOperationException("User does not have permission to delete this item.");
-						}
-					}
-					break;
-				case NETWORK:
-					try (NetworkDAO networkDao = new NetworkDAO()) {
-						if (!networkDao.isAdmin(itemId, getLoggedInUserId())) {
-							throw new UnauthorizedOperationException("User does not have permission to delete this item.");
-						}
-					}
-					break;
-				case SHORTCUT:
-					try (ShortcutDAO shortcutDao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-						if (!shortcutDao.isShortcutOwner(itemId, getLoggedInUserId())) {
-							throw new UnauthorizedOperationException("User does not have permission to delete this item.");
-						}
-					}
-					break;
-				default:
-					break;
-			}
-            
             // Permanently delete the item
             dao.permanentlyDeleteTrashedItem(itemId, type);
             dao.commit();

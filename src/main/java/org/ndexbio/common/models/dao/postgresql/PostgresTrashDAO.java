@@ -363,14 +363,14 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
     public void permanentlyDeleteTrashedItem(UUID itemId, FileType type) throws SQLException {
         switch (type) {
             case FOLDER:
-                // First get all descendant folders recursively
+                // First get all descendant folders recursively that have show_in_trash=false
                 String getDescendantsSql = 
                     "WITH RECURSIVE folder_tree AS (" +
                     "  SELECT \"UUID\" FROM folder WHERE \"UUID\"=? AND is_deleted=true " +
                     "  UNION ALL " +
                     "  SELECT f.\"UUID\" FROM folder f " +
                     "  JOIN folder_tree ft ON f.parent = ft.\"UUID\" " +
-                    "  WHERE f.is_deleted=true" +
+                    "  WHERE f.is_deleted=true AND f.show_in_trash=false" +
                     ") SELECT \"UUID\" FROM folder_tree";
                 
                 List<UUID> descendantFolders = new ArrayList<>();
@@ -383,12 +383,11 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     }
                 }
                 
-	            int totalPlaceholders = 1 + descendantFolders.size(); // 1 for folderId + rest
-
-	            String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
+                int totalPlaceholders = 1 + descendantFolders.size(); // 1 for folderId + rest
+                String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
                 
-                // Delete all networks in the folder tree
-                String deleteNetworksSql = "DELETE FROM network WHERE parent IN (" + placeholders +  ")";
+                // Delete all networks in the folder tree that have show_in_trash=false
+                String deleteNetworksSql = "DELETE FROM network WHERE parent IN (" + placeholders + ") AND show_in_trash=false";
                 try (PreparedStatement pst = db.prepareStatement(deleteNetworksSql)) {
                     pst.setObject(1, itemId);
                     for (int i = 0; i < descendantFolders.size(); i++) {
@@ -397,8 +396,8 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     pst.executeUpdate();
                 }
                 
-                // Delete all shortcuts in the folder tree
-                String deleteShortcutsSql = "DELETE FROM shortcut WHERE parent IN (" + placeholders +  ")";
+                // Delete all shortcuts in the folder tree that have show_in_trash=false
+                String deleteShortcutsSql = "DELETE FROM shortcut WHERE parent IN (" + placeholders + ") AND show_in_trash=false";
                 try (PreparedStatement pst = db.prepareStatement(deleteShortcutsSql)) {
                     pst.setObject(1, itemId);
                     for (int i = 0; i < descendantFolders.size(); i++) {
@@ -408,7 +407,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                 }
                 
                 // Delete all folder permissions in the folder tree
-                String deleteFolderPermissionsSql = "DELETE FROM folder_permission WHERE folder_id IN (" + placeholders +  ")";
+                String deleteFolderPermissionsSql = "DELETE FROM folder_permission WHERE folder_id IN (" + placeholders + ")";
                 try (PreparedStatement pst = db.prepareStatement(deleteFolderPermissionsSql)) {
                     pst.setObject(1, itemId);
                     for (int i = 0; i < descendantFolders.size(); i++) {
@@ -417,13 +416,20 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     pst.executeUpdate();
                 }
                 
-                // Finally delete all folders in the tree
-                String deleteFoldersSql = "DELETE FROM folder WHERE \"UUID\" IN (" + placeholders +  ")";
+                // Delete all folders in the tree that have show_in_trash=false
+                String deleteFoldersSql = "DELETE FROM folder WHERE \"UUID\" IN (" + placeholders + ") AND show_in_trash=false";
                 try (PreparedStatement pst = db.prepareStatement(deleteFoldersSql)) {
                     pst.setObject(1, itemId);
                     for (int i = 0; i < descendantFolders.size(); i++) {
                         pst.setObject(i + 2, descendantFolders.get(i));
                     }
+                    pst.executeUpdate();
+                }
+
+                // Finally delete the main folder (itemId) which has show_in_trash=true
+                String deleteMainFolderSql = "DELETE FROM folder WHERE \"UUID\"=? AND is_deleted=true AND show_in_trash=true";
+                try (PreparedStatement pst = db.prepareStatement(deleteMainFolderSql)) {
+                    pst.setObject(1, itemId);
                     int updated = pst.executeUpdate();
                     if (updated == 0) {
                         throw new SQLException("Folder not found in trash or not deleted.");
@@ -474,11 +480,11 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
 
     @Override
     public FileType getTrashedItemType(UUID itemId) throws SQLException {
-        String sql = "SELECT " + FileType.FOLDER.toString() + " FROM folder WHERE \"UUID\"=? AND is_deleted=true " +
+        String sql = "SELECT '" + FileType.FOLDER.toString() + "'::text FROM folder WHERE \"UUID\"=? AND is_deleted=true " +
                     "UNION ALL " +
-                    "SELECT " + FileType.NETWORK.toString() + " FROM network WHERE \"UUID\"=? AND is_deleted=true " +
+                    "SELECT '" + FileType.NETWORK.toString() + "'::text FROM network WHERE \"UUID\"=? AND is_deleted=true " +
                     "UNION ALL " +
-                    "SELECT " + FileType.SHORTCUT.toString() + " FROM shortcut WHERE \"UUID\"=? AND is_deleted=true";
+                    "SELECT '" + FileType.SHORTCUT.toString() + "'::text FROM shortcut WHERE \"UUID\"=? AND is_deleted=true";
         
         try (PreparedStatement pst = db.prepareStatement(sql)) {
             pst.setObject(1, itemId);
