@@ -32,7 +32,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
         // 1) Folders
         String folderSql = 
             "SELECT \"UUID\", name FROM folder " +
-            "WHERE owneruuid=? AND is_deleted=true";
+            "WHERE owneruuid=? AND is_deleted=true AND show_in_trash = true";
         try (PreparedStatement pst = db.prepareStatement(folderSql)) {
             pst.setObject(1, ownerId);
             try (ResultSet rs = pst.executeQuery()) {
@@ -51,7 +51,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
         // 2) Networks
         String networkSql =
             "SELECT \"UUID\", name FROM network " +
-            "WHERE owneruuid=? AND is_deleted=true";
+            "WHERE owneruuid=? AND is_deleted=true AND show_in_trash = true";
         try (PreparedStatement pst = db.prepareStatement(networkSql)) {
             pst.setObject(1, ownerId);
             try (ResultSet rs = pst.executeQuery()) {
@@ -70,7 +70,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
         // 3) Shortcuts
         String shortcutSql =
             "SELECT \"UUID\", name FROM shortcut " +
-            "WHERE owneruuid=? AND is_deleted=true";
+            "WHERE owneruuid=? AND is_deleted=true AND show_in_trash = true";
         try (PreparedStatement pst = db.prepareStatement(shortcutSql)) {
             pst.setObject(1, ownerId);
             try (ResultSet rs = pst.executeQuery()) {
@@ -125,7 +125,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     }
                 }
                 
-                // Restore folder and its contents
+                // Restore folder
                 String restoreFolderSql = "UPDATE folder SET is_deleted=false, modification_time=? WHERE \"UUID\"=?";
                 try (PreparedStatement pst = db.prepareStatement(restoreFolderSql)) {
                     pst.setTimestamp(1, t);
@@ -255,7 +255,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
      */
     private void restoreFolderContents(UUID folderId, UUID userId, Timestamp t) throws SQLException {
         // Restore subfolders
-        String getSubfoldersSql = "SELECT \"UUID\" FROM folder WHERE parent=? AND is_deleted=true";
+        String getSubfoldersSql = "SELECT \"UUID\" FROM folder WHERE parent=? AND is_deleted=true AND show_in_trash = false";
         List<UUID> subfolderIds = new ArrayList<>();
         try (PreparedStatement pst = db.prepareStatement(getSubfoldersSql)) {
             pst.setObject(1, folderId);
@@ -268,7 +268,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
         
         // Restore each subfolder and its contents
         for (UUID subfolderId : subfolderIds) {
-            String restoreFolderSql = "UPDATE folder SET is_deleted=false, modification_time=? WHERE \"UUID\"=?";
+            String restoreFolderSql = "UPDATE folder SET is_deleted=false, modification_time=? WHERE \"UUID\"=? AND show_in_trash = false";
             try (PreparedStatement pst = db.prepareStatement(restoreFolderSql)) {
                 pst.setTimestamp(1, t);
                 pst.setObject(2, subfolderId);
@@ -278,7 +278,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
         }
         
         // Restore networks in this folder
-        String restoreNetworksSql = "UPDATE network SET is_deleted=false, modification_time=? WHERE parent=? AND is_deleted=true";
+        String restoreNetworksSql = "UPDATE network SET is_deleted=false, modification_time=? WHERE parent=? AND is_deleted=true AND show_in_trash = false";
         try (PreparedStatement pst = db.prepareStatement(restoreNetworksSql)) {
             pst.setTimestamp(1, t);
             pst.setObject(2, folderId);
@@ -286,7 +286,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
         }
         
         // Restore shortcuts in this folder
-        String restoreShortcutsSql = "UPDATE shortcut SET is_deleted=false, modification_time=? WHERE parent=? AND is_deleted=true";
+        String restoreShortcutsSql = "UPDATE shortcut SET is_deleted=false, modification_time=? WHERE parent=? AND is_deleted=true AND show_in_trash = false";
         try (PreparedStatement pst = db.prepareStatement(restoreShortcutsSql)) {
             pst.setTimestamp(1, t);
             pst.setObject(2, folderId);

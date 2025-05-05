@@ -266,9 +266,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                pst.executeUpdate();
 	            }
 	            
-	            // Mark all folders as deleted
+	            // Mark all child folders as deleted
 	            String markFoldersSql = "UPDATE folder SET modification_time = ?, is_deleted = true " +
-	            	"WHERE \"UUID\" IN (" + placeholders + ")";
+	            	"WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(markFoldersSql)) {
 	                pst.setTimestamp(1, t);
 	                pst.setObject(2, folderId);
@@ -277,14 +277,13 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                }
 	                pst.executeUpdate();
 	            }
-	        } else {
-	            // Just mark the folder as deleted
-	            String sqlStr = "UPDATE folder SET modification_time = ?, is_deleted = true WHERE \"UUID\"=?";
-	            try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-	                pst.setTimestamp(1, t);
-	                pst.setObject(2, folderId);
-	                pst.executeUpdate();
-	            }
+	        }
+            // Mark the folder as deleted and show in Trash
+            String sqlStr = "UPDATE folder SET modification_time = ?, is_deleted = true, show_in_trash = true WHERE \"UUID\"=?";
+            try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+                pst.setTimestamp(1, t);
+                pst.setObject(2, folderId);
+                pst.executeUpdate();
 	        }
 	    }
 	}

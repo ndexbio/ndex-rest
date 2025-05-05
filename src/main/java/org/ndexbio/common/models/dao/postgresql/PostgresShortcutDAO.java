@@ -131,7 +131,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 				pst.executeUpdate();
 			}
 		} else {
-			String sqlStr = "UPDATE shortcut SET modification_time = ?, is_deleted = true WHERE \"UUID\"=?";
+			String sqlStr = "UPDATE shortcut SET modification_time = ?, is_deleted = true, show_in_trash = true WHERE \"UUID\"=?";
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				pst.setTimestamp(1, t);
 				pst.setObject(2, shortcutId);
