@@ -268,7 +268,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            
 	            // Mark all folders as deleted
 	            String markFoldersSql = "UPDATE folder SET modification_time = ?, is_deleted = true " +
-	            	"WHERE parent IN (" + placeholders + ")";
+	            	"WHERE \"UUID\" IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(markFoldersSql)) {
 	                pst.setTimestamp(1, t);
 	                pst.setObject(2, folderId);
