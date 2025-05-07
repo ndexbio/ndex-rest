@@ -531,31 +531,116 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	 */
 	@Override
 	public NdexObjectUpdateStatus setFolderPermission(UUID folderId, UUID userId, Permissions permission) throws SQLException, NdexException {
+	    // Get all descendant folders
+	    List<UUID> descendantFolders = getDescendantFolders(folderId);
+	    
+	    // Create placeholders for the SQL query
+	    String placeholders = String.join(",", Collections.nCopies(1 + descendantFolders.size(), "(?, ?, ?)"));
+	    
+	    // Insert/update permissions for the parent folder and all descendants
 	    String sql = 
 	        "INSERT INTO folder_permission (folder_id, user_id, permission) " +
-	        "VALUES (?, ?, ?) " +
+	        "VALUES " + placeholders + " " +
 	        "ON CONFLICT (folder_id, user_id) DO UPDATE SET permission = EXCLUDED.permission";
 
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
-	        pst.setObject(1, folderId);
-	        pst.setObject(2, userId);
-	        pst.setString(3, permission.toString());
+	        int paramIndex = 1;
+	        // Add parent folder
+	        pst.setObject(paramIndex++, folderId);
+	        pst.setObject(paramIndex++, userId);
+	        pst.setString(paramIndex++, permission.toString());
+	        
+	        // Add all descendant folders
+	        for (UUID descendantId : descendantFolders) {
+	            pst.setObject(paramIndex++, descendantId);
+	            pst.setObject(paramIndex++, userId);
+	            pst.setString(paramIndex++, permission.toString());
+	        }
 	        pst.executeUpdate();
+	    }
+
+	    // Get all networks in the folder tree
+	    String networkSql = "SELECT n.\"UUID\" FROM network n " +
+	                       "WHERE n.parent IN (" + String.join(",", Collections.nCopies(1 + descendantFolders.size(), "?")) + ")";
+	    try (PreparedStatement pst = db.prepareStatement(networkSql)) {
+	        int paramIndex = 1;
+	        // Add parent folder
+	        pst.setObject(paramIndex++, folderId);
+	        
+	        // Add all descendant folders
+	        for (UUID descendantId : descendantFolders) {
+	            pst.setObject(paramIndex++, descendantId);
+	        }
+	        
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                UUID networkId = (UUID) rs.getObject(1);
+	                String networkPermissionSql =  "insert into user_network_membership ( user_id,network_id, permission_type) values (?,?,'"+ permission.toString() + "') "
+    				+ "ON CONFLICT (user_id,network_id) DO UPDATE set permission_type = EXCLUDED.permission_type";
+	                try (PreparedStatement pst2 = db.prepareStatement(networkPermissionSql)) {
+	                    pst2.setObject(1, userId);
+	                    pst2.setObject(2, networkId);
+	                    pst2.executeUpdate();
+	                }
+	            }
+	        }
 	    }
 	    
 	    Timestamp t = new Timestamp(System.currentTimeMillis());
-		NdexObjectUpdateStatus result = new NdexObjectUpdateStatus();
-		result.setModificationTime(t);
-		return result;
+	    NdexObjectUpdateStatus result = new NdexObjectUpdateStatus();
+	    result.setModificationTime(t);
+	    return result;
 	}
 
 	@Override
 	public void removeFolderPermission(UUID folderId, UUID userId) throws SQLException {
-	    String sql = "DELETE FROM folder_permission WHERE folder_id = ? AND user_id = ?";
+	    // Get all descendant folders
+	    List<UUID> descendantFolders = getDescendantFolders(folderId);
+	    
+	    // Create placeholders for the SQL query
+	    String placeholders = String.join(",", Collections.nCopies(1 + descendantFolders.size(), "?"));
+	    
+	    // Delete permissions for the parent folder and all descendants
+	    String sql = "DELETE FROM folder_permission WHERE folder_id IN (" + placeholders + ") AND user_id = ?";
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
-	        pst.setObject(1, folderId);
-	        pst.setObject(2, userId);
+	        int paramIndex = 1;
+	        // Add parent folder
+	        pst.setObject(paramIndex++, folderId);
+	        
+	        // Add all descendant folders
+	        for (UUID descendantId : descendantFolders) {
+	            pst.setObject(paramIndex++, descendantId);
+	        }
+	        
+	        // Add user ID
+	        pst.setObject(paramIndex, userId);
 	        pst.executeUpdate();
+	    }
+
+	    // Remove permissions from all networks in the folder tree
+	    String networkSql = "SELECT n.\"UUID\" FROM network n " +
+	                       "WHERE n.parent IN (" + placeholders + ")";
+	    try (PreparedStatement pst = db.prepareStatement(networkSql)) {
+	        int paramIndex = 1;
+	        // Add parent folder
+	        pst.setObject(paramIndex++, folderId);
+	        
+	        // Add all descendant folders
+	        for (UUID descendantId : descendantFolders) {
+	            pst.setObject(paramIndex++, descendantId);
+	        }
+	        
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                UUID networkId = (UUID) rs.getObject(1);
+	                String networkPermissionSql = "DELETE FROM user_network_membership WHERE user_id = ? AND network_id = ?";
+	                try (PreparedStatement pst2 = db.prepareStatement(networkPermissionSql)) {
+	                    pst2.setObject(1, userId);
+	                    pst2.setObject(2, networkId);
+	                    pst2.executeUpdate();
+	                }
+	            }
+	        }
 	    }
 	}
 	

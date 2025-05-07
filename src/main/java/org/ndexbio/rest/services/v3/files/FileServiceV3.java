@@ -407,7 +407,7 @@ public class FileServiceV3 extends NdexService {
                           Deletes permission if set to null for a user.
                           """
         )
-	public Response addMember(SharingMemberRequest request) throws Exception {
+	public Response shareMembers(SharingMemberRequest request) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to add members.");
