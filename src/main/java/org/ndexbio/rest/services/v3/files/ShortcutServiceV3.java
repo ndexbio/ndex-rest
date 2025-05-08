@@ -57,7 +57,27 @@ public class ShortcutServiceV3 extends NdexService {
 	@Produces("application/json")
 	@Operation(
 			summary = "Create a Shortcut",
-			description = "Creates a new shortcut object in the user's account. The request must contain a `name` and a `target` UUID."
+			description = """
+                          Creates a new shortcut object in the user's account.
+                          
+                          Database Tables:
+                          - shortcut: Creates new record with name, target, and parent folder
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Empty name: Returns 400 Bad Request
+                          - Null target: Returns 400 Bad Request
+                          - Invalid target type: Returns 400 Bad Request
+                          - Target not accessible: Returns 403 Forbidden
+                          - Invalid parent folder: Returns 400 Bad Request
+                          
+                          Response:
+                          - 201 Created: Shortcut created successfully
+                          - Location header contains URL to new shortcut
+                          - 400 Bad Request: Invalid request parameters
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: Target not accessible
+                          """
 		)
 	public Response createShortcut(final ShortcutRequest request) throws Exception {
 		if (request == null) {
@@ -116,7 +136,24 @@ public class ShortcutServiceV3 extends NdexService {
 	@Path("/{shortcutid}")
 	@Operation(
 			summary = "Get a Shortcut",
-			description = "Retrieves the specified shortcut if the current user has read access, either by authentication or a valid access key."
+			description = """
+                          Retrieves the specified shortcut if the current user has read access.
+                          
+                          Database Tables:
+                          - shortcut: Queries shortcut metadata
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid UUID: Returns 404 Not Found
+                          - No read access: Returns 403 Forbidden
+                          - Shortcut deleted: Returns 404 Not Found
+                          
+                          Response:
+                          - 200 OK: Shortcut metadata
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: No read access
+                          - 404 Not Found: Shortcut doesn't exist
+                          """
 		)
 	public Response getShortcut(	@PathParam("shortcutid") final String shortcutId,
 			@QueryParam("id_token") String id_token,
@@ -152,12 +189,27 @@ public class ShortcutServiceV3 extends NdexService {
 	@Operation(
 			summary = "Delete a Shortcut",
 			description = """
-                         Deletes the specified shortcut if the current user is the owner.
-                         
-                         Query Parameters:
-                         - permanent: If true, permanently deletes the shortcut from the database. 
-                           If false (default), performs a logical delete (sets is_deleted flag).
-                         """
+                          Deletes the specified shortcut if the current user is the owner.
+                          
+                          Database Tables:
+                          - shortcut: Updates is_deleted flag or removes record
+                          
+                          Query Parameters:
+                          - permanent: If true, permanently deletes the shortcut from the database. 
+                            If false (default), performs a logical delete (sets is_deleted flag).
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid UUID: Returns 404 Not Found
+                          - Not owner: Returns 403 Forbidden
+                          - Already deleted: Returns 404 Not Found
+                          
+                          Response:
+                          - 204 No Content: Success
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: Not owner
+                          - 404 Not Found: Shortcut doesn't exist
+                          """
 		)
 	@Produces("application/json")
 	public void deleteShortcut(
@@ -182,7 +234,27 @@ public class ShortcutServiceV3 extends NdexService {
 	@Produces("application/json")
 	@Operation(
 			summary = "Rename or move a Shortcut",
-			description = "Updates the shortcut's name or parent folder. Throws an error if user is not the owner."
+			description = """
+                          Updates the shortcut's name or parent folder.
+                          
+                          Database Tables:
+                          - shortcut: Updates name and/or parent folder
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid UUID: Returns 404 Not Found
+                          - Not owner: Returns 403 Forbidden
+                          - Invalid parent folder: Returns 400 Bad Request
+                          - Duplicate name in folder: Returns 409 Conflict
+                          
+                          Response:
+                          - 204 No Content: Success
+                          - 400 Bad Request: Invalid request
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: Not owner
+                          - 404 Not Found: Shortcut doesn't exist
+                          - 409 Conflict: Duplicate name
+                          """
 		)
 	public void updateShortcut(final ShortcutRequest request,
 			@PathParam("shortcutid") final String shortcutIdStr)
@@ -205,7 +277,23 @@ public class ShortcutServiceV3 extends NdexService {
 	@Produces(MediaType.APPLICATION_JSON)
 	@Operation(
 			summary = "List my Shortcuts",
-			description = "Lists all shortcuts owned by the current user, up to the given limit."
+			description = """
+                          Lists all shortcuts owned by the current user.
+                          
+                          Database Tables:
+                          - shortcut: Queries where owneruuid=userId AND is_deleted=false
+                          
+                          Query Parameters:
+                          - limit: Maximum number of shortcuts to return (default: 100)
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - No shortcuts: Returns empty array
+                          
+                          Response:
+                          - 200 OK: Array of shortcut metadata
+                          - 401 Unauthorized: Not authenticated
+                          """
 		)
 	public Response listMyShortcuts(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
 
