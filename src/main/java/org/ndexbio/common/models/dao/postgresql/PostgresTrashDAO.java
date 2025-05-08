@@ -126,7 +126,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                 }
                 
                 // Restore folder
-                String restoreFolderSql = "UPDATE folder SET is_deleted=false, modification_time=? WHERE \"UUID\"=?";
+                String restoreFolderSql = "UPDATE folder SET is_deleted=false, show_in_trash=false, modification_time=? WHERE \"UUID\"=?";
                 try (PreparedStatement pst = db.prepareStatement(restoreFolderSql)) {
                     pst.setTimestamp(1, t);
                     pst.setObject(2, folderId);
@@ -180,7 +180,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                 }
                 
                 // Restore network
-                String restoreNetworkSql = "UPDATE network SET is_deleted=false, modification_time=? WHERE \"UUID\"=?";
+                String restoreNetworkSql = "UPDATE network SET is_deleted=false, show_in_trash=false, modification_time=? WHERE \"UUID\"=?";
                 try (PreparedStatement pst = db.prepareStatement(restoreNetworkSql)) {
                     pst.setTimestamp(1, t);
                     pst.setObject(2, networkId);
@@ -230,7 +230,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                 }
                 
                 // Restore shortcut
-                String restoreShortcutSql = "UPDATE shortcut SET is_deleted=false, modification_time=? WHERE \"UUID\"=?";
+                String restoreShortcutSql = "UPDATE shortcut SET is_deleted=false, show_in_trash=false, modification_time=? WHERE \"UUID\"=?";
                 try (PreparedStatement pst = db.prepareStatement(restoreShortcutSql)) {
                     pst.setTimestamp(1, t);
                     pst.setObject(2, shortcutId);
