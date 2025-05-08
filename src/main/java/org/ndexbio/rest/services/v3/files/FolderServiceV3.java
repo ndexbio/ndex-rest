@@ -60,8 +60,25 @@ public class FolderServiceV3 extends NdexService {
 	@Produces("application/json")
     @Operation(
             summary = "Create a Folder",
-            description = "Creates a new folder object in the user's account. The request body must include a name; optionally, a parent folder UUID."
-        )
+            description = """
+                          Creates a new folder object in the user's account.
+                          
+                          Request Body:
+                          - name: Required. The name of the folder.
+                          - parent: Optional. UUID of the parent folder. If not provided, folder will be created at root level.
+                          
+                          Edge Cases:
+                          - Empty or null name: Returns 400 Bad Request
+                          - Invalid parent UUID: Returns 404 Not Found
+                          - Parent folder not accessible: Returns 403 Forbidden
+                          - Duplicate folder name in same parent: Allowed (folders can have same name)
+                          
+                          Response:
+                          - 201 Created: Folder created successfully
+                          - Location header contains URL to new folder
+                          - Response body contains folder metadata
+                          """
+    )
 	public Response createFolder(final FolderRequest request) throws Exception {
 		if (request == null) {
 			throw new Exception("No folder request data was provided!");
@@ -109,8 +126,29 @@ public class FolderServiceV3 extends NdexService {
 	@Path("/{folderid}")
     @Operation(
             summary = "Get a Folder",
-            description = "Retrieves the specified folder if the current user has read access or if valid access key is provided."
-        )
+            description = """
+                          Retrieves the specified folder if the current user has read access or if valid access key is provided.
+                          
+                          Path Parameters:
+                          - folderid: UUID of the folder to retrieve
+                          
+                          Query Parameters:
+                          - accesskey: Optional. Access key for anonymous access
+                          - id_token: Optional. Google OAuth ID token
+                          - auth_token: Optional. Basic auth token
+                          
+                          Edge Cases:
+                          - Invalid folder UUID: Returns 404 Not Found
+                          - Deleted folder: Returns 404 Not Found
+                          - No access (no valid auth): Returns 401 Unauthorized
+                          - Insufficient permissions: Returns 403 Forbidden
+                          
+                          Response:
+                          - 200 OK: Folder metadata
+                          - 404 Not Found: Folder doesn't exist or is deleted
+                          - 401/403: Access denied
+                          """
+    )
 	public Response getFolder(	@PathParam("folderid") final String folderId,
 			@QueryParam("accesskey") String accessKey,
 			@QueryParam("id_token") String id_token,
@@ -146,13 +184,40 @@ public class FolderServiceV3 extends NdexService {
     @Operation(
             summary = "Delete a Folder",
             description = """
-                         Deletes the specified folder if the current user is the owner.
-                         
-                         Query Parameters:
-                         - force: If true, deletes the folder and all its contents. If false (default), only deletes empty folders.
-                         - permanent: If true, permanently deletes the folder from the database. If false (default), performs a logical delete (sets is_deleted flag).
-                         """
-        )
+                          Deletes the specified folder if the current user is the owner.
+                          
+                          Path Parameters:
+                          - folderid: UUID of the folder to delete
+                          
+                          Query Parameters:
+                          - force: If true, deletes the folder and all its contents. If false (default), only deletes empty folders.
+                          - permanent: If true, permanently deletes the folder from the database. If false (default), performs a logical delete (sets is_deleted flag).
+                          
+                          Edge Cases:
+                          - Invalid folder UUID: Returns 404 Not Found
+                          - Not folder owner: Returns 403 Forbidden
+                          - Non-empty folder without force=true: Returns 400 Bad Request
+                          - Already deleted folder: Returns 404 Not Found
+                          
+                          Deletion Behavior:
+                          - Logical delete (permanent=false):
+                            * Sets is_deleted=true
+                            * Shows in trash
+							* Performs a logical delete on all networks, shortcuts, and folders in the folder tree, but does not show them in the trash
+                            * Can be restored
+                          - Permanent delete (permanent=true):
+                            * Removes from database
+							* Removes all permissions on all networks, shortcuts, and folders in the folder tree
+                            * Cannot be restored
+                            * Requires force=true if folder not empty
+                          
+                          Response:
+                          - 204 No Content: Success
+                          - 400 Bad Request: Invalid operation
+                          - 403 Forbidden: Not owner
+                          - 404 Not Found: Folder doesn't exist
+                          """
+    )
 	@Produces("application/json")
 	public void deleteFolder(
 	        @PathParam("folderid") final String folderIdStr,
@@ -177,8 +242,31 @@ public class FolderServiceV3 extends NdexService {
 	@Produces("application/json")
     @Operation(
             summary = "Update a Folder",
-            description = "Renames or moves a folder based on data passed in the request body. The user must be the folder's owner."
-        )
+            description = """
+                          Renames or moves a folder based on data passed in the request body. The user must be the folder's owner.
+                          
+                          Path Parameters:
+                          - folderid: UUID of the folder to update
+                          
+                          Request Body:
+                          - name: Optional. New name for the folder
+                          - parent: Optional. New parent folder UUID
+                          
+                          Edge Cases:
+                          - Invalid folder UUID: Returns 404 Not Found
+                          - Not folder owner: Returns 403 Forbidden
+                          - Invalid parent UUID: Returns 404 Not Found
+                          - Parent not accessible: Returns 403 Forbidden
+                          - Both name and parent null: Returns 400 Bad Request
+                          - Moving to descendant folder: Returns 400 Bad Request (would create cycle)
+                          
+                          Response:
+                          - 204 No Content: Success
+                          - 400 Bad Request: Invalid operation
+                          - 403 Forbidden: Not owner
+                          - 404 Not Found: Folder doesn't exist
+                          """
+    )
 	public void updateFolder(final FolderRequest request,
 			@PathParam("folderid") final String folderIdStr)
 			throws  DuplicateObjectException,
@@ -214,8 +302,33 @@ public class FolderServiceV3 extends NdexService {
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
             summary = "Get Item Counts Within a Folder",
-            description = "Returns counts of how many networks, subfolders, and shortcuts exist directly under the specified folder."
-        )
+            description = """
+                          Returns counts of how many networks, subfolders, and shortcuts exist directly under the specified folder.
+                          If *folderid* is a UUID, returns the immediate children of that folder  
+	                      (folders / networks / shortcuts) provided the caller is an owner or has read access or a valid access‑key.  
+	                      If *folderid* is the literal string **"home"**, returns **all** top‑level items
+	                      owned by the signed‑in user (parent = NULL).
+                          
+                          Path Parameters:
+                          - folderid: UUID of the folder to count items in
+                          
+                          Query Parameters:
+                          - accesskey: Optional. Access key for anonymous access
+                          - id_token: Optional. Google OAuth ID token
+                          - auth_token: Optional. Basic auth token
+                          
+                          Edge Cases:
+                          - Invalid folder UUID: Returns 404 Not Found
+                          - Deleted folder: Returns 404 Not Found
+                          - No access (no valid auth): Returns 401 Unauthorized
+                          - Insufficient permissions: Returns 403 Forbidden
+                          
+                          Response:
+                          - 200 OK: JSON object with counts
+                          - 404 Not Found: Folder doesn't exist
+                          - 401/403: Access denied
+                          """
+    )
 	public Response getChildCount(
 	        @PathParam("folderid") final String folderIdStr,
 	        @QueryParam("accesskey") String accessKey,
@@ -261,15 +374,39 @@ public class FolderServiceV3 extends NdexService {
 	@Path("/{folderid}/list")
 	@Produces(MediaType.APPLICATION_JSON)
 	@Operation(
-	    summary     = "List items in a folder",
+	    summary = "List items in a folder",
 	    description = """
-	                  If *folderid* is a UUID, returns the immediate children of that folder  
-	                  (folders / networks / shortcuts) provided the caller is an owner or has read access or a valid access‑key.  
-	                  If *folderid* is the literal string **"home"**, returns **all** top‑level items
-	                  owned by the signed‑in user (parent = NULL).
-	                  The type parameter can be used to filter results:
-	                  - network: returns networks and shortcuts with target_type network
-	                  - folder: returns folders and shortcuts with target_type folder
+	                  Lists all items (folders, networks, shortcuts) in the specified folder.
+	                  
+	                  Path Parameters:
+	                  - folderid: UUID of the folder to list items from. If *folderid* is a UUID, returns the immediate children of that folder  
+                      (folders/networks/shortcuts) provided the caller is an owner or has read access or a valid accesskey.  
+                      If *folderid* is the literal string **"home"**, returns all top level items owned by the signed in user (parent = NULL).
+	                  
+	                  Query Parameters:
+	                  - format: Optional. "compact" or "update" (default). Controls level of detail in response.
+	                  - type: Optional. Filter by type: "network", "folder", or null for all types.
+	                  - accesskey: Optional. Access key for anonymous access
+	                  - id_token: Optional. Google OAuth ID token
+	                  - auth_token: Optional. Basic auth token
+	                  
+	                  Edge Cases:
+	                  - Invalid folder UUID: Returns 404 Not Found
+	                  - Deleted folder: Returns 404 Not Found
+	                  - No access (no valid auth): Returns 401 Unauthorized
+	                  - Insufficient permissions: Returns 403 Forbidden
+	                  - Invalid type filter: Returns 400 Bad Request
+	                  
+	                  Response Format:
+	                  - Compact: Basic metadata only
+	                  - Update: Full metadata including:
+	                    * For networks: description, edge count, visibility
+	                    * For shortcuts: target type, target status
+	                  
+	                  Response:
+	                  - 200 OK: Array of items
+	                  - 404 Not Found: Folder doesn't exist
+	                  - 401/403: Access denied
 	                  """
 	)
 	public Response listItemsInFolder(
@@ -328,8 +465,22 @@ public class FolderServiceV3 extends NdexService {
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
             summary = "List My Folders",
-            description = "Lists all folders owned by the current user. Supports an optional limit query parameter."
-        )
+            description = """
+                          Lists all folders owned by the current user.
+                          
+                          Query Parameters:
+                          - limit: Optional. Maximum number of folders to return (default: 100)
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid limit: Returns 400 Bad Request
+                          - No folders: Returns empty array
+                          
+                          Response:
+                          - 200 OK: Array of folders
+                          - 401 Unauthorized: Not authenticated
+                          """
+    )
 	public Response listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
