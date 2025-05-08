@@ -89,9 +89,24 @@ public class FileServiceV3 extends NdexService {
 	@Path("/count")
 	@Produces("application/json")
     @Operation(
-            summary     = "Get my object counts",
-            description = "Returns the number of networks, folders and shortcuts owned by the current user."
-        )
+            summary = "Get my object counts",
+            description = """
+                          Returns the number of networks, folders and shortcuts owned by the current user.
+                          
+                          Database Tables:
+                          - folder: Counts non-deleted folders
+                          - network: Counts non-deleted networks
+                          - shortcut: Counts non-deleted shortcuts
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - No items: Returns counts of 0
+                          
+                          Response:
+                          - 200 OK: JSON object with counts for each type
+                          - 401 Unauthorized: Not authenticated
+                          """
+    )
 	public Response getCount() throws Exception {
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -108,9 +123,24 @@ public class FileServiceV3 extends NdexService {
 	@Path("/trash")
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
-            summary     = "List items in my trash",
-            description = "Returns all folders, networks and shortcuts currently in the authenticated user's trash bin."
-        )
+            summary = "List items in my trash",
+            description = """
+                          Returns all folders, networks and shortcuts currently in the authenticated user's trash bin.
+                          
+                          Database Tables:
+                          - folder: Queries where is_deleted=true AND show_in_trash=true
+                          - network: Queries where is_deleted=true AND show_in_trash=true
+                          - shortcut: Queries where is_deleted=true AND show_in_trash=true
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Empty trash: Returns empty array
+                          
+                          Response:
+                          - 200 OK: Array of trashed items with metadata
+                          - 401 Unauthorized: Not authenticated
+                          """
+    )
 	public Response listTrash() throws Exception {
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -130,9 +160,32 @@ public class FileServiceV3 extends NdexService {
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
-            summary     = "Restore objects from trash",
-            description = "Restores the supplied folders / networks / shortcuts from the trash bin back to their original locations."
-        )
+            summary = "Restore objects from trash",
+            description = """
+                          Restores the supplied folders / networks / shortcuts from the trash bin back to their original locations.
+                          
+                          When restoring a folder, its children are also restored — but only those with show_in_trash = false. 
+                          Any child item that was deleted before the folder (i.e., has show_in_trash = true) will not be restored and needs to be restored separately.
+                                                    
+                          Database Tables:
+                          - folder: Updates is_deleted=false AND show_in_trash=false
+                          - network: Updates is_deleted=false AND show_in_trash=false
+                          - shortcut: Updates is_deleted=false AND show_in_trash=false
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid UUIDs: Returns 404 Not Found
+                          - Items not in trash: Returns 400 Bad Request
+                          - Items not owned by user: Returns 403 Forbidden
+                          
+                          Response:
+                          - 204 No Content: Success
+                          - 400 Bad Request: Invalid operation
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: Not owner
+                          - 404 Not Found: Items don't exist
+                          """
+    )
 	public void restoreItemsFromTrash(TrashRestoreRequest request) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
@@ -158,9 +211,28 @@ public class FileServiceV3 extends NdexService {
 	@DELETE
 	@Path("/trash")
     @Operation(
-            summary     = "Empty my trash bin",
-            description = "Permanently deletes all items in the authenticated user's trash. Only shortcuts for now, rest will be added!"
-        )
+            summary = "Empty my trash bin",
+            description = """
+                          Permanently deletes all items in the authenticated user's trash.
+                          
+                          Database Tables:
+                          - folder: Deletes records where is_deleted=true
+                          - network: Deletes records where is_deleted=true
+                          - shortcut: Deletes records where is_deleted=true
+                          
+                          Related Tables:
+                          - folder_permission: Deletes associated permissions
+                          - user_network_membership: Deletes associated network permissions
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Empty trash: Returns 204 No Content
+                          
+                          Response:
+                          - 204 No Content: Success
+                          - 401 Unauthorized: Not authenticated
+                          """
+    )
 	public Response clearTrash() throws Exception {
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -177,9 +249,36 @@ public class FileServiceV3 extends NdexService {
 	
 	@DELETE
     @Path("/trash/{uuid}")
-    @Operation(summary = "Permanently delete a specific item from trash",
-              description = "Permanently deletes a specific item (folder, network, or shortcut) from the trash. " +
-                          "The item must be in the trash (is_deleted=true) to be permanently deleted.")
+    @Operation(
+        summary = "Permanently delete a specific item from trash",
+        description = """
+                      Permanently deletes a specific item (folder, network, or shortcut) from the trash.
+
+                      When deleting a folder, all its children are also permanently deleted if they have show_in_trash = false.
+                      
+                      Database Tables:
+                      - folder: Deletes record where UUID=itemId AND is_deleted=true
+                      - network: Deletes record where UUID=itemId AND is_deleted=true
+                      - shortcut: Deletes record where UUID=itemId AND is_deleted=true
+                      
+                      Related Tables:
+                      - folder_permission: Deletes associated permissions
+                      - user_network_membership: Deletes associated network permissions
+                      
+                      Edge Cases:
+                      - Not authenticated: Returns 401 Unauthorized
+                      - Invalid UUID: Returns 404 Not Found
+                      - Item not in trash: Returns 400 Bad Request
+                      - Item not owned by user: Returns 403 Forbidden
+                      
+                      Response:
+                      - 204 No Content: Success
+                      - 400 Bad Request: Invalid operation
+                      - 401 Unauthorized: Not authenticated
+                      - 403 Forbidden: Not owner
+                      - 404 Not Found: Item doesn't exist
+                      """
+    )
     public void permanentlyDeleteTrashedItem(@PathParam("uuid") final String itemIdStr) throws Exception, NdexException, SQLException {
         UUID itemId = UUID.fromString(itemIdStr);
         
@@ -202,14 +301,33 @@ public class FileServiceV3 extends NdexService {
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
-            summary     = "Copy an object",
+            summary = "Copy an object",
             description = """
                           Makes a copy of the supplied object.
-                          Coping shortcuts is supported. 
+
                           Copying folders is not supported – suggest creating a shortcut instead.  
-                          Copying networks is under development and will throw an exception.
+
+                          
+                          Database Tables:
+                          - shortcut: Creates new record with copied metadata
+                          - network: Creates new record with copied metadata and files
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid UUIDs: Returns 404 Not Found
+                          - Insufficient permissions: Returns 403 Forbidden
+                          - Invalid target folder: Returns 400 Bad Request
+                          - Disk space exceeded: Returns 400 Bad Request
+                          
+                          Response:
+                          - 201 Created: Copy successful
+                          - Location header contains URL to new object
+                          - 400 Bad Request: Invalid operation
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: Insufficient permissions
+                          - 404 Not Found: Source doesn't exist
                           """
-        )
+    )
 	public Response copyFile(final CopyRequest request,
 			@QueryParam("accesskey") String accessKey,
 			@QueryParam("id_token") String id_token,
@@ -401,12 +519,34 @@ public class FileServiceV3 extends NdexService {
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
-            summary     = "Add, updates or deletes permissions to folder or network",
+            summary = "Add, updates or deletes permissions to folder or network",
             description = """
-                          Grants, updates READ or WRITE permission permission on folders or networks. 
-                          Deletes permission if set to null for a user.
+                          Grants, updates READ or WRITE permission permission on folders or networks. Deletes permission if set to null for a user.
+
+                          If user is granted permission on a folder, they will also be granted permission on all its children. If folder permission is revoked, it will also revoke permission on all its children.
+                          
+                          Database Tables:
+                          - folder_permission: Updates/inserts/deletes permissions for folders
+                          - user_network_membership: Updates/inserts/deletes permissions for networks
+                          
+                          Related Tables:
+                          - folder: Verifies folder exists and user has access
+                          - network: Verifies network exists and user has access
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid UUIDs: Returns 404 Not Found
+                          - Insufficient permissions: Returns 403 Forbidden
+                          - Invalid permission type: Returns 400 Bad Request
+                          
+                          Response:
+                          - 200 OK: Permission updated
+                          - 400 Bad Request: Invalid operation
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: Insufficient permissions
+                          - 404 Not Found: Object doesn't exist
                           """
-        )
+    )
 	public Response shareMembers(SharingMemberRequest request) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
@@ -480,7 +620,26 @@ public class FileServiceV3 extends NdexService {
 	@Produces(MediaType.APPLICATION_JSON)
 	@Operation(
 	    summary = "List users with access to specified files",
-	    description = "Returns a list of users and their permissions for the given folders and networks."
+	    description = """
+	                  Returns a list of users and their permissions for the given folders and networks.
+	                  
+	                  Database Tables:
+	                  - folder_permission: Queries permissions for folders
+	                  - user_network_membership: Queries permissions for networks
+	                  - ndex_user: Joins to get user information
+	                  
+	                  Edge Cases:
+	                  - Not authenticated: Returns 401 Unauthorized
+	                  - Invalid UUIDs: Returns 404 Not Found
+	                  - Insufficient permissions: Returns 403 Forbidden
+	                  - No permissions found: Returns empty array
+	                  
+	                  Response:
+	                  - 200 OK: Array of user permissions
+	                  - 401 Unauthorized: Not authenticated
+	                  - 403 Forbidden: Insufficient permissions
+	                  - 404 Not Found: Object doesn't exist
+	                  """
 	)
 	public Response listMembers(Map<UUID, FileType> files) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
@@ -540,13 +699,27 @@ public class FileServiceV3 extends NdexService {
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
-            summary     = "Generate a public access‑key (share)",
+            summary = "Generate a public access‑key (share)",
             description = """
-                          Enables the access‑key on a folder (anonymous READ).  
-                          Network sharing is not yet implemented and will throw exceptions.
-                          Shortcuts cannot be shared - instead share objects that they point to.
+                          Enables the access‑key on a folder (anonymous READ).
+                          
+                          Database Tables:
+                          - folder: Updates access_key and access_key_is_on
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid UUID: Returns 404 Not Found
+                          - Not folder owner: Returns 403 Forbidden
+                          - Already shared: Returns existing key
+                          
+                          Response:
+                          - 200 OK: Access key
+                          - 400 Bad Request: Invalid operation
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: Not owner
+                          - 404 Not Found: Folder doesn't exist
                           """
-        )
+    )
 	public Response shareObject(SharingSimpleRequest request) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
@@ -596,13 +769,28 @@ public class FileServiceV3 extends NdexService {
 	@Path("/sharing/unshare")
 	@Consumes(MediaType.APPLICATION_JSON)
     @Operation(
-            summary     = "Disable public access‑key (unshare)",
+            summary = "Disable public access‑key (unshare)",
             description = """
-                          Disables the access‑key on a folder.  
-                          Network un‑share is not implemented yet.
-                          Shortcut un-share is not supported.
+                          Disables the access‑key on a folder or a network.
+                          
+                          Database Tables:
+                          - folder: Updates access_key_is_on=false
+                          - network: Updates access_key_is_on=false
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid UUID: Returns 404 Not Found
+                          - Not folder owner: Returns 403 Forbidden
+                          - Not shared: Returns 204 No Content
+                          
+                          Response:
+                          - 204 No Content: Success
+                          - 400 Bad Request: Invalid operation
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: Not owner
+                          - 404 Not Found: Folder doesn't exist
                           """
-        )
+    )
 	public Response unshareObject(SharingSimpleRequest request) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
@@ -648,13 +836,31 @@ public class FileServiceV3 extends NdexService {
 	@Path("/sharing/transfer")
 	@Consumes(MediaType.APPLICATION_JSON)
     @Operation(
-            summary     = "Transfer folder ownership",
+            summary = "Transfer folder ownership",
             description = """
-                          Transfers ownership of one or more folders to another user.  
-                          Transfer of networks is not yet implemented and will throw exceptions.
-                          Transfer of shortcuts is not supported.
+                          DO NOT USE! NOT IMPLEMENTED YET!
+                          Transfers ownership of one or more folders to another user. Transfer ownership of networks is not supported yet. TODO: implement support for networks.
+                          TODO: folder ownership transfer should not be supported.
+                          
+                        //   Database Tables:
+                        //   - folder: Updates owneruuid
+                        //   - folder_permission: Deletes existing permissions
+                        //   - user_network_membership: Updates permissions for networks in folders
+                          
+                        //   Edge Cases:
+                        //   - Not authenticated: Returns 401 Unauthorized
+                        //   - Invalid UUIDs: Returns 404 Not Found
+                        //   - Not folder owner: Returns 403 Forbidden
+                        //   - Invalid new owner: Returns 400 Bad Request
+                          
+                        //   Response:
+                        //   - 204 No Content: Success
+                        //   - 400 Bad Request: Invalid operation
+                        //   - 401 Unauthorized: Not authenticated
+                        //   - 403 Forbidden: Not owner
+                        //   - 404 Not Found: Folder doesn't exist
                           """
-        )
+    )
 	public Response transferObjects(TransferRequest request) throws Exception {
 
 	    UUID currentUserId = getLoggedInUserId();
@@ -707,10 +913,24 @@ public class FileServiceV3 extends NdexService {
     @Operation(
     		summary = "List shared objects",
             description = """
-                          Returns a list of folders (and in the future networks) that have been shared with the authenticated user.
-                          Only folder IDs are returned for now; network support is planned.
+                          Returns a list of folders and networks that have been shared with the authenticated user.
+                          
+                          Database Tables:
+                          - folder_permission: Queries permissions for folders
+                          - user_network_membership: Queries permissions for networks
+                          - folder: Joins to get folder information
+                          - network: Joins to get network information
+                          - ndex_user: Joins to get owner information
+                          
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - No shared items: Returns empty array
+                          
+                          Response:
+                          - 200 OK: Array of shared items with metadata
+                          - 401 Unauthorized: Not authenticated
                           """
-        )
+    )
 	public Response listSharedObjects(
 	    @QueryParam("limit") @DefaultValue("100") int limit
 	) throws Exception {
