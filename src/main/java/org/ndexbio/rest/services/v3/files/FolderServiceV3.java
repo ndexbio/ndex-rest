@@ -203,11 +203,11 @@ public class FolderServiceV3 extends NdexService {
                           - Logical delete (permanent=false):
                             * Sets is_deleted=true
                             * Shows in trash
-							* Performs a logical delete on all networks, shortcuts, and folders in the folder tree, but does not show them in the trash
+                            * Performs a logical delete on all networks, shortcuts, and folders in the folder tree, but does not show them in the trash
                             * Can be restored
                           - Permanent delete (permanent=true):
                             * Removes from database
-							* Removes all permissions on all networks, shortcuts, and folders in the folder tree
+                            * Removes all permissions on all networks, shortcuts, and folders in the folder tree
                             * Cannot be restored
                             * Requires force=true if folder not empty
                           
@@ -304,10 +304,6 @@ public class FolderServiceV3 extends NdexService {
             summary = "Get Item Counts Within a Folder",
             description = """
                           Returns counts of how many networks, subfolders, and shortcuts exist directly under the specified folder.
-                          If *folderid* is a UUID, returns the immediate children of that folder  
-	                      (folders / networks / shortcuts) provided the caller is an owner or has read access or a valid access‑key.  
-	                      If *folderid* is the literal string **"home"**, returns **all** top‑level items
-	                      owned by the signed‑in user (parent = NULL).
                           
                           Path Parameters:
                           - folderid: UUID of the folder to count items in
@@ -377,11 +373,12 @@ public class FolderServiceV3 extends NdexService {
 	    summary = "List items in a folder",
 	    description = """
 	                  Lists all items (folders, networks, shortcuts) in the specified folder.
+	                  If *folderid* is a UUID, returns the immediate children of that folder  
+	                  (folders/networks/shortcuts) provided the caller is an owner or has read access or a valid accesskey.  
+	                  If *folderid* is the literal string **"home"**, returns all top level items owned by the signed in user (parent = NULL).
 	                  
 	                  Path Parameters:
-	                  - folderid: UUID of the folder to list items from. If *folderid* is a UUID, returns the immediate children of that folder  
-                      (folders/networks/shortcuts) provided the caller is an owner or has read access or a valid accesskey.  
-                      If *folderid* is the literal string **"home"**, returns all top level items owned by the signed in user (parent = NULL).
+	                  - folderid: UUID of the folder to list items from
 	                  
 	                  Query Parameters:
 	                  - format: Optional. "compact" or "update" (default). Controls level of detail in response.
