@@ -68,7 +68,7 @@ import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.MoveNetworksRequest;
 import org.ndexbio.model.object.NetworkExportRequestV2;
-import org.ndexbio.model.object.SetVisibilityRequest;
+import org.ndexbio.model.object.FileVisibilityRequest;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
@@ -174,7 +174,7 @@ public class BatchService extends NdexService {
     @Path("/files/setvisibility")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response setVisibility(SetVisibilityRequest request) throws Exception {
+    public Response setVisibility(FileVisibilityRequest request) throws Exception {
         if (request == null || request.getVisibility() == null || request.getFiles() == null) {
             throw new NdexException("Missing required parameters: visibility and items.");
         }
