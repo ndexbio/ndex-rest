@@ -175,7 +175,7 @@ public class BatchService extends NdexService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response setVisibility(SetVisibilityRequest request) throws Exception {
-        if (request == null || request.getVisibility() == null || request.getItems() == null) {
+        if (request == null || request.getVisibility() == null || request.getFiles() == null) {
             throw new NdexException("Missing required parameters: visibility and items.");
         }
 
@@ -184,7 +184,7 @@ public class BatchService extends NdexService {
             throw new NdexException("User is not logged in.");
         }
 
-        for (Map.Entry<UUID, FileType> item : request.getItems().entrySet()) {
+        for (Map.Entry<UUID, FileType> item : request.getFiles().entrySet()) {
             UUID uuid = item.getKey();
             FileType type = item.getValue();
 
