@@ -31,7 +31,7 @@ import org.ndexbio.model.object.SharingMemberRequest;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.ShortcutRequest;
-import org.ndexbio.model.object.TransferRequest;
+import org.ndexbio.model.object.TransferOwnershipRequest;
 import org.ndexbio.model.object.TrashRestoreRequest;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.rest.Configuration;
@@ -836,70 +836,74 @@ public class FileServiceV3 extends NdexService {
 	@Path("/sharing/transfer")
 	@Consumes(MediaType.APPLICATION_JSON)
     @Operation(
-            summary = "Transfer folder ownership",
+            summary = "Transfer network ownership",
             description = """
-                          DO NOT USE! NOT IMPLEMENTED YET!
-                          Transfers ownership of one or more folders to another user. Transfer ownership of networks is not supported yet. TODO: implement support for networks.
-                          TODO: folder ownership transfer should not be supported.
+                          Transfers ownership of one or more networks to another user.
                           
-                        //   Database Tables:
-                        //   - folder: Updates owneruuid
-                        //   - folder_permission: Deletes existing permissions
-                        //   - user_network_membership: Updates permissions for networks in folders
+                          Database Tables:
+                          - network: Updates owneruuid and owner
+                          - user_network_membership: Updates permissions for old and new owners
+                          - shortcut: Creates shortcut for old owner
                           
-                        //   Edge Cases:
-                        //   - Not authenticated: Returns 401 Unauthorized
-                        //   - Invalid UUIDs: Returns 404 Not Found
-                        //   - Not folder owner: Returns 403 Forbidden
-                        //   - Invalid new owner: Returns 400 Bad Request
+                          Edge Cases:
+                          - Not authenticated: Returns 401 Unauthorized
+                          - Invalid UUIDs: Returns 404 Not Found
+                          - Not network owner: Returns 403 Forbidden
+                          - Invalid new owner: Returns 400 Bad Request
                           
-                        //   Response:
-                        //   - 204 No Content: Success
-                        //   - 400 Bad Request: Invalid operation
-                        //   - 401 Unauthorized: Not authenticated
-                        //   - 403 Forbidden: Not owner
-                        //   - 404 Not Found: Folder doesn't exist
+                          Response:
+                          - 204 No Content: Success
+                          - 400 Bad Request: Invalid request
+                          - 401 Unauthorized: Not authenticated
+                          - 403 Forbidden: Not owner
+                          - 404 Not Found: Network doesn't exist
                           """
     )
-	public Response transferObjects(TransferRequest request) throws Exception {
-
+	public Response transferNetworksOwnership(TransferOwnershipRequest request) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to transfer objects.");
 	    }
 
-	    if (request == null) {
-	    	throw new NdexException("No request provided!");
+	    if (request == null || request.getNetworks() == null || request.getNetworks().isEmpty()) {
+	        throw new NdexException("No networks specified for transfer.");
 	    }
 	    
-	    Map<UUID, FileType> files = request.getFiles();
-	    
-	    for (Map.Entry<UUID, FileType> file : files.entrySet()) {
+	    if (request.getNewOwner() == null) {
+	        throw new NdexException("Missing new owner UUID in request.");
+	    }
 
-	        FileType type = file.getValue();
-	        if (request.getNewOwner() == null) {
-	            throw new NdexException("Missing new user uuid in request.");
-	        }
-	
-	        switch (type) {
-	        	case NETWORK:
-	        		throw new NdexException("Transfer of networks is not implemented yet.");
-	            case FOLDER:
-	                try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	                    if (!dao.isFolderOwner(file.getKey(), currentUserId)) {
-	                        throw new UnauthorizedOperationException(
-	                            "You are not the owner of folder " + file.getKey()
-	                        );
-	                    }
-	                    dao.transferFolder(file.getKey(), request.getNewOwner());
-	                    dao.commit();
-	                }
-	                break;
-	
-	            case SHORTCUT:
-	            	throw new NdexException("Transfer of shortcuts is not supported.");
-	            default:
-	                throw new NdexException("Unknown type: " + type);
+	    try (NetworkDAO networkDao = new NetworkDAO();
+	         ShortcutDAO shortcutDao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+	        
+	        for (UUID networkId : request.getNetworks()) {
+	            // Verify current user is the owner
+	            if (!networkDao.isAdmin(networkId, currentUserId)) {
+	                throw new UnauthorizedOperationException("You are not the owner of network " + networkId);
+	            }
+	            
+	            // Get network info before transfer
+	            UUID parentId = networkDao.getNetworkFolder(networkId);
+	            String networkName = networkDao.getNetworkName(networkId);
+	            
+	            // Transfer ownership (this also sets WRITE permission for old owner)
+	            networkDao.grantPrivilegeToUser(networkId, request.getNewOwner(), Permissions.ADMIN);
+	            
+	            // Set network's parent to null
+	            networkDao.setNetworkFolder(networkId, null);
+	            networkDao.commit();
+	            
+	            // Create shortcut for old owner
+	            UUID shortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+	            shortcutDao.createShortcut(
+	                shortcutUUID,
+	                currentUserId,
+	                parentId,
+	                networkName,
+	                networkId,
+	                FileType.NETWORK
+	            );
+	            shortcutDao.commit();
 	        }
 	    }
 
