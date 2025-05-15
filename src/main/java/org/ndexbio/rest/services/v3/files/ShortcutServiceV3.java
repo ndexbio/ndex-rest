@@ -9,7 +9,6 @@ import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
@@ -65,32 +64,31 @@ public class ShortcutServiceV3 extends NdexService {
                           
                           Edge Cases:
                           - Not authenticated: Returns 401 Unauthorized
-                          - Empty name: Returns 400 Bad Request
-                          - Null target: Returns 400 Bad Request
-                          - Invalid target type: Returns 400 Bad Request
-                          - Target not accessible: Returns 403 Forbidden
-                          - Invalid parent folder: Returns 400 Bad Request
+                          - Empty name: Returns 500 Internal Server Error
+                          - Null target: Returns 500 Internal Server Error
+                          - Invalid target type: Returns 500 Internal Server Error
+                          - Target not accessible: Returns 500 Internal Server Error
+                          - Invalid parent folder: Returns 500 Internal Server Error
                           
                           Response:
                           - 201 Created: Shortcut created successfully
                           - Location header contains URL to new shortcut
-                          - 400 Bad Request: Invalid request parameters
+                          - 500 Internal Server Error: Invalid request parameters or target not accessible
                           - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: Target not accessible
                           """
 		)
 	public Response createShortcut(final ShortcutRequest request) throws Exception {
 		if (request == null) {
-			throw new Exception("No shortcut request provided.");
+			throw new NdexException("No shortcut request provided.");
 		}
         if (request.getName() == null || request.getName().isEmpty()) {
-            throw new Exception("Shortcut name cannot be empty.");
+            throw new NdexException("Shortcut name cannot be empty.");
         }
         if (request.getTarget() == null) {
-            throw new Exception("Shortcut 'target' cannot be null.");
+            throw new NdexException("Shortcut 'target' cannot be null.");
         }
         if (request.getTargetType() == null) {
-            throw new Exception("Shortcut 'target_type' cannot be null.");
+            throw new NdexException("Shortcut 'target_type' cannot be null.");
         }
         UUID userId = getLoggedInUser().getExternalId();
 		
@@ -200,15 +198,13 @@ public class ShortcutServiceV3 extends NdexService {
                           
                           Edge Cases:
                           - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUID: Returns 404 Not Found
-                          - Not owner: Returns 403 Forbidden
-                          - Already deleted: Returns 404 Not Found
+                          - Invalid UUID: Returns 500 Internal Server Error
+                          - Not owner: Returns 401 Unauthorized
                           
                           Response:
                           - 204 No Content: Success
-                          - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: Not owner
-                          - 404 Not Found: Shortcut doesn't exist
+                          - 401 Unauthorized: Not authenticated or not owner
+                          - 500 Internal Server Error: Invalid UUID
                           """
 		)
 	@Produces("application/json")
@@ -242,22 +238,19 @@ public class ShortcutServiceV3 extends NdexService {
                           
                           Edge Cases:
                           - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUID: Returns 404 Not Found
-                          - Not owner: Returns 403 Forbidden
-                          - Invalid parent folder: Returns 400 Bad Request
+                          - Invalid UUID: Returns 500 Internal Server Error
+                          - Not owner: Returns 401 Unauthorized
+                          - Invalid parent folder: Returns 500 Internal Server Error
                           
                           Response:
                           - 204 No Content: Success
-                          - 400 Bad Request: Invalid request
-                          - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: Not owner
-                          - 404 Not Found: Shortcut doesn't exist
+                          - 401 Unauthorized: Not authenticated or not owner
+                          - 500 Internal Server Error: Invalid UUID or parent folder
                           """
 		)
 	public void updateShortcut(final ShortcutRequest request,
 			@PathParam("shortcutid") final String shortcutIdStr)
-			throws  DuplicateObjectException,
-			NdexException,  SQLException, JsonProcessingException, Exception {
+			throws NdexException,  SQLException, JsonProcessingException, Exception {
 
 		UUID shortcutId = UUID.fromString(shortcutIdStr);
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()){
