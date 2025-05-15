@@ -12,6 +12,8 @@ import org.jboss.resteasy.spi.Dispatcher;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
+import org.ndexbio.model.exceptions.DuplicateObjectException;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
@@ -149,6 +151,7 @@ public class TestShortcutServiceV3 {
         requestBody.setName("Test Shortcut");
         requestBody.setTarget(null);
         requestBody.setParent(UUID.randomUUID());
+        requestBody.setTargetType(FileType.FOLDER);
 
         ObjectMapper mapper = new ObjectMapper();
         byte[] json = mapper.writeValueAsBytes(requestBody);
@@ -162,6 +165,72 @@ public class TestShortcutServiceV3 {
         assertTrue(new String(response.getOutput()).contains("Shortcut 'target' cannot be null"));
     }
     
+    @Test
+    public void testCreateShortcutWithNullTargetType() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
+        replay(mockHttpServletRequest);
+
+        ShortcutRequest requestBody = new ShortcutRequest();
+        requestBody.setName("Test Shortcut");
+        requestBody.setTarget(UUID.randomUUID());
+        requestBody.setParent(UUID.randomUUID());
+        requestBody.setTargetType(null);
+
+        ObjectMapper mapper = new ObjectMapper();
+        byte[] json = mapper.writeValueAsBytes(requestBody);
+
+        MockHttpRequest request = MockHttpRequest.post("/v3/files/shortcuts/")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json);
+
+        dispatcher.invoke(request, response);
+        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+        assertTrue(new String(response.getOutput()).contains("Shortcut 'target_type' cannot be null"));
+    }
+    
+    @Test
+    public void testCreateShortcutWithInaccessibleFolder() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
+        replay(mockHttpServletRequest);
+
+        ShortcutRequest requestBody = new ShortcutRequest();
+        requestBody.setName("Test Shortcut");
+        requestBody.setTarget(targetId);
+        requestBody.setParent(UUID.randomUUID());
+        requestBody.setTargetType(FileType.FOLDER);
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.isReadable(targetId, userId)).andReturn(false);
+        folderDAO.close();
+        expectLastCall();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        ObjectMapper mapper = new ObjectMapper();
+        byte[] json = mapper.writeValueAsBytes(requestBody);
+
+        MockHttpRequest request = MockHttpRequest.post("/v3/files/shortcuts/")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json);
+
+        dispatcher.invoke(request, response);
+        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+        assertTrue(new String(response.getOutput()).contains("Target folder does not exist or is not accessible"));
+    }
+
     @Test
     public void testGetShortcutSuccess() throws Exception {
         UUID shortcutId = UUID.randomUUID();
@@ -410,5 +479,93 @@ public class TestShortcutServiceV3 {
         assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
     }
 
+    @Test
+    public void testDeleteShortcutWithPermanentFlag() throws Exception {
+        UUID shortcutId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
+        replay(mockHttpServletRequest);
+
+        ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
+        expect(shortcutDAO.isShortcutOwner(shortcutId, userId)).andReturn(true);
+        shortcutDAO.deleteShortcut(shortcutId, true);
+        expectLastCall();
+        shortcutDAO.commit();
+        expectLastCall();
+        shortcutDAO.close();
+        expectLastCall();
+        replay(shortcutDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getShortcutDAO()).andReturn(shortcutDAO);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request = MockHttpRequest.delete("/v3/files/shortcuts/" + shortcutId + "?permanent=true");
+        dispatcher.invoke(request, response);
+        assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void testUpdateShortcutWithNullRequest() throws Exception {
+        UUID shortcutId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
+        replay(mockHttpServletRequest);
+
+        MockHttpRequest request = MockHttpRequest.put("/v3/files/shortcuts/" + shortcutId)
+                .contentType(MediaType.APPLICATION_JSON);
+
+        dispatcher.invoke(request, response);
+        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void testUpdateShortcutWithInvalidParent() throws Exception {
+        UUID shortcutId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
+        replay(mockHttpServletRequest);
+
+        ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
+        expect(shortcutDAO.isShortcutOwner(shortcutId, userId)).andReturn(true);
+        shortcutDAO.updateShortcut(shortcutId, "Test Shortcut", parentId);
+        expectLastCall().andThrow(new NdexException("Invalid parent folder"));
+        shortcutDAO.close();
+        expectLastCall();
+        replay(shortcutDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getShortcutDAO()).andReturn(shortcutDAO);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        ShortcutRequest requestBody = new ShortcutRequest();
+        requestBody.setName("Test Shortcut");
+        requestBody.setParent(parentId);
+
+        ObjectMapper mapper = new ObjectMapper();
+        byte[] json = mapper.writeValueAsBytes(requestBody);
+
+        MockHttpRequest request = MockHttpRequest.put("/v3/files/shortcuts/" + shortcutId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json);
+
+        dispatcher.invoke(request, response);
+        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+        assertTrue(new String(response.getOutput()).contains("Invalid parent folder"));
+    }
 
 }

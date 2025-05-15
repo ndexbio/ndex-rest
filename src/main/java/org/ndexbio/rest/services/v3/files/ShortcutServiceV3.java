@@ -245,7 +245,6 @@ public class ShortcutServiceV3 extends NdexService {
                           - Invalid UUID: Returns 404 Not Found
                           - Not owner: Returns 403 Forbidden
                           - Invalid parent folder: Returns 400 Bad Request
-                          - Duplicate name in folder: Returns 409 Conflict
                           
                           Response:
                           - 204 No Content: Success
@@ -253,7 +252,6 @@ public class ShortcutServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated
                           - 403 Forbidden: Not owner
                           - 404 Not Found: Shortcut doesn't exist
-                          - 409 Conflict: Duplicate name
                           """
 		)
 	public void updateShortcut(final ShortcutRequest request,
