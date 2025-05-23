@@ -94,9 +94,10 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import org.ndexbio.common.models.dao.NetworkDAO;
 
 
-public class PostgresNetworkDAO extends NdexDBDAO {
+public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 
 	private static Logger logger = Logger.getLogger(PostgresNetworkDAO.class.getName());
 	

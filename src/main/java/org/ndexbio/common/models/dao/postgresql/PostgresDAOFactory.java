@@ -6,6 +6,7 @@ import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
 /**
  *
  * @author churas
@@ -30,6 +31,11 @@ public class PostgresDAOFactory implements DAOFactory {
 	@Override
 	public TrashDAO getTrashDAO() throws SQLException {
 		return new PostgresTrashDAO();
+	}
+
+	@Override
+	public NetworkDAO getNetworkDAO() throws SQLException {
+		return new PostgresNetworkDAO();
 	}
 
 }

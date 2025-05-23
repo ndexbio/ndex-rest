@@ -20,5 +20,7 @@ public interface DAOFactory {
 	ShortcutDAO getShortcutDAO() throws SQLException;
 
 	TrashDAO getTrashDAO() throws SQLException;
+
+	NetworkDAO getNetworkDAO() throws SQLException;
 	
 }
