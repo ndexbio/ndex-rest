@@ -50,7 +50,7 @@ import java.util.UUID;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxNode;
@@ -155,7 +155,7 @@ public class CXNetworkLoader implements AutoCloseable {
 		
 	protected Map<String,CXAspectWriter> aspectTable;
 	private List<String> warnings;
-	private NetworkDAO dao;
+	private PostgresNetworkDAO dao;
 	private VisibilityType visibility;
 	private Set<String> indexedFields;
 	
@@ -168,7 +168,7 @@ public class CXNetworkLoader implements AutoCloseable {
 
 		
 //	protected String updatedBy;
-	public CXNetworkLoader(UUID networkUUID, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields, int sampleGenerationThreshold) {
+	public CXNetworkLoader(UUID networkUUID, boolean isUpdate, PostgresNetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields, int sampleGenerationThreshold) {
 		super();
 		
 		this.isUpdate = isUpdate;
@@ -220,7 +220,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	}
 	
 	protected UUID getNetworkId() {return this.networkId;}
-	protected NetworkDAO getDAO () {return dao;}
+	protected PostgresNetworkDAO getDAO () {return dao;}
 	protected List<String> getWarnings() {return warnings;}
 	
 	private static CxElementReader2 createCXReader (InputStream in) throws IOException {
@@ -385,7 +385,7 @@ public class CXNetworkLoader implements AutoCloseable {
 	 * @throws FileNotFoundException
 	 * @throws  
 	 */
-	public static void reCreateCXFiles(UUID networkId, MetaDataCollection m, NetworkDAO dao, AspectAttributeStat attrStats, boolean isSingleNetwork) throws JsonParseException, JsonMappingException, SQLException, IOException,
+	public static void reCreateCXFiles(UUID networkId, MetaDataCollection m, PostgresNetworkDAO dao, AspectAttributeStat attrStats, boolean isSingleNetwork) throws JsonParseException, JsonMappingException, SQLException, IOException,
 			NdexException, FileNotFoundException {
 		CXNetworkFileGenerator g = new CXNetworkFileGenerator ( networkId, dao);
 		String tmpFileName = CXNetworkFileGenerator.createNetworkFile(networkId.toString(),g.getMetaData());

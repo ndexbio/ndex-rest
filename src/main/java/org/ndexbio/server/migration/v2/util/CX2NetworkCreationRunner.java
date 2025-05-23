@@ -12,7 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import org.apache.commons.io.FileUtils;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.persistence.CXToCX2ServerSideConverter;
@@ -34,7 +34,7 @@ public class CX2NetworkCreationRunner implements Callable {
 
 	private  String _rootPath;
 	private  UUID _networkUUID;
-	private NetworkDAO _networkdao;
+	private PostgresNetworkDAO _networkdao;
 	private NetworkGlobalIndexManager _globalIdx;
 	private int _edgeCountLimit;
 	private StringBuilder _sb; 
@@ -48,7 +48,7 @@ public class CX2NetworkCreationRunner implements Callable {
 	 * @param edgeCountLimit Skip conversion of networks with more edges then this
 	 */
 	public CX2NetworkCreationRunner(final String rootPath, final UUID networkUUID,
-			NetworkDAO networkdao, NetworkGlobalIndexManager globalIdx,
+			PostgresNetworkDAO networkdao, NetworkGlobalIndexManager globalIdx,
 			final int edgeCountLimit){
 		_rootPath = rootPath;
 		_networkUUID = networkUUID;

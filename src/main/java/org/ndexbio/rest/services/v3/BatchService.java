@@ -57,7 +57,7 @@ import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.BadRequestException;
@@ -130,7 +130,7 @@ public class BatchService extends NdexService {
 
 			accLogger.info("[data]\t[uuidcounts:" + networkIdStrs.size() + "]");
 
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				UUID userId = getLoggedInUserId();
 				return dao.getNetworkV3SummariesByIdStrList(networkIdStrs, userId, accessKey, fmt);
 			}
@@ -156,7 +156,7 @@ public class BatchService extends NdexService {
 	        throw new NdexException("User must be logged in to move networks.");
 	    }
 
-	    try (NetworkDAO networkDao = new NetworkDAO()) {
+	    try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 	        for (UUID netId : request.getNetworks()) {
 	        	if (!networkDao.isAdmin(netId, userId)) {
 	                throw new NdexException("User does not own network " + netId);
@@ -190,7 +190,7 @@ public class BatchService extends NdexService {
 
             switch (type) {
                 case NETWORK:
-                    try (NetworkDAO dao = new NetworkDAO()) {
+                    try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
                         if (!dao.isAdmin(uuid, userId)) {
                             throw new NdexException("Not the owner of network " + uuid);
                         }

@@ -15,7 +15,7 @@ import java.util.UUID;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -49,12 +49,12 @@ public class  NetworkStreamSaverThread extends Thread
 			java.nio.file.Files.copy(input, cxFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
 			long fileSize = cxFile.length();
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				dao.setNetworkFileSize(networkUUID, fileSize);
 				dao.commit();
 			} catch (SQLException | NdexException e2) {
 				e2.printStackTrace();
-				try (NetworkDAO dao = new NetworkDAO()) {
+				try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 					dao.setErrorMessage(networkUUID, "Failed to set network file size: " + e2.getMessage());
 					dao.unlockNetwork(networkUUID);
 				} catch (SQLException e3) {
@@ -63,7 +63,7 @@ public class  NetworkStreamSaverThread extends Thread
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				dao.setErrorMessage(networkUUID, "Failed to create network file on the server: " + e.getMessage());
 				dao.unlockNetwork(networkUUID);
 			} catch (SQLException e2) {
@@ -74,7 +74,7 @@ public class  NetworkStreamSaverThread extends Thread
 
 		IOUtils.closeQuietly(input);
 	      
-		try (NetworkDAO dao = new NetworkDAO ()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			try ( CXNetworkLoader loader = new CXNetworkLoader(networkUUID, false,dao, VisibilityType.PRIVATE, null, 5000) ) {
 						loader.persistCXNetwork();
 			} catch ( IOException | NdexException | SQLException | RuntimeException | SolrServerException e1) {

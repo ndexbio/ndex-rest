@@ -11,7 +11,7 @@ import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.UUID;
 
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.cxio.core.NdexCXNetworkWriter;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.cxio.metadata.MetaDataElement;
@@ -41,7 +41,7 @@ public class CXNetworkFileGenerator {
 	 * @throws JsonParseException 
 	 * @throws NdexException 
 	 */
-	public CXNetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao /*, Provenance provenanceHistory*/) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
+	public CXNetworkFileGenerator(UUID networkUUID, PostgresNetworkDAO networkDao /*, Provenance provenanceHistory*/) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
 		networkId = networkUUID;
 //		fullSummary = networkDao.getNetworkSummaryById(networkUUID);
 		metadata = networkDao.getMetaDataCollection(networkUUID);

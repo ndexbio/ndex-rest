@@ -168,7 +168,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 			throw new UnauthorizedOperationException("In valid network set access key.");
 		
 		sqlStr = "select nm.network_id from network_set_member nm, network n where nm.set_id =? and n.\"UUID\"=nm.network_id and " + 
-				( keyIsValid ? " true" : NetworkDAO.createIsReadableConditionStr(userId)) ;
+				( keyIsValid ? " true" : PostgresNetworkDAO.createIsReadableConditionStr(userId)) ;
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, setId);
@@ -260,7 +260,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 				entry.setNetworks(null);
 			}
 		} else {	
-			sqlStr = "select network_id from network_set_member nm, network n where nm.set_id =? and nm.network_id = n.\"UUID\" and " + NetworkDAO.createIsReadableConditionStr(signedInUserId);
+			sqlStr = "select network_id from network_set_member nm, network n where nm.set_id =? and nm.network_id = n.\"UUID\" and " + PostgresNetworkDAO.createIsReadableConditionStr(signedInUserId);
 		
 			for (NetworkSet entry : result) {
 				try (PreparedStatement p = db.prepareStatement(sqlStr)) {

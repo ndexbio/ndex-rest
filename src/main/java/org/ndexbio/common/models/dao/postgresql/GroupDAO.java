@@ -249,7 +249,7 @@ public class GroupDAO extends NdexDBDAO {
 			permissionStr = " and permission_type=\'" + Permissions.READ.toString() + "\'";
 				
 		String sqlStr = "SELECT n.\"UUID\", n.name, gn.permission_type FROM group_network_membership gn, network n where gn.group_id = ? "+ permissionStr +
-				" and gn.network_id = n.\"UUID\" and " + NetworkDAO.createIsReadableConditionStr(userId) + " order by n.modification_time desc";
+				" and gn.network_id = n.\"UUID\" and " + PostgresNetworkDAO.createIsReadableConditionStr(userId) + " order by n.modification_time desc";
 		if ( skipBlocks>=0 && blockSize>0) {
 			sqlStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
 		}
@@ -297,7 +297,7 @@ public class GroupDAO extends NdexDBDAO {
 			permissionStr = " and permission_type=\'" + Permissions.READ.toString() + "\'";
 				
 		String sqlStr = "SELECT n.\"UUID\", gn.permission_type FROM group_network_membership gn, network n where gn.group_id = ? "+ permissionStr +
-				" and gn.network_id = n.\"UUID\" and " + NetworkDAO.createIsReadableConditionStr(userId) + " order by n.modification_time desc";
+				" and gn.network_id = n.\"UUID\" and " + PostgresNetworkDAO.createIsReadableConditionStr(userId) + " order by n.modification_time desc";
 		if ( skipBlocks>=0 && blockSize>0) {
 			sqlStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
 		}

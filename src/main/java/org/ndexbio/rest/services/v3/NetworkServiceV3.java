@@ -42,7 +42,7 @@ import jakarta.ws.rs.core.Response.ResponseBuilder;
 
 import org.apache.commons.io.FileUtils;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.util.Util;
@@ -113,7 +113,7 @@ public class NetworkServiceV3  extends NdexService {
 			throws Exception {
     	
     	String title = null;
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
     		UUID networkUUID = UUID.fromString(networkId);
     		if ( !dao.hasCX2(networkUUID)) {
     			throw new ObjectNotFoundException("CX2 network is not available for this network. ");
@@ -170,7 +170,7 @@ public class NetworkServiceV3  extends NdexService {
 
     	UUID networkUUID = UUID.fromString(networkId);
 
-		try (NetworkDAO dao = new NetworkDAO() ) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO() ) {
 			if ( dao.isReadable(networkUUID, getLoggedInUserId()) || dao.accessKeyIsValid(networkUUID, accessKey)) {
 				List<CxMetadata> mdc = dao.getCx2MetaDataList(networkUUID);
 		    	return mdc;
@@ -197,7 +197,7 @@ public class NetworkServiceV3  extends NdexService {
 			
 			UUID networkUUID = UUID.fromString(networkId);
 	    	
-	    	try (NetworkDAO dao = new NetworkDAO()) {
+	    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	    		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
 	    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 	    			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -250,7 +250,7 @@ public class NetworkServiceV3  extends NdexService {
 
     	UUID networkUUID = UUID.fromString(networkId);
     	
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
     		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
     				! dao.accessKeyIsValid(networkUUID, accessKey)) {
     			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -451,7 +451,7 @@ public class NetworkServiceV3  extends NdexService {
 
 			   // create entry in db. 
 			   NdexObjectUpdateStatus status;
-		       try (NetworkDAO dao = new NetworkDAO()) {
+		       try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 		    	   status = 
 		    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null, CX2NetworkLoader.cx2Format);
 	       
@@ -525,7 +525,7 @@ public class NetworkServiceV3  extends NdexService {
 	        UUID networkId = UUID.fromString(networkIdStr);
 	        
 	        NdexObjectUpdateStatus s;
-	        try ( NetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
+	        try ( PostgresNetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
 				
 				try (InputStream in = this.getInputStreamFromRequest()) {
 						UUID tmpNetworkId = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
@@ -575,7 +575,7 @@ public class NetworkServiceV3  extends NdexService {
 	        
             NdexObjectUpdateStatus s;
             
-	        try ( NetworkDAO daoNew =lockNetworkForUpdate(networkId) ) {
+	        try ( PostgresNetworkDAO daoNew =lockNetworkForUpdate(networkId) ) {
 				try {			
 					UUID tmpNetworkId = storeRawNetworkFromMultipart (input, CX2NetworkLoader.cx2NetworkFileName);
 
@@ -595,7 +595,7 @@ public class NetworkServiceV3  extends NdexService {
 	    }
 
 
-		private static NdexObjectUpdateStatus updateCx2NetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
+		private static NdexObjectUpdateStatus updateCx2NetworkFromSavedFile(UUID networkId, PostgresNetworkDAO daoNew,
 				UUID tmpNetworkId) throws SQLException, NdexException, IOException, JsonParseException,
 				JsonMappingException, ObjectNotFoundException {
 			String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString()
@@ -639,7 +639,7 @@ public class NetworkServiceV3  extends NdexService {
 			
 			UUID networkUUID = UUID.fromString(networkId);
 	    	
-	    	try (NetworkDAO dao = new NetworkDAO()) {
+	    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	    		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
 	    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 	    			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -729,9 +729,9 @@ public class NetworkServiceV3  extends NdexService {
 			
 			UUID networkUUID = UUID.fromString(networkId);
 			
-			try (NetworkDAO dao = new NetworkDAO() ) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO() ) {
 				String currentDOI = dao.getNetworkDOI(networkUUID);
-				if ( currentDOI ==null || !currentDOI.equals(NetworkDAO.PENDING)) {
+				if ( currentDOI ==null || !currentDOI.equals(PostgresNetworkDAO.PENDING)) {
 					throw new ForbiddenOperationException("This operation only works when a DOI is pending. The current value of DOI is: " + currentDOI );
 				}
 				dao.setDOI(networkUUID, "CREATING");
@@ -746,7 +746,7 @@ public class NetworkServiceV3  extends NdexService {
 					
 				}
 				if ( author == null)  {
-					dao.setDOI(networkUUID, NetworkDAO.PENDING);
+					dao.setDOI(networkUUID, PostgresNetworkDAO.PENDING);
 					dao.commit();
 					throw new NdexException("Property author is missing in the network.");
 				}
@@ -766,7 +766,7 @@ public class NetworkServiceV3  extends NdexService {
 							Configuration.getInstance().getDOIUser(),
 							Configuration.getInstance().getDOIPswd());
 				} catch (Exception e) {
-					dao.setDOI(networkUUID, NetworkDAO.PENDING);
+					dao.setDOI(networkUUID, PostgresNetworkDAO.PENDING);
 					dao.commit();
 					e.printStackTrace();
 					throw new NdexException("Failed to create DOI in EZID site. Cause: " + e.getMessage());
@@ -822,7 +822,7 @@ public class NetworkServiceV3  extends NdexService {
 			try {
 			NetworkSummaryFormat fmt = NetworkSummaryFormat.valueOf(format.toUpperCase());
 					
-			try (NetworkDAO dao = new NetworkDAO())  {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 				UUID userId = getLoggedInUserId();
 				UUID networkId = UUID.fromString(networkIdStr);
 				if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
@@ -845,7 +845,7 @@ public class NetworkServiceV3  extends NdexService {
 		    @PathParam("networkid") final String id,
 		    @QueryParam("permanent") @DefaultValue("false") boolean permanent
 		) throws NdexException, SQLException, JsonProcessingException {
-		    try (NetworkDAO networkDao = new NetworkDAO()) {
+		    try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 		        UUID networkId = UUID.fromString(id);
 		        UUID userId = getLoggedInUser().getExternalId();
 		        

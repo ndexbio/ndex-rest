@@ -17,7 +17,7 @@ import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
@@ -50,7 +50,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	
 	
 	private  void rebuildNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 		  logger.info("Rebuild solr index of network " + networkid);
 		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
 		  if (summary == null)
@@ -146,7 +146,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	
 	
 	private  void rebuildNetworkIndexInGlobalIdx (UUID networkid , boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			logger.info("Rebuild global index of network " +networkid);
 		 
 			 NetworkSummary summary = dao.getNetworkSummaryById(networkid);
@@ -232,7 +232,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	
 	
 	private static  void rebuildLocalNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 		  logger.info("Rebuild local index of " + networkid);
 		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
 		  if (summary == null)
@@ -267,7 +267,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	
 	
 	private  void rebuildAll() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
-		try (NetworkDAO dao = new NetworkDAO ()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null";
@@ -299,7 +299,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	
 
 	private  void rebuildGlobalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
-		try (NetworkDAO dao = new NetworkDAO ()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null";
@@ -331,7 +331,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	
 
 	private static  void rebuildAllLocalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
-		try (NetworkDAO dao = new NetworkDAO ()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null and cx2_file_size is not null and nodecount >= " 
@@ -376,7 +376,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 
 	
 	private  void rebuildAllNetworksOnline() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
-		try (NetworkDAO dao = new NetworkDAO ()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.error is null";
@@ -414,7 +414,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 
 	
 	private  void rebuildSingleNetworkIndex (UUID networkid) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 		  logger.info("Rebuild solr index of network " + networkid);
 		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
 		  if (summary == null)

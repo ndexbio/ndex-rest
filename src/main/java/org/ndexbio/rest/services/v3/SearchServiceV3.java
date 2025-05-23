@@ -31,7 +31,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
@@ -96,7 +96,7 @@ public class SearchServiceV3 extends NdexService  {
 				
 		UUID networkUUID = UUID.fromString(networkId);
 	    	
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
     				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 				throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -171,7 +171,7 @@ public class SearchServiceV3 extends NdexService  {
 		}
 		
 		String networkName;
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
@@ -253,7 +253,7 @@ public class SearchServiceV3 extends NdexService  {
 		
 		String networkName;
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
@@ -320,7 +320,7 @@ public class SearchServiceV3 extends NdexService  {
 			throw new BadRequestException("At least one attribute name is reqired in the 'attributeNames' field.");
 		}
 		
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			UUID networkId = UUID.fromString(networkIdStr);
 			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {

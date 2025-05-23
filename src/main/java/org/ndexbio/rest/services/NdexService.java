@@ -51,7 +51,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.io.IOUtils;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.BadRequestException;
@@ -221,14 +221,14 @@ public abstract class NdexService
 	    * @throws SQLException
 	    * @throws NdexException
 	    */
-	   protected NetworkDAO lockNetworkForUpdate(UUID networkId) throws SQLException, NdexException {
+	   protected PostgresNetworkDAO lockNetworkForUpdate(UUID networkId) throws SQLException, NdexException {
 		   
 			try (UserDAO dao = new UserDAO()) {
 				   dao.checkDiskSpace(getLoggedInUserId());
 			}
 	    	
 	        @SuppressWarnings("resource")
-			NetworkDAO daoNew = new NetworkDAO() ;
+			PostgresNetworkDAO daoNew = new PostgresNetworkDAO() ;
 	        User user = getLoggedInUser();
 	           
 		  	   if( daoNew.isReadOnly(networkId)) {

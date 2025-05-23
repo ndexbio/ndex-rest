@@ -50,7 +50,7 @@ import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.cx.CX2NetworkFileGenerator;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.cx2.aspect.element.core.AttributeDeclaredAspect;
 import org.ndexbio.cx2.aspect.element.core.CxAspectElement;
@@ -118,12 +118,12 @@ public class CX2NetworkLoader implements AutoCloseable {
 			
 	protected Map<String,CX2AspectWriter<? extends CxAspectElement<?>>> aspectTable;
 	protected List<String> warnings;
-	private NetworkDAO dao;
+	private PostgresNetworkDAO dao;
 	private VisibilityType visibility;
 	private Set<String> indexedFields;
 	private boolean hasLayout;
 		
-	public CX2NetworkLoader(UUID networkUUID, boolean isUpdate, NetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields, int sampleGenerationThreshold) {
+	public CX2NetworkLoader(UUID networkUUID, boolean isUpdate, PostgresNetworkDAO networkDao, VisibilityType visibility, Set<String> IndexedFields, int sampleGenerationThreshold) {
 		super();
 		
 		this.isUpdate = isUpdate;
@@ -155,7 +155,7 @@ public class CX2NetworkLoader implements AutoCloseable {
 	}
 	
 	protected UUID getNetworkId() {return this.networkId;}
-	protected NetworkDAO getDAO () {return dao;}
+	protected PostgresNetworkDAO getDAO () {return dao;}
 	
 	
 	public void persistCXNetwork() throws IOException, DuplicateObjectException, ObjectNotFoundException, NdexException, SQLException, SolrServerException {

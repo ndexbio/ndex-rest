@@ -7,7 +7,7 @@ import java.util.UUID;
 
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.FolderDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -101,7 +101,7 @@ public class ShortcutServiceV3 extends NdexService {
 				}
 				break;
 			case NETWORK:
-				try (NetworkDAO networkDao = new NetworkDAO()) {
+				try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 					if (!networkDao.isReadable(request.getTarget(), userId)) {
 						throw new NdexException("Target network does not exist or is not accessible.");
 					}

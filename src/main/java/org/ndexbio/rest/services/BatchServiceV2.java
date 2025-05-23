@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
@@ -172,7 +172,7 @@ public class BatchServiceV2 extends NdexService {
 		
 		accLogger.info("[data]\t[uuidcounts:" +networkIdStrs.size() + "]" );
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			return dao.getNetworkSummariesByIdStrList(networkIdStrs, userId, accessKey);				
 		}  				
@@ -195,7 +195,7 @@ public class BatchServiceV2 extends NdexService {
 		
 		accLogger.info("[data]\t[uuidcounts:" +networkIdStrs.size() + "]" );
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			return dao.getNetworkPermissionMapByNetworkIds(userId, networkIdStrs.stream().map( UUID::fromString).collect(Collectors.toList()));				
 		}  					
@@ -222,7 +222,7 @@ public class BatchServiceV2 extends NdexService {
 		    	throw new NdexException("No exporter was registered in this server for network format " + exportRequest.getExportFormat());
 		    
 		    Map<UUID,UUID> result = new TreeMap<>();
-			try (NetworkDAO networkDao = new NetworkDAO()) {
+			try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 				try (TaskDAO taskdao = new TaskDAO()) {
 
 					for ( UUID networkID : exportRequest.getNetworkIds()) {

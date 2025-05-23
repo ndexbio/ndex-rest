@@ -45,7 +45,7 @@ import java.util.UUID;
 
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.NdexException;
@@ -212,7 +212,7 @@ public class EmailNotificationTask extends TimerTask {
 	  								}
 	  								
   									} else {    // network permission request, notify network admin
-	  								try (NetworkDAO dao = new NetworkDAO()) {
+	  								try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	  									UUID userid = dao.getNetworkOwner(destUUID);
 	  									Map<ResponseType, Integer> notifications = result.get(userid);
   			  							if ( notifications == null) {

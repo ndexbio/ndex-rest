@@ -68,7 +68,7 @@ import org.ndexbio.common.cx.CX2NetworkFileGenerator;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXNetworkLoader;
@@ -390,7 +390,7 @@ public class FileServiceV3 extends NdexService {
 			dao.checkDiskSpace(userId);
 		}
 		
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			if (!dao.isReadable(srcNetUUID, userId)) {
 				throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 			}
@@ -475,7 +475,7 @@ public class FileServiceV3 extends NdexService {
 		String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/" + NetworkServiceV2.cx1NetworkFileName;
 		long fileSize = new File(cxFileName).length();
 
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			dao.CreateCloneNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize, srcNetUUID);
 			
 			// Set parent folder if targetId is provided
@@ -583,7 +583,7 @@ public class FileServiceV3 extends NdexService {
 	                    }
 	                    break;
 	                case NETWORK:
-	                    try (NetworkDAO dao = new NetworkDAO()) {
+	                    try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 
 	                        if (!dao.isAdmin(fileId, currentUserId))
 	                            throw new UnauthorizedOperationException(
@@ -666,7 +666,7 @@ public class FileServiceV3 extends NdexService {
 	                break;
 
 	            case NETWORK:
-	                try (NetworkDAO networkDAO = new NetworkDAO()) {
+	                try (PostgresNetworkDAO networkDAO = new PostgresNetworkDAO()) {
                         if (!networkDAO.isAdmin(fileUUID, currentUserId))
                             throw new UnauthorizedOperationException(
                                 "You are not an administrator of network " + fileUUID);
@@ -735,7 +735,7 @@ public class FileServiceV3 extends NdexService {
 		    FileType type = file.getValue();
 		    switch (type) {
 		    	case NETWORK:
-		            try (NetworkDAO dao = new NetworkDAO()) {
+		            try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	
 		                if (!dao.isAdmin(file.getKey(), userId))
 		                    throw new UnauthorizedOperationException("You are not an administrator of network " + file.getKey());
@@ -804,7 +804,7 @@ public class FileServiceV3 extends NdexService {
 	    	FileType type = file.getValue();
 		    switch (type) {
 	    		case NETWORK:
-	    	        try (NetworkDAO dao = new NetworkDAO()) {
+	    	        try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	
 	    	            if (!dao.isAdmin(file.getKey(), userId))
 	    	                throw new UnauthorizedOperationException("You are not an administrator of network " + file.getKey());
@@ -873,7 +873,7 @@ public class FileServiceV3 extends NdexService {
 	        throw new NdexException("Missing new owner UUID in request.");
 	    }
 
-	    try (NetworkDAO networkDao = new NetworkDAO();
+	    try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO();
 	         ShortcutDAO shortcutDao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
 	        
 	        for (UUID networkId : request.getNetworks()) {
@@ -949,7 +949,7 @@ public class FileServiceV3 extends NdexService {
 	    	fileInfo = dao.listSharedFolders(currentUserId);
 	    }
 	    
-		try (NetworkDAO networkDao = new NetworkDAO()) {
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 			fileInfo.addAll(networkDao.listSharedNetworks(currentUserId));
 		}
 		

@@ -96,9 +96,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 
-public class NetworkDAO extends NdexDBDAO {
+public class PostgresNetworkDAO extends NdexDBDAO {
 
-	private static Logger logger = Logger.getLogger(NetworkDAO.class.getName());
+	private static Logger logger = Logger.getLogger(PostgresNetworkDAO.class.getName());
 	
 //	public static final String RESET_MOD_TIME = "resetMTime";
 	
@@ -118,7 +118,7 @@ public class NetworkDAO extends NdexDBDAO {
 	
 	public static final String PENDING = "Pending";
 	
-	public NetworkDAO () throws  SQLException {
+	public PostgresNetworkDAO () throws  SQLException {
 	    super();
 	}
 

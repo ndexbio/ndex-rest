@@ -71,7 +71,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
@@ -208,7 +208,7 @@ public class SearchServiceV2 extends NdexService {
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
         
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 
 			NetworkSearchResult result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
 			return result;
@@ -237,7 +237,7 @@ public class SearchServiceV2 extends NdexService {
 		
 		UUID networkId = UUID.fromString(networkIdStr);
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
@@ -307,7 +307,7 @@ public class SearchServiceV2 extends NdexService {
 		}
 		
 		String networkName;
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
@@ -353,7 +353,7 @@ public class SearchServiceV2 extends NdexService {
         
 	}
 
-	public static void getSolrIdxReady(UUID networkId, NetworkDAO dao)
+	public static void getSolrIdxReady(UUID networkId, PostgresNetworkDAO dao)
 			throws SQLException, ObjectNotFoundException, SolrServerException, IOException, NdexException {
 		int nodeCount = dao.getNodeCount(networkId);
 		
@@ -372,7 +372,7 @@ public class SearchServiceV2 extends NdexService {
 		// create a network entry in db
 		UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
-	    try (NetworkDAO dao = new NetworkDAO()) {
+	    try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	    	   dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName, null);
     // 	   dao.setProvenance(uuid, entity);
 		   dao.commit();
@@ -503,7 +503,7 @@ public class SearchServiceV2 extends NdexService {
 		
 		String networkName;
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
@@ -577,7 +577,7 @@ public class SearchServiceV2 extends NdexService {
 
 		UUID networkId = UUID.fromString(networkIdStr);
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
@@ -609,7 +609,7 @@ public class SearchServiceV2 extends NdexService {
 	}
 	
 	
-	private static void checkIfQueryIsAllowed(UUID networkId, NetworkDAO dao) throws ForbiddenOperationException, ObjectNotFoundException, SQLException {
+	private static void checkIfQueryIsAllowed(UUID networkId, PostgresNetworkDAO dao) throws ForbiddenOperationException, ObjectNotFoundException, SQLException {
 		
 		if ( dao.getNetworkEdgeCount(networkId) > networkQuerySizeLimit)
 			throw new ForbiddenOperationException("Query on networks that have over " + networkQuerySizeLimit + " edges is not supported in this release. "
@@ -631,7 +631,7 @@ public class SearchServiceV2 extends NdexService {
 		accLogger.info("[data]\t[query:" +geneQuery.getSearchString() + "]" );
 		
 		if ( geneQuery.getSearchString().trim().length() == 0 || geneQuery.getSearchString().trim().equals("*")) {
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				SimpleNetworkQuery finalQuery = new SimpleNetworkQuery();
 				finalQuery.setSearchString(geneQuery.getSearchString());
 				NetworkSearchResult result = dao.findNetworks(finalQuery, skipBlocks, blockSize, this.getLoggedInUser());
@@ -669,7 +669,7 @@ public class SearchServiceV2 extends NdexService {
 		finalQuery.setSearchString(lStr.toString());
 		logger.info("Final search string is ("+ lStr.length()+"): " + lStr.toString());
 
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 
 			NetworkSearchResult result = dao.findNetworks(finalQuery, skipBlocks, blockSize, this.getLoggedInUser());
 			return result;

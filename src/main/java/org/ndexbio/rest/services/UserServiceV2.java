@@ -56,7 +56,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -999,7 +999,7 @@ public class UserServiceV2 extends NdexService {
 			}
 			
 			// check if user is the admin of network
-			try ( NetworkDAO ndao = new NetworkDAO()) {
+			try ( PostgresNetworkDAO ndao = new PostgresNetworkDAO()) {
 				if (!ndao.isAdmin(reqs.getDestinationUUID(), getLoggedInUserId()))
 					throw new UnauthorizedOperationException("Authenticated user is not an admin of the network.");			
 			}
@@ -1008,7 +1008,7 @@ public class UserServiceV2 extends NdexService {
 			reqs.setResponseMessage(message);
 			if ( act.equals("accept")) {
 				reqs.setResponse(ResponseType.ACCEPTED);
-				try ( NetworkDAO ndao = new NetworkDAO()) {
+				try ( PostgresNetworkDAO ndao = new PostgresNetworkDAO()) {
 					if( reqs.getRequestType() == RequestType.UserNetworkAccess)
 						ndao.grantPrivilegeToUser(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission());
 					else 
@@ -1096,7 +1096,7 @@ public class UserServiceV2 extends NdexService {
 
 				UUID userId = UUID.fromString(userIdStr);
 								
-				try (NetworkDAO dao = new NetworkDAO()) {
+				try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 					
 					return dao.getUserShowCaseNetworkSummaries(userId, this.getLoggedInUserId());
 				} 
@@ -1117,7 +1117,7 @@ public class UserServiceV2 extends NdexService {
 			if ( !userId.equals(getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Userid has to be the same as the autheticated user's");
 			
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				return dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
 			} 
 					
@@ -1137,7 +1137,7 @@ public class UserServiceV2 extends NdexService {
 				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
 			
 			Map<String, Integer> result = new HashMap<>(2);
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				result.put("networkCount",  dao.getNumNetworksForMyAccountPage(userId));
 				try (NetworkSetDAO dao2 = new NetworkSetDAO()) {
 					result.put("networkSetCount", dao2.getNetworkSetCountByUserId(userId));

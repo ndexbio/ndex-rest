@@ -54,7 +54,7 @@ import jakarta.ws.rs.core.Context;
 import org.eclipse.jetty.server.Server;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.importexport.ImporterExporterEntry;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
@@ -188,7 +188,7 @@ public class AdminServiceV2 extends NdexService {
 			UUID networkId = UUID.fromString(networkIdStr);
 			String adminEmailAddress = Configuration.getInstance().getProperty("NdexSystemUserEmail");
 		
-			try (NetworkDAO dao = new NetworkDAO() ) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO() ) {
 				if (!dao.isAdmin(networkId, user.getExternalId())) 
 					throw new ForbiddenOperationException("You are not the owner of this network.");
 				if ( dao.hasDOI(networkId)) {
@@ -255,12 +255,12 @@ public class AdminServiceV2 extends NdexService {
 			UUID networkId = UUID.fromString(networkIdStr);
 			String adminEmailAddress = Configuration.getInstance().getProperty("NdexSystemUserEmail");
 
-			try (NetworkDAO dao = new NetworkDAO() ) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO() ) {
 
 				if (!dao.isAdmin(networkId, user.getExternalId())) 
 					throw new ForbiddenOperationException("You are not the owner of this network.");
 				String currentDOI = dao.getNetworkDOI(networkId);
-				if ( currentDOI ==null || !currentDOI.equals(NetworkDAO.PENDING)) {
+				if ( currentDOI ==null || !currentDOI.equals(PostgresNetworkDAO.PENDING)) {
 					throw new ForbiddenOperationException("Only pending DOI request can be cancelled.");
 				}
 
@@ -358,9 +358,9 @@ public class AdminServiceV2 extends NdexService {
 		
 		// UUID networkUUID = UUID.fromString(networkId);
 		
-		try (NetworkDAO dao = new NetworkDAO() ) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO() ) {
 			String currentDOI = dao.getNetworkDOI(networkUUID);
-			if ( currentDOI ==null || !currentDOI.equals(NetworkDAO.PENDING)) {
+			if ( currentDOI ==null || !currentDOI.equals(PostgresNetworkDAO.PENDING)) {
 				throw new ForbiddenOperationException("This operation only works when a DOI is pending. The current value of DOI is: " + currentDOI );
 			}
 			dao.setDOI(networkUUID, "CREATING");
@@ -375,7 +375,7 @@ public class AdminServiceV2 extends NdexService {
 				
 			}
 			if ( author == null)  {
-				dao.setDOI(networkUUID, NetworkDAO.PENDING);
+				dao.setDOI(networkUUID, PostgresNetworkDAO.PENDING);
 				dao.commit();
 				throw new NdexException("Property author is missing in the network.");
 			}
@@ -395,7 +395,7 @@ public class AdminServiceV2 extends NdexService {
 						Configuration.getInstance().getDOIUser(),
 						Configuration.getInstance().getDOIPswd());
 			} catch (Exception e) {
-				dao.setDOI(networkUUID, NetworkDAO.PENDING);
+				dao.setDOI(networkUUID, PostgresNetworkDAO.PENDING);
 				List<String> warnings = dao.getWarnings(networkUUID);
 				if (warnings == null)
 					warnings = new ArrayList<>();

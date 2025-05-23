@@ -17,7 +17,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.server.migration.v2.util.CX2NetworkCreationRunner;
@@ -102,7 +102,7 @@ public class CX2NetworkCreator {
 				sqlStr += " and edgecount<=" + maxEdgeCountCutoff;
 			}
 			List<UUID> networksToUpdate = new ArrayList<>();
-			try (NetworkDAO networkdao = new NetworkDAO()) {
+			try (PostgresNetworkDAO networkdao = new PostgresNetworkDAO()) {
 				try (PreparedStatement pst = conn.prepareStatement(sqlStr)) {
 					try (ResultSet rs = pst.executeQuery()) {
 						while (rs.next()) {
@@ -138,7 +138,7 @@ public class CX2NetworkCreator {
 			}
 			Queue<Future> futureTasks = new ConcurrentLinkedQueue<>();
 			System.out.println("Found " + networksToUpdate.size() + " networks to update");
-			try (NetworkDAO networkdao = new NetworkDAO()) {
+			try (PostgresNetworkDAO networkdao = new PostgresNetworkDAO()) {
 				System.out.println("Submitting tasks for processing");
 				for (UUID networkUUID : networksToUpdate) {
 					CX2NetworkCreationRunner task = new CX2NetworkCreationRunner(rootPath, networkUUID, networkdao,

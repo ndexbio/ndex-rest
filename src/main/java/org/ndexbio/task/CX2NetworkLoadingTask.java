@@ -7,7 +7,7 @@ import java.util.UUID;
 import java.util.logging.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.TaskType;
@@ -28,7 +28,7 @@ public class CX2NetworkLoadingTask extends CXNetworkLoadingTask {
 	@Override
 	public void run()  {
 		
-	  try (NetworkDAO dao = new NetworkDAO ()) {
+	  try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 		try ( CX2NetworkLoader loader = new CX2NetworkLoader(getNetworkId(), isUpdate,dao, visibility, nodeAttributeIndexList, 0) ) {
 				loader.persistCXNetwork();
 		} catch ( IOException | NdexException | SQLException | RuntimeException | SolrServerException e1) {
