@@ -128,4 +128,7 @@ public interface NetworkDAO extends AutoCloseable {
     List<SharedFile> listSharedNetworks(UUID userId) throws SQLException;
         
     void rollback() throws SQLException;
+
+    Map<String,String> getNetworkUserPermissions(UUID networkId, Permissions permission, int skipBlocks, int blockSize) 
+			throws SQLException;
 } 
