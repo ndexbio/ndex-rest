@@ -50,7 +50,7 @@ public class TestFolderServiceV3 {
                 .contentType(MediaType.APPLICATION_JSON);
         dispatcher.invoke(request, response);
 
-        assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+        assertEquals(Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     }
 
     @Test

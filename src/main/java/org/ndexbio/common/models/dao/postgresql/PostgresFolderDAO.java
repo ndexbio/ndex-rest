@@ -837,4 +837,24 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
         return result;
     }
 
+	@Override
+	public boolean isDescendantOf(UUID folderId, UUID potentialDescendantId) throws SQLException {
+		// Use a recursive CTE to check if potentialDescendantId is a descendant of folderId
+		String sql = "WITH RECURSIVE folder_tree AS (" +
+			"  SELECT \"UUID\", parent FROM folder WHERE \"UUID\" = ? AND is_deleted = false " +
+			"  UNION ALL " +
+			"  SELECT f.\"UUID\", f.parent FROM folder f " +
+			"  JOIN folder_tree ft ON f.parent = ft.\"UUID\" " +
+			"  WHERE f.is_deleted = false" +
+			") SELECT 1 FROM folder_tree WHERE \"UUID\" = ? LIMIT 1";
+		
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			pst.setObject(1, folderId);
+			pst.setObject(2, potentialDescendantId);
+			try (ResultSet rs = pst.executeQuery()) {
+				return rs.next(); // Returns true if potentialDescendantId is found in the tree
+			}
+		}
+	}
+
 }

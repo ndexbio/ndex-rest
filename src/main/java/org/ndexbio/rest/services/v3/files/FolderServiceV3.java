@@ -267,6 +267,11 @@ public class FolderServiceV3 extends NdexService {
 
 			UUID parentUUID = request.getParent();
 			if (parentUUID != null && !parentUUID.toString().isEmpty()) {
+				// Check if new parent is a descendant of the current folder
+				if (dao.isDescendantOf(folderId, parentUUID)) {
+					throw new NdexException("Cannot move folder to its descendant (would create cycle).");
+				}
+				
 				if (!dao.isFolderOwner(parentUUID, userId)) {
 					// If not owner, check if user has WRITE permission
 					Map<String, String> permissions = dao.getFolderPermissions(parentUUID);
