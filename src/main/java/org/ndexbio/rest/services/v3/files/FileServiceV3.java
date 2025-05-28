@@ -48,6 +48,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
@@ -97,10 +98,6 @@ public class FileServiceV3 extends NdexService {
                           - folder: Counts non-deleted folders
                           - network: Counts non-deleted networks
                           - shortcut: Counts non-deleted shortcuts
-                          
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - No items: Returns counts of 0
                           
                           Response:
                           - 200 OK: JSON object with counts for each type
@@ -172,18 +169,10 @@ public class FileServiceV3 extends NdexService {
                           - network: Updates is_deleted=false AND show_in_trash=false
                           - shortcut: Updates is_deleted=false AND show_in_trash=false
                           
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUIDs: Returns 404 Not Found
-                          - Items not in trash: Returns 400 Bad Request
-                          - Items not owned by user: Returns 403 Forbidden
-                          
                           Response:
                           - 204 No Content: Success
-                          - 400 Bad Request: Invalid operation
                           - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: Not owner
-                          - 404 Not Found: Items don't exist
+						  - 400 Bad Request: No items to restore
                           """
     )
 	public void restoreItemsFromTrash(TrashRestoreRequest request) throws Exception {
@@ -196,7 +185,7 @@ public class FileServiceV3 extends NdexService {
 	    if ((request.getFolders() == null || request.getFolders().isEmpty()) &&
             (request.getNetworks() == null || request.getNetworks().isEmpty()) &&
             (request.getShortcuts() == null || request.getShortcuts().isEmpty())) {
-	        throw new NdexException("No items to restore.");
+	        throw new BadRequestException("No items to restore.");
 	    }
 
 	    try (TrashDAO dao = Configuration.getInstance().getDAOFactory().getTrashDAO()) {
@@ -213,7 +202,8 @@ public class FileServiceV3 extends NdexService {
     @Operation(
             summary = "Empty my trash bin",
             description = """
-                          Permanently deletes all items in the authenticated user's trash.
+                          Permanently deletes all items in the authenticated user's trash. Deleting a folder will delete all its children. 
+						  This operation cannot be undone.
                           
                           Database Tables:
                           - folder: Deletes records where is_deleted=true
@@ -223,11 +213,7 @@ public class FileServiceV3 extends NdexService {
                           Related Tables:
                           - folder_permission: Deletes associated permissions
                           - user_network_membership: Deletes associated network permissions
-                          
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Empty trash: Returns 204 No Content
-                          
+                         
                           Response:
                           - 204 No Content: Success
                           - 401 Unauthorized: Not authenticated
@@ -265,22 +251,19 @@ public class FileServiceV3 extends NdexService {
                       - folder_permission: Deletes associated permissions
                       - user_network_membership: Deletes associated network permissions
                       
-                      Edge Cases:
-                      - Not authenticated: Returns 401 Unauthorized
-                      - Invalid UUID: Returns 404 Not Found
-                      - Item not in trash: Returns 400 Bad Request
-                      - Item not owned by user: Returns 403 Forbidden
-                      
                       Response:
                       - 204 No Content: Success
-                      - 400 Bad Request: Invalid operation
                       - 401 Unauthorized: Not authenticated
-                      - 403 Forbidden: Not owner
                       - 404 Not Found: Item doesn't exist
                       """
     )
     public void permanentlyDeleteTrashedItem(@PathParam("uuid") final String itemIdStr) throws Exception, NdexException, SQLException {
         UUID itemId = UUID.fromString(itemIdStr);
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to restore items from trash.");
+	    }
         
         // First get the item type
         FileType type;
@@ -312,19 +295,17 @@ public class FileServiceV3 extends NdexService {
                           - shortcut: Creates new record with copied metadata
                           - network: Creates new record with copied metadata and files
                           
-                          Edge Cases:
+                          Edge Cases For Copying Network:
                           - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUIDs: Returns 404 Not Found
-                          - Insufficient permissions: Returns 403 Forbidden
-                          - Invalid target folder: Returns 400 Bad Request
+                          - Insufficient permissions: Returns 401 Unauthorized
+                          - Invalid target folder: Returns 401 Unauthorized
+                          - Invalid Network: Returns 404 Not Found
                           - Disk space exceeded: Returns 400 Bad Request
                           
                           Response:
-                          - 201 Created: Copy successful
-                          - Location header contains URL to new object
+                          - 201 Created: Copy successful - Location header contains URL to new object
                           - 400 Bad Request: Invalid operation
-                          - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: Insufficient permissions
+                          - 401 Unauthorized: Not authenticated, Insufficient permissions, Invalid target folder
                           - 404 Not Found: Source doesn't exist
                           """
     )
@@ -334,7 +315,7 @@ public class FileServiceV3 extends NdexService {
 			@QueryParam("auth_token") String auth_token) throws Exception {
 
 	    if (request == null || request.getFileId() == null || request.getType() == null) {
-	        throw new NdexException("Request must include 'from_uuid' and 'type'.");
+	        throw new BadRequestException("Request must include 'from_uuid' and 'type'.");
 	    }
 
 	    UUID userId = getLoggedInUserId();
@@ -533,18 +514,10 @@ public class FileServiceV3 extends NdexService {
                           - folder: Verifies folder exists and user has access
                           - network: Verifies network exists and user has access
                           
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUIDs: Returns 404 Not Found
-                          - Insufficient permissions: Returns 403 Forbidden
-                          - Invalid permission type: Returns 400 Bad Request
-                          
                           Response:
                           - 200 OK: Permission updated
-                          - 400 Bad Request: Invalid operation
-                          - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: Insufficient permissions
-                          - 404 Not Found: Object doesn't exist
+                          - 401 Unauthorized: Not authenticated, Insufficient permissions
+                          - 500 Internal Server Error: Invalid type of file
                           """
     )
 	public Response shareMembers(SharingMemberRequest request) throws Exception {
@@ -629,16 +602,12 @@ public class FileServiceV3 extends NdexService {
 	                  - ndex_user: Joins to get user information
 	                  
 	                  Edge Cases:
-	                  - Not authenticated: Returns 401 Unauthorized
-	                  - Invalid UUIDs: Returns 404 Not Found
-	                  - Insufficient permissions: Returns 403 Forbidden
 	                  - No permissions found: Returns empty array
 	                  
 	                  Response:
 	                  - 200 OK: Array of user permissions
-	                  - 401 Unauthorized: Not authenticated
-	                  - 403 Forbidden: Insufficient permissions
-	                  - 404 Not Found: Object doesn't exist
+	                  - 401 Unauthorized: Not authenticated, Insufficient permissions
+	                  - 500 Internal Server Error: Invalid type of file
 	                  """
 	)
 	public Response listMembers(Map<UUID, FileType> files) throws Exception {
@@ -707,17 +676,12 @@ public class FileServiceV3 extends NdexService {
                           - folder: Updates access_key and access_key_is_on
                           
                           Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUID: Returns 404 Not Found
-                          - Not folder owner: Returns 403 Forbidden
                           - Already shared: Returns existing key
                           
                           Response:
                           - 200 OK: Access key
-                          - 400 Bad Request: Invalid operation
-                          - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: Not owner
-                          - 404 Not Found: Folder doesn't exist
+                          - 401 Unauthorized: Not authenticated, Insufficient permissions
+                          - 500 Internal Server Error: Invalid type of file, Shortcut is not supported
                           """
     )
 	public Response shareObject(SharingSimpleRequest request) throws Exception {
@@ -777,18 +741,10 @@ public class FileServiceV3 extends NdexService {
                           - folder: Updates access_key_is_on=false
                           - network: Updates access_key_is_on=false
                           
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUID: Returns 404 Not Found
-                          - Not folder owner: Returns 403 Forbidden
-                          - Not shared: Returns 204 No Content
-                          
                           Response:
                           - 204 No Content: Success
-                          - 400 Bad Request: Invalid operation
-                          - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: Not owner
-                          - 404 Not Found: Folder doesn't exist
+                          - 401 Unauthorized: Not authenticated, Insufficient permissions
+                          - 500 Internal Server Error: Invalid type of file, Shortcut is not supported
                           """
     )
 	public Response unshareObject(SharingSimpleRequest request) throws Exception {
@@ -845,18 +801,10 @@ public class FileServiceV3 extends NdexService {
                           - user_network_membership: Updates permissions for old and new owners
                           - shortcut: Creates shortcut for old owner
                           
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUIDs: Returns 404 Not Found
-                          - Not network owner: Returns 403 Forbidden
-                          - Invalid new owner: Returns 400 Bad Request
-                          
                           Response:
                           - 204 No Content: Success
-                          - 400 Bad Request: Invalid request
-                          - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: Not owner
-                          - 404 Not Found: Network doesn't exist
+                          - 401 Unauthorized: Not authenticated, Insufficient permissions
+                          - 500 Internal Server Error: No networks specified for transfer, Missing new owner UUID in request
                           """
     )
 	public Response transferNetworksOwnership(TransferOwnershipRequest request) throws Exception {
@@ -927,7 +875,6 @@ public class FileServiceV3 extends NdexService {
                           - ndex_user: Joins to get owner information
                           
                           Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
                           - No shared items: Returns empty array
                           
                           Response:
