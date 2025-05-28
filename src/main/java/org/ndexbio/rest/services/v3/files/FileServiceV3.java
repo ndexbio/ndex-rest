@@ -69,6 +69,7 @@ import org.ndexbio.common.cx.CX2NetworkFileGenerator;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
@@ -319,7 +320,7 @@ public class FileServiceV3 extends NdexService {
 	    }
 
 	    UUID userId = getLoggedInUserId();
-		if (userId == null) {
+	    if (userId == null) {
 			if (auth_token != null) {
 				userId = getUserIdFromBasicAuthString(auth_token);
 			} else if (id_token != null) {
@@ -327,7 +328,10 @@ public class FileServiceV3 extends NdexService {
 					throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
 				userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
 			}
-		}
+			else {
+				throw new UnauthorizedOperationException("You must be logged in to copy files.");
+			}
+	    }
 
 	    NdexObjectUpdateStatus status = null;
 	    FileType type = request.getType();
@@ -340,7 +344,7 @@ public class FileServiceV3 extends NdexService {
 	            case NETWORK:
 	                status = copyNetwork(request.getFileId(), userId, request.getTargetId());
 	                break;
-
+	                
 	            case SHORTCUT:
 					status = copyShortcut(request.getFileId(), userId, request.getTargetId());
 					break;
@@ -355,7 +359,7 @@ public class FileServiceV3 extends NdexService {
 	    if (status == null) {
 	        throw new NdexException("Copy operation failed - no status returned");
 	    }
-
+		
 		String urlStr = Configuration.getInstance().getHostURI() + "/v3/files/" + type.toString().toLowerCase() + "s/" + status.getUuid().toString();
 		URI l = new URI(urlStr);
 		ObjectMapper om = new ObjectMapper();
@@ -556,7 +560,7 @@ public class FileServiceV3 extends NdexService {
 	                    }
 	                    break;
 	                case NETWORK:
-	                    try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+	                    try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 
 	                        if (!dao.isAdmin(fileId, currentUserId))
 	                            throw new UnauthorizedOperationException(
@@ -635,7 +639,7 @@ public class FileServiceV3 extends NdexService {
 	                break;
 
 	            case NETWORK:
-	                try (PostgresNetworkDAO networkDAO = new PostgresNetworkDAO()) {
+	                try (NetworkDAO networkDAO = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
                         if (!networkDAO.isAdmin(fileUUID, currentUserId))
                             throw new UnauthorizedOperationException(
                                 "You are not an administrator of network " + fileUUID);
@@ -699,7 +703,7 @@ public class FileServiceV3 extends NdexService {
 		    FileType type = file.getValue();
 		    switch (type) {
 		    	case NETWORK:
-		            try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+		            try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 	
 		                if (!dao.isAdmin(file.getKey(), userId))
 		                    throw new UnauthorizedOperationException("You are not an administrator of network " + file.getKey());
@@ -760,7 +764,7 @@ public class FileServiceV3 extends NdexService {
 	    	FileType type = file.getValue();
 		    switch (type) {
 	    		case NETWORK:
-	    	        try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+	    	        try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 	
 	    	            if (!dao.isAdmin(file.getKey(), userId))
 	    	                throw new UnauthorizedOperationException("You are not an administrator of network " + file.getKey());
@@ -821,7 +825,7 @@ public class FileServiceV3 extends NdexService {
 	        throw new NdexException("Missing new owner UUID in request.");
 	    }
 
-	    try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO();
+	    try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO();
 	         ShortcutDAO shortcutDao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
 	        
 	        for (UUID networkId : request.getNetworks()) {
@@ -858,7 +862,7 @@ public class FileServiceV3 extends NdexService {
 	    return Response.noContent().build();
 	}
 
-	@POST
+	@GET
 	@Path("/sharing/list")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
@@ -896,12 +900,12 @@ public class FileServiceV3 extends NdexService {
 	    	fileInfo = dao.listSharedFolders(currentUserId);
 	    }
 	    
-		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
+		try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 			fileInfo.addAll(networkDao.listSharedNetworks(currentUserId));
 		}
 		
 		
 	    return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(fileInfo).build();
 	}
-	
+
 }
