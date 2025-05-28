@@ -1,6 +1,5 @@
 package org.ndexbio.rest.services.v3.files;
 
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.core.Response.Status;
@@ -8,6 +7,8 @@ import jakarta.ws.rs.core.Response.Status;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
 import org.easymock.EasyMock;
 import org.ndexbio.rest.Configuration;
 import static org.easymock.EasyMock.createMock;
@@ -21,6 +22,7 @@ import org.jboss.resteasy.spi.Dispatcher;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
+import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.errorcodes.NDExError;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
@@ -29,6 +31,15 @@ import org.ndexbio.model.object.TrashRestoreRequest;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 import jakarta.ws.rs.core.MediaType;
+import org.ndexbio.model.object.CopyRequest;
+import org.ndexbio.model.object.SharingMemberRequest;
+import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.SharingSimpleRequest;
+import org.ndexbio.model.object.TransferOwnershipRequest;
+import org.ndexbio.common.models.dao.NetworkDAO;
+import org.ndexbio.common.models.dao.ShortcutDAO;
+import org.ndexbio.model.object.NdexObjectUpdateStatus;
+import org.ndexbio.model.object.SharedFile;
 
 /**
  *
@@ -269,6 +280,673 @@ public class TestFileServiceV3 {
 	    assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());
 	}
 
+	@Test
+	public void testPermanentlyDeleteTrashedItemUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
 
+	    MockHttpRequest request = MockHttpRequest.delete("/v3/files/trash/" + UUID.randomUUID());
+	    dispatcher.invoke(request, response);
 
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in to restore items from trash.", er.getMessage());
+	}
+
+	@Test
+	public void testPermanentlyDeleteTrashedItemNotFound() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    UUID itemId = UUID.randomUUID();
+	    
+	    // Mock DAO to return null for item type (indicating item not found)
+	    TrashDAO mockTrashDAO = createMock(TrashDAO.class);
+	    expect(mockTrashDAO.getTrashedItemType(itemId)).andReturn(null);
+	    mockTrashDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockTrashDAO);
+
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getTrashDAO()).andReturn(mockTrashDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest request = MockHttpRequest.delete("/v3/files/trash/" + itemId);
+	    dispatcher.invoke(request, response);
+
+	    assertEquals(Status.NOT_FOUND.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testPermanentlyDeleteTrashedItemSuccess() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    UUID itemId = UUID.randomUUID();
+	    
+	    // Mock DAO to return a valid item type and handle deletion
+	    TrashDAO mockTrashDAO = createMock(TrashDAO.class);
+	    expect(mockTrashDAO.getTrashedItemType(itemId)).andReturn(FileType.NETWORK);
+	    mockTrashDAO.permanentlyDeleteTrashedItem(itemId, FileType.NETWORK);
+	    EasyMock.expectLastCall().once();
+	    mockTrashDAO.commit();
+	    EasyMock.expectLastCall().once();
+	    mockTrashDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockTrashDAO);
+
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getTrashDAO()).andReturn(mockTrashDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest request = MockHttpRequest.delete("/v3/files/trash/" + itemId);
+	    dispatcher.invoke(request, response);
+
+	    assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testClearTrashUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    MockHttpRequest request = MockHttpRequest.delete("/v3/files/trash");
+	    dispatcher.invoke(request, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in to clear your trash.", er.getMessage());
+	}
+
+	@Test
+	public void testClearTrashSuccess() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    // Mock DAO to handle deletion
+	    TrashDAO mockTrashDAO = createMock(TrashDAO.class);
+	    mockTrashDAO.permanentlyDeleteAllTrashedItemsOfUser(userID);
+	    EasyMock.expectLastCall().once();
+	    mockTrashDAO.commit();
+	    EasyMock.expectLastCall().once();
+	    mockTrashDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockTrashDAO);
+
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getTrashDAO()).andReturn(mockTrashDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest request = MockHttpRequest.delete("/v3/files/trash");
+	    dispatcher.invoke(request, response);
+
+	    assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testCopyFileUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    CopyRequest request = new CopyRequest();
+	    request.setFileId(UUID.randomUUID());
+	    request.setType(FileType.NETWORK);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/copy")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testShareMembersUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    SharingMemberRequest request = new SharingMemberRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(UUID.randomUUID(), FileType.NETWORK);
+	    request.setFiles(files);
+
+	    Map<UUID, Permissions> members = new HashMap<>();
+	    members.put(UUID.randomUUID(), Permissions.READ);
+	    request.setMembers(members);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/members")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in to add members.", er.getMessage());
+	}
+
+	@Test
+	public void testListMembersUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(UUID.randomUUID(), FileType.NETWORK);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(files);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/members/list")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in to view file permissions.", er.getMessage());
+	}
+
+	@Test
+	public void testListMembersInvalidFileType() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(UUID.randomUUID(), FileType.SHORTCUT); // Shortcuts are not supported
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(files);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/members/list")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testShareObjectUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    SharingSimpleRequest request = new SharingSimpleRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(UUID.randomUUID(), FileType.NETWORK);
+	    request.setFiles(files);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/share")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in to share.", er.getMessage());
+	}
+
+	@Test
+	public void testShareObjectInvalidFileType() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    SharingSimpleRequest request = new SharingSimpleRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(UUID.randomUUID(), FileType.SHORTCUT); // Shortcuts are not supported
+	    request.setFiles(files);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/share")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+
+	}
+
+	@Test
+	public void testShareObjectFolderSuccess() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    UUID folderId = UUID.randomUUID();
+
+	    SharingSimpleRequest request = new SharingSimpleRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(folderId, FileType.FOLDER);
+	    request.setFiles(files);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    // Mock FolderDAO
+	    FolderDAO mockFolderDAO = createMock(FolderDAO.class);
+	    expect(mockFolderDAO.isFolderOwner(folderId, userID)).andReturn(true);
+	    expect(mockFolderDAO.enableFolderAccessKey(folderId)).andReturn("test-access-key");
+	    mockFolderDAO.commit();
+	    EasyMock.expectLastCall();
+	    mockFolderDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockFolderDAO);
+
+	    // Mock DAOFactory
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getFolderDAO()).andReturn(mockFolderDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/share")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.OK.getStatusCode(), response.getStatus());
+
+	    Map<String, String> result = mapper.readValue(response.getOutput(), Map.class);
+	    assertEquals("test-access-key", result.get(folderId.toString()));
+	}
+
+	@Test
+	public void testShareObjectNotOwner() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    UUID folderId = UUID.randomUUID();
+
+	    SharingSimpleRequest request = new SharingSimpleRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(folderId, FileType.FOLDER);
+	    request.setFiles(files);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    // Mock FolderDAO
+	    FolderDAO mockFolderDAO = createMock(FolderDAO.class);
+	    expect(mockFolderDAO.isFolderOwner(folderId, userID)).andReturn(false);
+	    mockFolderDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockFolderDAO);
+
+	    // Mock DAOFactory
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getFolderDAO()).andReturn(mockFolderDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/share")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You are not the owner of folder " + folderId, er.getMessage());
+	}
+
+	@Test
+	public void testUnshareObjectUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    SharingSimpleRequest request = new SharingSimpleRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(UUID.randomUUID(), FileType.NETWORK);
+	    request.setFiles(files);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/unshare")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in to unshare.", er.getMessage());
+	}
+
+	@Test
+	public void testUnshareObjectInvalidFileType() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    SharingSimpleRequest request = new SharingSimpleRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(UUID.randomUUID(), FileType.SHORTCUT); // Shortcuts are not supported
+	    request.setFiles(files);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/unshare")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testUnshareObjectFolderSuccess() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    UUID folderId = UUID.randomUUID();
+
+	    SharingSimpleRequest request = new SharingSimpleRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(folderId, FileType.FOLDER);
+	    request.setFiles(files);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    // Mock FolderDAO
+	    FolderDAO mockFolderDAO = createMock(FolderDAO.class);
+	    expect(mockFolderDAO.isFolderOwner(folderId, userID)).andReturn(true);
+	    mockFolderDAO.disableFolderAccessKey(folderId);
+	    EasyMock.expectLastCall();
+	    mockFolderDAO.commit();
+	    EasyMock.expectLastCall();
+	    mockFolderDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockFolderDAO);
+
+	    // Mock DAOFactory
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getFolderDAO()).andReturn(mockFolderDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/unshare")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testUnshareObjectNotOwner() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    UUID folderId = UUID.randomUUID();
+
+	    SharingSimpleRequest request = new SharingSimpleRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(folderId, FileType.FOLDER);
+	    request.setFiles(files);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    // Mock FolderDAO
+	    FolderDAO mockFolderDAO = createMock(FolderDAO.class);
+	    expect(mockFolderDAO.isFolderOwner(folderId, userID)).andReturn(false);
+	    mockFolderDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockFolderDAO);
+
+	    // Mock DAOFactory
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getFolderDAO()).andReturn(mockFolderDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/unshare")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You are not the owner of folder " + folderId, er.getMessage());
+	}
+
+	@Test
+	public void testTransferNetworksOwnershipUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    TransferOwnershipRequest request = new TransferOwnershipRequest();
+	    request.setNetworks(new ArrayList<>());
+	    request.setNewOwner(UUID.randomUUID());
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/transfer")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in to transfer objects.", er.getMessage());
+	}
+
+	@Test
+	public void testTransferNetworksOwnershipNoNetworks() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    TransferOwnershipRequest request = new TransferOwnershipRequest();
+	    request.setNetworks(new ArrayList<>()); // Empty list
+	    request.setNewOwner(UUID.randomUUID());
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/transfer")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testTransferNetworksOwnershipNoNewOwner() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    TransferOwnershipRequest request = new TransferOwnershipRequest();
+	    List<UUID> networks = new ArrayList<>();
+	    networks.add(UUID.randomUUID());
+	    request.setNetworks(networks);
+	    request.setNewOwner(null); // No new owner specified
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/transfer")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testTransferNetworksOwnershipSuccess() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    replay(mockHttpServletRequest);
+
+	    UUID networkId = UUID.randomUUID();
+	    UUID newOwnerId = UUID.randomUUID();
+	    UUID parentId = UUID.randomUUID();
+	    String networkName = "Test Network";
+
+	    TransferOwnershipRequest request = new TransferOwnershipRequest();
+	    List<UUID> networks = new ArrayList<>();
+	    networks.add(networkId);
+	    request.setNetworks(networks);
+	    request.setNewOwner(newOwnerId);
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    byte[] json = mapper.writeValueAsBytes(request);
+
+	    // Mock NetworkDAO
+	    NetworkDAO mockNetworkDAO = createMock(NetworkDAO.class);
+	    expect(mockNetworkDAO.isAdmin(networkId, userID)).andReturn(true);
+	    expect(mockNetworkDAO.getNetworkFolder(networkId)).andReturn(parentId);
+	    expect(mockNetworkDAO.getNetworkName(networkId)).andReturn(networkName);
+	    expect(mockNetworkDAO.grantPrivilegeToUser(networkId, newOwnerId, Permissions.ADMIN)).andReturn(1);
+	    mockNetworkDAO.setNetworkFolder(networkId, null);
+	    EasyMock.expectLastCall();
+	    mockNetworkDAO.commit();
+	    EasyMock.expectLastCall();
+	    mockNetworkDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockNetworkDAO);
+
+	    // Mock ShortcutDAO
+	    ShortcutDAO mockShortcutDAO = createMock(ShortcutDAO.class);
+	    expect(mockShortcutDAO.createShortcut(
+	        EasyMock.anyObject(UUID.class),
+	        EasyMock.eq(userID),
+	        EasyMock.eq(parentId),
+	        EasyMock.eq(networkName),
+	        EasyMock.eq(networkId),
+	        EasyMock.eq(FileType.NETWORK)
+	    )).andReturn(new NdexObjectUpdateStatus());
+	    mockShortcutDAO.commit();
+	    EasyMock.expectLastCall();
+	    mockShortcutDAO.close();
+	    EasyMock.expectLastCall();
+	    replay(mockShortcutDAO);
+
+	    // Mock DAOFactory
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getNetworkDAO()).andReturn(mockNetworkDAO);
+	    expect(mockDAOFactory.getShortcutDAO()).andReturn(mockShortcutDAO);
+	    replay(mockDAOFactory);
+
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/transfer")
+	        .content(json)
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());
+	}
+
+	@Test
+	public void testListSharedObjectsUnauthorized() throws Exception {
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(null);
+	    replay(mockHttpServletRequest);
+
+	    MockHttpRequest request = MockHttpRequest.get("/v3/files/sharing/list");
+	    dispatcher.invoke(request, response);
+
+	    assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
+	    assertEquals("You must be logged in.", er.getMessage());
+	}
 }
