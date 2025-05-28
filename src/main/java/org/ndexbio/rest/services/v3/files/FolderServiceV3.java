@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
@@ -68,24 +69,23 @@ public class FolderServiceV3 extends NdexService {
                           - parent: Optional. UUID of the parent folder. If not provided, folder will be created at root level.
                           
                           Edge Cases:
-                          - Empty or null name: Returns 400 Bad Request
-                          - Invalid parent UUID: Returns 404 Not Found
-                          - Parent folder not accessible: Returns 403 Forbidden
                           - Duplicate folder name in same parent: Allowed (folders can have same name)
                           
                           Response:
                           - 201 Created: Folder created successfully
                           - Location header contains URL to new folder
                           - Response body contains folder metadata
+                          - 401 Unauthorized: Not authenticated, Insufficient permissions, Invalid parent folder
+                          - 400 Bad Request: No folder request data was provided, Folder name cannot be empty
                           """
     )
 	public Response createFolder(final FolderRequest request) throws Exception {
 		if (request == null) {
-			throw new Exception("No folder request data was provided!");
+			throw new BadRequestException("No folder request data was provided!");
 		}
 		
 		if (request.getName() == null || request.getName().trim().isEmpty()) {
-			throw new Exception("Folder name cannot be empty.");
+			throw new BadRequestException("Folder name cannot be empty.");
 		}
 		
 		UUID parentUUID = request.getParent();
@@ -137,16 +137,10 @@ public class FolderServiceV3 extends NdexService {
                           - id_token: Optional. Google OAuth ID token
                           - auth_token: Optional. Basic auth token
                           
-                          Edge Cases:
-                          - Invalid folder UUID: Returns 404 Not Found
-                          - Deleted folder: Returns 404 Not Found
-                          - No access (no valid auth): Returns 401 Unauthorized
-                          - Insufficient permissions: Returns 403 Forbidden
-                          
                           Response:
                           - 200 OK: Folder metadata
-                          - 404 Not Found: Folder doesn't exist or is deleted
-                          - 401/403: Access denied
+                          - 404 Not Found: Folder doesn't exist or was deleted
+                          - 401 Unauthorized: Not authenticated, Insufficient permissions
                           """
     )
 	public Response getFolder(	@PathParam("folderid") final String folderId,
@@ -213,9 +207,8 @@ public class FolderServiceV3 extends NdexService {
                           
                           Response:
                           - 204 No Content: Success
-                          - 400 Bad Request: Invalid operation
-                          - 403 Forbidden: Not owner
-                          - 404 Not Found: Folder doesn't exist
+                          - 401 Unauthorized: Not authenticated or not owner
+                          - 404 Not Found: Folder doesn't exist or was deleted
                           """
     )
 	@Produces("application/json")
@@ -253,18 +246,12 @@ public class FolderServiceV3 extends NdexService {
                           - parent: Optional. New parent folder UUID
                           
                           Edge Cases:
-                          - Invalid folder UUID: Returns 404 Not Found
-                          - Not folder owner: Returns 403 Forbidden
-                          - Invalid parent UUID: Returns 404 Not Found
-                          - Parent not accessible: Returns 403 Forbidden
-                          - Both name and parent null: Returns 400 Bad Request
                           - Moving to descendant folder: Returns 400 Bad Request (would create cycle)
                           
                           Response:
                           - 204 No Content: Success
-                          - 400 Bad Request: Invalid operation
-                          - 403 Forbidden: Not owner
-                          - 404 Not Found: Folder doesn't exist
+                          - 401 Unauthorized: Not authenticated or not owner, not owner of parent folder or insufficient permissions to parent folder
+                          - 404 Not Found: Folder doesn't exist or was deleted
                           """
     )
 	public void updateFolder(final FolderRequest request,
@@ -313,16 +300,10 @@ public class FolderServiceV3 extends NdexService {
                           - id_token: Optional. Google OAuth ID token
                           - auth_token: Optional. Basic auth token
                           
-                          Edge Cases:
-                          - Invalid folder UUID: Returns 404 Not Found
-                          - Deleted folder: Returns 404 Not Found
-                          - No access (no valid auth): Returns 401 Unauthorized
-                          - Insufficient permissions: Returns 403 Forbidden
-                          
                           Response:
                           - 200 OK: JSON object with counts
-                          - 404 Not Found: Folder doesn't exist
-                          - 401/403: Access denied
+                          - 404 Not Found: Folder doesn't exist or was deleted
+                          - 401 Unauthorized: Not authenticated, Insufficient permissions
                           """
     )
 	public Response getChildCount(
@@ -387,13 +368,6 @@ public class FolderServiceV3 extends NdexService {
 	                  - id_token: Optional. Google OAuth ID token
 	                  - auth_token: Optional. Basic auth token
 	                  
-	                  Edge Cases:
-	                  - Invalid folder UUID: Returns 404 Not Found
-	                  - Deleted folder: Returns 404 Not Found
-	                  - No access (no valid auth): Returns 401 Unauthorized
-	                  - Insufficient permissions: Returns 403 Forbidden
-	                  - Invalid type filter: Returns 400 Bad Request
-	                  
 	                  Response Format:
 	                  - Compact: Basic metadata only
 	                  - Update: Full metadata including:
@@ -402,8 +376,8 @@ public class FolderServiceV3 extends NdexService {
 	                  
 	                  Response:
 	                  - 200 OK: Array of items
-	                  - 404 Not Found: Folder doesn't exist
-	                  - 401/403: Access denied
+	                  - 404 Not Found: Folder doesn't exist or was deleted
+	                  - 401 Unauthorized: User doesn't have read access to this folder
 	                  """
 	)
 	public Response listItemsInFolder(
@@ -469,8 +443,6 @@ public class FolderServiceV3 extends NdexService {
                           - limit: Optional. Maximum number of folders to return (default: 100)
                           
                           Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Invalid limit: Returns 400 Bad Request
                           - No folders: Returns empty array
                           
                           Response:
