@@ -62,17 +62,8 @@ public class ShortcutServiceV3 extends NdexService {
                           Database Tables:
                           - shortcut: Creates new record with name, target, and parent folder
                           
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Empty name: Returns 500 Internal Server Error
-                          - Null target: Returns 500 Internal Server Error
-                          - Invalid target type: Returns 500 Internal Server Error
-                          - Target not accessible: Returns 500 Internal Server Error
-                          - Invalid parent folder: Returns 500 Internal Server Error
-                          
                           Response:
-                          - 201 Created: Shortcut created successfully
-                          - Location header contains URL to new shortcut
+                          - 201 Created: Shortcut created successfully - Location header contains URL to new shortcut
                           - 500 Internal Server Error: Invalid request parameters or target not accessible
                           - 401 Unauthorized: Not authenticated
                           """
@@ -140,17 +131,10 @@ public class ShortcutServiceV3 extends NdexService {
                           Database Tables:
                           - shortcut: Queries shortcut metadata
                           
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUID: Returns 404 Not Found
-                          - No read access: Returns 403 Forbidden
-                          - Shortcut deleted: Returns 404 Not Found
-                          
                           Response:
                           - 200 OK: Shortcut metadata
-                          - 401 Unauthorized: Not authenticated
-                          - 403 Forbidden: No read access
-                          - 404 Not Found: Shortcut doesn't exist
+                          - 401 Unauthorized: Not authenticated, No read access
+                          - 404 Not Found: Shortcut doesn't exist or was deleted
                           """
 		)
 	public Response getShortcut(	@PathParam("shortcutid") final String shortcutId,
@@ -196,11 +180,6 @@ public class ShortcutServiceV3 extends NdexService {
                           - permanent: If true, permanently deletes the shortcut from the database. 
                             If false (default), performs a logical delete (sets is_deleted flag).
                           
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUID: Returns 500 Internal Server Error
-                          - Not owner: Returns 401 Unauthorized
-                          
                           Response:
                           - 204 No Content: Success
                           - 401 Unauthorized: Not authenticated or not owner
@@ -235,12 +214,6 @@ public class ShortcutServiceV3 extends NdexService {
                           
                           Database Tables:
                           - shortcut: Updates name and/or parent folder
-                          
-                          Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Invalid UUID: Returns 500 Internal Server Error
-                          - Not owner: Returns 401 Unauthorized
-                          - Invalid parent folder: Returns 500 Internal Server Error
                           
                           Response:
                           - 204 No Content: Success
@@ -278,7 +251,6 @@ public class ShortcutServiceV3 extends NdexService {
                           - limit: Maximum number of shortcuts to return (default: 100)
                           
                           Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
                           - No shortcuts: Returns empty array
                           
                           Response:
