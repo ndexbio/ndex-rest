@@ -131,7 +131,6 @@ public class FileServiceV3 extends NdexService {
                           - shortcut: Queries where is_deleted=true AND show_in_trash=true
                           
                           Edge Cases:
-                          - Not authenticated: Returns 401 Unauthorized
                           - Empty trash: Returns empty array
                           
                           Response:
@@ -296,18 +295,11 @@ public class FileServiceV3 extends NdexService {
                           - shortcut: Creates new record with copied metadata
                           - network: Creates new record with copied metadata and files
                           
-                          Edge Cases For Copying Network:
-                          - Not authenticated: Returns 401 Unauthorized
-                          - Insufficient permissions: Returns 401 Unauthorized
-                          - Invalid target folder: Returns 401 Unauthorized
-                          - Invalid Network: Returns 404 Not Found
-                          - Disk space exceeded: Returns 400 Bad Request
-                          
                           Response:
                           - 201 Created: Copy successful - Location header contains URL to new object
                           - 400 Bad Request: Invalid operation
                           - 401 Unauthorized: Not authenticated, Insufficient permissions, Invalid target folder
-                          - 404 Not Found: Source doesn't exist
+                          - 500 Internal Server Error: Operation failed, Disk space exceeded, Invalid Network
                           """
     )
 	public Response copyFile(final CopyRequest request,
