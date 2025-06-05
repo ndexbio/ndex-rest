@@ -41,10 +41,14 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.ResponseBuilder;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
+import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxAspectElement;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
@@ -64,6 +68,7 @@ import org.ndexbio.model.object.network.NetworkSummaryV3;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.NetworkSummaryFormat;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
@@ -410,7 +415,8 @@ public class NetworkServiceV3  extends NdexService {
 				  })
 	   public Response createNetworkJson( 
 			   @Parameter(description="Can be set to **PUBLIC** (visible to all) or **PRIVATE** (visibile to only user and is default if not set)", example="PUBLIC") @QueryParam("visibility") String visibilityStr,
-				@Parameter(description="Additional fields to index on network. **DO NOT USE, NOT IMPLEMENTED YET**") @QueryParam("indexedfields") String fieldListStr // comma separated list		
+			   @Parameter(description="Additional fields to index on network. **DO NOT USE, NOT IMPLEMENTED YET**") @QueryParam("indexedfields") String fieldListStr, // comma separated list
+			   @Parameter(description="UUID of the parent folder. If provided, the network will be created in this folder.") @QueryParam("folderId") String folderIdStr
 			   ) throws Exception
 	   {
 	   
@@ -432,15 +438,23 @@ public class NetworkServiceV3  extends NdexService {
 		   
 		   try (InputStream in = this.getInputStreamFromRequest()) {
 			   UUID uuid = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
-			   return processRawCX2Network(visibility, extraIndexOnNodes, uuid);
+			   UUID folderId = null;
+			   if (folderIdStr != null && !folderIdStr.isEmpty()) {
+				folderId = UUID.fromString(folderIdStr);
+			   }
+			   return processRawCX2Network(visibility, extraIndexOnNodes, uuid, folderId);
 
 		   }		   
 
 	   	}
+	   
+	   private Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid) throws JsonProcessingException, ObjectNotFoundException, SQLException, NdexException, IOException, URISyntaxException, Exception {
+		   return processRawCX2Network(visibility, extraIndexOnNodes, uuid, null);
+	   }
 
-		private Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid)
+		private Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid, UUID folderId)
 				throws SQLException, NdexException, IOException, ObjectNotFoundException, JsonProcessingException,
-				URISyntaxException {
+				URISyntaxException, Exception {
 			String uuidStr = uuid.toString();
 			   accLogger.info("[data]\t[uuid:" +uuidStr + "]" );
 		   
@@ -458,6 +472,13 @@ public class NetworkServiceV3  extends NdexService {
 				   dao.commit();
 		       }
 		       
+			   if (folderId != null) {
+					try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+						networkDao.setNetworkFolder(uuid, folderId);
+						networkDao.commit();
+					}
+			   }
+		       
 		       NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(uuid, false, visibility, extraIndexOnNodes));		   
 			   URI l = new URI (urlStr);
 			   ObjectMapper om = new ObjectMapper();
@@ -473,7 +494,8 @@ public class NetworkServiceV3  extends NdexService {
 		@Produces("application/json")
 		@Consumes("multipart/form-data")
 		public Response createCX2Network(MultipartFormDataInput input, @QueryParam("visibility") String visibilityStr,
-				@QueryParam("indexedfields") String fieldListStr // comma seperated list
+				@QueryParam("indexedfields") String fieldListStr, // comma seperated list
+				@QueryParam("folderId") String folderIdStr
 		) throws Exception {
 
 			VisibilityType visibility = null;
@@ -493,7 +515,11 @@ public class NetworkServiceV3  extends NdexService {
 			}
 
 			UUID uuid = storeRawNetworkFromMultipart(input, CX2NetworkLoader.cx2NetworkFileName);
-			return processRawCX2Network(visibility, extraIndexOnNodes, uuid);
+		    UUID folderId = null;
+		    if (folderIdStr != null && !folderIdStr.isEmpty()) {
+		    	folderId = UUID.fromString(folderIdStr);
+		    }
+			return processRawCX2Network(visibility, extraIndexOnNodes, uuid, folderId);
 
 		}
 		

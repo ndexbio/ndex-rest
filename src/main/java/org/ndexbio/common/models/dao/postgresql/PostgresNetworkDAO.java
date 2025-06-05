@@ -115,7 +115,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	private static final String networkSummarySelectClause = "select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 			+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
 			+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, n.show_in_homepage,"
-			+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size "; 
+			+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size, n.parent, n.show_in_trash "; 
 	
 	public static final String PENDING = "Pending";
 	
@@ -426,7 +426,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	 */
 	public void saveNetworkEntry(NetworkSummary networkSummary, MetaDataCollection metadata, boolean setModificationTime) throws SQLException, NdexException, JsonProcessingException {
 		String sqlStr = "update network set name = ?, description = ?, version = ?, edgecount=?, nodecount=?, "
-				+ "properties = ? ::jsonb, cxmetadata = ? :: json, warnings = ?, subnetworkids = ?, "
+				+ "properties = ? ::jsonb, cxmetadata = ? :: json, warnings = ?, subnetworkids = ?, parent = ?, "
 				+ (setModificationTime? "modification_time = localtimestamp, " : "") 
 				+ " is_validated =true where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -459,8 +459,9 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			Long[] subNetIds = networkSummary.getSubnetworkIds().toArray(new Long[0]);
 			Array subNetworkIds = db.createArrayOf("bigint", subNetIds);
 			pst.setArray(9, subNetworkIds);
+			pst.setObject(10, networkSummary.getFolderId());
 			
-			pst.setObject(10, networkSummary.getExternalId());
+			pst.setObject(11, networkSummary.getExternalId());
 			int i = pst.executeUpdate();
 			if ( i != 1)
 				throw new NdexException ("Failed to update network summary entry in db.");
@@ -1219,7 +1220,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		}
 		
 		result += ",n.creation_time, n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid, n.error, n.readonly, n.warnings, n.show_in_homepage,"
-				+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size ";
+				+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size, n.parent, n.show_in_trash ";
 		if (format == NetworkSummaryFormat.COMPACT)
 			return result + ",n.name,n.description ";
 		return result += summaryPropClause;
@@ -1296,7 +1297,8 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		//result.setCxFormat(rs.getString(25));
 		result.setCxFileSize(rs.getLong("cx_file_size"));
 		result.setCx2FileSize(rs.getLong("cx2_file_size"));
-	} 
+		result.setFolderId((UUID)rs.getObject("parent"));
+		result.setShowInTrash(rs.getBoolean("show_in_trash"));} 
 	
 	public int getNetworkEdgeCount (UUID networkId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select n.edgecount from network n where n.\"UUID\" = ? and n.is_deleted= false";
@@ -1491,6 +1493,8 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		result.setCxFormat(rs.getString(25));
 		result.setCxFileSize(rs.getLong(26));
 		result.setCx2FileSize(rs.getLong(27));
+		result.setFolderId((UUID)rs.getObject(28));
+		result.setShowInTrash(rs.getBoolean(29));
 	}
 	
 	

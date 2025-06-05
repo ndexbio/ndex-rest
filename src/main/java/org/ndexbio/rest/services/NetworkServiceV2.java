@@ -1702,7 +1702,16 @@ public class NetworkServiceV2 extends NdexService {
 
 	@PUT
 	@Path("/{networkid}/systemproperty")
-	@Operation(summary = "Set Network System Properties", description = "Network System properties are the properties that describe the network’s status in a particular NDEx server but that are not part of the corresponding CX network object.")
+	@Operation(
+		    summary = "Set Network System Properties",
+		    description = """
+		        Network System properties describe the network’s status in a particular NDEx server,
+		        but are not part of the CX network object.
+
+		        **Deprecated Parameter**
+		        - `showcase`: This property is deprecated and will be removed in future versions. Avoid using it in requests.
+		        """
+		)
 	@Produces("application/json")
 	public void setNetworkFlag(
 			@PathParam("networkid") final String networkIdStr,
