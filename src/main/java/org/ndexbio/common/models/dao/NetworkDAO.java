@@ -16,6 +16,7 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ProvenanceEntity;
 import org.ndexbio.model.object.SharedFile;
+import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -126,6 +127,8 @@ public interface NetworkDAO extends AutoCloseable {
     void deleteNetworkPermanently(UUID networkId, UUID userId) throws SQLException, NdexException;
     
     List<SharedFile> listSharedNetworks(UUID userId) throws SQLException;
+    
+    List<FileItemSummary> listNetworksSharedBySpecificUser(UUID userId, UUID ownerId, boolean compact) throws SQLException;
         
     void rollback() throws SQLException;
 

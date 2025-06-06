@@ -762,6 +762,32 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
         return result;
     }
     
+    public List<FileItemSummary> listFoldersSharedBySpecificUser(UUID userId, UUID ownerId, boolean compact) throws SQLException {
+        String sql = "SELECT DISTINCT f.\"UUID\", f.name, f.modification_time, f.updated_by " +
+                "FROM folder f " +
+                "LEFT JOIN folder_permission fp ON f.\"UUID\" = fp.folder_id AND fp.user_id = ? " +
+                "WHERE f.owneruuid = ? " +
+                "  AND f.parent IS NULL " +
+                "  AND f.is_deleted = false " +
+                "  AND (f.visibility = 'PUBLIC' OR fp.user_id IS NOT NULL)";
+
+	   List<FileItemSummary> result = new ArrayList<>();
+	   try (PreparedStatement pst = db.prepareStatement(sql)) {
+	       pst.setObject(1, userId);
+	       pst.setObject(2, ownerId);
+	       try (ResultSet rs = pst.executeQuery()) {
+	           while (rs.next()) {
+	               result.add(new FileItemSummary(
+	                   (UUID) rs.getObject(1), FileType.FOLDER,
+	                   rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                   compact ? Map.of() : null
+	               ));
+	           }
+	       }
+	   }
+	   return result;
+	}
+    
     @Override
     public void setFolderVisibility(UUID folderId, VisibilityType visibility) throws SQLException, NdexException {
         String sql = "UPDATE folder SET visibility = ? WHERE \"UUID\" = ? AND is_deleted = false";
@@ -855,6 +881,100 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 				return rs.next(); // Returns true if potentialDescendantId is found in the tree
 			}
 		}
+	}
+	
+	public List<FileItemSummary> listPublicRootItemsOfUser(UUID ownerId, boolean compact) throws SQLException {
+		return listPublicRootItemsOfUser(ownerId, compact, null);
+	}
+	
+	public List<FileItemSummary> listPublicRootItemsOfUser(UUID ownerId, boolean compact, FileType fileType) throws SQLException {
+	    List<FileItemSummary> result = new ArrayList<>();
+
+	    final String baseCols = "\"UUID\", name, modification_time, updated_by";
+
+	    // Folders
+		if (fileType == null || fileType == FileType.FOLDER) {
+	    String sqlFolders = "SELECT " + baseCols + " FROM folder " +
+	                        "WHERE owneruuid = ? AND parent IS NULL AND visibility = 'PUBLIC' AND is_deleted = false";
+	    try (PreparedStatement pst = db.prepareStatement(sqlFolders)) {
+	        pst.setObject(1, ownerId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                result.add(new FileItemSummary(
+	                    (UUID) rs.getObject(1), FileType.FOLDER,
+	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    compact ? Map.of() : null));
+	            }
+	        }
+	    }
+		}
+
+	    // Networks
+		if (fileType == null || fileType == FileType.NETWORK) {
+	    String sqlNetworks = "SELECT " + baseCols + ", description, edgecount, visibility " +
+	                         "FROM network WHERE owneruuid = ? AND parent IS NULL AND visibility = 'PUBLIC' AND is_deleted = false";
+	    try (PreparedStatement pst = db.prepareStatement(sqlNetworks)) {
+	        pst.setObject(1, ownerId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                Map<String, Object> attr = new HashMap<>();
+	                if (compact) {
+	                    attr.put("description", rs.getString(5));
+	                    attr.put("edges", rs.getInt(6));
+	                    attr.put("visibility", rs.getString(7));
+	                }
+	                result.add(new FileItemSummary(
+	                    (UUID) rs.getObject(1), FileType.NETWORK,
+	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    attr));
+	            }
+	        }
+	    }
+		}
+
+	    // Shortcuts
+		if (fileType == null || fileType == FileType.SHORTCUT) {
+	    String sqlShortcuts = "SELECT " + baseCols + ", target_type, target FROM shortcut " +
+	                          "WHERE owneruuid = ? AND parent IS NULL AND is_deleted = false";
+	    try (PreparedStatement pst = db.prepareStatement(sqlShortcuts)) {
+	        pst.setObject(1, ownerId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                Map<String, Object> attr = null;
+	                if (compact) {
+	                    attr = new HashMap<>();
+	                    String targetType = rs.getString(5);
+	                    UUID targetId = (UUID) rs.getObject(6);
+	                    attr.put("target_type", targetType);
+	                    attr.put("target", targetId);
+
+	                    // check deletion status
+	                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
+	                    if (targetId != null) {
+	                        String checkTargetSql = "SELECT is_deleted FROM " +
+	                                                (targetType.equals("FOLDER") ? "folder" : "network") +
+	                                                " WHERE \"UUID\"=?";
+	                        try (PreparedStatement checkPst = db.prepareStatement(checkTargetSql)) {
+	                            checkPst.setObject(1, targetId);
+	                            try (ResultSet checkRs = checkPst.executeQuery()) {
+	                                if (checkRs.next()) {
+	                                    targetStatus = checkRs.getBoolean(1) ? ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
+	                                }
+	                            }
+	                        }
+	                    }
+	                    attr.put("target_status", targetStatus.toString());
+	                }
+	                result.add(new FileItemSummary(
+	                    (UUID) rs.getObject(1), FileType.SHORTCUT,
+	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    attr));
+	            }
+	        }
+	    }	
+		}
+
+	    return result;
 	}
 
 }

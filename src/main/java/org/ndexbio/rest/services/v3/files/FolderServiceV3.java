@@ -414,6 +414,9 @@ public class FolderServiceV3 extends NdexService {
 
 	    /* ---------------------------------------------------------------- home case */
 	    if ("home".equalsIgnoreCase(folderIdStr)) {
+			if (userId == null) {
+				throw new UnauthorizedOperationException("You must be logged in to list your home folder.");
+			}
 	        List<FileItemSummary> items;
 	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	            items = dao.listRootItemsOfUser(userId, compact, fileType);

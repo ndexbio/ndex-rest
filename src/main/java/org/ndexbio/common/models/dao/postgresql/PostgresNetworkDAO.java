@@ -2411,6 +2411,43 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		return result;
 	}
 	
+	public List<FileItemSummary> listNetworksSharedBySpecificUser(UUID userId, UUID ownerId, boolean compact) throws SQLException {
+	    String baseCols = "n.\"UUID\", n.name, n.modification_time, n.updated_by" +
+                (compact ? ", n.description, n.edgecount, n.visibility" : "");
+
+		String sql = "SELECT DISTINCT " + baseCols +
+		           " FROM network n " +
+		           "LEFT JOIN user_network_membership nm ON n.\"UUID\" = nm.network_id AND nm.user_id = ? " +
+		           "WHERE n.owneruuid = ? " +
+		           "  AND n.parent IS NULL " +
+		           "  AND n.is_deleted = false " +
+		           "  AND (n.visibility = 'PUBLIC' OR nm.user_id IS NOT NULL)";
+		
+		List<FileItemSummary> result = new ArrayList<>();
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+		  pst.setObject(1, userId);
+		  pst.setObject(2, ownerId);
+		  try (ResultSet rs = pst.executeQuery()) {
+		      while (rs.next()) {
+		          Map<String, Object> attr = null;
+		          if (compact) {
+		              attr = new HashMap<>();
+		              attr.put("description", rs.getString(5));
+		              attr.put("edges", rs.getInt(6));
+		              attr.put("visibility", rs.getString(7));
+		          }
+		          result.add(new FileItemSummary(
+		              (UUID) rs.getObject(1), FileType.NETWORK,
+		              rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+		              attr
+		          ));
+		      }
+		  }
+		}
+		return result;
+	}
+
+	
 	public void deleteNetworkLogical(UUID networkId, UUID userId) throws SQLException, NdexException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
         String markNetworksSql = "UPDATE network SET modification_time = ?, is_deleted = true, show_in_trash = true WHERE network_id=?";

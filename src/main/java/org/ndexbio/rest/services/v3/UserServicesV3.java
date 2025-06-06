@@ -15,17 +15,23 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.Response;
 import jakarta.annotation.security.PermitAll;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.QueryParam;
 
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.CyWebWorkspaceDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CyWebWorkspace;
+import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
+import org.ndexbio.model.object.SharedFile;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.NdexOpenFunction;
@@ -142,6 +148,49 @@ public class UserServicesV3 extends NdexService {
 			return user;
 		} 
 	}
+	
+	
+	@GET
+	@Path("/{userid}/home")
+	@Produces("application/json")
+	@PermitAll
+	public Response getUserHomeContent(
+			@PathParam("userid")  final String userIdStr, 
+			@QueryParam("format") @DefaultValue("update") String format)
+	        throws Exception {
+
+		boolean compact = "compact".equalsIgnoreCase(format);
+	    UUID userId = UUID.fromString(userIdStr);
+	    UUID requesterId = getLoggedInUserId(); // null if not signed in
+
+	    boolean isSelf = requesterId != null && requesterId.equals(userId);
+
+	    List<FileItemSummary> items;
+        if (isSelf) {
+	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	            items = dao.listRootItemsOfUser(userId, compact, null);
+	        }
+	        return Response.ok(items).build();
+        } else if (requesterId != null) {
+            // Shared-with-me content in user's home folder
+            try (NetworkDAO networkDAO = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+                items = networkDAO.listNetworksSharedBySpecificUser(requesterId, userId, compact);
+            }
+            try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+            	items.addAll(folderDAO.listFoldersSharedBySpecificUser(requesterId, userId, compact));
+            	items.addAll(folderDAO.listPublicRootItemsOfUser(userId, compact, FileType.SHORTCUT));
+            }
+
+            return Response.ok().entity(items).build();
+        } else {
+            // Anonymous - public content only
+            try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+                items = folderDAO.listPublicRootItemsOfUser(userId, compact);
+            }
+            return Response.ok(items).build();
+        }
+	}
+
 
 }
 
