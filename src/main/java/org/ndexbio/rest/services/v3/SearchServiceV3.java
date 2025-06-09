@@ -51,6 +51,11 @@ import org.ndexbio.model.network.query.CXObjectFilter;
 import org.ndexbio.model.network.query.FilterCriterion;
 import org.ndexbio.model.network.query.FilteredDirectQuery;
 import org.ndexbio.model.object.CXSimplePathQuery;
+import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileSearchResult;
+import org.ndexbio.model.object.FileType;
+import org.ndexbio.model.object.SimpleNetworkQuery;
+import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.tools.EdgeFilter;
 import org.ndexbio.rest.Configuration;
@@ -67,6 +72,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.swagger.v3.oas.annotations.Operation;
 
 @Path("/v3/search")
 
@@ -504,4 +510,63 @@ public class SearchServiceV3 extends NdexService  {
 		
 	}
 */
+
+	@POST
+	@PermitAll
+	@Path("/files")
+	@Operation(
+		summary = "Search Files",
+		description = """
+			Returns a FileSearchResult object which contains an array of FileItemSummary objects and total hit count of the search.
+			Currently only supports searching networks, but the response format is designed to support folders and shortcuts in the future.
+			
+			Query Parameters:
+			- start: Optional. Starting index for pagination (default: 0)
+			- size: Optional. Number of results per page (default: 100)
+			
+			Response:
+			- 200 OK: FileSearchResult with matching files
+			- 400 Bad Request: Invalid query parameters
+			"""
+	)
+	@Produces("application/json")
+	public FileSearchResult searchFiles(
+			final SimpleNetworkQuery query,
+			@DefaultValue("0") @QueryParam("start") int skipBlocks,
+			@DefaultValue("100") @QueryParam("size") int blockSize)
+			throws IllegalArgumentException, NdexException {
+				
+		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
+		
+    	if(query.getAccountName() != null)
+    		query.setAccountName(query.getAccountName().toLowerCase());
+        
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+			NetworkSearchResult networkResult = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
+			
+			// Convert NetworkSearchResult to FileSearchResult
+			FileSearchResult result = new FileSearchResult();
+			result.setNumFound(networkResult.getNumFound());
+			result.setStart(networkResult.getStart());
+			
+			// Convert NetworkSummary objects to FileItemSummary
+			List<FileItemSummary> files = new ArrayList<>();
+			for (NetworkSummary network : networkResult.getNetworks()) {
+				FileItemSummary file = new FileItemSummary();
+				file.setUuid(network.getExternalId());
+				file.setName(network.getName());
+				file.setType(FileType.NETWORK);
+				file.setModificationTime(network.getModificationTime());
+				files.add(file);
+			}
+			result.setFiles(files);
+			
+			return result;
+        } catch (NdexException e1) {
+        	throw e1;
+		} catch (Exception e) {
+			e.printStackTrace();
+        	throw new NdexException(e.getMessage());
+        }
+	}
 }
