@@ -143,6 +143,12 @@ public class RequestServiceV2 extends NdexService
     **************************************************************************/
     @GET
     @Path("/{requestid}")
+    @Deprecated
+    @Operation(
+    	    summary = "Get a request by ID",
+    	    description = "Retrieves a request using its UUID.",
+    	    deprecated = true
+    	)
     @Produces("application/json")
     public Request getRequest(@PathParam("requestid")final String requestId) 
     		throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
@@ -188,7 +194,8 @@ public class RequestServiceV2 extends NdexService
     **************************************************************************/
     @PUT
     @Path("/{requestid}/properties")
-	@Operation(summary = "Update Request Properties", description = "This function update the properties field of the request.")
+    @Deprecated
+	@Operation(summary = "Update Request Properties", description = "This function update the properties field of the request.", deprecated = true)
     @Produces("application/json")
 	
     public void updateRequestProperties(@PathParam("requestid")final String requestId, final Map<String,Object> properties)
