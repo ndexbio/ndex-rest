@@ -70,6 +70,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -159,6 +160,7 @@ public class BatchServiceV2 extends NdexService {
 	@Path("/network/summary")
 	@Operation(summary = "Get Network Summaries By UUIDs", description = "Return a JSON array of network summary objects selected by the POSTed JSON array of Network UUIDs.")
 	@Produces("application/json")
+	@Consumes("application/json")
 	public List<NetworkSummary> getNetworkSummaries(
 			@QueryParam("accesskey") String accessKey,
 			List<String> networkIdStrs)

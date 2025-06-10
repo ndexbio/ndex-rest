@@ -51,6 +51,7 @@ import java.util.UUID;
 
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -196,6 +197,7 @@ public class SearchServiceV2 extends NdexService {
 	@Path("/network")
 	@Operation(summary = "Search Networks", description = "Returns a SearchResult object which contains an array of NetworkSummary objects and total hit count of the search.")
 	@Produces("application/json")
+	@Consumes("application/json")
 	// TODO: need to node accountName is a filter and you cannot use wildcards
 	public NetworkSearchResult searchNetwork(
 			final SimpleNetworkQuery query,
@@ -622,6 +624,7 @@ public class SearchServiceV2 extends NdexService {
 	@Path("/network/genes")
 	@Operation(summary = "Search Networks by Gene/Protein", description = "Returns a SearchResult object which contains an array of NetworkSummary objects and total hit count of the search.")
 	@Produces("application/json")
+	@Consumes("application/json") 
 	public NetworkSearchResult searchNetworkByGenes(
 			final SimpleQuery geneQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
