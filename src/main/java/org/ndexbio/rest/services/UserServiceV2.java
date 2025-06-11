@@ -35,6 +35,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,8 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
@@ -66,6 +69,8 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.MembershipRequest;
 import org.ndexbio.model.object.NetworkSet;
 import org.ndexbio.model.object.PermissionRequest;
@@ -1086,40 +1091,67 @@ public class UserServiceV2 extends NdexService {
 
 	   	
 	   	@GET
-		@Path("/{userid}/showcase")
-		@Operation(summary = "Get User's Showcase Networks", description = "This function returns a list of network summary objects that the user who is specified by userid chose to display in his or her home page. For authenticated users, this function returns the networks that the authenticated user can read, for anonymous users, this function returns only public networks.")
-		@Produces("application/json")
-		@PermitAll
-		public List<NetworkSummary> getUserShowcaseNetworks(
-					 @PathParam("userid") String userIdStr
-					) throws SQLException, JsonParseException, JsonMappingException, IOException {
+	   	@Path("/user/{userid}/showcase")
+	   	@Deprecated
+	   	@Operation(
+	   	    summary = "[DEPRECATED] Get User's Showcase Networks",
+	   	    description = "DEPRECATED: Use /v3/users/{userid}/home instead. Returns list of public networks from a user's home folder or those shared with the viewer."
+	   	)
+	   	@Produces("application/json")
+	   	@PermitAll
+	   	public List<FileItemSummary> getUserShowcaseNetworks(
+	   	        @PathParam("userid") String userIdStr
+	   	) throws Exception {
+	   	    
+	   	    UUID userId = UUID.fromString(userIdStr);
+	   	    UUID requesterId = getLoggedInUserId();
+	   	    boolean compact = true;
+		    boolean isSelf = requesterId != null && requesterId.equals(userId);
 
-				UUID userId = UUID.fromString(userIdStr);
-								
-				try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-					
-					return dao.getUserShowCaseNetworkSummaries(userId, this.getLoggedInUserId());
-				} 
-				
-			}   
+		    List<FileItemSummary> items;
+	        if (isSelf) {
+		        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+		            items = dao.listRootItemsOfUser(userId, compact, null);
+		        }
+	        } else if (requesterId != null) {
+	            // Shared-with-me content in user's home folder
+	            try (NetworkDAO networkDAO = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+	                items = networkDAO.listNetworksSharedBySpecificUser(requesterId, userId, compact);
+	            }
+	            try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	            	items.addAll(folderDAO.listFoldersSharedBySpecificUser(requesterId, userId, compact));
+	            	items.addAll(folderDAO.listPublicRootItemsOfUser(userId, compact, FileType.SHORTCUT));
+	            }
+	        } else {
+	            // Anonymous - public content only
+	            try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	                items = folderDAO.listPublicRootItemsOfUser(userId, compact);
+	            }
+	        }
+
+	   	    return items;
+	   	}  
 	   	
 	  	@GET
 		@Path("/{userid}/networksummary")
-		@Operation(summary = "Get User's Account Page Networks", description = "This is a function designed to support My Account pages in NDEx applications. It returns a list of NetworkSummary objects to display.")
+	  	@Deprecated
+		@Operation(summary = "[DEPRECATED] Get User's Account Page Networks", description = "DEPRECATED: Use /v3/users/{userid}/home instead. This is a function designed to support My Account pages in NDEx applications. It returns a list of NetworkSummary objects to display.")
 		@Produces("application/json")
-		public List<NetworkSummary> getNetworkSummariesForMyAccountPage(
+		public List<FileItemSummary> getNetworkSummariesForMyAccountPage(
 						@PathParam("userid") String userIdStr,
 						@DefaultValue("0") @QueryParam("offset") int offset,
 						@DefaultValue("0") @QueryParam("limit") int limit
-			) throws SQLException, JsonParseException, JsonMappingException, IOException, UnauthorizedOperationException {
+			) throws Exception {
 
 			UUID userId = UUID.fromString(userIdStr);
 			if ( !userId.equals(getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Userid has to be the same as the autheticated user's");
 			
-			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-				return dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
-			} 
+			List<FileItemSummary> items;
+	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	            items = dao.listRootItemsOfUser(userId, true, null);
+	        }
+	        return items;
 					
 		}      	
 
