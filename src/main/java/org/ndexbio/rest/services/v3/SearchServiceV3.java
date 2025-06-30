@@ -16,6 +16,7 @@ import java.util.UUID;
 
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -31,6 +32,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import org.apache.solr.client.solrj.SolrServerException;
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
@@ -56,6 +59,7 @@ import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.NetworkSearchResult;
+import org.ndexbio.model.object.SimpleFileQuery;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.tools.EdgeFilter;
 import org.ndexbio.rest.Configuration;
@@ -530,43 +534,58 @@ public class SearchServiceV3 extends NdexService  {
 			"""
 	)
 	@Produces("application/json")
+	@Consumes("application/json")
 	public FileSearchResult searchFiles(
-			final SimpleNetworkQuery query,
+			final SimpleFileQuery query,
+			@QueryParam("type") FileType type,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize)
-			throws IllegalArgumentException, NdexException {
+			throws SQLException, Exception {
 				
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
 		
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
+
+		FileSearchResult result = new FileSearchResult();
         
-    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-			NetworkSearchResult networkResult = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
-			
-			// Convert NetworkSearchResult to FileSearchResult
-			FileSearchResult result = new FileSearchResult();
-			result.setNumFound(networkResult.getNumFound());
-			result.setStart(networkResult.getStart());
-			
-			// Convert NetworkSummary objects to FileItemSummary
-			List<FileItemSummary> files = new ArrayList<>();
-			for (NetworkSummary network : networkResult.getNetworks()) {
-				FileItemSummary file = new FileItemSummary();
-				file.setUuid(network.getExternalId());
-				file.setName(network.getName());
-				file.setType(FileType.NETWORK);
-				file.setModificationTime(network.getModificationTime());
-				files.add(file);
+		if (type == FileType.NETWORK || type == null) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+				NetworkSearchResult networkResult = dao.findNetworks((SimpleNetworkQuery)query, skipBlocks, blockSize, this.getLoggedInUser());
+				
+				// Convert NetworkSearchResult to FileSearchResult
+				result.setNumFound(networkResult.getNumFound());
+				result.setStart(networkResult.getStart());
+				
+				// Convert NetworkSummary objects to FileItemSummary
+				List<FileItemSummary> files = new ArrayList<>();
+				for (NetworkSummary network : networkResult.getNetworks()) {
+					FileItemSummary file = new FileItemSummary();
+					file.setUuid(network.getExternalId());
+					file.setName(network.getName());
+					file.setType(FileType.NETWORK);
+					file.setModificationTime(network.getModificationTime());
+					files.add(file);
+				}
+				result.setFiles(files);
+			} catch (NdexException e1) {
+				throw e1;
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw new NdexException(e.getMessage());
 			}
-			result.setFiles(files);
-			
-			return result;
-        } catch (NdexException e1) {
-        	throw e1;
-		} catch (Exception e) {
-			e.printStackTrace();
-        	throw new NdexException(e.getMessage());
-        }
+		}
+//		if (type == FileType.FOLDER || type == null) {
+//			try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+//				FolderSearchResult folderResult = dao.findFolders(query, skipBlocks, blockSize, this.getLoggedInUser());
+//			}
+//		}
+//		if (type == FileType.SHORTCUT || type == null) {
+//			try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+//				ShortcutSearchResult shortcutResult = dao.findShortcuts(query, skipBlocks, blockSize, this.getLoggedInUser());
+//			}
+//		}
+
+		return result;
 	}
 }
