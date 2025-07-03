@@ -1134,26 +1134,24 @@ public class UserServiceV2 extends NdexService {
 	   	
 	  	@GET
 		@Path("/{userid}/networksummary")
-	  	@Deprecated
+	  	// @Deprecated
 		@Operation(summary = "[DEPRECATED] Get User's Account Page Networks", description = "DEPRECATED: Use /v3/users/{userid}/home instead. This is a function designed to support My Account pages in NDEx applications. It returns a list of NetworkSummary objects to display.")
 		@Produces("application/json")
-		public List<FileItemSummary> getNetworkSummariesForMyAccountPage(
+		public List<NetworkSummary> getNetworkSummariesForMyAccountPage(
 						@PathParam("userid") String userIdStr,
 						@DefaultValue("0") @QueryParam("offset") int offset,
 						@DefaultValue("0") @QueryParam("limit") int limit
-			) throws Exception {
+			) throws SQLException, JsonParseException, JsonMappingException, IOException, UnauthorizedOperationException {
 
 			UUID userId = UUID.fromString(userIdStr);
 			if ( !userId.equals(getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Userid has to be the same as the autheticated user's");
 			
-			List<FileItemSummary> items;
-	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	            items = dao.listRootItemsOfUser(userId, true, null);
-	        }
-	        return items;
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+				return dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
+			} 
 					
-		}      	
+		}       	
 
 
 	  	@GET
