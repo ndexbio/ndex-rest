@@ -185,6 +185,7 @@ public class BatchServiceV2 extends NdexService {
 	@Path("/network/permission")
 	@Operation(summary = "Get Network Permissions By UUIDs", description = "This function returns what permissions the authenticated user has on the given list of network ids.")
 	@Produces("application/json")
+	@Consumes("application/json")
 	public Map<String,String> getNetworkPermissions(
 			List<String> networkIdStrs)
 			throws IllegalArgumentException, NdexException, SQLException {
