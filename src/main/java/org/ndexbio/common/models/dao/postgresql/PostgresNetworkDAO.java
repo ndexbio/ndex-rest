@@ -2151,7 +2151,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 				+ " union select n.creation_time, n.modification_time, n.name,n.description,n.version,"
 				+ "n.edgecount,n.nodecount,n.visibility,n.owner,n.owneruuid,"
 				+ " n.properties, n.\"UUID\", n.is_validated, n.error, n.readonly, n.warnings, un.show_in_homepage, n.subnetworkids,n.solr_idx_lvl,"
-				+ " n.iscomplete, n.ndexdoi, n.certified,n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size "
+				+ " n.iscomplete, n.ndexdoi, n.certified,n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size, n.parent, n.show_in_trash"
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? ) k order by k.modification_time desc"; 
 
 		if ( offset >=0 && limit >0) {
