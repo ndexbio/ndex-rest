@@ -223,5 +223,33 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	    }
 	}
 
+    /**
+     * Returns all root-level (parent is null) shortcuts for a user that are not deleted.
+     */
+    public List<Shortcut> listRootShortcutsOfUser(UUID ownerId) throws SQLException {
+        List<Shortcut> result = new ArrayList<>();
+        String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type " +
+                     " FROM shortcut " +
+                     " WHERE owneruuid=? AND parent IS NULL AND is_deleted=false " +
+                     " ORDER BY name";
+        try (PreparedStatement pst = db.prepareStatement(sql)) {
+            pst.setObject(1, ownerId);
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) {
+                    Shortcut s = new Shortcut();
+                    s.setExternalId((UUID) rs.getObject("UUID"));
+                    s.setName(rs.getString("name"));
+                    s.setCreationTime(rs.getTimestamp("creation_time"));
+                    s.setModificationTime(rs.getTimestamp("modification_time"));
+                    s.setIsDeleted(rs.getBoolean("is_deleted"));
+                    s.setTarget((UUID) rs.getObject("target"));
+                    s.setParent((UUID) rs.getObject("parent"));
+                    s.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
+                    result.add(s);
+                }
+            }
+        }
+        return result;
+    }
 
 }

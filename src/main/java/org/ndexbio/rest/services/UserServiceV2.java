@@ -37,8 +37,10 @@ import java.net.URLEncoder;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -60,6 +62,7 @@ import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -78,6 +81,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.ResponseType;
+import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -1148,7 +1152,30 @@ public class UserServiceV2 extends NdexService {
 				throw new UnauthorizedOperationException("Userid has to be the same as the autheticated user's");
 			
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-				return dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
+				List<NetworkSummary> result = dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
+				try (PostgresShortcutDAO shortcutDAO = new PostgresShortcutDAO();
+				     PostgresNetworkDAO networkDAO = new PostgresNetworkDAO()) {
+					List<Shortcut> shortcuts = shortcutDAO.listRootShortcutsOfUser(userId);
+					Set<UUID> seen = new HashSet<>();
+					for (NetworkSummary ns : result) {
+						seen.add(ns.getExternalId());
+					}
+					for (Shortcut shortcut : shortcuts) {
+						if (shortcut.getTargetType() == FileType.NETWORK && shortcut.getTarget() != null) {
+							UUID networkId = shortcut.getTarget();
+							if (!seen.contains(networkId)) {
+								try {
+									NetworkSummary ns = networkDAO.getNetworkSummaryById(networkId);
+									result.add(ns);
+									seen.add(networkId);
+								} catch (Exception e) {
+									// Ignore missing or inaccessible networks
+								}
+							}
+						}
+					}
+				}
+				return result;
 			} 
 					
 		}       	
