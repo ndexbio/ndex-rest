@@ -118,7 +118,7 @@ public class NetworkServiceV3  extends NdexService {
 			throws Exception {
     	
     	String title = null;
-    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+    	try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
     		UUID networkUUID = UUID.fromString(networkId);
     		if ( !dao.hasCX2(networkUUID)) {
     			throw new ObjectNotFoundException("CX2 network is not available for this network. ");
@@ -175,7 +175,7 @@ public class NetworkServiceV3  extends NdexService {
 
     	UUID networkUUID = UUID.fromString(networkId);
 
-		try (PostgresNetworkDAO dao = new PostgresNetworkDAO() ) {
+		try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO() ) {
 			if ( dao.isReadable(networkUUID, getLoggedInUserId()) || dao.accessKeyIsValid(networkUUID, accessKey)) {
 				List<CxMetadata> mdc = dao.getCx2MetaDataList(networkUUID);
 		    	return mdc;
@@ -191,7 +191,7 @@ public class NetworkServiceV3  extends NdexService {
 			@PathParam("networkid") final String networkId,
 			@DefaultValue("first") @QueryParam("method") String method,
 			@DefaultValue("-1") @QueryParam("size") int limit,
-			@QueryParam("accesskey") String accessKey ) throws NdexException, SQLException {
+			@QueryParam("accesskey") String accessKey ) throws Exception {
 		if ( method.equalsIgnoreCase("first"))
 			return getAspectElements(networkId, CxEdge.ASPECT_NAME, limit, accessKey);
 		else if ( !method.equalsIgnoreCase("random"))
@@ -202,7 +202,7 @@ public class NetworkServiceV3  extends NdexService {
 			
 			UUID networkUUID = UUID.fromString(networkId);
 	    	
-	    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+	    	try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 	    		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
 	    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 	    			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -250,12 +250,12 @@ public class NetworkServiceV3  extends NdexService {
 	public Response getAspectElements(	@PathParam("networkid") final String networkId,
 			@PathParam("aspectname") final String aspectName,
 			@DefaultValue("-1") @QueryParam("size") int limit,
-			@QueryParam("accesskey") String accessKey ) throws SQLException, NdexException
+			@QueryParam("accesskey") String accessKey ) throws Exception
 		 {
 
     	UUID networkUUID = UUID.fromString(networkId);
     	
-    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+    	try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
     		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
     				! dao.accessKeyIsValid(networkUUID, accessKey)) {
     			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -448,43 +448,44 @@ public class NetworkServiceV3  extends NdexService {
 
 	   	}
 	   
-	   private Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid) throws JsonProcessingException, ObjectNotFoundException, SQLException, NdexException, IOException, URISyntaxException, Exception {
+	   public Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid) throws JsonProcessingException, ObjectNotFoundException, SQLException, NdexException, IOException, URISyntaxException, Exception {
 		   return processRawCX2Network(visibility, extraIndexOnNodes, uuid, null);
 	   }
 
-		private Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid, UUID folderId)
+	   private Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid, UUID folderId)
 				throws SQLException, NdexException, IOException, ObjectNotFoundException, JsonProcessingException,
 				URISyntaxException, Exception {
-			String uuidStr = uuid.toString();
+		   
+		   String uuidStr = uuid.toString();
 			   accLogger.info("[data]\t[uuid:" +uuidStr + "]" );
 		   
-			   String urlStr = Configuration.getInstance().getHostURI() +"/v3/networks/"+ uuidStr;
-			   
-			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/" + CX2NetworkLoader.cx2NetworkFileName;
-			   long fileSize = new File(cxFileName).length();
+		   String urlStr = Configuration.getInstance().getHostURI() +"/v3/networks/"+ uuidStr;
+		   
+		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/" + CX2NetworkLoader.cx2NetworkFileName;
+		   long fileSize = new File(cxFileName).length();
 
-			   // create entry in db. 
-			   NdexObjectUpdateStatus status;
-		       try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-		    	   status = 
-		    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null, CX2NetworkLoader.cx2Format);
+		   // create entry in db. 
+		   NdexObjectUpdateStatus status;
+	       try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+	    	   status = 
+	    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null, CX2NetworkLoader.cx2Format);
+       
+			   dao.commit();
+	       }
 	       
-				   dao.commit();
-		       }
-		       
-			   if (folderId != null) {
-					try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
-						networkDao.setNetworkFolder(uuid, folderId);
-						networkDao.commit();
-					}
-			   }
-		       
-		       NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(uuid, false, visibility, extraIndexOnNodes));		   
-			   URI l = new URI (urlStr);
-			   ObjectMapper om = new ObjectMapper();
+		   if (folderId != null) {
+				try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+					networkDao.setNetworkFolder(uuid, folderId);
+					networkDao.commit();
+				}
+		   }
+	       
+	       NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(uuid, false, visibility, extraIndexOnNodes));		   
+		   URI l = new URI (urlStr);
+		   ObjectMapper om = new ObjectMapper();
 
-			   return Response.created(l).header("Access-Control-Expose-Headers", "Location")
-					   .entity(om.writeValueAsString(status)).build();
+		   return Response.created(l).header("Access-Control-Expose-Headers", "Location")
+				   .entity(om.writeValueAsString(status)).build();
 		}
 		
 		
@@ -551,7 +552,7 @@ public class NetworkServiceV3  extends NdexService {
 	        UUID networkId = UUID.fromString(networkIdStr);
 	        
 	        NdexObjectUpdateStatus s;
-	        try ( PostgresNetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
+	        try ( NetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
 				
 				try (InputStream in = this.getInputStreamFromRequest()) {
 						UUID tmpNetworkId = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
@@ -601,7 +602,7 @@ public class NetworkServiceV3  extends NdexService {
 	        
             NdexObjectUpdateStatus s;
             
-	        try ( PostgresNetworkDAO daoNew =lockNetworkForUpdate(networkId) ) {
+	        try ( NetworkDAO daoNew =lockNetworkForUpdate(networkId) ) {
 				try {			
 					UUID tmpNetworkId = storeRawNetworkFromMultipart (input, CX2NetworkLoader.cx2NetworkFileName);
 
@@ -621,7 +622,7 @@ public class NetworkServiceV3  extends NdexService {
 	    }
 
 
-		private static NdexObjectUpdateStatus updateCx2NetworkFromSavedFile(UUID networkId, PostgresNetworkDAO daoNew,
+		private static NdexObjectUpdateStatus updateCx2NetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
 				UUID tmpNetworkId) throws SQLException, NdexException, IOException, JsonParseException,
 				JsonMappingException, ObjectNotFoundException {
 			String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString()
@@ -658,14 +659,14 @@ public class NetworkServiceV3  extends NdexService {
 				@QueryParam("nodeattributes") String nodeAttrStr,
 				@QueryParam("edgeattributes") String edgeAttrStr,
 				@DefaultValue("false")  @QueryParam("quotestringinlist") boolean quoteStringInList
-				) throws NdexException, SQLException, IOException {
+				) throws Exception {
 			
 			if  (!type.equals("node") && !type.equals("edge") )
 				throw new BadRequestException("Parameter \"type\" can only be 'node' or 'edge'.");	
 			
 			UUID networkUUID = UUID.fromString(networkId);
 	    	
-	    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+	    	try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 	    		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
 	    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 	    			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -755,7 +756,7 @@ public class NetworkServiceV3  extends NdexService {
 			
 			UUID networkUUID = UUID.fromString(networkId);
 			
-			try (PostgresNetworkDAO dao = new PostgresNetworkDAO() ) {
+			try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO() ) {
 				String currentDOI = dao.getNetworkDOI(networkUUID);
 				if ( currentDOI ==null || !currentDOI.equals(PostgresNetworkDAO.PENDING)) {
 					throw new ForbiddenOperationException("This operation only works when a DOI is pending. The current value of DOI is: " + currentDOI );
@@ -843,12 +844,12 @@ public class NetworkServiceV3  extends NdexService {
 				@DefaultValue("FULL") @QueryParam("format") String format
 				/*@Context org.jboss.resteasy.spi.HttpResponse response*/ )
 
-				throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+				throws Exception {
 			
 			try {
 			NetworkSummaryFormat fmt = NetworkSummaryFormat.valueOf(format.toUpperCase());
 					
-			try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
+			try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO())  {
 				UUID userId = getLoggedInUserId();
 				UUID networkId = UUID.fromString(networkIdStr);
 				if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
@@ -870,8 +871,8 @@ public class NetworkServiceV3  extends NdexService {
 		public void deleteNetwork(
 		    @PathParam("networkid") final String id,
 		    @QueryParam("permanent") @DefaultValue("false") boolean permanent
-		) throws NdexException, SQLException, JsonProcessingException {
-		    try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
+		) throws Exception {
+		    try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 		        UUID networkId = UUID.fromString(id);
 		        UUID userId = getLoggedInUser().getExternalId();
 		        
