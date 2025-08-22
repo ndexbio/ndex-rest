@@ -20,8 +20,13 @@ import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.NetworkSummaryFormat;
+import org.ndexbio.model.object.network.NetworkSummaryV3;
+import org.ndexbio.model.object.network.VisibilityType;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 
 public interface NetworkDAO extends AutoCloseable {
     void commit() throws SQLException;
@@ -134,4 +139,20 @@ public interface NetworkDAO extends AutoCloseable {
 
     Map<String,String> getNetworkUserPermissions(UUID networkId, Permissions permission, int skipBlocks, int blockSize) 
 			throws SQLException;
+
+    void setDOI (UUID networkId, String DOIStr) throws SQLException, NdexException;
+
+    NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException;
+    
+    VisibilityType getNetworkVisibility(UUID networkId) throws SQLException, NdexException;
+    
+    NetworkSummaryV3 getNetworkMetadataById (UUID networkId, NetworkSummaryFormat format) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException;
+    
+    List<CxMetadata> getCx2MetaDataList(UUID networkId) throws SQLException, IOException, NdexException;
+    
+    int getNetworkEdgeCount (UUID networkId) throws SQLException, ObjectNotFoundException;
+    
+    NdexObjectUpdateStatus clearNetworkSummary(UUID networkId, long fileSize) throws SQLException, NdexException;
+    
+    void unlockNetwork (UUID networkId) throws  SQLException;
 } 

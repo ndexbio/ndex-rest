@@ -81,6 +81,7 @@ import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CX2NetworkFileGenerator;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
+import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
@@ -1362,7 +1363,7 @@ public class NetworkServiceV2 extends NdexService {
         UUID networkId = UUID.fromString(networkIdStr);
 
    //     String ownerAccName = null;
-        try ( PostgresNetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
+        try ( NetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
            	
 			try (InputStream in = this.getInputStreamFromRequest()) {
 					UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName);
@@ -1385,7 +1386,7 @@ public class NetworkServiceV2 extends NdexService {
 
 
 
-	private static void updateNetworkFromSavedFile(UUID networkId, PostgresNetworkDAO daoNew,
+	private static void updateNetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
 			UUID tmpNetworkId) throws SQLException, NdexException, IOException, JsonParseException,
 			JsonMappingException, ObjectNotFoundException {
 		String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + tmpNetworkId.toString()
