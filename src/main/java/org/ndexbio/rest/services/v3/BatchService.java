@@ -112,6 +112,7 @@ public class BatchService extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/networks/summary")
+	@Operation(summary = "Get Network Summaries By UUIDs (V3)", description = "Returns a JSON array of NetworkSummaryV3 objects selected by the POSTed JSON array of Network UUIDs. Supports different summary formats and access keys for private networks.")
 	@Produces("application/json")
 	public List<NetworkSummaryV3> getNetworkSummaries(
 			@QueryParam("accesskey") String accessKey,
@@ -172,6 +173,7 @@ public class BatchService extends NdexService {
 	
     @POST
     @Path("/files/setvisibility")
+    @Operation(summary = "Set File Visibility", description = "Set the visibility (PUBLIC or PRIVATE) for a batch of files (networks, folders, etc.). User must be the owner of the files.")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response setVisibility(FileVisibilityRequest request) throws Exception {

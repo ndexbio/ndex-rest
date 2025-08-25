@@ -304,6 +304,7 @@ public class AdminServiceV2 extends NdexService {
 	@PermitAll
 	@NdexOpenFunction
 	@Path("/shutdown")
+	@Operation(summary = "Shutdown Server", description = "Shuts down the NDEx server. This endpoint is typically used for administrative purposes and may require special privileges.")
 	@Produces("application/json")
 	public void shutDown()	{
 		logger.info("[start: shutdown server]");

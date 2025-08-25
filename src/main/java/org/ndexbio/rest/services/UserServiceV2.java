@@ -658,6 +658,7 @@ public class UserServiceV2 extends NdexService {
 	@Deprecated
 	@GET
 	@Path("/{userid}/permission")
+	@Operation(summary = "Get User's Network Permission (DEPRECATED)", description = "Get the type(s) of permission assigned to the authenticated user for the specified network. This endpoint is deprecated and will be removed in a future version.", deprecated = true)
 	@Produces("application/json")
 	public Map<String,String> getNetworkPermissionInfo(
 			@PathParam("userid") final String userIdStr,
@@ -916,6 +917,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@PUT
 		@Path("/{userid}/membershiprequest/{requestid}")
+		@Operation(summary = "Respond to Membership Request", description = "Respond to a membership request with accept or deny action. The user must be the group admin to respond to membership requests.")
 		@Produces("application/json")
 		public void respondMembershipRequest(
 				 @PathParam("userid") String userIdStr,
@@ -976,6 +978,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@PUT
 		@Path("/{userid}/permissionrequest/{requestid}")
+		@Operation(summary = "Respond to Permission Request", description = "Respond to a permission request with accept or deny action. The user must be the network owner to respond to permission requests.")
 		@Produces("application/json")
 		public void respondPermissionRequest(
 				 @PathParam("userid") String userIdStr,
@@ -1047,6 +1050,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@DELETE
 		@Path("/{userid}/membershiprequest/{requestid}")
+		@Operation(summary = "Delete Membership Request", description = "Delete a membership request by its ID. The authenticated user must be the owner of the request.")
 		@Produces("application/json")
 		public void deleteMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
@@ -1074,6 +1078,7 @@ public class UserServiceV2 extends NdexService {
 	
 	   	@DELETE
 		@Path("/{userid}/permissionrequest/{requestid}")
+		@Operation(summary = "Delete Permission Request", description = "Delete a permission request by its ID. The authenticated user must be the owner of the request.")
 		@Produces("application/json")
 		public void deletePermissionRequestById(
 					 @PathParam("userid") String userIdStr,

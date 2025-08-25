@@ -226,6 +226,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/nodes")
+	@Operation(summary = "Query Network Nodes", description = "Search for nodes within a specific network using a query string. Returns a list of matching nodes with their properties.")
 	@Produces("application/json")
    
 	public SolrDocumentList queryNetworkNodes(

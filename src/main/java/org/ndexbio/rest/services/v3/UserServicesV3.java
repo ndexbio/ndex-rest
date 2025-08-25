@@ -41,6 +41,8 @@ import org.ndexbio.rest.services.UserServiceV2;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 
 @Path("/v3/users")
 
@@ -54,6 +56,7 @@ public class UserServicesV3 extends NdexService {
 	
   	@GET
 	@Path("/{userid}/workspaces")
+	@Operation(summary = "Get User's Workspaces", description = "Returns a list of CyWebWorkspace objects owned by the specified user. The authenticated user must be the same as the userid parameter.")
 	@Produces("application/json")
   	
 	public List<CyWebWorkspace> getWorkspacesByUserId(
@@ -74,6 +77,7 @@ public class UserServicesV3 extends NdexService {
 	@NdexOpenFunction
 	@PermitAll
 	@Path("/signin")
+	@Operation(summary = "Sign In with ID Token", description = "Authenticate a user using an OpenID Connect ID token. If the user doesn't exist, a new account will be created automatically.")
 	@Produces("application/json")
   	
 	public User signInByIdToken(
@@ -110,6 +114,7 @@ public class UserServicesV3 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("")
+	@Operation(summary = "Get User By Account Name", description = "Return the user corresponding to the provided user name. Use fullrecord=true and provide an access key to get complete user information.")
 	@Produces("application/json")
 	public User getUserByAccountName(
 			@QueryParam("username") /*@Encoded*/ final String accountName,
@@ -152,6 +157,7 @@ public class UserServicesV3 extends NdexService {
 	
 	@GET
 	@Path("/{userid}/home")
+	@Operation(summary = "Get User's Home Content", description = "Returns the content of a user's home folder including networks, folders, and shortcuts. Shows different content based on authentication status and relationship to the user.")
 	@Produces("application/json")
 	@PermitAll
 	public Response getUserHomeContent(

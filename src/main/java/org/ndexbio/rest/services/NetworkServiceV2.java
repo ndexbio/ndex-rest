@@ -892,6 +892,7 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@PUT
 	@Path("/{networkid}/reference")
+	@Operation(summary = "Update Network Reference", description = "Update the reference information for a pre-certified network. This endpoint is used to update citation and reference data for networks that are being prepared for certification.")
 	@Produces("application/json")
 	public void updateReferenceOnPreCertifiedNetwork(@PathParam("networkid") final String networkId,
 			Map<String,String> reference) throws SQLException, NdexException, SolrServerException, IOException {
@@ -1271,6 +1272,7 @@ public class NetworkServiceV2 extends NdexService {
 	
     @PUT
     @Path("/{networkid}")
+    @Operation(summary = "Update Network with multipart/form-data", description = "Update an entire network using multipart form data containing CX data. This endpoint is used for uploading network data as a file.")
     @Consumes("multipart/form-data")
     @Produces("application/json")
 
@@ -1799,6 +1801,7 @@ public class NetworkServiceV2 extends NdexService {
 	//	@PermitAll
 
 	   @Path("")
+	   @Operation(summary = "Create Network from multipart/form-data", description = "Create a network from CX data using multipart form data. This is typically used for file uploads from web forms.")
 	   @Produces("text/plain")
 	   @Consumes("multipart/form-data")
 	   public Response createCXNetwork( MultipartFormDataInput input,
@@ -2089,6 +2092,7 @@ public class NetworkServiceV2 extends NdexService {
 	    @POST
 		@PermitAll
 		@Path("/properties/score")
+		@Operation(summary = "Get Network Score from Properties", description = "Calculate and return a network score based on the provided network properties. This is a utility function for network quality assessment.")
 		@Produces("application/json")
 	    public static int getScoresFromProperties(
 	    		final List<NdexPropertyValuePair> properties)
@@ -2100,6 +2104,7 @@ public class NetworkServiceV2 extends NdexService {
 	    @POST
 		@PermitAll
 		@Path("/summary/score")
+		@Operation(summary = "Get Network Score from Summary", description = "Calculate and return a network score based on the provided network summary. This is a utility function for network quality assessment.")
 		@Produces("application/json")
 	    public static int getScoresFromNetworkSummary(
 	    		final NetworkSummary summary)
