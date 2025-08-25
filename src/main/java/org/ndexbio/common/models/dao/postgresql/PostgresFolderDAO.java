@@ -43,11 +43,11 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	}
 	
 	@Override
-	public NdexObjectUpdateStatus createFolder(final UUID folderUUID, final UUID ownerId, final UUID parentUUID, final String name) throws SQLException {
+	public NdexObjectUpdateStatus createFolder(final UUID folderUUID, final UUID ownerId, final UUID parentUUID, final String name, final String description) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 		
-		String sqlStr = "insert into folder (\"UUID\", creation_time, modification_time, is_deleted, name, visibility, owneruuid, access_key_is_on, parent) values"
-				+ "(?, ?, ?, false, ?, 'PRIVATE',?, false, ?) ";
+		String sqlStr = "insert into folder (\"UUID\", creation_time, modification_time, is_deleted, name, visibility, owneruuid, access_key_is_on, parent, description) values"
+				+ "(?, ?, ?, false, ?, 'PRIVATE',?, false, ?, ?) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, folderUUID);
 			pst.setTimestamp(2, t);
@@ -55,7 +55,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 			pst.setString(4, name);
 			pst.setObject(5, ownerId);
 			pst.setObject(6, parentUUID);
-			
+			pst.setString(7, description);
+
 			pst.executeUpdate();
 		}
 		NdexObjectUpdateStatus result = new NdexObjectUpdateStatus();
@@ -124,8 +125,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	public Folder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
 		Folder result = new Folder();
-		String sqlStr = "select creation_time, modification_time, name, parent, is_deleted from folder where \"UUID\"=?";
-		
+		String sqlStr = "select creation_time, modification_time, name, parent, is_deleted, description from folder where \"UUID\"=?";
+
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, folderId);
 			try ( ResultSet rs = p.executeQuery()) {
@@ -136,6 +137,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 					result.setName(rs.getString(3));
 					result.setParent((UUID)(rs.getObject(4)));
 					result.setIsDeleted(rs.getBoolean(5));
+					result.setDescription(rs.getString(6));
 				} else
 					throw new ObjectNotFoundException("Folder" + folderId + " not found in db.");
 			}
@@ -289,10 +291,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	}
 	
 	@Override
-	public void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId) throws SQLException, JsonProcessingException, NdexException {
-		
-	    if (name == null && parentId == null) {
-	        throw new NdexException("No updates requested (both name and parent are null).");
+	public void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId, String description) throws SQLException, JsonProcessingException, NdexException {
+
+	    if (name == null && parentId == null && description == null) {
+	        throw new NdexException("No updates requested (name, parent, and description are all null).");
 	    }
 	    
 		Timestamp t = new Timestamp(System.currentTimeMillis());
@@ -304,6 +306,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    if (parentId != null) {
 	        sb.append(", parent=?");
 	    }
+	    if (description != null) {
+	        sb.append(", description=?");
+	    }
 	    sb.append(" WHERE \"UUID\"=? AND is_deleted=false");
 				
 	    try (PreparedStatement pst = db.prepareStatement(sb.toString())) {
@@ -314,6 +319,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        }
 	        if (parentId != null) {
 	            pst.setObject(idx++, parentId);
+	        }
+	        if (description != null) {
+	            pst.setString(idx++, description);
 	        }
 	        pst.setObject(idx++, folderId);
 	        
@@ -397,16 +405,21 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    /* ────────────── 1) Folders ─────────────── */
 	    if (type == null || type == FileType.FOLDER) {
-	        String sql = "SELECT " + baseCols + " FROM folder WHERE "
+	        String sql = "SELECT " + baseCols + (compact ? ", description" : "") + " FROM folder WHERE "
 	                   + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
 	        try (PreparedStatement pst = db.prepareStatement(sql)) {
 	            pst.setObject(1, contextId);
 	            try (ResultSet rs = pst.executeQuery()) {
 	                while (rs.next()) {
+						Map<String, Object> attr = null;
+	                    if (compact) {
+	                        attr = new HashMap<>();
+	                        attr.put("description", rs.getString(5));
+	                    }
 	                    results.add(new FileItemSummary(
 	                        (UUID) rs.getObject(1), FileType.FOLDER,
 	                        rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                        compact ? Map.of() : null));
+	                        attr));
 	                }
 	            }
 	        }
@@ -465,7 +478,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                    // Check target status
 	                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
 	                    
-	                    if (targetId != null) {
+	                    if (targetId != null && targetType != null) {
 	                        String checkTargetSql = "SELECT is_deleted FROM " + 
 	                            (targetType.equals("FOLDER") ? "folder" : "network") + 
 	                            " WHERE \"UUID\"=?";
@@ -497,7 +510,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	public List<Folder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException {
 	    List<Folder> result = new ArrayList<>();
 
-	    String sql = "SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted " +
+	    String sql = "SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description " +
 	                 " FROM folder " +
 	                 " WHERE owneruuid=? AND is_deleted=false " +
 	                 " ORDER BY name " +
@@ -516,6 +529,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                f.setCreationTime(rs.getTimestamp("creation_time"));
 	                f.setModificationTime(rs.getTimestamp("modification_time"));
 	                f.setIsDeleted(rs.getBoolean("is_deleted"));
+					f.setDescription(rs.getString("description"));
 
 	                result.add(f);
 	            }
@@ -763,7 +777,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
     }
     
     public List<FileItemSummary> listFoldersSharedBySpecificUser(UUID userId, UUID ownerId, boolean compact) throws SQLException {
-        String sql = "SELECT DISTINCT f.\"UUID\", f.name, f.modification_time, f.updated_by " +
+        String sql = "SELECT DISTINCT f.\"UUID\", f.name, f.modification_time, f.updated_by, f.description " +
                 "FROM folder f " +
                 "LEFT JOIN folder_permission fp ON f.\"UUID\" = fp.folder_id AND fp.user_id = ? " +
                 "WHERE f.owneruuid = ? " +
@@ -777,10 +791,15 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	       pst.setObject(2, ownerId);
 	       try (ResultSet rs = pst.executeQuery()) {
 	           while (rs.next()) {
+					Map<String, Object> attr = null;
+					if (compact) {
+						attr = new HashMap<>();
+						attr.put("description", rs.getString(5));
+					}
 	               result.add(new FileItemSummary(
 	                   (UUID) rs.getObject(1), FileType.FOLDER,
 	                   rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                   compact ? Map.of() : null
+	                   attr
 	               ));
 	           }
 	       }
@@ -799,68 +818,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
                 throw new NdexException("Failed to update visibility for folder " + folderId);
             }
         }
-    }
-
-    public List<Map<String, Object>> listItemsInFolderOrHome(UUID userId, UUID folderId) throws SQLException {
-        String sql = "SELECT f.folder_id, f.owner_id, f.name, f.parent_id, f.is_deleted, f.creation_time, f.modification_time, " +
-                    "       s.target_type, s.target, " +
-                    "       n.\"UUID\", n.name as network_name, n.owneruuid, n.is_deleted as network_deleted, " +
-                    "       u.user_name, u.first_name, u.last_name " +
-                    "FROM folder f " +
-                    "LEFT JOIN shortcut s ON f.folder_id = s.folder_id " +
-                    "LEFT JOIN network n ON f.folder_id = n.folder_id " +
-                    "LEFT JOIN ndex_user u ON f.owner_id = u.uuid " +
-                    "WHERE f.owner_id = ? AND (f.parent_id = ? OR (? IS NULL AND f.parent_id IS NULL)) " +
-                    "ORDER BY f.name";
-
-        List<Map<String, Object>> result = new ArrayList<>();
-        try (PreparedStatement pst = db.prepareStatement(sql)) {
-            pst.setObject(1, userId);
-            pst.setObject(2, folderId);
-            pst.setObject(3, folderId);
-            try (ResultSet rs = pst.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> item = new HashMap<>();
-                    item.put("id", rs.getObject("folder_id"));
-                    item.put("name", rs.getString("name"));
-                    item.put("type", "FOLDER");
-                    item.put("ownerId", rs.getObject("owner_id"));
-                    item.put("owner", rs.getString("user_name"));
-                    item.put("parentId", rs.getObject("parent_id"));
-                    item.put("isDeleted", rs.getBoolean("is_deleted"));
-                    item.put("creationTime", rs.getTimestamp("creation_time"));
-                    item.put("modificationTime", rs.getTimestamp("modification_time"));
-
-                    // Check if this folder has a shortcut
-                    if (rs.getObject("target_type") != null) {
-                        String targetType = rs.getString("target_type");
-                        UUID targetId = (UUID) rs.getObject("target");
-                        
-                        // Check target status
-                        ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
-                        if (targetId != null) {
-                            String checkTargetSql = "SELECT is_deleted FROM " + 
-                                                  (targetType.equals("NETWORK") ? "network" : "folder") + 
-                                                  " WHERE " + (targetType.equals("NETWORK") ? "\"UUID\"" : "folder_id") + " = ?";
-                            try (PreparedStatement checkPst = db.prepareStatement(checkTargetSql)) {
-                                checkPst.setObject(1, targetId);
-                                try (ResultSet checkRs = checkPst.executeQuery()) {
-                                    if (checkRs.next()) {
-                                        targetStatus = checkRs.getBoolean("is_deleted") ? 
-                                            ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        item.put("shortcutTargetStatus", targetStatus);
-                    }
-
-                    result.add(item);
-                }
-            }
-        }
-        return result;
     }
 
 	@Override
@@ -894,7 +851,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    // Folders
 		if (fileType == null || fileType == FileType.FOLDER) {
-	    String sqlFolders = "SELECT " + baseCols + " FROM folder " +
+	    String sqlFolders = "SELECT " + baseCols + (compact ? ", description" : "") + " FROM folder " +
 	                        "WHERE owneruuid = ? AND parent IS NULL AND visibility = 'PUBLIC' AND is_deleted = false";
 	    try (PreparedStatement pst = db.prepareStatement(sqlFolders)) {
 	        pst.setObject(1, ownerId);
@@ -903,7 +860,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                result.add(new FileItemSummary(
 	                    (UUID) rs.getObject(1), FileType.FOLDER,
 	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                    compact ? Map.of() : null));
+	                    compact ? Map.of("description", rs.getString(5)) : null));
 	            }
 	        }
 	    }
@@ -950,9 +907,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	                    // check deletion status
 	                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
-	                    if (targetId != null) {
+	                    if (targetId != null && targetType != null) {
 	                        String checkTargetSql = "SELECT is_deleted FROM " +
-	                                                (targetType.equals("FOLDER") ? "folder" : "network") +
+	                                                ("FOLDER".equals(targetType) ? "folder" : "network") +
 	                                                " WHERE \"UUID\"=?";
 	                        try (PreparedStatement checkPst = db.prepareStatement(checkTargetSql)) {
 	                            checkPst.setObject(1, targetId);

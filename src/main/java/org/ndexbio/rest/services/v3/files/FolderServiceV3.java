@@ -107,7 +107,7 @@ public class FolderServiceV3 extends NdexService {
 		// create entry in db. 
 		NdexObjectUpdateStatus status;
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName());
+			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
 			dao.commit();
 		}
 
@@ -282,7 +282,7 @@ public class FolderServiceV3 extends NdexService {
 				}
 			}
 			
-			dao.updateFolder(folderId, request.getName(), parentUUID, userId);
+			dao.updateFolder(folderId, request.getName(), parentUUID, userId, request.getDescription());
 			dao.commit();	
 			return ;
 		}

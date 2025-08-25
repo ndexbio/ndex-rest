@@ -70,7 +70,7 @@ public class TestFolderServiceV3 {
         status.setUuid(folderId);
 
         FolderDAO mockFolderDAO = createMock(FolderDAO.class);
-        expect(mockFolderDAO.createFolder(isA(UUID.class), eq(userId), isNull(), eq("Test Folder"))).andReturn(status);
+        expect(mockFolderDAO.createFolder(isA(UUID.class), eq(userId), isNull(), eq("Test Folder"), isNull())).andReturn(status);
         mockFolderDAO.commit();
         expectLastCall();
         mockFolderDAO.close();
@@ -286,7 +286,7 @@ public class TestFolderServiceV3 {
 
         FolderDAO folderDAO = createMock(FolderDAO.class);
         expect(folderDAO.isFolderOwner(folderId, userId)).andReturn(true);
-        folderDAO.updateFolder(eq(folderId), eq("Updated Folder Name"), isNull(), eq(userId));
+        folderDAO.updateFolder(eq(folderId), eq("Updated Folder Name"), isNull(), eq(userId), isNull());
         expectLastCall();
         folderDAO.commit();
         expectLastCall();

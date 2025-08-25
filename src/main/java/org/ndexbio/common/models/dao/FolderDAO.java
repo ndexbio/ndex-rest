@@ -26,7 +26,7 @@ public interface FolderDAO extends AutoCloseable {
 	
 	void commit() throws SQLException;
 	
-	NdexObjectUpdateStatus createFolder(final UUID folderUUID, final UUID ownerId, final UUID parentUUID, final String name) throws SQLException;
+	NdexObjectUpdateStatus createFolder(final UUID folderUUID, final UUID ownerId, final UUID parentUUID, final String name, final String description) throws SQLException;
 	
 	boolean isReadable(UUID folderID, UUID userId) throws SQLException, ObjectNotFoundException;
 	
@@ -38,7 +38,7 @@ public interface FolderDAO extends AutoCloseable {
 	
 	void deleteFolder(UUID folderId, boolean force, boolean permanent) throws SQLException;
 	
-	void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId) throws SQLException, JsonProcessingException, NdexException;
+	void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId, String description) throws SQLException, JsonProcessingException, NdexException;
 	
 	FileCount getFolderChildCounts(UUID folderId) throws SQLException;
 	

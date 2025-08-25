@@ -69,7 +69,7 @@ public class NetworkSetServiceV2 extends NdexService {
 		UUID folderId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			dao.createFolder(folderId, getLoggedInUserId(), null, newNetworkSet.getName());
+			dao.createFolder(folderId, getLoggedInUserId(), null, newNetworkSet.getName(), newNetworkSet.getDescription());
 			dao.commit();
 		}
 		
@@ -112,7 +112,7 @@ public class NetworkSetServiceV2 extends NdexService {
 				// Update existing folder
 				FolderRequest folderRequest = new FolderRequest();
 				folderRequest.setName(newNetworkSet.getName());
-				folderDAO.updateFolder(setId, newNetworkSet.getName(), null, getLoggedInUserId());
+				folderDAO.updateFolder(setId, newNetworkSet.getName(), null, getLoggedInUserId(), newNetworkSet.getDescription());
 				folderDAO.commit();
 				return;
 			}
@@ -122,7 +122,7 @@ public class NetworkSetServiceV2 extends NdexService {
 		
 		// If neither networkset nor folder exists, create a new folder
 		try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			folderDAO.createFolder(setId, getLoggedInUserId(), null, newNetworkSet.getName());
+			folderDAO.createFolder(setId, getLoggedInUserId(), null, newNetworkSet.getName(), newNetworkSet.getDescription());
 			folderDAO.commit();
 		}
 	}
