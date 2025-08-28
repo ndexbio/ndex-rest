@@ -1,4 +1,4 @@
-NDEx |version| User Manual
+NDEx |version| Design Specification
 ============================================
 
 **TODO FIX THIS**
@@ -15,6 +15,7 @@ Copyright (c) 2013-2025 The Cytoscape Consortium
    :numbered: 2
 
    Introduction
+   specifications/index
   
 ..
    
