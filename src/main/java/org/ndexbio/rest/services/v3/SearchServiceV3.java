@@ -32,8 +32,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.FolderDAO;
-import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
@@ -52,12 +50,10 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.CXObjectFilter;
 import org.ndexbio.model.network.query.FilterCriterion;
-import org.ndexbio.model.network.query.FilteredDirectQuery;
 import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.SimpleFileQuery;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -77,6 +73,8 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
+import org.ndexbio.common.models.dao.postgresql.PostgresFileDAO;
+import org.ndexbio.model.object.FileVisibilityType;
 
 @Path("/v3/search")
 
@@ -525,6 +523,8 @@ public class SearchServiceV3 extends NdexService  {
 			Currently only supports searching networks, but the response format is designed to support folders and shortcuts in the future.
 			
 			Query Parameters:
+            - visibility: Optional. Searches on only public or private data. (PUBLIC, PRIVATE) (default: PUBLIC)
+            - type: Optional. Supports filtering results by type (NETWORK, SHORTCUT, FOLDER) (default: unset denotes all)
 			- start: Optional. Starting index for pagination (default: 0)
 			- size: Optional. Number of results per page (default: 100)
 			
@@ -537,6 +537,7 @@ public class SearchServiceV3 extends NdexService  {
 	@Consumes("application/json")
 	public FileSearchResult searchFiles(
 			final SimpleFileQuery query,
+			@QueryParam("visibility") FileVisibilityType visibilityType,
 			@QueryParam("type") FileType type,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize)
@@ -547,44 +548,8 @@ public class SearchServiceV3 extends NdexService  {
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
 
-		FileSearchResult result = new FileSearchResult();
-        
-		if (type == FileType.NETWORK || type == null) {
-			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-				NetworkSearchResult networkResult = dao.findNetworks((SimpleNetworkQuery)query, skipBlocks, blockSize, this.getLoggedInUser());
-				
-				// Convert NetworkSearchResult to FileSearchResult
-				result.setNumFound(networkResult.getNumFound());
-				result.setStart(networkResult.getStart());
-				
-				// Convert NetworkSummary objects to FileItemSummary
-				List<FileItemSummary> files = new ArrayList<>();
-				for (NetworkSummary network : networkResult.getNetworks()) {
-					FileItemSummary file = new FileItemSummary();
-					file.setUuid(network.getExternalId());
-					file.setName(network.getName());
-					file.setType(FileType.NETWORK);
-					file.setModificationTime(network.getModificationTime());
-					files.add(file);
-				}
-				result.setFiles(files);
-			} catch (NdexException e1) {
-				throw e1;
-			} catch (Exception e) {
-				e.printStackTrace();
-				throw new NdexException(e.getMessage());
-			}
-		}
-//		if (type == FileType.FOLDER || type == null) {
-//			try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-//				FolderSearchResult folderResult = dao.findFolders(query, skipBlocks, blockSize, this.getLoggedInUser());
-//			}
-//		}
-//		if (type == FileType.SHORTCUT || type == null) {
-//			try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-//				ShortcutSearchResult shortcutResult = dao.findShortcuts(query, skipBlocks, blockSize, this.getLoggedInUser());
-//			}
-//		}
+		FileSearchResult result = null;
+		// @TODO need to implement this
 
 		return result;
 	}
