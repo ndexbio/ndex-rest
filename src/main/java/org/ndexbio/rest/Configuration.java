@@ -66,6 +66,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import ch.qos.logback.classic.Level;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.postgresql.PostgresDAOFactory;
+import org.ndexbio.common.models.search.SearchProvider;
+import org.ndexbio.common.models.search.SearchProviderFactory;
+import org.ndexbio.common.models.search.SearchProviderFactoryImpl;
 
 
 public class Configuration
@@ -127,6 +130,7 @@ public class Configuration
 	private String ezidpswd;
 	
 	private DAOFactory daoFactory;
+	private SearchProviderFactory searchFactory;
 
 	// Possible values for Log-Level are:
     // trace, debug, info, warn, error, all, off
@@ -191,6 +195,7 @@ public class Configuration
 			
 			// create postgres DAO factory
 			this.daoFactory = new PostgresDAOFactory();
+			this.searchFactory = new SearchProviderFactoryImpl();
             
             dbURL 	= getRequiredProperty("NdexDBURL");
             solrURL = getProperty(SOLR_URL);
@@ -521,4 +526,6 @@ public class Configuration
     public String getDOIPrefix() {return DOIPrefix;}
 	
 	public DAOFactory getDAOFactory() {return daoFactory;}
+	
+	public SearchProvider getSearchProvider() { return searchFactory.getSearchProvider();}
 }
