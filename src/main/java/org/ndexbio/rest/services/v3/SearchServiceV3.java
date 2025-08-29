@@ -51,12 +51,9 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.CXObjectFilter;
 import org.ndexbio.model.network.query.FilterCriterion;
 import org.ndexbio.model.object.CXSimplePathQuery;
-import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.SimpleFileQuery;
-import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.tools.EdgeFilter;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -73,7 +70,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
-import org.ndexbio.common.models.dao.postgresql.PostgresFileDAO;
+import org.ndexbio.common.models.search.SearchProvider;
 import org.ndexbio.model.object.FileVisibilityType;
 
 @Path("/v3/search")
@@ -548,9 +545,8 @@ public class SearchServiceV3 extends NdexService  {
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
 
-		FileSearchResult result = null;
-		// @TODO need to implement this
-
-		return result;
+		try (SearchProvider search = Configuration.getInstance().getSearchProvider()){
+			return search.searchFiles(query, visibilityType, skipBlocks, blockSize);
+		}
 	}
 }
