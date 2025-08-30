@@ -8,5 +8,5 @@ import org.ndexbio.model.exceptions.NdexException;
  */
 public interface SearchProviderFactory {
 	
-	SearchProvider getSearchProvider();
+	SearchProvider getSearchProvider() throws NdexException;
 }
