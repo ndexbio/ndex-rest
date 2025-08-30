@@ -527,5 +527,5 @@ public class Configuration
 	
 	public DAOFactory getDAOFactory() {return daoFactory;}
 	
-	public SearchProvider getSearchProvider() { return searchFactory.getSearchProvider();}
+	public SearchProvider getSearchProvider() throws NdexException { return searchFactory.getSearchProvider();}
 }
