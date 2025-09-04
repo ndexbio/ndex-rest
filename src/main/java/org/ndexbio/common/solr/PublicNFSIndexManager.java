@@ -76,54 +76,38 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 
-public class NetworkFolderShortcutIndexManager implements AutoCloseable{
+public class PublicNFSIndexManager implements AutoCloseable{
 
-	private String solrUrl ;
+	SolrClientWrapper client;
+
+	SolrInputDocument doc ;
 	
-	private static final String coreName = 
-			"ndex-networks" ; 
-	private HttpSolrClient client;
-	
-	private SolrInputDocument doc ;
-	
+	private final String coreName = "public-nfs";
+		
 	// holds the mapping between node ID and member attributes. 
 	// members will be added to the represent field as additional lists.
-	private Map<Long, Set<String>> nodeMembers;  
+	Map<Long, Set<String>> nodeMembers;  
 	
 	public static final String UUID = "uuid";
-	private static final String NAME = "name";
-	private static final String DESC = "description";
-	private static final String VERSION = "version";
-	//private static final String LABELS = "labels";
-	private static final String USER_READ= "userRead";
-	private static final String USER_EDIT = "userEdit";
-	private static final String USER_ADMIN = "owner";
-	private static final String GRP_READ = "grpRead";
-	private static final String GRP_EDIT = "grpEdit";
-//	private static final String GRP_ADMIN = "grpAdmin";
+	public static final String NAME = "name";
+	public static final String DESC = "description";
+	public static final String VERSION = "version";
+	public static final String NODE_NAME = "nodeName";
 	
-	private static final String VISIBILITY = "visibility";
+	public static final String REPRESENTS = "represents";
+	public static final String ALIASES = "alias";
+	public static final String MODIFICATION_TIME = "modificationTime";
+	public static final String VISIBILITY = "visibility";
 	
-	private static final String EDGE_COUNT = "edgeCount";
+	public static final String EDGE_COUNT = "edgeCount";
 	
-	private static final String NODE_COUNT = "nodeCount";
-	private static final String CREATION_TIME = "creationTime";
-	private static final String MODIFICATION_TIME = "modificationTime";
-	private static final String NDEX_SCORE = "ndexScore";
-	
-	
-	private static final String NODE_NAME = "nodeName";
-	
-//	public static final String NCBI_GENE_ID = "NCBIGeneID";
-//	public static final String GENE_SYMBOL = "geneSymbol";
-	
-	private static final String REPRESENTS = "represents";
-	private static final String ALIASES = "alias";
-//	private static final String RELATED_TO = "relatedTo";
-	
+	public static final String NODE_COUNT = "nodeCount";
+	public static final String CREATION_TIME = "creationTime";
+	public static final String NDEX_SCORE = "ndexScore";
+
 	// user required indexing fields. hardcoded for now. Will turn them into configurable list in 1.4.
 	
-	private static final Set<String> otherAttributes = 
+	public static final Set<String> otherAttributes = 
 			new HashSet<>(Arrays.asList("objectCategory", "organism",
 	"platform",
 	"graphPropertiesHash",
@@ -136,164 +120,19 @@ public class NetworkFolderShortcutIndexManager implements AutoCloseable{
 	 "methods",
 	 "subnetworkType","subnetworkFilter","graphHash","rights", "labels"));
 	
-//	private static  Map<String,String> attTable = null;
-		
-//	private int counter;
-	
-	
-	public NetworkFolderShortcutIndexManager() {
-		solrUrl = Configuration.getInstance().getSolrURL();
-		client = new HttpSolrClient.Builder(solrUrl).build();
+	public PublicNFSIndexManager(SolrClientWrapper client) {
+		this.client = client;
 		doc = new SolrInputDocument();
-		
 		nodeMembers = new TreeMap<>();
 	}
 	
 	public void createCoreIfNeeded() throws SolrServerException, IOException, NdexException {
-			
-		CoreAdminResponse foo = CoreAdminRequest.getStatus(coreName,client);	
-		if (foo.getStatus() != 0 ) {
-			throw new NdexException ("Failed to get status of solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
-		}
-		NamedList<Object> bar = foo.getResponse();
-		
-		NamedList<Object> st = (NamedList<Object>)bar.get("status");
-		
-		NamedList<Object> core = (NamedList<Object>)st.get(coreName);
-		if ( core.size() == 0 ) {
-			System.out.println("Solr core " + coreName + " doesn't exist. Creating it now ....");
-
-			CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
-			creator.setCoreName(coreName);
-			creator.setConfigSet( coreName); 
-			foo = creator.process(client);				
-			if ( foo.getStatus() != 0 ) {
-				throw new NdexException ("Failed to create solrIndex for network " + coreName + ". Error: " + foo.getResponseHeader().toString());
-			}
-			System.out.println("Done.");		
-		}
-		else {
-			System.out.println("Found core "+ coreName + " in Solr.");	
-		}
-		
-	}
-	
-	public SolrDocumentList search(String searchTerms, String userAccount, int limit, int offset, String adminedBy, Permissions permission) 
-			throws  IOException, SolrServerException, NdexException {
-		client.setBaseURL(solrUrl+ "/" + coreName);
-
-		SolrQuery solrQuery = new SolrQuery();
-		
-		//create the result filter
-		
-		String adminFilter = "";		
-		if ( adminedBy !=null) {
-			adminFilter = " AND (" + USER_ADMIN + ":\"" + adminedBy +  "\")";
-		}
-		
-		String resultFilter = "";
-		if ( userAccount !=null) {     // has a signed in user.
-			String userAccountStr = "\"" + userAccount +"\"";
-			if ( permission == null) {
-				resultFilter =  VISIBILITY + ":PRIVATE";
-				resultFilter += " AND -(" + USER_ADMIN + ":" + userAccountStr + ") AND -(" +
-						USER_EDIT + ":" + userAccountStr + ") AND -("+ USER_READ + ":" + userAccountStr + ")";
-				
-				resultFilter = "-("+ resultFilter + ")";
-			} 
-			else if ( permission == Permissions.READ) {
-				resultFilter = "(" + USER_ADMIN + ":" + userAccountStr + ") OR (" +
-						USER_EDIT + ":" + userAccountStr + ") OR ("+ USER_READ + ":" + userAccountStr + ")";
-			} else if ( permission == Permissions.WRITE) {
-				resultFilter = "(" + USER_ADMIN + ":" + userAccountStr + ") OR (" +
-						USER_EDIT + ":" + userAccountStr + ")"; 
-			}
-		}  else {
-			resultFilter = VISIBILITY + ":PUBLIC";
-		}
-			
-		resultFilter = resultFilter + adminFilter;
-		
-			
-		if ( searchTerms.equalsIgnoreCase("*:*"))
-			solrQuery.setSort(MODIFICATION_TIME, ORDER.desc);
-
-		solrQuery.setQuery("( " + SearchUtilities.preprocessSearchTerm(searchTerms) + " ) AND _val_:\"div(" + NDEX_SCORE+ ",10)\"" ).setFields(UUID);
-    	solrQuery.set("defType", "edismax");
-		solrQuery.set("qf","uuid^20 name^10 description^5 labels^6 owner^2 networkType^4 organism^3 disease^3 tissue^3 author^2 methods nodeName represents alias rights^0.6 rightsHolder^0.6");
-		if ( offset >=0)
-		  solrQuery.setStart(offset);
-		if ( limit >0 )
-			solrQuery.setRows(limit);
-		else 
-			solrQuery.setRows(100000);
-		
-		solrQuery.setFilterQueries(resultFilter) ;
-		
-		try {
-			QueryResponse rsp = client.query(solrQuery, METHOD.POST);		
-			
-			SolrDocumentList  dds = rsp.getResults();
-			return dds;
-		} catch (BaseHttpSolrClient.RemoteSolrException e) {
-			throw convertException(e, "ndex-networks");
-		}
-		
-	}
-	
-	protected static NdexException convertException(BaseHttpSolrClient.RemoteSolrException e, String core_name) {
-		if (e.code() == 400) {
-			String err = e.getMessage();
-			Pattern p = Pattern.compile("Error from server at .*/" + core_name +": (.*)");
-			Matcher m = p.matcher(e.getMessage());
-			if ( m.matches()) {
-				err = m.group(1);
-			} 
-			return new BadRequestException(err);
-		}	
-		return new NdexException("Error from NDEx Solr server: " + e.getMessage());
+			client.createCoreIfNeeded(coreName);
 	}
 	
 	public void createIndexDocFromSummary(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
 			Collection<String> grpReads, Collection<String> grpEdits) {
-		client.setBaseURL(solrUrl + "/" + coreName);
 		
-	  //  doc = new SolrInputDocument();
-		doc.addField(UUID,  summary.getExternalId().toString() );
-		doc.addField(EDGE_COUNT, summary.getEdgeCount());
-		doc.addField(NODE_COUNT, summary.getNodeCount());
-		doc.addField(VISIBILITY, summary.getVisibility().toString());
-		
-		if ( summary.getName() !=null && summary.getName().length()>1) {
-			doc.addField(NAME, summary.getName());
-		}
-		
-		if (summary.getDescription() !=null && summary.getDescription().length()>1) {
-			doc.addField(DESC, summary.getDescription());
-		}
-		
-		if ( summary.getVersion() !=null && summary.getVersion().length()>1) {
-			doc.addField(VERSION, summary.getVersion());
-		}
-		
-		doc.addField(CREATION_TIME, summary.getCreationTime());
-		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
-		
-		doc.addField(NDEX_SCORE, Util.getNdexScoreFromSummary(summary));
-		
-		doc.addField(USER_ADMIN, ownerUserName);
-		//doc.setDocumentBoost(documentBoost);;
-		if( userReads != null) {
-			for(String userName : userReads) {
-				doc.addField(USER_READ, userName);
-			}
-		}
-		
-		if ( userEdits !=null) {
-			for ( String userName: userEdits) {
-				doc.addField(USER_EDIT, userName);
-			}
-		}
 	}
 	
 
@@ -507,23 +346,11 @@ public class NetworkFolderShortcutIndexManager implements AutoCloseable{
 	}	
 	
 	public void deleteNetwork(String networkId) throws SolrServerException, IOException {
-		client.setBaseURL(solrUrl + "/" + coreName);
-		client.deleteById(networkId);
-	//	client.commit(false,true,true);
+
 	}
 	
 	public void commit () throws SolrServerException, IOException {
-		client.setBaseURL(solrUrl + "/" + coreName);
-		if ( !doc.isEmpty()) {
-			Collection<SolrInputDocument> docs = new ArrayList<>(1);
-			docs.add(doc);
-			client.add(docs);
-			client.commit(false,true,true);
-			docs.clear();
-		} else 
-			client.commit(false,true,true);
-		doc = new SolrInputDocument();
-		nodeMembers = new TreeMap<>();
+
 
 	}
 
@@ -577,10 +404,6 @@ public class NetworkFolderShortcutIndexManager implements AutoCloseable{
 	
 	@Override
 	public void close () {
-		try {
-			client.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		client.close();
 	}
 }

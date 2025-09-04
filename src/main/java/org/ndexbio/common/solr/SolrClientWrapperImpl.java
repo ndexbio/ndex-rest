@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
@@ -24,17 +26,17 @@ import org.slf4j.LoggerFactory;
  */
 public class SolrClientWrapperImpl implements SolrClientWrapper {
 	
-	private final HttpSolrClient client;
-	private final String solrUrl;
+	private final SolrClientAndCoreAdminFactory _factory;
+	private final String _baseSolrUrl;
 	private static final Logger logger = LoggerFactory.getLogger(SolrClientWrapperImpl.class.getName());
 	
-	public SolrClientWrapperImpl(final String solrURL){
-		solrUrl = solrURL;
-		client = new HttpSolrClient.Builder(solrUrl).build();
+	public SolrClientWrapperImpl(final String baseSolrUrl, final SolrClientAndCoreAdminFactory factory){
+		_factory = factory;
+		_baseSolrUrl = baseSolrUrl;
 	}
-
-	private void setBaseURL(final String coreName){
-		client.setBaseURL(solrUrl + "/" + coreName);
+	
+	protected SolrClient getClient(){
+		return _factory.getSolrClient(_baseSolrUrl);
 	}
 	
 	protected static NdexException convertException(BaseHttpSolrClient.RemoteSolrException e, String core_name) {
@@ -52,7 +54,8 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	
 	@Override
 	public void createCoreIfNeeded(final String coreName) throws SolrServerException, IOException, NdexException {
-		CoreAdminResponse foo = CoreAdminRequest.getStatus(coreName,client);	
+		SolrClient client = getClient();
+		CoreAdminResponse foo = _factory.getCoreAdminRequestGetStatus(coreName, client);
 		if (foo.getStatus() != 0 ) {
 			throw new NdexException ("Failed to get status of solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
 		}
@@ -64,9 +67,9 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 		if ( core.size() == 0 ) {
 			logger.debug("Solr core " + coreName + " doesn't exist. Creating it now ....");
 
-			CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
+			CoreAdminRequest.Create creator = _factory.getCoreAdminRequestCreate();
 			creator.setCoreName(coreName);
-			creator.setConfigSet( coreName); 
+			creator.setConfigSet(coreName); 
 			foo = creator.process(client);				
 			if ( foo.getStatus() != 0 ) {
 				throw new NdexException ("Failed to create solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
@@ -81,9 +84,9 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 
 	@Override
 	public void dropCore(final String coreName) throws IOException, SolrServerException, NdexException {
-		setBaseURL(coreName);
+		SolrClient client = getClient();
 		try {
-			CoreAdminRequest.unloadCore(coreName, true, true, client);
+			_factory.getCoreAdminRequestUnloadCore(coreName, true, true, client);
 		} catch (HttpSolrClient.RemoteSolrException e4) {
 			logger.error(e4.code() + " - " + e4.getMessage(), e4);
 			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
@@ -94,29 +97,37 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 
 	@Override
 	public void commit(final String coreName, final Collection<SolrInputDocument> documents) throws SolrServerException, IOException {
-		setBaseURL(coreName);
+		SolrClient client = getClient();
 		if (documents != null && documents.isEmpty() == false){
 			client.add(documents);
 		}
+		
 		client.commit(false, true, true);
 	}
 
 	@Override
 	public void delete(final String coreName, final String id, boolean commit) throws SolrServerException, IOException {
-		setBaseURL(coreName);
-		client.deleteById(id);
+		SolrClient client = getClient();
+		client.deleteById(coreName, id);
 		if (commit == true){
-			client.commit(false, true, true);
+			client.commit(coreName, false, true, true);
 		}
 	}
 
 	@Override
-	public QueryResponse query(final String coreName, final SolrQuery query) throws NdexException {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+	public QueryResponse query(final String coreName, final SolrQuery query) throws IOException, SolrServerException, NdexException {
+		SolrClient client = getClient();
+		try {
+			return client.query(coreName, query, SolrRequest.METHOD.POST);		
+			
+		} catch (BaseHttpSolrClient.RemoteSolrException e) {
+			throw convertException(e, coreName);
+		}
 	}
 
 	@Override
 	public void close() {
+		SolrClient client = getClient();
 		try {
 			client.close();
 		} catch (IOException e) {

@@ -9,7 +9,7 @@ import org.apache.solr.common.SolrInputDocument;
 import org.ndexbio.model.exceptions.NdexException;
 
 /**
- * Wrapper for Solr client
+ * Provides higher level access to SOLR functionality
  * 
  * @author churas
  */
@@ -59,7 +59,7 @@ public interface SolrClientWrapper extends AutoCloseable {
 	 * @return
 	 * @throws NdexException 
 	 */
-	QueryResponse query(final String coreName, final SolrQuery query) throws NdexException;
+	QueryResponse query(final String coreName, final SolrQuery query) throws IOException, SolrServerException, NdexException;
 	
 	/**
 	 * Close connection to Solr client

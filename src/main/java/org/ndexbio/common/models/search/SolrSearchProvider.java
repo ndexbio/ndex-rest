@@ -4,6 +4,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.FileVisibilityType;
 import org.ndexbio.model.object.SimpleFileQuery;
+import org.ndexbio.common.solr.SolrClientWrapper;
 
 /**
  *
@@ -11,6 +12,11 @@ import org.ndexbio.model.object.SimpleFileQuery;
  */
 public class SolrSearchProvider implements SearchProvider {
 
+	SolrClientWrapper _client;
+	
+	public SolrSearchProvider(SolrClientWrapper client){
+		this._client = client;
+	}
 	@Override
 	public void close() throws Exception {
 		return;

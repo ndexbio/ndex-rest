@@ -520,7 +520,7 @@ public class SearchServiceV3 extends NdexService  {
 			Currently only supports searching networks, but the response format is designed to support folders and shortcuts in the future.
 			
 			Query Parameters:
-            - visibility: Optional. Searches on only public or private data. (PUBLIC, PRIVATE) (default: PUBLIC)
+            - visibility: Optional. Searches on only public or private data. (PUBLIC, PRIVATE) (default: unset denotes PUBLIC)
             - type: Optional. Supports filtering results by type (NETWORK, SHORTCUT, FOLDER) (default: unset denotes all)
 			- start: Optional. Starting index for pagination (default: 0)
 			- size: Optional. Number of results per page (default: 100)
