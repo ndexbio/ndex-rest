@@ -69,6 +69,8 @@ import org.ndexbio.common.models.dao.postgresql.PostgresDAOFactory;
 import org.ndexbio.common.models.search.SearchProvider;
 import org.ndexbio.common.models.search.SearchProviderFactory;
 import org.ndexbio.common.models.search.SearchProviderFactoryImpl;
+import org.ndexbio.common.solr.SolrObjectFactory;
+import org.ndexbio.common.solr.SolrObjectFactoryImpl;
 
 
 public class Configuration
@@ -79,6 +81,8 @@ public class Configuration
     
     private static final String PROP_USE_AD_AUTHENTICATION = "USE_AD_AUTHENTICATION";
     private static final String SOLR_URL = "SolrURL";
+	private static final String DEFAULT_MAX_SEARCH_RESULT_ROWS_PROP_NAME = "DefaultMaxSearchResultRows";
+	private int defaultMaxSearchResultRows;
     
     private static Configuration INSTANCE = null;
     private static final Logger _logger = LoggerFactory.getLogger(Configuration.class);
@@ -110,7 +114,7 @@ public class Configuration
 	
 	private String ndexNetworkCachePath;
    
-	private boolean useADAuthentication ;
+	private boolean useADAuthentication;
 	
 	//private long serverElementLimit;
 	
@@ -131,6 +135,7 @@ public class Configuration
 	
 	private DAOFactory daoFactory;
 	private SearchProviderFactory searchFactory;
+	private SolrObjectFactory solrObjectFactory;
 
 	// Possible values for Log-Level are:
     // trace, debug, info, warn, error, all, off
@@ -195,13 +200,17 @@ public class Configuration
 			
 			// create postgres DAO factory
 			this.daoFactory = new PostgresDAOFactory();
-			this.searchFactory = new SearchProviderFactoryImpl();
+			
             
             dbURL 	= getRequiredProperty("NdexDBURL");
             solrURL = getProperty(SOLR_URL);
             if ( solrURL == null)
             	solrURL = defaultSolrURL;
-            
+			
+			defaultMaxSearchResultRows = getDefaultMaxSearchResultRowsFromConfiguration();
+            solrObjectFactory = new SolrObjectFactoryImpl(solrURL);
+			this.searchFactory = new SearchProviderFactoryImpl(solrObjectFactory, defaultMaxSearchResultRows);
+			
             this.ndexSystemUser = getRequiredProperty("NdexSystemUser");
             this.ndexSystemUserPassword = getRequiredProperty("NdexSystemUserPassword");
 
@@ -450,7 +459,16 @@ public class Configuration
         return _configurationProperties.getProperty(propertyName);
     }
 	
-	
+	private int getDefaultMaxSearchResultRowsFromConfiguration(){
+		try {
+    		return Integer.parseInt(_configurationProperties.getProperty(Configuration.DEFAULT_MAX_SEARCH_RESULT_ROWS_PROP_NAME,
+    				"100000"));
+    	} catch(NumberFormatException nfe) {
+    		_logger.warn("Unable to convert " + DEFAULT_MAX_SEARCH_RESULT_ROWS_PROP_NAME +
+    				     " parameter value to a number", nfe);
+    	}
+    	return 100000;
+	}
 
       
     
@@ -528,4 +546,8 @@ public class Configuration
 	public DAOFactory getDAOFactory() {return daoFactory;}
 	
 	public SearchProvider getSearchProvider() throws NdexException { return searchFactory.getSearchProvider();}
+	
+	public SolrObjectFactory getSolrObjectFactory() { return solrObjectFactory; }
+	
+	public int getDefaultMaxSearchResultRows() { return defaultMaxSearchResultRows;}
 }

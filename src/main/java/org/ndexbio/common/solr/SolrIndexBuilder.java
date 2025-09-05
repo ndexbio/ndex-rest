@@ -505,6 +505,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 		}
 	}
 	
+	private static void rebuildNFSIdx(){
+		
+	}
+	
 	public static void main(String[] args) throws Exception {
 	//	SolrIndexBuilder i = new SolrIndexBuider();
 		Configuration configuration = Configuration.createInstance();
@@ -535,6 +539,9 @@ public class SolrIndexBuilder implements AutoCloseable {
 			case "all-local":
 				SolrIndexBuilder.rebuildAllLocalIdx();
 				break;
+			case "nfs":
+				SolrIndexBuilder.rebuildNFSIdx();
+				break;
 			default:	
 				builder.rebuildSingleNetworkIndex(UUID.fromString(args[0]));
 				builder.globalIdx.commit();
@@ -542,7 +549,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 			}
 			logger.info("Index rebuild process finished.");
 		} else {
-			System.err.println("Supported argument: all/user/group/all-networks-online/global-networks/all-local/<networkUUID>");
+			System.err.println("Supported argument: all/nfs/user/group/all-networks-online/global-networks/all-local/<networkUUID>");
 			//System.out.println("For the boolean argument after network ID, true means rebuild the Single Network index.");
 		}
 		

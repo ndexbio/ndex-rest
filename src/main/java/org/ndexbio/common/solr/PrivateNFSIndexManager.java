@@ -31,12 +31,15 @@
 package org.ndexbio.common.solr;
 
 import java.util.Collection;
+import org.apache.solr.common.SolrInputDocument;
+import org.ndexbio.model.object.Folder;
+import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.network.NetworkSummary;
 
 public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 
 
-	private final String coreName = 
+	public static final String CORE_NAME = 
 			"private-nfs" ; 
 
 	
@@ -45,11 +48,34 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 	}
 	
 	@Override
-	public void createIndexDocFromSummary(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
+	public void createIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
 			Collection<String> grpReads, Collection<String> grpEdits) {
 		
-		super.createIndexDocFromSummary(summary, ownerUserName, userReads, userEdits, grpReads, grpEdits);
+		SolrInputDocument doc = super.getIndexForDocument(summary, ownerUserName, userReads, userEdits, grpReads, grpEdits);
 		
+		// @TODO add private information to document for indexing
+		
+		super.commitDocument(doc);
 	}
+
+	@Override
+	public void createIndexForDocument(Shortcut shortcut) {
+		SolrInputDocument doc = super.getIndexForDocument(shortcut);
+		
+		// @TODO add private information to document for indexing
+		
+		super.commitDocument(doc);
+	}
+
+	@Override
+	public void createIndexForDocument(Folder folder) {
+		SolrInputDocument doc = super.getIndexForDocument(folder);
+		
+		// @TODO add private information to document for indexing
+		
+		super.commitDocument(doc);
+	}
+	
+	
 
 }

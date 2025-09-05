@@ -15,7 +15,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class SwaggerFilterTest extends EasyMockSupport {
+class TestSwaggerFilter extends EasyMockSupport {
 
     private SwaggerFilter swaggerFilter;
     private OpenAPI openAPI;

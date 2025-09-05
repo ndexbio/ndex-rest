@@ -37,31 +37,25 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-import org.apache.solr.client.solrj.SolrQuery;
-import org.apache.solr.client.solrj.SolrQuery.ORDER;
-import org.apache.solr.client.solrj.SolrRequest.METHOD;
+
+import org.ndexbio.model.object.Folder;
+import org.ndexbio.model.object.Shortcut;
+
+
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
-import org.apache.solr.client.solrj.request.CoreAdminRequest;
-import org.apache.solr.client.solrj.response.CoreAdminResponse;
-import org.apache.solr.client.solrj.response.QueryResponse;
-import org.apache.solr.common.SolrDocumentList;
+
 import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.common.util.NamedList;
 import org.ndexbio.common.NdexClasses;
-import org.ndexbio.model.tools.SearchUtilities;
-import org.ndexbio.model.tools.TermUtilities;
+import static org.ndexbio.common.solr.NetworkGlobalIndexManager.UUID;
 import org.ndexbio.common.util.Util;
+import org.ndexbio.model.tools.TermUtilities;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
 import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
@@ -70,19 +64,20 @@ import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.model.cx.FunctionTermElement;
-import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.network.NetworkSummary;
-import org.ndexbio.rest.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PublicNFSIndexManager implements AutoCloseable{
 
-	SolrClientWrapper client;
+	private static final Logger logger = LoggerFactory.getLogger(SolrClientWrapperImpl.class.getName());
+	SolrClientWrapper _client;
 
 	SolrInputDocument doc ;
 	
-	private final String coreName = "public-nfs";
+	public static final String CORE_NAME = "public-nfs";
 		
 	// holds the mapping between node ID and member attributes. 
 	// members will be added to the represent field as additional lists.
@@ -90,6 +85,7 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	
 	public static final String UUID = "uuid";
 	public static final String NAME = "name";
+	public static final String ENTITY_TYPE = "entityType";
 	public static final String DESC = "description";
 	public static final String VERSION = "version";
 	public static final String NODE_NAME = "nodeName";
@@ -121,18 +117,164 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	 "subnetworkType","subnetworkFilter","graphHash","rights", "labels"));
 	
 	public PublicNFSIndexManager(SolrClientWrapper client) {
-		this.client = client;
+		this._client = client;
 		doc = new SolrInputDocument();
 		nodeMembers = new TreeMap<>();
 	}
 	
 	public void createCoreIfNeeded() throws SolrServerException, IOException, NdexException {
-			client.createCoreIfNeeded(coreName);
+			_client.createCoreIfNeeded(CORE_NAME);
 	}
 	
-	public void createIndexDocFromSummary(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
-			Collection<String> grpReads, Collection<String> grpEdits) {
+	/**
+	 * Given a network summary generate a document to be indexed for the network
+	 * 
+	 * @param summary
+	 * @param ownerUserName
+	 * @param userReads
+	 * @param userEdits
+	 * @param grpReads
+	 * @param grpEdits
+	 * @return 
+	 */
+	SolrInputDocument getIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
+			Collection<String> grpReads, Collection<String> grpEdits){
+		doc = new SolrInputDocument();
+		doc.addField(UUID,  summary.getExternalId().toString() );
+		doc.addField(ENTITY_TYPE, FileType.NETWORK.toString());
+		doc.addField(EDGE_COUNT, summary.getEdgeCount());
+		doc.addField(NODE_COUNT, summary.getNodeCount());
+		doc.addField(VISIBILITY, summary.getVisibility().toString());
 		
+		if ( summary.getName() !=null && summary.getName().length()>1) {
+			doc.addField(NAME, summary.getName());
+		}
+		
+		if (summary.getDescription() !=null && summary.getDescription().length()>1) {
+			doc.addField(DESC, summary.getDescription());
+		}
+		
+		if ( summary.getVersion() !=null && summary.getVersion().length()>1) {
+			doc.addField(VERSION, summary.getVersion());
+		}
+		
+		doc.addField(CREATION_TIME, summary.getCreationTime());
+		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
+		
+		doc.addField(NDEX_SCORE, Util.getNdexScoreFromSummary(summary));
+		
+		return doc;
+	}
+	
+	/**
+	 * Given a folder generate a document to be indexed
+	 * @param folder
+	 * @return 
+	 */
+	SolrInputDocument getIndexForDocument(Folder folder){
+		doc = new SolrInputDocument();
+		doc.addField(UUID, folder.getExternalId().toString());
+		doc.addField(ENTITY_TYPE, FileType.FOLDER.toString());
+		
+		if (folder.getName() != null && folder.getName().length()>1){
+			doc.addField(NAME, folder.getName());
+		}
+		if (folder.getDescription() != null && folder.getDescription().length()>1){
+			doc.addField(DESC, folder.getDescription());
+		}
+		// @TODO do we want to index parent uuid?
+		
+		doc.addField(CREATION_TIME, folder.getCreationTime());
+		doc.addField(MODIFICATION_TIME, folder.getModificationTime());
+		
+		return doc;
+	}
+	
+	/**
+	 * Given a shortcut generate a document to be indexed
+	 * @param shortcut
+	 * @return 
+	 */
+	SolrInputDocument getIndexForDocument(Shortcut shortcut){
+		doc = new SolrInputDocument();
+		doc.addField(UUID, shortcut.getExternalId().toString());
+		doc.addField(ENTITY_TYPE, FileType.SHORTCUT.toString());
+		
+		if (shortcut.getName() != null && shortcut.getName().length()>1){
+			doc.addField(NAME, shortcut.getName());
+		}
+		
+		// @TODO do we want to index parent uuid?
+		
+		// @TODO do we want to index target type?
+		
+		doc.addField(CREATION_TIME, shortcut.getCreationTime());
+		doc.addField(MODIFICATION_TIME, shortcut.getModificationTime());
+		
+		return doc;
+	}
+	
+	/**
+	 * Creates index for document
+	 * @param summary
+	 * @param ownerUserName
+	 * @param userReads
+	 * @param userEdits
+	 * @param grpReads
+	 * @param grpEdits 
+	 */
+	public void createIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
+			Collection<String> grpReads, Collection<String> grpEdits) {
+		SolrInputDocument doc = getIndexForDocument(summary, ownerUserName, userReads, userEdits,
+			 grpReads,  grpEdits);
+		commitDocument(doc);
+		
+	}
+	
+	public void commitDocument(SolrInputDocument document){
+		var documents = new LinkedList<SolrInputDocument>();
+		documents.add(document);
+		try {
+			_client.commit(CORE_NAME, documents);
+		} catch(SolrServerException sse){
+			logger.error("Unable to commit document: " + sse.getMessage(), sse);
+		} catch(IOException io){
+			logger.error("Unable to commit document: " + io.getMessage(), io);
+		}
+	}
+	
+	/**
+	 * 
+	 * @param folder 
+	 */
+	public void createIndexForDocument(Folder folder){
+		SolrInputDocument doc = getIndexForDocument(folder);
+		var documents = new LinkedList<SolrInputDocument>();
+		documents.add(doc);
+		try {
+			_client.commit(CORE_NAME, documents);
+		} catch(SolrServerException sse){
+			logger.error("Unable to commit document: " + sse.getMessage(), sse);
+		} catch(IOException io){
+			logger.error("Unable to commit document: " + io.getMessage(), io);
+		}
+	}
+	
+	/**
+	 * 
+	 * @param shortcut 
+	 */
+	public void createIndexForDocument(Shortcut shortcut){
+		SolrInputDocument doc = getIndexForDocument(shortcut);
+		var documents = new LinkedList<SolrInputDocument>();
+		documents.add(doc);
+		try {
+			_client.commit(CORE_NAME, documents);
+		} catch(SolrServerException sse){
+			logger.error("Unable to commit document: " + sse.getMessage(), sse);
+		} catch(IOException io){
+			logger.error("Unable to commit document: " + io.getMessage(), io);
+		}
 	}
 	
 
@@ -345,13 +487,18 @@ public class PublicNFSIndexManager implements AutoCloseable{
 			warnings.add("Network attribute " + e.getName() + " is not indexed because its data type is not 'string' or 'list_of_string'.");
 	}	
 	
-	public void deleteNetwork(String networkId) throws SolrServerException, IOException {
-
+	/**
+	 * Deletes document from core/index
+	 * @param uuid
+	 * @throws SolrServerException
+	 * @throws IOException 
+	 */
+	public void delete(final String uuid) throws SolrServerException, IOException {
+		_client.delete(CORE_NAME, uuid, false);
 	}
 	
 	public void commit () throws SolrServerException, IOException {
-
-
+		_client.commit(CORE_NAME, null);
 	}
 
 	protected static List<String> getIndexableString(String termString) {
@@ -404,6 +551,6 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	
 	@Override
 	public void close () {
-		client.close();
+		_client.close();
 	}
 }
