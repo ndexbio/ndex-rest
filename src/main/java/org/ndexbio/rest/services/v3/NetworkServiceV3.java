@@ -905,7 +905,7 @@ public class NetworkServiceV3  extends NdexService {
 			        NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId));
 		        } else {
 		            // Perform soft deletion
-		            networkDao.deleteNetwork(networkId, userId);
+		            networkDao.deleteNetworkLogical(networkId, userId);
 		            networkDao.commit();
 		        }
 		    }

@@ -2450,7 +2450,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	
 	public void deleteNetworkLogical(UUID networkId, UUID userId) throws SQLException, NdexException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
-        String markNetworksSql = "UPDATE network SET modification_time = ?, is_deleted = true, show_in_trash = true WHERE network_id=?";
+        String markNetworksSql = "UPDATE network SET modification_time = ?, is_deleted = true, show_in_trash = true WHERE \"UUID\" = ?";
             try (PreparedStatement pst = db.prepareStatement(markNetworksSql)) {
                 pst.setTimestamp(1, t);
                 pst.setObject(2, networkId);
