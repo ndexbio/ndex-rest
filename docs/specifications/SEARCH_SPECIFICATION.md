@@ -45,6 +45,10 @@ This specification defines the behavior of user, folder, shortcut, and network s
 
 	Returns a FileSearchResult object which contains an array of FileItemSummary objects and total hit count of the search. Currently only supports searching networks, but the response format is designed to support folders and shortcuts in the future.
 
+	NOTE: When search visibility is set to PUBLIC then entities whose visibility is type UNLISTED the entity can be found if the 
+          query has an exact match for the UUID. If visibility is PRIVATE and user has access then the UNLISTED
+          network can be searched for in the normal manner.
+
 	Query Parameters:
 
     visibility: Optional. Searches on only public or private data. (PUBLIC, PRIVATE) (default: PUBLIC)
