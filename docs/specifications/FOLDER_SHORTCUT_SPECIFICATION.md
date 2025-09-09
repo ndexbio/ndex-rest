@@ -101,22 +101,26 @@
 ### New Functions for Folders and Shortcuts
 
 #### **Move Networks**
+
 ```http
 POST /v3/batch/networks/move
-```plaintext
+```
+
 **Request Body**:
 ```json
 {
    "target_folder": "<uuid>",
    "networks": ["<uuids>"]
 }
-```plaintext
+```
 
 #### **Set Visibility on File**
 ```http
 POST /v3/batch/files/setvisibility
-```plaintext
+```
+
 **Request Body**:
+
 ```json
 {
    "visibility": "<Public|Private|Unlisted>",
@@ -125,67 +129,81 @@ POST /v3/batch/files/setvisibility
       ...
    ]
 }
-```plaintext
+```
 
 #### **Create a Folder**
+
 ```http
 POST /v3/files/folders
-```plaintext
+```
+
 **Request Body**:
+
 ```json
 {
    "name": "<string>",
    "parent": "<uuid>"
 }
-```plaintext
+```
+
 **Response**:
+
 - Header: `location` contains the URL of the folder.
 - Body:
+  
 ```json
 {
    "uuid": "<uuid>",
    "lastModified": "<long>"
 }
-```plaintext
+```
 
 #### **Create a Shortcut**
+
 ```http
 POST /v3/files/shortcuts
-```plaintext
+```
+
 **Request Body**:
+
 ```json
 {
    "name": "<string>",
    "parent": "<uuid>",
    "target": "<uuid>"
 }
-```plaintext
+```
 
 #### **Delete a Folder**
+
 ```http
 DELETE /v3/files/folders/<UUID>?permanent=<true|false>&force=<true|false>
-```plaintext
+```
+
 - Default:
   - `permanent=false` (logical delete).
   - `force=false` (only delete if empty).
 
 #### **Delete a Shortcut**
+
 ```http
 DELETE /v3/files/shortcuts/<UUID>?permanent=<true|false>
-```plaintext
+```
 
 #### **Restore Objects**
+
 ```http
 POST /v3/files/trash/restore
-```plaintext
+```
 **Request Body**:
+
 ```json
 {
    "networks": ["<network_uuids>"],
    "folders": ["<folder_uuids>"],
    "shortcuts": ["<shortcut_uuids>"]
 }
-```plaintext
+```
 
 ---
 
