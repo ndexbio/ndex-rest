@@ -1,9 +1,5 @@
 # NDEx API Update for Version 3.0
 
-Joanna’s notes document: [https://docs.google.com/document/d/12qptCTmI9y14HFyeMB-ZjVMfN6Fi3DUDn2pJniP8TvA/edit?usp=sharing](https://docs.google.com/document/d/12qptCTmI9y14HFyeMB-ZjVMfN6Fi3DUDn2pJniP8TvA/edit?usp=sharing) 
-
-**SPECIFICATION MOVED TO ndex-rest repo. New URL:**  
-[**https://github.com/ndexbio/ndex-rest/blob/ndex3develop/docs/specifications/FOLDER\_SHORTCUT\_SPECIFICATION.md**](https://github.com/ndexbio/ndex-rest/blob/ndex3develop/docs/specifications/FOLDER_SHORTCUT_SPECIFICATION.md)
 
 # Folder and shortcut API
 
