@@ -32,13 +32,13 @@ Networks and folders are, by default, created in the owner's Home directory, whi
 
 ### Definitions of Visibility:
 
-* public  
+* **PUBLIC**  
   * Means any user can view. Applies to Network and Folder.   
   * Files that are public are searchable.  
-* unlisted  
+* **UNLISTED**  
   * Any user with the  link can view. Applies to Network and Folder.  
   * Files are only searchable by the owner.  
-* private   
+* **PRIVATE**   
   * Means only the owner can view/access/write Network or Folder Files.  
     * For others  
       * Access key can be given/assigned to a specific Network File giving whoever has the key and knows the Network File `read` access  
@@ -47,37 +47,38 @@ Networks and folders are, by default, created in the owner's Home directory, whi
 
 ### Definition of permissions: 
 
-* `read (can be applied to private visibility Files)`  
-  * `For public/unlisted visibility Files, read is automatically applied`  
+* `read` (can be applied to private visibility Files)
+  * For `PUBLIC`/`UNLISTED` visibility Files, read is automatically applied  
     * What does mean for these entities:  
-      * Folder  
+      * **Folder**  
         * Ability to see all Folders & Network Files that have `read` or `write` access  
           * Shortcut File visibility depends on read/write permission of Shortcut target  
-      * Shortcut  
+      * **Shortcut**  
         * Inherits whatever the Shortcut targets  
-      * Network  
+      * **Network**  
         * Ability to see network from Shortcut and within Folder Files  
   * `write`  
     * What does mean for these entities:  
-      * Folder  
+      * **Folder**  
         * All read permissions \+  
           * Can rename Folders and Shortcuts  
             * Can add new Shortcuts and Folders  
-      * Shortcut  
+      * **Shortcut**  
         * It is not possible to set permission on Shortcuts. They inherit target permissions  
-      * Network  
+      * **Network**  
         * All read permissions \+  
           * Can edit, but not delete network completely  
-          * Can rename  
+          * Can rename
+    
 * Youtube  model for permissions:  
   [https://support.google.com/youtube/answer/157177?sjid=8700513507205805673-NC](https://support.google.com/youtube/answer/157177?sjid=8700513507205805673-NC)  
-* 
+  
 
 ### Limits:
 
-Folder-item limit: Each folder has a limit of 100,000 items. Folders, Networks and Shortcuts are counted toward this limit.
+Folder-item limit: Each folder has a limit of `100,000` items. Folders, Networks and Shortcuts are counted toward this limit.
 
-Folder-depth limit: A folder can’t contain more than 20 levels of nested folders.
+Folder-depth limit: A folder can’t contain more than `20` levels of nested folders.
 
 ### Sharing:
 
@@ -111,170 +112,195 @@ Folder-depth limit: A folder can’t contain more than 20 levels of nested folde
 
 In the API, we will add a new **files** endpoint in NDEx to handle folders and shortcuts. In the future we can extend this endpoint to handle other file types if needed.
 
-* Move Networks  
-  POST /v3/batch/networks/move
+* Move Networks `POST /v3/batch/networks/move`
 
-  Post body: 
+  Body: 
 
+  ```
   {  
-     “target\_folder”: \<uuid\>,  
-      “networks”: \[ \<uuids\>\]
+     “target\_folder”: <uuid>,  
+      “networks”: [ <uuids>]
 
-  }  
+  }
+  ```  
     
-* Set visibility on file 
+* Set visibility on file `POST /v3/batch/files/setvisibility`
 
-POST /v3/batch/files/setvisibility  
-		{  visibility: \<Public|Private|Unlisted\>,  
-			\[ {uuid: x,  
-			   type: \<network|folder|shortcut\>  
-			}, {...}\]  
+  Body:
+
+  ```  
+		{  visibility: <Public|Private|Unlisted>,  
+			[ {uuid: x,  
+			   type: <network|folder|shortcut>  
+			}, {...}]  
 		}
-
-* Create a Folder   
-    
-  POST /v3/files/folders  
+   ```
+  
+* Create a Folder `POST /v3/files/folders`
+  
   Request Body fields: 
 
 
-| name | string Name of the folder. |
-| :---- | :---- |
-| parent | string The UUID of the parent folder that contains this folder. If the value is missing or null, the object will be created in user’s home directory. |
+  | name | string Name of the folder. |
+  | :---- | :---- |
+  | parent | string The UUID of the parent folder that contains this folder. If the value is missing or null, the object will be created in user’s home directory. |
 
-  Response
-
-  Return code 201
+  Response:
 
   Header attribute location should have the url of the folder. 
 
-  	Body:
+  Return code 201
 
-  { uuid: \<uuid\>,
+  Body:
+
+    ```
+    { uuid: <uuid>,
+       lastModified: long //creation time
+    }
+	```
+
+* Create a shortcut  `POST /v3/files/shortcuts`
+
+  //renamed from create_shortcut  
+  Request Body fields: 
+
+  | name | string Name of the folder or shortcut. |
+  | :---- | :---- |
+  | parent | string The ID of the parent folder that contains this object. If the value is missing or null, the object will be created in user’s home folder. |
+  | target | String UUID of the target. The target can be either a network, folder, or a shortcut.  |
+
+  Response:
+
+  Header attribute `location` should have the url of the folder. 
+
+  Return code 201
+
+  Response Body:
+
+  ```
+  { uuid: <uuid>,
 
     lastModified: long //creation time
 
   }
-
-* Create a shortcut  
-    
-  POST /v3/files/shortcuts  //renamed from create\_shortcut  
-  Request Body fields: 
+  ```
 
 
-| name | string Name of the folder or shortcut. |
-| :---- | :---- |
-| parent | string The ID of the parent folder that contains this object. If the value is missing or null, the object will be created in user’s home folder. |
-| target | String UUID of the target. The target can be either a network, folder, or a shortcut.  |
-
-  Response
-
-  Return code 201
-
-  Header attribute location should have the url of the folder. 
-
-  	Body:
-
-  { uuid: \<uuid\>,
-
-    lastModified: long //creation time
-
-  }
-
-
-* Delete a folder  
-  DELETE /v3/files/folders/\<UUID\>?permanent=\<true|force\>\&force=\<true|false\>  
+* Delete a folder `DELETE /v3/files/folders/<UUID>?permanent=<true|force>&force=<true|false>`
+  
   Default value for permanent is false which means logical delete  
-  Default value for force is false, which means the folder can only be deleted if it is empty. When force is true all networks, shortcuts and subfolders in the folder will be deleted.   
+  Default value for force is false, which means the folder can only be deleted if it is empty. When force is true all networks, shortcuts and
+  subfolders in the folder will be deleted.   
   Response: 204 No Content   
     
-* Delete a shortcut  
-  DELETE /v3/files/shortcuts/\<UUID\>?permanent=\<true|force\>  
+* Delete a shortcut `DELETE /v3/files/shortcuts/<UUID>?permanent=<true|force>`
+  
   Default value for permanent is false which means logical delete  
   Response: 204 No Content   
     
-* Restore objects  
-  POST /v3/files/trash/restore  
-  Body:   
+* Restore objects  `POST /v3/files/trash/restore`
+  
+  Body:
+
+  ```
     {  
-        “networks” : \[ network\_uuids \]  
-        “folders”: \[folder\_uuids\]  
-        “shortcuts” : \[shortcut\_uuids\] 
+        “networks” : [ network_uuids ]  
+        “folders”: [folder_uuids]  
+        “shortcuts” : [shortcut_uuids] 
 
-              }
+    }
+  ```
 
-* Move or rename a folder 
-
-	PUT /v3/files/folders/\<UUID\>  
+* Move or rename a folder `PUT /v3/files/folders/<UUID>`
 	  
-            Body: {  
-		“name”: \<string\> // new name  
-		“new\_parent”: \<uuid\>  //UUID of the parent directory  
-                       }
+  Body:
 
-* Copy a network or folder
+  ```
+  {  
+		“name”: <string> // new name  
+		“new_parent”: <uuid>  //UUID of the parent directory
+  }
+  ```
 
-            POST /v3/files/copy  
-{  
-  “from\_uuid” : \<uuid\>  
-  “type” : \<network|folder\>   
-   “To\_path” : \<uuid\>  // copy to users home directory if this attribute is missing  
-}
+* Copy a network or folder `POST /v3/files/copy`
 
-* Move or rename a shortcut 
+  Body:
 
-	PUT /v3/files/shortcuts/\<UUID\>  
-            Body: {  
-		“name”: \<string\> // new name  
-                       }
+  ```
+  {  
+     “from_uuid” : <uuid>  
+     “type” : <network|folder>   
+     “to_path” : <uuid>  // copy to users home directory if this attribute is missing  
+  }
+  ```
 
-* Get a folder object  
-  GET /v3/files/folders/\<uuid\>  
-  Body:   
-     {   
-       “name”: \<string\>
+* Move or rename a shortcut `PUT /v3/files/shortcuts/<UUID>`  
 
-                 “uuid”: \<uuid\>  
-                 “parent” : \<uuid\>  
-                 “creationTime” : \<long\>   
-                 “lastModificationTime” : \<long\>  
-                 “Is\_deleted” : \<boolean\>  
-               }
+  Body:
 
-*  Get a shortcut object  
-  GET /v3/files/shortcuts/\<uuid\>  
-  Body:   
-     {   
-       “name”: \<string\>
+  ```
+  {  
+	 “name”: <string> // new name  
+  }
+  ```
 
-                 “uuid”: \<uuid\>  
-                 “parent” : \<uuid\>  
-                 “target” : \<uuid\>  
-                 “creationTime” : \<long\>   
-                 “lastModificationTime” : \<long\>  
-                 “Is\_deleted” : \<boolean\>  
-               }
+* Get a folder object `GET /v3/files/folders/<uuid>`
+    
+  Body:
 
-* List objects in a folder  
-  GET /v3/files/folders/\<uuid\>/list?format=\<update|compact\>
+  ```   
+  {   
+     “name”: <string>
+     “uuid”: <uuid>
+     “parent” : <uuid>
+     “creationTime” : <long>
+     “lastModificationTime” : <long>  
+     “is_deleted” : <boolean>  
+  }
+  ```
 
-	Return:  
-               \[  
-                 {  
-		“uuid” : \<uuid\>  
-                       “type” : \<folder|network|shortcut\>  
-                       “name” : \<string\>   
-                 }  
-		…  
-	    \]	
+*  Get a shortcut object `GET /v3/files/shortcuts/<uuid>`
+  
+   Body:
 
-* Get the object count in a folder  
-  GET /v3/files/folders/\<uuid\>/count
+   ```   
+   {   
+       “name”: <string>
+       “uuid”: <uuid>  
+       “parent” : <uuid>  
+       “target” : <uuid>  
+       “creationTime” : <long>   
+       “lastModificationTime” : <long>  
+       “Is_deleted” : <boolean>  
+   }
+   ```
 
-	Return:  {  
-		    “network : integer  
-                           “folders” : integer  
-                            “shortcuts” : integer	  
-              	}
+* List objects in a folder `GET /v3/files/folders/<uuid>/list?format=<update|compact>`
+
+  Response:
+
+  ```  
+  [  
+    {  
+		“uuid” : <uuid>  
+        “type” : <folder|network|shortcut>  
+        “name” : <string>   
+    }  
+		…
+  ]
+  ```	
+
+* Get the object count in a folder `GET /v3/files/folders/<uuid>/count`
+
+  Response:
+
+  ```
+  {  
+      “network : <integer>  
+      “folders” : <integer>  
+      “shortcuts” : <integer>	  
+  }
+  ```
 
 * Adds/ Update/ Deletes permission   
   POST /v3/sharing/members  
