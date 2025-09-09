@@ -89,12 +89,17 @@
 #### Network Sets
 - Converted to Folder objects with read permission and a Shortcut pointing to each Network added.
 
-#### Groups
-- Converted into Folders owned by the Group owner.
-- Shortcuts to Networks are added to the new Folder.
+#### Remove the users search page from UI and service?
+- User has to opt-in to be searchable in their profile
 
 #### Networks
-- Remain in the Home Folder with permissions mapped from old values to new ones.
+- All networks stay in Home folder, permissions map from old values to new values
+- Access keys get migrated
+
+#### Groups
+- Permissions are delegated onto networks for each owner
+- Group is turned into Folder for owner of group
+
 
 ---
 
@@ -209,6 +214,9 @@ POST /v3/files/trash/restore
 
 ### Additional API Functions
 - **Move/Rename Folder**: `PUT /v3/files/folders/<UUID>`
+
+
+
 - **Copy Network/Folder**: `POST /v3/files/copy`
 - **List Objects in Folder**: `GET /v3/files/folders/<uuid>/list?format=<update|compact>`
 - **Get Object Count in Folder**: `GET /v3/files/folders/<uuid>/count`
