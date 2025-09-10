@@ -302,144 +302,168 @@ In the API, we will add a new **files** endpoint in NDEx to handle folders and s
   }
   ```
 
-* Adds/ Update/ Deletes permission   
-  POST /v3/sharing/members  
+* Adds/Update/Deletes permission  `POST /v3/sharing/members`
+   
   Body:  
-       
-       {  
-         “files” : \<uuid\>, \<network|folder\>  
-         “member”: {   
-                \<user\_uuid\>: \<WRITE|READ\> or null  
-                 …        
-                }  
-         }  
-     
+  ```     
+  {  
+     “files” : <uuid>, <network|folder>  
+     “member”: {   
+                  <user_uuid>: <WRITE|READ> or null  
+                  …        
+               }  
+  }
+  ```
 
-           Member attribute contains the members whose access are changed.
+  Member attribute contains the members whose access are changed.
 
-* Share an object \- creates an access key that can be used to generate a shareable URL, which grants READ permission to anonymous users. For Shortcuts only works for Shortcuts pointing to things the owner owns.   
-  POST /v3/sharing/share  
-  Body:  
+* Share an object `POST /v3/sharing/share  `
+
+  Creates an access key that can be used to generate a shareable URL, which grants READ permission to anonymous users.
+  For Shortcuts only works for Shortcuts pointing to things the owner owns.   
+  
+  Body:
+  ```
        {  
-         “uuid” : \<uuid\>  
-         “type” :  \<network|folder\>	  
-        }  
+         “uuid” : <uuid>  
+         “type” :  <network|folder>	  
+        }
+  ```
+  
   Response: accessKey
 
            
 
-* unshare an object   
-  POST /v3/sharing/unshare  
-  Body:  
+* unshare an object `POST /v3/sharing/unshare`
+  
+  Body:
+  ``` 
        {  
-         “uuid” : \<uuid\>  
-         “type” :  \<network|folder\>	  
-        }  
+         “uuid” : <uuid>  
+         “type” :  <network|folder>	  
+        }
+  ```
+   
   Response: return code 204
 
-* transfer an object   
-  POST /v3/sharing/transfer  
-  Body:  
+* transfer an object `POST /v3/sharing/transfer`
+  
+  Body:
+  ```
        {  
-         “files” : \<uuid\>,  \<network|folder\>  
-          “new\_owner”: \<new\_owner\>  	  
-        }  
+         “files” : <uuid>,  <network|folder>  
+          “new_owner”: <new_owner>  	  
+        }
+  ``` 
           
   Response: return code 204  
     
-* Get my object count
-
-GET /v3/files/count  
-Response:  
-         {  
-           “network”:  \<long\>  //my network count  
-            “folder”:    \<long\>   
-            “shortcut” : \<long\>  
-                     }
-
-* List all shared objects (folders and networks that the current user has READ or WRITE permission on, they should not be owned by current user)  
-  POST /v3/sharing/list?limit=100  
-  Response:  
-           \[  
-  	{	  
-  	   “uuid”: \<uuid\>  
-                 “type”: \<network|folder\>  
-  	“owner”: string  
-  	“owneruuid”: \<uuid\>  
-                 “object” : \<FileItemSummary\>  	  
-              }
-
-  \]  
+* Get my object count `GET /v3/files/count`
     
-* List all my folders 
+  Response:
 
-GET /v3/files/folders?limit=100  
+  ```  
+  {  
+      “network”:  <long>  //my network count  
+      “folder”:    <long>   
+      “shortcut” : <long>  
+  }
+  ```
+
+* List all shared objects  `POST /v3/sharing/list?limit=100`
+
+  Where shared objects are folders and networks that the current user has READ or WRITE permission on, they should not be owned by current user
+    
+  Response:
+
+  ```  
+  [  
+  	{	  
+  	   “uuid”: <uuid>  
+       “type”: <network|folder>  
+  	   “owner”: string  
+  	   “owneruuid”: <uuid>  
+       “object” : <FileItemSummary>  	  
+     }
+
+  ]
+  ```  
+    
+* List all my folders `GET /v3/files/folders?limit=100`
+  
 Response:  
-         \[  
-            folder\_obj  
-                     \]
 
-* List all my shortcuts 
+```
+[  
+  folder_obj  
+]
+```
 
-GET /v3/files/shortcuts?limit=100  
-Response:  
-         \[  
-            shortcut\_obj  
-                     \]
+* List all my shortcuts `GET /v3/files/shortcuts?limit=100`
+  
+Response:
+
+```
+[  
+    shortcut_obj  
+]
+```
 
 ## New and updated API functions for network 
 
 **V3**  
-POST `/v3/networks`  
+
+**POST** `/v3/networks`  
 Add query parameter named `folderid` which denotes parent folder for network
 
-GET `/v3/networks/{networkid}/summary`  
+**GET** `/v3/networks/{networkid}/summary`  
 Returned json should include `folderid in result and showintrash`
 
-GET `/v3/users/{userid}/home`  
+**GET** `/v3/users/{userid}/home`  
 For anonymous use this gets all folders, networks, shortcuts that are public for the given user in their home folder. If the user is signed, then this should include all the folders, networks, shortcuts shared with the signed in user. If a user is signed in and the userid matches the user, then show everything for that user as done with the endpoint ???
 
-`POST /v3/search/files`  
-`Returns folders, networks, and shortcuts that match the query`
+**POST** `/v3/search/files`  
+Returns folders, networks, and shortcuts that match the query
 
-**`V2`**  
-POST `/v2/search/network`  
-Returned json should include `folderid in result and showintrash`
+**V2**  
 
-POST `/v2/search/network/genes`  
-Returned json should include `folderid in result and showintrash`
+**POST** `/v2/search/network`  
+Returned json should include folderid in result and showintrash
 
-POST `/v2/batch/network/summary`  
-Returned json should include `folderid in result and showintrash`
+**POST** `/v2/search/network/genes`  
+Returned json should include folderid in result and showintrash
 
-GET `/v2/user/{userid}/networksummary`  
-Returned json should include `folderid in result and showintrash`
+**POST** `/v2/batch/network/summary`  
+Returned json should include folderid in result and showintrash
 
-GET `/v2/user/{userid}/showcase`  
-Returned json should include `folderid in result and showintrash`  
+**GET** `/v2/user/{userid}/networksummary`  
+Returned json should include folderid in result and showintrash
+
+**GET** `/v2/user/{userid}/showcase`  
+Returned json should include folderid in result and showintrash  
 Should only return networks that are in home folder and public. Also deprecate this call
 
-PUT `/v2/network/{networkid}/systemproperty`  
+**PUT** `/v2/network/{networkid}/systemproperty`  
 Showcase should be a noop and note it in the documentation
 
-POST `/v2/search/group`  
+**POST** `/v2/search/group`  
 Returns folder  
 `/v2/request`   
 Mark endpoints as deprecated in code and in swagger documentation
 
-GET `/v2/user/{userid}/showcase`  
-List as deprecated in code and in swagger, but return same thing as GET `/v3/folders/{userid}/home`
+**GET** `/v2/user/{userid}/showcase`  
+List as deprecated in code and in swagger, but return same thing as **GET** `/v3/folders/{userid}/home`
 
-`GET /v2/user/{userid}/networksummary`  
-List as deprecated in code and in swagger, but return same thing as GET `/v3/users/{userid}/home`
+**GET** `/v2/user/{userid}/networksummary`  
+List as deprecated in code and in swagger, but return same thing as **GET** `/v3/users/{userid}/home`
 
-`POST /v2/search/network`  
-`POST /v2/search/network/genes`  
-Returned json should include `folderid in result and showintrash`
+**POST** `/v2/search/network`
+**POST** `/v2/search/network/genes`  
+Returned json should include folderid in result and showintrash
 
 Networksets endpoints should be deprecated in code and in swagger
 
-`POST /v2/batch/group`  
+**POST** `/v2/batch/group`  
 Return information about folders posted
 
 |  |  |
@@ -457,8 +481,6 @@ Each group should be turned into a folder and the owner of the folder is the own
 Each networkset is converted into a folder owned by the networkset owner and networks are placed as shortcuts in that folder. The networkset id should be used as the folder id.   
 The networkset endpoints should be deprecated in swagger, but if used the networksetid is equivalent to the folderid and will still continue to work.
 
-# 
-
 # Other Changes
 
 V3 endpoints that returns cx2 data should have content type json+cx2
@@ -475,13 +497,14 @@ API functions:
 
 List all objects in trash bin
 
-GET /v3/files/trash
+**GET** `/v3/files/trash`
 
 Permanently deletes all trashed objects:  
-DELETE /v3/files/trash
+**DELETE** `/v3/files/trash`
 
-Delete network function in v3  
-DELETE /v3/networks/\<UUID\>?permanent=\<false|true\>  
+Delete network function in v3:
+**DELETE** `/v3/networks/<UUID>?permanent=<false|true>`
+
 Parameter permanent defaults to false which means a logical delete.
 
      
@@ -492,9 +515,6 @@ We will support it.
             If a folder is not readable, but the network is visible, can users see the network?  
 	In Google Drive, users can share a file under a private folder and make it editable to anyone who has the link. Similarly, a network can be editable to other users in a private folder.  
            
-            
-
-## 
 
 ## Database updates for 3.0
 
@@ -502,30 +522,31 @@ A few new tables for folders and shortcuts. Folder objects and shortcut objects 
 
 Changes are available on dev1 server now.
 
+```
 CREATE TABLE core.folder  
 (  
     "UUID" uuid NOT NULL,  
-    creation\_time timestamp without time zone NOT NULL,  
-    modification\_time timestamp without time zone NOT NULL,  
-    is\_deleted boolean NOT NULL,  
+    creation_time timestamp without time zone NOT NULL,  
+    modification_time timestamp without time zone NOT NULL,  
+    is_deleted boolean NOT NULL,  
     name character varying(300) NOT NULL,  
     visibility character varying(100) NOT NULL,  
     owneruuid uuid NOT NULL,  
-    access\_key character varying(500),  
-    access\_key\_is\_on boolean NOT NULL,  
-    updated\_by uuid,  
-    solr\_indexed boolean,  
-    show\_in\_trash boolean DEFAULT False,  
+    access_key character varying(500),  
+    access_key_is_on boolean NOT NULL,  
+    updated_by uuid,  
+    solr_indexed boolean,  
+    show_in_trash boolean DEFAULT False,  
     parent uuid,  
     description character varying,  
     PRIMARY KEY ("UUID"),  
     FOREIGN KEY (owneruuid)  
-        REFERENCES core.ndex\_user ("UUID") MATCH SIMPLE  
+        REFERENCES core.ndex_user ("UUID") MATCH SIMPLE  
         ON UPDATE NO ACTION  
         ON DELETE NO ACTION  
         NOT VALID,  
-    FOREIGN KEY (updated\_by)  
-        REFERENCES core.ndex\_user ("UUID") MATCH SIMPLE  
+    FOREIGN KEY (updated_by)  
+        REFERENCES core.ndex_user ("UUID") MATCH SIMPLE  
         ON UPDATE NO ACTION  
         ON DELETE NO ACTION  
         NOT VALID  
@@ -535,9 +556,9 @@ ALTER TABLE IF EXISTS core.network
     ADD COLUMN IF NOT EXISTS parent uuid;
 
 ALTER TABLE IF EXISTS core.network  
-    ADD COLUMN show\_in\_trash boolean DEFAULT False;
+    ADD COLUMN show_in_trash boolean DEFAULT False;
 
-COMMENT ON COLUMN core.network.show\_in\_trash  
+COMMENT ON COLUMN core.network.show_in_trash  
     IS 'Indicates whether the object should appear in the trash bin.';
 
 ALTER TABLE IF EXISTS core.network  
@@ -550,50 +571,51 @@ ALTER TABLE IF EXISTS core.network
 CREATE TABLE IF NOT EXISTS core.shortcut  
 (  
     "UUID" uuid NOT NULL,  
-    creation\_time timestamp without time zone NOT NULL,  
-    modification\_time timestamp without time zone NOT NULL,  
-    is\_deleted boolean NOT NULL,  
-    name character varying(300) COLLATE pg\_catalog."default" NOT NULL,  
-    target\_type character varying(100) COLLATE pg\_catalog."default",  
+    creation_time timestamp without time zone NOT NULL,  
+    modification_time timestamp without time zone NOT NULL,  
+    is_deleted boolean NOT NULL,  
+    name character varying(300) COLLATE pg_catalog."default" NOT NULL,  
+    target_type character varying(100) COLLATE pg_catalog."default",  
     target uuid,  
-    visibility character varying(100) COLLATE pg\_catalog."default",  
+    visibility character varying(100) COLLATE pg_catalog."default",  
     owneruuid uuid,  
     updated\_by uuid,  
-    solr\_indexed boolean,  
-    show\_in\_trash boolean DEFAULT false,  
+    solr_indexed boolean,  
+    show_in_trash boolean DEFAULT false,  
     parent uuid,  
-    CONSTRAINT shortcut\_pkey PRIMARY KEY ("UUID"),  
-    CONSTRAINT shortcut\_owneruuid\_fkey FOREIGN KEY (owneruuid)  
-        REFERENCES core.ndex\_user ("UUID") MATCH SIMPLE  
+    CONSTRAINT shortcut_pkey PRIMARY KEY ("UUID"),  
+    CONSTRAINT shortcut_owneruuid_fkey FOREIGN KEY (owneruuid)  
+        REFERENCES core.ndex_user ("UUID") MATCH SIMPLE  
         ON UPDATE NO ACTION  
         ON DELETE NO ACTION,  
-    CONSTRAINT shortcut\_parent\_fkey FOREIGN KEY (parent)  
+    CONSTRAINT shortcut_parent_fkey FOREIGN KEY (parent)  
         REFERENCES core.folder ("UUID") MATCH SIMPLE  
         ON UPDATE NO ACTION  
         ON DELETE NO ACTION  
 )
 
-CREATE TABLE core.folder\_permission  
+CREATE TABLE core.folder_permission  
 (  
-    folder\_id uuid NOT NULL,  
-    user\_id uuid NOT NULL,  
+    folder_id uuid NOT NULL,  
+    user_id uuid NOT NULL,  
     permission character varying(100),  
-    PRIMARY KEY (folder\_id, user\_id),  
-    FOREIGN KEY (folder\_id)  
+    PRIMARY KEY (folder_id, user_id),  
+    FOREIGN KEY (folder_id)  
         REFERENCES core.folder ("UUID") MATCH SIMPLE  
         ON UPDATE NO ACTION  
         ON DELETE NO ACTION  
         NOT VALID,  
-    FOREIGN KEY (user\_id)  
-        REFERENCES core.ndex\_user ("UUID") MATCH SIMPLE  
+    FOREIGN KEY (user_id)  
+        REFERENCES core.ndex_user ("UUID") MATCH SIMPLE  
         ON UPDATE NO ACTION  
         ON DELETE NO ACTION  
         NOT VALID  
 );
 
-ALTER TABLE IF EXISTS core.folder\_permission  
+ALTER TABLE IF EXISTS core.folder_permission  
     OWNER to ndexserver;
 
-CREATE INDEX idx\_network\_owneruuid\_trash\_true  
+CREATE INDEX idx_network_owneruuid_trash_true  
 ON core.network (owneruuid)  
-WHERE show\_in\_trash \= true;  
+WHERE show_in_trash = true;
+```
