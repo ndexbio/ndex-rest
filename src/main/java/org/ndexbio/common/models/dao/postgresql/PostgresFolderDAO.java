@@ -199,6 +199,43 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	            String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
 	            
+	            // Get all networks in the folder tree for permission cleanup
+	            List<UUID> networkIds = new ArrayList<>();
+	            String getNetworksSql = "SELECT \"UUID\" FROM network WHERE parent IN (" + placeholders + ")";
+	            try (PreparedStatement pst = db.prepareStatement(getNetworksSql)) {
+	                pst.setObject(1, folderId);
+	                for (int i = 0; i < descendantFolders.size(); i++) {
+	                    pst.setObject(i + 2, descendantFolders.get(i));
+	                }
+	                try (ResultSet rs = pst.executeQuery()) {
+	                    while (rs.next()) {
+	                        networkIds.add((UUID) rs.getObject(1));
+	                    }
+	                }
+	            }
+	            
+	            // Delete network permissions for all networks in the folder tree
+	            if (!networkIds.isEmpty()) {
+	                String networkPlaceholders = String.join(",", Collections.nCopies(networkIds.size(), "?"));
+	                String deleteNetworkPermissionsSql = "DELETE FROM user_network_membership WHERE network_id IN (" + networkPlaceholders + ")";
+	                try (PreparedStatement pst = db.prepareStatement(deleteNetworkPermissionsSql)) {
+	                    for (int i = 0; i < networkIds.size(); i++) {
+	                        pst.setObject(i + 1, networkIds.get(i));
+	                    }
+	                    pst.executeUpdate();
+	                }
+	            }
+	            
+	            // Delete folder permissions for all folders in the tree
+	            String deleteFolderPermissionsSql = "DELETE FROM folder_permission WHERE folder_id IN (" + placeholders + ")";
+	            try (PreparedStatement pst = db.prepareStatement(deleteFolderPermissionsSql)) {
+	                pst.setObject(1, folderId);
+	                for (int i = 0; i < descendantFolders.size(); i++) {
+	                    pst.setObject(i + 2, descendantFolders.get(i));
+	                }
+	                pst.executeUpdate();
+	            }
+	            
 	            // Delete all networks in the folder tree
 	            String deleteNetworksSql = "DELETE FROM network WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(deleteNetworksSql)) {
@@ -229,6 +266,13 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                pst.executeUpdate();
 	            }
 	        } else {
+	            // Delete folder permissions for just this folder
+	            String deleteFolderPermissionsSql = "DELETE FROM folder_permission WHERE folder_id = ?";
+	            try (PreparedStatement pst = db.prepareStatement(deleteFolderPermissionsSql)) {
+	                pst.setObject(1, folderId);
+	                pst.executeUpdate();
+	            }
+	            
 	            // Just delete the folder itself
 	            String deleteFolderSql = "DELETE FROM folder WHERE \"UUID\"=?";
 	            try (PreparedStatement pst = db.prepareStatement(deleteFolderSql)) {
