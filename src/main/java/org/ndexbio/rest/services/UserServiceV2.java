@@ -1104,7 +1104,7 @@ public class UserServiceV2 extends NdexService {
 	   	@Deprecated
 	   	@Operation(
 	   	    summary = "[DEPRECATED] Get User's Showcase Networks",
-	   	    description = "DEPRECATED: Use /v3/users/{userid}/home instead. Returns list of public networks from a user's home folder or those shared with the viewer."
+	   	    description = "DEPRECATED: Use /v3/users/{userid}/home instead. Returns list of public networks, folders and shortcuts from a user's home folder or those shared with the viewer."
 	   	)
 	   	@Produces("application/json")
 	   	@PermitAll
