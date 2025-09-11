@@ -1100,7 +1100,7 @@ public class UserServiceV2 extends NdexService {
 
 	   	
 	   	@GET
-	   	@Path("/user/{userid}/showcase")
+	   	@Path("/{userid}/showcase")
 	   	@Deprecated
 	   	@Operation(
 	   	    summary = "[DEPRECATED] Get User's Showcase Networks",
