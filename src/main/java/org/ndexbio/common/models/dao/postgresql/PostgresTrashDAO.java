@@ -303,7 +303,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
         // 1) Remove membership for networks (remove group_network_membership?)
         String deleteNetMembership = 
             "DELETE FROM user_network_membership " +
-            " WHERE networkid IN ( " +
+            " WHERE network_id IN ( " +
             "   SELECT \"UUID\" FROM network WHERE owneruuid=? AND is_deleted=true " +
             " )";
         try (PreparedStatement pst = db.prepareStatement(deleteNetMembership)) {
@@ -439,7 +439,7 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                 
             case NETWORK:
                 // First delete network memberships
-                String deleteNetMembership = "DELETE FROM user_network_membership WHERE networkid=?";
+                String deleteNetMembership = "DELETE FROM user_network_membership WHERE network_id=?";
                 try (PreparedStatement pst = db.prepareStatement(deleteNetMembership)) {
                     pst.setObject(1, itemId);
                     pst.executeUpdate();

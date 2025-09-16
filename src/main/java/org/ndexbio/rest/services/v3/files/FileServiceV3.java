@@ -202,8 +202,7 @@ public class FileServiceV3 extends NdexService {
     @Operation(
             summary = "Empty my trash bin",
             description = """
-                          Permanently deletes all items in the authenticated user's trash. Deleting a folder will delete all its children. 
-						  This operation cannot be undone.
+                          Permanently deletes all items in the trash of authenticated user. Deleting a folder will delete all its children. This operation cannot be undone. 
                           
                           Database Tables:
                           - folder: Deletes records where is_deleted=true
@@ -212,8 +211,8 @@ public class FileServiceV3 extends NdexService {
                           
                           Related Tables:
                           - folder_permission: Deletes associated permissions
-                          - user_network_membership: Deletes associated network permissions
-                         
+                          - user_network_membership: Deletes associated network permissions 
+                          
                           Response:
                           - 204 No Content: Success
                           - 401 Unauthorized: Not authenticated
