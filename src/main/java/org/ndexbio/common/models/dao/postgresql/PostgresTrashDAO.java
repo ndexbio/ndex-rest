@@ -5,7 +5,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.sql.Timestamp;
 
@@ -31,55 +33,62 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
 
         // 1) Folders
         String folderSql = 
-            "SELECT \"UUID\", name FROM folder " +
+            "SELECT \"UUID\", name, modification_time, updated_by, description FROM folder " +
             "WHERE owneruuid=? AND is_deleted=true AND show_in_trash = true";
         try (PreparedStatement pst = db.prepareStatement(folderSql)) {
             pst.setObject(1, ownerId);
             try (ResultSet rs = pst.executeQuery()) {
                 while (rs.next()) {
-                    results.add(
-                        new FileItemSummary(
-                            (UUID) rs.getObject("UUID"),
-                            FileType.FOLDER,
-                            rs.getString("name")
-                        )
-                    );
+					Map<String, Object> attr = null;
+                    attr = new HashMap<>();
+                    attr.put("description", rs.getString(5));
+                    results.add(new FileItemSummary(
+                        (UUID) rs.getObject(1), FileType.FOLDER,
+                        rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+                        attr));
                 }
             }
         }
 
         // 2) Networks
         String networkSql =
-            "SELECT \"UUID\", name FROM network " +
+            "SELECT \"UUID\", name, modification_time, updated_by, description, edgecount, visibility FROM network " +
             "WHERE owneruuid=? AND is_deleted=true AND show_in_trash = true";
         try (PreparedStatement pst = db.prepareStatement(networkSql)) {
             pst.setObject(1, ownerId);
             try (ResultSet rs = pst.executeQuery()) {
                 while (rs.next()) {
-                    results.add(
-                        new FileItemSummary(
-                            (UUID) rs.getObject("UUID"),
-                            FileType.NETWORK,
-                            rs.getString("name")
-                        )
-                    );
+                    Map<String, Object> attr = null;
+                    attr = new HashMap<>();
+                    attr.put("description", rs.getString(5));
+                    attr.put("edges", rs.getInt(6));
+                    attr.put("visibility", rs.getString(7));
+                    results.add(new FileItemSummary(
+                        (UUID) rs.getObject(1), FileType.NETWORK,
+                        rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+                        attr));
                 }
             }
         }
 
         // 3) Shortcuts
         String shortcutSql =
-            "SELECT \"UUID\", name FROM shortcut " +
+            "SELECT \"UUID\", name, modification_time, updated_by, target_type, target FROM shortcut " +
             "WHERE owneruuid=? AND is_deleted=true AND show_in_trash = true";
         try (PreparedStatement pst = db.prepareStatement(shortcutSql)) {
             pst.setObject(1, ownerId);
             try (ResultSet rs = pst.executeQuery()) {
                 while (rs.next()) {
+                	Map<String, Object> attr = null;
+                    attr = new HashMap<>();
+					String targetType = rs.getString(5);
+					UUID targetId = (UUID) rs.getObject(6);
+                    attr.put("target_type", targetType);
+					attr.put("target", targetId);
                     results.add(
                         new FileItemSummary(
-                            (UUID) rs.getObject("UUID"),
-                            FileType.SHORTCUT,
-                            rs.getString("name")
+        	                    (UUID) rs.getObject(1), FileType.SHORTCUT,
+        	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4), attr
                         )
                     );
                 }
