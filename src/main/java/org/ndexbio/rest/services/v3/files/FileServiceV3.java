@@ -302,9 +302,7 @@ public class FileServiceV3 extends NdexService {
                           """
     )
 	public Response copyFile(final CopyRequest request,
-			@QueryParam("accesskey") String accessKey,
-			@QueryParam("id_token") String id_token,
-			@QueryParam("auth_token") String auth_token) throws Exception {
+			@QueryParam("accesskey") String accessKey) throws Exception {
 
 	    if (request == null || request.getFileId() == null || request.getType() == null) {
 	        throw new BadRequestException("Request must include 'from_uuid' and 'type'.");
@@ -312,16 +310,7 @@ public class FileServiceV3 extends NdexService {
 
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
-			if (auth_token != null) {
-				userId = getUserIdFromBasicAuthString(auth_token);
-			} else if (id_token != null) {
-				if (getOAuthAuthenticator() == null)
-					throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
-				userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
-			}
-			else {
-				throw new UnauthorizedOperationException("You must be logged in to copy files.");
-			}
+			throw new UnauthorizedOperationException("You must be logged in to copy files.");
 	    }
 
 	    NdexObjectUpdateStatus status = null;
