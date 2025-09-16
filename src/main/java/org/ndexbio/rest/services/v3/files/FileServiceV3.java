@@ -138,7 +138,7 @@ public class FileServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated
                           """
     )
-	public Response listTrash() throws Exception {
+	public List<FileItemSummary> listTrash() throws Exception {
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to view your trash.");
@@ -149,7 +149,7 @@ public class FileServiceV3 extends NdexService {
 	        trashedItems = dao.listTrashedItemsOfUser(userId);
 	    }
 
-	    return Response.ok(trashedItems).build();
+	    return trashedItems;
 	}
 	
 	@POST
@@ -679,7 +679,7 @@ public class FileServiceV3 extends NdexService {
                           - 500 Internal Server Error: Invalid type of file, Shortcut is not supported
                           """
     )
-	public Response shareObject(SharingSimpleRequest request) throws Exception {
+	public Map<UUID,String> shareObject(SharingSimpleRequest request) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -721,7 +721,7 @@ public class FileServiceV3 extends NdexService {
 		    }
 		    response.put(file.getKey(), accessKey);
 	    }
-	    return Response.ok(response).build();
+	    return response;
 	}
 	
 	@POST
