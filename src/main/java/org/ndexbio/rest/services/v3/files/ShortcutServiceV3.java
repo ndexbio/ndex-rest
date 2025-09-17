@@ -137,9 +137,7 @@ public class ShortcutServiceV3 extends NdexService {
                           - 404 Not Found: Shortcut doesn't exist or was deleted
                           """
 		)
-	public Response getShortcut(	@PathParam("shortcutid") final String shortcutId,
-			@QueryParam("id_token") String id_token,
-			@QueryParam("auth_token") String auth_token)
+	public Response getShortcut(	@PathParam("shortcutid") final String shortcutId)
 			throws Exception {
 		
     	Shortcut shortcut = null;
@@ -148,15 +146,6 @@ public class ShortcutServiceV3 extends NdexService {
     		UUID shortcutUUID = UUID.fromString(shortcutId);
 
      		UUID userId = getLoggedInUserId();
-    		if ( userId == null ) {
-    			if ( auth_token != null) {
-    				userId = getUserIdFromBasicAuthString(auth_token);
-    			} else if ( id_token !=null) {
-    				if ( getOAuthAuthenticator() == null)
-    					throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
-    				userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
-    			}
-    		}
     		if ( ! dao.isReadable(shortcutUUID, userId)) 
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
     		shortcut = dao.getShortcut(shortcutUUID, userId);

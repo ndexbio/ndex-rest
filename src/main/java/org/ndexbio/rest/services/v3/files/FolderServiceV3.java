@@ -302,8 +302,6 @@ public class FolderServiceV3 extends NdexService {
                           
                           Query Parameters:
                           - accesskey: Optional. Access key for anonymous access
-                          - id_token: Optional. Google OAuth ID token
-                          - auth_token: Optional. Basic auth token
                           
                           Response:
                           - 200 OK: JSON object with counts
@@ -313,26 +311,12 @@ public class FolderServiceV3 extends NdexService {
     )
 	public Response getChildCount(
 	        @PathParam("folderid") final String folderIdStr,
-	        @QueryParam("accesskey") String accessKey,
-	        @QueryParam("id_token") String id_token,
-	        @QueryParam("auth_token") String auth_token
+	        @QueryParam("accesskey") String accessKey
 	) throws Exception {
 
 	    UUID folderUUID = UUID.fromString(folderIdStr);
 
 	    UUID userId = getLoggedInUserId();
-	    if (userId == null) {
-	        if (auth_token != null) {
-	            userId = getUserIdFromBasicAuthString(auth_token);
-	        } else if (id_token != null) {
-	            if (getOAuthAuthenticator() == null) {
-	                throw new UnauthorizedOperationException(
-	                    "Google OAuth is not enabled on this server."
-	                );
-	            }
-	            userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
-	        }
-	    }
 
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
@@ -370,8 +354,6 @@ public class FolderServiceV3 extends NdexService {
 	                  - format: Optional. "compact" or "update" (default). Controls level of detail in response.
 	                  - type: Optional. Filter by type: "network", "folder", or null for all types.
 	                  - accesskey: Optional. Access key for anonymous access
-	                  - id_token: Optional. Google OAuth ID token
-	                  - auth_token: Optional. Basic auth token
 	                  
 	                  Response Format:
 	                  - Compact: Basic metadata only
@@ -389,9 +371,7 @@ public class FolderServiceV3 extends NdexService {
 	        @PathParam("folderid")  final String folderIdStr,
 	        @QueryParam("format")   @DefaultValue("update") String format,
 	        @QueryParam("type")     String type,
-	        @QueryParam("accesskey") String accessKey,
-	        @QueryParam("id_token")  String id_token,
-	        @QueryParam("auth_token") String auth_token
+	        @QueryParam("accesskey") String accessKey
 	) throws Exception {
 		
 		boolean compact = "compact".equalsIgnoreCase(format);
@@ -401,16 +381,6 @@ public class FolderServiceV3 extends NdexService {
 		}
 		
 	    UUID userId = getLoggedInUserId();
-	    if (userId == null) {
-	        if (auth_token != null) {
-	            userId = getUserIdFromBasicAuthString(auth_token);
-	        } else if (id_token != null) {
-	            if (getOAuthAuthenticator() == null) {
-	                throw new UnauthorizedOperationException("Google OAuth is not enabled on this server.");
-	            }
-	            userId = getOAuthAuthenticator().getUserUUIDByIdToken(id_token);
-	        }
-	    }
 
 	    /* ---------------------------------------------------------------- home case */
 	    if ("home".equalsIgnoreCase(folderIdStr)) {
