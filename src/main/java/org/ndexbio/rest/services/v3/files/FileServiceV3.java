@@ -356,7 +356,7 @@ public class FileServiceV3 extends NdexService {
 		}
 		
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-			if (!dao.isReadable(srcNetUUID, userId) || !dao.accessKeyIsValid(srcNetUUID, accessKey)) {
+			if (!dao.isReadable(srcNetUUID, userId) && !dao.accessKeyIsValid(srcNetUUID, accessKey)) {
 				throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 			}
 			
