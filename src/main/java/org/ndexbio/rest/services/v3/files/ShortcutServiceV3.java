@@ -123,6 +123,7 @@ public class ShortcutServiceV3 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{shortcutid}")
+	@Produces("application/json")
 	@Operation(
 			summary = "Get a Shortcut",
 			description = """
@@ -137,7 +138,7 @@ public class ShortcutServiceV3 extends NdexService {
                           - 404 Not Found: Shortcut doesn't exist or was deleted
                           """
 		)
-	public Response getShortcut(	@PathParam("shortcutid") final String shortcutId)
+	public Shortcut getShortcut(	@PathParam("shortcutid") final String shortcutId)
 			throws Exception {
 		
     	Shortcut shortcut = null;
@@ -151,7 +152,7 @@ public class ShortcutServiceV3 extends NdexService {
     		shortcut = dao.getShortcut(shortcutUUID, userId);
     	}
 
-    	return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(shortcut).build();
+    	return 	shortcut;
 		
 	}
 	
