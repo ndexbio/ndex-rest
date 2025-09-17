@@ -248,7 +248,7 @@ public class ShortcutServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated
                           """
 		)
-	public Response listMyShortcuts(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
+	public List<Shortcut> listMyShortcuts(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -260,7 +260,7 @@ public class ShortcutServiceV3 extends NdexService {
 	        shortcuts = dao.listShortcutsOfUser(userId, limit);
 	    }
 
-	    return Response.ok(shortcuts).build();
+	    return shortcuts;
 	}
 
 

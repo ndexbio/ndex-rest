@@ -147,7 +147,7 @@ public class BatchService extends NdexService {
 	    summary = "Move networks to a folder",
 	    description = "Moves a list of networks to the specified target folder. User must be the owner of the networks."
 	)
-	public Response moveNetworksToFolder(final MoveNetworksRequest request) throws Exception {
+	public void moveNetworksToFolder(final MoveNetworksRequest request) throws Exception {
 	    if (request == null || request.getTargetFolder() == null || request.getNetworks() == null || request.getNetworks().isEmpty()) {
 	        throw new BadRequestException("Request must contain a target folder UUID and a non-empty list of network UUIDs.");
 	    }
@@ -168,7 +168,7 @@ public class BatchService extends NdexService {
 	        networkDao.commit();
 	    }
 
-	    return Response.noContent().build();
+	    return ;
 	}
 	
     @POST
@@ -176,7 +176,7 @@ public class BatchService extends NdexService {
     @Operation(summary = "Set File Visibility", description = "Set the visibility (PUBLIC or PRIVATE) for a batch of files (networks, folders, etc.). User must be the owner of the files.")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response setVisibility(FileVisibilityRequest request) throws Exception {
+    public void setVisibility(FileVisibilityRequest request) throws Exception {
         if (request == null || request.getVisibility() == null || request.getFiles() == null) {
             throw new NdexException("Missing required parameters: visibility and items.");
         }
@@ -223,7 +223,7 @@ public class BatchService extends NdexService {
             }
         }
 
-        return Response.ok().build();
+        return ;
     }
 
 	

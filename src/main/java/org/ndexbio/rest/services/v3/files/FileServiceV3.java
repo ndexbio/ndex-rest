@@ -89,7 +89,7 @@ public class FileServiceV3 extends NdexService {
 	
 	@GET
 	@Path("/count")
-	@Produces("application/json")
+	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
             summary = "Get my object counts",
             description = """
@@ -105,7 +105,7 @@ public class FileServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated
                           """
     )
-	public Response getCount() throws Exception {
+	public FileCount getCount() throws Exception {
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
 	        throw new UnauthorizedOperationException("You must be signed in to see your file counts.");
@@ -113,7 +113,7 @@ public class FileServiceV3 extends NdexService {
 
 	    try (FileDAO dao = Configuration.getInstance().getDAOFactory().getFileDAO()) {
 	       FileCount counts = dao.getOwnedFileCounts(userId);
-	       return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(counts).build();
+	       return counts;
 	    }
 	}
 	
@@ -218,7 +218,7 @@ public class FileServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated
                           """
     )
-	public Response clearTrash() throws Exception {
+	public void clearTrash() throws Exception {
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to clear your trash.");
@@ -229,7 +229,7 @@ public class FileServiceV3 extends NdexService {
 	        dao.commit();
 	    }
 
-	    return Response.noContent().build();
+	    return;
 	}
 	
 	@DELETE
@@ -731,7 +731,7 @@ public class FileServiceV3 extends NdexService {
                           - 500 Internal Server Error: Invalid type of file, Shortcut is not supported
                           """
     )
-	public Response unshareObject(SharingSimpleRequest request) throws Exception {
+	public void unshareObject(SharingSimpleRequest request) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -769,7 +769,7 @@ public class FileServiceV3 extends NdexService {
 		            throw new NdexException("Unknown type: " + type);
 		    }
 	    }
-	    return Response.noContent().build();
+	    return ;
 	}
 	
 	@POST
@@ -791,7 +791,7 @@ public class FileServiceV3 extends NdexService {
                           - 500 Internal Server Error: No networks specified for transfer, Missing new owner UUID in request
                           """
     )
-	public Response transferNetworksOwnership(TransferOwnershipRequest request) throws Exception {
+	public void transferNetworksOwnership(TransferOwnershipRequest request) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to transfer objects.");
@@ -839,7 +839,7 @@ public class FileServiceV3 extends NdexService {
 	        }
 	    }
 
-	    return Response.noContent().build();
+	    return ;
 	}
 
 	@GET
@@ -866,7 +866,7 @@ public class FileServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated
                           """
     )
-	public Response listSharedObjects(
+	public List<SharedFile> listSharedObjects(
 	    @QueryParam("limit") @DefaultValue("100") int limit
 	) throws Exception {
 	
@@ -885,7 +885,7 @@ public class FileServiceV3 extends NdexService {
 		}
 		
 		
-	    return Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(fileInfo).build();
+	    return fileInfo;
 	}
 
 }

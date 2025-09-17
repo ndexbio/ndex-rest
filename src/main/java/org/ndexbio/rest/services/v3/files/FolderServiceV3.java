@@ -124,6 +124,7 @@ public class FolderServiceV3 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{folderid}")
+	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
             summary = "Get a Folder",
             description = """
@@ -143,7 +144,7 @@ public class FolderServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated, Insufficient permissions
                           """
     )
-	public Response getFolder(	@PathParam("folderid") final String folderId,
+	public Folder getFolder(	@PathParam("folderid") final String folderId,
 			@QueryParam("accesskey") String accessKey,
 			@QueryParam("id_token") String id_token,
 			@QueryParam("auth_token") String auth_token)
@@ -169,7 +170,7 @@ public class FolderServiceV3 extends NdexService {
     		folder = dao.getFolder(folderUUID, userId, accessKey);
     	}
     	
-    	return 	Response.ok().type(MediaType.APPLICATION_JSON_TYPE).entity(folder).build();
+    	return 	folder;
 		
 	}
 	
@@ -211,7 +212,7 @@ public class FolderServiceV3 extends NdexService {
                           - 404 Not Found: Folder doesn't exist or was deleted
                           """
     )
-	@Produces("application/json")
+	@Produces(MediaType.APPLICATION_JSON)
 	public void deleteFolder(
 	        @PathParam("folderid") final String folderIdStr,
 	        @QueryParam("force") @DefaultValue("false") boolean force,
@@ -231,8 +232,8 @@ public class FolderServiceV3 extends NdexService {
 	
 	@PUT
 	@Path("/{folderid}")
-	@Consumes("application/json")
-	@Produces("application/json")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
             summary = "Update a Folder",
             description = """
@@ -309,7 +310,7 @@ public class FolderServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated, Insufficient permissions
                           """
     )
-	public Response getChildCount(
+	public FileCount getChildCount(
 	        @PathParam("folderid") final String folderIdStr,
 	        @QueryParam("accesskey") String accessKey
 	) throws Exception {
@@ -327,10 +328,7 @@ public class FolderServiceV3 extends NdexService {
 	        FileCount result;
 	        result = dao.getFolderChildCounts(folderUUID);
 	        
-		    return Response.ok()
-	                   .type(MediaType.APPLICATION_JSON_TYPE)
-	                   .entity(result)
-	                   .build();
+		    return result;
 	    }
 
 	}
@@ -367,7 +365,7 @@ public class FolderServiceV3 extends NdexService {
 	                  - 401 Unauthorized: User doesn't have read access to this folder
 	                  """
 	)
-	public Response listItemsInFolder(
+	public List<FileItemSummary> listItemsInFolder(
 	        @PathParam("folderid")  final String folderIdStr,
 	        @QueryParam("format")   @DefaultValue("update") String format,
 	        @QueryParam("type")     String type,
@@ -391,7 +389,7 @@ public class FolderServiceV3 extends NdexService {
 	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	            items = dao.listRootItemsOfUser(userId, compact, fileType);
 	        }
-	        return Response.ok(items).build();
+	        return items;
 	    }
 
 	    /* ------------------------------------------------------------- normal folder */
@@ -404,7 +402,7 @@ public class FolderServiceV3 extends NdexService {
 	        
 	        List<FileItemSummary> items;
 	        items = dao.listItemsInFolder(folderUUID, compact, fileType);
-	        return Response.ok(items).build();
+	        return items;
 	    }
 	}
 	
@@ -428,7 +426,7 @@ public class FolderServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated
                           """
     )
-	public Response listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
+	public List<Folder> listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
@@ -440,7 +438,7 @@ public class FolderServiceV3 extends NdexService {
 	        folders = dao.listFoldersOfUser(userId, limit);
 	    }
 
-	    return Response.ok(folders).build();
+	    return folders;
 	}
 
 
