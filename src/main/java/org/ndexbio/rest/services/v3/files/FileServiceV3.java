@@ -322,7 +322,7 @@ public class FileServiceV3 extends NdexService {
 	            	throw new NdexException("Coping folder is not supported. Create shortcut instead");
 
 	            case NETWORK:
-	                status = copyNetwork(request.getFileId(), userId, request.getTargetId());
+	                status = copyNetwork(request.getFileId(), userId, request.getTargetId(), accessKey);
 	                break;
 	                
 	            case SHORTCUT:
@@ -350,13 +350,13 @@ public class FileServiceV3 extends NdexService {
 		               .build();
 	}
 
-	private NdexObjectUpdateStatus copyNetwork(UUID srcNetUUID, UUID userId, UUID targetId) throws Exception {
+	private NdexObjectUpdateStatus copyNetwork(UUID srcNetUUID, UUID userId, UUID targetId, String accessKey) throws Exception {
 		try (UserDAO dao = new UserDAO()) {
 			dao.checkDiskSpace(userId);
 		}
 		
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-			if (!dao.isReadable(srcNetUUID, userId)) {
+			if (!dao.isReadable(srcNetUUID, userId) || !dao.accessKeyIsValid(srcNetUUID, accessKey)) {
 				throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 			}
 			
