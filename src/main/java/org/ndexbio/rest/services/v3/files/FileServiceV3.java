@@ -356,8 +356,10 @@ public class FileServiceV3 extends NdexService {
 		}
 		
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-			if (!dao.isReadable(srcNetUUID, userId) && !dao.accessKeyIsValid(srcNetUUID, accessKey)) {
-				throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+			if (!dao.isReadable(srcNetUUID, userId)){
+				if(!dao.accessKeyIsValid(srcNetUUID, accessKey)) {
+					throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+				}
 			}
 			
 			if (!dao.networkIsValid(srcNetUUID)) {
@@ -594,7 +596,7 @@ public class FileServiceV3 extends NdexService {
 	                  - 500 Internal Server Error: Invalid type of file
 	                  """
 	)
-	public Response listMembers(Map<UUID, FileType> files) throws Exception {
+	public List<Map<Object, Object>> listMembers(Map<UUID, FileType> files) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to view file permissions.");
@@ -638,13 +640,8 @@ public class FileServiceV3 extends NdexService {
 
 	        response.add(fileInfo);
 	    }
-
-	    ObjectMapper om = new ObjectMapper();
 	    
-	    return Response.ok()
-	                   .type(MediaType.APPLICATION_JSON_TYPE)
-	                   .entity(om.writeValueAsString(response))
-	                   .build();
+	    return response;
 	}
 	
 	@POST
