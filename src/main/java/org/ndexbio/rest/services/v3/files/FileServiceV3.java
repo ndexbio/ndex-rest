@@ -26,7 +26,6 @@ import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.SharedFile;
 import org.ndexbio.model.object.SharingMemberRequest;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.object.Shortcut;
@@ -863,7 +862,7 @@ public class FileServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated
                           """
     )
-	public List<SharedFile> listSharedObjects(
+	public List<FileItemSummary> listSharedObjects(
 	    @QueryParam("limit") @DefaultValue("100") int limit
 	) throws Exception {
 	
@@ -872,7 +871,7 @@ public class FileServiceV3 extends NdexService {
 	        throw new UnauthorizedOperationException("You must be logged in.");
 	    }
 
-	    List<SharedFile> fileInfo;
+	    List<FileItemSummary> fileInfo;
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	    	fileInfo = dao.listSharedFolders(currentUserId);
 	    }

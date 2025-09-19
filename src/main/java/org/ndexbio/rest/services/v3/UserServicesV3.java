@@ -31,7 +31,6 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CyWebWorkspace;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.SharedFile;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.NdexOpenFunction;

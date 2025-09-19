@@ -77,7 +77,6 @@ import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ProvenanceEntity;
-import org.ndexbio.model.object.SharedFile;
 import org.ndexbio.model.object.SimpleNetworkQuery;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
@@ -2382,29 +2381,34 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		}
 	}
 
-	public List<SharedFile> listSharedNetworks(UUID userId) throws SQLException {
-		String sql = "SELECT n.\"UUID\", n.owneruuid, n.owner, n.name " +
+	public List<FileItemSummary> listSharedNetworks(UUID userId) throws SQLException {
+		String sql = "SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, n.description, n.owneruuid, n.owner " +
 		            "FROM user_network_membership nm " +
 		            "JOIN network n ON n.\"UUID\" = nm.network_id " +
 		            "WHERE nm.user_id=? " +
 		            "  AND n.owneruuid<>? " +
 		            "  AND n.is_deleted=false";
 		
-		List<SharedFile> result = new ArrayList<>();
+		List<FileItemSummary> result = new ArrayList<>();
 		try (PreparedStatement pst = db.prepareStatement(sql)) {
 			pst.setObject(1, userId);
 			pst.setObject(2, userId);
 			try (ResultSet rs = pst.executeQuery()) {
 				while (rs.next()) {
-					SharedFile networkInfo = new SharedFile();
-					networkInfo.setUuid((UUID) rs.getObject(1));
-					networkInfo.setType(FileType.NETWORK);
-					networkInfo.setOwnerId((UUID) rs.getObject(2));
-					networkInfo.setOwner(rs.getString(3));
 					FileItemSummary networkSummary = new FileItemSummary();
-					networkSummary.setName(rs.getString(4));
-					networkInfo.setFileSummary(networkSummary);
-					result.add(networkInfo);
+                    networkSummary.setUuid((UUID) rs.getObject(1));
+                    networkSummary.setType(FileType.NETWORK);
+					networkSummary.setName(rs.getString(2));
+					networkSummary.setModificationTime(rs.getTimestamp(3));
+					networkSummary.setUpdatedBy(rs.getString(4));
+
+					Map<String, Object> attr = new HashMap<>();
+					attr.put("description", rs.getString(5));
+					attr.put("owner_id", rs.getObject(6));
+					attr.put("owner", rs.getString(7));
+
+					networkSummary.setAttributes(attr);
+                    result.add(networkSummary);
 				}
 			}
 		}

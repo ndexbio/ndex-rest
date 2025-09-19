@@ -24,7 +24,6 @@ import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.SharedFile;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.object.ShortcutTargetStatus;
 
@@ -790,8 +789,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	}
     
     @Override
-    public List<SharedFile> listSharedFolders(UUID userId) throws SQLException {
-        String sql = "SELECT f.\"UUID\", f.owneruuid, u.user_name, f.name " +
+    public List<FileItemSummary> listSharedFolders(UUID userId) throws SQLException {
+        String sql = "SELECT f.\"UUID\", f.name, f.modification_time, f.updated_by, f.description, f.owneruuid, u.user_name " +
                     "FROM folder_permission fp " +
                     "JOIN folder f ON f.\"UUID\" = fp.folder_id " +
                     "JOIN ndex_user u ON f.owneruuid = u.\"UUID\" " +
@@ -799,20 +798,24 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
                     "  AND f.owneruuid<>? " +
                     "  AND f.is_deleted=false";
         
-        List<SharedFile> result = new ArrayList<>();
+        List<FileItemSummary> result = new ArrayList<>();
         try (PreparedStatement pst = db.prepareStatement(sql)) {
             pst.setObject(1, userId);
             pst.setObject(2, userId);
             try (ResultSet rs = pst.executeQuery()) {
                 while (rs.next()) {
-                    SharedFile folderInfo = new SharedFile();
+                    FileItemSummary folderInfo = new FileItemSummary();
+					Map<String, Object> attr = new HashMap<>();
+					attr.put("description", rs.getString(5));
+					attr.put("owner_id", rs.getObject(6));
+					attr.put("owner", rs.getString(7));
+
                     folderInfo.setUuid((UUID) rs.getObject(1));
                     folderInfo.setType(FileType.FOLDER);
-                    folderInfo.setOwnerId((UUID) rs.getObject(2));
-                    folderInfo.setOwner(rs.getString(3));
-					FileItemSummary folderSummary = new FileItemSummary();
-					folderSummary.setName(rs.getString(4));
-					folderInfo.setFileSummary(folderSummary);
+					folderInfo.setName(rs.getString(2));
+					folderInfo.setModificationTime(rs.getTimestamp(3));
+					folderInfo.setUpdatedBy(rs.getString(4));
+					folderInfo.setAttributes(attr);
                     result.add(folderInfo);
                 }
             }

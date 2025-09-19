@@ -39,7 +39,6 @@ import org.ndexbio.model.object.TransferOwnershipRequest;
 import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
-import org.ndexbio.model.object.SharedFile;
 
 /**
  *
