@@ -2,6 +2,7 @@ package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
 import java.security.SecureRandom;
+import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
+import java.util.Arrays;
 
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.exceptions.NdexException;
@@ -471,6 +473,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    /* ────────────── 2) Networks ─────────────── */
 	    if (type == null || type == FileType.NETWORK) {
 	        String sql = "SELECT " + baseCols
+	            + ", readonly, error, warnings, iscomplete"
 	            + (compact ? ", description, edgecount, visibility" : "")
 	            + " FROM network WHERE "
 	            + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
@@ -481,14 +484,31 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                    Map<String, Object> attr = null;
 	                    if (compact) {
 	                        attr = new HashMap<>();
-	                        attr.put("description", rs.getString(5));
-	                        attr.put("edges", rs.getInt(6));
-	                        attr.put("visibility", rs.getString(7));
+	                        attr.put("description", rs.getString("description"));
+	                        attr.put("edges", rs.getInt("edgecount"));
+	                        attr.put("visibility", rs.getString("visibility"));
 	                    }
+
+	                    boolean isReadOnly = rs.getBoolean("readonly");
+
+	                    String errorMessage = rs.getString("error");
+
+	                    List<String> warnings = null;
+	                    Array warningsArray = rs.getArray("warnings");
+	                    if (warningsArray != null) {
+	                        try {
+	                            warnings = Arrays.asList((String[]) warningsArray.getArray());
+	                        } finally {
+	                            warningsArray.free();
+	                        }
+	                    }
+
+	                    boolean isCompleted = rs.getBoolean("iscomplete");
+						
 	                    results.add(new FileItemSummary(
-	                        (UUID) rs.getObject(1), FileType.NETWORK,
-	                        rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                        attr));
+	                        (UUID) rs.getObject("UUID"), FileType.NETWORK,
+	                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"), attr,
+	                        isReadOnly, errorMessage, warnings, isCompleted));
 	                }
 	            }
 	        }
@@ -915,22 +935,42 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    // Networks
 		if (fileType == null || fileType == FileType.NETWORK) {
-	    String sqlNetworks = "SELECT " + baseCols + ", description, edgecount, visibility " +
-	                         "FROM network WHERE owneruuid = ? AND parent IS NULL AND visibility = 'PUBLIC' AND is_deleted = false";
+	    String sqlNetworks = "SELECT " + baseCols
+	            + ", readonly, error, warnings, iscomplete"
+	            + (compact ? ", description, edgecount, visibility" : "")
+	            + " FROM network WHERE owneruuid = ? AND parent IS NULL AND visibility = 'PUBLIC' AND is_deleted = false";
 	    try (PreparedStatement pst = db.prepareStatement(sqlNetworks)) {
 	        pst.setObject(1, ownerId);
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
-	                Map<String, Object> attr = new HashMap<>();
+	                Map<String, Object> attr = null;
 	                if (compact) {
-	                    attr.put("description", rs.getString(5));
-	                    attr.put("edges", rs.getInt(6));
-	                    attr.put("visibility", rs.getString(7));
+	                    attr = new HashMap<>();
+	                    attr.put("description", rs.getString("description"));
+	                    attr.put("edges", rs.getInt("edgecount"));
+	                    attr.put("visibility", rs.getString("visibility"));
 	                }
+
+	                boolean isReadOnly = rs.getBoolean("readonly");
+
+	                String errorMessage = rs.getString("error");
+
+	                List<String> warnings = null;
+	                Array warningsArray = rs.getArray("warnings");
+	                if (warningsArray != null) {
+	                    try {
+	                        warnings = Arrays.asList((String[]) warningsArray.getArray());
+	                    } finally {
+	                        warningsArray.free();
+	                    }
+	                }
+
+	                boolean isCompleted = rs.getBoolean("iscomplete");
+
 	                result.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), FileType.NETWORK,
-	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                    attr));
+	                    (UUID) rs.getObject("UUID"), FileType.NETWORK,
+	                    rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"), attr,
+	                    isReadOnly, errorMessage, warnings, isCompleted));
 	            }
 	        }
 	    }

@@ -2382,7 +2382,8 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	}
 
 	public List<FileItemSummary> listSharedNetworks(UUID userId) throws SQLException {
-		String sql = "SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, n.description, n.owneruuid, n.owner " +
+		String sql = "SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, n.description, n.edgecount, n.visibility, n.owneruuid, n.owner, "
+		            + "n.readonly, n.error, n.warnings, n.iscomplete " +
 		            "FROM user_network_membership nm " +
 		            "JOIN network n ON n.\"UUID\" = nm.network_id " +
 		            "WHERE nm.user_id=? " +
@@ -2403,9 +2404,24 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 					networkSummary.setUpdatedBy(rs.getString(4));
 
 					Map<String, Object> attr = new HashMap<>();
-					attr.put("description", rs.getString(5));
-					attr.put("owner_id", rs.getObject(6));
-					attr.put("owner", rs.getString(7));
+					attr.put("description", rs.getString("description"));
+					attr.put("edges", rs.getInt("edgecount"));
+					attr.put("visibility", rs.getString("visibility"));
+					attr.put("owner_id", rs.getObject("owneruuid"));
+					attr.put("owner", rs.getString("owner"));
+
+					networkSummary.setIsReadOnly(rs.getBoolean("readonly"));
+					networkSummary.setErrorMessage(rs.getString("error"));
+
+					Array warningsArray = rs.getArray("warnings");
+					if (warningsArray != null) {
+						try {
+							networkSummary.setWarnings(Arrays.asList((String[]) warningsArray.getArray()));
+						} finally {
+							warningsArray.free();
+						}
+					}
+					networkSummary.setIsCompleted(rs.getBoolean("iscomplete"));
 
 					networkSummary.setAttributes(attr);
                     result.add(networkSummary);
