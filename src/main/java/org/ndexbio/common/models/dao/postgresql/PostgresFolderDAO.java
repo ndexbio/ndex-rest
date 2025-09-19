@@ -516,7 +516,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    /* ────────────── 3) Shortcuts ─────────────── */
 	    String sql = "SELECT s.\"UUID\", s.name, s.modification_time, s.updated_by, "
-	        + "s.target_type, s.target, f.is_deleted AS target_folder_deleted, n.is_deleted AS target_network_deleted "
+	        + "s.target_type, s.target, f.is_deleted AS target_folder_deleted, n.is_deleted AS target_network_deleted, "
+	        + "n.edgecount AS network_edgecount "
 	        + "FROM shortcut s "
 	        + "LEFT JOIN folder f ON s.target_type = 'FOLDER' AND s.target = f.\"UUID\" "
 	        + "LEFT JOIN network n ON s.target_type = 'NETWORK' AND s.target = n.\"UUID\" "
@@ -552,6 +553,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                            Boolean deleted = (Boolean) rs.getObject("target_network_deleted");
 	                            if (deleted != null) {
 	                                targetStatus = deleted ? ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
+	                            }
+	                            Integer edgecount = (Integer) rs.getObject("network_edgecount");
+	                            if (edgecount != null) {
+	                                attr.put("edges", edgecount);
 	                            }
 	                        }
 	                    }
