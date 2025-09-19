@@ -515,13 +515,16 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 
 	    /* ────────────── 3) Shortcuts ─────────────── */
-	    String sql = "SELECT " + baseCols
-	        + ", target_type, target"
-	        + " FROM shortcut WHERE "
-	        + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") 
-	        + " AND is_deleted=false";
+	    String sql = "SELECT s.\"UUID\", s.name, s.modification_time, s.updated_by, "
+	        + "s.target_type, s.target, f.is_deleted AS target_folder_deleted, n.is_deleted AS target_network_deleted "
+	        + "FROM shortcut s "
+	        + "LEFT JOIN folder f ON s.target_type = 'FOLDER' AND s.target = f.\"UUID\" "
+	        + "LEFT JOIN network n ON s.target_type = 'NETWORK' AND s.target = n.\"UUID\" "
+	        + "WHERE "
+	        + (home ? "s.owneruuid=? AND s.parent IS NULL" : "s.parent=?")
+	        + " AND s.is_deleted=false";
 	    if (type != null) {
-	        sql += " AND target_type=?";
+	        sql += " AND s.target_type=?";
 	    }
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, contextId);
@@ -533,34 +536,30 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                Map<String, Object> attr = null;
 	                if (compact) {
 	                    attr = new HashMap<>();
-						String targetType = rs.getString(5);
-						UUID targetId = (UUID) rs.getObject(6);
+	                    String targetType = rs.getString("target_type");
+	                    UUID targetId = (UUID) rs.getObject("target");
 	                    attr.put("target_type", targetType);
-						attr.put("target", targetId);
-	                    
-	                    // Check target status
+	                    attr.put("target", targetId);
+
 	                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
-	                    
 	                    if (targetId != null && targetType != null) {
-	                        String checkTargetSql = "SELECT is_deleted FROM " + 
-	                            (targetType.equals("FOLDER") ? "folder" : "network") + 
-	                            " WHERE \"UUID\"=?";
-	                        try (PreparedStatement checkPst = db.prepareStatement(checkTargetSql)) {
-	                            checkPst.setObject(1, targetId);
-	                            try (ResultSet checkRs = checkPst.executeQuery()) {
-	                                if (checkRs.next()) {
-	                                    targetStatus = checkRs.getBoolean(1) ? 
-	                                        ShortcutTargetStatus.IN_TRASH : 
-	                                        ShortcutTargetStatus.ACTIVE;
-	                                }
+	                        if ("FOLDER".equals(targetType)) {
+	                            Boolean deleted = (Boolean) rs.getObject("target_folder_deleted");
+	                            if (deleted != null) {
+	                                targetStatus = deleted ? ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
+	                            }
+	                        } else if ("NETWORK".equals(targetType)) {
+	                            Boolean deleted = (Boolean) rs.getObject("target_network_deleted");
+	                            if (deleted != null) {
+	                                targetStatus = deleted ? ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
 	                            }
 	                        }
 	                    }
 	                    attr.put("target_status", targetStatus.toString());
 	                }
 	                results.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), FileType.SHORTCUT,
-	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+	                    (UUID) rs.getObject("UUID"), FileType.SHORTCUT,
+	                    rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
 	                    attr));
 	            }
 	        }
