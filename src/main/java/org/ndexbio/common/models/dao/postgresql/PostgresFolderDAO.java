@@ -810,7 +810,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
     
     @Override
     public List<FileItemSummary> listSharedFolders(UUID userId) throws SQLException {
-        String sql = "SELECT f.\"UUID\", f.name, f.modification_time, f.updated_by, f.description, f.owneruuid, u.user_name " +
+        String sql = "SELECT f.\"UUID\" AS folder_id, f.name, f.modification_time, f.updated_by, f.description, " +
+                    "       f.owneruuid AS owner_id, u.user_name AS owner_name, fp.permission AS permission " +
                     "FROM folder_permission fp " +
                     "JOIN folder f ON f.\"UUID\" = fp.folder_id " +
                     "JOIN ndex_user u ON f.owneruuid = u.\"UUID\" " +
@@ -826,15 +827,16 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
                 while (rs.next()) {
                     FileItemSummary folderInfo = new FileItemSummary();
 					Map<String, Object> attr = new HashMap<>();
-					attr.put("description", rs.getString(5));
-					attr.put("owner_id", rs.getObject(6));
-					attr.put("owner", rs.getString(7));
+					attr.put("description", rs.getString("description"));
+					attr.put("owner_id", rs.getObject("owner_id"));
+					attr.put("owner", rs.getString("owner_name"));
+					attr.put("permission", rs.getString("permission"));
 
-                    folderInfo.setUuid((UUID) rs.getObject(1));
+                    folderInfo.setUuid((UUID) rs.getObject("folder_id"));
                     folderInfo.setType(FileType.FOLDER);
-					folderInfo.setName(rs.getString(2));
-					folderInfo.setModificationTime(rs.getTimestamp(3));
-					folderInfo.setUpdatedBy(rs.getString(4));
+					folderInfo.setName(rs.getString("name"));
+					folderInfo.setModificationTime(rs.getTimestamp("modification_time"));
+					folderInfo.setUpdatedBy(rs.getString("updated_by"));
 					folderInfo.setAttributes(attr);
                     result.add(folderInfo);
                 }
