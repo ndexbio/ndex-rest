@@ -28,6 +28,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.BadRequestException;
@@ -70,15 +75,15 @@ public class FolderServiceV3 extends NdexService {
                           
                           Edge Cases:
                           - Duplicate folder name in same parent: Allowed (folders can have same name)
-                          
-                          Response:
-                          - 201 Created: Folder created successfully
-                          - Location header contains URL to new folder
-                          - Response body contains folder metadata
-                          - 401 Unauthorized: Not authenticated, Insufficient permissions, Invalid parent folder
-                          - 400 Bad Request: No folder request data was provided, Folder name cannot be empty
                           """
     )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Folder created",
+                    content = @Content(schema = @Schema(implementation = NdexObjectUpdateStatus.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "500", description = "Server error")
+    })
 	public Response createFolder(final FolderRequest request) throws Exception {
 		if (request == null) {
 			throw new BadRequestException("No folder request data was provided!");
@@ -137,13 +142,14 @@ public class FolderServiceV3 extends NdexService {
                           - accesskey: Optional. Access key for anonymous access
                           - id_token: Optional. Google OAuth ID token
                           - auth_token: Optional. Basic auth token
-                          
-                          Response:
-                          - 200 OK: Folder metadata
-                          - 404 Not Found: Folder doesn't exist or was deleted
-                          - 401 Unauthorized: Not authenticated, Insufficient permissions
                           """
     )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Folder retrieved",
+                    content = @Content(schema = @Schema(implementation = Folder.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Folder not found")
+    })
 	public Folder getFolder(	@PathParam("folderid") final String folderId,
 			@QueryParam("accesskey") String accessKey,
 			@QueryParam("id_token") String id_token,
@@ -205,13 +211,14 @@ public class FolderServiceV3 extends NdexService {
                             * Removes all permissions on all networks, shortcuts, and folders in the folder tree
                             * Cannot be restored
                             * Requires force=true if folder not empty
-                          
-                          Response:
-                          - 204 No Content: Success
-                          - 401 Unauthorized: Not authenticated or not owner
-                          - 404 Not Found: Folder doesn't exist or was deleted
                           """
     )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Folder deleted"),
+            @ApiResponse(responseCode = "400", description = "Invalid request"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Folder not found")
+    })
 	@Produces(MediaType.APPLICATION_JSON)
 	public void deleteFolder(
 	        @PathParam("folderid") final String folderIdStr,
@@ -248,13 +255,14 @@ public class FolderServiceV3 extends NdexService {
                           
                           Edge Cases:
                           - Moving to descendant folder: Returns 400 Bad Request (would create cycle)
-                          
-                          Response:
-                          - 204 No Content: Success
-                          - 401 Unauthorized: Not authenticated or not owner, not owner of parent folder or insufficient permissions to parent folder
-                          - 404 Not Found: Folder doesn't exist or was deleted
                           """
     )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Folder updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid request"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Folder not found")
+    })
 	public void updateFolder(final FolderRequest request,
 			@PathParam("folderid") final String folderIdStr)
 			throws  DuplicateObjectException,
@@ -303,13 +311,14 @@ public class FolderServiceV3 extends NdexService {
                           
                           Query Parameters:
                           - accesskey: Optional. Access key for anonymous access
-                          
-                          Response:
-                          - 200 OK: JSON object with counts
-                          - 404 Not Found: Folder doesn't exist or was deleted
-                          - 401 Unauthorized: Not authenticated, Insufficient permissions
                           """
     )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Counts retrieved",
+                    content = @Content(schema = @Schema(implementation = FileCount.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Folder not found")
+    })
 	public FileCount getChildCount(
 	        @PathParam("folderid") final String folderIdStr,
 	        @QueryParam("accesskey") String accessKey
@@ -357,14 +366,16 @@ public class FolderServiceV3 extends NdexService {
 	                  - Compact: Basic metadata only
 	                  - Update: Full metadata including:
 	                    * For networks: description, edge count, visibility
-	                    * For shortcuts: target type, target status
-	                  
-	                  Response:
-	                  - 200 OK: Array of items
-	                  - 404 Not Found: Folder doesn't exist or was deleted
-	                  - 401 Unauthorized: User doesn't have read access to this folder
+	                    * For shortcuts: target type, target status, target visibility, target edge count if target is a network
+						* For folders: description
 	                  """
 	)
+	@ApiResponses(value = {
+	        @ApiResponse(responseCode = "200", description = "Items listed",
+	                content = @Content(array = @ArraySchema(schema = @Schema(implementation = FileItemSummary.class)))),
+	        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+	        @ApiResponse(responseCode = "404", description = "Folder not found")
+	})
 	public List<FileItemSummary> listItemsInFolder(
 	        @PathParam("folderid")  final String folderIdStr,
 	        @QueryParam("format")   @DefaultValue("update") String format,
@@ -420,12 +431,13 @@ public class FolderServiceV3 extends NdexService {
                           
                           Edge Cases:
                           - No folders: Returns empty array
-                          
-                          Response:
-                          - 200 OK: Array of folders
-                          - 401 Unauthorized: Not authenticated
                           """
     )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Folders listed",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = Folder.class)))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
 	public List<Folder> listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
