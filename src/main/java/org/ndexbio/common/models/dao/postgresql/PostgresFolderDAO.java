@@ -446,25 +446,32 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	 */
 	private List<FileItemSummary> listItemsInFolderOrHome(UUID contextId, boolean compact, boolean home, FileType type) throws SQLException {
 	    List<FileItemSummary> results = new ArrayList<>();
-	    final String baseCols = "\"UUID\", name, modification_time, updated_by";
-
 	    /* ────────────── 1) Folders ─────────────── */
 	    if (type == null || type == FileType.FOLDER) {
-	        String sql = "SELECT " + baseCols + (compact ? ", description" : "") + " FROM folder WHERE "
-	                   + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
-	        try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        StringBuilder folderSql = new StringBuilder();
+	        folderSql.append("SELECT f.\"UUID\", f.name, f.modification_time, f.updated_by");
+	        if (compact) {
+	            folderSql.append(", f.description");
+	        }
+	        folderSql.append(", EXISTS (SELECT 1 FROM folder_permission fp WHERE fp.folder_id = f.\"UUID\" AND fp.user_id <> f.owneruuid LIMIT 1) AS is_shared ");
+	        folderSql.append("FROM folder f WHERE ");
+	        folderSql.append(home ? "f.owneruuid=? AND f.parent IS NULL" : "f.parent=?");
+	        folderSql.append(" AND f.is_deleted=false");
+	        try (PreparedStatement pst = db.prepareStatement(folderSql.toString())) {
 	            pst.setObject(1, contextId);
 	            try (ResultSet rs = pst.executeQuery()) {
 	                while (rs.next()) {
-						Map<String, Object> attr = null;
+	                    Map<String, Object> attr = null;
 	                    if (compact) {
 	                        attr = new HashMap<>();
-	                        attr.put("description", rs.getString(5));
+	                        attr.put("description", rs.getString("description"));
 	                    }
-	                    results.add(new FileItemSummary(
-	                        (UUID) rs.getObject(1), FileType.FOLDER,
-	                        rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                        attr));
+	                    FileItemSummary summary = new FileItemSummary(
+	                        (UUID) rs.getObject("UUID"), FileType.FOLDER,
+	                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
+	                        attr);
+	                    summary.setIsShared(rs.getBoolean("is_shared"));
+	                    results.add(summary);
 	                }
 	            }
 	        }
@@ -472,12 +479,17 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    /* ────────────── 2) Networks ─────────────── */
 	    if (type == null || type == FileType.NETWORK) {
-	        String sql = "SELECT " + baseCols
-	            + ", readonly, error, warnings, iscomplete"
-	            + (compact ? ", description, edgecount, visibility" : "")
-	            + " FROM network WHERE "
-	            + (home ? "owneruuid=? AND parent IS NULL" : "parent=?") + " AND is_deleted=false";
-	        try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        StringBuilder networkSql = new StringBuilder();
+	        networkSql.append("SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, ");
+	        networkSql.append("n.readonly, n.error, n.warnings, n.iscomplete");
+	        if (compact) {
+	            networkSql.append(", n.description, n.edgecount, n.visibility");
+	        }
+	        networkSql.append(", EXISTS (SELECT 1 FROM user_network_membership nm WHERE nm.network_id = n.\"UUID\" AND nm.user_id <> n.owneruuid LIMIT 1) AS is_shared ");
+	        networkSql.append("FROM network n WHERE ");
+	        networkSql.append(home ? "n.owneruuid=? AND n.parent IS NULL" : "n.parent=?");
+	        networkSql.append(" AND n.is_deleted=false");
+	        try (PreparedStatement pst = db.prepareStatement(networkSql.toString())) {
 	            pst.setObject(1, contextId);
 	            try (ResultSet rs = pst.executeQuery()) {
 	                while (rs.next()) {
@@ -489,7 +501,11 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                        attr.put("visibility", rs.getString("visibility"));
 	                    }
 
-	                    boolean isReadOnly = rs.getBoolean("readonly");
+	                    Boolean isReadOnly = null;
+	                    boolean readOnlyValue = rs.getBoolean("readonly");
+	                    if (!rs.wasNull()) {
+	                        isReadOnly = readOnlyValue;
+	                    }
 
 	                    String errorMessage = rs.getString("error");
 
@@ -503,12 +519,18 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                        }
 	                    }
 
-	                    boolean isCompleted = rs.getBoolean("iscomplete");
-						
-	                    results.add(new FileItemSummary(
+	                    Boolean isCompleted = null;
+	                    boolean completedValue = rs.getBoolean("iscomplete");
+	                    if (!rs.wasNull()) {
+	                        isCompleted = completedValue;
+	                    }
+
+	                    FileItemSummary summary = new FileItemSummary(
 	                        (UUID) rs.getObject("UUID"), FileType.NETWORK,
 	                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"), attr,
-	                        isReadOnly, errorMessage, warnings, isCompleted));
+	                        isReadOnly, errorMessage, warnings, isCompleted);
+	                    summary.setIsShared(rs.getBoolean("is_shared"));
+	                    results.add(summary);
 	                }
 	            }
 	        }
