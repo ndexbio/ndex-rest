@@ -349,26 +349,26 @@ public class FolderServiceV3 extends NdexService {
 	@Operation(
 	    summary = "List items in a folder",
 	    description = """
-	                  Lists all items (folders, networks, shortcuts) in the specified folder.
-	                  If *folderid* is a UUID, returns the immediate children of that folder  
-	                  (folders/networks/shortcuts) provided the caller is an owner or has read access or a valid accesskey.  
-	                  If *folderid* is the literal string **"home"**, returns all top level items owned by the signed in user (parent = NULL).
-	                  
-	                  Path Parameters:
-	                  - folderid: UUID of the folder to list items from
-	                  
-	                  Query Parameters:
-	                  - format: Optional. "compact" or "update" (default). Controls level of detail in response.
-	                  - type: Optional. Filter by type: "network", "folder", or null for all types.
-	                  - accesskey: Optional. Access key for anonymous access
-	                  
-	                  Response Format:
-	                  - Compact: Basic metadata only
-	                  - Update: Full metadata including:
-	                    * For networks: description, edge count, visibility
-	                    * For shortcuts: target type, target status, target visibility, target edge count if target is a network
-						* For folders: description
-	                  """
+					Lists all items (folders, networks, shortcuts) in the specified folder.
+					If *folderid* is a UUID, returns the immediate children of that folder  
+					(folders/networks/shortcuts) provided the caller is an owner or has read access or a valid accesskey.  
+					If *folderid* is the literal string **"home"**, returns all top level items owned by the signed in user (parent = NULL).
+
+					Path Parameters:
+					- folderid: UUID of the folder to list items from
+
+					Query Parameters:
+					- format: Optional. "compact" or "update" (default). Controls level of detail in response.
+					- type: Optional. Filter by type: "network", "folder", or null for all types.
+					- accesskey: Optional. Access key for anonymous access
+
+					Response Format:
+					- Compact: Basic metadata only
+					- Update: Full metadata including:
+					* For networks: description, edge count, visibility
+					* For shortcuts: target type, target status, target visibility, target edge count if target is a network
+					* For folders: description
+					"""
 	)
 	@ApiResponses(value = {
 	        @ApiResponse(responseCode = "200", description = "Items listed",
