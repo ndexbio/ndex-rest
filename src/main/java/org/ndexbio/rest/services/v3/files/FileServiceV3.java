@@ -595,13 +595,13 @@ public class FileServiceV3 extends NdexService {
 	                  - 500 Internal Server Error: Invalid type of file
 	                  """
 	)
-	public List<Map<Object, Object>> listMembers(Map<UUID, FileType> files) throws Exception {
+	public List<Map<String, Object>> listMembers(Map<UUID, FileType> files) throws Exception {
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to view file permissions.");
 	    }
 
-	    List<Map<Object, Object>> response = new ArrayList<>();
+	    List<Map<String, Object>> response = new ArrayList<>();
 
 	    for (Map.Entry<UUID, FileType> fileEntry : files.entrySet()) {
 	        UUID fileUUID = fileEntry.getKey();
@@ -633,9 +633,11 @@ public class FileServiceV3 extends NdexService {
 	                throw new NdexException("Unsupported file type: " + fileType);
 	        }
 
-	        Map<Object, Object> fileInfo = new HashMap<>();
-	        fileInfo.put(fileUUID, fileType);
-	        fileInfo.put("members", userPermissions);
+	        Map<String, Object> fileInfo = new HashMap<>();
+	        Map<String, Object> details = new HashMap<>();
+	        details.put("type", fileType);
+	        details.put("members", userPermissions);
+	        fileInfo.put(fileUUID.toString(), details);
 
 	        response.add(fileInfo);
 	    }
