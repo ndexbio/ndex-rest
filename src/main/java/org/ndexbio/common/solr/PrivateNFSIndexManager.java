@@ -35,6 +35,7 @@ import org.apache.solr.common.SolrInputDocument;
 import org.ndexbio.model.object.Folder;
 import org.ndexbio.model.object.Shortcut;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.VisibilityType;
 
 public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 
@@ -42,6 +43,9 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 	public static final String CORE_NAME = 
 			"private-nfs" ; 
 
+	protected static final String USER_READ_FIELD = "userRead";
+	protected static final String USER_EDIT_FIELD = "userEdit";
+	protected static final String OWNER_FIELD = "owner";
 	
 	public PrivateNFSIndexManager(SolrClientWrapper client) {
 		super(client);
@@ -51,9 +55,22 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 	public void createIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
 			Collection<String> grpReads, Collection<String> grpEdits) {
 		
+		if (VisibilityType.PUBLIC.equals(summary.getVisibility())) {
+			return;
+		}
 		SolrInputDocument doc = super.getIndexForDocument(summary, ownerUserName, userReads, userEdits, grpReads, grpEdits);
 		
 		// @TODO add private information to document for indexing
+		if (doc == null) {
+			return;
+		}
+		
+		if (ownerUserName != null && !ownerUserName.isBlank()) {
+			doc.addField(OWNER_FIELD, ownerUserName);
+		}
+
+		addPermissionCollection(doc, USER_READ_FIELD, userReads);
+		addPermissionCollection(doc, USER_EDIT_FIELD, userEdits);
 		
 		super.commitDocument(doc);
 	}
@@ -63,6 +80,7 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 		SolrInputDocument doc = super.getIndexForDocument(shortcut);
 		
 		// @TODO add private information to document for indexing
+		doc.addField(VISIBILITY, VisibilityType.PRIVATE.toString());
 		
 		super.commitDocument(doc);
 	}
@@ -73,9 +91,19 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 		
 		// @TODO add private information to document for indexing
 		
+		doc.addField(VISIBILITY, VisibilityType.PRIVATE.toString());
 		super.commitDocument(doc);
 	}
 	
+	private static void addPermissionCollection(SolrInputDocument doc, String field, Collection<String> values) {
+		if (values == null) {
+			return;
+		}
+		for (String value : values) {
+			if (value != null && !value.isBlank()) {
+				doc.addField(field, value);
+			}
+		}
+	}
 	
-
 }
