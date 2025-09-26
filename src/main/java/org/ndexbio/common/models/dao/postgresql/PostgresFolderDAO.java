@@ -449,10 +449,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    /* ────────────── 1) Folders ─────────────── */
 	    if (type == null || type == FileType.FOLDER) {
 	        StringBuilder folderSql = new StringBuilder();
-	        folderSql.append("SELECT f.\"UUID\", f.name, f.modification_time, f.updated_by");
-	        if (compact) {
-	            folderSql.append(", f.description");
-	        }
+        folderSql.append("SELECT f.\"UUID\", f.name, f.modification_time, f.updated_by");
+        if (compact) {
+            folderSql.append(", f.description, f.visibility");
+        }
 	        folderSql.append(", EXISTS (SELECT 1 FROM folder_permission fp WHERE fp.folder_id = f.\"UUID\" AND fp.user_id <> f.owneruuid LIMIT 1) AS is_shared ");
 	        folderSql.append("FROM folder f WHERE ");
 	        folderSql.append(home ? "f.owneruuid=? AND f.parent IS NULL" : "f.parent=?");
@@ -461,11 +461,12 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            pst.setObject(1, contextId);
 	            try (ResultSet rs = pst.executeQuery()) {
 	                while (rs.next()) {
-	                    Map<String, Object> attr = null;
-	                    if (compact) {
-	                        attr = new HashMap<>();
-	                        attr.put("description", rs.getString("description"));
-	                    }
+                    Map<String, Object> attr = null;
+                    if (compact) {
+                        attr = new HashMap<>();
+                        attr.put("description", rs.getString("description"));
+                        attr.put("visibility", rs.getString("visibility"));
+                    }
 	                    FileItemSummary summary = new FileItemSummary(
 	                        (UUID) rs.getObject("UUID"), FileType.FOLDER,
 	                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
@@ -537,9 +538,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 
 	    /* ────────────── 3) Shortcuts ─────────────── */
-	    String sql = "SELECT s.\"UUID\", s.name, s.modification_time, s.updated_by, "
-	        + "s.target_type, s.target, f.is_deleted AS target_folder_deleted, n.is_deleted AS target_network_deleted, "
-	        + "n.edgecount AS network_edgecount "
+    String sql = "SELECT s.\"UUID\", s.name, s.modification_time, s.updated_by, s.visibility, "
+        + "s.target_type, s.target, f.is_deleted AS target_folder_deleted, n.is_deleted AS target_network_deleted, "
+        + "n.edgecount AS network_edgecount "
 	        + "FROM shortcut s "
 	        + "LEFT JOIN folder f ON s.target_type = 'FOLDER' AND s.target = f.\"UUID\" "
 	        + "LEFT JOIN network n ON s.target_type = 'NETWORK' AND s.target = n.\"UUID\" "
@@ -557,14 +558,15 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
 	                Map<String, Object> attr = null;
-	                if (compact) {
-	                    attr = new HashMap<>();
-	                    String targetType = rs.getString("target_type");
-	                    UUID targetId = (UUID) rs.getObject("target");
-	                    attr.put("target_type", targetType);
-	                    attr.put("target", targetId);
+                if (compact) {
+                    attr = new HashMap<>();
+                    String targetType = rs.getString("target_type");
+                    UUID targetId = (UUID) rs.getObject("target");
+                    attr.put("target_type", targetType);
+                    attr.put("target", targetId);
+                    attr.put("visibility", rs.getString("visibility"));
 
-	                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
+                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
 	                    if (targetId != null && targetType != null) {
 	                        if ("FOLDER".equals(targetType)) {
 	                            Boolean deleted = (Boolean) rs.getObject("target_folder_deleted");
@@ -946,19 +948,25 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    // Folders
 		if (fileType == null || fileType == FileType.FOLDER) {
-	    String sqlFolders = "SELECT " + baseCols + (compact ? ", description" : "") + " FROM folder " +
-	                        "WHERE owneruuid = ? AND parent IS NULL AND visibility = 'PUBLIC' AND is_deleted = false";
-	    try (PreparedStatement pst = db.prepareStatement(sqlFolders)) {
-	        pst.setObject(1, ownerId);
-	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next()) {
-	                result.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), FileType.FOLDER,
-	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                    compact ? Map.of("description", rs.getString(5)) : null));
-	            }
-	        }
-	    }
+    String sqlFolders = "SELECT " + baseCols + (compact ? ", description, visibility" : "") + " FROM folder " +
+                        "WHERE owneruuid = ? AND parent IS NULL AND visibility = 'PUBLIC' AND is_deleted = false";
+    try (PreparedStatement pst = db.prepareStatement(sqlFolders)) {
+        pst.setObject(1, ownerId);
+        try (ResultSet rs = pst.executeQuery()) {
+            while (rs.next()) {
+                Map<String, Object> attr = null;
+                if (compact) {
+                    attr = new HashMap<>();
+                    attr.put("description", rs.getString("description"));
+                    attr.put("visibility", rs.getString("visibility"));
+                }
+                result.add(new FileItemSummary(
+                    (UUID) rs.getObject("UUID"), FileType.FOLDER,
+                    rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
+                    attr));
+            }
+        }
+    }
 		}
 
 	    // Networks
@@ -1006,23 +1014,24 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    // Shortcuts
 		if (fileType == null || fileType == FileType.SHORTCUT) {
-	    String sqlShortcuts = "SELECT " + baseCols + ", target_type, target FROM shortcut " +
-	                          "WHERE owneruuid = ? AND parent IS NULL AND is_deleted = false";
-	    try (PreparedStatement pst = db.prepareStatement(sqlShortcuts)) {
-	        pst.setObject(1, ownerId);
-	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next()) {
-	                Map<String, Object> attr = null;
-	                if (compact) {
-	                    attr = new HashMap<>();
-	                    String targetType = rs.getString(5);
-	                    UUID targetId = (UUID) rs.getObject(6);
-	                    attr.put("target_type", targetType);
-	                    attr.put("target", targetId);
+    String sqlShortcuts = "SELECT " + baseCols + ", target_type, target, visibility FROM shortcut " +
+                          "WHERE owneruuid = ? AND parent IS NULL AND is_deleted = false";
+    try (PreparedStatement pst = db.prepareStatement(sqlShortcuts)) {
+        pst.setObject(1, ownerId);
+        try (ResultSet rs = pst.executeQuery()) {
+            while (rs.next()) {
+                Map<String, Object> attr = null;
+                if (compact) {
+                    attr = new HashMap<>();
+                    String targetType = rs.getString("target_type");
+                    UUID targetId = (UUID) rs.getObject("target");
+                    attr.put("target_type", targetType);
+                    attr.put("target", targetId);
+                    attr.put("visibility", rs.getString("visibility"));
 
-	                    // check deletion status
-	                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
-	                    if (targetId != null && targetType != null) {
+                    // check deletion status
+                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
+                    if (targetId != null && targetType != null) {
 	                        String checkTargetSql = "SELECT is_deleted FROM " +
 	                                                ("FOLDER".equals(targetType) ? "folder" : "network") +
 	                                                " WHERE \"UUID\"=?";
