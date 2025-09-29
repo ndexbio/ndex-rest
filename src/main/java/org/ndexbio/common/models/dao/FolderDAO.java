@@ -52,7 +52,9 @@ public interface FolderDAO extends AutoCloseable {
 	void removeFolderPermission(UUID folderId, UUID userId) throws SQLException;
 	
 	Map<String, String> getFolderPermissions(UUID folderId) throws SQLException;
-	
+
+	String getFolderAccessKey(UUID folderId) throws SQLException, ObjectNotFoundException;
+
 	String enableFolderAccessKey(UUID folderId) throws SQLException, NdexException;
 	
 	void disableFolderAccessKey(UUID folderId) throws SQLException, NdexException;

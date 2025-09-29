@@ -2,6 +2,7 @@ package org.ndexbio.rest.services.v3.files;
 
 import java.net.URI;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -176,8 +177,41 @@ public class FolderServiceV3 extends NdexService {
     		folder = dao.getFolder(folderUUID, userId, accessKey);
     	}
     	
-    	return 	folder;
+		return folder;
 		
+	}
+
+	@GET
+	@Path("/{folderid}/accesskey")
+	@Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary = "Get Access Key of Folder",
+            description = "Returns the access key for a folder when access key sharing is enabled. Only the folder owner may call this endpoint."
+    )
+	public Map<String, String> getFolderAccessKey(
+	        @PathParam("folderid") final String folderIdStr
+	) throws Exception {
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        throw new UnauthorizedOperationException("You must be logged in to retrieve a folder access key.");
+	    }
+
+	    UUID folderId = UUID.fromString(folderIdStr);
+	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	        if (!dao.isFolderOwner(folderId, userId)) {
+	            throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
+	        }
+
+	        String key = dao.getFolderAccessKey(folderId);
+	        if (key == null || key.isEmpty()) {
+	            return null;
+	        }
+
+	        Map<String, String> result = new HashMap<>(1);
+	        result.put("accessKey", key);
+	        return result;
+	    }
 	}
 	
 	@DELETE

@@ -766,6 +766,22 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 	    return permissionsMap;
 	}
+
+	@Override
+	public String getFolderAccessKey(UUID folderId) throws SQLException, ObjectNotFoundException {
+        String sql = "SELECT access_key, access_key_is_on FROM folder WHERE \"UUID\"=? AND is_deleted=false";
+        try (PreparedStatement pst = db.prepareStatement(sql)) {
+            pst.setObject(1, folderId);
+            try (ResultSet rs = pst.executeQuery()) {
+                if (!rs.next()) {
+                    throw new ObjectNotFoundException("Folder", folderId);
+                }
+                String key = rs.getString("access_key");
+                boolean keyIsOn = rs.getBoolean("access_key_is_on");
+                return keyIsOn ? key : null;
+            }
+        }
+	}
 	
 	@Override
 	public String enableFolderAccessKey(UUID folderId) throws SQLException, NdexException {
