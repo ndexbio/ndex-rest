@@ -482,7 +482,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    if (type == null || type == FileType.NETWORK) {
 	        StringBuilder networkSql = new StringBuilder();
 	        networkSql.append("SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, ");
-	        networkSql.append("n.readonly, n.error, n.warnings, n.iscomplete");
+	        networkSql.append("n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi");
 	        if (compact) {
 	            networkSql.append(", n.description, n.edgecount, n.visibility");
 	        }
@@ -531,6 +531,13 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"), attr,
 	                        isReadOnly, errorMessage, warnings, isCompleted);
 	                    summary.setIsShared(rs.getBoolean("is_shared"));
+	                    boolean isValidValue = rs.getBoolean("is_validated");
+	                    if (!rs.wasNull()) {
+	                        summary.setIsValid(isValidValue);
+	                    } else {
+	                        summary.setIsValid(null);
+	                    }
+	                    summary.setDoi(rs.getString("ndexdoi"));
 	                    results.add(summary);
 	                }
 	            }
@@ -988,7 +995,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    // Networks
 		if (fileType == null || fileType == FileType.NETWORK) {
 	    String sqlNetworks = "SELECT " + baseCols
-	            + ", readonly, error, warnings, iscomplete"
+	            + ", readonly, error, warnings, iscomplete, is_validated, ndexdoi"
 	            + (compact ? ", description, edgecount, visibility" : "")
 	            + " FROM network WHERE owneruuid = ? AND parent IS NULL AND visibility = 'PUBLIC' AND is_deleted = false";
 	    try (PreparedStatement pst = db.prepareStatement(sqlNetworks)) {
@@ -1018,11 +1025,19 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                }
 
 	                boolean isCompleted = rs.getBoolean("iscomplete");
+	                boolean isValidValue = rs.getBoolean("is_validated");
+	                boolean isValidNull = rs.wasNull();
+	                String doi = rs.getString("ndexdoi");
 
-	                result.add(new FileItemSummary(
+	                FileItemSummary summary = new FileItemSummary(
 	                    (UUID) rs.getObject("UUID"), FileType.NETWORK,
 	                    rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"), attr,
-	                    isReadOnly, errorMessage, warnings, isCompleted));
+	                    isReadOnly, errorMessage, warnings, isCompleted);
+	                if (!isValidNull) {
+	                    summary.setIsValid(isValidValue);
+	                }
+	                summary.setDoi(doi);
+	                result.add(summary);
 	            }
 	        }
 	    }
