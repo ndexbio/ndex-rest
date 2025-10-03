@@ -520,8 +520,8 @@ public class SearchServiceV3 extends NdexService  {
 			Currently only supports searching networks, but the response format is designed to support folders and shortcuts in the future.
 			
 			Query Parameters:
+			- query: SimpleFileQuery object in the request body. See its documentation for details.
             - visibility: Optional. Searches on only public or private data. (PUBLIC, PRIVATE) (default: unset denotes PUBLIC)
-            - type: Optional. Supports filtering results by type (NETWORK, SHORTCUT, FOLDER) (default: unset denotes all)
 			- start: Optional. Starting index for pagination (default: 0)
 			- size: Optional. Number of results per page (default: 100)
 			
@@ -535,10 +535,9 @@ public class SearchServiceV3 extends NdexService  {
 	public FileSearchResult searchFiles(
 			final SimpleFileQuery query,
 			@QueryParam("visibility") FileVisibilityType visibilityType,
-			@QueryParam("type") FileType type,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize)
-			throws SQLException, Exception {
+		throws SQLException, Exception {
 				
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
 		
