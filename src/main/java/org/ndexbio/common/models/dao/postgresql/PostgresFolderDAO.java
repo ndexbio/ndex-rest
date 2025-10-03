@@ -7,6 +7,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -337,10 +338,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	
 	@Override
 	public void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId, String description) throws SQLException, JsonProcessingException, NdexException {
-
-	    if (name == null && parentId == null && description == null) {
-	        throw new NdexException("No updates requested (name, parent, and description are all null).");
-	    }
 	    
 		Timestamp t = new Timestamp(System.currentTimeMillis());
 	    
@@ -348,9 +345,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    if (name != null) {
 	        sb.append(", name=?");
 	    }
-	    if (parentId != null) {
-	        sb.append(", parent=?");
-	    }
+	    sb.append(", parent=?");
 	    if (description != null) {
 	        sb.append(", description=?");
 	    }
@@ -362,8 +357,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        if (name != null) {
 	            pst.setString(idx++, name);
 	        }
-	        if (parentId != null) {
-	            pst.setObject(idx++, parentId);
+	        if (parentId == null) {
+	        	pst.setNull(idx++, Types.OTHER);
+	        } else {
+	        	pst.setObject(idx++, parentId);
 	        }
 	        if (description != null) {
 	            pst.setString(idx++, description);

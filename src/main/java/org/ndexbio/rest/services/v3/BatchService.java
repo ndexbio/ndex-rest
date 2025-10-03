@@ -148,7 +148,7 @@ public class BatchService extends NdexService {
 	    description = "Moves a list of networks to the specified target folder. User must be the owner of the networks."
 	)
 	public void moveNetworksToFolder(final MoveNetworksRequest request) throws Exception {
-	    if (request == null || request.getTargetFolder() == null || request.getNetworks() == null || request.getNetworks().isEmpty()) {
+	    if (request == null || request.getNetworks() == null || request.getNetworks().isEmpty()) {
 	        throw new BadRequestException("Request must contain a target folder UUID and a non-empty list of network UUIDs.");
 	    }
 
