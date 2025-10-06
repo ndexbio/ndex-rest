@@ -12,7 +12,7 @@ import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
-import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -138,10 +138,10 @@ public class ShortcutServiceV3 extends NdexService {
                           - 404 Not Found: Shortcut doesn't exist or was deleted
                           """
 		)
-	public Shortcut getShortcut(	@PathParam("shortcutid") final String shortcutId)
+	public NdexShortcut getShortcut(	@PathParam("shortcutid") final String shortcutId)
 			throws Exception {
 		
-    	Shortcut shortcut = null;
+    	NdexShortcut shortcut = null;
     	
     	try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
     		UUID shortcutUUID = UUID.fromString(shortcutId);
@@ -248,14 +248,14 @@ public class ShortcutServiceV3 extends NdexService {
                           - 401 Unauthorized: Not authenticated
                           """
 		)
-	public List<Shortcut> listMyShortcuts(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
+	public List<NdexShortcut> listMyShortcuts(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to list your shortcuts.");
 	    }
 
-	    List<Shortcut> shortcuts;
+	    List<NdexShortcut> shortcuts;
 	    try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
 	        shortcuts = dao.listShortcutsOfUser(userId, limit);
 	    }

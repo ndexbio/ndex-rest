@@ -17,7 +17,7 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
-import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.network.VisibilityType;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -84,9 +84,9 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	}
 	
 	@Override
-	public Shortcut getShortcut(UUID shortcutId, UUID userId) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
+	public NdexShortcut getShortcut(UUID shortcutId, UUID userId) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
-		Shortcut result = new Shortcut();
+		NdexShortcut result = new NdexShortcut();
 		String sqlStr = "select creation_time, modification_time, name, target, parent, is_deleted, target_type from shortcut where \"UUID\"=?";
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
@@ -175,8 +175,8 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	}
 	
 	@Override
-	public List<Shortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException {
-	    List<Shortcut> result = new ArrayList<>();
+	public List<NdexShortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException {
+	    List<NdexShortcut> result = new ArrayList<>();
 
 	    String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type " +
 	                 " FROM shortcut " +
@@ -190,7 +190,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
-	                Shortcut s = new Shortcut();
+	                NdexShortcut s = new NdexShortcut();
 	                s.setExternalId((UUID) rs.getObject("UUID"));
 	                s.setName(rs.getString("name"));
 	                s.setCreationTime(rs.getTimestamp("creation_time"));
@@ -223,8 +223,8 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
     /**
      * Returns all root-level (parent is null) shortcuts for a user that are not deleted.
      */
-    public List<Shortcut> listRootShortcutsOfUser(UUID ownerId) throws SQLException {
-        List<Shortcut> result = new ArrayList<>();
+    public List<NdexShortcut> listRootShortcutsOfUser(UUID ownerId) throws SQLException {
+        List<NdexShortcut> result = new ArrayList<>();
         String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type " +
                      " FROM shortcut " +
                      " WHERE owneruuid=? AND parent IS NULL AND is_deleted=false " +
@@ -233,7 +233,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
             pst.setObject(1, ownerId);
             try (ResultSet rs = pst.executeQuery()) {
                 while (rs.next()) {
-                    Shortcut s = new Shortcut();
+                    NdexShortcut s = new NdexShortcut();
                     s.setExternalId((UUID) rs.getObject("UUID"));
                     s.setName(rs.getString("name"));
                     s.setCreationTime(rs.getTimestamp("creation_time"));

@@ -24,7 +24,7 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.Folder;
+import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -124,9 +124,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	}
 	
 	@Override
-	public Folder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
+	public NdexFolder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
-		Folder result = new Folder();
+		NdexFolder result = new NdexFolder();
 		String sqlStr = "select creation_time, modification_time, name, parent, is_deleted, description from folder where \"UUID\"=?";
 
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
@@ -617,8 +617,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	}
 	
 	@Override
-	public List<Folder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException {
-	    List<Folder> result = new ArrayList<>();
+	public List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException {
+	    List<NdexFolder> result = new ArrayList<>();
 
 	    String sql = "SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description " +
 	                 " FROM folder " +
@@ -632,7 +632,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
-	                Folder f = new Folder();
+	                NdexFolder f = new NdexFolder();
 	                f.setExternalId((UUID) rs.getObject("UUID"));
 	                f.setName(rs.getString("name"));
 	                f.setParent((UUID) rs.getObject("parent"));

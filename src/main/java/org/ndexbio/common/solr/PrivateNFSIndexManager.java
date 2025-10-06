@@ -32,8 +32,8 @@ package org.ndexbio.common.solr;
 
 import java.util.Collection;
 import org.apache.solr.common.SolrInputDocument;
-import org.ndexbio.model.object.Folder;
-import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.NdexFolder;
+import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 
@@ -76,7 +76,7 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 	}
 
 	@Override
-	public void createIndexForDocument(Shortcut shortcut) {
+	public void createIndexForDocument(NdexShortcut shortcut) {
 		SolrInputDocument doc = super.getIndexForDocument(shortcut);
 		
 		// @TODO add private information to document for indexing
@@ -86,7 +86,7 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 	}
 
 	@Override
-	public void createIndexForDocument(Folder folder) {
+	public void createIndexForDocument(NdexFolder folder) {
 		SolrInputDocument doc = super.getIndexForDocument(folder);
 		
 		// @TODO add private information to document for indexing

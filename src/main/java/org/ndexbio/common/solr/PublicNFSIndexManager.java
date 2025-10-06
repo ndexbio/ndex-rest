@@ -45,8 +45,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 
-import org.ndexbio.model.object.Folder;
-import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.NdexFolder;
+import org.ndexbio.model.object.NdexShortcut;
 
 
 import org.apache.solr.client.solrj.SolrServerException;
@@ -171,7 +171,7 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	 * @param folder
 	 * @return 
 	 */
-	SolrInputDocument getIndexForDocument(Folder folder){
+	SolrInputDocument getIndexForDocument(NdexFolder folder){
 		doc = new SolrInputDocument();
 		doc.addField(UUID, folder.getExternalId().toString());
 		doc.addField(ENTITY_TYPE, FileType.FOLDER.toString());
@@ -195,7 +195,7 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	 * @param shortcut
 	 * @return 
 	 */
-	SolrInputDocument getIndexForDocument(Shortcut shortcut){
+	SolrInputDocument getIndexForDocument(NdexShortcut shortcut){
 		doc = new SolrInputDocument();
 		doc.addField(UUID, shortcut.getExternalId().toString());
 		doc.addField(ENTITY_TYPE, FileType.SHORTCUT.toString());
@@ -247,7 +247,7 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	 * 
 	 * @param folder 
 	 */
-	public void createIndexForDocument(Folder folder){
+	public void createIndexForDocument(NdexFolder folder){
 		SolrInputDocument doc = getIndexForDocument(folder);
 		var documents = new LinkedList<SolrInputDocument>();
 		documents.add(doc);
@@ -264,7 +264,7 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	 * 
 	 * @param shortcut 
 	 */
-	public void createIndexForDocument(Shortcut shortcut){
+	public void createIndexForDocument(NdexShortcut shortcut){
 		SolrInputDocument doc = getIndexForDocument(shortcut);
 		var documents = new LinkedList<SolrInputDocument>();
 		documents.add(doc);

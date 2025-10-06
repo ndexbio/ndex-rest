@@ -5,8 +5,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.Ignore;
-import org.ndexbio.model.object.Folder;
-import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.NdexFolder;
+import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 /**
@@ -28,7 +28,7 @@ public class TestPublicNFSIndexManager {
 		PublicNFSIndexManager manager = factory.getPublicNFSIndexManager();
 		
 		// add a folder
-		Folder folder = new Folder();
+		NdexFolder folder = new NdexFolder();
 		folder.setDescription("test description");
 		folder.setName("foldername");
 		folder.setExternalId(UUID.fromString("E19CA69A-6ED0-409E-984A-45B42CCC34D4"));
@@ -50,7 +50,7 @@ public class TestPublicNFSIndexManager {
 		
 		
 		// add a shortcut
-		Shortcut shortcut = new Shortcut();
+		NdexShortcut shortcut = new NdexShortcut();
 		shortcut.setName("shortcut");
 		shortcut.setCreationTime(Timestamp.from(Instant.now()));
 		shortcut.setModificationTime(Timestamp.from(Instant.now()));

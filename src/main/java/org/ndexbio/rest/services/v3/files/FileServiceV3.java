@@ -28,7 +28,7 @@ import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SharingMemberRequest;
 import org.ndexbio.common.models.dao.ShortcutDAO;
-import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.TransferOwnershipRequest;
 import org.ndexbio.model.object.TrashRestoreRequest;
@@ -467,7 +467,7 @@ public class FileServiceV3 extends NdexService {
 
 	private NdexObjectUpdateStatus copyShortcut(UUID fromUUID, UUID userId, UUID toPath) throws Exception {
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-			Shortcut sourceShortcut = dao.getShortcut(fromUUID, userId);
+			NdexShortcut sourceShortcut = dao.getShortcut(fromUUID, userId);
 			ShortcutRequest request = new ShortcutRequest();
 			request.setName("Copy of " + sourceShortcut.getName());
 			request.setTarget(sourceShortcut.getTarget());

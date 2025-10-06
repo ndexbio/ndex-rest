@@ -132,7 +132,7 @@ public class TestFolderServiceV3 {
         expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).anyTimes();
         replay(mockHttpServletRequest);
 
-        org.ndexbio.model.object.Folder folder = new org.ndexbio.model.object.Folder();
+        org.ndexbio.model.object.NdexFolder folder = new org.ndexbio.model.object.NdexFolder();
         folder.setName("Folder Success");
         folder.setExternalId(folderId);
 
@@ -156,7 +156,7 @@ public class TestFolderServiceV3 {
         assertEquals(Status.OK.getStatusCode(), response.getStatus());
 
         ObjectMapper mapper = new ObjectMapper();
-        org.ndexbio.model.object.Folder result = mapper.readValue(response.getOutput(), org.ndexbio.model.object.Folder.class);
+        org.ndexbio.model.object.NdexFolder result = mapper.readValue(response.getOutput(), org.ndexbio.model.object.NdexFolder.class);
         assertEquals("Folder Success", result.getName());
         assertEquals(folderId, result.getExternalId());
     }
@@ -171,8 +171,8 @@ public class TestFolderServiceV3 {
         expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
         replay(mockHttpServletRequest);
 
-        List<org.ndexbio.model.object.Folder> folderList = new ArrayList<>();
-        org.ndexbio.model.object.Folder folder = new org.ndexbio.model.object.Folder();
+        List<org.ndexbio.model.object.NdexFolder> folderList = new ArrayList<>();
+        org.ndexbio.model.object.NdexFolder folder = new org.ndexbio.model.object.NdexFolder();
         folder.setName("My Folder");
         folderList.add(folder);
 

@@ -12,7 +12,7 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.Folder;
+import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -31,7 +31,7 @@ public interface FolderDAO extends AutoCloseable {
 	
 	boolean accessKeyIsValid(UUID folderId, String accessKey) throws SQLException;
 	
-	Folder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException;
+	NdexFolder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException;
 	
 	boolean isFolderOwner(UUID folderId, UUID ownerId) throws SQLException;
 	
@@ -45,7 +45,7 @@ public interface FolderDAO extends AutoCloseable {
 	
 	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException;
 	
-	List<Folder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException;
+	List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException;
 	
 	NdexObjectUpdateStatus setFolderPermission(UUID folderId, UUID userId, Permissions permission) throws SQLException, NdexException;
 	

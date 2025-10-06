@@ -31,9 +31,9 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NetworkSet;
-import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.Folder;
+import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.rest.Configuration;
 
@@ -189,7 +189,7 @@ public class NetworkSetServiceV2 extends NdexService {
 		// Check if id exists in folder table
 		try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			if (folderDAO.isReadable(setId, getLoggedInUserId()) || folderDAO.accessKeyIsValid(setId, accessKey)) {
-				Folder folder = folderDAO.getFolder(setId, getLoggedInUserId(), accessKey);
+				NdexFolder folder = folderDAO.getFolder(setId, getLoggedInUserId(), accessKey);
 				
 				// Convert folder to NetworkSet format
 				NetworkSet networkSet = new NetworkSet();
@@ -287,8 +287,8 @@ public class NetworkSetServiceV2 extends NdexService {
 			if (folderDAO.isFolderOwner(setId, getLoggedInUserId())) {
 				for (UUID networkId : networkIds) {
 					// Find shortcut in this folder pointing to this network
-					List<Shortcut> shortcuts = shortcutDAO.listShortcutsOfUser(getLoggedInUserId(), 1000);
-					for (Shortcut shortcut : shortcuts) {
+					List<NdexShortcut> shortcuts = shortcutDAO.listShortcutsOfUser(getLoggedInUserId(), 1000);
+					for (NdexShortcut shortcut : shortcuts) {
 						if (setId.equals(shortcut.getParent()) && networkId.equals(shortcut.getTarget()) && shortcut.getTargetType() == FileType.NETWORK) {
 							shortcutDAO.deleteShortcut(shortcut.getExternalId(), true);
 						}

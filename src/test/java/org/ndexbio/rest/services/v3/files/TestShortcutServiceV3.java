@@ -17,7 +17,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
-import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.Configuration;
@@ -241,7 +241,7 @@ public class TestShortcutServiceV3 {
         expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).times(1);
         replay(mockHttpServletRequest);
 
-        Shortcut mockShortcut = new Shortcut();
+        NdexShortcut mockShortcut = new NdexShortcut();
         mockShortcut.setName("Test Shortcut");
         mockShortcut.setExternalId(shortcutId);
 
@@ -264,7 +264,7 @@ public class TestShortcutServiceV3 {
         assertEquals(Status.OK.getStatusCode(), response.getStatus());
 
         ObjectMapper mapper = new ObjectMapper();
-        Shortcut result = mapper.readValue(response.getOutput(), Shortcut.class);
+        NdexShortcut result = mapper.readValue(response.getOutput(), NdexShortcut.class);
         assertEquals("Test Shortcut", result.getName());
         assertEquals(shortcutId, result.getExternalId());
     }
@@ -431,8 +431,8 @@ public class TestShortcutServiceV3 {
         expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).times(1);
         replay(mockHttpServletRequest);
 
-        List<Shortcut> mockShortcuts = new ArrayList<>();
-        Shortcut s = new Shortcut();
+        List<NdexShortcut> mockShortcuts = new ArrayList<>();
+        NdexShortcut s = new NdexShortcut();
         s.setName("Test Shortcut");
         s.setExternalId(UUID.randomUUID());
         mockShortcuts.add(s);
@@ -454,7 +454,7 @@ public class TestShortcutServiceV3 {
         assertEquals(Status.OK.getStatusCode(), response.getStatus());
 
         ObjectMapper mapper = new ObjectMapper();
-        Shortcut[] result = mapper.readValue(response.getOutput(), Shortcut[].class);
+        NdexShortcut[] result = mapper.readValue(response.getOutput(), NdexShortcut[].class);
         assertEquals(1, result.length);
         assertEquals("Test Shortcut", result[0].getName());
     }

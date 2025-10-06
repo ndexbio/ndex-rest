@@ -81,7 +81,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.ResponseType;
-import org.ndexbio.model.object.Shortcut;
+import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -1160,12 +1160,12 @@ public class UserServiceV2 extends NdexService {
 				List<NetworkSummary> result = dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
 				try (PostgresShortcutDAO shortcutDAO = new PostgresShortcutDAO();
 				     PostgresNetworkDAO networkDAO = new PostgresNetworkDAO()) {
-					List<Shortcut> shortcuts = shortcutDAO.listRootShortcutsOfUser(userId);
+					List<NdexShortcut> shortcuts = shortcutDAO.listRootShortcutsOfUser(userId);
 					Set<UUID> seen = new HashSet<>();
 					for (NetworkSummary ns : result) {
 						seen.add(ns.getExternalId());
 					}
-					for (Shortcut shortcut : shortcuts) {
+					for (NdexShortcut shortcut : shortcuts) {
 						if (shortcut.getTargetType() == FileType.NETWORK && shortcut.getTarget() != null) {
 							UUID networkId = shortcut.getTarget();
 							if (!seen.contains(networkId)) {

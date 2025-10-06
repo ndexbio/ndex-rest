@@ -15,7 +15,7 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.Folder;
+import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
@@ -147,17 +147,17 @@ public class FolderServiceV3 extends NdexService {
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Folder retrieved",
-                    content = @Content(schema = @Schema(implementation = Folder.class))),
+                    content = @Content(schema = @Schema(implementation = NdexFolder.class))),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
             @ApiResponse(responseCode = "404", description = "Folder not found")
     })
-	public Folder getFolder(	@PathParam("folderid") final String folderId,
+	public NdexFolder getFolder(	@PathParam("folderid") final String folderId,
 			@QueryParam("accesskey") String accessKey,
 			@QueryParam("id_token") String id_token,
 			@QueryParam("auth_token") String auth_token)
 			throws Exception {
 		
-    	Folder folder = null;
+    	NdexFolder folder = null;
     	
     	try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
     		UUID folderUUID = UUID.fromString(folderId);
@@ -469,17 +469,17 @@ public class FolderServiceV3 extends NdexService {
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Folders listed",
-                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = Folder.class)))),
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = NdexFolder.class)))),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-	public List<Folder> listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
+	public List<NdexFolder> listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
 
 	    UUID userId = getLoggedInUserId();
 	    if (userId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to list your folders.");
 	    }
 
-	    List<Folder> folders;
+	    List<NdexFolder> folders;
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        folders = dao.listFoldersOfUser(userId, limit);
 	    }
