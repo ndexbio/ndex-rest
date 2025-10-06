@@ -450,8 +450,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
         if (compact) {
             folderSql.append(", f.description, f.visibility");
         }
-	        folderSql.append(", EXISTS (SELECT 1 FROM folder_permission fp WHERE fp.folder_id = f.\"UUID\" AND fp.user_id <> f.owneruuid LIMIT 1) AS is_shared ");
-	        folderSql.append("FROM folder f WHERE ");
+        folderSql.append(", f.owneruuid AS owner_id, u.user_name AS owner_name");
+        folderSql.append(", EXISTS (SELECT 1 FROM folder_permission fp WHERE fp.folder_id = f.\"UUID\" AND fp.user_id <> f.owneruuid LIMIT 1) AS is_shared ");
+        folderSql.append("FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" WHERE ");
 	        folderSql.append(home ? "f.owneruuid=? AND f.parent IS NULL" : "f.parent=?");
 	        folderSql.append(" AND f.is_deleted=false");
 	        try (PreparedStatement pst = db.prepareStatement(folderSql.toString())) {
@@ -460,18 +461,20 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                while (rs.next()) {
 	                    Map<String, Object> attr = null;
 	                    if (compact) {
-	                        attr = new HashMap<>();
-	                        attr.put("description", rs.getString("description"));
-	                    }
-	                    FileItemSummary summary = new FileItemSummary(
-	                        (UUID) rs.getObject("UUID"), FileType.FOLDER,
-	                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
-	                        attr);
-	                    if (compact) {
-	                        summary.setVisibility(rs.getString("visibility"));
-	                    }
-	                    summary.setIsShared(rs.getBoolean("is_shared"));
-	                    results.add(summary);
+                        attr = new HashMap<>();
+                        attr.put("description", rs.getString("description"));
+                    }
+                    FileItemSummary summary = new FileItemSummary(
+                        (UUID) rs.getObject("UUID"), FileType.FOLDER,
+                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
+                        attr);
+                    summary.setOwnerId((UUID) rs.getObject("owner_id"));
+                    summary.setOwner(rs.getString("owner_name"));
+                    if (compact) {
+                        summary.setVisibility(rs.getString("visibility"));
+                    }
+                    summary.setIsShared(rs.getBoolean("is_shared"));
+                    results.add(summary);
 	                }
 	            }
 	        }
@@ -480,13 +483,14 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    /* ────────────── 2) Networks ─────────────── */
 	    if (type == null || type == FileType.NETWORK) {
 	        StringBuilder networkSql = new StringBuilder();
-	        networkSql.append("SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, ");
-	        networkSql.append("n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi");
-	        if (compact) {
-	            networkSql.append(", n.description, n.edgecount, n.visibility");
-	        }
-	        networkSql.append(", EXISTS (SELECT 1 FROM user_network_membership nm WHERE nm.network_id = n.\"UUID\" AND nm.user_id <> n.owneruuid LIMIT 1) AS is_shared ");
-	        networkSql.append("FROM network n WHERE ");
+        networkSql.append("SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, ");
+        networkSql.append("n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi");
+        if (compact) {
+            networkSql.append(", n.description, n.edgecount, n.visibility");
+        }
+        networkSql.append(", n.owneruuid AS owner_id, u.user_name AS owner_name");
+        networkSql.append(", EXISTS (SELECT 1 FROM user_network_membership nm WHERE nm.network_id = n.\"UUID\" AND nm.user_id <> n.owneruuid LIMIT 1) AS is_shared ");
+        networkSql.append("FROM network n JOIN ndex_user u ON n.owneruuid = u.\"UUID\" WHERE ");
 	        networkSql.append(home ? "n.owneruuid=? AND n.parent IS NULL" : "n.parent=?");
 	        networkSql.append(" AND n.is_deleted=false");
 	        try (PreparedStatement pst = db.prepareStatement(networkSql.toString())) {
@@ -523,14 +527,16 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                        isCompleted = completedValue;
 	                    }
 
-	                    FileItemSummary summary = new FileItemSummary(
-	                        (UUID) rs.getObject("UUID"), FileType.NETWORK,
-	                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"), attr,
-	                        isReadOnly, errorMessage, warnings, isCompleted);
-	                    if (compact) {
-	                        summary.setEdges((Integer) rs.getObject("edgecount"));
-	                        summary.setVisibility(rs.getString("visibility"));
-	                    }
+                    FileItemSummary summary = new FileItemSummary(
+                        (UUID) rs.getObject("UUID"), FileType.NETWORK,
+                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"), attr,
+                        isReadOnly, errorMessage, warnings, isCompleted);
+                    summary.setOwnerId((UUID) rs.getObject("owner_id"));
+                    summary.setOwner(rs.getString("owner_name"));
+                    if (compact) {
+                        summary.setEdges((Integer) rs.getObject("edgecount"));
+                        summary.setVisibility(rs.getString("visibility"));
+                    }
 	                    summary.setIsShared(rs.getBoolean("is_shared"));
 	                    boolean isValidValue = rs.getBoolean("is_validated");
 	                    if (!rs.wasNull()) {
@@ -546,13 +552,14 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 
 	    /* ────────────── 3) Shortcuts ─────────────── */
-    String sql = "SELECT s.\"UUID\", s.name, s.modification_time, s.updated_by, s.visibility, "
+    String sql = "SELECT s.\"UUID\", s.name, s.modification_time, s.updated_by, s.visibility, s.owneruuid AS owner_id, u.user_name AS owner_name, "
         + "s.target_type, s.target, f.is_deleted AS target_folder_deleted, n.is_deleted AS target_network_deleted, "
         + "n.edgecount AS network_edgecount "
-	        + "FROM shortcut s "
-	        + "LEFT JOIN folder f ON s.target_type = 'FOLDER' AND s.target = f.\"UUID\" "
-	        + "LEFT JOIN network n ON s.target_type = 'NETWORK' AND s.target = n.\"UUID\" "
-	        + "WHERE "
+        + "FROM shortcut s "
+        + "JOIN ndex_user u ON s.owneruuid = u.\"UUID\" "
+        + "LEFT JOIN folder f ON s.target_type = 'FOLDER' AND s.target = f.\"UUID\" "
+        + "LEFT JOIN network n ON s.target_type = 'NETWORK' AND s.target = n.\"UUID\" "
+        + "WHERE "
 	        + (home ? "s.owneruuid=? AND s.parent IS NULL" : "s.parent=?")
 	        + " AND s.is_deleted=false";
 	    if (type != null) {
@@ -591,14 +598,16 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                    }
 	                    attr.put("target_status", targetStatus.toString());
 	                }
-	                FileItemSummary summary = new FileItemSummary(
-	                    (UUID) rs.getObject("UUID"), FileType.SHORTCUT,
-	                    rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
-	                    attr);
-	                summary.setVisibility(rs.getString("visibility"));
-	                if (edgecount != null) {
-	                    summary.setEdges(edgecount);
-	                }
+                FileItemSummary summary = new FileItemSummary(
+                    (UUID) rs.getObject("UUID"), FileType.SHORTCUT,
+                    rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
+                    attr);
+                summary.setVisibility(rs.getString("visibility"));
+                summary.setOwnerId((UUID) rs.getObject("owner_id"));
+                summary.setOwner(rs.getString("owner_name"));
+                if (edgecount != null) {
+                    summary.setEdges(edgecount);
+                }
 	                results.add(summary);
 	            }
 	        }
