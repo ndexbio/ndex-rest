@@ -61,12 +61,13 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     Map<String, Object> attr = null;
                     attr = new HashMap<>();
                     attr.put("description", rs.getString(5));
-                    attr.put("edges", rs.getInt(6));
-                    attr.put("visibility", rs.getString(7));
-                    results.add(new FileItemSummary(
+                    FileItemSummary summary = new FileItemSummary(
                         (UUID) rs.getObject(1), FileType.NETWORK,
                         rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-                        attr));
+                        attr);
+                    summary.setEdges((Integer) rs.getObject(6));
+                    summary.setVisibility(rs.getString(7));
+                    results.add(summary);
                 }
             }
         }

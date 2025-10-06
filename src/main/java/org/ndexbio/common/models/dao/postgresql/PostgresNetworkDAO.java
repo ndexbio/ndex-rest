@@ -2405,11 +2405,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 
 					Map<String, Object> attr = new HashMap<>();
 					attr.put("description", rs.getString("description"));
-					attr.put("edges", rs.getInt("edgecount"));
-					attr.put("visibility", rs.getString("visibility"));
-					attr.put("owner_id", rs.getObject("owneruuid"));
-					attr.put("owner", rs.getString("owner"));
-					attr.put("permission", rs.getString("permission_type"));
 
 					networkSummary.setIsReadOnly(rs.getBoolean("readonly"));
 					networkSummary.setErrorMessage(rs.getString("error"));
@@ -2425,6 +2420,12 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 					networkSummary.setIsCompleted(rs.getBoolean("iscomplete"));
 					networkSummary.setIsValid(rs.getBoolean("is_validated"));
 					networkSummary.setDoi(rs.getString("ndexdoi"));
+
+					networkSummary.setEdges((Integer) rs.getObject("edgecount"));
+					networkSummary.setVisibility(rs.getString("visibility"));
+					networkSummary.setOwnerId((UUID) rs.getObject("owneruuid"));
+					networkSummary.setOwner(rs.getString("owner"));
+					networkSummary.setPermission(rs.getString("permission_type"));
 
 					networkSummary.setAttributes(attr);
                     result.add(networkSummary);
@@ -2456,14 +2457,17 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		          if (compact) {
 		              attr = new HashMap<>();
 		              attr.put("description", rs.getString(5));
-		              attr.put("edges", rs.getInt(6));
-		              attr.put("visibility", rs.getString(7));
 		          }
-		          result.add(new FileItemSummary(
+		          FileItemSummary summary = new FileItemSummary(
 		              (UUID) rs.getObject(1), FileType.NETWORK,
 		              rs.getString(2), rs.getTimestamp(3), rs.getString(4),
 		              attr
-		          ));
+		          );
+		          if (compact) {
+		              summary.setEdges((Integer) rs.getObject(6));
+		              summary.setVisibility(rs.getString(7));
+		          }
+		          result.add(summary);
 		      }
 		  }
 		}

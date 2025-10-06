@@ -458,16 +458,18 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            pst.setObject(1, contextId);
 	            try (ResultSet rs = pst.executeQuery()) {
 	                while (rs.next()) {
-                    Map<String, Object> attr = null;
-                    if (compact) {
-                        attr = new HashMap<>();
-                        attr.put("description", rs.getString("description"));
-                        attr.put("visibility", rs.getString("visibility"));
-                    }
+	                    Map<String, Object> attr = null;
+	                    if (compact) {
+	                        attr = new HashMap<>();
+	                        attr.put("description", rs.getString("description"));
+	                    }
 	                    FileItemSummary summary = new FileItemSummary(
 	                        (UUID) rs.getObject("UUID"), FileType.FOLDER,
 	                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
 	                        attr);
+	                    if (compact) {
+	                        summary.setVisibility(rs.getString("visibility"));
+	                    }
 	                    summary.setIsShared(rs.getBoolean("is_shared"));
 	                    results.add(summary);
 	                }
@@ -495,8 +497,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                    if (compact) {
 	                        attr = new HashMap<>();
 	                        attr.put("description", rs.getString("description"));
-	                        attr.put("edges", rs.getInt("edgecount"));
-	                        attr.put("visibility", rs.getString("visibility"));
 	                    }
 
 	                    Boolean isReadOnly = null;
@@ -527,6 +527,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                        (UUID) rs.getObject("UUID"), FileType.NETWORK,
 	                        rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"), attr,
 	                        isReadOnly, errorMessage, warnings, isCompleted);
+	                    if (compact) {
+	                        summary.setEdges((Integer) rs.getObject("edgecount"));
+	                        summary.setVisibility(rs.getString("visibility"));
+	                    }
 	                    summary.setIsShared(rs.getBoolean("is_shared"));
 	                    boolean isValidValue = rs.getBoolean("is_validated");
 	                    if (!rs.wasNull()) {
@@ -562,15 +566,15 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
 	                Map<String, Object> attr = null;
-                if (compact) {
-                    attr = new HashMap<>();
-                    String targetType = rs.getString("target_type");
-                    UUID targetId = (UUID) rs.getObject("target");
-                    attr.put("target_type", targetType);
-                    attr.put("target", targetId);
-                    attr.put("visibility", rs.getString("visibility"));
+	                Integer edgecount = null;
+	                if (compact) {
+	                    attr = new HashMap<>();
+	                    String targetType = rs.getString("target_type");
+	                    UUID targetId = (UUID) rs.getObject("target");
+	                    attr.put("target_type", targetType);
+	                    attr.put("target", targetId);
 
-                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
+	                    ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
 	                    if (targetId != null && targetType != null) {
 	                        if ("FOLDER".equals(targetType)) {
 	                            Boolean deleted = (Boolean) rs.getObject("target_folder_deleted");
@@ -582,18 +586,20 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                            if (deleted != null) {
 	                                targetStatus = deleted ? ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
 	                            }
-	                            Integer edgecount = (Integer) rs.getObject("network_edgecount");
-	                            if (edgecount != null) {
-	                                attr.put("edges", edgecount);
-	                            }
+	                            edgecount = (Integer) rs.getObject("network_edgecount");
 	                        }
 	                    }
 	                    attr.put("target_status", targetStatus.toString());
 	                }
-	                results.add(new FileItemSummary(
+	                FileItemSummary summary = new FileItemSummary(
 	                    (UUID) rs.getObject("UUID"), FileType.SHORTCUT,
 	                    rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
-	                    attr));
+	                    attr);
+	                summary.setVisibility(rs.getString("visibility"));
+	                if (edgecount != null) {
+	                    summary.setEdges(edgecount);
+	                }
+	                results.add(summary);
 	            }
 	        }
 	    }
@@ -876,15 +882,15 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
                     FileItemSummary folderInfo = new FileItemSummary();
 					Map<String, Object> attr = new HashMap<>();
 					attr.put("description", rs.getString("description"));
-					attr.put("owner_id", rs.getObject("owner_id"));
-					attr.put("owner", rs.getString("owner_name"));
-					attr.put("permission", rs.getString("permission"));
 
                     folderInfo.setUuid((UUID) rs.getObject("folder_id"));
                     folderInfo.setType(FileType.FOLDER);
 					folderInfo.setName(rs.getString("name"));
 					folderInfo.setModificationTime(rs.getTimestamp("modification_time"));
 					folderInfo.setUpdatedBy(rs.getString("updated_by"));
+                    folderInfo.setOwnerId((UUID) rs.getObject("owner_id"));
+                    folderInfo.setOwner(rs.getString("owner_name"));
+                    folderInfo.setPermission(rs.getString("permission"));
 					folderInfo.setAttributes(attr);
                     result.add(folderInfo);
                 }
@@ -978,12 +984,15 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
                 if (compact) {
                     attr = new HashMap<>();
                     attr.put("description", rs.getString("description"));
-                    attr.put("visibility", rs.getString("visibility"));
                 }
-                result.add(new FileItemSummary(
+                FileItemSummary summary = new FileItemSummary(
                     (UUID) rs.getObject("UUID"), FileType.FOLDER,
                     rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"),
-                    attr));
+                    attr);
+                if (compact) {
+                    summary.setVisibility(rs.getString("visibility"));
+                }
+                result.add(summary);
             }
         }
     }
@@ -1003,8 +1012,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                if (compact) {
 	                    attr = new HashMap<>();
 	                    attr.put("description", rs.getString("description"));
-	                    attr.put("edges", rs.getInt("edgecount"));
-	                    attr.put("visibility", rs.getString("visibility"));
 	                }
 
 	                boolean isReadOnly = rs.getBoolean("readonly");
@@ -1030,6 +1037,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                    (UUID) rs.getObject("UUID"), FileType.NETWORK,
 	                    rs.getString("name"), rs.getTimestamp("modification_time"), rs.getString("updated_by"), attr,
 	                    isReadOnly, errorMessage, warnings, isCompleted);
+	                if (compact) {
+	                    summary.setEdges((Integer) rs.getObject("edgecount"));
+	                    summary.setVisibility(rs.getString("visibility"));
+	                }
 	                if (!isValidNull) {
 	                    summary.setIsValid(isValidValue);
 	                }
@@ -1055,32 +1066,33 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
                     UUID targetId = (UUID) rs.getObject("target");
                     attr.put("target_type", targetType);
                     attr.put("target", targetId);
-                    attr.put("visibility", rs.getString("visibility"));
 
                     // check deletion status
                     ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
                     if (targetId != null && targetType != null) {
-	                        String checkTargetSql = "SELECT is_deleted FROM " +
-	                                                ("FOLDER".equals(targetType) ? "folder" : "network") +
-	                                                " WHERE \"UUID\"=?";
-	                        try (PreparedStatement checkPst = db.prepareStatement(checkTargetSql)) {
-	                            checkPst.setObject(1, targetId);
-	                            try (ResultSet checkRs = checkPst.executeQuery()) {
-	                                if (checkRs.next()) {
-	                                    targetStatus = checkRs.getBoolean(1) ? ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
-	                                }
-	                            }
-	                        }
-	                    }
-	                    attr.put("target_status", targetStatus.toString());
-	                }
-	                result.add(new FileItemSummary(
-	                    (UUID) rs.getObject(1), FileType.SHORTCUT,
-	                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-	                    attr));
-	            }
-	        }
-	    }	
+                        String checkTargetSql = "SELECT is_deleted FROM " +
+                                                ("FOLDER".equals(targetType) ? "folder" : "network") +
+                                                " WHERE \"UUID\"=?";
+                        try (PreparedStatement checkPst = db.prepareStatement(checkTargetSql)) {
+                            checkPst.setObject(1, targetId);
+                            try (ResultSet checkRs = checkPst.executeQuery()) {
+                                if (checkRs.next()) {
+                                    targetStatus = checkRs.getBoolean(1) ? ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
+                                }
+                            }
+                        }
+                    }
+                    attr.put("target_status", targetStatus.toString());
+                }
+                FileItemSummary summary = new FileItemSummary(
+                    (UUID) rs.getObject(1), FileType.SHORTCUT,
+                    rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+                    attr);
+                summary.setVisibility(rs.getString("visibility"));
+                result.add(summary);
+            }
+        }
+    }	
 		}
 
 	    return result;
