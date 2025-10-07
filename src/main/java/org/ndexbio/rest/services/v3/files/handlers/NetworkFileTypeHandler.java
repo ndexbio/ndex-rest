@@ -30,6 +30,7 @@ import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.NetworkServiceV2;
 import org.ndexbio.task.NdexServerQueue;
@@ -138,6 +139,17 @@ public class NetworkFileTypeHandler extends AbstractFileTypeHandler {
                 throw new UnauthorizedOperationException("You are not an administrator of network " + fileId);
             }
             dao.disableNetworkAccessKey(fileId);
+            dao.commit();
+        }
+    }
+
+    @Override
+    public void setVisibility(UUID fileId, UUID userId, VisibilityType visibility) throws Exception {
+        try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+            if (!dao.isAdmin(fileId, userId)) {
+                throw new NdexException("Not the owner of network " + fileId);
+            }
+            dao.updateNetworkVisibility(fileId, visibility, true);
             dao.commit();
         }
     }

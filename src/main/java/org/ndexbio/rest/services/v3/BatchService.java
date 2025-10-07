@@ -54,8 +54,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
-import org.ndexbio.common.models.dao.FolderDAO;
-import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
@@ -79,6 +77,8 @@ import org.ndexbio.model.object.network.NetworkSummaryV3;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
+import org.ndexbio.rest.services.v3.files.handlers.AbstractFileTypeHandler;
+import org.ndexbio.rest.services.v3.files.handlers.FileTypeHandlerFactory;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NetworkExportTask;
 import org.slf4j.Logger;
@@ -96,6 +96,7 @@ public class BatchService extends NdexService {
 	
 //	static Logger logger = LoggerFactory.getLogger(BatchServiceV2.class);
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
+	private final FileTypeHandlerFactory fileTypeHandlerFactory = new FileTypeHandlerFactory();
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -189,38 +190,8 @@ public class BatchService extends NdexService {
         for (Map.Entry<UUID, FileType> item : request.getFiles().entrySet()) {
             UUID uuid = item.getKey();
             FileType type = item.getValue();
-
-            switch (type) {
-                case NETWORK:
-                    try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-                        if (!dao.isAdmin(uuid, userId)) {
-                            throw new NdexException("Not the owner of network " + uuid);
-                        }
-                        dao.updateNetworkVisibility(uuid, request.getVisibility(), true);
-                        dao.commit();
-                    }
-                    break;
-                case FOLDER:
-                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-                        if (!dao.isFolderOwner(uuid, userId)) {
-                            throw new NdexException("Not the owner of folder " + uuid);
-                        }
-                        dao.setFolderVisibility(uuid, request.getVisibility());
-                        dao.commit();
-                    }
-                    break;
-                case SHORTCUT:
-                    try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-                        if (!dao.isShortcutOwner(uuid, userId)) {
-                            throw new NdexException("Not the owner of shortcut " + uuid);
-                        }
-                        dao.setShortcutVisibility(uuid, request.getVisibility());
-                        dao.commit();
-                    }
-                    break;
-                default:
-                    throw new NdexException("Unsupported file type: " + type);
-            }
+            AbstractFileTypeHandler handler = fileTypeHandlerFactory.getHandler(type);
+            handler.setVisibility(uuid, userId, request.getVisibility());
         }
 
         return ;

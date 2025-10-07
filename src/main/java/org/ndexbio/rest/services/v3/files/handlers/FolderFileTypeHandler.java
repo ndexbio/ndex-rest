@@ -10,6 +10,7 @@ import org.ndexbio.model.object.CopyRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
 /**
@@ -70,6 +71,17 @@ public class FolderFileTypeHandler extends AbstractFileTypeHandler {
                 throw new UnauthorizedOperationException("You are not the owner of folder " + fileId);
             }
             dao.disableFolderAccessKey(fileId);
+            dao.commit();
+        }
+    }
+
+    @Override
+    public void setVisibility(UUID fileId, UUID userId, VisibilityType visibility) throws Exception {
+        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+            if (!dao.isFolderOwner(fileId, userId)) {
+                throw new UnauthorizedOperationException("Not the owner of folder " + fileId);
+            }
+            dao.setFolderVisibility(fileId, visibility);
             dao.commit();
         }
     }

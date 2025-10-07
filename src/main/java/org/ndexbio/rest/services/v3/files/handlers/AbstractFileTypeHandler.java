@@ -8,6 +8,7 @@ import org.ndexbio.model.object.CopyRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.VisibilityType;
 
 /**
  * Base handler for file-type specific behaviour. Concrete subclasses override the
@@ -33,6 +34,10 @@ public abstract class AbstractFileTypeHandler {
 
     public void disableAccessKey(UUID fileId, UUID userId) throws Exception {
         throw unsupported("disable access key");
+    }
+
+    public void setVisibility(UUID fileId, UUID userId, VisibilityType visibility) throws Exception {
+        throw unsupported("set visibility");
     }
 
     protected NdexException unsupported(String action) {

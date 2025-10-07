@@ -12,6 +12,7 @@ import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
 /**
@@ -65,5 +66,16 @@ public class ShortcutFileTypeHandler extends AbstractFileTypeHandler {
     @Override
     public void disableAccessKey(UUID fileId, UUID userId) throws Exception {
         throw new NdexException("Shortcuts are not sharable. Unshare is not supported.");
+    }
+
+    @Override
+    public void setVisibility(UUID fileId, UUID userId, VisibilityType visibility) throws Exception {
+        try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+            if (!dao.isShortcutOwner(fileId, userId)) {
+                throw new NdexException("Not the owner of shortcut " + fileId);
+            }
+            dao.setShortcutVisibility(fileId, visibility);
+            dao.commit();
+        }
     }
 }
