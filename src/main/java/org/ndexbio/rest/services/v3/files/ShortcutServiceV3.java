@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.UUID;
 
 import org.ndexbio.common.models.dao.ShortcutDAO;
-import org.ndexbio.common.models.dao.FolderDAO;
-import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -17,6 +15,8 @@ import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
+import org.ndexbio.rest.services.v3.files.handlers.AbstractFileTypeHandler;
+import org.ndexbio.rest.services.v3.files.handlers.FileTypeHandlerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +44,7 @@ import jakarta.ws.rs.core.Response;
 public class ShortcutServiceV3 extends NdexService {
 
 	protected static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
+	private final FileTypeHandlerFactory fileTypeHandlerFactory = new FileTypeHandlerFactory();
 	
 	public ShortcutServiceV3(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
@@ -83,24 +84,8 @@ public class ShortcutServiceV3 extends NdexService {
         }
         UUID userId = getLoggedInUser().getExternalId();
 		
-		switch (request.getTargetType()) {
-			case FOLDER:
-				try (FolderDAO folderDao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-					if (!folderDao.isReadable(request.getTarget(), userId)) {
-						throw new NdexException("Target folder does not exist or is not accessible.");
-					}
-				}
-				break;
-			case NETWORK:
-				try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
-					if (!networkDao.isReadable(request.getTarget(), userId)) {
-						throw new NdexException("Target network does not exist or is not accessible.");
-					}
-				}
-				break;
-			default:
-				throw new NdexException("Unsupported target type: " + request.getTargetType());
-		}
+		AbstractFileTypeHandler handler = fileTypeHandlerFactory.getHandler(request.getTargetType());
+		handler.validateShortcutTarget(request.getTarget(), userId);
 		
 		UUID shortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		

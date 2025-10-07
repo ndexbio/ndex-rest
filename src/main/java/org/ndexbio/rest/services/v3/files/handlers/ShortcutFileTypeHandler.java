@@ -78,4 +78,9 @@ public class ShortcutFileTypeHandler extends AbstractFileTypeHandler {
             dao.commit();
         }
     }
+
+    @Override
+    public void validateShortcutTarget(UUID targetId, UUID userId) throws Exception {
+        throw new NdexException("Shortcuts cannot target other shortcuts.");
+    }
 }

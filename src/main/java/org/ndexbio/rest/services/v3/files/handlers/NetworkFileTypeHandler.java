@@ -154,6 +154,15 @@ public class NetworkFileTypeHandler extends AbstractFileTypeHandler {
         }
     }
 
+    @Override
+    public void validateShortcutTarget(UUID targetId, UUID userId) throws Exception {
+        try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
+            if (!networkDao.isReadable(targetId, userId)) {
+                throw new NdexException("Target network does not exist or is not accessible.");
+            }
+        }
+    }
+
     private void copyNetworkFiles(UUID srcNetUUID, String tgtUUID, FileAttribute<Set<PosixFilePermission>> attr) throws Exception {
         String srcPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID + "/";
         String tgtPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + tgtUUID + "/";

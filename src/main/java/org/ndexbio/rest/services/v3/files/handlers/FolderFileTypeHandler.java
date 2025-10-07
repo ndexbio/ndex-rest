@@ -85,4 +85,13 @@ public class FolderFileTypeHandler extends AbstractFileTypeHandler {
             dao.commit();
         }
     }
+
+    @Override
+    public void validateShortcutTarget(UUID targetId, UUID userId) throws Exception {
+        try (FolderDAO folderDao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+            if (!folderDao.isReadable(targetId, userId)) {
+                throw new NdexException("Target folder does not exist or is not accessible.");
+            }
+        }
+    }
 }

@@ -40,6 +40,10 @@ public abstract class AbstractFileTypeHandler {
         throw unsupported("set visibility");
     }
 
+    public void validateShortcutTarget(UUID targetId, UUID userId) throws Exception {
+        throw unsupported("validate shortcut target");
+    }
+
     protected NdexException unsupported(String action) {
         return new NdexException("Unsupported operation: " + action);
     }
