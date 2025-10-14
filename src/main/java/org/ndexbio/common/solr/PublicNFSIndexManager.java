@@ -52,6 +52,7 @@ import org.ndexbio.model.object.NdexShortcut;
 import org.apache.solr.client.solrj.SolrServerException;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.checkerframework.checker.units.qual.s;
 import org.ndexbio.common.NdexClasses;
 import static org.ndexbio.common.solr.NetworkGlobalIndexManager.UUID;
 import org.ndexbio.common.util.Util;
@@ -89,6 +90,7 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	public static final String DESC = "description";
 	public static final String VERSION = "version";
 	public static final String NODE_NAME = "nodeName";
+	public static final String USER_ADMIN = "owner";
 	
 	public static final String REPRESENTS = "represents";
 	public static final String ALIASES = "alias";
@@ -157,7 +159,7 @@ public class PublicNFSIndexManager implements AutoCloseable{
 		if ( summary.getVersion() !=null && summary.getVersion().length()>1) {
 			doc.addField(VERSION, summary.getVersion());
 		}
-		
+		doc.addField(USER_ADMIN, summary.getOwner());
 		doc.addField(CREATION_TIME, summary.getCreationTime());
 		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
 		
@@ -183,7 +185,9 @@ public class PublicNFSIndexManager implements AutoCloseable{
 			doc.addField(DESC, folder.getDescription());
 		}
 		// @TODO do we want to index parent uuid?
-		
+		if (folder.getOwner() != null && !folder.getOwner().isBlank()) {
+			doc.addField(USER_ADMIN, folder.getOwner());
+		}
 		doc.addField(CREATION_TIME, folder.getCreationTime());
 		doc.addField(MODIFICATION_TIME, folder.getModificationTime());
 		
@@ -203,7 +207,9 @@ public class PublicNFSIndexManager implements AutoCloseable{
 		if (shortcut.getName() != null && shortcut.getName().length()>1){
 			doc.addField(NAME, shortcut.getName());
 		}
-		
+		if (shortcut.getOwner() != null && !shortcut.getOwner().isBlank()) {
+			doc.addField(USER_ADMIN, shortcut.getOwner());
+		}
 		// @TODO do we want to index parent uuid?
 		
 		// @TODO do we want to index target type?
@@ -420,9 +426,7 @@ public class PublicNFSIndexManager implements AutoCloseable{
 		} else if ( e.getName().equals(NdexClasses.Network_P_version)  ) {
 			addStringAttrFromAttributeElement(e, VERSION, warnings);			
 		} else {
-			if ( otherAttributes.contains(e.getName())  ) {
-				addStringListgAttribute(e, e.getName(), warnings);
-			}			
+			addStringListgAttribute(e, e.getName(), warnings);
 		}
 		
 		return warnings;
@@ -439,10 +443,12 @@ public class PublicNFSIndexManager implements AutoCloseable{
 		} else if ( e.getNetworkVersion() !=null) {
 			doc.addField(VERSION, e.getNetworkVersion());			
 		}
-		
-		for ( String otherIndexedName: otherAttributes) {
-			if ( e.getAttributes().get(otherIndexedName) !=null) {
-				addStringOrListgObj(e.getAttributes().get(otherIndexedName), otherIndexedName, warnings);
+		if (e.getAttributes() != null) {
+			for (Map.Entry<String, Object> attributeEntry : e.getAttributes().entrySet()) {
+				Object value = attributeEntry.getValue();
+				if (value != null) {
+					addStringOrListgObj(value, attributeEntry.getKey(), warnings);
+				}
 			}
 		}
 	

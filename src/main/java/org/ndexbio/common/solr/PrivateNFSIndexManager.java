@@ -80,6 +80,9 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 		SolrInputDocument doc = super.getIndexForDocument(shortcut);
 		
 		// @TODO add private information to document for indexing
+		if (shortcut.getOwner() != null && !shortcut.getOwner().isBlank()) {
+			doc.addField(OWNER_FIELD, shortcut.getOwner());
+		}
 		doc.addField(VISIBILITY, VisibilityType.PRIVATE.toString());
 		
 		super.commitDocument(doc);
@@ -90,7 +93,9 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 		SolrInputDocument doc = super.getIndexForDocument(folder);
 		
 		// @TODO add private information to document for indexing
-		
+		if (folder.getOwner() != null && !folder.getOwner().isBlank()) {
+			doc.addField(OWNER_FIELD, folder.getOwner());
+		}
 		doc.addField(VISIBILITY, VisibilityType.PRIVATE.toString());
 		super.commitDocument(doc);
 	}
