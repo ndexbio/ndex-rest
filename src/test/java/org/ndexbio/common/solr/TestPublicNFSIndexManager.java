@@ -46,7 +46,7 @@ public class TestPublicNFSIndexManager {
 		ns.setExternalId(UUID.fromString("14f69a40-2191-4dc4-83ec-84335899b77c"));
 		ns.setDescription("network desc");
 		ns.setVisibility(VisibilityType.PUBLIC);
-		manager.createIndexForDocument(ns, null, null, null, null, null);
+		manager.createIndexForDocument(ns, null, null, null);
 		
 		
 		// add a shortcut

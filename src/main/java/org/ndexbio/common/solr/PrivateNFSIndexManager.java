@@ -52,13 +52,12 @@ public class PrivateNFSIndexManager extends PublicNFSIndexManager {
 	}
 	
 	@Override
-	public void createIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
-			Collection<String> grpReads, Collection<String> grpEdits) {
+	public void createIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits) {
 		
 		if (VisibilityType.PUBLIC.equals(summary.getVisibility())) {
 			return;
 		}
-		SolrInputDocument doc = super.getIndexForDocument(summary, ownerUserName, userReads, userEdits, grpReads, grpEdits);
+		SolrInputDocument doc = super.getIndexForDocument(summary, ownerUserName, userReads, userEdits);
 		
 		// @TODO add private information to document for indexing
 		if (doc == null) {

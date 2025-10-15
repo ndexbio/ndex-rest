@@ -291,25 +291,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	
 	private void addNodeIndex(Long id, String name, Collection<String> represents, Collection<String> alias, Collection<String> txtArray) throws SolrServerException, IOException {
 		
-		SolrInputDocument doc = new SolrInputDocument();
-		doc.addField("id",  id );
-		
-		if ( name != null && name.length()>0 ) 
-			doc.addField(NAME, name);
-		if ( represents !=null && !represents.isEmpty()) {
-			for ( String rterm : represents )
-				doc.addField(CxNode.REPRESENTS, rterm.trim());
-		}	
-		if ( alias !=null && !alias.isEmpty()) {
-			for ( String aTerm : alias )
-				doc.addField(ALIAS, aTerm.trim());
-		}	
-		if ( txtArray !=null) {
-			for (String txt: txtArray) 
-				doc.addField(TEXT, txt.trim());
-		}
-
-		
+		SolrInputDocument doc = NodeIndexDocumentBuilder.buildNodeDocument(id, name, represents, alias, txtArray);
 		docs.add(doc);
 		counter ++;
 		if ( counter % batchSize == 0 ) {
