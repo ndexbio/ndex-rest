@@ -79,7 +79,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private String collectionName; 
 	private HttpSolrClient client;
 	
-	static private final  int batchSize = 2000;
+	static private final  int batchSize = NodeIndexDocumentBuilder.DEFAULT_BATCH_SIZE;
 	
 	//NDEx will auto create index for networks with node count larger than this value
 	// other wise it will delay the creation until the first time this network is queried.
