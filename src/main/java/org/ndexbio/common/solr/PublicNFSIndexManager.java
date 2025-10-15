@@ -135,12 +135,9 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	 * @param ownerUserName
 	 * @param userReads
 	 * @param userEdits
-	 * @param grpReads
-	 * @param grpEdits
 	 * @return 
 	 */
-	SolrInputDocument getIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
-			Collection<String> grpReads, Collection<String> grpEdits){
+	SolrInputDocument getIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits){
 		doc = new SolrInputDocument();
 		doc.addField(UUID,  summary.getExternalId().toString() );
 		doc.addField(ENTITY_TYPE, FileType.NETWORK.toString());
@@ -226,13 +223,9 @@ public class PublicNFSIndexManager implements AutoCloseable{
 	 * @param ownerUserName
 	 * @param userReads
 	 * @param userEdits
-	 * @param grpReads
-	 * @param grpEdits 
 	 */
-	public void createIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
-			Collection<String> grpReads, Collection<String> grpEdits) {
-		SolrInputDocument doc = getIndexForDocument(summary, ownerUserName, userReads, userEdits,
-			 grpReads,  grpEdits);
+	public void createIndexForDocument(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits) {
+		SolrInputDocument doc = getIndexForDocument(summary, ownerUserName, userReads, userEdits);
 		commitDocument(doc);
 		
 	}
