@@ -9,6 +9,7 @@ import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.model.cx.FunctionTermElement;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.tools.TermUtilities;
@@ -46,11 +47,12 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummaryWra
 
     @Override
     protected SolrInputDocument setupIndexDocument(NetworkSummaryWrapper summaryWrapper) {
+        doc = new SolrInputDocument();
         NetworkSummary summary = summaryWrapper.getNetworkSummary();
         doc.addField(UUID,  summary.getExternalId().toString() );
         doc.addField(EDGE_COUNT, summary.getEdgeCount());
         doc.addField(NODE_COUNT, summary.getNodeCount());
-        doc.addField(VISIBILITY, summary.getVisibility().toString());
+        doc.addField(ENTITY_TYPE, FileType.NETWORK.toString());
 
         if ( summary.getName() !=null && summary.getName().length()>1) {
             doc.addField(NAME, summary.getName());
@@ -92,10 +94,10 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummaryWra
                 addKeyWithValues(doc, USER_EDIT, summaryWrapper.getUserEdits());
             }
 
-
             if (summaryWrapper.getOwnerUserName() != null && !summaryWrapper.getOwnerUserName().isBlank()) {
                 doc.addField(OWNER_FIELD, summaryWrapper.getOwnerUserName());
             }
+            doc.addField(VISIBILITY, VisibilityType.PRIVATE);
 
         }
         return doc;
