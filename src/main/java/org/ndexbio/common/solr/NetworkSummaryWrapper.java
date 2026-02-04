@@ -1,4 +1,4 @@
-package org.ndexbio.common.solr.v3;
+package org.ndexbio.common.solr;
 
 import org.ndexbio.model.object.network.NetworkSummary;
 

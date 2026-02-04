@@ -1,4 +1,4 @@
-package org.ndexbio.common.solr.v3;
+package org.ndexbio.common.solr;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;

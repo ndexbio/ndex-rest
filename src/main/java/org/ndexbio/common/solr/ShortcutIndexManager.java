@@ -1,9 +1,8 @@
-package org.ndexbio.common.solr.v3;
+package org.ndexbio.common.solr;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexShortcut;
-import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.network.VisibilityType;
 
 public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {

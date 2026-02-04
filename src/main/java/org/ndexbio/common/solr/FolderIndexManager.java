@@ -1,10 +1,8 @@
-package org.ndexbio.common.solr.v3;
+package org.ndexbio.common.solr;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexFolder;
-import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.network.VisibilityType;
 
 public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
