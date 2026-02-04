@@ -130,11 +130,12 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             commitDocument();
         } catch(SolrServerException sse){
             logger.error("Unable to commit document: " + sse.getMessage(), sse);
+            //throw new RuntimeException("Failed to commit to Solr", sse); // ADD THIS
         } catch(IOException io){
             logger.error("Unable to commit document: " + io.getMessage(), io);
+            //throw new RuntimeException("Failed to commit to Solr", io); // ADD THIS
         }
     }
-
     protected void commitDocument() throws SolrServerException, IOException {
         if ( !doc.isEmpty()) {
             Collection<SolrInputDocument> docs = new ArrayList<>(1);
@@ -226,24 +227,19 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      */
     protected String buildPublicCorePermissionFilter(String userAccount, Permissions permission) {
         if (userAccount == null) {
-            // Anonymous users: only PUBLIC items
-            return VISIBILITY + ":PUBLIC";
+            // Anonymous users can see everything in the public core
+            // (client-side will filter UNLISTED)
+            return "*:*";
         }
 
         String userAccountStr = "\"" + userAccount + "\"";
 
         if (permission == null) {
-            // All accessible items (PUBLIC, UNLISTED they own, or have permissions on)
-            return "(" + VISIBILITY + ":PUBLIC) OR " +
-                    "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
-                    "(" + USER_READ + ":" + userAccountStr + ") OR " +
-                    "(" + USER_EDIT + ":" + userAccountStr + ")";
+            // All accessible items - everything in public core
+            return "*:*";
         } else if (permission == Permissions.READ) {
-            // Items they can read
-            return "(" + VISIBILITY + ":PUBLIC) OR " +
-                    "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
-                    "(" + USER_READ + ":" + userAccountStr + ") OR " +
-                    "(" + USER_EDIT + ":" + userAccountStr + ")";
+            // Items they can read - everything in public core
+            return "*:*";
         } else if (permission == Permissions.WRITE) {
             // Items they can write
             return "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
@@ -253,7 +249,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             return USER_ADMIN + ":" + userAccountStr;
         }
 
-        return VISIBILITY + ":PUBLIC";
+        return "*:*";
     }
 
     /**
