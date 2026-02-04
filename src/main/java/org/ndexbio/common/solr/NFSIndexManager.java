@@ -1,15 +1,21 @@
 package org.ndexbio.common.solr;
 
+import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
+import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.ndexbio.model.tools.SearchUtilities;
 import org.ndexbio.rest.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +47,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public static final String VERSION = "version";
     public static final String NODE_NAME = "nodeName";
     public static final String USER_ADMIN = "owner";
-
+    protected static final String PARENT_UUID = "parentUuid";
+    protected static final String TARGET_UUID = "targetUuid"; // for shortcuts
     public static final String REPRESENTS = "represents";
     public static final String ALIASES = "alias";
     public static final String MODIFICATION_TIME = "modificationTime";
@@ -55,6 +62,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
     protected static final String OWNER_FIELD = "owner";
 
+    protected static final String USER_READ = "userRead";
+    protected static final String USER_EDIT = "userEdit";
 
     protected abstract SolrInputDocument setupIndexDocument(T inputData);
 
@@ -110,7 +119,6 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
     }
 
-
     /**
      *
      * @param inputData - Object to be mapped to document
@@ -153,6 +161,204 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      */
     protected void postCommit(){
 
+    }
+    /**
+     * Base search method for all entity types (Networks, Folders, Shortcuts)
+     *
+     * @param searchTerms The search query (use "*:*" for all)
+     * @param userAccount The authenticated user (null for anonymous)
+     * @param limit Max results to return
+     * @param offset Starting position for pagination
+     * @param ownedBy Filter by owner username (null for no filter)
+     * @param permission Filter by permission level (null for all accessible items)
+     * @return SolrDocumentList containing matching documents
+     */
+    public SolrDocumentList search(
+            String searchTerms,
+            String userAccount,
+            int limit,
+            int offset,
+            String ownedBy,
+            Permissions permission) throws IOException, SolrServerException, NdexException {
+
+        SolrQuery solrQuery = new SolrQuery();
+
+        // Build the permission filter
+        String permissionFilter = buildPermissionFilter(userAccount, permission);
+
+        // Build the owner filter
+        String ownerFilter = "";
+        if (ownedBy != null) {
+            ownerFilter = " AND (" + USER_ADMIN + ":\"" + ownedBy + "\")";
+        }
+
+        // Combine filters
+        String resultFilter = permissionFilter + ownerFilter;
+
+        // Set up the query
+        configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
+
+        // Execute search
+        try {
+            QueryResponse rsp = client.query(solrQuery, SolrRequest.METHOD.POST);
+            return rsp.getResults();
+        } catch (BaseHttpSolrClient.RemoteSolrException e) {
+            throw convertException(e, coreName);
+        }
+    }
+
+    /**
+     * Builds the Solr filter query for permissions based on user and visibility
+     */
+    protected String buildPermissionFilter(String userAccount, Permissions permission) {
+        // For PUBLIC/UNLISTED cores
+        if (coreName.equals(publicCoreName)) {
+            return buildPublicCorePermissionFilter(userAccount, permission);
+        }
+        // For PRIVATE core
+        else {
+            return buildPrivateCorePermissionFilter(userAccount, permission);
+        }
+    }
+
+    /**
+     * Permission filter for public-nfs core (PUBLIC and UNLISTED items)
+     */
+    protected String buildPublicCorePermissionFilter(String userAccount, Permissions permission) {
+        if (userAccount == null) {
+            // Anonymous users: only PUBLIC items
+            return VISIBILITY + ":PUBLIC";
+        }
+
+        String userAccountStr = "\"" + userAccount + "\"";
+
+        if (permission == null) {
+            // All accessible items (PUBLIC, UNLISTED they own, or have permissions on)
+            return "(" + VISIBILITY + ":PUBLIC) OR " +
+                    "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
+                    "(" + USER_READ + ":" + userAccountStr + ") OR " +
+                    "(" + USER_EDIT + ":" + userAccountStr + ")";
+        } else if (permission == Permissions.READ) {
+            // Items they can read
+            return "(" + VISIBILITY + ":PUBLIC) OR " +
+                    "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
+                    "(" + USER_READ + ":" + userAccountStr + ") OR " +
+                    "(" + USER_EDIT + ":" + userAccountStr + ")";
+        } else if (permission == Permissions.WRITE) {
+            // Items they can write
+            return "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
+                    "(" + USER_EDIT + ":" + userAccountStr + ")";
+        } else if (permission == Permissions.ADMIN) {
+            // Items they own
+            return USER_ADMIN + ":" + userAccountStr;
+        }
+
+        return VISIBILITY + ":PUBLIC";
+    }
+
+    /**
+     * Permission filter for private-nfs core (PRIVATE items)
+     */
+    protected String buildPrivateCorePermissionFilter(String userAccount, Permissions permission) {
+        if (userAccount == null) {
+            // Anonymous users cannot see private items
+            return "(*:* AND NOT *:*)"; // Match nothing
+        }
+
+        String userAccountStr = "\"" + userAccount + "\"";
+
+        if (permission == null || permission == Permissions.READ) {
+            // Items they can access
+            return "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
+                    "(" + USER_READ + ":" + userAccountStr + ") OR " +
+                    "(" + USER_EDIT + ":" + userAccountStr + ")";
+        } else if (permission == Permissions.WRITE) {
+            // Items they can write
+            return "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
+                    "(" + USER_EDIT + ":" + userAccountStr + ")";
+        } else if (permission == Permissions.ADMIN) {
+            // Items they own
+            return USER_ADMIN + ":" + userAccountStr;
+        }
+
+        return "(*:* AND NOT *:*)"; // Match nothing by default
+    }
+
+    /**
+     * Configure the Solr query - can be overridden by subclasses for entity-specific needs
+     */
+    protected void configureQuery(SolrQuery solrQuery, String searchTerms,
+                                  String resultFilter, int limit, int offset) {
+
+        // Default sorting
+        if (searchTerms.equalsIgnoreCase("*:*")) {
+            solrQuery.setSort(MODIFICATION_TIME, SolrQuery.ORDER.desc);
+        }
+
+        // Set the query with default fields
+        solrQuery.setQuery(preprocessSearchTerms(searchTerms)).setFields(UUID);
+
+        // Set query type and fields to search
+        solrQuery.set("defType", "edismax");
+        solrQuery.set("qf", getQueryFields());
+
+        // Pagination
+        if (offset >= 0) {
+            solrQuery.setStart(offset);
+        }
+        if (limit > 0) {
+            solrQuery.setRows(limit);
+        } else {
+            solrQuery.setRows(100000);
+        }
+
+        // Apply filters
+        solrQuery.setFilterQueries(resultFilter);
+    }
+
+    /**
+     * Preprocess search terms - can be overridden for entity-specific handling
+     */
+    protected String preprocessSearchTerms(String searchTerms) {
+        if (searchTerms.equalsIgnoreCase("*:*")) {
+            return searchTerms;
+        }
+        return SearchUtilities.preprocessSearchTerm(searchTerms);
+    }
+
+    /**
+     * Get query fields with weights - must be implemented by subclasses
+     */
+    protected abstract String getQueryFields();
+
+    /**
+     * Search with entity type filter
+     */
+    public SolrDocumentList searchByType(
+            String searchTerms,
+            String userAccount,
+            int limit,
+            int offset,
+            String ownedBy,
+            Permissions permission,
+            String entityType) throws IOException, SolrServerException, NdexException {
+
+        // Add entity type filter
+        String typeFilter = " AND (" + ENTITY_TYPE + ":\"" + entityType + "\")";
+
+        SolrQuery solrQuery = new SolrQuery();
+        String permissionFilter = buildPermissionFilter(userAccount, permission);
+        String ownerFilter = ownedBy != null ? " AND (" + USER_ADMIN + ":\"" + ownedBy + "\")" : "";
+        String resultFilter = permissionFilter + ownerFilter + typeFilter;
+
+        configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
+
+        try {
+            QueryResponse rsp = client.query(solrQuery, SolrRequest.METHOD.POST);
+            return rsp.getResults();
+        } catch (BaseHttpSolrClient.RemoteSolrException e) {
+            throw convertException(e, coreName);
+        }
     }
 
     protected static NdexException convertException(BaseHttpSolrClient.RemoteSolrException e, String core_name) {
