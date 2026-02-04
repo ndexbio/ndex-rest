@@ -24,7 +24,13 @@
    <field name="visibility" type="string" indexed="true" stored="false"  multiValued="false"/>
    <field name="labels" type="text_general" indexed="true" stored="false" multiValued="true"/>
 
-  <!-- some fields that should be useful for biological networks -->
+    <!-- NEW FIELDS FOR FOLDERS AND SHORTCUTS -->
+    <field name="parentUuid" type="string" indexed="true" stored="false" multiValued="false"/>
+    <field name="targetUuid" type="string" indexed="true" stored="false" multiValued="false"/>
+    <field name="targetType" type="string" indexed="true" stored="false" multiValued="false"/>
+    <field name="isDangling" type="boolean" indexed="true" stored="false" multiValued="false"/>
+
+    <!-- some fields that should be useful for biological networks -->
    <field name="nodeName" type="text_ws" indexed="true" stored="false"  multiValued="true"/>
    <field name="NCBIGeneID" type="text_ws" indexed="true" stored="false" multiValued="true" />
    <field name="geneSymbol" type="text_ws" indexed="true" stored="false"  multiValued="true" />

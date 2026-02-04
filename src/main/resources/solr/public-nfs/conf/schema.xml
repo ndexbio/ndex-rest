@@ -2,85 +2,89 @@
 
 <schema name="public-nfs" version="1.6">
 
-   <field name="_version_" type="plong" indexed="true" stored="true"/>
+    <field name="_version_" type="plong" indexed="true" stored="true"/>
 
-   <field name="_root_" type="string" indexed="true" stored="false"/>
-   <field name="entityType" type="string" indexed="true" stored="true" required="true"/>
-   <field name="uuid" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+    <field name="_root_" type="string" indexed="true" stored="false"/>
+    <field name="entityType" type="string" indexed="true" stored="true" required="true"/>
+    <field name="uuid" type="string" indexed="true" stored="true" required="true" multiValued="false" />
 
-   <field name="name" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="description" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="version" type="text_ws" indexed="true" stored="false" multiValued="true"/>
-   <field name="creationTime" type="pdate" indexed="true" stored="false"  />
-   <field name="modificationTime" type="pdate" indexed="true" stored="false"  />
-   <field name="edgeCount" type="pint" indexed="true" stored="false"  />
-   <field name="nodeCount" type="pint" indexed="true" stored="false"  />
-   <field name="userRead" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="userEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="owner" type="text_ws" indexed="true" stored="false"  multiValued="true"/>
-   <field name="grpRead" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="grpEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="grpAdmin" type="string" indexed="true" stored="false"  multiValued="true"/>
-   <field name="visibility" type="string" indexed="true" stored="false"  multiValued="false"/>
-   <field name="labels" type="text_general" indexed="true" stored="false" multiValued="true"/>
+    <field name="name" type="text_general" indexed="true" stored="false" multiValued="true"/>
+    <field name="description" type="text_general" indexed="true" stored="false" multiValued="true"/>
+    <field name="version" type="text_ws" indexed="true" stored="false" multiValued="true"/>
+    <field name="creationTime" type="pdate" indexed="true" stored="false"  />
+    <field name="modificationTime" type="pdate" indexed="true" stored="false"  />
+    <field name="edgeCount" type="pint" indexed="true" stored="false"  />
+    <field name="nodeCount" type="pint" indexed="true" stored="false"  />
+    <field name="userRead" type="string" indexed="true" stored="false"  multiValued="true"/>
+    <field name="userEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
+    <field name="owner" type="text_ws" indexed="true" stored="false"  multiValued="true"/>
+    <field name="grpRead" type="string" indexed="true" stored="false"  multiValued="true"/>
+    <field name="grpEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
+    <field name="grpAdmin" type="string" indexed="true" stored="false"  multiValued="true"/>
+    <field name="visibility" type="string" indexed="true" stored="false"  multiValued="false"/>
+    <field name="labels" type="text_general" indexed="true" stored="false" multiValued="true"/>
 
-  <!-- some fields that should be useful for biological networks -->
-   <field name="nodeName" type="text_ws" indexed="true" stored="false"  multiValued="true"/>
-   <field name="NCBIGeneID" type="text_ws" indexed="true" stored="false" multiValued="true" />
-   <field name="geneSymbol" type="text_ws" indexed="true" stored="false"  multiValued="true" />
-   <field name="represents" type="text_ws" indexed="true" stored="false"  multiValued="true" />
-   <field name="alias" type="text_ws" indexed="true" stored="false"  multiValued="true" />
-<!--  <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />   -->
-
-
-   <!-- Collaborator required index fields   -->
-   <field name="objectCategory" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="networkType" type="text_general" indexed="true" stored="false" multiValued="true"/>
-   <field name="graphPropertiesHash" type="string" indexed="true" stored="false" multiValued="true"/>
-   <field name="organism" type="text_general" indexed="true" stored="false" multiValued="true" />
-   <field name="platform" type="text_general" indexed="true" stored="false" multiValued="true" />
-   <field name="disease" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="tissue" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="rightsHolder" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="author" type="text_general" indexed="true" stored="false" multiValued="true" />
-   <field name="createdAt" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="methods" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="subnetworkType" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="subnetworkFilter" type="text_general" indexed="true" stored="false"  multiValued="true"/>
-   <field name="graphHash" type="string" indexed="true" stored="false" multiValued="true" />
-   <field name="rights" type="text_general" indexed="true" stored="false" multiValued="true" />
-
-   <field name="ndexScore" type="pint" indexed="true" stored="false" multiValued="false" />
-
-   <field name="_src_" type="string" indexed="false" stored="false"/>
-
-   <!-- Main body of document extracted by SolrCell.
-        NOTE: This field is not indexed by default, since it is also copied to "text"
-        using copyField below. This is to save space. Use this field for returning and
-        highlighting document content. Use the "text" field to search the content. -->
-   <!--
-   <field name="content" type="text_general" indexed="false" stored="true" multiValued="true"/>
-    -->
-
-   <!-- catchall field, containing all other searchable text fields (implemented
-        via copyField further on in this schema  -->
-   <field name="text" type="text_general" indexed="true" stored="false" multiValued="true"/>
-
-   <!-- catchall text field that indexes tokens both normally and in reverse for efficient
-        leading wildcard queries. -->
-   <field name="text_rev" type="text_general_rev" indexed="true" stored="false" multiValued="true"/>
-
-   <field name="payloads" type="payloads" indexed="true" stored="false"/>
+    <!-- NEW FIELDS FOR FOLDERS AND SHORTCUTS -->
+    <field name="parentUuid" type="string" indexed="true" stored="false" multiValued="false"/>
+    <field name="targetUuid" type="string" indexed="true" stored="false" multiValued="false"/>
+    <field name="targetType" type="string" indexed="true" stored="false" multiValued="false"/>
+    <field name="isDangling" type="boolean" indexed="true" stored="false" multiValued="false"/>
+    <!-- some fields that should be useful for biological networks -->
+    <field name="nodeName" type="text_ws" indexed="true" stored="false"  multiValued="true"/>
+    <field name="NCBIGeneID" type="text_ws" indexed="true" stored="false" multiValued="true" />
+    <field name="geneSymbol" type="text_ws" indexed="true" stored="false"  multiValued="true" />
+    <field name="represents" type="text_ws" indexed="true" stored="false"  multiValued="true" />
+    <field name="alias" type="text_ws" indexed="true" stored="false"  multiValued="true" />
+    <!--  <field name="relatedTo" type="string" indexed="true" stored="false"  multiValued="true" />   -->
 
 
-   <!-- uncomment the following to ignore any fields that don't already match an existing
-        field name or dynamic field, rather than reporting them as an error.
-        alternately, change the type="ignored" to some other type e.g. "text" if you want
-        unknown fields indexed and/or stored by default -->
-   <!--dynamicField name="*" type="ignored" multiValued="true" /-->
+    <!-- Collaborator required index fields   -->
+    <field name="objectCategory" type="text_general" indexed="true" stored="false" multiValued="true"/>
+    <field name="networkType" type="text_general" indexed="true" stored="false" multiValued="true"/>
+    <field name="graphPropertiesHash" type="string" indexed="true" stored="false" multiValued="true"/>
+    <field name="organism" type="text_general" indexed="true" stored="false" multiValued="true" />
+    <field name="platform" type="text_general" indexed="true" stored="false" multiValued="true" />
+    <field name="disease" type="text_general" indexed="true" stored="false"  multiValued="true"/>
+    <field name="tissue" type="text_general" indexed="true" stored="false"  multiValued="true"/>
+    <field name="rightsHolder" type="text_general" indexed="true" stored="false"  multiValued="true"/>
+    <field name="author" type="text_general" indexed="true" stored="false" multiValued="true" />
+    <field name="createdAt" type="text_general" indexed="true" stored="false"  multiValued="true"/>
+    <field name="methods" type="text_general" indexed="true" stored="false"  multiValued="true"/>
+    <field name="subnetworkType" type="text_general" indexed="true" stored="false"  multiValued="true"/>
+    <field name="subnetworkFilter" type="text_general" indexed="true" stored="false"  multiValued="true"/>
+    <field name="graphHash" type="string" indexed="true" stored="false" multiValued="true" />
+    <field name="rights" type="text_general" indexed="true" stored="false" multiValued="true" />
 
- <uniqueKey>uuid</uniqueKey>
+    <field name="ndexScore" type="pint" indexed="true" stored="false" multiValued="false" />
 
+    <field name="_src_" type="string" indexed="false" stored="false"/>
+
+    <!-- Main body of document extracted by SolrCell.
+         NOTE: This field is not indexed by default, since it is also copied to "text"
+         using copyField below. This is to save space. Use this field for returning and
+         highlighting document content. Use the "text" field to search the content. -->
+    <!--
+    <field name="content" type="text_general" indexed="false" stored="true" multiValued="true"/>
+     -->
+
+    <!-- catchall field, containing all other searchable text fields (implemented
+         via copyField further on in this schema  -->
+    <field name="text" type="text_general" indexed="true" stored="false" multiValued="true"/>
+
+    <!-- catchall text field that indexes tokens both normally and in reverse for efficient
+         leading wildcard queries. -->
+    <field name="text_rev" type="text_general_rev" indexed="true" stored="false" multiValued="true"/>
+
+    <field name="payloads" type="payloads" indexed="true" stored="false"/>
+
+
+    <!-- uncomment the following to ignore any fields that don't already match an existing
+         field name or dynamic field, rather than reporting them as an error.
+         alternately, change the type="ignored" to some other type e.g. "text" if you want
+         unknown fields indexed and/or stored by default -->
+    <!--dynamicField name="*" type="ignored" multiValued="true" /-->
+
+    <uniqueKey>uuid</uniqueKey>
 <!--
    <copyField source="name" dest="text"/>
    <copyField source="description" dest="text"/>
