@@ -1,5 +1,7 @@
 package org.ndexbio.common.solr;
 
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.util.Util;
@@ -9,18 +11,19 @@ import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.model.cx.FunctionTermElement;
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileType;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.tools.TermUtilities;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
 
 public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummaryWrapper> {
-    private static final String USER_READ= "userRead";
-    private static final String USER_EDIT = "userEdit";
 
     // user required indexing fields. hardcoded for now. Will turn them into configurable list in 1.4.
     public static final Set<String> otherAttributes =
@@ -74,17 +77,6 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummaryWra
         // network summary already has owner field?
         doc.addField(USER_ADMIN, summaryWrapper.getOwnerUserName());
         //doc.setDocumentBoost(documentBoost);;
-        if( summaryWrapper.getUserReads() != null) {
-            for(String userName : summaryWrapper.getUserReads()) {
-                doc.addField(USER_READ, userName);
-            }
-        }
-
-        if ( summaryWrapper.getUserEdits() !=null) {
-            for ( String userName: summaryWrapper.getUserEdits()) {
-                doc.addField(USER_EDIT, userName);
-            }
-        }
 
         if (visibilityType.equals(VisibilityType.PRIVATE)){
             if( summaryWrapper.getUserReads() != null) {
@@ -108,7 +100,41 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummaryWra
     public void postCommit(){
         nodeMembers = new TreeMap<>();
     }
+    @Override
+    protected String getQueryFields() {
+        // Network-specific fields with weights
+        // Higher weights for exact matches on UUID, name
+        // Medium weights for descriptions, labels, organism
+        // Lower weights for node-level data
+        return "uuid^20 name^10 description^5 labels^6 owner^2 " +
+                "networkType^4 organism^3 disease^3 tissue^3 author^2 methods " +
+                "nodeName represents alias rights^0.6 rightsHolder^0.6";
+    }
 
+    @Override
+    protected String preprocessSearchTerms(String searchTerms) {
+        if (searchTerms.equalsIgnoreCase("*:*")) {
+            return searchTerms;
+        }
+        // Networks use scoring boost
+        return "( " + super.preprocessSearchTerms(searchTerms) +
+                " ) AND _val_:\"div(" + NDEX_SCORE + ",10)\"";
+    }
+
+    /**
+     * Search specifically for networks (backward compatibility)
+     */
+    public SolrDocumentList searchForNetworks(
+            String searchTerms,
+            String userAccount,
+            int limit,
+            int offset,
+            String adminedBy,
+            Permissions permission) throws IOException, SolrServerException, NdexException {
+
+        return searchByType(searchTerms, userAccount, limit, offset,
+                adminedBy, permission, FileType.NETWORK.toString());
+    }
 
     public void addCX2NodeToIndex(CxNode node, Map<String, Map.Entry<String, DeclarationEntry>> attributeNameMapping)  {
 
