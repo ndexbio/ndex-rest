@@ -53,8 +53,6 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public static final String CREATION_TIME = "creationTime";
     public static final String NDEX_SCORE = "ndexScore";
 
-    protected static final String USER_READ_FIELD = "userRead";
-    protected static final String USER_EDIT_FIELD = "userEdit";
     protected static final String OWNER_FIELD = "owner";
 
 
@@ -170,6 +168,16 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         return new NdexException("Error from NDEx Solr server: " + e.getMessage());
     }
 
+    protected static void addKeyWithValues(SolrInputDocument doc, String field, Collection<String> values) {
+        if (values == null) {
+            return;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                doc.addField(field, value);
+            }
+        }
+    }
 
     @Override
     public void close () {
