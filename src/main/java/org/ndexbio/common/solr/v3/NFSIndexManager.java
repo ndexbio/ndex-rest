@@ -1,14 +1,14 @@
 package org.ndexbio.common.solr.v3;
 
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
-import org.ndexbio.common.solr.SolrClientWrapperImpl;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.slf4j.Logger;
@@ -16,6 +16,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public abstract class NFSIndexManager<T> implements AutoCloseable {
     protected final Logger logger = LoggerFactory.getLogger(this.getClass().getSimpleName());
@@ -117,7 +119,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      */
 
     public void createIndex(T inputData){
-        SolrInputDocument doc = setupIndexDocument(inputData);
+        setupIndexDocument(inputData);
         try {
             commitDocument();
         } catch(SolrServerException sse){
@@ -155,6 +157,20 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
     }
 
+    protected static NdexException convertException(BaseHttpSolrClient.RemoteSolrException e, String core_name) {
+        if (e.code() == 400) {
+            String err = e.getMessage();
+            Pattern p = Pattern.compile("Error from server at .*/" + core_name +": (.*)");
+            Matcher m = p.matcher(e.getMessage());
+            if ( m.matches()) {
+                err = m.group(1);
+            }
+            return new BadRequestException(err);
+        }
+        return new NdexException("Error from NDEx Solr server: " + e.getMessage());
+    }
+
+
     @Override
     public void close () {
         try {
@@ -163,5 +179,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             e.printStackTrace();
         }
     }
+
+
 
 }
