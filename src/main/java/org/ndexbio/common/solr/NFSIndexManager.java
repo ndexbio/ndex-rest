@@ -192,7 +192,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
 
         // Combine filters
-        String resultFilter = permissionFilter + ownerFilter;
+         String resultFilter = "(" + permissionFilter + ")" + ownerFilter;
 
         // Set up the query
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
@@ -343,7 +343,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         SolrQuery solrQuery = new SolrQuery();
         String permissionFilter = buildPermissionFilter(userAccount, permission);
         String ownerFilter = ownedBy != null ? " AND (" + USER_ADMIN + ":\"" + ownedBy + "\")" : "";
-        String resultFilter = permissionFilter + ownerFilter + typeFilter;
+        String resultFilter = "(" + permissionFilter + ")" + ownerFilter + typeFilter;
 
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
 

@@ -85,7 +85,7 @@ public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
             parentFilter = " AND (" + PARENT_UUID + ":\"" + parentFolderId + "\")";
         }
 
-        String resultFilter = permissionFilter + typeFilter + parentFilter;
+        String resultFilter = "(" + permissionFilter + ")" + typeFilter + parentFilter;
 
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
 
