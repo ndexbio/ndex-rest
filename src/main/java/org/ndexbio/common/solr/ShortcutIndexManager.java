@@ -56,9 +56,9 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
 
         if (visibilityType.equals(VisibilityType.PRIVATE)){
             // @TODO add private information to document for indexing (need inherited permissions)
-            if (shortcut.getOwner() != null && !shortcut.getOwner().isBlank()) {
-                doc.addField(OWNER_FIELD, shortcut.getOwner());
-            }
+            // (already added) if (shortcut.getOwner() != null && !shortcut.getOwner().isBlank()) {
+              //  doc.addField(OWNER_FIELD, shortcut.getOwner());
+            //}
             doc.addField(VISIBILITY, VisibilityType.PRIVATE.toString());
         }
         return doc;

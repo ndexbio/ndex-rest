@@ -41,13 +41,17 @@ public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
         if (folder.getOwner() != null && !folder.getOwner().isBlank()) {
             doc.addField(USER_ADMIN, folder.getOwner());
         }
+
         doc.addField(CREATION_TIME, folder.getCreationTime());
         doc.addField(MODIFICATION_TIME, folder.getModificationTime());
 
         if (visibilityType.equals(VisibilityType.PRIVATE)){
+            /*
             if (folder.getOwner() != null && !folder.getOwner().isBlank()) {
-                doc.addField(OWNER_FIELD, folder.getOwner());
+                doc.addField(USER_ADMIN, folder.getOwner());
             }
+
+             */
             doc.addField(VISIBILITY, VisibilityType.PRIVATE.toString());
         }
 

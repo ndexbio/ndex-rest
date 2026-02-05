@@ -60,8 +60,6 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public static final String CREATION_TIME = "creationTime";
     public static final String NDEX_SCORE = "ndexScore";
 
-    protected static final String OWNER_FIELD = "owner";
-
     protected static final String USER_READ = "userRead";
     protected static final String USER_EDIT = "userEdit";
 
