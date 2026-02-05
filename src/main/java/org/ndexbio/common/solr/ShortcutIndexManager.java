@@ -83,8 +83,7 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
         String typeFilter = " AND (" + ENTITY_TYPE + ":SHORTCUT)";
         String danglingFilter = " AND (" + IS_DANGLING + ":true)";
 
-        String resultFilter = permissionFilter + typeFilter + danglingFilter;
-
+        String resultFilter = "(" + permissionFilter + ")" + typeFilter + danglingFilter;
         configureQuery(solrQuery, "*:*", resultFilter, limit, offset);
 
         try {
