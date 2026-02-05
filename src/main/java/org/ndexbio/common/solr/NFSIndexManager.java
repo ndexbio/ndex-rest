@@ -36,6 +36,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
     protected final String coreName;
     protected final HttpSolrClient client;
+    private final HttpSolrClient adminClient;
     protected final String solrUrl ;
 
     protected SolrInputDocument doc ;
@@ -77,8 +78,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
         solrUrl = Configuration.getInstance().getSolrURL();
         doc = new SolrInputDocument();
-        client = new HttpSolrClient.Builder(solrUrl).build();
-        client.setBaseURL(solrUrl + "/" + coreName);
+        adminClient = new HttpSolrClient.Builder(solrUrl).build();
+        client  = new HttpSolrClient.Builder(solrUrl + "/" + coreName).build();
 
     }
     /**
@@ -90,7 +91,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      */
     public void createCoreIfNeeded() throws SolrServerException, IOException, NdexException {
 
-        CoreAdminResponse foo = CoreAdminRequest.getStatus(coreName,client);
+        CoreAdminResponse foo = CoreAdminRequest.getStatus(coreName,adminClient);
         if (foo.getStatus() != 0 ) {
             throw new NdexException ("Failed to get status of solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
         }
@@ -105,7 +106,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
             creator.setCoreName(coreName);
             creator.setConfigSet(coreName);
-            foo = creator.process(client);
+            foo = creator.process(adminClient);
             if ( foo.getStatus() != 0 ) {
                 throw new NdexException ("Failed to create solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
             }
