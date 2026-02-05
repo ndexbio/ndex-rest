@@ -602,17 +602,14 @@ public class TestFolderIndexManager {
                 "*:*", filter);
     }
 
+    /* todo will return all for public so ignore this one
     @Test
     public void testBuildPermissionFilter_AuthenticatedUser_NoPermission_PublicCore() {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
 
         String filter = publicManager.buildPermissionFilter("john_doe", null);
 
-        assertTrue("Should include PUBLIC items", filter.contains("visibility:PUBLIC"));
-        assertTrue("Should include owned items", filter.contains("owner:\"john_doe\""));
-        assertTrue("Should include READ permission", filter.contains("userRead:\"john_doe\""));
-        assertTrue("Should include EDIT permission", filter.contains("userEdit:\"john_doe\""));
-        assertTrue("Should use OR logic", filter.contains(" OR "));
+        assertTrue("Should include PUBLIC items", filter.contains("*:*"));
 
         // Verify it's a proper OR query
         String expected = "(visibility:PUBLIC) OR (owner:\"john_doe\") OR " +
@@ -620,17 +617,15 @@ public class TestFolderIndexManager {
         assertEquals(expected, filter);
     }
 
+     */
+
     @Test
     public void testBuildPermissionFilter_AuthenticatedUser_ReadPermission_PublicCore() {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
 
         String filter = publicManager.buildPermissionFilter("alice", Permissions.READ);
 
-        assertTrue("Should include PUBLIC items", filter.contains("visibility:PUBLIC"));
-        assertTrue("Should include owned items", filter.contains("owner:\"alice\""));
-        assertTrue("Should include READ permission", filter.contains("userRead:\"alice\""));
-        assertTrue("Should include EDIT permission", filter.contains("userEdit:\"alice\""));
-    }
+        assertEquals("Should return all items in public core", "*:*", filter);    }
 
     @Test
     public void testBuildPermissionFilter_AuthenticatedUser_WritePermission_PublicCore() {
@@ -988,6 +983,7 @@ public class TestFolderIndexManager {
         assertTrue("Should contain owner filter", expectedFilter.contains("owner:\"specificOwner\""));
     }
 
+    /* todo no longer works since we return all for public
     @Test
     public void testSearch_NullOwnedBy_NoOwnerFilter() {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
@@ -1001,6 +997,8 @@ public class TestFolderIndexManager {
         // Permission filter has owner checks, but no additional owner filter
         assertTrue("Should contain owner in permission filter", ownerOccurrences > 0);
     }
+
+     */
 
     @Test
     public void testSearchByType_AddsEntityTypeFilter() {
@@ -1197,8 +1195,7 @@ public class TestFolderIndexManager {
      * Integration test - searchInFolder with parent filter
      * Tests that searchInFolder correctly filters by parent UUID
      */
-    @Test
-    @Ignore
+    @Test @Ignore
     public void testSearchInFolder_WithParentFilter_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
         // Create parent folder
@@ -1257,11 +1254,9 @@ public class TestFolderIndexManager {
     /**
      * Integration test - searchInFolder without parent filter returns all folders
      */
-    @Ignore
-    @Test
+    @Test @Ignore
     public void testSearchInFolder_NullParent_ReturnsAllFolders_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
-        publicManager.createCoreIfNeeded();
 
         // Create multiple folders with various parent relationships
         NdexFolder folder1 = createTestFolder("Folder 1", "First");
@@ -1293,14 +1288,11 @@ public class TestFolderIndexManager {
     /**
      * Integration test - searchInFolder respects permissions
      */
-    @Ignore
-    @Test
+    @Test @Ignore
     public void testSearchInFolder_RespectsPermissions_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
         privateManager = new FolderIndexManager(VisibilityType.PRIVATE);
 
-        publicManager.createCoreIfNeeded();
-        privateManager.createCoreIfNeeded();
 
         UUID parentId = UUID.randomUUID();
 
@@ -1345,11 +1337,9 @@ public class TestFolderIndexManager {
     /**
      * Integration test - searchInFolder with search terms
      */
-    @Ignore
-    @Test
+    @Test @Ignore
     public void testSearchInFolder_WithSearchTerms_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
-        publicManager.createCoreIfNeeded();
 
         UUID parentId = UUID.randomUUID();
 
@@ -1393,11 +1383,9 @@ public class TestFolderIndexManager {
     /**
      * Integration test - searchInFolder pagination
      */
-    @Ignore
-    @Test
+    @Test @Ignore
     public void testSearchInFolder_Pagination_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
-        publicManager.createCoreIfNeeded();
 
         UUID parentId = UUID.randomUUID();
 
@@ -1453,11 +1441,9 @@ public class TestFolderIndexManager {
     /**
      * Integration test - searchInFolder with ADMIN permission filter
      */
-    @Ignore
-    @Test
+    @Test @Ignore
     public void testSearchInFolder_AdminPermission_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
-        publicManager.createCoreIfNeeded();
 
         UUID parentId = UUID.randomUUID();
 
@@ -1494,11 +1480,9 @@ public class TestFolderIndexManager {
     /**
      * Integration test - searchInFolder sorts by modification time for wildcard
      */
-    @Ignore
-    @Test
+    @Test @Ignore
     public void testSearchInFolder_WildcardSortsByModificationTime_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
-        publicManager.createCoreIfNeeded();
 
         UUID parentId = UUID.randomUUID();
 
@@ -1545,17 +1529,17 @@ public class TestFolderIndexManager {
                 results.get(2).getFieldValue("uuid"));
     }
 
+
     /**
      * Integration test - searchInFolder only returns folders (not networks or shortcuts)
+     * TODO SINCE WE ONLY RETURN UUID THIS WONT WORK.. DO WE NEED TO RETURN MORE?
      */
-    @Ignore
-    @Test
+    @Test @Ignore
     public void testSearchInFolder_OnlyReturnsFolders_Integration() throws Exception {
         // This test verifies the entityType:FOLDER filter works correctly
         // If you have network/shortcut indexing working, this test becomes more valuable
 
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
-        publicManager.createCoreIfNeeded();
 
         UUID parentId = UUID.randomUUID();
 
@@ -1594,7 +1578,6 @@ public class TestFolderIndexManager {
     @Test
     public void testSearchInFolder_EmptyParent_ReturnsNothing_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
-        publicManager.createCoreIfNeeded();
 
         UUID emptyParentId = UUID.randomUUID();
 
@@ -1625,11 +1608,9 @@ public class TestFolderIndexManager {
     /**
      * Integration test - searchInFolder with description search
      */
-    @Ignore
-    @Test
+    @Test @Ignore
     public void testSearchInFolder_SearchInDescription_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
-        publicManager.createCoreIfNeeded();
 
         UUID parentId = UUID.randomUUID();
 
@@ -1673,11 +1654,9 @@ public class TestFolderIndexManager {
     /**
      * Integration test - searchInFolder hierarchical structure
      */
-    @Ignore
-    @Test
+    @Test @Ignore
     public void testSearchInFolder_MultiLevelHierarchy_Integration() throws Exception {
         publicManager = new FolderIndexManager(VisibilityType.PUBLIC);
-        publicManager.createCoreIfNeeded();
 
         // Create multi-level hierarchy: root -> parent -> children
         UUID rootId = UUID.randomUUID();
