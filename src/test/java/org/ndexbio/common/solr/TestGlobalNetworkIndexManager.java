@@ -6,6 +6,7 @@ import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -965,6 +966,10 @@ public class TestGlobalNetworkIndexManager {
     public void testSearchForNetworks_Integration() throws Exception {
         publicManager = new GlobalNetworkIndexManager(VisibilityType.PUBLIC);
 
+        // Clean up the core first
+        publicManager.client.deleteByQuery("*:*");
+        publicManager.client.commit();
+
         // Create and index test networks
         NetworkSummaryWrapper network1 = createTestNetworkWrapper("Cancer Pathway Network", "Signaling pathways in cancer");
         publicManager.createIndex(network1);
@@ -985,6 +990,10 @@ public class TestGlobalNetworkIndexManager {
     @Ignore
     public void testSearchForNetworks_WithAdminFilter_Integration() throws Exception {
         publicManager = new GlobalNetworkIndexManager(VisibilityType.PUBLIC);
+
+        // Clean up the core first
+        publicManager.client.deleteByQuery("*:*");
+        publicManager.client.commit();
 
         NetworkSummary summary1 = createTestNetworkSummary("My Network", "Owned by me");
         NetworkSummaryWrapper wrapper1 = new NetworkSummaryWrapper(summary1, "owner1", null, null);
@@ -1008,6 +1017,10 @@ public class TestGlobalNetworkIndexManager {
     public void testSearchForNetworks_Pagination_Integration() throws Exception {
         publicManager = new GlobalNetworkIndexManager(VisibilityType.PUBLIC);
 
+        // Clean up the core first
+        publicManager.client.deleteByQuery("*:*");
+        publicManager.client.commit();
+
         // Create 10 networks
         for (int i = 0; i < 10; i++) {
             NetworkSummaryWrapper wrapper = createTestNetworkWrapper("Network " + i, "Description " + i);
@@ -1030,6 +1043,10 @@ public class TestGlobalNetworkIndexManager {
     @Ignore
     public void testSearchForNetworks_PrivateVisibility_Integration() throws Exception {
         privateManager = new GlobalNetworkIndexManager(VisibilityType.PRIVATE);
+
+        // Clean up the core first
+        privateManager.client.deleteByQuery("*:*");
+        privateManager.client.commit();
 
         NetworkSummary summary = createTestNetworkSummary("Private Network", "Secret data");
         Collection<String> readers = Arrays.asList("reader1", "reader2");
@@ -1059,6 +1076,10 @@ public class TestGlobalNetworkIndexManager {
     @Ignore
     public void testSearchForNetworks_ScoreBoost_Integration() throws Exception {
         publicManager = new GlobalNetworkIndexManager(VisibilityType.PUBLIC);
+
+        // Clean up the core first
+        publicManager.client.deleteByQuery("*:*");
+        publicManager.client.commit();
 
         // Create networks - the one with higher ndexScore should rank higher
         NetworkSummary highScore = createTestNetworkSummary("Cancer Network High", "High quality");
@@ -1090,20 +1111,30 @@ public class TestGlobalNetworkIndexManager {
         publicManager = new GlobalNetworkIndexManager(VisibilityType.PUBLIC);
         FolderIndexManager folderManager = new FolderIndexManager(VisibilityType.PUBLIC);
 
+        // Clean up the core first
+        publicManager.client.deleteByQuery("*:*");
+        publicManager.client.commit();
+
         // Index a network
         NetworkSummaryWrapper network = createTestNetworkWrapper("Test Network", "A network");
         publicManager.createIndex(network);
 
-        // Index a folder (using folder manager)
-        // ... folder indexing would go here
+        // Index a folder (using folder manager - same core)
+        NdexFolder folder = new NdexFolder();
+        folder.setExternalId(UUID.randomUUID());
+        folder.setName("Test Folder");
+        folder.setDescription("A folder");
+        folder.setOwner("testOwner");
+        folder.setCreationTime(Timestamp.from(Instant.now()));
+        folder.setModificationTime(Timestamp.from(Instant.now()));
+        folderManager.createIndex(folder);
 
         Thread.sleep(2000);
 
         var results = publicManager.searchForNetworks("*:*", "testOwner", 100, 0, null, null);
 
-        for (var doc : results) {
-            assertEquals("All results should be networks", "NETWORK", doc.getFieldValue("entityType"));
-        }
+        // Should only return networks, not folders
+        assertEquals("Should find only 1 network", 1, results.getNumFound());
 
         folderManager.close();
     }
