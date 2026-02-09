@@ -64,7 +64,19 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     protected static final String USER_READ = "userRead";
     protected static final String USER_EDIT = "userEdit";
 
+    /**
+     * Create index document for subclass input - must be implemented by subclasses
+     */
     protected abstract SolrInputDocument setupIndexDocument(T inputData);
+
+    /**
+     * Get query fields with weights - must be implemented by subclasses
+     */
+    protected abstract String getQueryFields();
+
+    /**
+     * Public wrapper function for setupIndexDocument that doesn't expose inner SolrInputDocument
+     */
     public void prepareIndexDocument(T  inputData){
         setupIndexDocument(inputData);
     }
@@ -129,7 +141,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public void createIndex(T inputData){
         setupIndexDocument(inputData);
         try {
-            commitDocument();
+            commit();
         } catch(SolrServerException sse){
             logger.error("Unable to commit document: " + sse.getMessage(), sse);
             //throw new RuntimeException("Failed to commit to Solr", sse); // ADD THIS
@@ -138,7 +150,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             //throw new RuntimeException("Failed to commit to Solr", io); // ADD THIS
         }
     }
-    public void commitDocument() throws SolrServerException, IOException {
+
+    public void commit() throws SolrServerException, IOException {
         if ( !doc.isEmpty()) {
             Collection<SolrInputDocument> docs = new ArrayList<>(1);
             docs.add(doc);
@@ -211,6 +224,36 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     }
 
     /**
+     * Search with entity type filter
+     */
+    public SolrDocumentList searchByType(
+            String searchTerms,
+            String userAccount,
+            int limit,
+            int offset,
+            String ownedBy,
+            Permissions permission,
+            String entityType) throws IOException, SolrServerException, NdexException {
+
+        // Add entity type filter
+        String typeFilter = " AND (" + ENTITY_TYPE + ":\"" + entityType + "\")";
+
+        SolrQuery solrQuery = new SolrQuery();
+        String permissionFilter = buildPermissionFilter(userAccount, permission);
+        String ownerFilter = ownedBy != null ? " AND (" + USER_ADMIN + ":\"" + ownedBy + "\")" : "";
+        String resultFilter = "(" + permissionFilter + ")" + ownerFilter + typeFilter;
+
+        configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
+
+        try {
+            QueryResponse rsp = client.query(solrQuery, SolrRequest.METHOD.POST);
+            return rsp.getResults();
+        } catch (BaseHttpSolrClient.RemoteSolrException e) {
+            throw convertException(e, coreName);
+        }
+    }
+
+    /**
      * Builds the Solr filter query for permissions based on user and visibility
      */
     protected String buildPermissionFilter(String userAccount, Permissions permission) {
@@ -226,6 +269,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
     /**
      * Permission filter for public-nfs core (PUBLIC and UNLISTED items)
+     * Anonymous users see everything. Authenticated users see everything for READ,
+     * WRITE/ADMIN filters down to items they have those permissions on.
      */
     protected String buildPublicCorePermissionFilter(String userAccount, Permissions permission) {
         if (userAccount == null) {
@@ -256,6 +301,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
     /**
      * Permission filter for private-nfs core (PRIVATE items)
+     * Anonymous users see nothing. Authenticated users only see items where they're listed in userAdmin, userRead,
+     * or userEdit fields, depending on the permission level requested.
      */
     protected String buildPrivateCorePermissionFilter(String userAccount, Permissions permission) {
         if (userAccount == null) {
@@ -324,40 +371,6 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         return SearchUtilities.preprocessSearchTerm(searchTerms);
     }
 
-    /**
-     * Get query fields with weights - must be implemented by subclasses
-     */
-    protected abstract String getQueryFields();
-
-    /**
-     * Search with entity type filter
-     */
-    public SolrDocumentList searchByType(
-            String searchTerms,
-            String userAccount,
-            int limit,
-            int offset,
-            String ownedBy,
-            Permissions permission,
-            String entityType) throws IOException, SolrServerException, NdexException {
-
-        // Add entity type filter
-        String typeFilter = " AND (" + ENTITY_TYPE + ":\"" + entityType + "\")";
-
-        SolrQuery solrQuery = new SolrQuery();
-        String permissionFilter = buildPermissionFilter(userAccount, permission);
-        String ownerFilter = ownedBy != null ? " AND (" + USER_ADMIN + ":\"" + ownedBy + "\")" : "";
-        String resultFilter = "(" + permissionFilter + ")" + ownerFilter + typeFilter;
-
-        configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
-
-        try {
-            QueryResponse rsp = client.query(solrQuery, SolrRequest.METHOD.POST);
-            return rsp.getResults();
-        } catch (BaseHttpSolrClient.RemoteSolrException e) {
-            throw convertException(e, coreName);
-        }
-    }
 
     protected static NdexException convertException(BaseHttpSolrClient.RemoteSolrException e, String core_name) {
         if (e.code() == 400) {
