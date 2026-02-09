@@ -951,6 +951,19 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
             }
         }
     }
+	@Override
+	public VisibilityType getFolderVisibility(UUID folderId) throws SQLException, NdexException {
+		String sql = "SELECT visibility FROM folder WHERE \"UUID\" = ? AND is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			pst.setObject(1, folderId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if (rs.next()) {
+					return VisibilityType.valueOf(rs.getString("visibility"));
+				}
+				throw new NdexException("Folder not found: " + folderId);
+			}
+		}
+	}
 
 	@Override
 	public boolean isDescendantOf(UUID folderId, UUID potentialDescendantId) throws SQLException {

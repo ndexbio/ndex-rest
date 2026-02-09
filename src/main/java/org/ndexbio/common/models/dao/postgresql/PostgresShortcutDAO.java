@@ -219,6 +219,19 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	        }
 	    }
 	}
+	@Override
+	public VisibilityType getShortcutVisibility(UUID shortcutId) throws SQLException, NdexException {
+		String sql = "SELECT visibility FROM shortcut WHERE \"UUID\" = ? AND is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			pst.setObject(1, shortcutId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if (rs.next()) {
+					return VisibilityType.valueOf(rs.getString("visibility"));
+				}
+				throw new NdexException("Shortcut not found: " + shortcutId);
+			}
+		}
+	}
 
     /**
      * Returns all root-level (parent is null) shortcuts for a user that are not deleted.

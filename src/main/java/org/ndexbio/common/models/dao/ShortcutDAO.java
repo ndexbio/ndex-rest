@@ -36,5 +36,7 @@ public interface ShortcutDAO extends AutoCloseable {
 	List<NdexShortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException;
 	
 	void setShortcutVisibility(UUID shortcutId, VisibilityType visibility) throws SQLException, NdexException;
+	VisibilityType getShortcutVisibility(UUID shortcutId) throws SQLException, NdexException;
+
 
 }

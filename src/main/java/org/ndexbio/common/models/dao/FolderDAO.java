@@ -66,7 +66,9 @@ public interface FolderDAO extends AutoCloseable {
 	List<FileItemSummary> listFoldersSharedBySpecificUser(UUID userId, UUID ownerId, boolean compact) throws SQLException;
 	
 	void setFolderVisibility(UUID folderId, VisibilityType visibility) throws SQLException, NdexException;
-	
+	VisibilityType getFolderVisibility(UUID folderId) throws SQLException, NdexException;
+
+
 	boolean isDescendantOf(UUID folderId, UUID potentialDescendantId) throws SQLException;
 	
 	List<FileItemSummary> listPublicRootItemsOfUser(UUID ownerId, boolean compact) throws SQLException;
