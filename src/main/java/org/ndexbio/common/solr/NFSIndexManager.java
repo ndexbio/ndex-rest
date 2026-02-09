@@ -65,6 +65,9 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     protected static final String USER_EDIT = "userEdit";
 
     protected abstract SolrInputDocument setupIndexDocument(T inputData);
+    public void prepareIndexDocument(T  inputData){
+        setupIndexDocument(inputData);
+    }
 
 
     public NFSIndexManager(VisibilityType visibilityType){
@@ -135,7 +138,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             //throw new RuntimeException("Failed to commit to Solr", io); // ADD THIS
         }
     }
-    protected void commitDocument() throws SolrServerException, IOException {
+    public void commitDocument() throws SolrServerException, IOException {
         if ( !doc.isEmpty()) {
             Collection<SolrInputDocument> docs = new ArrayList<>(1);
             docs.add(doc);
