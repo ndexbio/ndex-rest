@@ -25,7 +25,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
 
-public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummaryWrapper> {
+public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
 
     // user required indexing fields. hardcoded for now. Will turn them into configurable list in 1.4.
     public static final Set<String> otherAttributes =
@@ -51,9 +51,8 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummaryWra
     }
 
     @Override
-    protected SolrInputDocument setupIndexDocument(NetworkSummaryWrapper summaryWrapper) {
+    protected SolrInputDocument setupIndexDocument(NetworkSummary summary) {
         doc = new SolrInputDocument();
-        NetworkSummary summary = summaryWrapper.getNetworkSummary();
         doc.addField(UUID,  summary.getExternalId().toString() );
         doc.addField(EDGE_COUNT, summary.getEdgeCount());
         doc.addField(NODE_COUNT, summary.getNodeCount());
@@ -78,16 +77,10 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummaryWra
 
         // network summary already has owner field?
         // todo, should this be conditionally added as well? it was being added like this in old manager so mimicked that behavior
-        doc.addField(USER_ADMIN, summaryWrapper.getOwnerUserName());
+        doc.addField(USER_ADMIN, summary.getOwner());
         //doc.setDocumentBoost(documentBoost);;
 
         if (visibilityType.equals(VisibilityType.PRIVATE)){
-            if( summaryWrapper.getUserReads() != null) {
-                addKeyWithValues(doc, USER_READ, summaryWrapper.getUserReads());
-            }
-            if ( summaryWrapper.getUserEdits() !=null) {
-                addKeyWithValues(doc, USER_EDIT, summaryWrapper.getUserEdits());
-            }
 
             // already added unconditionally at top if (summaryWrapper.getOwnerUserName() != null && !summaryWrapper.getOwnerUserName().isBlank()) {
                 //doc.addField(USER_ADMIN, summaryWrapper.getOwnerUserName());

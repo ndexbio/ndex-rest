@@ -77,8 +77,18 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     /**
      * Public wrapper function for setupIndexDocument that doesn't expose inner SolrInputDocument
      */
-    public void prepareIndexDocument(T  inputData){
+    public void prepareIndexDocument(T  inputData,
+                                     Collection<String> userReads,
+                                     Collection<String> userEdits){
         setupIndexDocument(inputData);
+        if (visibilityType.equals(VisibilityType.PUBLIC)){
+            if(userReads != null) {
+                addKeyWithValues(doc, USER_READ, userReads);
+            }
+            if ( userEdits !=null) {
+                addKeyWithValues(doc, USER_EDIT, userEdits);
+            }
+        }
     }
 
 
@@ -138,8 +148,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      * @param inputData - Object to be mapped to document
      */
 
-    public void createIndex(T inputData){
-        setupIndexDocument(inputData);
+    public void createIndex(T inputData, Collection<String> userReads, Collection<String> userEdits){
+        prepareIndexDocument(inputData, userReads, userEdits);
         try {
             commit();
         } catch(SolrServerException sse){
