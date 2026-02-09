@@ -10,6 +10,8 @@ import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileType;
@@ -217,6 +219,70 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummaryWra
         }
 
         return warnings;
+
+    }
+    public void addCXNodeToIndex(NodesElement node)  {
+
+        if ( node.getNodeName() != null )
+            doc.addField(NODE_NAME, node.getNodeName());
+        if ( node.getNodeRepresents() !=null ) {
+            for (String indexableString : getIndexableString(node.getNodeRepresents())) {
+                doc.addField(REPRESENTS, indexableString);
+            }
+            //	   if( indexableString !=null)
+        }
+
+
+    }
+    public void addCXNodeAttrToIndex(NodeAttributesElement e)  {
+
+        if ( e.getName().equals(NdexClasses.Node_P_alias)) {
+            if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING 	&& !e.getValues().isEmpty()) {
+                for ( String v : e.getValues()) {
+                    for ( String indexableString : getIndexableString(v) ){
+                        doc.addField(ALIASES, indexableString);
+                    }
+                }
+            } else if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
+                String v = e.getValue();
+                for ( String indexableString : getIndexableString(v) ){
+                    doc.addField(ALIASES, indexableString);
+                }
+            }
+        } else if ( e.getName().toLowerCase().equals("type")) {
+            if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
+                String v = e.getValue().toLowerCase();
+                if ( v.equals("complex") || v.equals("proteinfamily")) {
+                    Set<String> members = nodeMembers.get(e.getPropertyOf());
+                    if ( members != null) {  // saw the member attribute on this node before
+                        for ( String memberIdStr : members) {
+                            for ( String indexableString : getIndexableString(memberIdStr) ){
+                                doc.addField(REPRESENTS, indexableString);
+                            }
+                        }
+                        nodeMembers.remove(e.getPropertyOf());
+                    }
+                    else {
+                        nodeMembers.put(e.getPropertyOf(), new TreeSet<String>());
+                    }
+                }
+            }
+        } else if (  e.getName().toLowerCase().equals("member")) {
+            if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
+                Set<String> members = nodeMembers.get(e.getPropertyOf());
+                if ( members != null) {  // this node is proteinfamily or complex
+                    for ( String memberIdStr : e.getValues()) {
+                        for ( String indexableString : getIndexableString(memberIdStr) ){
+                            doc.addField(REPRESENTS, indexableString);
+                        }
+                    }
+                    nodeMembers.remove(e.getPropertyOf());
+                } else {
+                    members = new HashSet<>(e.getValues());
+                    nodeMembers.put(e.getPropertyOf(), members);
+                }
+            }
+        }
 
     }
 
