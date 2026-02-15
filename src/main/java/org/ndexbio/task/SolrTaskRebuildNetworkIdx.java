@@ -34,6 +34,7 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -72,6 +73,9 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 
 			NetworkSummary summary = dao.getNetworkSummaryById(networkId);
+			VisibilityType visibilityType = dao.getNetworkVisibility(networkId);
+
+
 			if (summary == null)
 				throw new NdexException("Network " + networkId + " not found in the server.");
 
