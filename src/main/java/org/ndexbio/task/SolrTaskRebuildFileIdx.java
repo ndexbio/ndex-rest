@@ -6,6 +6,7 @@ import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresFolderDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.solr.FolderIndexManager;
+import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.ShortcutIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.*;
@@ -30,14 +31,16 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 
 	private final VisibilityType visibilityType;
 	private final FileType fileType;
+	private final boolean createOnly;
 
 	public SolrTaskRebuildFileIdx(UUID fileId, UUID userId, VisibilityType visibilityType,
-								  FileType fileType) {
+								  FileType fileType, boolean createOnly) {
 		super();
 		this.fileId = fileId;
 		this.userId = userId;
 		this.visibilityType = visibilityType;
 		this.fileType = fileType;
+		this.createOnly = createOnly;
 	}
 
 	@Override
@@ -59,6 +62,12 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 
 	private void rebuildFolderIndex(String id) throws NdexException, SolrServerException, IOException, SQLException {
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+			if (!createOnly){
+				try (FolderIndexManager folderIdxManager = new FolderIndexManager(visibilityType)) {
+					folderIdxManager.delete(id);
+				}
+
+			}
 			String accessKey = dao.getFolderAccessKey(fileId); //todo temp, not sure if right
 			NdexFolder folder = dao.getFolder(fileId, userId, accessKey );
 			try(FolderIndexManager globalIdx = new FolderIndexManager(visibilityType)) {
