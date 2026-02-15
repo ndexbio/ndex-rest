@@ -81,7 +81,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
                                      Collection<String> userReads,
                                      Collection<String> userEdits){
         setupIndexDocument(inputData);
-        if (visibilityType.equals(VisibilityType.PUBLIC)){
+        if (visibilityType.equals(VisibilityType.PRIVATE)){
             if(userReads != null) {
                 addKeyWithValues(doc, USER_READ, userReads);
             }
