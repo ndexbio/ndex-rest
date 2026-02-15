@@ -1,11 +1,10 @@
 package org.ndexbio.rest.services.v3.files;
 
+import java.io.IOException;
 import java.net.URI;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
@@ -118,9 +117,8 @@ public class FolderServiceV3 extends NdexService {
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
 			dao.commit();
+			indexFolder(dao, folderUUID, getLoggedInUserId(), VisibilityType.PRIVATE);
 		}
-		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(folderUUID, getLoggedInUserId(),
-				VisibilityType.PUBLIC, FileType.FOLDER, false));
 
 		String urlStr = Configuration.getInstance().getHostURI() +"/v3/files/folders/"+ folderUUID.toString();
 		
@@ -492,7 +490,10 @@ public class FolderServiceV3 extends NdexService {
 	    return folders;
 	}
 
+	protected void indexFolder(FolderDAO dao, UUID folderUUID, UUID userId,
+							   VisibilityType visibilityType) throws SQLException, NdexException, IOException {
 
-
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(folderUUID, getLoggedInUserId(),
+				visibilityType, FileType.FOLDER, false));}
 
 }
