@@ -7,6 +7,8 @@ import jakarta.ws.rs.core.Response.Status;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.jboss.resteasy.mock.*;
 import static org.junit.Assert.assertEquals;
@@ -36,7 +38,7 @@ public class TestFolderServiceV3 {
     public void before() {
         mockHttpServletRequest = createMock(HttpServletRequest.class);
         dispatcher = MockDispatcherFactory.createDispatcher();
-        dispatcher.getRegistry().addSingletonResource(new FolderServiceV3(mockHttpServletRequest));
+        dispatcher.getRegistry().addSingletonResource(new TestFolderServiceV3NoIndex(mockHttpServletRequest));
         dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
         response = new MockHttpResponse();
     }
@@ -59,7 +61,7 @@ public class TestFolderServiceV3 {
         User user = new User();
         user.setExternalId(userId);
 
-        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).anyTimes();
         replay(mockHttpServletRequest);
 
         UUID folderId = UUID.randomUUID();
@@ -439,5 +441,15 @@ public class TestFolderServiceV3 {
         assertEquals(1, result.length);
         assertEquals(FileType.NETWORK, result[0].getType());
     }
-    
+    private static class TestFolderServiceV3NoIndex extends FolderServiceV3 {
+        public TestFolderServiceV3NoIndex(HttpServletRequest request) {
+            super(request);
+        }
+
+        @Override
+        protected void indexFolder(FolderDAO dao, UUID folderUUID, UUID userId,
+                                   VisibilityType visibilityType) {
+            // no-op for testing
+        }
+    }
 }
