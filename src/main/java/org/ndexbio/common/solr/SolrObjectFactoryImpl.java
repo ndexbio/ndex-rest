@@ -102,10 +102,6 @@ public class SolrObjectFactoryImpl implements SolrObjectFactory {
 		return new ShortcutIndexManager(new SolrClientWrapperImpl(this));
 	}
 
-	@Override
-	public UnifiedSearchManager getIndexSearchManager() {
-		return new UnifiedSearchManager(new SolrClientWrapperImpl(this));
-	}
 
 
 }

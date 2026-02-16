@@ -545,12 +545,9 @@ public class SearchServiceV3 extends NdexService  {
 
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
-		try (UnifiedSearchManager search = Configuration.getInstance().getSolrObjectFactory().getIndexSearchManager()){
+
+		try (SearchProvider search = Configuration.getInstance().getSearchProvider()){
 			return search.searchFiles(query, visibilityType, skipBlocks, blockSize);
 		}
-
-		//try (SearchProvider search = Configuration.getInstance().getSearchProvider()){
-		//	return search.searchFiles(query, visibilityType, skipBlocks, blockSize);
-		//}
 	}
 }

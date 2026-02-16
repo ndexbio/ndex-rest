@@ -13,6 +13,7 @@ import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.FileVisibilityType;
 import org.ndexbio.model.object.SimpleFileQuery;
 import org.ndexbio.common.solr.SolrClientWrapper;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,14 +61,14 @@ public class SolrSearchProvider implements SearchProvider {
 	}
 	
 	@Override
-	public FileSearchResult searchFiles(SimpleFileQuery query, FileVisibilityType visibilityType, int skipBlocks, int blockSize) throws NdexException {
+	public FileSearchResult searchFiles(SimpleFileQuery query, VisibilityType visibilityType, int skipBlocks, int blockSize) throws NdexException {
 		
 		// default to public core/index
 		String coreName = PublicNFSIndexManager.CORE_NAME;
        
 		// Determine which database to hit based on visibilityType.
 		// If private go to private-nfs and if public use public-nfs
-		if (visibilityType != null && visibilityType == FileVisibilityType.PRIVATE){
+		if (visibilityType != null && visibilityType == VisibilityType.PRIVATE){
 			coreName = PrivateNFSIndexManager.CORE_NAME;
 		}
 		

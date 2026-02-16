@@ -55,7 +55,6 @@ public interface SolrObjectFactory {
 	public GlobalNetworkIndexManager getGlobalNetworkIndexManager();
 	public FolderIndexManager getFolderIndexManager();
 	public ShortcutIndexManager getShortcutIndexManager();
-	public UnifiedSearchManager getIndexSearchManager();
 
 
 }

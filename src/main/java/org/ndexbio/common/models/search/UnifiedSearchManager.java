@@ -18,18 +18,20 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class UnifiedSearchManager implements AutoCloseable {
+public class UnifiedSearchManager implements SearchProvider {
     protected final Logger logger = LoggerFactory.getLogger(this.getClass().getSimpleName());
+    private final int maxDefaultResults;
 
     // Use one of the existing managers just for its search infrastructure
     // A "dummy" NFSIndexManager that only does search
     private final SearchOnlyManager delegate;
 
-    public UnifiedSearchManager(SolrClientWrapper solrClientWrapper) {
-        this.delegate = new SearchOnlyManager(solrClientWrapper);
+    public UnifiedSearchManager(SolrClientWrapper solrClientWrapper, int defaultMaxSearchResultRows) {
+        this.maxDefaultResults = defaultMaxSearchResultRows;
+        this.delegate = new SearchOnlyManager(solrClientWrapper, maxDefaultResults);
     }
 
-    public FileSearchResult searchFiles(SimpleFileQuery query, VisibilityType visibilityType, int skipBlocks, int blockSize) throws NdexException, SolrServerException, IOException {
+    public FileSearchResult searchFiles(SimpleFileQuery query, VisibilityType visibilityType, int skipBlocks, int blockSize) throws NdexException {
         SolrDocumentList documents;
         if (query.getType() != null){
             documents = delegate.searchByType(query.getSearchString(),query.getAccountName(),
@@ -67,8 +69,8 @@ public class UnifiedSearchManager implements AutoCloseable {
     public void close() { delegate.close(); }
 
     private static final class SearchOnlyManager extends NFSIndexManager<Void> {
-        SearchOnlyManager(SolrClientWrapper solrClientWrapper) {
-            super(solrClientWrapper);
+        SearchOnlyManager(SolrClientWrapper solrClientWrapper, int maxResults) {
+            super(solrClientWrapper, maxResults);
         }
 
         @Override

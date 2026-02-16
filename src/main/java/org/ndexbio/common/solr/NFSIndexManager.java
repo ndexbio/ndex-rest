@@ -9,6 +9,7 @@ import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
+import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
 import org.ndexbio.model.exceptions.BadRequestException;
@@ -51,6 +52,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public static final String MODIFICATION_TIME = "modificationTime";
     public static final String VISIBILITY = "visibility";
 
+
     public static final String EDGE_COUNT = "edgeCount";
 
     public static final String NODE_COUNT = "nodeCount";
@@ -59,6 +61,9 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
     protected static final String USER_READ = "userRead";
     protected static final String USER_EDIT = "userEdit";
+    protected static final int DEFAULT_MAX_SEARCH_RESULTS = 100000;
+
+    private final int max_search_results;
 
     /**
      * Create index document for subclass input - must be implemented by subclasses
@@ -90,11 +95,16 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
 
     public NFSIndexManager(SolrClientWrapper solrClientWrapper){
+        this(solrClientWrapper, DEFAULT_MAX_SEARCH_RESULTS);
+    }
+    public NFSIndexManager(SolrClientWrapper solrClientWrapper, int maxDefaultSearchResults){
         solrUrl = Configuration.getInstance().getSolrURL();
         doc = new SolrInputDocument();
         this.solrClientWrapper = solrClientWrapper;
+        this.max_search_results = maxDefaultSearchResults;
 
     }
+
     /**
      * Creates core on Solr if needed. If core exists, nothing is done
      *
@@ -174,7 +184,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             int limit,
             int offset,
             String ownedBy,
-            Permissions permission) throws IOException, SolrServerException, NdexException {
+            Permissions permission) throws NdexException {
 
         SolrQuery solrQuery = new SolrQuery();
 
@@ -202,6 +212,9 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
             throw convertException(e, coreName);
         }
+        catch (Exception e){
+            throw new NdexException("Error accessing Solr: " + e.getMessage());
+        }
     }
 
     /**
@@ -215,7 +228,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             int offset,
             String ownedBy,
             Permissions permission,
-            String entityType) throws IOException, SolrServerException, NdexException {
+            String entityType) throws NdexException {
 
         // Add entity type filter
         String typeFilter = " AND (" + ENTITY_TYPE + ":\"" + entityType + "\")";
@@ -233,6 +246,9 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
             throw convertException(e, coreName);
+        }
+        catch (Exception e){
+            throw new NdexException("Error accessing Solr: " + e.getMessage());
         }
     }
 
@@ -338,7 +354,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         if (limit > 0) {
             solrQuery.setRows(limit);
         } else {
-            solrQuery.setRows(100000);
+            solrQuery.setRows(max_search_results);
         }
 
         // Apply filters
