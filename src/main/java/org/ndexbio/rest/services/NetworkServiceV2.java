@@ -1773,13 +1773,14 @@ public class NetworkServiceV2 extends NdexService {
 						NetworkIndexLevel lvl = parameters.get("index_level") == null? 
 								NetworkIndexLevel.NONE : 
 								NetworkIndexLevel.valueOf((String)parameters.get("index_level"));
-						networkDao.setIndexLevel(networkId, lvl);	 
+						networkDao.setIndexLevel(networkId, lvl);
+						VisibilityType visibilityType = networkDao.getNetworkVisibility(networkId);
 						if (lvl !=NetworkIndexLevel.NONE) {
 							networkDao.setFlag(networkId, "iscomplete",false);	 				
 							networkDao.commit();
 							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl,true));
 						} else
-							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true)); //delete the entry from global idx.
+							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true, visibilityType)); //delete the entry from global idx.
 														
 					}
 					if ( parameters.containsKey("showcase")) {
