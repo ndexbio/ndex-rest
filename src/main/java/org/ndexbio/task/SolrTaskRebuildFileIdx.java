@@ -89,9 +89,13 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
     }
 	private void rebuildShortcutIndex(String id) throws NdexException, SolrServerException, IOException {
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+			if (!createOnly){
+				try (ShortcutIndexManager shortcutIndexManager = new ShortcutIndexManager(visibilityType)) {
+					shortcutIndexManager.delete(id);
+				}
+			}
 			NdexShortcut shortcut = dao.getShortcut(fileId, userId);
 			try(ShortcutIndexManager globalIdx = new ShortcutIndexManager(visibilityType)) {
-				// todo get user reads and edits
 				globalIdx.createIndex(shortcut, null, null);
 			}
 		} catch (Exception e) {
