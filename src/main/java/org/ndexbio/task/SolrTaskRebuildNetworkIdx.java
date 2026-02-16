@@ -41,9 +41,12 @@ import org.ndexbio.rest.Configuration;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
-	
+
+	private static final Logger log = LoggerFactory.getLogger(SolrTaskRebuildNetworkIdx.class);
 	private UUID networkId;
 	private SolrIndexScope idxScope;
 	private boolean createOnly;
@@ -64,7 +67,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		this.idxScope = scope;
 		this.createOnly = createOnly;
 		this.indexedFields =indexedFields;
-		this.indexLevel = level;
+		this.indexLevel = NetworkIndexLevel.ALL;
 		this.fromCX2File = fromCX2File;
 	}
 	
@@ -113,7 +116,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 					List<Map<Permissions, Collection<String>>> permissionTable = dao
 							.getAllMembershipsOnNetwork(networkId);
 					Map<Permissions, Collection<String>> userMemberships = permissionTable.get(0);
-					globalIdx.createIndex(summary,
+					globalIdx.prepareIndexDocument(summary,
 							userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
 
 					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
