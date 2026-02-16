@@ -34,6 +34,7 @@ import jakarta.ws.rs.core.Response;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.models.search.UnifiedSearchManager;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
@@ -54,6 +55,7 @@ import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.SimpleFileQuery;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.tools.EdgeFilter;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -534,18 +536,21 @@ public class SearchServiceV3 extends NdexService  {
 	@Consumes("application/json")
 	public FileSearchResult searchFiles(
 			final SimpleFileQuery query,
-			@QueryParam("visibility") FileVisibilityType visibilityType,
+			@QueryParam("visibility") VisibilityType visibilityType,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
 			@DefaultValue("100") @QueryParam("size") int blockSize)
 		throws SQLException, Exception {
-				
+
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
-		
+
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
-
-		try (SearchProvider search = Configuration.getInstance().getSearchProvider()){
+		try (UnifiedSearchManager search = new UnifiedSearchManager(visibilityType)){
 			return search.searchFiles(query, visibilityType, skipBlocks, blockSize);
 		}
+
+		//try (SearchProvider search = Configuration.getInstance().getSearchProvider()){
+		//	return search.searchFiles(query, visibilityType, skipBlocks, blockSize);
+		//}
 	}
 }
