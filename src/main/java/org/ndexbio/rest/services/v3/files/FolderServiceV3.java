@@ -112,7 +112,7 @@ public class FolderServiceV3 extends NdexService {
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
 			dao.commit();
-			indexFolder(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE);
+			indexFolder(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE, true);
 		}
 
 		String urlStr = Configuration.getInstance().getHostURI() +"/v3/files/folders/"+ folderUUID.toString();
@@ -329,7 +329,7 @@ public class FolderServiceV3 extends NdexService {
 			dao.updateFolder(folderId, request.getName(), parentUUID, userId, request.getDescription());
 			dao.commit();
 			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
-			indexFolder(folderId, getLoggedInUser(), visibilityType);
+			indexFolder(folderId, getLoggedInUser(), visibilityType, false);
 			return ;
 		}
 	}
@@ -491,10 +491,10 @@ public class FolderServiceV3 extends NdexService {
 	}
 
 	protected void indexFolder(UUID folderUUID, User user,
-							   VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+							   VisibilityType visibilityType, boolean createOnly) throws SQLException, NdexException, IOException {
 
 		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(folderUUID, user.getExternalId(),
-				user.getUserName(), visibilityType, FileType.FOLDER, false));
+				user.getUserName(), visibilityType, FileType.FOLDER, createOnly));
 	}
 
 	protected void deleteFolderIndex(UUID folderUUID,

@@ -582,7 +582,7 @@ public class TestShortcutServiceV3 {
 
         @Override
         protected void indexShortcut(UUID folderUUID,User user,
-                                   VisibilityType visibilityType) {
+                                   VisibilityType visibilityType, boolean createOnly) {
             // no-op for testing
         }
         @Override
