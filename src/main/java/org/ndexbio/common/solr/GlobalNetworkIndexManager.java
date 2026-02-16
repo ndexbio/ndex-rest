@@ -60,15 +60,15 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
         doc.addField(NODE_COUNT, summary.getNodeCount());
         doc.addField(ENTITY_TYPE, FileType.NETWORK.toString());
 
-        if ( summary.getName() !=null && summary.getName().length()>1) {
+        if ( summary.getName() !=null && !summary.getName().trim().isEmpty()) {
             doc.addField(NAME, summary.getName());
         }
 
-        if (summary.getDescription() !=null && summary.getDescription().length()>1) {
+        if (summary.getDescription() !=null && !summary.getDescription().trim().isEmpty()) {
             doc.addField(DESC, summary.getDescription());
         }
 
-        if ( summary.getVersion() !=null && summary.getVersion().length()>1) {
+        if ( summary.getVersion() !=null && !summary.getVersion().trim().isEmpty()) {
             doc.addField(VERSION, summary.getVersion());
         }
 
