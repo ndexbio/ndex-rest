@@ -77,9 +77,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
 
         doc.addField(NDEX_SCORE, Util.getNdexScoreFromSummary(summary));
 
-        // network summary already has owner field?
-        // todo, should this be conditionally added as well? it was being added like this in old manager so mimicked that behavior
-        doc.addField(USER_ADMIN, summary.getOwner());
+        doc.addField(USER_ADMIN, summary.getOwnerUUID().toString());
         //doc.setDocumentBoost(documentBoost);;
 
         if (visibilityType.equals(VisibilityType.PRIVATE)){
