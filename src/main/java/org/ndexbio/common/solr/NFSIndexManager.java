@@ -29,8 +29,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     protected final Logger logger = LoggerFactory.getLogger(this.getClass().getSimpleName());
 
 
-    protected static final String privateCoreName = "private-nfs";
-    protected static final String publicCoreName = "public-nfs";
+    public static final String privateCoreName = "private-nfs";
+    public static final String publicCoreName = "public-nfs";
 
     protected final VisibilityType visibilityType;
 
@@ -223,6 +223,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
         // Set up the query
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
+        logger.info("QUERY {} FILTER: {}", solrQuery.toQueryString(), solrQuery.getFilterQueries());
 
         // Execute search
         try {
@@ -351,7 +352,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
 
         // Set the query with default fields
-        solrQuery.setQuery(preprocessSearchTerms(searchTerms)).setFields(UUID);
+        solrQuery.setQuery(preprocessSearchTerms(searchTerms)).setFields(UUID, USER_ADMIN, NAME, ENTITY_TYPE);
 
         // Set query type and fields to search
         solrQuery.set("defType", "edismax");
