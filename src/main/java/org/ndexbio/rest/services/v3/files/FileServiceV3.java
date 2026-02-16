@@ -1,6 +1,8 @@
 package org.ndexbio.rest.services.v3.files;
 
+import java.io.IOException;
 import java.net.URI;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
@@ -8,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.ndexbio.common.models.dao.ShortcutDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -26,6 +29,9 @@ import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.rest.services.v3.files.handlers.AbstractFileTypeHandler;
 import org.ndexbio.rest.services.v3.files.handlers.FileTypeHandlerFactory;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +60,7 @@ import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.object.SharingSimpleRequest;
+import org.ndexbio.model.object.network.VisibilityType;
 
 
 @Path("/v3/files")
@@ -65,7 +72,7 @@ public class FileServiceV3 extends NdexService {
 	public FileServiceV3(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
-	
+
 	@GET
 	@Path("/count")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -95,7 +102,7 @@ public class FileServiceV3 extends NdexService {
 	       return counts;
 	    }
 	}
-	
+
 	@GET
 	@Path("/trash")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -130,7 +137,7 @@ public class FileServiceV3 extends NdexService {
 
 	    return trashedItems;
 	}
-	
+
 	@POST
 	@Path("/trash/restore")
 	@Consumes(MediaType.APPLICATION_JSON)
@@ -156,10 +163,11 @@ public class FileServiceV3 extends NdexService {
     )
 	public void restoreItemsFromTrash(TrashRestoreRequest request) throws Exception {
 
-	    UUID userId = getLoggedInUserId();
-	    if (userId == null) {
+	    User user = getLoggedInUser();
+	    if (user == null || user.getExternalId() == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to restore items from trash.");
 	    }
+		UUID userId = user.getExternalId();
 
 	    if ((request.getFolders() == null || request.getFolders().isEmpty()) &&
             (request.getNetworks() == null || request.getNetworks().isEmpty()) &&
@@ -167,15 +175,40 @@ public class FileServiceV3 extends NdexService {
 	        throw new BadRequestException("No items to restore.");
 	    }
 
-	    try (TrashDAO dao = Configuration.getInstance().getDAOFactory().getTrashDAO()) {
-	        dao.restoreTrashedItems(userId, request);
-	        dao.commit();
-	        
-	        return ;
-	    }
-	    
+		try (TrashDAO dao = Configuration.getInstance().getDAOFactory().getTrashDAO()) {
+			dao.restoreTrashedItems(userId, request);
+			dao.commit();
+		}
+
+		if (request.getFolders() != null) {
+			for (UUID folderId : request.getFolders()) {
+				try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+					VisibilityType vis = dao.getFolderVisibility(folderId);
+					createFileIndex(folderId, user, vis, FileType.FOLDER, false);
+				}
+			}
+		}
+
+		if (request.getNetworks() != null) {
+			for (UUID networkId : request.getNetworks()) {
+				try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+					VisibilityType vis = dao.getNetworkVisibility(networkId);
+					createFileIndex(networkId, user, vis, FileType.NETWORK, false);
+				}
+			}
+		}
+
+		if (request.getShortcuts() != null) {
+			for (UUID shortcutId : request.getShortcuts()) {
+				try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+					VisibilityType vis = dao.getShortcutVisibility(shortcutId);
+					createFileIndex(shortcutId, user, vis, FileType.SHORTCUT, false);
+				}
+			}
+		}
+
 	}
-	
+
 	@DELETE
 	@Path("/trash")
     @Operation(
@@ -210,7 +243,7 @@ public class FileServiceV3 extends NdexService {
 
 	    return;
 	}
-	
+
 	@DELETE
     @Path("/trash/{uuid}")
     @Operation(
@@ -242,7 +275,7 @@ public class FileServiceV3 extends NdexService {
 	    if (userId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to restore items from trash.");
 	    }
-        
+
         // First get the item type
         FileType type;
         try (TrashDAO dao = Configuration.getInstance().getDAOFactory().getTrashDAO()) {
@@ -250,13 +283,13 @@ public class FileServiceV3 extends NdexService {
             if (type == null) {
                 throw new NotFoundException("Item not found in trash.");
             }
-            
+
             // Permanently delete the item
             dao.permanentlyDeleteTrashedItem(itemId, type);
             dao.commit();
         }
     }
-	
+
 	@POST
 	@Path("/copy")
 	@Consumes(MediaType.APPLICATION_JSON)
@@ -304,17 +337,18 @@ public class FileServiceV3 extends NdexService {
 	    if (status == null) {
 	        throw new NdexException("Copy operation failed - no status returned");
 	    }
-		
+		// Index the newly copied item
+		createFileIndex(status.getUuid(), loggedInUser, VisibilityType.PRIVATE, type, true);
 		String urlStr = Configuration.getInstance().getHostURI() + "/v3/files/" + type.toString().toLowerCase() + "s/" + status.getUuid().toString();
 		URI l = new URI(urlStr);
 		ObjectMapper om = new ObjectMapper();
-		
+
 		return Response.created(l)
 		               .header("Access-Control-Expose-Headers", "Location")
 		               .entity(om.writeValueAsString(status))
 		               .build();
 	}
-	
+
 	@POST
 	@Path("/sharing/members")
 	@Consumes(MediaType.APPLICATION_JSON)
@@ -345,15 +379,16 @@ public class FileServiceV3 extends NdexService {
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to add members.");
 	    }
-	    
-	    Map<String,String> result = new HashMap<>();            // <target‑UUID, status>
+		User user = getLoggedInUser();
+
+		Map<String,String> result = new HashMap<>();            // <target‑UUID, status>
 
     	Map<UUID, FileType> files = request.getFiles();
-        
+
         for (Map.Entry<UUID, Permissions> entry : request.getMembers().entrySet()) {
             UUID memberId = entry.getKey();
             Permissions permission = entry.getValue();
-        
+
             for (Map.Entry<UUID, FileType> file : files.entrySet()) {
             	UUID fileId = file.getKey();
 		        FileType type = file.getValue();
@@ -363,14 +398,20 @@ public class FileServiceV3 extends NdexService {
            }
         }
 
-	    ObjectMapper om = new ObjectMapper();
-	    
-	    return Response.ok()
-	                   .type(MediaType.APPLICATION_JSON_TYPE)
-	                   .entity(om.writeValueAsString(result))
-	                   .build();
+		// Reindex affected files since permissions changed
+		for (Map.Entry<UUID, FileType> file : files.entrySet()) {
+			VisibilityType vis = getVisibilityForFile(file.getKey(), file.getValue());
+			createFileIndex(file.getKey(), user, vis, file.getValue(), false);
+		}
+
+		ObjectMapper om = new ObjectMapper();
+
+		return Response.ok()
+				.type(MediaType.APPLICATION_JSON_TYPE)
+				.entity(om.writeValueAsString(result))
+				.build();
 	}
-	
+
 	@POST
 	@Path("/sharing/members/list")
 	@Consumes(MediaType.APPLICATION_JSON)
@@ -417,10 +458,10 @@ public class FileServiceV3 extends NdexService {
 
 	        response.add(fileInfo);
 	    }
-	    
+
 	    return response;
 	}
-	
+
 	@POST
 	@Path("/sharing/share")
 	@Consumes(MediaType.APPLICATION_JSON)
@@ -448,10 +489,10 @@ public class FileServiceV3 extends NdexService {
 	    if (userId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to share.");
 	    }
-	    
+
 	    Map<UUID,String> response = new HashMap<>();
 	    Map<UUID, FileType> files = request.getFiles();
-	    
+
 	    for (Map.Entry<UUID, FileType> file : files.entrySet()) {
 			FileType type = file.getValue();
 			AbstractFileTypeHandler handler = fileTypeHandlerFactory.getHandler(type);
@@ -460,7 +501,7 @@ public class FileServiceV3 extends NdexService {
 	    }
 	    return response;
 	}
-	
+
 	@POST
 	@Path("/sharing/unshare")
 	@Consumes(MediaType.APPLICATION_JSON)
@@ -487,7 +528,7 @@ public class FileServiceV3 extends NdexService {
 	    }
 
 	    Map<UUID, FileType> files = request.getFiles();
-	    
+
 	    for (Map.Entry<UUID, FileType> file : files.entrySet()) {
 	    	FileType type = file.getValue();
 			AbstractFileTypeHandler handler = fileTypeHandlerFactory.getHandler(type);
@@ -495,7 +536,7 @@ public class FileServiceV3 extends NdexService {
 	    }
 	    return ;
 	}
-	
+
 	@POST
 	@Path("/sharing/transfer")
 	@Consumes(MediaType.APPLICATION_JSON)
@@ -516,54 +557,65 @@ public class FileServiceV3 extends NdexService {
                           """
     )
 	public void transferNetworksOwnership(TransferOwnershipRequest request) throws Exception {
-	    UUID currentUserId = getLoggedInUserId();
-	    if (currentUserId == null) {
+		User user = getLoggedInUser();
+	    if (user == null || user.getExternalId() == null) {
 	        throw new UnauthorizedOperationException("You must be logged in to transfer objects.");
 	    }
+		UUID currentUserId = user.getExternalId();
 
 	    if (request == null || request.getNetworks() == null || request.getNetworks().isEmpty()) {
 	        throw new NdexException("No networks specified for transfer.");
 	    }
-	    
+
 	    if (request.getNewOwner() == null) {
 	        throw new NdexException("Missing new owner UUID in request.");
 	    }
 
-	    try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO();
-	         ShortcutDAO shortcutDao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-	        
-	        for (UUID networkId : request.getNetworks()) {
-	            // Verify current user is the owner
-	            if (!networkDao.isAdmin(networkId, currentUserId)) {
-	                throw new UnauthorizedOperationException("You are not the owner of network " + networkId);
-	            }
-	            
-	            // Get network info before transfer
-	            UUID parentId = networkDao.getNetworkFolder(networkId);
-	            String networkName = networkDao.getNetworkName(networkId);
-	            
-	            // Transfer ownership (this also sets WRITE permission for old owner)
-	            networkDao.grantPrivilegeToUser(networkId, request.getNewOwner(), Permissions.ADMIN);
-	            
-	            // Set network's parent to null
-	            networkDao.setNetworkFolder(networkId, null);
-	            networkDao.commit();
-	            
-	            // Create shortcut for old owner
-	            UUID shortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-	            shortcutDao.createShortcut(
-	                shortcutUUID,
-	                currentUserId,
-	                parentId,
-	                networkName,
-	                networkId,
-	                FileType.NETWORK
-	            );
-	            shortcutDao.commit();
-	        }
-	    }
+		try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO();
+			 ShortcutDAO shortcutDao = Configuration.getInstance().getDAOFactory().getShortcutDAO();
+			 UserDAO userDAO = Configuration.getInstance().getDAOFactory().getUserDAO()) {
 
-	    return ;
+			// Verify current user is the owner
+			for (UUID networkId : request.getNetworks()) {
+				if (!networkDao.isAdmin(networkId, currentUserId)) {
+					throw new UnauthorizedOperationException("You are not the owner of network " + networkId);
+				}
+				// Get network info before transfer
+				UUID parentId = networkDao.getNetworkFolder(networkId);
+				String networkName = networkDao.getNetworkName(networkId);
+				User newUser = userDAO.getUserById(request.getNewOwner(), false, false);
+				if (newUser == null){
+					throw new IllegalArgumentException("No user found with id " + request.getNewOwner() + " to transfer network to.");
+				}
+
+				// Transfer ownership (this also sets WRITE permission for old owner)
+				networkDao.grantPrivilegeToUser(networkId, request.getNewOwner(), Permissions.ADMIN);
+
+				// Set network's parent to null
+				networkDao.setNetworkFolder(networkId, null);
+				networkDao.commit();
+
+				// Reindex transferred network with updated ownership
+				VisibilityType netVis = networkDao.getNetworkVisibility(networkId);
+				createFileIndex(networkId, newUser, netVis, FileType.NETWORK, false);
+
+				// Create shortcut for old owner
+				UUID shortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+				shortcutDao.createShortcut(
+						shortcutUUID,
+						currentUserId,
+						parentId,
+						networkName,
+						networkId,
+						FileType.NETWORK
+				);
+				shortcutDao.commit();
+
+				// Index the new shortcut
+				VisibilityType scVis = shortcutDao.getShortcutVisibility(shortcutUUID);
+				createFileIndex(shortcutUUID, user, scVis, FileType.SHORTCUT, true);
+			}
+		}
 	}
 
 	@GET
@@ -593,7 +645,7 @@ public class FileServiceV3 extends NdexService {
 	public List<FileItemSummary> listSharedObjects(
 	    @QueryParam("limit") @DefaultValue("100") int limit
 	) throws Exception {
-	
+
 	    UUID currentUserId = getLoggedInUserId();
 	    if (currentUserId == null) {
 	        throw new UnauthorizedOperationException("You must be logged in.");
@@ -603,13 +655,36 @@ public class FileServiceV3 extends NdexService {
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	    	fileInfo = dao.listSharedFolders(currentUserId);
 	    }
-	    
+
 		try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 			fileInfo.addAll(networkDao.listSharedNetworks(currentUserId));
 		}
-		
-		
+
+
 	    return fileInfo;
+	}
+
+
+	/**
+	 * Look up the current visibility for a file by type.
+	 */
+	protected VisibilityType getVisibilityForFile(UUID fileId, FileType fileType) throws Exception {
+		switch (fileType) {
+			case FOLDER:
+				try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+					return dao.getFolderVisibility(fileId);
+				}
+			case NETWORK:
+				try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+					return dao.getNetworkVisibility(fileId);
+				}
+			case SHORTCUT:
+				try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+					return dao.getShortcutVisibility(fileId);
+				}
+			default:
+				throw new NdexException("Unknown file type: " + fileType);
+		}
 	}
 
 }
