@@ -11,6 +11,8 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
@@ -19,6 +21,7 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
     protected static final String TARGET_UUID = "targetUuid";
     protected static final String TARGET_TYPE = "targetType";
     protected static final String IS_DANGLING = "isDangling";
+    private static final Logger log = LoggerFactory.getLogger(ShortcutIndexManager.class);
 
     public ShortcutIndexManager(VisibilityType visibilityType){
         super(visibilityType);
@@ -31,7 +34,7 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
         doc.addField(UUID, shortcut.getExternalId().toString());
         doc.addField(ENTITY_TYPE, FileType.SHORTCUT.toString());
 
-        if (shortcut.getName() != null && shortcut.getName().length()>1){
+        if (shortcut.getName() != null && !shortcut.getName().trim().isEmpty()){
             doc.addField(NAME, shortcut.getName());
         }
         if (shortcut.getOwner() != null && !shortcut.getOwner().isBlank()) {
