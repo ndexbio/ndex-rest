@@ -1,5 +1,6 @@
 package org.ndexbio.rest.services.v3.files;
 
+import java.io.IOException;
 import java.net.URI;
 import java.sql.SQLException;
 import java.util.List;
@@ -9,14 +10,19 @@ import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.ShortcutRequest;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.rest.services.v3.files.handlers.AbstractFileTypeHandler;
 import org.ndexbio.rest.services.v3.files.handlers.FileTypeHandlerFactory;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,6 +99,8 @@ public class ShortcutServiceV3 extends NdexService {
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
 			status = dao.createShortcut(shortcutUUID, userId, request.getParent(), request.getName(), request.getTarget(), request.getTargetType());
 			dao.commit();
+			VisibilityType visibilityType = dao.getShortcutVisibility(shortcutUUID);
+			indexShortcut(shortcutUUID, userId, visibilityType);
 		}
 		
 		String urlStr = Configuration.getInstance().getHostURI() +"/v3/files/shortcuts/"+ shortcutUUID.toString();
@@ -172,9 +180,13 @@ public class ShortcutServiceV3 extends NdexService {
 			
 			if (!dao.isShortcutOwner(shortcutId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this shortcut.");
-				
+
+			VisibilityType visibilityType = dao.getShortcutVisibility(shortcutId);
+
 			dao.deleteShortcut(shortcutId, permanent);
 			dao.commit();
+			deleteShortcutIndex(shortcutId, visibilityType);
+
 		}
 	}
 	
@@ -206,7 +218,10 @@ public class ShortcutServiceV3 extends NdexService {
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this shortcut.");
 			
 			dao.updateShortcut(shortcutId, request.getName(), request.getParent());
-			dao.commit();	
+			dao.commit();
+			VisibilityType visibilityType = dao.getShortcutVisibility(shortcutId);
+			indexShortcut(shortcutId, getLoggedInUserId(), visibilityType);
+
 			return;
 		}
 	}
@@ -246,6 +261,18 @@ public class ShortcutServiceV3 extends NdexService {
 	    }
 
 	    return shortcuts;
+	}
+	protected void indexShortcut(UUID shortcutId, UUID userId,
+							   VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(shortcutId, userId,
+				visibilityType, FileType.SHORTCUT, false));
+	}
+
+	protected void deleteShortcutIndex(UUID shortcutId,
+									 VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(shortcutId, visibilityType));
 	}
 
 
