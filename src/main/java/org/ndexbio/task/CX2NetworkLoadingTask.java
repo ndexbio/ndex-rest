@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Set;
 import java.util.UUID;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
@@ -12,11 +12,12 @@ import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.slf4j.LoggerFactory;
 
 
 public class CX2NetworkLoadingTask extends CXNetworkLoadingTask {
-	
-	private static Logger logger = Logger.getLogger(CX2NetworkLoadingTask.class.getName());
+
+	private static Logger logger = LoggerFactory.getLogger(CX2NetworkLoadingTask.class.getName());
 	
 	private static final TaskType taskType = TaskType.SYS_LOAD_CX2_NETWORK;
 	
@@ -32,7 +33,7 @@ public class CX2NetworkLoadingTask extends CXNetworkLoadingTask {
 		try ( CX2NetworkLoader loader = new CX2NetworkLoader(getNetworkId(), isUpdate,dao, visibility, nodeAttributeIndexList, 0) ) {
 				loader.persistCXNetwork();
 		} catch ( IOException | NdexException | SQLException | RuntimeException | SolrServerException e1) {
-			logger.severe("Error occurred when loading network " + networkId + ": " + e1.getMessage());
+			logger.error("Error occurred when loading network " + networkId + ": " + e1.getMessage());
 			e1.printStackTrace();
 			dao.setFlag(networkId, "is_validated", true);
 			dao.setFlag(networkId, "iscomplete", true);
@@ -48,7 +49,7 @@ public class CX2NetworkLoadingTask extends CXNetworkLoadingTask {
 		} 
 	  } catch (SQLException e) {
 		e.printStackTrace();
-		logger.severe("Failed to create NetworkDAO object: " + e.getMessage());
+		logger.error("Failed to create NetworkDAO object: " + e.getMessage());
 	  }
 	}
 
