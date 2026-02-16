@@ -581,12 +581,12 @@ public class TestShortcutServiceV3 {
         }
 
         @Override
-        protected void indexShortcut(UUID folderUUID,User user,
-                                   VisibilityType visibilityType, boolean createOnly) {
+        protected void createFileIndex(UUID folderUUID,User user,
+                                   VisibilityType visibilityType, FileType fileType, boolean createOnly) {
             // no-op for testing
         }
         @Override
-        protected void deleteShortcutIndex(UUID folderUUID,
+        protected void deleteFileIndex(UUID folderUUID,
                                          VisibilityType visibilityType) throws SQLException, NdexException, IOException {
 
         }

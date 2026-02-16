@@ -452,13 +452,13 @@ public class TestFolderServiceV3 {
         }
 
         @Override
-        protected void indexFolder(UUID folderUUID, User user,
-                                   VisibilityType visibilityType, boolean createOnly) {
+        protected void createFileIndex(UUID folderUUID,User user,
+                                       VisibilityType visibilityType, FileType fileType, boolean createOnly) {
             // no-op for testing
         }
         @Override
-        protected void deleteFolderIndex(UUID folderUUID,
-                                         VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+        protected void deleteFileIndex(UUID folderUUID,
+                                       VisibilityType visibilityType) throws SQLException, NdexException, IOException {
 
         }
     }
