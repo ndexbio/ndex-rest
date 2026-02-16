@@ -289,6 +289,8 @@ public class TestFolderServiceV3 {
         FolderDAO folderDAO = createMock(FolderDAO.class);
         expect(folderDAO.isFolderOwner(folderId, userId)).andReturn(true);
         folderDAO.updateFolder(eq(folderId), eq("Updated Folder Name"), isNull(), eq(userId), isNull());
+        expect(folderDAO.getFolderVisibility(folderId)).andReturn(VisibilityType.PRIVATE);
+
         expectLastCall();
         folderDAO.commit();
         expectLastCall();
