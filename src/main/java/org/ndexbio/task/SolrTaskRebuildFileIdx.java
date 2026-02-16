@@ -3,15 +3,13 @@ package org.ndexbio.task;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
-import org.ndexbio.common.models.dao.postgresql.PostgresFolderDAO;
-import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.solr.FolderIndexManager;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.ShortcutIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -22,9 +20,9 @@ import java.util.stream.Collectors;
 
 public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 
-//private static Logger logger = Logger.getLogger(CXNetworkLoadingTask.class.getName());
+	private static final org.slf4j.Logger log = LoggerFactory.getLogger(SolrTaskRebuildFileIdx.class);
 
-	private static final TaskType taskType = TaskType.SYS_LOAD_CX2_NETWORK; //todo may need new
+	private static final TaskType taskType = TaskType.SYS_SOLR_REBUILD_NETWORK_INDEX; //todo may need new
 
 	private final UUID fileId;
 	private final UUID userId;
