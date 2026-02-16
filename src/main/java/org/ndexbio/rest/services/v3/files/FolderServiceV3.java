@@ -112,7 +112,7 @@ public class FolderServiceV3 extends NdexService {
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
 			dao.commit();
-			indexFolder(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE, true);
+			createFileIndex(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE, FileType.FOLDER, true);
 		}
 
 		String urlStr = Configuration.getInstance().getHostURI() +"/v3/files/folders/"+ folderUUID.toString();
@@ -267,7 +267,7 @@ public class FolderServiceV3 extends NdexService {
 			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
 			dao.deleteFolder(folderId, force, permanent);
 			dao.commit();
-			deleteFolderIndex(folderId, visibilityType);
+			deleteFileIndex(folderId, visibilityType);
 
 		} 
 	}
@@ -329,7 +329,7 @@ public class FolderServiceV3 extends NdexService {
 			dao.updateFolder(folderId, request.getName(), parentUUID, userId, request.getDescription());
 			dao.commit();
 			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
-			indexFolder(folderId, getLoggedInUser(), visibilityType, false);
+			createFileIndex(folderId, getLoggedInUser(), visibilityType,  FileType.FOLDER, false);
 			return ;
 		}
 	}
@@ -488,19 +488,6 @@ public class FolderServiceV3 extends NdexService {
 	    }
 
 	    return folders;
-	}
-
-	protected void indexFolder(UUID folderUUID, User user,
-							   VisibilityType visibilityType, boolean createOnly) throws SQLException, NdexException, IOException {
-
-		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(folderUUID, user.getExternalId(),
-				user.getUserName(), visibilityType, FileType.FOLDER, createOnly));
-	}
-
-	protected void deleteFolderIndex(UUID folderUUID,
-							   VisibilityType visibilityType) throws SQLException, NdexException, IOException {
-
-		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(folderUUID, visibilityType));
 	}
 
 }
