@@ -8,7 +8,7 @@
    <field name="entityType" type="string" indexed="true" stored="true" required="true"/>
    <field name="uuid" type="string" indexed="true" stored="true" required="true" multiValued="false" />
 
-   <field name="name" type="text_general" indexed="true" stored="false" multiValued="true"/>
+   <field name="name" type="text_general" indexed="true" stored="true" multiValued="false"/>
    <field name="description" type="text_general" indexed="true" stored="false" multiValued="true"/>
    <field name="version" type="text_ws" indexed="true" stored="false" multiValued="true"/>
    <field name="creationTime" type="pdate" indexed="true" stored="false"  />
