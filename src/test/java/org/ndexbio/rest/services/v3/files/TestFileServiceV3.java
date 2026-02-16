@@ -4,12 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.core.Response.Status;
 
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
 import java.util.HashMap;
 import org.easymock.EasyMock;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
@@ -55,7 +60,7 @@ public class TestFileServiceV3 {
 		mockHttpServletRequest = createMock(HttpServletRequest.class);
 		dispatcher = MockDispatcherFactory.createDispatcher();
 		//register the class of the endpoint you want to test
-        dispatcher.getRegistry().addSingletonResource(new FileServiceV3(mockHttpServletRequest));
+        dispatcher.getRegistry().addSingletonResource(new TestFileServiceV3NoIndex(mockHttpServletRequest));
 			
 		//if test causes an exception to be thrown be sure to 
 		//register the mapper for that exception
@@ -241,14 +246,15 @@ public class TestFileServiceV3 {
 	    UUID userID = UUID.randomUUID();
 	    User fakeUser = new User();
 	    fakeUser.setExternalId(userID);
+		UUID fileID = UUID.randomUUID();
 
-	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser).anyTimes();
 	    replay(mockHttpServletRequest);
 
 	    // Prepare restore request
 	    TrashRestoreRequest requestPayload = new TrashRestoreRequest();
 	    List<UUID> networks = new ArrayList<>();
-	    networks.add(UUID.randomUUID());
+	    networks.add(fileID);
 	    requestPayload.setNetworks(networks);
 
 	    ObjectMapper mapper = new ObjectMapper();
@@ -256,17 +262,26 @@ public class TestFileServiceV3 {
 
 	    // Use anyObject matcher to avoid object identity issues
 	    TrashDAO mockTrashDAO = createMock(TrashDAO.class);
-	    mockTrashDAO.restoreTrashedItems(EasyMock.eq(userID), EasyMock.anyObject(TrashRestoreRequest.class));
+		NetworkDAO mockNetworkDAO = createMock(NetworkDAO.class);
+
+		mockTrashDAO.restoreTrashedItems(EasyMock.eq(userID), EasyMock.anyObject(TrashRestoreRequest.class));
 	    EasyMock.expectLastCall().once();
 	    mockTrashDAO.commit();
 	    EasyMock.expectLastCall().once();
+
 	    mockTrashDAO.close();
 	    EasyMock.expectLastCall().once();
-	    replay(mockTrashDAO);
 
 	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
 	    expect(mockDAOFactory.getTrashDAO()).andReturn(mockTrashDAO);
-	    replay(mockDAOFactory);
+		//expect(mockDAOFactory.getFolderDAO()).andReturn(mockFolderDAO);
+		//expect(mockDAOFactory.getShortcutDAO()).andReturn(mockShortcutDAO);
+		expect(mockDAOFactory.getNetworkDAO()).andReturn(mockNetworkDAO);
+		expect(mockNetworkDAO.getNetworkVisibility(fileID)).andReturn(VisibilityType.PRIVATE).anyTimes();
+		mockNetworkDAO.close();
+		EasyMock.expectLastCall().anyTimes();
+
+		replay(mockDAOFactory, mockNetworkDAO, mockTrashDAO);
 
 	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
 
@@ -275,7 +290,7 @@ public class TestFileServiceV3 {
 	            .contentType(MediaType.APPLICATION_JSON);
 
 	    dispatcher.invoke(request, response);
-
+		//System.out.println("Response body: " + new String(response.getOutput()));
 	    assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());
 	}
 
@@ -870,13 +885,15 @@ public class TestFileServiceV3 {
 	    User fakeUser = new User();
 	    fakeUser.setExternalId(userID);
 
-	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser);
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser).anyTimes();
 	    replay(mockHttpServletRequest);
 
 	    UUID networkId = UUID.randomUUID();
 	    UUID newOwnerId = UUID.randomUUID();
 	    UUID parentId = UUID.randomUUID();
 	    String networkName = "Test Network";
+		User newFakeUser = new User();
+		newFakeUser.setExternalId(newOwnerId);
 
 	    TransferOwnershipRequest request = new TransferOwnershipRequest();
 	    List<UUID> networks = new ArrayList<>();
@@ -897,6 +914,7 @@ public class TestFileServiceV3 {
 	    EasyMock.expectLastCall();
 	    mockNetworkDAO.commit();
 	    EasyMock.expectLastCall();
+		expect(mockNetworkDAO.getNetworkVisibility(networkId)).andReturn(VisibilityType.PRIVATE);
 	    mockNetworkDAO.close();
 	    EasyMock.expectLastCall();
 	    replay(mockNetworkDAO);
@@ -913,14 +931,21 @@ public class TestFileServiceV3 {
 	    )).andReturn(new NdexObjectUpdateStatus());
 	    mockShortcutDAO.commit();
 	    EasyMock.expectLastCall();
+		expect(mockShortcutDAO.getShortcutVisibility(EasyMock.anyObject(UUID.class))).andReturn(VisibilityType.PRIVATE);
 	    mockShortcutDAO.close();
 	    EasyMock.expectLastCall();
 	    replay(mockShortcutDAO);
+		UserDAO mockUserDAO = createMock(UserDAO.class);
+		expect(mockUserDAO.getUserById(newOwnerId, false, false)).andReturn(newFakeUser);
+		mockUserDAO.close();
+		EasyMock.expectLastCall();
+		replay(mockUserDAO);
 
 	    // Mock DAOFactory
 	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
 	    expect(mockDAOFactory.getNetworkDAO()).andReturn(mockNetworkDAO);
 	    expect(mockDAOFactory.getShortcutDAO()).andReturn(mockShortcutDAO);
+		expect(mockDAOFactory.getUserDAO()).andReturn(mockUserDAO);
 	    replay(mockDAOFactory);
 
 	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
@@ -930,7 +955,7 @@ public class TestFileServiceV3 {
 	        .contentType(MediaType.APPLICATION_JSON);
 
 	    dispatcher.invoke(httpRequest, response);
-
+		System.out.println("Response body: " + new String(response.getOutput()));
 	    assertEquals(Status.NO_CONTENT.getStatusCode(), response.getStatus());
 	}
 
@@ -948,4 +973,22 @@ public class TestFileServiceV3 {
 	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
 	    assertEquals("You must be logged in.", er.getMessage());
 	}
+
+	private static class TestFileServiceV3NoIndex extends FileServiceV3 {
+		public TestFileServiceV3NoIndex(HttpServletRequest request) {
+			super(request);
+		}
+
+		@Override
+		protected void createFileIndex(UUID folderUUID,User user,
+									   VisibilityType visibilityType, FileType fileType, boolean createOnly) {
+			// no-op for testing
+		}
+		@Override
+		protected void deleteFileIndex(UUID folderUUID,
+									   VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+
+		}
+	}
+
 }
