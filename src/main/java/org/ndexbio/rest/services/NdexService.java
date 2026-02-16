@@ -59,11 +59,17 @@ import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.OAuthAuthenticator;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskRebuildFileIdx;
+import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -259,5 +265,27 @@ public abstract class NdexService
 			return daoNew;
 		   
 	   }
-	
+	/**
+	 * Index or reindex a file (folder, shortcut, or network) in Solr.
+	 * @param fileId       UUID of the file
+	 * @param user         the user performing the action (owner info for indexing)
+	 * @param visibility   visibility type determines which Solr core
+	 * @param fileType     FOLDER, SHORTCUT, or NETWORK
+	 * @param createOnly   if true, only create (no delete of old record first)
+	 */
+	protected void createFileIndex(UUID fileId, User user, VisibilityType visibility,
+							 FileType fileType, boolean createOnly) throws SQLException, NdexException, IOException {
+
+		createFileIndex(fileId, user.getExternalId(), user.getUserName(), visibility, fileType, createOnly);
+	}
+	protected void createFileIndex(UUID fileId, UUID userId, String username, VisibilityType visibility,
+							 FileType fileType, boolean createOnly) throws SQLException, NdexException, IOException {
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(
+				fileId, userId, username, visibility, fileType, createOnly));
+	}
+	protected void deleteFileIndex(UUID fileId,
+									 VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId, visibilityType));
+	}
 }
