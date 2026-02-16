@@ -47,7 +47,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	@Override
 	public NdexObjectUpdateStatus createFolder(final UUID folderUUID, final UUID ownerId, final UUID parentUUID, final String name, final String description) throws SQLException {
 		Timestamp t = new Timestamp(System.currentTimeMillis());
-		
+
 		String sqlStr = "insert into folder (\"UUID\", creation_time, modification_time, is_deleted, name, visibility, owneruuid, access_key_is_on, parent, description) values"
 				+ "(?, ?, ?, false, ?, 'PRIVATE',?, false, ?, ?) ";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -127,8 +127,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	public NdexFolder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 		
 		NdexFolder result = new NdexFolder();
-		String sqlStr = "select creation_time, modification_time, name, parent, is_deleted, description from folder where \"UUID\"=?";
-
+		String sqlStr = "select creation_time, modification_time, name, parent, is_deleted, description, owneruuid from folder where \"UUID\"=?";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, folderId);
 			try ( ResultSet rs = p.executeQuery()) {
@@ -140,6 +139,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 					result.setParent((UUID)(rs.getObject(4)));
 					result.setIsDeleted(rs.getBoolean(5));
 					result.setDescription(rs.getString(6));
+					result.setOwner(rs.getString(7));
 				} else
 					throw new ObjectNotFoundException("Folder" + folderId + " not found in db.");
 			}
