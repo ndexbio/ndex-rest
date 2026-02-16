@@ -38,4 +38,9 @@ public class PostgresDAOFactory implements DAOFactory {
 		return new PostgresNetworkDAO();
 	}
 
+	@Override
+	public UserDAO getUserDAO() throws SQLException {
+		return new UserDAO();
+	}
+
 }

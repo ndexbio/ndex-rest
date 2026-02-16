@@ -1,6 +1,8 @@
 
 package org.ndexbio.common.models.dao;
 
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
+
 import java.sql.SQLException;
 
 /**
@@ -22,5 +24,6 @@ public interface DAOFactory {
 	TrashDAO getTrashDAO() throws SQLException;
 
 	NetworkDAO getNetworkDAO() throws SQLException;
-	
+	UserDAO getUserDAO() throws SQLException;
+
 }
