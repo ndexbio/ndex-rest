@@ -23,6 +23,7 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteFile;
 import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,7 +118,7 @@ public class FolderServiceV3 extends NdexService {
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
 			dao.commit();
-			indexFolder(dao, folderUUID, getLoggedInUserId(), VisibilityType.PRIVATE);
+			indexFolder(folderUUID, getLoggedInUserId(), VisibilityType.PRIVATE);
 		}
 
 		String urlStr = Configuration.getInstance().getHostURI() +"/v3/files/folders/"+ folderUUID.toString();
@@ -268,9 +269,12 @@ public class FolderServiceV3 extends NdexService {
 			
 			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
-				
+
+			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
 			dao.deleteFolder(folderId, force, permanent);
 			dao.commit();
+			deleteFolderIndex(folderId, visibilityType);
+
 		} 
 	}
 	
@@ -331,7 +335,7 @@ public class FolderServiceV3 extends NdexService {
 			dao.updateFolder(folderId, request.getName(), parentUUID, userId, request.getDescription());
 			dao.commit();
 			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
-			indexFolder(dao, folderId, userId, visibilityType);
+			indexFolder(folderId, userId, visibilityType);
 			return ;
 		}
 	}
@@ -492,10 +496,17 @@ public class FolderServiceV3 extends NdexService {
 	    return folders;
 	}
 
-	protected void indexFolder(FolderDAO dao, UUID folderUUID, UUID userId,
+	protected void indexFolder(UUID folderUUID, UUID userId,
 							   VisibilityType visibilityType) throws SQLException, NdexException, IOException {
 
 		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(folderUUID, userId,
-				visibilityType, FileType.FOLDER, false));}
+				visibilityType, FileType.FOLDER, false));
+	}
+
+	protected void deleteFolderIndex(UUID folderUUID,
+							   VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(folderUUID, visibilityType));
+	}
 
 }

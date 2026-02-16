@@ -4,10 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.core.Response.Status;
 
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.jboss.resteasy.mock.*;
@@ -449,9 +452,14 @@ public class TestFolderServiceV3 {
         }
 
         @Override
-        protected void indexFolder(FolderDAO dao, UUID folderUUID, UUID userId,
+        protected void indexFolder(UUID folderUUID, UUID userId,
                                    VisibilityType visibilityType) {
             // no-op for testing
+        }
+        @Override
+        protected void deleteFolderIndex(UUID folderUUID,
+                                         VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+
         }
     }
 }
