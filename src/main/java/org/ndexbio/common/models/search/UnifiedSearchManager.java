@@ -2,6 +2,7 @@ package org.ndexbio.common.models.search;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocument;
+import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.NFSIndexManager;
@@ -35,12 +36,21 @@ public class UnifiedSearchManager implements AutoCloseable {
         catch (Exception e){
             throw new RuntimeException(e);
         }
+        SolrDocumentList documents;
+        if (query.getType() != null){
+            documents = delegate.searchByType(query.getSearchString(),user.getExternalId().toString(),blockSize, skipBlocks, null,
+                    query.getPermission(), query.getType().toString());
+        }
+        else {
+            documents = delegate.search(query.getSearchString(),user.getExternalId().toString(),blockSize, skipBlocks, null,
+                    query.getPermission());
+        }
 
-        List<FileItemSummary> fileItemSummaryList = delegate.search(query.getSearchString(),user.getExternalId().toString(),blockSize, skipBlocks, null,
-                query.getPermission())
+        List<FileItemSummary> fileItemSummaryList = documents
                  .stream()
                  .map(this::mapSolrDocumentToSummary)
                 .collect(Collectors.toList());
+
          return new FileSearchResult(fileItemSummaryList.size(), (long) skipBlocks *blockSize, fileItemSummaryList);
 
 
