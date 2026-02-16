@@ -82,13 +82,13 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 			}
 		}
 	}
-	
+
 	@Override
 	public NdexShortcut getShortcut(UUID shortcutId, UUID userId) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
-		
+
 		NdexShortcut result = new NdexShortcut();
-		String sqlStr = "select creation_time, modification_time, name, target, parent, is_deleted, target_type from shortcut where \"UUID\"=?";
-		
+		String sqlStr = "select creation_time, modification_time, name, target, parent, is_deleted, target_type, owneruuid from shortcut where \"UUID\"=?";
+
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, shortcutId);
 			try ( ResultSet rs = p.executeQuery()) {
@@ -101,14 +101,13 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 					result.setParent((UUID)(rs.getObject(5)));
 					result.setIsDeleted(rs.getBoolean(6));
 					result.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
+					result.setOwner(rs.getObject(8) != null ? rs.getObject(8).toString() : null);
 				} else
 					throw new ObjectNotFoundException("Shortcut" + shortcutId + " not found in db.");
 			}
 		}
-		
 		return result;
 	}
-	
 	@Override
 	public boolean isShortcutOwner(UUID shortcutId, UUID ownerId) throws SQLException {
 		String sqlStr = "select 1 from shortcut where \"UUID\" = ? and owneruuid = ? and is_deleted=false";
