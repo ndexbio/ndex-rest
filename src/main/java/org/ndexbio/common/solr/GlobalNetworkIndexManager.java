@@ -19,6 +19,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.tools.TermUtilities;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -26,6 +27,7 @@ import java.net.URISyntaxException;
 import java.util.*;
 
 public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
+    private static final org.slf4j.Logger log = LoggerFactory.getLogger(GlobalNetworkIndexManager.class);
 
     // user required indexing fields. hardcoded for now. Will turn them into configurable list in 1.4.
     public static final Set<String> otherAttributes =
@@ -282,6 +284,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     public List<String> addCX2NetworkAttrToIndex(CxNetworkAttribute e)  {
 
         List<String> warnings = new ArrayList<>();
+        /*
         if ( e.getNetworkName()!= null) {
             doc.addField(NAME, e.getNetworkName());
         } else if ( e.getNetworkDescription() !=null ) {
@@ -289,6 +292,8 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
         } else if ( e.getNetworkVersion() !=null) {
             doc.addField(VERSION, e.getNetworkVersion());
         }
+
+         */
 
         for ( String otherIndexedName: otherAttributes) {
             if ( e.getAttributes().get(otherIndexedName) !=null) {
