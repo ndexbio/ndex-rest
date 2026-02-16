@@ -134,7 +134,6 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             Collection<SolrInputDocument> docs = new ArrayList<>(1);
             docs.add(doc);
             solrClientWrapper.commit(coreName, docs);
-            docs.clear();
         } else
             solrClientWrapper.commit(coreName, null);
         doc = new SolrInputDocument();
