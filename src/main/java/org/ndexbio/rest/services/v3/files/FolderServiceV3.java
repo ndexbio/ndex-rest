@@ -329,7 +329,9 @@ public class FolderServiceV3 extends NdexService {
 			}
 			
 			dao.updateFolder(folderId, request.getName(), parentUUID, userId, request.getDescription());
-			dao.commit();	
+			dao.commit();
+			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
+			indexFolder(dao, folderId, userId, visibilityType);
 			return ;
 		}
 	}
@@ -493,7 +495,7 @@ public class FolderServiceV3 extends NdexService {
 	protected void indexFolder(FolderDAO dao, UUID folderUUID, UUID userId,
 							   VisibilityType visibilityType) throws SQLException, NdexException, IOException {
 
-		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(folderUUID, getLoggedInUserId(),
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(folderUUID, userId,
 				visibilityType, FileType.FOLDER, false));}
 
 }
