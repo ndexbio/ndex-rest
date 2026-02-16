@@ -11,6 +11,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.ndexbio.rest.Configuration;
 
 public class SolrTaskDeleteNetwork extends NdexSystemTask {
 
@@ -38,8 +39,8 @@ public class SolrTaskDeleteNetwork extends NdexSystemTask {
 	public void run() throws NdexException, SolrServerException, IOException  {
 		String id = networkId.toString();
 		
-		try(	GlobalNetworkIndexManager globalIdx = new GlobalNetworkIndexManager(visibilityType)) {
-			globalIdx.delete(id);
+		try(GlobalNetworkIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
+			globalIdx.delete(id, visibilityType);
 			if (!globalIdxOnly) {
 				try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
 					idxManager.dropIndex();

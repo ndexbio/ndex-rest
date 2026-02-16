@@ -47,13 +47,13 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     // members will be added to the represent field as additional lists.
     private Map<Long, Set<String>> nodeMembers;
 
-    public GlobalNetworkIndexManager(VisibilityType visibilityType){
-        super(visibilityType);
+    public GlobalNetworkIndexManager(SolrClientWrapper solrClientWrapper){
+        super(solrClientWrapper);
         nodeMembers = new TreeMap<>();
     }
 
     @Override
-    protected SolrInputDocument setupIndexDocument(NetworkSummary summary) {
+    protected SolrInputDocument setupIndexDocument(NetworkSummary summary, VisibilityType visibilityType) {
         doc = new SolrInputDocument();
         doc.addField(UUID,  summary.getExternalId().toString() );
         doc.addField(EDGE_COUNT, summary.getEdgeCount());
@@ -80,14 +80,6 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
         doc.addField(USER_ADMIN, summary.getOwner());
         //doc.setDocumentBoost(documentBoost);;
 
-        if (visibilityType.equals(VisibilityType.PRIVATE)){
-
-            // already added unconditionally at top if (summaryWrapper.getOwnerUserName() != null && !summaryWrapper.getOwnerUserName().isBlank()) {
-                //doc.addField(USER_ADMIN, summaryWrapper.getOwnerUserName());
-            //}
-            doc.addField(VISIBILITY, VisibilityType.PRIVATE);
-
-        }
         return doc;
     }
 
@@ -123,12 +115,13 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     public SolrDocumentList searchForNetworks(
             String searchTerms,
             String userAccount,
+            VisibilityType visibilityType,
             int limit,
             int offset,
             String adminedBy,
             Permissions permission) throws IOException, SolrServerException, NdexException {
 
-        return searchByType(searchTerms, userAccount, limit, offset,
+        return searchByType(searchTerms, userAccount,visibilityType, limit, offset,
                 adminedBy, permission, FileType.NETWORK.toString());
     }
 

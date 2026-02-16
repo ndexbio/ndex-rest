@@ -32,11 +32,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public static final String privateCoreName = "private-nfs";
     public static final String publicCoreName = "public-nfs";
 
-    protected final VisibilityType visibilityType;
-
-    protected final String coreName;
-    protected final HttpSolrClient client;
-    private final HttpSolrClient adminClient;
+    protected final SolrClientWrapper solrClientWrapper;
     protected final String solrUrl ;
 
     protected SolrInputDocument doc ;
@@ -67,7 +63,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     /**
      * Create index document for subclass input - must be implemented by subclasses
      */
-    protected abstract SolrInputDocument setupIndexDocument(T inputData);
+    protected abstract SolrInputDocument setupIndexDocument(T inputData, VisibilityType visibilityType);
 
     /**
      * Get query fields with weights - must be implemented by subclasses
@@ -77,10 +73,11 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     /**
      * Public wrapper function for setupIndexDocument that doesn't expose inner SolrInputDocument
      */
-    public void prepareIndexDocument(T  inputData,
+    public void prepareIndexDocument(T  inputData, VisibilityType visibilityType,
                                      Collection<String> userReads,
                                      Collection<String> userEdits){
-        setupIndexDocument(inputData);
+        setupIndexDocument(inputData, visibilityType);
+        doc.addField(VISIBILITY, visibilityType.name());
         if (visibilityType.equals(VisibilityType.PRIVATE)){
             if(userReads != null) {
                 addKeyWithValues(doc, USER_READ, userReads);
@@ -92,19 +89,10 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     }
 
 
-    public NFSIndexManager(VisibilityType visibilityType){
-        this.visibilityType = visibilityType;
-        if (visibilityType.equals(VisibilityType.PUBLIC) || visibilityType.equals(VisibilityType.UNLISTED)){
-            coreName = publicCoreName;
-        }
-        else {
-            coreName = privateCoreName;
-        }
-
+    public NFSIndexManager(SolrClientWrapper solrClientWrapper){
         solrUrl = Configuration.getInstance().getSolrURL();
         doc = new SolrInputDocument();
-        adminClient = new HttpSolrClient.Builder(solrUrl).build();
-        client  = new HttpSolrClient.Builder(solrUrl + "/" + coreName).build();
+        this.solrClientWrapper = solrClientWrapper;
 
     }
     /**
@@ -115,43 +103,18 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      * @throws NdexException
      */
     public void createCoreIfNeeded() throws SolrServerException, IOException, NdexException {
-
-        CoreAdminResponse foo = CoreAdminRequest.getStatus(coreName,adminClient);
-        if (foo.getStatus() != 0 ) {
-            throw new NdexException ("Failed to get status of solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
-        }
-        NamedList<Object> bar = foo.getResponse();
-
-        NamedList<Object> st = (NamedList<Object>)bar.get("status");
-
-        NamedList<Object> core = (NamedList<Object>)st.get(coreName);
-        if ( core.size() == 0 ) {
-            logger.debug("Solr core " + coreName + " doesn't exist. Creating it now ....");
-
-            CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
-            creator.setCoreName(coreName);
-            creator.setConfigSet(coreName);
-            foo = creator.process(adminClient);
-            if ( foo.getStatus() != 0 ) {
-                throw new NdexException ("Failed to create solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
-            }
-            logger.debug("Done.");
-        }
-        else {
-            logger.debug("Found core "+ coreName + " in Solr.");
-        }
-
+        solrClientWrapper.createCoreIfNeeded(privateCoreName);
+        solrClientWrapper.createCoreIfNeeded(publicCoreName);
     }
 
     /**
      *
      * @param inputData - Object to be mapped to document
      */
-
-    public void createIndex(T inputData, Collection<String> userReads, Collection<String> userEdits){
-        prepareIndexDocument(inputData, userReads, userEdits);
+    public void createIndex(T inputData, VisibilityType visibilityType, Collection<String> userReads, Collection<String> userEdits){
+        prepareIndexDocument(inputData, visibilityType, userReads, userEdits);
         try {
-            commit();
+            commit(visibilityType);
         } catch(SolrServerException sse){
             logger.error("Unable to commit document: " + sse.getMessage(), sse);
             //throw new RuntimeException("Failed to commit to Solr", sse); // ADD THIS
@@ -161,22 +124,28 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
     }
 
-    public void commit() throws SolrServerException, IOException {
+    public void commit(VisibilityType visibilityType) throws SolrServerException, IOException {
+        String coreName = getCoreNameFromVisibility(visibilityType);
+        commit(coreName);
+
+    }
+    public void commit(String coreName) throws SolrServerException, IOException {
         if ( !doc.isEmpty()) {
             Collection<SolrInputDocument> docs = new ArrayList<>(1);
             docs.add(doc);
-            client.add(docs);
-            client.commit(false,true,true);
+            solrClientWrapper.commit(coreName, docs);
             docs.clear();
         } else
-            client.commit(false,true,true);
+            solrClientWrapper.commit(coreName, null);
         doc = new SolrInputDocument();
         postCommit();
 
     }
 
-    public void delete(String uuid) throws SolrServerException, IOException {
-        client.deleteById(uuid);
+    public void delete(String uuid, VisibilityType visibilityType) throws SolrServerException, IOException {
+
+        solrClientWrapper.delete(getCoreNameFromVisibility(visibilityType),
+                uuid, false);
     }
 
 
@@ -202,6 +171,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public SolrDocumentList search(
             String searchTerms,
             String userAccount,
+            VisibilityType visibilityType,
             int limit,
             int offset,
             String ownedBy,
@@ -210,7 +180,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         SolrQuery solrQuery = new SolrQuery();
 
         // Build the permission filter
-        String permissionFilter = buildPermissionFilter(userAccount, permission);
+        String permissionFilter = buildPermissionFilter(userAccount, visibilityType,permission);
 
         // Build the owner filter
         String ownerFilter = "";
@@ -224,10 +194,11 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         // Set up the query
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
         logger.info("QUERY {} FILTER: {}", solrQuery.toQueryString(), solrQuery.getFilterQueries());
+        String coreName = getCoreNameFromVisibility(visibilityType);
 
         // Execute search
         try {
-            QueryResponse rsp = client.query(solrQuery, SolrRequest.METHOD.POST);
+            QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery);
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
             throw convertException(e, coreName);
@@ -240,6 +211,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public SolrDocumentList searchByType(
             String searchTerms,
             String userAccount,
+            VisibilityType visibilityType,
             int limit,
             int offset,
             String ownedBy,
@@ -250,14 +222,15 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         String typeFilter = " AND (" + ENTITY_TYPE + ":\"" + entityType + "\")";
 
         SolrQuery solrQuery = new SolrQuery();
-        String permissionFilter = buildPermissionFilter(userAccount, permission);
+        String permissionFilter = buildPermissionFilter(userAccount, visibilityType, permission);
         String ownerFilter = ownedBy != null ? " AND (" + USER_ADMIN + ":\"" + ownedBy + "\")" : "";
         String resultFilter = "(" + permissionFilter + ")" + ownerFilter + typeFilter;
 
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
+        String coreName = getCoreNameFromVisibility(visibilityType);
 
         try {
-            QueryResponse rsp = client.query(solrQuery, SolrRequest.METHOD.POST);
+            QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery);
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
             throw convertException(e, coreName);
@@ -267,14 +240,15 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     /**
      * Builds the Solr filter query for permissions based on user and visibility
      */
-    protected String buildPermissionFilter(String userAccount, Permissions permission) {
-        // For PUBLIC/UNLISTED cores
-        if (coreName.equals(publicCoreName)) {
-            return buildPublicCorePermissionFilter(userAccount, permission);
-        }
-        // For PRIVATE core
-        else {
+    protected String buildPermissionFilter(String userAccount, VisibilityType visibilityType,
+                                           Permissions permission) {
+        // For PRIVATE cores
+        if (visibilityType.equals(VisibilityType.PRIVATE)) {
             return buildPrivateCorePermissionFilter(userAccount, permission);
+        }
+        // For PUBLIC core
+        else {
+            return buildPublicCorePermissionFilter(userAccount, permission);
         }
     }
 
@@ -409,11 +383,13 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
     @Override
     public void close () {
-        try {
-            client.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        solrClientWrapper.close();
+    }
+    static String getCoreNameFromVisibility(VisibilityType visibilityType){
+        if (visibilityType.equals(VisibilityType.PRIVATE)){
+            return privateCoreName;
         }
+        return publicCoreName;
     }
 
 

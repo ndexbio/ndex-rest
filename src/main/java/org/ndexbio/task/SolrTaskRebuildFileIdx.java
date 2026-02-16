@@ -8,10 +8,7 @@ import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
-import org.ndexbio.common.solr.FolderIndexManager;
-import org.ndexbio.common.solr.GlobalNetworkIndexManager;
-import org.ndexbio.common.solr.ShortcutIndexManager;
-import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.common.solr.*;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
 import org.ndexbio.cx2.aspect.element.core.CxNode;
@@ -51,6 +48,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 	private final boolean createOnly;
 	private final String username;
 	private final boolean ignoreCxFiles;
+	private final SolrObjectFactory solrObjectFactory;
 
 	public SolrTaskRebuildFileIdx(UUID fileId, UUID userId,String username,
 								  VisibilityType visibilityType,
@@ -68,7 +66,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 		this.createOnly = createOnly;
 		this.username = username;
 		this.ignoreCxFiles = ignoreCxFiles;
-
+		this.solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();
 	}
 
 	@Override
@@ -102,8 +100,8 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 	private void rebuildFolderIndex(String id) throws Exception {
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			if (!createOnly){
-				try (FolderIndexManager folderIdxManager = new FolderIndexManager(visibilityType)) {
-					folderIdxManager.delete(id);
+				try (FolderIndexManager folderIdxManager = solrObjectFactory.getFolderIndexManager()) {
+					folderIdxManager.delete(id, visibilityType);
 				}
 
 			}
@@ -111,9 +109,10 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			NdexFolder folder = dao.getFolder(fileId, userId, accessKey );
 			checkRecordExists(folder);
 			folder.setOwner(username);
-			try(FolderIndexManager globalIdx = new FolderIndexManager(visibilityType)) {
+			try(FolderIndexManager globalIdx = solrObjectFactory.getFolderIndexManager()) {
 				Map<String, String> folderPermissions = dao.getFolderPermissions(fileId);
  				globalIdx.createIndex(folder,
+						visibilityType,
 						getFolderUserReads(folderPermissions),
 						getFolderUserWrites(folderPermissions));
 			}
@@ -124,15 +123,16 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 	private void rebuildShortcutIndex(String id) throws Exception {
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
 			if (!createOnly){
-				try (ShortcutIndexManager shortcutIndexManager = new ShortcutIndexManager(visibilityType)) {
-					shortcutIndexManager.delete(id);
+				try (ShortcutIndexManager shortcutIndexManager = Configuration.getInstance()
+						.getSolrObjectFactory().getShortcutIndexManager()) {
+					shortcutIndexManager.delete(id, visibilityType);
 				}
 			}
 			NdexShortcut shortcut = dao.getShortcut(fileId, userId);
 			checkRecordExists(shortcut);
 			shortcut.setOwner(username);
-			try(ShortcutIndexManager globalIdx = new ShortcutIndexManager(visibilityType)) {
-				globalIdx.createIndex(shortcut, null, null);
+			try(ShortcutIndexManager globalIdx = solrObjectFactory.getShortcutIndexManager()) {
+				globalIdx.createIndex(shortcut, visibilityType,null, null);
 			}
 		}
 	}
@@ -153,8 +153,8 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 
 			// drop the old ones.
 			if (!createOnly) {
-				try (GlobalNetworkIndexManager globalIdx = new GlobalNetworkIndexManager(visibilityType)) {
-					globalIdx.delete(id);
+				try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {
+					globalIdx.delete(id, visibilityType);
 				}
 				if (idxScope != SolrIndexScope.global)
 					try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(id)) {
@@ -171,12 +171,12 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 				System.out.println("Takes " + t / 1000 + " secs to create index");
 			}
 
-            try (GlobalNetworkIndexManager globalIdx = new GlobalNetworkIndexManager(visibilityType)) {
+            try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {
 				// build the solr document obj
                 List<Map<Permissions, Collection<String>>> permissionTable = dao
                         .getAllMembershipsOnNetwork(fileId);
                 Map<Permissions, Collection<String>> userMemberships = permissionTable.get(0);
-                globalIdx.prepareIndexDocument(summary,
+                globalIdx.prepareIndexDocument(summary, visibilityType,
                         userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
 
                 String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
@@ -256,7 +256,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
                     }
                 }
 
-                globalIdx.commit();
+                globalIdx.commit(visibilityType);
             }
 
             try {

@@ -20,12 +20,12 @@ public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
 
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(FolderIndexManager.class);
 
-    public FolderIndexManager(VisibilityType visibilityType){
-        super(visibilityType);
+    public FolderIndexManager(SolrClientWrapper solrClientWrapper){
+        super(solrClientWrapper);
     }
 
     @Override
-    protected SolrInputDocument setupIndexDocument(NdexFolder folder) {
+    protected SolrInputDocument setupIndexDocument(NdexFolder folder, VisibilityType visibilityType) {
         doc = new SolrInputDocument();
         doc.addField(UUID, folder.getExternalId().toString());
         doc.addField(ENTITY_TYPE, FileType.FOLDER.toString());
@@ -47,16 +47,6 @@ public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
         doc.addField(CREATION_TIME, folder.getCreationTime());
         doc.addField(MODIFICATION_TIME, folder.getModificationTime());
 
-        if (visibilityType.equals(VisibilityType.PRIVATE)){
-            /*
-            if (folder.getOwner() != null && !folder.getOwner().isBlank()) {
-                doc.addField(USER_ADMIN, folder.getOwner());
-            }
-
-             */
-            doc.addField(VISIBILITY, VisibilityType.PRIVATE.toString());
-        }
-
         return doc;
     }
 
@@ -75,11 +65,12 @@ public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
             int limit,
             int offset,
             String parentFolderId,
-            Permissions permission) throws IOException, SolrServerException, NdexException {
+            Permissions permission, VisibilityType visibilityType) throws IOException, SolrServerException, NdexException {
 
         SolrQuery solrQuery = new SolrQuery();
+        String coreName = getCoreNameFromVisibility(visibilityType);
 
-        String permissionFilter = buildPermissionFilter(userAccount, permission);
+        String permissionFilter = buildPermissionFilter(userAccount, visibilityType,permission);
         String typeFilter = " AND (" + ENTITY_TYPE + ":FOLDER)";
         String parentFilter = "";
 
@@ -92,7 +83,7 @@ public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
 
         try {
-            QueryResponse rsp = client.query(solrQuery, SolrRequest.METHOD.POST);
+            QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery);
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
             throw convertException(e, coreName);

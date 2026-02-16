@@ -117,10 +117,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			try (NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager()) {
 				mgr.createCoreIfNotExists();
 			}
-			try (GlobalNetworkIndexManager mgr = new GlobalNetworkIndexManager(VisibilityType.PUBLIC)) {
-				mgr.createCoreIfNeeded();
-			}
-			try (GlobalNetworkIndexManager mgr = new GlobalNetworkIndexManager(VisibilityType.PRIVATE)) {
+			try (GlobalNetworkIndexManager mgr = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
 				mgr.createCoreIfNeeded();
 			}
 

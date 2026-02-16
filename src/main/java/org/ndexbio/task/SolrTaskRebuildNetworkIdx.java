@@ -85,8 +85,8 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 			// drop the old ones.
 			if (!createOnly) {
 				if (idxScope != SolrIndexScope.individual) {
-					try (GlobalNetworkIndexManager globalIdx = new GlobalNetworkIndexManager(visibilityType)) {
-						globalIdx.delete(networkId.toString());
+					try (GlobalNetworkIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
+						globalIdx.delete(networkId.toString(), visibilityType);
 					}
 				}
 				if (idxScope != SolrIndexScope.global)
@@ -110,13 +110,13 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 
 			if (this.idxScope != SolrIndexScope.individual) {
 
-				try (GlobalNetworkIndexManager globalIdx = new GlobalNetworkIndexManager(visibilityType)) {
+				try (GlobalNetworkIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
 
 					// build the solr document obj
 					List<Map<Permissions, Collection<String>>> permissionTable = dao
 							.getAllMembershipsOnNetwork(networkId);
 					Map<Permissions, Collection<String>> userMemberships = permissionTable.get(0);
-					globalIdx.prepareIndexDocument(summary,
+					globalIdx.prepareIndexDocument(summary, visibilityType,
 							userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
 
 					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
@@ -201,7 +201,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 						}
 					}
 
-					globalIdx.commit();
+					globalIdx.commit(visibilityType);
 				}
 			}
 

@@ -23,12 +23,12 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
     protected static final String IS_DANGLING = "isDangling";
     private static final Logger log = LoggerFactory.getLogger(ShortcutIndexManager.class);
 
-    public ShortcutIndexManager(VisibilityType visibilityType){
-        super(visibilityType);
+    public ShortcutIndexManager(SolrClientWrapper solrClientWrapper){
+        super(solrClientWrapper);
     }
 
     @Override
-    protected SolrInputDocument setupIndexDocument(NdexShortcut shortcut){
+    protected SolrInputDocument setupIndexDocument(NdexShortcut shortcut, VisibilityType visibilityType){
         doc = new SolrInputDocument();
 
         doc.addField(UUID, shortcut.getExternalId().toString());
@@ -57,13 +57,6 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
         doc.addField(CREATION_TIME, shortcut.getCreationTime());
         doc.addField(MODIFICATION_TIME, shortcut.getModificationTime());
 
-        if (visibilityType.equals(VisibilityType.PRIVATE)){
-            // @TODO add private information to document for indexing (need inherited permissions)
-            // (already added) if (shortcut.getOwner() != null && !shortcut.getOwner().isBlank()) {
-              //  doc.addField(OWNER_FIELD, shortcut.getOwner());
-            //}
-            doc.addField(VISIBILITY, VisibilityType.PRIVATE.toString());
-        }
         return doc;
     }
     @Override
@@ -77,20 +70,22 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
      */
     public SolrDocumentList findDanglingShortcuts(
             String userAccount,
+            VisibilityType visibilityType,
             int limit,
             int offset) throws IOException, SolrServerException, NdexException {
 
         SolrQuery solrQuery = new SolrQuery();
 
-        String permissionFilter = buildPermissionFilter(userAccount, null);
+        String permissionFilter = buildPermissionFilter(userAccount,visibilityType, null);
         String typeFilter = " AND (" + ENTITY_TYPE + ":SHORTCUT)";
         String danglingFilter = " AND (" + IS_DANGLING + ":true)";
 
         String resultFilter = "(" + permissionFilter + ")" + typeFilter + danglingFilter;
         configureQuery(solrQuery, "*:*", resultFilter, limit, offset);
+        String coreName = getCoreNameFromVisibility(visibilityType);
 
         try {
-            QueryResponse rsp = client.query(solrQuery, SolrRequest.METHOD.POST);
+            QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery );
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
             throw convertException(e, coreName);

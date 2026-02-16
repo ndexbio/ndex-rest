@@ -6,6 +6,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
+import org.ndexbio.common.models.search.UnifiedSearchManager;
 
 /**
  * SolrClient and CoreAdmin factory implementation using Http2SolrClient
@@ -85,6 +86,26 @@ public class SolrObjectFactoryImpl implements SolrObjectFactory {
 	public PrivateNFSIndexManager getPrivateNFSIndexManager() {
 		return new PrivateNFSIndexManager(new SolrClientWrapperImpl(this));
 	}
-	
-	
+
+	@Override
+	public GlobalNetworkIndexManager getGlobalNetworkIndexManager() {
+		return new GlobalNetworkIndexManager(new SolrClientWrapperImpl(this));
+	}
+
+	@Override
+	public FolderIndexManager getFolderIndexManager() {
+		return new FolderIndexManager(new SolrClientWrapperImpl(this));
+	}
+
+	@Override
+	public ShortcutIndexManager getShortcutIndexManager() {
+		return new ShortcutIndexManager(new SolrClientWrapperImpl(this));
+	}
+
+	@Override
+	public UnifiedSearchManager getIndexSearchManager() {
+		return new UnifiedSearchManager(new SolrClientWrapperImpl(this));
+	}
+
+
 }

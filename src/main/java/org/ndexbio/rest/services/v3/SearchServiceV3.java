@@ -545,7 +545,7 @@ public class SearchServiceV3 extends NdexService  {
 
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
-		try (UnifiedSearchManager search = new UnifiedSearchManager(visibilityType)){
+		try (UnifiedSearchManager search = Configuration.getInstance().getSolrObjectFactory().getIndexSearchManager()){
 			return search.searchFiles(query, visibilityType, skipBlocks, blockSize);
 		}
 

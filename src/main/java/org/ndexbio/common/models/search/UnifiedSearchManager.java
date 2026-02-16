@@ -6,6 +6,7 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.NFSIndexManager;
+import org.ndexbio.common.solr.SolrClientWrapper;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -24,18 +25,21 @@ public class UnifiedSearchManager implements AutoCloseable {
     // A "dummy" NFSIndexManager that only does search
     private final SearchOnlyManager delegate;
 
-    public UnifiedSearchManager(VisibilityType visibilityType) {
-        this.delegate = new SearchOnlyManager(visibilityType);
+    public UnifiedSearchManager(SolrClientWrapper solrClientWrapper) {
+        this.delegate = new SearchOnlyManager(solrClientWrapper);
     }
 
     public FileSearchResult searchFiles(SimpleFileQuery query, VisibilityType visibilityType, int skipBlocks, int blockSize) throws NdexException, SolrServerException, IOException {
         SolrDocumentList documents;
         if (query.getType() != null){
-            documents = delegate.searchByType(query.getSearchString(),query.getAccountName(),blockSize, skipBlocks, null,
+            documents = delegate.searchByType(query.getSearchString(),query.getAccountName(),
+                    visibilityType,
+                    blockSize, skipBlocks, null,
                     query.getPermission(), query.getType().toString());
         }
         else {
-            documents = delegate.search(query.getSearchString(),query.getAccountName(),blockSize, skipBlocks, null,
+            documents = delegate.search(query.getSearchString(),query.getAccountName(),
+                    visibilityType, blockSize, skipBlocks, null,
                     query.getPermission());
         }
 
@@ -63,12 +67,12 @@ public class UnifiedSearchManager implements AutoCloseable {
     public void close() { delegate.close(); }
 
     private static final class SearchOnlyManager extends NFSIndexManager<Void> {
-        SearchOnlyManager(VisibilityType visibilityType) {
-            super(visibilityType);
+        SearchOnlyManager(SolrClientWrapper solrClientWrapper) {
+            super(solrClientWrapper);
         }
 
         @Override
-        protected SolrInputDocument setupIndexDocument(Void inputData) {
+        protected SolrInputDocument setupIndexDocument(Void inputData, VisibilityType visibilityType) {
             throw new UnsupportedOperationException("Unified search is read-only");
         }
 
