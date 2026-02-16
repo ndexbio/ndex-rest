@@ -1,7 +1,11 @@
 package org.ndexbio.common.solr;
 
 import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
+import org.easymock.Capture;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -23,15 +27,13 @@ import static org.easymock.EasyMock.*;
 import static org.junit.Assert.*;
 
 /**
- * Comprehensive unit tests for ShortcutIndexManager
- * Tests document setup, query configuration, permission filters,
- * dangling shortcut detection, and edge cases.
+ * Unit tests for ShortcutIndexManager using mocked SolrClientWrapper.
+ * Integration tests (requiring live Solr) are kept but @Ignore'd.
  */
 public class TestShortcutIndexManager {
 
-    private ShortcutIndexManager publicManager;
-    private ShortcutIndexManager privateManager;
-    private ShortcutIndexManager unlistedManager;
+    private ShortcutIndexManager manager;
+    private SolrClientWrapper mockWrapper;
 
     @BeforeClass
     public static void setUpClass() throws Exception {
@@ -42,52 +44,20 @@ public class TestShortcutIndexManager {
         Field instanceField = Configuration.class.getDeclaredField("INSTANCE");
         instanceField.setAccessible(true);
         instanceField.set(null, mockConfig);
+
     }
 
     @After
     public void tearDown() {
-        closeManager(publicManager);
-        closeManager(privateManager);
-        closeManager(unlistedManager);
-    }
-
-    private void closeManager(ShortcutIndexManager manager) {
         if (manager != null) {
             manager.close();
         }
     }
 
-    // ========================================================================
-    // CORE NAME AND INITIALIZATION TESTS
-    // ========================================================================
-
-    @Test
-    public void testConstructor_PublicVisibility_UsesPublicCore() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-        assertEquals("public-nfs", publicManager.coreName);
-        assertNotNull("SolrInputDocument should be initialized", publicManager.doc);
-        assertNotNull("HttpSolrClient should be initialized", publicManager.client);
-    }
-
-    @Test
-    public void testConstructor_UnlistedVisibility_UsesPublicCore() {
-        unlistedManager = new ShortcutIndexManager(VisibilityType.UNLISTED);
-        assertEquals("public-nfs", unlistedManager.coreName);
-    }
-
-    @Test
-    public void testConstructor_PrivateVisibility_UsesPrivateCore() {
-        privateManager = new ShortcutIndexManager(VisibilityType.PRIVATE);
-        assertEquals("private-nfs", privateManager.coreName);
-    }
-
-    @Test
-    public void testConstructor_VisibilityTypeStored() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-        privateManager = new ShortcutIndexManager(VisibilityType.PRIVATE);
-
-        assertEquals(VisibilityType.PUBLIC, publicManager.visibilityType);
-        assertEquals(VisibilityType.PRIVATE, privateManager.visibilityType);
+    private ShortcutIndexManager createManagerWithMock() {
+        mockWrapper = createNiceMock(SolrClientWrapper.class);
+        replay(mockWrapper);
+        return new ShortcutIndexManager(mockWrapper);
     }
 
     // ========================================================================
@@ -95,8 +65,8 @@ public class TestShortcutIndexManager {
     // ========================================================================
 
     @Test
-    public void testSetupIndexDocument_PublicShortcut_AllFieldsSet() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+    public void testSetupIndexDocument_AllFieldsSet() {
+        manager = createManagerWithMock();
 
         UUID shortcutId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
@@ -114,57 +84,23 @@ public class TestShortcutIndexManager {
         shortcut.setCreationTime(creationTime);
         shortcut.setModificationTime(modificationTime);
 
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertNotNull("Document should not be null", doc);
-        assertEquals("UUID should match", shortcutId.toString(), doc.getFieldValue("uuid"));
-        assertEquals("Entity type should be SHORTCUT", "SHORTCUT", doc.getFieldValue("entityType"));
-        assertEquals("Name should match", "Test Shortcut", doc.getFieldValue("name"));
-        assertEquals("Owner should match", "testOwner", doc.getFieldValue("owner"));
-        assertEquals("Parent UUID should match", parentId.toString(), doc.getFieldValue("parentUuid"));
-        assertEquals("Target UUID should match", targetId.toString(), doc.getFieldValue("targetUuid"));
-        assertEquals("Target type should match", "NETWORK", doc.getFieldValue("targetType"));
-        assertEquals("isDangling should be false", false, doc.getFieldValue("isDangling"));
-        assertEquals("Creation time should match", creationTime, doc.getFieldValue("creationTime"));
-        assertEquals("Modification time should match", modificationTime, doc.getFieldValue("modificationTime"));
-        assertNull("PUBLIC shortcut should not have visibility field", doc.getFieldValue("visibility"));
-    }
-
-    @Test
-    public void testSetupIndexDocument_UnlistedShortcut_NoVisibilityField() {
-        unlistedManager = new ShortcutIndexManager(VisibilityType.UNLISTED);
-
-        NdexShortcut shortcut = createTestShortcut("Unlisted Shortcut");
-
-        SolrInputDocument doc = unlistedManager.setupIndexDocument(shortcut);
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
 
         assertNotNull(doc);
+        assertEquals(shortcutId.toString(), doc.getFieldValue("uuid"));
         assertEquals("SHORTCUT", doc.getFieldValue("entityType"));
-        assertEquals("Unlisted Shortcut", doc.getFieldValue("name"));
-        assertNull("UNLISTED shortcut should not have visibility field", doc.getFieldValue("visibility"));
+        assertEquals("Test Shortcut", doc.getFieldValue("name"));
+        assertEquals("testOwner", doc.getFieldValue("owner"));
+        assertEquals(parentId.toString(), doc.getFieldValue("parentUuid"));
+        assertEquals(targetId.toString(), doc.getFieldValue("targetUuid"));
+        assertEquals("NETWORK", doc.getFieldValue("targetType"));
+        assertEquals(creationTime, doc.getFieldValue("creationTime"));
+        assertEquals(modificationTime, doc.getFieldValue("modificationTime"));
     }
-
-    @Test
-    public void testSetupIndexDocument_PrivateShortcut_HasVisibilityField() {
-        privateManager = new ShortcutIndexManager(VisibilityType.PRIVATE);
-
-        NdexShortcut shortcut = createTestShortcut("Private Shortcut");
-
-        SolrInputDocument doc = privateManager.setupIndexDocument(shortcut);
-
-        assertNotNull(doc);
-        assertEquals("SHORTCUT", doc.getFieldValue("entityType"));
-        assertEquals("Private Shortcut", doc.getFieldValue("name"));
-        assertEquals("PRIVATE", doc.getFieldValue("visibility"));
-    }
-
-    // ========================================================================
-    // SETUP INDEX DOCUMENT TESTS - MINIMAL/MISSING FIELDS
-    // ========================================================================
 
     @Test
     public void testSetupIndexDocument_MinimalShortcut_OnlyRequiredFields() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+        manager = createManagerWithMock();
 
         UUID shortcutId = UUID.randomUUID();
         Timestamp now = Timestamp.from(Instant.now());
@@ -173,160 +109,121 @@ public class TestShortcutIndexManager {
         shortcut.setExternalId(shortcutId);
         shortcut.setCreationTime(now);
         shortcut.setModificationTime(now);
-        // No name, owner, parent, target
 
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
 
         assertNotNull(doc);
         assertEquals(shortcutId.toString(), doc.getFieldValue("uuid"));
         assertEquals("SHORTCUT", doc.getFieldValue("entityType"));
-        assertEquals(now, doc.getFieldValue("creationTime"));
-        assertEquals(now, doc.getFieldValue("modificationTime"));
-
-        assertNull("Name should not be indexed", doc.getFieldValue("name"));
-        assertNull("Owner should not be indexed", doc.getFieldValue("owner"));
-        assertNull("Parent should not be indexed", doc.getFieldValue("parentUuid"));
-        assertNull("Target should not be indexed", doc.getFieldValue("targetUuid"));
-        assertEquals("isDangling should be true when no target", true, doc.getFieldValue("isDangling"));
+        assertNull(doc.getFieldValue("name"));
+        assertNull(doc.getFieldValue("owner"));
+        assertNull(doc.getFieldValue("parentUuid"));
+        assertNull(doc.getFieldValue("targetUuid"));
     }
 
     @Test
     public void testSetupIndexDocument_NoParent_ParentFieldNull() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut("Root Shortcut");
         shortcut.setParent(null);
 
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
 
-        assertNotNull(doc);
-        assertNull("Shortcut without parent should not have parentUuid", doc.getFieldValue("parentUuid"));
+        assertNull(doc.getFieldValue("parentUuid"));
     }
 
     // ========================================================================
-    // NAME FIELD TESTS - LENGTH VALIDATION
+    // NAME FIELD VALIDATION
     // ========================================================================
-
-    @Test
-    public void testSetupIndexDocument_NameLength0_NotIndexed() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        NdexShortcut shortcut = createTestShortcut("");
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertNull("Empty name (length 0) should not be indexed", doc.getFieldValue("name"));
-    }
-
-    @Test
-    public void testSetupIndexDocument_NameLength1_NotIndexed() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        NdexShortcut shortcut = createTestShortcut("A");
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertNull("Name with length 1 should not be indexed", doc.getFieldValue("name"));
-    }
-
-    @Test
-    public void testSetupIndexDocument_NameLength2_IsIndexed() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        NdexShortcut shortcut = createTestShortcut("AB");
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertEquals("Name with length 2 should be indexed", "AB", doc.getFieldValue("name"));
-    }
 
     @Test
     public void testSetupIndexDocument_NullName_NotIndexed() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut(null);
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertNull("Null name should not be indexed", doc.getFieldValue("name"));
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertNull(doc.getFieldValue("name"));
     }
 
     @Test
-    public void testSetupIndexDocument_LongName_IsIndexed() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+    public void testSetupIndexDocument_EmptyName_NotIndexed() {
+        manager = createManagerWithMock();
+        NdexShortcut shortcut = createTestShortcut("");
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertNull(doc.getFieldValue("name"));
+    }
 
-        String longName = "This is a very long shortcut name with many characters";
-        NdexShortcut shortcut = createTestShortcut(longName);
+    @Test
+    public void testSetupIndexDocument_WhitespaceOnlyName_NotIndexed() {
+        manager = createManagerWithMock();
+        NdexShortcut shortcut = createTestShortcut("   ");
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertNull(doc.getFieldValue("name"));
+    }
 
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertEquals("Long name should be indexed", longName, doc.getFieldValue("name"));
+    @Test
+    public void testSetupIndexDocument_ValidName_IsIndexed() {
+        manager = createManagerWithMock();
+        NdexShortcut shortcut = createTestShortcut("My Shortcut");
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertEquals("My Shortcut", doc.getFieldValue("name"));
     }
 
     @Test
     public void testSetupIndexDocument_NameWithSpecialCharacters() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         String specialName = "Shortcut-Name_2024 (Link)";
         NdexShortcut shortcut = createTestShortcut(specialName);
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertEquals(specialName, doc.getFieldValue("name"));
+    }
 
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertEquals("Name with special characters should be indexed",
-                specialName, doc.getFieldValue("name"));
+    @Test
+    public void testSetupIndexDocument_LongName_IsIndexed() {
+        manager = createManagerWithMock();
+        String longName = "This is a very long shortcut name with many characters";
+        NdexShortcut shortcut = createTestShortcut(longName);
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertEquals(longName, doc.getFieldValue("name"));
     }
 
     // ========================================================================
-    // OWNER FIELD TESTS - BLANK/NULL VALIDATION
+    // OWNER FIELD VALIDATION
     // ========================================================================
 
     @Test
     public void testSetupIndexDocument_NullOwner_NotIndexed() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut("Name");
         shortcut.setOwner(null);
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertNull("Null owner should not be indexed", doc.getFieldValue("owner"));
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertNull(doc.getFieldValue("owner"));
     }
 
     @Test
     public void testSetupIndexDocument_EmptyOwner_NotIndexed() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut("Name");
         shortcut.setOwner("");
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertNull("Empty owner should not be indexed", doc.getFieldValue("owner"));
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertNull(doc.getFieldValue("owner"));
     }
 
     @Test
     public void testSetupIndexDocument_BlankOwner_NotIndexed() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut("Name");
         shortcut.setOwner("   ");
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertNull("Blank owner (only spaces) should not be indexed", doc.getFieldValue("owner"));
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertNull(doc.getFieldValue("owner"));
     }
 
     @Test
     public void testSetupIndexDocument_OwnerWithLeadingTrailingSpaces_IsIndexed() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut("Name");
         shortcut.setOwner("  john_doe  ");
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertEquals("Owner with leading/trailing spaces should be indexed",
-                "  john_doe  ", doc.getFieldValue("owner"));
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertEquals("  john_doe  ", doc.getFieldValue("owner"));
     }
 
     // ========================================================================
@@ -335,240 +232,398 @@ public class TestShortcutIndexManager {
 
     @Test
     public void testSetupIndexDocument_WithTarget_NotDangling() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+        manager = createManagerWithMock();
 
         UUID targetId = UUID.randomUUID();
         NdexShortcut shortcut = createTestShortcut("Linked Shortcut");
         shortcut.setTarget(targetId);
         shortcut.setTargetType(FileType.NETWORK);
 
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
 
-        assertEquals("Target UUID should be set", targetId.toString(), doc.getFieldValue("targetUuid"));
-        assertEquals("Target type should be set", "NETWORK", doc.getFieldValue("targetType"));
-        assertEquals("isDangling should be false", false, doc.getFieldValue("isDangling"));
+        assertEquals(targetId.toString(), doc.getFieldValue("targetUuid"));
+        assertEquals("NETWORK", doc.getFieldValue("targetType"));
     }
 
     @Test
     public void testSetupIndexDocument_WithoutTarget_IsDangling() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+        manager = createManagerWithMock();
 
         NdexShortcut shortcut = createTestShortcut("Dangling Shortcut");
         shortcut.setTarget(null);
 
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
 
-        assertNull("Target UUID should be null", doc.getFieldValue("targetUuid"));
-        assertEquals("isDangling should be true", true, doc.getFieldValue("isDangling"));
+        assertNull(doc.getFieldValue("targetUuid"));
     }
 
     @Test
     public void testSetupIndexDocument_TargetTypeNetwork() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut("Network Link");
         shortcut.setTarget(UUID.randomUUID());
         shortcut.setTargetType(FileType.NETWORK);
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
         assertEquals("NETWORK", doc.getFieldValue("targetType"));
     }
 
     @Test
     public void testSetupIndexDocument_TargetTypeFolder() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut("Folder Link");
         shortcut.setTarget(UUID.randomUUID());
         shortcut.setTargetType(FileType.FOLDER);
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
         assertEquals("FOLDER", doc.getFieldValue("targetType"));
     }
 
     @Test
     public void testSetupIndexDocument_NullTargetType() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
+        manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut("Unknown Target");
         shortcut.setTarget(UUID.randomUUID());
         shortcut.setTargetType(null);
-
-        SolrInputDocument doc = publicManager.setupIndexDocument(shortcut);
-
-        assertNull("Null target type should not be indexed", doc.getFieldValue("targetType"));
-        assertEquals("isDangling should be false (target exists)", false, doc.getFieldValue("isDangling"));
+        SolrInputDocument doc = manager.setupIndexDocument(shortcut, VisibilityType.PUBLIC);
+        assertNull(doc.getFieldValue("targetType"));
     }
 
     // ========================================================================
-    // QUERY FIELDS TESTS
+    // PREPARE INDEX DOCUMENT - VISIBILITY + PERMISSIONS
+    // ========================================================================
+
+    @Test
+    public void testPrepareIndexDocument_PublicVisibility_NoPermissionFields() {
+        manager = createManagerWithMock();
+        NdexShortcut shortcut = createTestShortcut("Public Shortcut");
+
+        List<String> readers = Arrays.asList("reader1");
+        List<String> editors = Arrays.asList("editor1");
+
+        manager.prepareIndexDocument(shortcut, VisibilityType.PUBLIC, readers, editors);
+
+        SolrInputDocument doc = manager.doc;
+        assertEquals("PUBLIC", doc.getFieldValue("visibility"));
+        assertNull(doc.getFieldValue("userRead"));
+        assertNull(doc.getFieldValue("userEdit"));
+    }
+
+    @Test
+    public void testPrepareIndexDocument_PrivateVisibility_HasPermissionFields() {
+        manager = createManagerWithMock();
+        NdexShortcut shortcut = createTestShortcut("Private Shortcut");
+
+        List<String> readers = Arrays.asList("reader1", "reader2");
+        List<String> editors = Arrays.asList("editor1");
+
+        manager.prepareIndexDocument(shortcut, VisibilityType.PRIVATE, readers, editors);
+
+        SolrInputDocument doc = manager.doc;
+        assertEquals("PRIVATE", doc.getFieldValue("visibility"));
+        Collection<Object> readValues = doc.getFieldValues("userRead");
+        assertNotNull(readValues);
+        assertTrue(readValues.contains("reader1"));
+        assertTrue(readValues.contains("reader2"));
+        Collection<Object> editValues = doc.getFieldValues("userEdit");
+        assertNotNull(editValues);
+        assertTrue(editValues.contains("editor1"));
+    }
+
+    @Test
+    public void testPrepareIndexDocument_PrivateVisibility_BlankValuesSkipped() {
+        manager = createManagerWithMock();
+        NdexShortcut shortcut = createTestShortcut("Private Shortcut");
+
+        List<String> readers = Arrays.asList("reader1", "", "  ", null, "reader2");
+
+        manager.prepareIndexDocument(shortcut, VisibilityType.PRIVATE, readers, null);
+
+        SolrInputDocument doc = manager.doc;
+        Collection<Object> readValues = doc.getFieldValues("userRead");
+        assertNotNull(readValues);
+        assertEquals(2, readValues.size());
+        assertTrue(readValues.contains("reader1"));
+        assertTrue(readValues.contains("reader2"));
+        assertNull(doc.getFieldValue("userEdit"));
+    }
+
+    // ========================================================================
+    // CREATE INDEX - VERIFIES COMMIT TO CORRECT CORE
+    // ========================================================================
+
+    @Test
+    public void testCreateIndex_PublicShortcut_CommitsToPublicCore() throws Exception {
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<String> coreCapture = Capture.newInstance();
+
+        mockWrapper.commit(capture(coreCapture), anyObject(Collection.class));
+        expectLastCall().once();
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        NdexShortcut shortcut = createTestShortcut("Test");
+
+        // Verify document contents via prepareIndexDocument
+        manager.prepareIndexDocument(shortcut, VisibilityType.PUBLIC, null, null);
+        SolrInputDocument preparedDoc = manager.doc;
+        assertEquals("SHORTCUT", preparedDoc.getFieldValue("entityType"));
+        assertEquals("Test", preparedDoc.getFieldValue("name"));
+
+        // Test commit routing
+        reset(mockWrapper);
+        mockWrapper.commit(capture(coreCapture), anyObject(Collection.class));
+        expectLastCall().once();
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        manager.createIndex(shortcut, VisibilityType.PUBLIC, null, null);
+
+        verify(mockWrapper);
+        assertEquals("public-nfs", coreCapture.getValue());
+    }
+
+    @Test
+    public void testCreateIndex_PrivateShortcut_CommitsToPrivateCore() throws Exception {
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<String> coreCapture = Capture.newInstance();
+
+        mockWrapper.commit(capture(coreCapture), anyObject(Collection.class));
+        expectLastCall().once();
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        NdexShortcut shortcut = createTestShortcut("Private");
+        List<String> readers = Arrays.asList("user1");
+
+        // Verify document
+        manager.prepareIndexDocument(shortcut, VisibilityType.PRIVATE, readers, null);
+        assertEquals("PRIVATE", manager.doc.getFieldValue("visibility"));
+        assertNotNull(manager.doc.getFieldValues("userRead"));
+
+        // Test commit routing
+        reset(mockWrapper);
+        mockWrapper.commit(capture(coreCapture), anyObject(Collection.class));
+        expectLastCall().once();
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        manager.createIndex(shortcut, VisibilityType.PRIVATE, readers, null);
+
+        verify(mockWrapper);
+        assertEquals("private-nfs", coreCapture.getValue());
+    }
+
+    // ========================================================================
+    // DELETE
+    // ========================================================================
+
+    @Test
+    public void testDelete_PublicShortcut_DeletesFromPublicCore() throws Exception {
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<String> coreCapture = Capture.newInstance();
+        Capture<String> uuidCapture = Capture.newInstance();
+
+        mockWrapper.delete(capture(coreCapture), capture(uuidCapture), eq(false));
+        expectLastCall().once();
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        manager.delete("shortcut-uuid-123", VisibilityType.PUBLIC);
+
+        verify(mockWrapper);
+        assertEquals("public-nfs", coreCapture.getValue());
+        assertEquals("shortcut-uuid-123", uuidCapture.getValue());
+    }
+
+    @Test
+    public void testDelete_PrivateShortcut_DeletesFromPrivateCore() throws Exception {
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<String> coreCapture = Capture.newInstance();
+
+        mockWrapper.delete(capture(coreCapture), anyString(), eq(false));
+        expectLastCall().once();
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        manager.delete("shortcut-uuid-456", VisibilityType.PRIVATE);
+
+        verify(mockWrapper);
+        assertEquals("private-nfs", coreCapture.getValue());
+    }
+
+    // ========================================================================
+    // SEARCH - VERIFIES QUERY SENT TO SOLR
+    // ========================================================================
+
+    @Test
+    public void testSearch_PublicCore_AnonymousUser() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<String> coreCapture = Capture.newInstance();
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(capture(coreCapture), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, null, null);
+
+        verify(mockWrapper);
+        assertEquals("public-nfs", coreCapture.getValue());
+
+        SolrQuery captured = queryCapture.getValue();
+        assertEquals("*:*", captured.getQuery());
+        assertEquals("edismax", captured.get("defType"));
+        assertEquals("uuid^20 name^10 owner^2", captured.get("qf"));
+
+        String[] fq = captured.getFilterQueries();
+        assertNotNull(fq);
+        assertTrue(fq[0].contains("*:*"));
+
+        assertFalse(captured.getSorts().isEmpty());
+        assertEquals("modificationTime", captured.getSorts().get(0).getItem());
+    }
+
+    @Test
+    public void testSearch_PrivateCore_AnonymousUser_MatchesNothing() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("private-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        manager.search("*:*", null, VisibilityType.PRIVATE, 10, 0, null, null);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        assertTrue(fq[0].contains("(*:* AND NOT *:*)"));
+    }
+
+    @Test
+    public void testSearch_WithOwnerFilter() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(anyString(), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        manager.search("test", "user1", VisibilityType.PUBLIC, 10, 0, "specificOwner", null);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        assertTrue(fq[0].contains("owner:\"specificOwner\""));
+    }
+
+    @Test
+    public void testSearch_PrivateCore_WritePermission() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("private-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        manager.search("*:*", "david", VisibilityType.PRIVATE, 10, 0, null, Permissions.WRITE);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        assertTrue(fq[0].contains("owner:\"david\""));
+        assertTrue(fq[0].contains("userEdit:\"david\""));
+        assertFalse(fq[0].contains("userRead"));
+    }
+
+    // ========================================================================
+    // SEARCH BY TYPE
+    // ========================================================================
+
+    @Test
+    public void testSearchByType_AddsEntityTypeFilter() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(anyString(), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new ShortcutIndexManager(mockWrapper);
+        manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
+                null, null, "SHORTCUT");
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        assertTrue(fq[0].contains("entityType:\"SHORTCUT\""));
+    }
+
+    // ========================================================================
+    // QUERY FIELDS
     // ========================================================================
 
     @Test
     public void testGetQueryFields_ReturnsExpectedString() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String queryFields = publicManager.getQueryFields();
-
-        assertEquals("uuid^20 name^10 owner^2", queryFields);
-    }
-
-    @Test
-    public void testGetQueryFields_ContainsAllFields() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String queryFields = publicManager.getQueryFields();
-
-        assertTrue("Should contain uuid", queryFields.contains("uuid"));
-        assertTrue("Should contain name", queryFields.contains("name"));
-        assertTrue("Should contain owner", queryFields.contains("owner"));
-    }
-
-    @Test
-    public void testGetQueryFields_HasCorrectBoostValues() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String queryFields = publicManager.getQueryFields();
-
-        assertTrue("UUID should have boost 20", queryFields.contains("uuid^20"));
-        assertTrue("Name should have boost 10", queryFields.contains("name^10"));
-        assertTrue("Owner should have boost 2", queryFields.contains("owner^2"));
+        manager = createManagerWithMock();
+        assertEquals("uuid^20 name^10 owner^2", manager.getQueryFields());
     }
 
     @Test
     public void testGetQueryFields_DoesNotContainNetworkFields() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String queryFields = publicManager.getQueryFields();
-
-        assertFalse("Should not contain description", queryFields.contains("description"));
-        assertFalse("Should not contain nodeName", queryFields.contains("nodeName"));
-        assertFalse("Should not contain organism", queryFields.contains("organism"));
-    }
-
-    @Test
-    public void testGetQueryFields_ConsistentAcrossVisibilityTypes() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-        privateManager = new ShortcutIndexManager(VisibilityType.PRIVATE);
-        unlistedManager = new ShortcutIndexManager(VisibilityType.UNLISTED);
-
-        String publicFields = publicManager.getQueryFields();
-        String privateFields = privateManager.getQueryFields();
-        String unlistedFields = unlistedManager.getQueryFields();
-
-        assertEquals("Query fields should be same for all visibility types",
-                publicFields, privateFields);
-        assertEquals("Query fields should be same for all visibility types",
-                publicFields, unlistedFields);
-    }
-
-    // ========================================================================
-    // PERMISSION FILTER TESTS - PUBLIC CORE
-    // ========================================================================
-
-    @Test
-    public void testBuildPermissionFilter_AnonymousUser_PublicCore() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String filter = publicManager.buildPermissionFilter(null, null);
-
-        assertEquals("Anonymous can see all PUBLIC/UNLISTED items", "*:*", filter);
-    }
-
-    @Test
-    public void testBuildPermissionFilter_AuthenticatedUser_WritePermission_PublicCore() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String filter = publicManager.buildPermissionFilter("bob", Permissions.WRITE);
-
-        assertTrue("Should include owned items", filter.contains("owner:\"bob\""));
-        assertTrue("Should include EDIT permission", filter.contains("userEdit:\"bob\""));
-
-        String expected = "(owner:\"bob\") OR (userEdit:\"bob\")";
-        assertEquals(expected, filter);
-    }
-
-    @Test
-    public void testBuildPermissionFilter_AuthenticatedUser_AdminPermission_PublicCore() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String filter = publicManager.buildPermissionFilter("admin", Permissions.ADMIN);
-
-        assertEquals("Should only show owned items", "owner:\"admin\"", filter);
-    }
-
-    // ========================================================================
-    // PERMISSION FILTER TESTS - PRIVATE CORE
-    // ========================================================================
-
-    @Test
-    public void testBuildPermissionFilter_AnonymousUser_PrivateCore() {
-        privateManager = new ShortcutIndexManager(VisibilityType.PRIVATE);
-
-        String filter = privateManager.buildPermissionFilter(null, null);
-
-        assertEquals("Anonymous should see nothing in private core",
-                "(*:* AND NOT *:*)", filter);
-    }
-
-    @Test
-    public void testBuildPermissionFilter_AuthenticatedUser_NoPermission_PrivateCore() {
-        privateManager = new ShortcutIndexManager(VisibilityType.PRIVATE);
-
-        String filter = privateManager.buildPermissionFilter("jane_doe", null);
-
-        assertTrue("Should include owned items", filter.contains("owner:\"jane_doe\""));
-        assertTrue("Should include READ permission", filter.contains("userRead:\"jane_doe\""));
-        assertTrue("Should include EDIT permission", filter.contains("userEdit:\"jane_doe\""));
-
-        String expected = "(owner:\"jane_doe\") OR (userRead:\"jane_doe\") OR (userEdit:\"jane_doe\")";
-        assertEquals(expected, filter);
-    }
-
-    @Test
-    public void testBuildPermissionFilter_AuthenticatedUser_AdminPermission_PrivateCore() {
-        privateManager = new ShortcutIndexManager(VisibilityType.PRIVATE);
-
-        String filter = privateManager.buildPermissionFilter("superadmin", Permissions.ADMIN);
-
-        assertEquals("Should only show owned items", "owner:\"superadmin\"", filter);
-    }
-
-    // ========================================================================
-    // PREPROCESS SEARCH TERMS TESTS
-    // ========================================================================
-
-    @Test
-    public void testPreprocessSearchTerms_Wildcard_NotModified() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String result = publicManager.preprocessSearchTerms("*:*");
-
-        assertEquals("Wildcard query should pass through unchanged", "*:*", result);
-    }
-
-    @Test
-    public void testPreprocessSearchTerms_RegularQuery_DelegatesToSearchUtilities() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String input = "test query";
-        String result = publicManager.preprocessSearchTerms(input);
-
-        String expected = SearchUtilities.preprocessSearchTerm(input);
-        assertEquals("Should delegate to SearchUtilities", expected, result);
-    }
-
-    @Test
-    public void testPreprocessSearchTerms_NoScoreBoost() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String input = "shortcut";
-        String result = publicManager.preprocessSearchTerms(input);
-
-        assertFalse("Shortcuts should not have ndexScore boost",
-                result.contains("ndexScore"));
+        manager = createManagerWithMock();
+        String qf = manager.getQueryFields();
+        assertFalse(qf.contains("description"));
+        assertFalse(qf.contains("nodeName"));
+        assertFalse(qf.contains("represents"));
+        assertFalse(qf.contains("organism"));
     }
 
     // ========================================================================
@@ -577,326 +632,260 @@ public class TestShortcutIndexManager {
 
     @Test
     public void testConfigureQuery_WildcardQuery_SortsByModificationTime() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "*:*", "filter", 10, 0);
 
-        SolrQuery solrQuery = new SolrQuery();
-        publicManager.configureQuery(solrQuery, "*:*", "filter", 10, 0);
-
-        List<SolrQuery.SortClause> sorts = solrQuery.getSorts();
-
-        assertNotNull("Should have sort clauses", sorts);
-        assertFalse("Should have at least one sort clause", sorts.isEmpty());
-
-        SolrQuery.SortClause sortClause = sorts.get(0);
-        assertEquals("Should sort by modificationTime", "modificationTime", sortClause.getItem());
-        assertEquals("Should sort descending", SolrQuery.ORDER.desc, sortClause.getOrder());
+        assertFalse(q.getSorts().isEmpty());
+        assertEquals("modificationTime", q.getSorts().get(0).getItem());
+        assertEquals(SolrQuery.ORDER.desc, q.getSorts().get(0).getOrder());
     }
 
     @Test
     public void testConfigureQuery_RegularQuery_NoDefaultSort() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        SolrQuery solrQuery = new SolrQuery();
-        publicManager.configureQuery(solrQuery, "test query", "filter", 10, 0);
-
-        assertTrue("Should not have explicit sort for relevance queries",
-                solrQuery.getSorts() == null || solrQuery.getSorts().isEmpty());
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "test query", "filter", 10, 0);
+        assertTrue(q.getSorts() == null || q.getSorts().isEmpty());
     }
 
     @Test
-    public void testConfigureQuery_SetsQueryType() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        SolrQuery solrQuery = new SolrQuery();
-        publicManager.configureQuery(solrQuery, "test", "filter", 10, 0);
-
-        assertEquals("Should use edismax query parser", "edismax", solrQuery.get("defType"));
+    public void testConfigureQuery_SetsEdismaxAndQueryFields() {
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "test", "filter", 10, 0);
+        assertEquals("edismax", q.get("defType"));
+        assertEquals("uuid^20 name^10 owner^2", q.get("qf"));
     }
 
     @Test
-    public void testConfigureQuery_SetsShortcutQueryFields() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+    public void testConfigureQuery_ZeroOrNegativeLimit_UsesDefault() {
+        manager = createManagerWithMock();
 
-        SolrQuery solrQuery = new SolrQuery();
-        publicManager.configureQuery(solrQuery, "test", "filter", 10, 0);
+        SolrQuery q1 = new SolrQuery();
+        manager.configureQuery(q1, "test", "filter", 0, 0);
+        assertEquals(Integer.valueOf(100000), q1.getRows());
 
-        String qf = solrQuery.get("qf");
-        assertEquals("Should set correct query fields", "uuid^20 name^10 owner^2", qf);
+        SolrQuery q2 = new SolrQuery();
+        manager.configureQuery(q2, "test", "filter", -5, 0);
+        assertEquals(Integer.valueOf(100000), q2.getRows());
     }
 
     @Test
     public void testConfigureQuery_SetsPagination() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        SolrQuery solrQuery = new SolrQuery();
-        publicManager.configureQuery(solrQuery, "test", "filter", 25, 50);
-
-        assertEquals("Should set correct offset", Integer.valueOf(50), solrQuery.getStart());
-        assertEquals("Should set correct limit", Integer.valueOf(25), solrQuery.getRows());
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "test", "filter", 25, 50);
+        assertEquals(Integer.valueOf(50), q.getStart());
+        assertEquals(Integer.valueOf(25), q.getRows());
     }
 
     @Test
-    public void testConfigureQuery_ZeroLimit_UsesDefault() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        SolrQuery solrQuery = new SolrQuery();
-        publicManager.configureQuery(solrQuery, "test", "filter", 0, 0);
-
-        assertEquals("Zero limit should use default 100000",
-                Integer.valueOf(100000), solrQuery.getRows());
+    public void testConfigureQuery_NegativeOffset_NotSet() {
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "test", "filter", 10, -1);
+        assertNull(q.getStart());
     }
 
     // ========================================================================
-    // DOCUMENT RESET AND STATE TESTS
+    // PERMISSION FILTER TESTS (direct method calls)
+    // ========================================================================
+
+    @Test
+    public void testBuildPermissionFilter_PublicCore_Anonymous() {
+        manager = createManagerWithMock();
+        assertEquals("*:*", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
+        assertEquals("*:*", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
+    }
+
+    @Test
+    public void testBuildPermissionFilter_PublicCore_AuthenticatedAdmin() {
+        manager = createManagerWithMock();
+        assertEquals("owner:\"admin\"",
+                manager.buildPermissionFilter("admin", VisibilityType.PUBLIC, Permissions.ADMIN));
+    }
+
+    @Test
+    public void testBuildPermissionFilter_PublicCore_AuthenticatedWrite() {
+        manager = createManagerWithMock();
+        String filter = manager.buildPermissionFilter("bob", VisibilityType.PUBLIC, Permissions.WRITE);
+        assertEquals("(owner:\"bob\") OR (userEdit:\"bob\")", filter);
+    }
+
+    @Test
+    public void testBuildPermissionFilter_PrivateCore_Anonymous_MatchesNothing() {
+        manager = createManagerWithMock();
+        assertEquals("(*:* AND NOT *:*)",
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, null));
+        assertEquals("(*:* AND NOT *:*)",
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.READ));
+        assertEquals("(*:* AND NOT *:*)",
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.WRITE));
+        assertEquals("(*:* AND NOT *:*)",
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.ADMIN));
+    }
+
+    @Test
+    public void testBuildPermissionFilter_PrivateCore_AuthenticatedRead() {
+        manager = createManagerWithMock();
+        String filter = manager.buildPermissionFilter("jane", VisibilityType.PRIVATE, Permissions.READ);
+        assertEquals("(owner:\"jane\") OR (userRead:\"jane\") OR (userEdit:\"jane\")", filter);
+    }
+
+    @Test
+    public void testBuildPermissionFilter_PrivateCore_AuthenticatedWrite() {
+        manager = createManagerWithMock();
+        String filter = manager.buildPermissionFilter("david", VisibilityType.PRIVATE, Permissions.WRITE);
+        assertEquals("(owner:\"david\") OR (userEdit:\"david\")", filter);
+    }
+
+    @Test
+    public void testBuildPermissionFilter_PrivateCore_AuthenticatedAdmin() {
+        manager = createManagerWithMock();
+        assertEquals("owner:\"superadmin\"",
+                manager.buildPermissionFilter("superadmin", VisibilityType.PRIVATE, Permissions.ADMIN));
+    }
+
+    // ========================================================================
+    // PREPROCESS SEARCH TERMS
+    // ========================================================================
+
+    @Test
+    public void testPreprocessSearchTerms_Wildcard_NotModified() {
+        manager = createManagerWithMock();
+        assertEquals("*:*", manager.preprocessSearchTerms("*:*"));
+    }
+
+    @Test
+    public void testPreprocessSearchTerms_RegularQuery_DelegatesToSearchUtilities() {
+        manager = createManagerWithMock();
+        String input = "test query";
+        assertEquals(SearchUtilities.preprocessSearchTerm(input),
+                manager.preprocessSearchTerms(input));
+    }
+
+    @Test
+    public void testPreprocessSearchTerms_ConsistentBehavior() {
+        manager = createManagerWithMock();
+        String input = "shortcut link";
+        assertEquals(manager.preprocessSearchTerms(input),
+                manager.preprocessSearchTerms(input));
+    }
+
+    // ========================================================================
+    // DOCUMENT RESET STATE
     // ========================================================================
 
     @Test
     public void testSetupIndexDocument_CalledTwice_DocumentIsReset() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+        manager = createManagerWithMock();
 
-        NdexShortcut shortcut1 = createTestShortcut("Shortcut One");
-        UUID uuid1 = shortcut1.getExternalId();
+        NdexShortcut s1 = createTestShortcut("Shortcut One");
+        SolrInputDocument doc1 = manager.setupIndexDocument(s1, VisibilityType.PUBLIC);
+        assertEquals("Shortcut One", doc1.getFieldValue("name"));
 
-        SolrInputDocument doc1 = publicManager.setupIndexDocument(shortcut1);
-        assertEquals("First shortcut name", "Shortcut One", doc1.getFieldValue("name"));
-        assertEquals("First shortcut UUID", uuid1.toString(), doc1.getFieldValue("uuid"));
-
-        NdexShortcut shortcut2 = createTestShortcut("Shortcut Two");
-        UUID uuid2 = shortcut2.getExternalId();
-
-        SolrInputDocument doc2 = publicManager.setupIndexDocument(shortcut2);
-        assertEquals("Second shortcut name", "Shortcut Two", doc2.getFieldValue("name"));
-        assertEquals("Second shortcut UUID", uuid2.toString(), doc2.getFieldValue("uuid"));
-
-        assertNotNull(doc1);
-        assertNotNull(doc2);
-    }
-
-    @Test
-    public void testSetupIndexDocument_DifferentVisibilityTypes_ProduceCorrectDocuments() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-        privateManager = new ShortcutIndexManager(VisibilityType.PRIVATE);
-        unlistedManager = new ShortcutIndexManager(VisibilityType.UNLISTED);
-
-        NdexShortcut shortcut = createTestShortcut("Test");
-
-        SolrInputDocument publicDoc = publicManager.setupIndexDocument(shortcut);
-        SolrInputDocument privateDoc = privateManager.setupIndexDocument(shortcut);
-        SolrInputDocument unlistedDoc = unlistedManager.setupIndexDocument(shortcut);
-
-        assertNull("PUBLIC should not have visibility", publicDoc.getFieldValue("visibility"));
-        assertEquals("PRIVATE should have visibility=PRIVATE",
-                "PRIVATE", privateDoc.getFieldValue("visibility"));
-        assertNull("UNLISTED should not have visibility", unlistedDoc.getFieldValue("visibility"));
-
-        assertEquals("Test", publicDoc.getFieldValue("name"));
-        assertEquals("Test", privateDoc.getFieldValue("name"));
-        assertEquals("Test", unlistedDoc.getFieldValue("name"));
+        NdexShortcut s2 = createTestShortcut("Shortcut Two");
+        SolrInputDocument doc2 = manager.setupIndexDocument(s2, VisibilityType.PUBLIC);
+        assertEquals("Shortcut Two", doc2.getFieldValue("name"));
+        assertFalse(doc2.getFieldValue("uuid").equals(doc1.getFieldValue("uuid")));
     }
 
     // ========================================================================
-    // FIND DANGLING SHORTCUTS TESTS (Unit level - filter construction)
+    // CORE NAME MAPPING
     // ========================================================================
 
     @Test
-    public void testFindDanglingShortcuts_BuildsCorrectFilter() {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        String permissionFilter = publicManager.buildPermissionFilter("user", null);
-        String typeFilter = " AND (entityType:SHORTCUT)";
-        String danglingFilter = " AND (isDangling:true)";
-
-        String expectedFilter = "(" + permissionFilter + ")" + typeFilter + danglingFilter;
-
-        assertTrue("Should contain permission filter", expectedFilter.contains(permissionFilter));
-        assertTrue("Should contain entity type filter", expectedFilter.contains("entityType:SHORTCUT"));
-        assertTrue("Should contain dangling filter", expectedFilter.contains("isDangling:true"));
+    public void testGetCoreNameFromVisibility() {
+        assertEquals("private-nfs", NFSIndexManager.getCoreNameFromVisibility(VisibilityType.PRIVATE));
+        assertEquals("public-nfs", NFSIndexManager.getCoreNameFromVisibility(VisibilityType.PUBLIC));
+        assertEquals("public-nfs", NFSIndexManager.getCoreNameFromVisibility(VisibilityType.UNLISTED));
     }
 
     // ========================================================================
-    // INTEGRATION TESTS (Require local Solr) - @Ignore by default
+    // INTEGRATION TESTS (Require local Solr - @Ignore by default)
     // ========================================================================
 
-    @Test
-    @Ignore
-    public void testFindDanglingShortcuts_Integration() throws Exception {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-
-        // Clean up the core first
-        publicManager.client.deleteByQuery("*:*");
-        publicManager.client.commit();
-
-        // Create a valid shortcut (has target)
-        NdexShortcut validShortcut = createTestShortcut("Valid Shortcut");
-        validShortcut.setTarget(UUID.randomUUID());
-        validShortcut.setTargetType(FileType.NETWORK);
-        publicManager.createIndex(validShortcut);
-
-        // Create a dangling shortcut (no target)
-        NdexShortcut danglingShortcut = createTestShortcut("Dangling Shortcut");
-        danglingShortcut.setTarget(null);
-        publicManager.createIndex(danglingShortcut);
-
-        Thread.sleep(2000);
-
-        // Find dangling shortcuts
-        var results = publicManager.findDanglingShortcuts("testOwner", 100, 0);
-
-        assertNotNull(results);
-        assertEquals("Should find 1 dangling shortcut", 1, results.getNumFound());
+    private ShortcutIndexManager createIntegrationManager() {
+        SolrClientWrapper wrapper = new SolrClientWrapperImpl(
+                Configuration.getInstance().getSolrObjectFactory());
+        return new ShortcutIndexManager(wrapper);
     }
 
-    @Test
-    @Ignore
-    public void testFindDanglingShortcuts_NoDanglingShortcuts_Integration() throws Exception {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
 
-        // Clean up the core first
-        publicManager.client.deleteByQuery("*:*");
-        publicManager.client.commit();
-
-        // Create only valid shortcuts
-        NdexShortcut shortcut1 = createTestShortcut("Valid Shortcut 1");
-        shortcut1.setTarget(UUID.randomUUID());
-        publicManager.createIndex(shortcut1);
-
-        NdexShortcut shortcut2 = createTestShortcut("Valid Shortcut 2");
-        shortcut2.setTarget(UUID.randomUUID());
-        publicManager.createIndex(shortcut2);
-
-        Thread.sleep(2000);
-
-        var results = publicManager.findDanglingShortcuts("testOwner", 100, 0);
-
-        assertNotNull(results);
-        assertEquals("Should find 0 dangling shortcuts", 0, results.getNumFound());
-    }
-
-    @Test
-    @Ignore
-    public void testFindDanglingShortcuts_PrivateVisibility_Integration() throws Exception {
-        privateManager = new ShortcutIndexManager(VisibilityType.PRIVATE);
-
-        // Clean up the core first
-        privateManager.client.deleteByQuery("*:*");
-        privateManager.client.commit();
-
-        // Create a dangling shortcut owned by testOwner
-        NdexShortcut danglingShortcut = createTestShortcut("My Dangling Shortcut");
-        danglingShortcut.setOwner("testOwner");
-        danglingShortcut.setTarget(null);
-        privateManager.createIndex(danglingShortcut);
-
-        Thread.sleep(2000);
-
-        // Owner can find their dangling shortcuts
-        var ownerResults = privateManager.findDanglingShortcuts("testOwner", 100, 0);
-        assertEquals("Owner should find their dangling shortcut", 1, ownerResults.getNumFound());
-
-        // Anonymous cannot see private dangling shortcuts
-        var anonymousResults = privateManager.findDanglingShortcuts(null, 100, 0);
-        assertEquals("Anonymous should not see private shortcuts", 0, anonymousResults.getNumFound());
-
-        // Other users cannot see
-        var otherResults = privateManager.findDanglingShortcuts("otherUser", 100, 0);
-        assertEquals("Other users should not see private shortcuts", 0, otherResults.getNumFound());
-    }
-
-    @Test
-    @Ignore
+    @Test @Ignore
     public void testSearchShortcuts_ByName_Integration() throws Exception {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+        manager = createIntegrationManager();
 
-        // Clean up the core first
-        publicManager.client.deleteByQuery("*:*");
-        publicManager.client.commit();
-
-        // Create shortcuts with different names
         NdexShortcut cancerShortcut = createTestShortcut("Cancer Network Link");
         cancerShortcut.setTarget(UUID.randomUUID());
-        publicManager.createIndex(cancerShortcut);
+        manager.createIndex(cancerShortcut, VisibilityType.PUBLIC, null, null);
 
         NdexShortcut diabetesShortcut = createTestShortcut("Diabetes Pathway Link");
         diabetesShortcut.setTarget(UUID.randomUUID());
-        publicManager.createIndex(diabetesShortcut);
+        manager.createIndex(diabetesShortcut, VisibilityType.PUBLIC, null, null);
 
         Thread.sleep(2000);
 
-        // Search by type
-        var results = publicManager.searchByType("cancer", "testOwner", 100, 0,
-                null, null, FileType.SHORTCUT.toString());
+        var results = manager.searchByType("cancer", "testOwner", VisibilityType.PUBLIC,
+                100, 0, null, null, FileType.SHORTCUT.toString());
 
         assertNotNull(results);
-        assertEquals("Should find 1 cancer shortcut", 1, results.getNumFound());
+        assertEquals(1, results.getNumFound());
     }
 
-    @Test
-    @Ignore
+    @Test @Ignore
     public void testSearchShortcuts_Pagination_Integration() throws Exception {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
+        manager = createIntegrationManager();
 
-        // Clean up the core first
-        publicManager.client.deleteByQuery("*:*");
-        publicManager.client.commit();
-
-        // Create 10 shortcuts
         for (int i = 0; i < 10; i++) {
             NdexShortcut shortcut = createTestShortcut("Shortcut " + i);
             shortcut.setTarget(UUID.randomUUID());
-            publicManager.createIndex(shortcut);
+            manager.createIndex(shortcut, VisibilityType.PUBLIC, null, null);
         }
 
         Thread.sleep(2000);
 
-        // First page
-        var page1 = publicManager.searchByType("*:*", "testOwner", 5, 0,
-                null, null, FileType.SHORTCUT.toString());
-        assertEquals("First page should have 5 results", 5, page1.size());
-        assertEquals("Total should be 10", 10, page1.getNumFound());
+        var page1 = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
+                5, 0, null, null, FileType.SHORTCUT.toString());
+        assertEquals(5, page1.size());
+        assertEquals(10, page1.getNumFound());
 
-        // Second page
-        var page2 = publicManager.searchByType("*:*", "testOwner", 5, 5,
-                null, null, FileType.SHORTCUT.toString());
-        assertEquals("Second page should have 5 results", 5, page2.size());
+        var page2 = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
+                5, 5, null, null, FileType.SHORTCUT.toString());
+        assertEquals(5, page2.size());
     }
 
-    @Test
-    @Ignore
+    @Test @Ignore
     public void testSearchShortcuts_OnlyReturnsShortcuts_Integration() throws Exception {
-        publicManager = new ShortcutIndexManager(VisibilityType.PUBLIC);
-        FolderIndexManager folderManager = new FolderIndexManager(VisibilityType.PUBLIC);
+        manager = createIntegrationManager();
+        FolderIndexManager folderMgr = new FolderIndexManager(
+                new SolrClientWrapperImpl(Configuration.getInstance().getSolrObjectFactory()));
 
-        // Clean up the core first
-        publicManager.client.deleteByQuery("*:*");
-        publicManager.client.commit();
-
-        // Index a shortcut
         NdexShortcut shortcut = createTestShortcut("Test Shortcut");
         shortcut.setTarget(UUID.randomUUID());
-        publicManager.createIndex(shortcut);
+        manager.createIndex(shortcut, VisibilityType.PUBLIC, null, null);
 
-        // Index a folder (same core)
         NdexFolder folder = new NdexFolder();
         folder.setExternalId(UUID.randomUUID());
         folder.setName("Test Folder");
         folder.setOwner("testOwner");
         folder.setCreationTime(Timestamp.from(Instant.now()));
         folder.setModificationTime(Timestamp.from(Instant.now()));
-        folderManager.createIndex(folder);
+        folderMgr.createIndex(folder, VisibilityType.PUBLIC, null, null);
 
         Thread.sleep(2000);
 
-        // Search for shortcuts only
-        var results = publicManager.searchByType("*:*", "testOwner", 100, 0,
-                null, null, FileType.SHORTCUT.toString());
+        var results = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
+                100, 0, null, null, FileType.SHORTCUT.toString());
 
-        assertEquals("Should find only 1 shortcut", 1, results.getNumFound());
+        assertEquals(1, results.getNumFound());
 
-        folderManager.close();
+        folderMgr.close();
     }
 
     // ========================================================================
-    // HELPER METHODS
+    // HELPERS
     // ========================================================================
 
     private NdexShortcut createTestShortcut(String name) {

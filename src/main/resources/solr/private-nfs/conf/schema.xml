@@ -28,7 +28,6 @@
     <field name="parentUuid" type="string" indexed="true" stored="false" multiValued="false"/>
     <field name="targetUuid" type="string" indexed="true" stored="false" multiValued="false"/>
     <field name="targetType" type="string" indexed="true" stored="false" multiValued="false"/>
-    <field name="isDangling" type="boolean" indexed="true" stored="false" multiValued="false"/>
 
     <!-- some fields that should be useful for biological networks -->
    <field name="nodeName" type="text_ws" indexed="true" stored="false"  multiValued="true"/>

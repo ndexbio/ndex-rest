@@ -20,7 +20,6 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
 
     protected static final String TARGET_UUID = "targetUuid";
     protected static final String TARGET_TYPE = "targetType";
-    protected static final String IS_DANGLING = "isDangling";
     private static final Logger log = LoggerFactory.getLogger(ShortcutIndexManager.class);
 
     public ShortcutIndexManager(SolrClientWrapper solrClientWrapper){
@@ -46,11 +45,7 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
 
         if (shortcut.getTarget() != null) {
             doc.addField(TARGET_UUID, shortcut.getTarget().toString());
-            doc.addField(IS_DANGLING, false);
-        } else {
-            doc.addField(IS_DANGLING, true);
         }
-
         if (shortcut.getTargetType() != null) {
             doc.addField(TARGET_TYPE, shortcut.getTargetType().toString());
         }
@@ -65,31 +60,5 @@ public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
         return "uuid^20 name^10 owner^2";
     }
 
-    /**
-     * Find dangling shortcuts (where target has been deleted)
-     */
-    public SolrDocumentList findDanglingShortcuts(
-            String userAccount,
-            VisibilityType visibilityType,
-            int limit,
-            int offset) throws IOException, SolrServerException, NdexException {
-
-        SolrQuery solrQuery = new SolrQuery();
-
-        String permissionFilter = buildPermissionFilter(userAccount,visibilityType, null);
-        String typeFilter = " AND (" + ENTITY_TYPE + ":SHORTCUT)";
-        String danglingFilter = " AND (" + IS_DANGLING + ":true)";
-
-        String resultFilter = "(" + permissionFilter + ")" + typeFilter + danglingFilter;
-        configureQuery(solrQuery, "*:*", resultFilter, limit, offset);
-        String coreName = getCoreNameFromVisibility(visibilityType);
-
-        try {
-            QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery );
-            return rsp.getResults();
-        } catch (BaseHttpSolrClient.RemoteSolrException e) {
-            throw convertException(e, coreName);
-        }
-    }
 }
 
