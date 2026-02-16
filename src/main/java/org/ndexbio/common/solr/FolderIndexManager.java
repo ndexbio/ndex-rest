@@ -12,11 +12,13 @@ import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
 public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
 
+    private static final org.slf4j.Logger log = LoggerFactory.getLogger(FolderIndexManager.class);
 
     public FolderIndexManager(VisibilityType visibilityType){
         super(visibilityType);
@@ -28,10 +30,10 @@ public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
         doc.addField(UUID, folder.getExternalId().toString());
         doc.addField(ENTITY_TYPE, FileType.FOLDER.toString());
 
-        if (folder.getName() != null && folder.getName().length()>1){
+        if (folder.getName() != null && !folder.getName().trim().isEmpty()){
             doc.addField(NAME, folder.getName());
         }
-        if (folder.getDescription() != null && folder.getDescription().length()>1){
+        if (folder.getDescription() != null && !folder.getDescription().trim().isEmpty()){
             doc.addField(DESC, folder.getDescription());
         }
         if (folder.getParent() != null) {
