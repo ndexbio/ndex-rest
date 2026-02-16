@@ -243,27 +243,41 @@ public class CX2NetworkLoader implements AutoCloseable {
 					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
 				}
 
-				NetworkIndexLevel indexLevel = dao.getIndexLevel(networkId);
+				NetworkIndexLevel indexLevel = NetworkIndexLevel.ALL;
 				boolean needIndividualIndex = this.nodeIdTracker.getDefinedElementSize() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD;
 				
 				// clear individual index
 				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
 					idx2.dropIndex();
 				}
-				
-				if ( isUpdate && indexLevel != NetworkIndexLevel.NONE)  {
+				if (needIndividualIndex)
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,!isUpdate,indexedFields, indexLevel , true ));
+				else
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,!isUpdate,indexedFields, indexLevel , true ));
+			  //dao.setFlag(this.networkId, "iscomplete", true);
+			  //dao.commit();
+
+				/*
+
+				if ( isUpdate)  {
 				   if ( needIndividualIndex)
 					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel , true ));
 				   else 
 				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields, indexLevel, true ));
 				} else {
 					if (needIndividualIndex)
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.individual,!isUpdate, indexedFields, NetworkIndexLevel.NONE, true));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,!isUpdate, indexedFields, NetworkIndexLevel.ALL, true));
 					else {
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,!isUpdate, indexedFields, NetworkIndexLevel.ALL, true));
+						//logger.info("SKIPPED {}", isUpdate);
 						dao.setFlag(this.networkId, "iscomplete", true);
 						dao.commit();
-					}	
+					}
+
+
 				}
+
+				 */
 		  }
 
 	}
