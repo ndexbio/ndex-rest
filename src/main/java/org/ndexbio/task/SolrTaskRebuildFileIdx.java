@@ -42,17 +42,23 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 	}
 
 	@Override
-	public void run() throws NdexException, SolrServerException, IOException, SQLException {
-		String id = fileId.toString();
-		if (fileType.equals(FileType.FOLDER)){
-			rebuildFolderIndex(id);
-		} else if (fileType.equals(FileType.SHORTCUT)) {
-			rebuildShortcutIndex(id);
-		} else if (fileType.equals(FileType.NETWORK)) {
-			throw new UnsupportedOperationException("Use SolrTaskRebuildNetworkIdx task for network rebuilding");
+	public void run() throws SQLException, SolrServerException, IOException, NdexException {
+		try {
+			String id = fileId.toString();
+			if (fileType.equals(FileType.FOLDER)){
+				rebuildFolderIndex(id);
+			} else if (fileType.equals(FileType.SHORTCUT)) {
+				rebuildShortcutIndex(id);
+			} else if (fileType.equals(FileType.NETWORK)) {
+				throw new UnsupportedOperationException("Use SolrTaskRebuildNetworkIdx task for network rebuilding");
+			}
+			else {
+				throw new IllegalArgumentException("Invalid file type: " + fileType);
+			}
 		}
-		else {
-			throw new IllegalArgumentException("Invalid file type: " + fileType);
+		catch (Exception e){
+			log.info("Failed to create index for file {}!", fileId);
+			throw e;
 		}
 
 
