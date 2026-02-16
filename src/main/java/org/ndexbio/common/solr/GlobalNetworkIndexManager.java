@@ -77,7 +77,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
 
         doc.addField(NDEX_SCORE, Util.getNdexScoreFromSummary(summary));
 
-        doc.addField(USER_ADMIN, summary.getOwnerUUID().toString());
+        doc.addField(USER_ADMIN, summary.getOwner());
         //doc.setDocumentBoost(documentBoost);;
 
         if (visibilityType.equals(VisibilityType.PRIVATE)){

@@ -57,7 +57,7 @@ public class TestShortcutServiceV3 {
         User user = new User();
         user.setExternalId(userId);
 
-        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).anyTimes();
         replay(mockHttpServletRequest);
 
         ShortcutRequest requestBody = new ShortcutRequest();
@@ -581,7 +581,7 @@ public class TestShortcutServiceV3 {
         }
 
         @Override
-        protected void indexShortcut(UUID folderUUID, UUID userId,
+        protected void indexShortcut(UUID folderUUID,User user,
                                    VisibilityType visibilityType) {
             // no-op for testing
         }

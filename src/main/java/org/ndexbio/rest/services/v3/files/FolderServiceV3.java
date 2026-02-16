@@ -11,13 +11,7 @@ import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.FileCount;
-import org.ndexbio.model.object.FileItemSummary;
-import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.NdexFolder;
-import org.ndexbio.model.object.FolderRequest;
-import org.ndexbio.model.object.NdexObjectUpdateStatus;
-import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -118,7 +112,7 @@ public class FolderServiceV3 extends NdexService {
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
 			dao.commit();
-			indexFolder(folderUUID, getLoggedInUserId(), VisibilityType.PRIVATE);
+			indexFolder(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE);
 		}
 
 		String urlStr = Configuration.getInstance().getHostURI() +"/v3/files/folders/"+ folderUUID.toString();
@@ -335,7 +329,7 @@ public class FolderServiceV3 extends NdexService {
 			dao.updateFolder(folderId, request.getName(), parentUUID, userId, request.getDescription());
 			dao.commit();
 			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
-			indexFolder(folderId, userId, visibilityType);
+			indexFolder(folderId, getLoggedInUser(), visibilityType);
 			return ;
 		}
 	}
@@ -496,11 +490,11 @@ public class FolderServiceV3 extends NdexService {
 	    return folders;
 	}
 
-	protected void indexFolder(UUID folderUUID, UUID userId,
+	protected void indexFolder(UUID folderUUID, User user,
 							   VisibilityType visibilityType) throws SQLException, NdexException, IOException {
 
-		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(folderUUID, userId,
-				visibilityType, FileType.FOLDER, false));
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(folderUUID, user.getExternalId(),
+				user.getUserName(), visibilityType, FileType.FOLDER, false));
 	}
 
 	protected void deleteFolderIndex(UUID folderUUID,

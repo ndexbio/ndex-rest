@@ -3,6 +3,7 @@ package org.ndexbio.task;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.FolderIndexManager;
 import org.ndexbio.common.solr.ShortcutIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
@@ -30,8 +31,10 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 	private final VisibilityType visibilityType;
 	private final FileType fileType;
 	private final boolean createOnly;
+	private final String username;
 
-	public SolrTaskRebuildFileIdx(UUID fileId, UUID userId, VisibilityType visibilityType,
+	public SolrTaskRebuildFileIdx(UUID fileId, UUID userId,String username,
+								  VisibilityType visibilityType,
 								  FileType fileType, boolean createOnly) {
 		super();
 		this.fileId = fileId;
@@ -39,6 +42,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 		this.visibilityType = visibilityType;
 		this.fileType = fileType;
 		this.createOnly = createOnly;
+		this.username = username;
 	}
 
 	@Override
@@ -74,6 +78,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			}
 			String accessKey = dao.getFolderAccessKey(fileId); //todo temp, not sure if right
 			NdexFolder folder = dao.getFolder(fileId, userId, accessKey );
+			folder.setOwner(username);
 			try(FolderIndexManager globalIdx = new FolderIndexManager(visibilityType)) {
 				Map<String, String> folderPermissions = dao.getFolderPermissions(fileId);
  				globalIdx.createIndex(folder,
@@ -95,6 +100,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 				}
 			}
 			NdexShortcut shortcut = dao.getShortcut(fileId, userId);
+			shortcut.setOwner(username);
 			try(ShortcutIndexManager globalIdx = new ShortcutIndexManager(visibilityType)) {
 				globalIdx.createIndex(shortcut, null, null);
 			}

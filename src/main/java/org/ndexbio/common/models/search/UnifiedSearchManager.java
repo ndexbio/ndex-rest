@@ -29,20 +29,13 @@ public class UnifiedSearchManager implements AutoCloseable {
     }
 
     public FileSearchResult searchFiles(SimpleFileQuery query, VisibilityType visibilityType, int skipBlocks, int blockSize) throws NdexException, SolrServerException, IOException {
-        User user;
-        try (UserDAO dao = new UserDAO()) {
-            user = dao.getUserByAccountName(query.getAccountName(), false, false);
-        }
-        catch (Exception e){
-            throw new RuntimeException(e);
-        }
         SolrDocumentList documents;
         if (query.getType() != null){
-            documents = delegate.searchByType(query.getSearchString(),user.getExternalId().toString(),blockSize, skipBlocks, null,
+            documents = delegate.searchByType(query.getSearchString(),query.getAccountName(),blockSize, skipBlocks, null,
                     query.getPermission(), query.getType().toString());
         }
         else {
-            documents = delegate.search(query.getSearchString(),user.getExternalId().toString(),blockSize, skipBlocks, null,
+            documents = delegate.search(query.getSearchString(),query.getAccountName(),blockSize, skipBlocks, null,
                     query.getPermission());
         }
 

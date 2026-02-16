@@ -452,7 +452,7 @@ public class TestFolderServiceV3 {
         }
 
         @Override
-        protected void indexFolder(UUID folderUUID, UUID userId,
+        protected void indexFolder(UUID folderUUID, User user,
                                    VisibilityType visibilityType) {
             // no-op for testing
         }
