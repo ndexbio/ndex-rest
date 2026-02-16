@@ -20,9 +20,12 @@ import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -39,7 +42,7 @@ public class TestShortcutServiceV3 {
     public void setUp() {
         mockHttpServletRequest = createMock(HttpServletRequest.class);
         dispatcher = MockDispatcherFactory.createDispatcher();
-        dispatcher.getRegistry().addSingletonResource(new ShortcutServiceV3(mockHttpServletRequest));
+        dispatcher.getRegistry().addSingletonResource(new TestShortcutServiceV3NoIndex(mockHttpServletRequest));
         dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
         response = new MockHttpResponse();
     }
@@ -70,6 +73,8 @@ public class TestShortcutServiceV3 {
         expect(shortcutDAO.createShortcut(anyObject(UUID.class), eq(userId), eq(parentId), eq("My Shortcut"), eq(targetId), eq(FileType.FOLDER))).andReturn(status);
         shortcutDAO.commit();
         expectLastCall();
+        expect(shortcutDAO.getShortcutVisibility(anyObject(UUID.class))).andReturn(VisibilityType.PRIVATE);
+
         shortcutDAO.close();
         expectLastCall();
         replay(shortcutDAO);
@@ -308,6 +313,7 @@ public class TestShortcutServiceV3 {
         expect(shortcutDAO.isShortcutOwner(shortcutId, userId)).andReturn(true);
         shortcutDAO.deleteShortcut(shortcutId, false);
         expectLastCall();
+        expect(shortcutDAO.getShortcutVisibility(anyObject(UUID.class))).andReturn(VisibilityType.PRIVATE);
         shortcutDAO.commit();
         expectLastCall();
         shortcutDAO.close();
@@ -369,6 +375,7 @@ public class TestShortcutServiceV3 {
         expectLastCall();
         shortcutDAO.commit();
         expectLastCall();
+        expect(shortcutDAO.getShortcutVisibility(anyObject(UUID.class))).andReturn(VisibilityType.PRIVATE);
         shortcutDAO.close();
         expectLastCall();
         replay(shortcutDAO);
@@ -493,6 +500,7 @@ public class TestShortcutServiceV3 {
         expect(shortcutDAO.isShortcutOwner(shortcutId, userId)).andReturn(true);
         shortcutDAO.deleteShortcut(shortcutId, true);
         expectLastCall();
+        expect(shortcutDAO.getShortcutVisibility(anyObject(UUID.class))).andReturn(VisibilityType.PRIVATE);
         shortcutDAO.commit();
         expectLastCall();
         shortcutDAO.close();
@@ -566,6 +574,22 @@ public class TestShortcutServiceV3 {
         dispatcher.invoke(request, response);
         assertEquals(Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
         assertTrue(new String(response.getOutput()).contains("Invalid parent folder"));
+    }
+    private static class TestShortcutServiceV3NoIndex extends ShortcutServiceV3 {
+        public TestShortcutServiceV3NoIndex(HttpServletRequest request) {
+            super(request);
+        }
+
+        @Override
+        protected void indexShortcut(UUID folderUUID, UUID userId,
+                                   VisibilityType visibilityType) {
+            // no-op for testing
+        }
+        @Override
+        protected void deleteShortcutIndex(UUID folderUUID,
+                                         VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+
+        }
     }
 
 }
