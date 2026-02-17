@@ -74,6 +74,7 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.NetworkSummaryFormat;
 import org.ndexbio.model.object.network.NetworkSummaryV3;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
@@ -182,20 +183,25 @@ public class BatchService extends NdexService {
             throw new NdexException("Missing required parameters: visibility and items.");
         }
 
-        UUID userId = getLoggedInUserId();
-        if (userId == null) {
+		User user = getLoggedInUser();
+        if (user == null || user.getExternalId() == null) {
             throw new NdexException("User is not logged in.");
         }
+		UUID userId = user.getExternalId();
 
         for (Map.Entry<UUID, FileType> item : request.getFiles().entrySet()) {
             UUID uuid = item.getKey();
             FileType type = item.getValue();
             AbstractFileTypeHandler handler = fileTypeHandlerFactory.getHandler(type);
+			VisibilityType oldVisibilityType = getVisibilityForFile(uuid, type);
             handler.setVisibility(uuid, userId, request.getVisibility());
+			deleteFileIndex(uuid, oldVisibilityType);
+			createFileIndex(uuid, user, request.getVisibility(),type, true);
         }
 
         return ;
     }
+
 
 	
 
