@@ -562,7 +562,7 @@ public class TestGlobalNetworkIndexManager {
 
         String[] fq = captured.getFilterQueries();
         assertNotNull(fq);
-        assertTrue(fq[0].contains("NOT (visibility:UNLISTED)"));
+        assertTrue(fq[0].contains("(*:* NOT visibility:UNLISTED)"));
 
         assertFalse(captured.getSorts().isEmpty());
         assertEquals("modificationTime", captured.getSorts().get(0).getItem());
@@ -919,7 +919,7 @@ public class TestGlobalNetworkIndexManager {
     @Test
     public void testBuildPermissionFilter_PublicCore_Anonymous() {
         manager = createManagerWithMock();
-        String noUnlisted = "NOT (visibility:UNLISTED)";
+        String noUnlisted = "(*:* NOT visibility:UNLISTED)";
         assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
         assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
     }
@@ -927,14 +927,14 @@ public class TestGlobalNetworkIndexManager {
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedNullPermission() {
         manager = createManagerWithMock();
-        assertEquals("(NOT (visibility:UNLISTED)) OR (owner:\"alice\")",
+        assertEquals("(*:* NOT visibility:UNLISTED) OR (owner:\"alice\")",
                 manager.buildPermissionFilter("alice", VisibilityType.PUBLIC, null));
     }
 
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedRead() {
         manager = createManagerWithMock();
-        assertEquals("(NOT (visibility:UNLISTED)) OR (owner:\"alice\")",
+        assertEquals("(*:* NOT visibility:UNLISTED) OR (owner:\"alice\")",
                 manager.buildPermissionFilter("alice", VisibilityType.PUBLIC, Permissions.READ));
     }
 

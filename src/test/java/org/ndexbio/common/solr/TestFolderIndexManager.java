@@ -502,7 +502,7 @@ public class TestFolderIndexManager {
         // Anonymous public: filter should be (*:*)
         String[] fq = captured.getFilterQueries();
         assertNotNull(fq);
-        assertTrue(fq[0].contains("NOT (visibility:UNLISTED)"));
+        assertTrue(fq[0].contains("(*:* NOT visibility:UNLISTED)"));
         // Wildcard should sort by modificationTime desc
         assertFalse(captured.getSorts().isEmpty());
         assertEquals("modificationTime", captured.getSorts().get(0).getItem());
@@ -942,8 +942,9 @@ public class TestFolderIndexManager {
     @Test
     public void testBuildPermissionFilter_PublicCore_Anonymous() {
         manager = createManagerWithMock();
-        assertEquals("NOT (visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
-        assertEquals("NOT (visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
+        String noUnlisted = "(*:* NOT visibility:UNLISTED)";
+        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
+        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
     }
 
     @Test
