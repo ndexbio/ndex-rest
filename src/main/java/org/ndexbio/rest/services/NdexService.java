@@ -51,7 +51,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.io.IOUtils;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
+import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
+import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.BadRequestException;
@@ -288,4 +290,23 @@ public abstract class NdexService
 
 		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId, visibilityType));
 	}
+	protected VisibilityType getVisibilityForFile(UUID fileId, FileType fileType) throws Exception {
+		switch (fileType) {
+			case FOLDER:
+				try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+					return dao.getFolderVisibility(fileId);
+				}
+			case NETWORK:
+				try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+					return dao.getNetworkVisibility(fileId);
+				}
+			case SHORTCUT:
+				try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+					return dao.getShortcutVisibility(fileId);
+				}
+			default:
+				throw new NdexException("Unknown file type: " + fileType);
+		}
+	}
+
 }
