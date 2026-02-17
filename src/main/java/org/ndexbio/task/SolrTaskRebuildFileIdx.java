@@ -88,10 +88,10 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			}
 		}
 		catch (Exception e){
-			log.error("Failed to create index for file {}! Reason: {} {}.", fileId, e.getMessage(), e.toString());
+			log.info("Failed to create index for file {}! Reason: {} {}.", fileId, e.getMessage(), e.toString());
 			throw e;
 		}
-		log.info("Rebuilding {} index for file type: {} ID: {} for User {}.", visibilityType,
+		log.info("Rebuilt {} index for file type: {} ID: {} for User {}.", visibilityType,
 				fileType, fileId, userId);
 
 
