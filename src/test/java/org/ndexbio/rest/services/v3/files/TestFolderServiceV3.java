@@ -452,8 +452,8 @@ public class TestFolderServiceV3 {
         }
 
         @Override
-        protected void createFileIndex(UUID folderUUID,User user,
-                                       VisibilityType visibilityType, FileType fileType, boolean createOnly) {
+        protected void createFileIndex(UUID fileId, UUID userId, String username, VisibilityType visibility,
+                                       FileType fileType, boolean createOnly, boolean ignoreCxFiles) {
             // no-op for testing
         }
         @Override
