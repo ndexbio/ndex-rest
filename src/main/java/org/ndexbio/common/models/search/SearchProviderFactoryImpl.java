@@ -34,6 +34,6 @@ public class SearchProviderFactoryImpl implements SearchProviderFactory {
 	@Override
 	public SearchProvider getSearchProvider() throws NdexException {
 		SolrClientWrapperImpl wrapper = new SolrClientWrapperImpl(_factory);
-		return new UnifiedSearchManager(wrapper, _defaultMaxSearchResultRows);
+		return new NFSSearchProvider(wrapper, _defaultMaxSearchResultRows);
 	}
 }

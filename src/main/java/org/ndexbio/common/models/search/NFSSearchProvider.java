@@ -1,10 +1,8 @@
 package org.ndexbio.common.models.search;
 
-import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.NFSIndexManager;
 import org.ndexbio.common.solr.SolrClientWrapper;
 import org.ndexbio.model.exceptions.NdexException;
@@ -13,12 +11,11 @@ import org.ndexbio.model.object.network.VisibilityType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class UnifiedSearchManager implements SearchProvider {
+public class NFSSearchProvider implements SearchProvider {
     protected final Logger logger = LoggerFactory.getLogger(this.getClass().getSimpleName());
     private final int maxDefaultResults;
 
@@ -26,7 +23,7 @@ public class UnifiedSearchManager implements SearchProvider {
     // A "dummy" NFSIndexManager that only does search
     private final SearchOnlyManager delegate;
 
-    public UnifiedSearchManager(SolrClientWrapper solrClientWrapper, int defaultMaxSearchResultRows) {
+    public NFSSearchProvider(SolrClientWrapper solrClientWrapper, int defaultMaxSearchResultRows) {
         this.maxDefaultResults = defaultMaxSearchResultRows;
         this.delegate = new SearchOnlyManager(solrClientWrapper, maxDefaultResults);
     }

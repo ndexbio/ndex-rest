@@ -5,7 +5,6 @@ import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
-import org.ndexbio.common.models.search.UnifiedSearchManager;
 
 /**
  * Defines interface for classes that create SolrClient and various CoreAdmin

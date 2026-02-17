@@ -202,7 +202,6 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
         // Set up the query
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
-        logger.info("QUERY {} FILTER: {}", solrQuery.toQueryString(), solrQuery.getFilterQueries());
         String coreName = getCoreNameFromVisibility(visibilityType);
 
         // Execute search

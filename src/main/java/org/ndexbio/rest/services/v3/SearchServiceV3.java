@@ -34,7 +34,6 @@ import jakarta.ws.rs.core.Response;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.common.models.search.UnifiedSearchManager;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
@@ -53,7 +52,6 @@ import org.ndexbio.model.network.query.CXObjectFilter;
 import org.ndexbio.model.network.query.FilterCriterion;
 import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.FileSearchResult;
-import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.SimpleFileQuery;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.tools.EdgeFilter;
@@ -73,7 +71,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
 import org.ndexbio.common.models.search.SearchProvider;
-import org.ndexbio.model.object.FileVisibilityType;
 
 @Path("/v3/search")
 

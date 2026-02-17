@@ -6,7 +6,6 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
-import org.ndexbio.common.models.search.UnifiedSearchManager;
 
 /**
  * SolrClient and CoreAdmin factory implementation using Http2SolrClient
