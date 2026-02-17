@@ -273,7 +273,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      * WRITE/ADMIN filters down to items they have those permissions on.
      */
     protected String buildPublicCorePermissionFilter(String userAccount, Permissions permission) {
-        String excludeUnlisted = "NOT (" + VISIBILITY + ":UNLISTED)";
+        String excludeUnlisted = "(*:* NOT " + VISIBILITY + ":UNLISTED)";
 
         if (userAccount == null) {
             return excludeUnlisted;
@@ -282,19 +282,17 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         String userAccountStr = "\"" + userAccount + "\"";
 
         if (permission == null || permission == Permissions.READ) {
-            // Everything except UNLISTED, OR items they own (even if UNLISTED)
-            return "(" + excludeUnlisted + ") OR (" + USER_ADMIN + ":" + userAccountStr + ")";
+            return excludeUnlisted + " OR (" + USER_ADMIN + ":" + userAccountStr + ")";
         } else if (permission == Permissions.WRITE) {
-            // Already scoped to user — no need to exclude UNLISTED
             return "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
                     "(" + USER_EDIT + ":" + userAccountStr + ")";
         } else if (permission == Permissions.ADMIN) {
-            // Already scoped to user — no need to exclude UNLISTED
             return USER_ADMIN + ":" + userAccountStr;
         }
 
         return excludeUnlisted;
     }
+
     /**
      * Permission filter for private-nfs core (PRIVATE items)
      * Anonymous users see nothing. Authenticated users only see items where they're listed in userAdmin, userRead,
