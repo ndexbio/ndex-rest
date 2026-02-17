@@ -168,7 +168,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 					idx2.createIndexFromCx2(null);
 				}
 				long t = Calendar.getInstance().getTimeInMillis() - t1;
-				System.out.println("Takes " + t / 1000 + " secs to create index");
+                log.info("Takes {} secs to create index", t / 1000);
 			}
 
             try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {

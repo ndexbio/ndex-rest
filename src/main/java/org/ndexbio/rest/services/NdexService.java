@@ -278,12 +278,18 @@ public abstract class NdexService
 	protected void createFileIndex(UUID fileId, User user, VisibilityType visibility,
 							 FileType fileType, boolean createOnly) throws SQLException, NdexException, IOException {
 
-		createFileIndex(fileId, user.getExternalId(), user.getUserName(), visibility, fileType, createOnly);
+		createFileIndex(fileId, user.getExternalId(), user.getUserName(), visibility, fileType, createOnly, false);
 	}
+	protected void createFileIndex(UUID fileId, User user, VisibilityType visibility,
+								   FileType fileType, boolean createOnly, boolean ignoreCxFiles) throws SQLException, NdexException, IOException {
+
+		createFileIndex(fileId, user.getExternalId(), user.getUserName(), visibility, fileType, createOnly, ignoreCxFiles);
+	}
+
 	protected void createFileIndex(UUID fileId, UUID userId, String username, VisibilityType visibility,
-							 FileType fileType, boolean createOnly) throws SQLException, NdexException, IOException {
+							 FileType fileType, boolean createOnly, boolean ignoreCxFiles) throws SQLException, NdexException, IOException {
 		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(
-				fileId, userId, username, visibility, fileType, createOnly));
+				fileId, userId, username, visibility, fileType, createOnly, ignoreCxFiles));
 	}
 	protected void deleteFileIndex(UUID fileId,
 									 VisibilityType visibilityType) throws SQLException, NdexException, IOException {
