@@ -668,23 +668,5 @@ public class FileServiceV3 extends NdexService {
 	/**
 	 * Look up the current visibility for a file by type.
 	 */
-	protected VisibilityType getVisibilityForFile(UUID fileId, FileType fileType) throws Exception {
-		switch (fileType) {
-			case FOLDER:
-				try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-					return dao.getFolderVisibility(fileId);
-				}
-			case NETWORK:
-				try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
-					return dao.getNetworkVisibility(fileId);
-				}
-			case SHORTCUT:
-				try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-					return dao.getShortcutVisibility(fileId);
-				}
-			default:
-				throw new NdexException("Unknown file type: " + fileType);
-		}
-	}
 
 }
