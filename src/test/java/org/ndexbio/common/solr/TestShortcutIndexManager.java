@@ -497,8 +497,7 @@ public class TestShortcutIndexManager {
 
         String[] fq = captured.getFilterQueries();
         assertNotNull(fq);
-        assertTrue(fq[0].contains("*:*"));
-
+        assertTrue(fq[0].contains("NOT (visibility:UNLISTED)"));
         assertFalse(captured.getSorts().isEmpty());
         assertEquals("modificationTime", captured.getSorts().get(0).getItem());
     }
@@ -695,8 +694,8 @@ public class TestShortcutIndexManager {
     @Test
     public void testBuildPermissionFilter_PublicCore_Anonymous() {
         manager = createManagerWithMock();
-        assertEquals("*:*", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
-        assertEquals("*:*", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
+        assertEquals("NOT (visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
+        assertEquals("NOT (visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
     }
 
     @Test

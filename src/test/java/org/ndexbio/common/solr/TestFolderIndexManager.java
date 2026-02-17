@@ -502,8 +502,7 @@ public class TestFolderIndexManager {
         // Anonymous public: filter should be (*:*)
         String[] fq = captured.getFilterQueries();
         assertNotNull(fq);
-        assertTrue(fq[0].contains("*:*"));
-
+        assertTrue(fq[0].contains("NOT (visibility:UNLISTED)"));
         // Wildcard should sort by modificationTime desc
         assertFalse(captured.getSorts().isEmpty());
         assertEquals("modificationTime", captured.getSorts().get(0).getItem());
@@ -943,8 +942,8 @@ public class TestFolderIndexManager {
     @Test
     public void testBuildPermissionFilter_PublicCore_Anonymous() {
         manager = createManagerWithMock();
-        assertEquals("*:*", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
-        assertEquals("*:*", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
+        assertEquals("NOT (visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
+        assertEquals("NOT (visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
     }
 
     @Test
@@ -953,7 +952,6 @@ public class TestFolderIndexManager {
         assertEquals("owner:\"admin\"",
                 manager.buildPermissionFilter("admin", VisibilityType.PUBLIC, Permissions.ADMIN));
     }
-
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedWrite() {
         manager = createManagerWithMock();

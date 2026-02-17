@@ -562,7 +562,7 @@ public class TestGlobalNetworkIndexManager {
 
         String[] fq = captured.getFilterQueries();
         assertNotNull(fq);
-        assertTrue(fq[0].contains("*:*"));
+        assertTrue(fq[0].contains("NOT (visibility:UNLISTED)"));
 
         assertFalse(captured.getSorts().isEmpty());
         assertEquals("modificationTime", captured.getSorts().get(0).getItem());
@@ -743,6 +743,7 @@ public class TestGlobalNetworkIndexManager {
         assertTrue(fq[0].contains("owner:\"bob\""));
         assertTrue(fq[0].contains("userEdit:\"bob\""));
         assertFalse(fq[0].contains("userRead"));
+        assertFalse(fq[0].contains("UNLISTED"));
     }
 
     // ========================================================================
@@ -918,8 +919,23 @@ public class TestGlobalNetworkIndexManager {
     @Test
     public void testBuildPermissionFilter_PublicCore_Anonymous() {
         manager = createManagerWithMock();
-        assertEquals("*:*", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
-        assertEquals("*:*", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
+        String noUnlisted = "NOT (visibility:UNLISTED)";
+        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
+        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
+    }
+
+    @Test
+    public void testBuildPermissionFilter_PublicCore_AuthenticatedNullPermission() {
+        manager = createManagerWithMock();
+        assertEquals("(NOT (visibility:UNLISTED)) OR (owner:\"alice\")",
+                manager.buildPermissionFilter("alice", VisibilityType.PUBLIC, null));
+    }
+
+    @Test
+    public void testBuildPermissionFilter_PublicCore_AuthenticatedRead() {
+        manager = createManagerWithMock();
+        assertEquals("(NOT (visibility:UNLISTED)) OR (owner:\"alice\")",
+                manager.buildPermissionFilter("alice", VisibilityType.PUBLIC, Permissions.READ));
     }
 
     @Test
