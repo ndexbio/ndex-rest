@@ -252,9 +252,22 @@ public class V3Migrator implements AutoCloseable {
 
 		dao.folderDAO.createFolder(folderId, ownerId, null, folder.getName(), folder.getDescription());
 
-		// Index folder
+		// Load group members
+		List<GroupMember> members = loadGroupMembers(groupId);
+
+		// Grant READ on the folder to all group members (except owner, who has ADMIN implicitly)
+		List<String> folderUserReads = new ArrayList<>();
+		for (GroupMember member : members) {
+			if (!member.userId.equals(ownerId)) {
+				addFolderPermission(folderId, member.userId, "READ");
+				String username = getUsernameById(member.userId, dao);
+				if (username != null) folderUserReads.add(username);
+			}
+		}
+
+		// Index folder with member read permissions
 		try (FolderIndexManager fim = solrObjectFactory.getFolderIndexManager()) {
-			fim.createIndex(folder, VisibilityType.PRIVATE, null, null);
+			fim.createIndex(folder, VisibilityType.PRIVATE, folderUserReads, null);
 		}
 
 		// Get networks this group has access to
@@ -268,7 +281,6 @@ public class V3Migrator implements AutoCloseable {
 		}
 
 		// Flatten group permissions onto individual member users
-		List<GroupMember> members = loadGroupMembers(groupId);
 		for (GroupNetworkEntry entry : groupNetworks) {
 			for (GroupMember member : members) {
 				flattenPermission(member.userId, entry.networkId, entry.permission);
@@ -380,6 +392,19 @@ public class V3Migrator implements AutoCloseable {
 
 	private int permRank(String perm) {
 		return PERM_RANK.getOrDefault(perm, 0);
+	}
+
+	private void addFolderPermission(UUID folderId, UUID userId, String permission) throws SQLException {
+		String sql = "INSERT INTO folder_permission (folder_id, user_id, permission) VALUES (?, ?, ?) "
+				+ "ON CONFLICT (folder_id, user_id) DO UPDATE SET permission = "
+				+ "CASE WHEN EXCLUDED.permission > folder_permission.permission "
+				+ "THEN EXCLUDED.permission ELSE folder_permission.permission END";
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			pst.setObject(1, folderId);
+			pst.setObject(2, userId);
+			pst.setString(3, permission);
+			pst.executeUpdate();
+		}
 	}
 
 	// ========================================================================
