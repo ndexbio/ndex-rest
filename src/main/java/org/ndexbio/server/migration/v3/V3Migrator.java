@@ -22,6 +22,7 @@ import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.FolderIndexManager;
+import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.ShortcutIndexManager;
 import org.ndexbio.common.solr.SolrObjectFactory;
 import org.ndexbio.common.util.NdexUUIDFactory;
@@ -386,9 +387,7 @@ public class V3Migrator implements AutoCloseable {
 	// ========================================================================
 
 	public void processNetworks(DaoSet dao) throws Exception {
-		// Networks stay in home folder (parent = null means home).
-		// This phase ensures access keys are preserved and re-indexes if needed.
-		String sql = "SELECT \"UUID\", owneruuid, \"owner\", visibility, access_key, access_key_is_on "
+		String sql = "SELECT \"UUID\", owneruuid, \"owner\", visibility "
 				+ "FROM network WHERE is_deleted = false";
 
 		try (PreparedStatement pst = db.prepareStatement(sql);
@@ -400,22 +399,90 @@ public class V3Migrator implements AutoCloseable {
 					UUID ownerId = (UUID) rs.getObject(2);
 					String ownerName = rs.getString(3);
 					String visibility = rs.getString(4);
-					String accessKey = rs.getString(5);
-					boolean accessKeyIsOn = rs.getBoolean(6) && !rs.wasNull();
 
-					// Ensure network parent is null (home folder) if not already set
-					// Networks that are already in a folder (from group/set migration) stay there
-					// No action needed — networks default to home
-
-					// Access key is already on the network table, no migration needed
+					// Rebuild Solr index for this network with current permissions
+					reindexNetwork(networkId, ownerId, ownerName, visibility, dao);
 
 					networksProcessed++;
+					if (networksProcessed % 500 == 0) {
+						logger.info("Reindexed " + networksProcessed + " networks so far...");
+					}
 				} catch (Exception e) {
-					logger.log(Level.SEVERE, "Failed to process network " + networkId, e);
+					logger.log(Level.SEVERE, "Failed to reindex network " + networkId, e);
 				}
 			}
 		}
-		logger.info("Processed " + networksProcessed + " networks.");
+		logger.info("Reindexed " + networksProcessed + " networks total.");
+	}
+
+	/**
+	 * Rebuild the Solr index for a single network using the new permission model.
+	 * Reads user_network_membership to build the permission map for the index.
+	 */
+	private void reindexNetwork(UUID networkId, UUID ownerId, String ownerName,
+								String visibility, DaoSet dao) throws Exception {
+		NetworkSummary ns = dao.networkDAO.getNetworkSummaryById(networkId);
+		if (ns == null) return;
+
+		VisibilityType vis = VisibilityType.valueOf(visibility);
+
+		// Gather individual user permissions (including flattened group perms from phase 2)
+		Map<String, String> userPerms = loadNetworkUserPermissions(networkId);
+
+		// Split into read and edit collections for Solr index
+		List<String> userReads = new ArrayList<>();
+		List<String> userEdits = new ArrayList<>();
+		for (Map.Entry<String, String> entry : userPerms.entrySet()) {
+			String userId = entry.getKey();
+			// Look up username for this userId
+			String username = getUsernameById(UUID.fromString(userId), dao);
+			if (username == null) continue;
+
+			switch (entry.getValue()) {
+				case "READ":
+					userReads.add(username);
+					break;
+				case "WRITE":
+				case "ADMIN":
+					userEdits.add(username);
+					break;
+			}
+		}
+
+		try (GlobalNetworkIndexManager nim = solrObjectFactory.getGlobalNetworkIndexManager()) {
+			// Delete old index entry from both cores, then recreate
+			try { nim.delete(networkId.toString(), VisibilityType.PRIVATE); } catch (Exception ignored) {}
+			try { nim.delete(networkId.toString(), VisibilityType.PUBLIC); } catch (Exception ignored) {}
+			nim.createIndex(ns, vis, userReads, userEdits);
+		}
+	}
+
+	private String getUsernameById(UUID userId, DaoSet dao) {
+		try {
+			User u = dao.userDAO.getUserById(userId, false, false);
+			return u != null ? u.getUserName() : null;
+		} catch (Exception e) {
+			logger.warning("Could not look up username for " + userId);
+			return null;
+		}
+	}
+
+	/**
+	 * Load all user permissions for a network from user_network_membership.
+	 * Returns map of userId.toString() -> permission string.
+	 */
+	private Map<String, String> loadNetworkUserPermissions(UUID networkId) throws SQLException {
+		Map<String, String> perms = new HashMap<>();
+		String sql = "SELECT user_id, permission_type FROM user_network_membership WHERE network_id = ?";
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				while (rs.next()) {
+					perms.put(rs.getObject(1).toString(), rs.getString(2));
+				}
+			}
+		}
+		return perms;
 	}
 
 	// ========================================================================
@@ -423,15 +490,9 @@ public class V3Migrator implements AutoCloseable {
 	// ========================================================================
 
 	public void processUsers() throws Exception {
-		// Set all users to not searchable by default. Users must opt-in.
-		// TODO: Adjust column name if your ndex_user table uses a different field
-		String sql = "UPDATE ndex_user SET is_searchable = false WHERE is_deleted = false";
-
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			usersProcessed = pst.executeUpdate();
-		}
-		db.commit();
-		logger.info("Set " + usersProcessed + " users to not searchable (opt-in required).");
+		// User search opt-in: not yet implemented, ndex_user schema changes pending.
+		// TODO: add is_searchable column to ndex_user and set default to false
+		logger.info("User search opt-in migration skipped (schema not ready).");
 	}
 
 	// ========================================================================
@@ -465,8 +526,9 @@ public class V3Migrator implements AutoCloseable {
 		shortcut.setModificationTime(ns.getModificationTime());
 		shortcut.setIsDeleted(false);
 
-		// TODO: determine shortcut visibility from network or folder visibility
-		sim.createIndex(shortcut, VisibilityType.PRIVATE, null, null);
+		// Inherit visibility from target network
+		VisibilityType vis = VisibilityType.valueOf(ns.getVisibility().name());
+		sim.createIndex(shortcut, vis, null, null);
 		shortcutsCreated++;
 	}
 
