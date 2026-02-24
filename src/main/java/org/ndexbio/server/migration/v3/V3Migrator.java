@@ -186,9 +186,6 @@ public class V3Migrator implements AutoCloseable {
 		// Set access key
 		setAccessKey("folder", folder.getExternalId(), accessKey, accessKeyIsOn);
 
-		// TODO: migrate network_set permissions to folder_permission if applicable
-		// migrateNetworkSetPermissions(set.getExternalId(), folder.getExternalId());
-
 		// Index folder in Solr
 		try (FolderIndexManager fim = solrObjectFactory.getFolderIndexManager()) {
 			VisibilityType vis = determineFolderVisibility(set);
