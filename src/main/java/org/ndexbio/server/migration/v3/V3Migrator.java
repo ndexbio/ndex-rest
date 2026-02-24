@@ -195,7 +195,7 @@ public class V3Migrator implements AutoCloseable {
 		// Create shortcuts for each network in the set
 		try (ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager()) {
 			for (UUID networkId : set.getNetworks()) {
-				createNetworkShortcut(networkId, folder.getExternalId(), ownerId, owner, dao, sim);
+				createNetworkShortcut(networkId, folder.getExternalId(), ownerId, owner, dao, sim, null);
 			}
 		}
 
@@ -273,7 +273,7 @@ public class V3Migrator implements AutoCloseable {
 		// Create shortcuts in the folder for each network
 		try (ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager()) {
 			for (GroupNetworkEntry entry : groupNetworks) {
-				createNetworkShortcut(entry.networkId, folderId, ownerId, owner, dao, sim);
+				createNetworkShortcut(entry.networkId, folderId, ownerId, owner, dao, sim, folderUserReads);
 			}
 		}
 
@@ -525,7 +525,8 @@ public class V3Migrator implements AutoCloseable {
 	 * Create a shortcut pointing to a network inside a folder, and index it in Solr.
 	 */
 	private void createNetworkShortcut(UUID networkId, UUID parentFolderId, UUID ownerId,
-									   User owner, DaoSet dao, ShortcutIndexManager sim) throws Exception {
+									   User owner, DaoSet dao, ShortcutIndexManager sim,
+									   List<String> userReads) throws Exception {
 		NetworkSummary ns = dao.networkDAO.getNetworkSummaryById(networkId);
 		if (ns == null) {
 			logger.warning("Network " + networkId + " not found, skipping shortcut.");
@@ -548,9 +549,8 @@ public class V3Migrator implements AutoCloseable {
 		shortcut.setModificationTime(ns.getModificationTime());
 		shortcut.setIsDeleted(false);
 
-		// Inherit visibility from target network
 		VisibilityType vis = VisibilityType.valueOf(ns.getVisibility().name());
-		sim.createIndex(shortcut, vis, null, null);
+		sim.createIndex(shortcut, vis, userReads, null);
 		shortcutsCreated++;
 	}
 
