@@ -148,9 +148,9 @@ public abstract class NdexService
 
 	}
 	
-	   protected static UUID storeRawNetworkFromStream(InputStream in, String fileName) throws IOException {
+	   protected static UUID storeRawNetworkFromStream(InputStream in, String fileName, UUID predefinedUUID) throws IOException {
 		   
-		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   UUID uuid = predefinedUUID != null ? predefinedUUID: NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuid.toString();
 		   
 		   //Create dir
@@ -172,7 +172,7 @@ public abstract class NdexService
 	   }
 
 	   
-	   protected static UUID storeRawNetworkFromMultipart (MultipartFormDataInput input, String fileName) throws IOException, BadRequestException {
+	   protected static UUID storeRawNetworkFromMultipart (MultipartFormDataInput input, String fileName, UUID preDefinedUUID) throws IOException, BadRequestException {
 		   Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
 	       			       
 		   //Get file data to save
@@ -181,7 +181,7 @@ public abstract class NdexService
 			   throw new BadRequestException("Field CXNetworkStream is not found in the POSTed Data.");
 			 
 		   byte[] bytes = new byte[8192];
-		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   UUID uuid = preDefinedUUID !=null ? preDefinedUUID : NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		   String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuid.toString();
 				   
 		   //Create dir

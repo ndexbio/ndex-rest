@@ -1320,7 +1320,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 			daoNew.lockNetwork(networkId);
 						
-	        UUID tmpNetworkId = storeRawNetworkFromMultipart (input, cx1NetworkFileName);
+	        UUID tmpNetworkId = storeRawNetworkFromMultipart (input, cx1NetworkFileName, null);
 
 	        updateNetworkFromSavedFile( networkId, daoNew, tmpNetworkId);
 			
@@ -1368,7 +1368,7 @@ public class NetworkServiceV2 extends NdexService {
         try ( NetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
            	
 			try (InputStream in = this.getInputStreamFromRequest()) {
-					UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName);
+					UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName, null);
 
 					updateNetworkFromSavedFile(networkId, daoNew, tmpNetworkId);				
 			
@@ -1450,7 +1450,7 @@ public class NetworkServiceV2 extends NdexService {
 			daoNew.lockNetwork(networkId);
 			
 			
-	        UUID tmpNetworkId = storeRawNetworkFromMultipart (input, cx1NetworkFileName); //network stored as a temp network
+	        UUID tmpNetworkId = storeRawNetworkFromMultipart (input, cx1NetworkFileName, null); //network stored as a temp network
 	        
 	    	updateNetworkFromSavedAspects(networkId, daoNew, tmpNetworkId);
 			
@@ -1492,7 +1492,7 @@ public class NetworkServiceV2 extends NdexService {
 			
 			try (InputStream in = this.getInputStreamFromRequest()) {
 
-	        UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName); //network stored as a temp network
+	        UUID tmpNetworkId = storeRawNetworkFromStream(in, cx1NetworkFileName, null); //network stored as a temp network
 	        
 	    	updateNetworkFromSavedAspects( networkId, daoNew, tmpNetworkId);
 			}
@@ -1827,7 +1827,7 @@ public class NetworkServiceV2 extends NdexService {
 		   }
 		   
 		   
-		   UUID uuid = storeRawNetworkFromMultipart ( input, cx1NetworkFileName);
+		   UUID uuid = storeRawNetworkFromMultipart ( input, cx1NetworkFileName, null);
 		   return processRawNetwork(visibility, extraIndexOnNodes, uuid);
 
 	   	}
@@ -1889,7 +1889,7 @@ public class NetworkServiceV2 extends NdexService {
 		   }
 		   
 		   try (InputStream in = this.getInputStreamFromRequest()) {
-			   UUID uuid = storeRawNetworkFromStream(in, cx1NetworkFileName);
+			   UUID uuid = storeRawNetworkFromStream(in, cx1NetworkFileName, null);
 			   return processRawNetwork(visibility, extraIndexOnNodes, uuid);
 
 		   }		   

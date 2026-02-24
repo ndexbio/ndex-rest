@@ -415,29 +415,36 @@ public class NetworkServiceV3  extends NdexService {
 				  })
 	   public Response createNetworkJson( 
 			   @Parameter(description="Can be set to **PUBLIC** (visible to all) or **PRIVATE** (visibile to only user and is default if not set)", example="PUBLIC") @QueryParam("visibility") String visibilityStr,
-			   @Parameter(description="Additional fields to index on network. **DO NOT USE, NOT IMPLEMENTED YET**") @QueryParam("indexedfields") String fieldListStr, // comma separated list
-			   @Parameter(description="UUID of the parent folder. If provided, the network will be created in this folder.") @QueryParam("folderId") String folderIdStr
+//			   @Parameter(description="Additional fields to index on network. **DO NOT USE, NOT IMPLEMENTED YET**") @QueryParam("indexedfields") String fieldListStr, // comma separated list
+		       @Parameter(description="A predefined UUID this network should use. Caller need to garentee the uniqueness of this UUID.") @QueryParam("uuid") String preDefinedUUIDStr, 
+   			   @Parameter(description="UUID of the parent folder. If provided, the network will be created in this folder.") @QueryParam("folderId") String folderIdStr
 			   ) throws Exception
 	   {
 	   
+		   UUID preDefinedUUID = null;
+		   if ( preDefinedUUIDStr != null && ! preDefinedUUIDStr.isEmpty()) {
+			   preDefinedUUID = UUID.fromString(preDefinedUUIDStr);
+		   }
+		   		   
+		   
 		   VisibilityType visibility = null;
 		   if ( visibilityStr !=null) {
 			   visibility = VisibilityType.valueOf(visibilityStr);
 		   }
 		   
-		   Set<String> extraIndexOnNodes = null;
-		   if ( fieldListStr != null) {
+		   Set<String> extraIndexOnNodes = new HashSet<>(10);
+		/*   if ( fieldListStr != null) {
 			   extraIndexOnNodes = new HashSet<>(10);
 			   for ( String f: fieldListStr.split("\\s*,\\s*") ) {
 				   extraIndexOnNodes.add(f);
 			   }
-		   }
+		   } */
 		   try (UserDAO dao = new UserDAO()) {
 			   dao.checkDiskSpace(getLoggedInUserId());
 		   }
 		   
 		   try (InputStream in = this.getInputStreamFromRequest()) {
-			   UUID uuid = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
+			   UUID uuid = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName, preDefinedUUID);
 			   UUID folderId = null;
 			   if (folderIdStr != null && !folderIdStr.isEmpty()) {
 				folderId = UUID.fromString(folderIdStr);
@@ -495,27 +502,34 @@ public class NetworkServiceV3  extends NdexService {
 		@Produces("application/json")
 		@Consumes("multipart/form-data")
 		public Response createCX2Network(MultipartFormDataInput input, @QueryParam("visibility") String visibilityStr,
-				@QueryParam("indexedfields") String fieldListStr, // comma seperated list
+			    @Parameter(description="A predefined UUID this network should use. Caller need to garentee the uniqueness of this UUID.") @QueryParam("uuid") String preDefinedUUIDStr, 
+				//@QueryParam("indexedfields") String fieldListStr, // comma seperated list, deprecated
 				@QueryParam("folderId") String folderIdStr
 		) throws Exception {
+
+			UUID preDefinedUUID = null;
+			if ( preDefinedUUIDStr != null && ! preDefinedUUIDStr.isEmpty()) {
+				   preDefinedUUID = UUID.fromString(preDefinedUUIDStr);
+			}
+			   		   
 
 			VisibilityType visibility = null;
 			if (visibilityStr != null) {
 				visibility = VisibilityType.valueOf(visibilityStr);
 			}
 
-			Set<String> extraIndexOnNodes = null;
-			if (fieldListStr != null) {
+			Set<String> extraIndexOnNodes = new HashSet<>(10);
+		/*	if (fieldListStr != null) {
 				extraIndexOnNodes = new HashSet<>(10);
 				for (String f : fieldListStr.split("\\s*,\\s*")) {
 					extraIndexOnNodes.add(f);
 				}
-			}
+			} */
 			try (UserDAO dao = new UserDAO()) {
 				dao.checkDiskSpace(getLoggedInUserId());
 			}
 
-			UUID uuid = storeRawNetworkFromMultipart(input, CX2NetworkLoader.cx2NetworkFileName);
+			UUID uuid = storeRawNetworkFromMultipart(input, CX2NetworkLoader.cx2NetworkFileName, preDefinedUUID);
 		    UUID folderId = null;
 		    if (folderIdStr != null && !folderIdStr.isEmpty()) {
 		    	folderId = UUID.fromString(folderIdStr);
@@ -555,7 +569,7 @@ public class NetworkServiceV3  extends NdexService {
 	        try ( NetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
 				
 				try (InputStream in = this.getInputStreamFromRequest()) {
-						UUID tmpNetworkId = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
+						UUID tmpNetworkId = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName, (UUID)null);
 
 					s =	updateCx2NetworkFromSavedFile(networkId, daoNew, tmpNetworkId);
 				
@@ -604,7 +618,7 @@ public class NetworkServiceV3  extends NdexService {
             
 	        try ( NetworkDAO daoNew =lockNetworkForUpdate(networkId) ) {
 				try {			
-					UUID tmpNetworkId = storeRawNetworkFromMultipart (input, CX2NetworkLoader.cx2NetworkFileName);
+					UUID tmpNetworkId = storeRawNetworkFromMultipart (input, CX2NetworkLoader.cx2NetworkFileName, null);
 
 					s = updateCx2NetworkFromSavedFile( networkId, daoNew, tmpNetworkId);
 				

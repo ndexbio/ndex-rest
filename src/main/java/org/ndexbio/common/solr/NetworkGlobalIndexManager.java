@@ -247,6 +247,8 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		solrQuery.setQuery("( " + SearchUtilities.preprocessSearchTerm(searchTerms) + " ) AND _val_:\"div(" + NDEX_SCORE+ ",10)\"" ).setFields(UUID);
     	solrQuery.set("defType", "edismax");
 		solrQuery.set("qf","uuid^20 name^10 description^5 labels^6 owner^2 networkType^4 organism^3 disease^3 tissue^3 author^2 methods nodeName represents alias rights^0.6 rightsHolder^0.6");
+		solrQuery.set("bq", "edgeCount:[1 TO *]^20");
+		
 		if ( offset >=0)
 		  solrQuery.setStart(offset);
 		if ( limit >0 )
