@@ -266,7 +266,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         } catch (ObjectNotFoundException e0) {
             _logger.info("User: " + authInfo[0] +" not found in Ndex db." /*requestContext.getUriInfo().getPath()*/);
             String mName = method.getName();
-            if ( !mName.equals("createUser")) {
+            if ( !mName.equals("createUser") && !mName.equals("signInByIdToken")) {
             	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
             	authorizationException = e0;
             }
@@ -300,8 +300,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         ResponseBuilder rb = Response
                 .status(Status.UNAUTHORIZED)
                 .entity(authorizationException.getNdexExceptionInJason());
-        if (!setAuthHeaderIsFalse(requestContext))
-        	rb.header("WWW-Authenticate", "Basic");
+    /*    if (!setAuthHeaderIsFalse(requestContext) && "B".equals(authType))
+        	rb.header("WWW-Authenticate", "Basic"); */
         
         requestContext.abortWith(
            			rb.type("application/json")
@@ -312,11 +312,11 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 		accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method, authType) + "\t[Unauthorized exception: "+ authorizationException.getMessage() + "]"  );
     }
     
-    public static boolean setAuthHeaderIsFalse(ContainerRequestContext arg0) {
+  /*  public static boolean setAuthHeaderIsFalse(ContainerRequestContext arg0) {
         UriInfo uriInfo = arg0.getUriInfo();
         MultivaluedMap<String,String> f = uriInfo.getQueryParameters();
         return f !=null && f.get("setAuthHeader") !=null && f.get("setAuthHeader").get(0).equals("false") ;
-    }
+    } */
     
     
     private String buildLogString(User authUser, ContainerRequestContext requestContext, Method method, String authorizationType ) {

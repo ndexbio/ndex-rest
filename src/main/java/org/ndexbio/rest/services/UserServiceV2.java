@@ -191,6 +191,7 @@ public class UserServiceV2 extends NdexService {
 					Security.generateVerificationCode() : null;
 			
 			User user = userdao.createNewUser(newUser, verificationCode);
+			UUID newUserUUID = user.getExternalId();
 			
 			if ( verificationCode == null) {
 				try (UserIndexManager mgr = new UserIndexManager()) {
@@ -262,7 +263,10 @@ public class UserServiceV2 extends NdexService {
 			
 			String url = Configuration.getInstance().getHostURI()  + 
 		            Configuration.getInstance().getRestAPIPrefix()+"/user?username=" + URLEncoder.encode(newUser.getUserName().toLowerCase(), "UTF-8");
-			return Response.accepted().location(new URI (url)).header("Access-Control-Expose-Headers", "Location").build();
+			URI l = new URI (Configuration.getInstance().getHostURI()  + 
+			            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ newUserUUID);
+
+			return Response.accepted(l).location(new URI (url)).header("Access-Control-Expose-Headers", "Location").build();
 		} 
 	}
 	
