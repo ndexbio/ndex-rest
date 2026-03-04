@@ -57,7 +57,7 @@ public class NotSupportedExceptionMapper implements ExceptionMapper<NotSupported
         return Response
             .status(Status.UNSUPPORTED_MEDIA_TYPE)
             .entity(ne.getNdexExceptionInJason())
-            .header("WWW-Authenticate", "Basic")
+           // .header("WWW-Authenticate", "Basic")
             .type("application/json")
             .build();
     }
