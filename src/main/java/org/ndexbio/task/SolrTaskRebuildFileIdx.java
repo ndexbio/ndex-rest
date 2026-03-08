@@ -110,7 +110,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			checkRecordExists(folder);
 			folder.setOwner(username);
 			try(FolderIndexManager globalIdx = solrObjectFactory.getFolderIndexManager()) {
-				Map<String, String> folderPermissions = dao.getFolderPermissions(fileId);
+				Map<String, String> folderPermissions = dao.getFolderPermissionsWithUsernames(fileId);
  				globalIdx.createIndex(folder,
 						visibilityType,
 						getFolderUserReads(folderPermissions),

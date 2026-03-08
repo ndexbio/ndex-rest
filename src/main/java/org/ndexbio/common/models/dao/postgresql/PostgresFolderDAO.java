@@ -785,6 +785,26 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 	    return permissionsMap;
 	}
+	@Override
+	public Map<String, String> getFolderPermissionsWithUsernames(UUID folderId) throws SQLException {
+		Map<String, String> permissionsMap = new HashMap<>();
+		String sql = "SELECT u.user_name, fp.permission FROM folder_permission fp " +
+				"JOIN ndex_user u ON fp.user_id = u.\"UUID\" " +
+				"WHERE fp.folder_id=?";
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			pst.setObject(1, folderId);
+			try (ResultSet rs = pst.executeQuery()) {
+				while (rs.next()) {
+					permissionsMap.put(
+							rs.getString("user_name"),
+							rs.getString("permission")
+					);
+				}
+			}
+		}
+		return permissionsMap;
+	}
+
 
 	@Override
 	public String getFolderAccessKey(UUID folderId) throws SQLException, ObjectNotFoundException {

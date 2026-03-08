@@ -12,9 +12,12 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
+import org.ndexbio.common.models.dao.DAOFactory;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Permissions;
+import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.tools.SearchUtilities;
 import org.ndexbio.rest.Configuration;
@@ -22,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -91,6 +95,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
                 addKeyWithValues(doc, USER_EDIT, userEdits);
             }
         }
+
     }
 
 
@@ -141,16 +146,20 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     }
     public void commit(String coreName) throws SolrServerException, IOException {
         if ( !doc.isEmpty()) {
+            logger.info("Committing doc to core [{}]:", coreName);
+            for (String fieldName : doc.getFieldNames()) {
+                logger.info("  {} = {}", fieldName, doc.getFieldValues(fieldName));
+            }
             Collection<SolrInputDocument> docs = new ArrayList<>(1);
             docs.add(doc);
             solrClientWrapper.commit(coreName, docs);
-        } else
+        } else {
+            logger.info("Empty doc, committing to core [{}] with no additions", coreName);
             solrClientWrapper.commit(coreName, null);
+        }
         doc = new SolrInputDocument();
         postCommit();
-
     }
-
     public void delete(String uuid, VisibilityType visibilityType) throws SolrServerException, IOException {
 
         solrClientWrapper.delete(getCoreNameFromVisibility(visibilityType),
@@ -239,7 +248,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
         String coreName = getCoreNameFromVisibility(visibilityType);
-
+        logger.info("QUERY {} FILTER: {}", solrQuery.toQueryString(), Arrays.toString(solrQuery.getFilterQueries()));
         try {
             QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery);
             return rsp.getResults();
@@ -399,6 +408,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
         return publicCoreName;
     }
+
 
 
 
