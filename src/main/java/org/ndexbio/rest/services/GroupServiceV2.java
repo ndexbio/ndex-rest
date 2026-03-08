@@ -39,34 +39,25 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.DefaultValue;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.PUT;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 
 import org.apache.solr.client.solrj.SolrServerException;
+import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.solr.GroupIndexManager;
+import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.Group;
-import org.ndexbio.model.object.Membership;
-import org.ndexbio.model.object.PermissionRequest;
-import org.ndexbio.model.object.Permissions;
-import org.ndexbio.model.object.Request;
-import org.ndexbio.model.object.RequestType;
+import org.ndexbio.model.object.*;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -108,28 +99,48 @@ public class GroupServiceV2 extends NdexService {
 	@Operation(summary = "Create Group", description = "Create a group owned by the authenticated user based on the supplied group JSON object.")
 	public Response createGroup(final Group newGroup)
 			throws  Exception {
-	
-		try (GroupDAO dao = new GroupDAO()) {
-			// newGroup.setGroupName(newGroup.getGroupName().toLowerCase());
-			Group group = dao.createNewGroup(newGroup, this.getLoggedInUser().getExternalId());
-			try (GroupIndexManager m = new GroupIndexManager()) {
-				m.addGroup(group.getExternalId().toString(), group.getGroupName(), group.getDescription());
-			}
-			dao.commit();
+		FolderRequest request = mapGroupRequestToFolderRequest(newGroup);
 
-			URI l = new URI(Configuration.getInstance().getHostURI() + Configuration.getInstance().getRestAPIPrefix()
-					+ "/group/" + group.getExternalId());
-
-			return Response.created(l).entity(l).build();
-			// return group;
-		} catch (URISyntaxException e) {
-			throw new NdexException("Server Error, can create URL for the new resource: " + e.getMessage(), e);
-		} catch (SolrServerException e) {
-			throw new NdexException("Failed to create Solr Index for new group: " + e.getMessage(), e);
-		} catch (IOException e) {
-			throw new NdexException("Failed to create group: " + e.getMessage(), e);
-
+		if (request == null) {
+			throw new BadRequestException("No folder request data was provided!");
 		}
+
+		if (request.getName() == null || request.getName().trim().isEmpty()) {
+			throw new BadRequestException("Folder name cannot be empty.");
+		}
+
+		UUID parentUUID = request.getParent();
+		if (parentUUID != null && !parentUUID.toString().isEmpty()) {
+			try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+				if (!dao.isFolderOwner(parentUUID, getLoggedInUser().getExternalId())) {
+					// If not owner, check if user has WRITE permission
+					Map<String, String> permissions = dao.getFolderPermissions(parentUUID);
+					String userPermission = permissions.get(getLoggedInUser().getExternalId().toString());
+					if (userPermission == null || !userPermission.equals(Permissions.WRITE.toString())) {
+						throw new UnauthorizedOperationException("User doesn't have write access to the parent folder.");
+					}
+				}
+			}
+		}
+		UUID folderUUID;
+		if (newGroup.getExternalId() != null)
+			folderUUID = newGroup.getExternalId();
+		else
+			folderUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+
+		// create entry in db.
+		NdexObjectUpdateStatus status;
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
+			dao.commit();
+			createFileIndex(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE, FileType.FOLDER, true);
+		}
+
+		URI l = new URI(Configuration.getInstance().getHostURI() + Configuration.getInstance().getRestAPIPrefix()
+				+ "/group/" + folderUUID);
+
+		return Response.created(l).entity(l).build();
+
 	}
 
 
@@ -508,7 +519,8 @@ public class GroupServiceV2 extends NdexService {
 				return reqs;
 			}
 		}
-		
+
+
 	
 	
 /*	@GET
@@ -569,5 +581,11 @@ public class GroupServiceV2 extends NdexService {
 	}*/
 
 
+	static FolderRequest mapGroupRequestToFolderRequest(Group group){
+		FolderRequest f = new FolderRequest();
+		f.setName(group.getGroupName());
+		f.setDescription(group.getDescription());
+		return f;
+	}
 
 }
