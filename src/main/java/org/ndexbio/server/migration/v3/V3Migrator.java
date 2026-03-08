@@ -5,14 +5,9 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.*;
 
+import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
@@ -34,10 +29,16 @@ import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskRebuildFileIdx;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class V3Migrator implements AutoCloseable {
 
-	private static final Logger logger = Logger.getLogger(V3Migrator.class.getName());
+
+	protected final static Logger logger = LoggerFactory.getLogger(V3Migrator.class.getSimpleName());
 
 	private static final Map<String, Integer> PERM_RANK = Map.of(
 			"READ", 1, "WRITE", 2, "ADMIN", 3
@@ -55,6 +56,13 @@ public class V3Migrator implements AutoCloseable {
 	private int usersProcessed = 0;
 	private int shortcutsCreated = 0;
 	private int permissionsFlattened = 0;
+
+
+	//todo if duplicate group admins contain preferred user, make them folder admin, if no preferred take first. all others have read/write
+	//todo v2 endpoints should correspond network sets with folders
+	//todo
+	private List<String> preferredUsers = List.of("dexterpratt", "churas");
+	private List<UUID> preferredUserIds;
 
 	public V3Migrator() throws Exception {
 		Configuration configuration = Configuration.createInstance();
@@ -80,6 +88,9 @@ public class V3Migrator implements AutoCloseable {
 
 			logger.info("=== V3 Migration Starting ===");
 
+			logger.info("--- Setup: Loading preferred Owners");
+			setupCoresAndPreferredUsers(userDAO);
+
 			logger.info("--- Phase 1: Network Sets -> Folders + Shortcuts ---");
 			processNetworkSets(dao);
 
@@ -89,8 +100,8 @@ public class V3Migrator implements AutoCloseable {
 			logger.info("--- Phase 3: Networks -> Verify in Home Folder + Migrate Access Keys ---");
 			processNetworks(dao);
 
-			logger.info("--- Phase 4: Users -> Set search opt-in default ---");
-			processUsers();
+			//logger.info("--- Phase 4: Users -> Set search opt-in default ---");
+			//processUsers();
 
 			logger.info("=== V3 Migration Complete ===");
 			logger.info(String.format(
@@ -99,6 +110,24 @@ public class V3Migrator implements AutoCloseable {
 					usersProcessed, shortcutsCreated, permissionsFlattened));
 		}
 	}
+
+	public void setupCoresAndPreferredUsers(UserDAO userDAO){
+		preferredUserIds = new ArrayList<>();
+		for (String username: preferredUsers){
+            try {
+                User user = userDAO.getUserByAccountName(username, false, false);
+				preferredUserIds.add(user.getExternalId());
+            } catch (NdexException | IOException | SQLException e) {
+                throw new RuntimeException(e);
+            }
+        }
+		try (FolderIndexManager indexManager = Configuration.getInstance().getSolrObjectFactory().getFolderIndexManager()){
+			indexManager.createCoreIfNeeded();
+		} catch (SolrServerException | IOException | NdexException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
 
 	// ========================================================================
 	// Phase 1: Network Sets -> Folders + Shortcuts
@@ -129,7 +158,7 @@ public class V3Migrator implements AutoCloseable {
 					networkSetsProcessed++;
 				} catch (Exception e) {
 					db.rollback();
-					logger.log(Level.SEVERE, "Failed to migrate network set " + setId, e);
+					logger.info("Failed to migrate network set " + setId, e);
 				}
 			}
 		}
@@ -221,7 +250,7 @@ public class V3Migrator implements AutoCloseable {
 					groupsProcessed++;
 				} catch (Exception e) {
 					db.rollback();
-					logger.log(Level.SEVERE, "Failed to migrate group " + groupId, e);
+					logger.info( "Failed to migrate group " + groupId, e);
 				}
 			}
 		}
@@ -232,7 +261,7 @@ public class V3Migrator implements AutoCloseable {
 		// Find the group owner (admin user)
 		UUID ownerId = findGroupOwner(groupId);
 		if (ownerId == null) {
-			logger.warning("Group " + groupId + " has no admin user, skipping.");
+			logger.info("Group " + groupId + " has no admin user, skipping.");
 			return;
 		}
 		User owner = dao.userDAO.getUserById(ownerId, false, false);
@@ -286,18 +315,34 @@ public class V3Migrator implements AutoCloseable {
 
 		db.commit();
 	}
-
 	private UUID findGroupOwner(UUID groupId) throws SQLException {
 		String sql = "SELECT user_id FROM ndex_group_user "
-				+ "WHERE group_id = ? AND is_admin = true LIMIT 1";
+				+ "WHERE group_id = ? AND is_admin = true";
+		List<UUID> admins = new ArrayList<>();
 		try (PreparedStatement pst = db.prepareStatement(sql)) {
 			pst.setObject(1, groupId);
 			try (ResultSet rs = pst.executeQuery()) {
-				return rs.next() ? (UUID) rs.getObject(1) : null;
+				while (rs.next()) {
+					admins.add((UUID) rs.getObject(1));
+				}
 			}
 		}
+		if (admins.isEmpty()) return null;
+		if (admins.size() == 1) return admins.get(0);
+		return selectGroupOwnerFromList(admins);
 	}
 
+	private UUID selectGroupOwnerFromList(List<UUID> adminIds) {
+		Set<UUID> adminSet = new HashSet<>(adminIds);
+		UUID prefOwner = null;
+		for (UUID pref: preferredUserIds){
+			if (adminSet.contains(pref)){
+				return pref;
+
+			}
+		}
+        return adminIds.get(0);
+    }
 	private List<GroupNetworkEntry> loadGroupNetworks(UUID groupId) throws SQLException {
 		List<GroupNetworkEntry> entries = new ArrayList<>();
 		String sql = "SELECT gnm.network_id, gnm.permission_type "
@@ -430,7 +475,7 @@ public class V3Migrator implements AutoCloseable {
 						logger.info("Reindexed " + networksProcessed + " networks so far...");
 					}
 				} catch (Exception e) {
-					logger.log(Level.SEVERE, "Failed to reindex network " + networkId, e);
+					logger.info("Failed to reindex network " + networkId, e);
 				}
 			}
 		}
@@ -447,7 +492,11 @@ public class V3Migrator implements AutoCloseable {
 		if (ns == null) return;
 
 		VisibilityType vis = VisibilityType.valueOf(visibility);
+		org.ndexbio.task.SolrTaskRebuildFileIdx t = new SolrTaskRebuildFileIdx(networkId, ownerId, ns.getOwner(),vis, FileType.NETWORK,false);
+		//NdexServerQueue.INSTANCE.addSystemTask(t);
+		t.run();
 
+		/*
 		// Gather individual user permissions (including flattened group perms from phase 2)
 		Map<String, String> userPerms = loadNetworkUserPermissions(networkId);
 
@@ -471,12 +520,19 @@ public class V3Migrator implements AutoCloseable {
 			}
 		}
 
+		 */
+
+
+		/*
 		try (GlobalNetworkIndexManager nim = solrObjectFactory.getGlobalNetworkIndexManager()) {
+
 			// Delete old index entry from both cores, then recreate
 			try { nim.delete(networkId.toString(), VisibilityType.PRIVATE); } catch (Exception ignored) {}
 			try { nim.delete(networkId.toString(), VisibilityType.PUBLIC); } catch (Exception ignored) {}
 			nim.createIndex(ns, vis, userReads, userEdits);
 		}
+
+		 */
 	}
 
 	private String getUsernameById(UUID userId, DaoSet dao) {
@@ -484,7 +540,7 @@ public class V3Migrator implements AutoCloseable {
 			User u = dao.userDAO.getUserById(userId, false, false);
 			return u != null ? u.getUserName() : null;
 		} catch (Exception e) {
-			logger.warning("Could not look up username for " + userId);
+			logger.info("Could not look up username for " + userId);
 			return null;
 		}
 	}
@@ -519,7 +575,7 @@ public class V3Migrator implements AutoCloseable {
 
 	// ========================================================================
 	// Shared helpers
-	// ========================================================================
+	// ============================================loadNetworkUserPermissions============================
 
 	/**
 	 * Create a shortcut pointing to a network inside a folder, and index it in Solr.
@@ -529,7 +585,7 @@ public class V3Migrator implements AutoCloseable {
 									   List<String> userReads) throws Exception {
 		NetworkSummary ns = dao.networkDAO.getNetworkSummaryById(networkId);
 		if (ns == null) {
-			logger.warning("Network " + networkId + " not found, skipping shortcut.");
+			logger.info("Network " + networkId + " not found, skipping shortcut.");
 			return;
 		}
 
@@ -645,7 +701,7 @@ public class V3Migrator implements AutoCloseable {
 		try (V3Migrator migrator = new V3Migrator()) {
 			migrator.run();
 		} catch (Exception e) {
-			logger.log(Level.SEVERE, "Migration failed", e);
+			logger.info("Migration failed", e);
 			System.exit(1);
 		}
 	}
