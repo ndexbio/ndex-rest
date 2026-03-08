@@ -34,10 +34,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.UUID;
+import java.util.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.security.PermitAll;
@@ -50,6 +47,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
+import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
@@ -67,6 +65,8 @@ import io.swagger.v3.oas.annotations.Operation;
 
 @Path("/v2/group")
 public class GroupServiceV2 extends NdexService {
+
+	// now using folders not groups. todo figure out what to do about permission requests and group network memberships..
 
 
 	/**************************************************************************
@@ -129,9 +129,8 @@ public class GroupServiceV2 extends NdexService {
 			folderUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
 		// create entry in db.
-		NdexObjectUpdateStatus status;
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
+			dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
 			dao.commit();
 			createFileIndex(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE, FileType.FOLDER, true);
 		}
@@ -152,25 +151,26 @@ public class GroupServiceV2 extends NdexService {
 	 * @throws Exception 
 
 	 **************************************************************************/
-	
-	
+
+
 	@DELETE
 	@Path("/{groupid}")
 	@Operation(summary = "Delete Group", description = "Delete the group specified by groupId.")
 	@Produces("application/json")
-	public void deleteGroup(@PathParam("groupid") final String groupId)
-			throws Exception {
-				
-		try (GroupDAO dao = new GroupDAO()){
-			dao.deleteGroupById(UUID.fromString(groupId),this.getLoggedInUser().getExternalId());
-			try (GroupIndexManager m = new GroupIndexManager()) {
-				m.deleteGroup(groupId);
-				dao.commit();
-			}
-		} catch (SolrServerException | IOException e) {
-			throw new NdexException("Failed to delete group: " + e.getMessage(), e);
-		} 
+	public void deleteGroup(@PathParam("groupid") final String groupId) throws Exception {
+
+		UUID folderId = UUID.fromString(groupId);
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
+				throw new UnauthorizedOperationException("Signed in user is not the owner of this group.");
+
+			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
+			dao.deleteFolder(folderId, true, false);
+			dao.commit();
+			deleteFileIndex(folderId, visibilityType);
+		}
 	}
+
 
 
 
@@ -194,14 +194,15 @@ public class GroupServiceV2 extends NdexService {
 	@Produces("application/json")
 	public Group getGroup(@PathParam("groupid") final String groupId)
 			throws ObjectNotFoundException, NdexException, SQLException {
-		
-		try (GroupDAO dao = new GroupDAO()) {
-			final Group group = dao.getGroupById(UUID.fromString(groupId));
-			return group;
-		} catch (IOException e) {
+
+		UUID folderId = UUID.fromString(groupId);
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+			NdexFolder folder = dao.getFolder(folderId, getLoggedInUserId(), null);
+			return mapFolderToGroup(folder);
+		} catch (Exception e) {
 			throw new NdexException("Failed to get group: " + e.getMessage(), e);
-		} 
-	}
+		}
+    }
 
 
 	/**************************************************************************
@@ -221,27 +222,21 @@ public class GroupServiceV2 extends NdexService {
 							@PathParam("groupid") final String id)
 			throws Exception {
 
-		
-		try (GroupDAO dao = new GroupDAO ()){
-			
-			UUID groupId = UUID.fromString(id);
-			if ( updatedGroup.getExternalId() !=null && !groupId.equals(updatedGroup.getExternalId())) {
-				throw new NdexException ( "UUID does't match between URL and uploaded group object.");
-			}
-			if ( ! dao.isGroupAdmin(groupId, getLoggedInUser().getExternalId()))
-				throw new NdexException ("Only group administrators can update a group." );
-			
-			Group group = dao.updateGroup(updatedGroup, groupId);
-			try (GroupIndexManager m = new GroupIndexManager()) {
-				m.updateGrp(id, group.getGroupName(), group.getDescription());
-				dao.commit();
-			}
-			return ;
-		
-		} catch ( SolrServerException | IOException e) {
-			throw new NdexException ("Failed to update group: " + e.getMessage(), e);
-		} 
-		
+
+		UUID folderId = UUID.fromString(id);
+		if (updatedGroup.getExternalId() != null && !folderId.equals(updatedGroup.getExternalId())) {
+			throw new NdexException("UUID doesn't match between URL and uploaded group object.");
+		}
+
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
+				throw new NdexException("Only group administrators can update a group.");
+
+			dao.updateFolder(folderId, updatedGroup.getGroupName(), null, getLoggedInUserId(), updatedGroup.getDescription());
+			dao.commit();
+			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
+			createFileIndex(folderId, getLoggedInUser(), visibilityType, FileType.FOLDER, false);
+		}
 	}
 
 	/**************************************************************************
@@ -259,26 +254,39 @@ public class GroupServiceV2 extends NdexService {
 	public void updateMember(@PathParam("groupid") final String group_id,
 			@QueryParam("userid") final String user_id,
 			@QueryParam("type")  final Permissions permission
-			) throws 
-			ObjectNotFoundException, NdexException, SQLException {
+			) throws
+            ObjectNotFoundException, NdexException, SQLException, IOException {
 
-		UUID groupId = UUID.fromString(group_id) ;
+		UUID folderId = UUID.fromString(group_id);
 		UUID userId = UUID.fromString(user_id);
-		if ( userId ==null)
+
+		if (userId == null)
 			throw new NdexException("userid is required in URL.");
-		if ( permission== null)
-			throw new NdexException("pamameter 'type' is required in URL.");
-		
-		try (GroupDAO dao = new GroupDAO()) {
-			
-			if ( !dao.isGroupAdmin(groupId, getLoggedInUserId()))
+		if (permission == null)
+			throw new NdexException("parameter 'type' is required in URL.");
+
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
 				throw new NdexException("Only group admin can update membership.");
-			
-			//check for resource name? but it can be a network. Not really important, the code uses external id's
-			dao.updateMember(groupId, userId, permission, this.getLoggedInUser().getExternalId());
+
+			// Map ADMIN permission to WRITE since folders don't have ADMIN members,
+			// only an owner. MEMBER maps to READ.
+			Permissions folderPermission;
+			if (permission == Permissions.ADMIN || permission == Permissions.WRITE) {
+				folderPermission = Permissions.WRITE;
+			} else {
+				folderPermission = Permissions.READ;
+			}
+
+			dao.setFolderPermission(folderId, userId, folderPermission);
 			dao.commit();
-		} 
-	}
+
+			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
+			createFileIndex(folderId, getLoggedInUser(), visibilityType, FileType.FOLDER, false);
+		} catch (Exception e) {
+            throw new NdexException("Failed to add member");
+        }
+    }
 
 	/**************************************************************************
 	 * Remove member from group
@@ -309,19 +317,25 @@ public class GroupServiceV2 extends NdexService {
 
 
 		UUID memberId = UUID.fromString(memberIdStr);
-		
-		UUID groupId = UUID.fromString(groupIdStr);
-		try (GroupDAO dao = new GroupDAO()){
-			if ( !dao.isGroupAdmin(groupId, getLoggedInUserId())) {
-			    if (  !memberId.equals(getLoggedInUserId())) {
-					throw new UnauthorizedOperationException("Unable to delete group membership: user need to be an admin of this group or can only make himself leave this group.");
+		UUID folderId = UUID.fromString(groupIdStr);
+
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+			if (!dao.isFolderOwner(folderId, getLoggedInUserId())) {
+				if (!memberId.equals(getLoggedInUserId())) {
+					throw new UnauthorizedOperationException(
+							"Unable to delete group membership: user needs to be an admin of this group or can only make himself leave this group.");
 				}
 			}
-			dao.removeMember(memberId, groupId, 
-					dao.isGroupAdmin(groupId, getLoggedInUserId()) ? this.getLoggedInUser().getExternalId(): null);
+
+			dao.removeFolderPermission(folderId, memberId);
 			dao.commit();
-		} 
-	}
+
+			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
+			createFileIndex(folderId, getLoggedInUser(), visibilityType, FileType.FOLDER, false);
+		} catch (Exception e) {
+            throw new NdexException("Failed to remove group member");
+        }
+    }
 	
 	/**************************************************************************
 	 * Retrieves array of network membership objects
@@ -343,23 +357,23 @@ public class GroupServiceV2 extends NdexService {
 			@DefaultValue("100") @QueryParam("size") int blockSize ) 
 					throws NdexException, SQLException, IllegalArgumentException {
 
-		
+
 		UUID groupId = UUID.fromString(groupIdStr);
-		
-		
+
+
 		if ( networkIdStr != null) {
 			Map<String,String> result = new TreeMap<>();
 			UUID networkId = UUID.fromString(networkIdStr);
 			try (GroupDAO dao = new GroupDAO()) {
 				if ( !dao.isInGroup(groupId,getLoggedInUserId()) )
 					throw new NdexException ("Only a group member or admin can check group permission on a network");
-				
+
 				Permissions m = dao.getMembershipToNetwork(groupId, networkId);
 				result.put(networkIdStr, m.toString());
 				return result;
-			} 
-		}	
-		
+			}
+		}
+
 		boolean inclusive = true;
 		Permissions permission = Permissions.READ;
 		if ( permission !=null) {
@@ -402,24 +416,77 @@ public class GroupServiceV2 extends NdexService {
 				@DefaultValue("100") @QueryParam("size") int blockSize
 			) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
-//		logger.info("[start: Getting {} users in group {}]", permissions, groupIdStr);
+		UUID folderId = UUID.fromString(groupIdStr);
 
-		boolean inclusive = false;
-		Permissions permission = null; //Permissions.MEMBER;
-		if ( permissions != null) {
-			permission = Permissions.valueOf(permissions.toUpperCase());
+		Permissions filterPermission = null;
+		if (permissions != null) {
+			filterPermission = Permissions.valueOf(permissions.toUpperCase());
 		}
-		UUID groupId = UUID.fromString(groupIdStr);
-		
-		try (GroupDAO dao = new GroupDAO()){
-	/*		if ( ! dao.isInGroup(groupId, getLoggedInUserId())) {
-				throw new NdexException("User has to be a member of this group.");
-			} */
-			List<Membership> l = dao.getGroupUserMemberships(groupId, permission, skipBlocks, blockSize, inclusive);
-	//		logger.info("[end:]");
-			return l;
-		} 
-	}
+
+		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO();
+			 UserDAO userDAO = Configuration.getInstance().getDAOFactory().getUserDAO()) {
+			NdexFolder folder = dao.getFolder(folderId, getLoggedInUserId(), null);
+			Map<String, String> folderPermissions = dao.getFolderPermissions(folderId);
+
+			List<Membership> memberships = new ArrayList<>();
+
+			// Add owner as ADMIN member
+			if (folder.getOwner() != null) {
+				User owner = userDAO.getUserByAccountName(folder.getOwner(), false, false);
+				if (filterPermission == null || filterPermission == Permissions.ADMIN) {
+					Membership ownerMembership = new Membership();
+					ownerMembership.setMemberUUID(owner.getExternalId());
+					ownerMembership.setResourceUUID(folderId);
+					ownerMembership.setResourceName(folder.getName());
+					ownerMembership.setPermissions(Permissions.ADMIN);
+					ownerMembership.setMembershipType(MembershipType.GROUP);
+					ownerMembership.setMemberAccountName(folder.getOwner());
+					memberships.add(ownerMembership);
+				}
+			}
+
+			// Add users with permissions
+			for (Map.Entry<String, String> entry : folderPermissions.entrySet()) {
+				Permissions perm = Permissions.valueOf(entry.getValue());
+
+				// Map folder permissions to group-style permissions
+				Permissions groupPerm;
+				if (perm == Permissions.WRITE) {
+					groupPerm = Permissions.WRITE;
+				} else {
+					groupPerm = Permissions.READ;
+				}
+
+				// Apply filter
+				if (filterPermission != null && filterPermission != groupPerm) {
+					continue;
+				}
+
+				Membership m = new Membership();
+				UUID memberId = UUID.fromString(entry.getKey());
+				User currMember = userDAO.getUserById(memberId, false, false);
+				if (currMember != null && currMember.getUserName() != null){
+					m.setMemberAccountName(currMember.getUserName());
+				}
+				m.setMemberUUID(memberId);
+				m.setResourceUUID(folderId);
+				m.setResourceName(folder.getName());
+				m.setPermissions(groupPerm);
+				m.setMembershipType(MembershipType.GROUP);
+				memberships.add(m);
+			}
+
+			// Apply pagination
+			int start = skipBlocks;
+			int end = Math.min(start + blockSize, memberships.size());
+			if (start >= memberships.size()) {
+				return new ArrayList<>();
+			}
+			return memberships.subList(start, end);
+		} catch (Exception e) {
+            throw new NdexException("Failed to get group user memberships");
+        }
+    }
 	
 	   @POST
 	   @Path("/{groupid}/permissionrequest")
@@ -587,5 +654,14 @@ public class GroupServiceV2 extends NdexService {
 		f.setDescription(group.getDescription());
 		return f;
 	}
-
+	static Group mapFolderToGroup(NdexFolder folder) {
+		Group group = new Group();
+		group.setExternalId(folder.getExternalId());
+		group.setGroupName(folder.getName());
+		group.setDescription(folder.getDescription());
+		group.setCreationTime(folder.getCreationTime());
+		group.setModificationTime(folder.getModificationTime());
+		group.setIsDeleted(folder.getIsDeleted());
+		return group;
+	}
 }
