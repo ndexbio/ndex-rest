@@ -77,7 +77,7 @@ import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.task.CX2NetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
-import org.ndexbio.task.SolrTaskDeleteNetwork;
+import org.ndexbio.task.SolrTaskDeleteFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -875,7 +875,7 @@ public class NetworkServiceV3  extends NdexService {
 		    try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 		        UUID networkId = UUID.fromString(id);
 		        UUID userId = getLoggedInUser().getExternalId();
-		        
+
 		        if (!networkDao.isAdmin(networkId, userId)) {
 		            throw new UnauthorizedOperationException("Only network owner can delete a network.");
 		        }
@@ -887,8 +887,10 @@ public class NetworkServiceV3  extends NdexService {
 		        if (networkDao.networkIsLocked(networkId)) {
 		            throw new NdexException("Network is locked by another updating process. Please try again.");
 		        }
+				VisibilityType visibilityType = networkDao.getNetworkVisibility(networkId);
 
-		        if (permanent) {
+
+				if (permanent) {
 		            // Perform permanent deletion
 		            networkDao.deleteNetworkPermanently(networkId, userId);
 		            networkDao.commit();
@@ -902,12 +904,14 @@ public class NetworkServiceV3  extends NdexService {
 		            }
 		            
 			        // Update search index -- TODO: does it need to be done with soft delete?
-			        NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId));
+			        //NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId));
 		        } else {
 		            // Perform soft deletion
 		            networkDao.deleteNetworkLogical(networkId, userId);
 		            networkDao.commit();
 		        }
-		    }
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(networkId, visibilityType));
+
+			}
 		}
 }
