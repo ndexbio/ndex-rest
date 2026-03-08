@@ -4,6 +4,7 @@ import org.ndexbio.common.solr.SolrClientWrapper;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.SimpleFileQuery;
+import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.VisibilityType;
 
 
@@ -25,6 +26,6 @@ public interface SearchProvider extends AutoCloseable {
 	 * @throws NdexException If there was an error running the search
 	 */
 	FileSearchResult searchFiles(SimpleFileQuery query,
-			VisibilityType visibilityType,
+			VisibilityType visibilityType, User owner,
 			int skipBlocks, int blockSize) throws NdexException;
 }

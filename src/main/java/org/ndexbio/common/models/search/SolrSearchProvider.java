@@ -13,6 +13,7 @@ import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.FileVisibilityType;
 import org.ndexbio.model.object.SimpleFileQuery;
 import org.ndexbio.common.solr.SolrClientWrapper;
+import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +62,8 @@ public class SolrSearchProvider implements SearchProvider {
 	}
 	
 	@Override
-	public FileSearchResult searchFiles(SimpleFileQuery query, VisibilityType visibilityType, int skipBlocks, int blockSize) throws NdexException {
+	public FileSearchResult searchFiles(SimpleFileQuery query, VisibilityType visibilityType, User owner,
+										int skipBlocks, int blockSize) throws NdexException {
 		
 		// default to public core/index
 		String coreName = PublicNFSIndexManager.CORE_NAME;

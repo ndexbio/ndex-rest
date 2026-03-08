@@ -28,29 +28,34 @@ public class NFSSearchProvider implements SearchProvider {
         this.delegate = new SearchOnlyManager(solrClientWrapper, maxDefaultResults);
     }
 
-    public FileSearchResult searchFiles(SimpleFileQuery query, VisibilityType visibilityType, int skipBlocks, int blockSize) throws NdexException {
+    public FileSearchResult searchFiles(SimpleFileQuery query, VisibilityType visibilityType,
+                                        User accesser, int skipBlocks, int blockSize) throws NdexException {
+        // accesser determines what they're allowed to see (permission filter)
+        String userAccessorId = accesser != null ? accesser.getUserName() : null;
+        // accountName is an optional owner filter
+        String ownedBy = query.getAccountName();
+
         SolrDocumentList documents;
-        if (query.getType() != null){
-            documents = delegate.searchByType(query.getSearchString(),query.getAccountName(),
+        if (query.getType() != null) {
+            documents = delegate.searchByType(query.getSearchString(), userAccessorId,
                     visibilityType,
-                    blockSize, skipBlocks, null,
+                    blockSize, skipBlocks, ownedBy,
                     query.getPermission(), query.getType().toString());
-        }
-        else {
-            documents = delegate.search(query.getSearchString(),query.getAccountName(),
-                    visibilityType, blockSize, skipBlocks, null,
+        } else {
+            documents = delegate.search(query.getSearchString(), userAccessorId,
+                    visibilityType, blockSize, skipBlocks, ownedBy,
                     query.getPermission());
         }
 
         List<FileItemSummary> fileItemSummaryList = documents
-                 .stream()
-                 .map(this::mapSolrDocumentToSummary)
+                .stream()
+                .map(this::mapSolrDocumentToSummary)
                 .collect(Collectors.toList());
 
-         return new FileSearchResult(fileItemSummaryList.size(), (long) skipBlocks *blockSize, fileItemSummaryList);
-
-
+        return new FileSearchResult(fileItemSummaryList.size(), (long) skipBlocks * blockSize, fileItemSummaryList);
     }
+
+
     private FileItemSummary mapSolrDocumentToSummary(SolrDocument solrDocument){
         String uuid = (String)solrDocument.get(NFSIndexManager.UUID);
 

@@ -53,6 +53,7 @@ import org.ndexbio.model.network.query.FilterCriterion;
 import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.SimpleFileQuery;
+import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.tools.EdgeFilter;
 import org.ndexbio.rest.Configuration;
@@ -539,12 +540,16 @@ public class SearchServiceV3 extends NdexService  {
 		throws SQLException, Exception {
 
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
-
+		User user = getLoggedInUser();
+		//todo allow non logged in user?
+		if (user == null) {
+			throw new UnauthorizedOperationException("You must be logged in to search.");
+		}
     	if(query.getAccountName() != null)
-    		query.setAccountName(query.getAccountName().toLowerCase());
+    		query.setAccountName(	query.getAccountName().toLowerCase());
 
 		try (SearchProvider search = Configuration.getInstance().getSearchProvider()){
-			return search.searchFiles(query, visibilityType, skipBlocks, blockSize);
+			return search.searchFiles(query, visibilityType, user, skipBlocks, blockSize);
 		}
 	}
 }
