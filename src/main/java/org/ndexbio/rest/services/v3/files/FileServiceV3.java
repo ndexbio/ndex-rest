@@ -597,7 +597,7 @@ public class FileServiceV3 extends NdexService {
 
 				// Reindex transferred network with updated ownership
 				VisibilityType netVis = networkDao.getNetworkVisibility(networkId);
-				createFileIndex(networkId, newUser, netVis, FileType.NETWORK, false, true);
+				createFileIndex(networkId, newUser, netVis, FileType.NETWORK, false, false);
 
 				// Create shortcut for old owner
 				UUID shortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
