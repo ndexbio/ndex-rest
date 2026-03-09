@@ -56,6 +56,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public static final String MODIFICATION_TIME = "modificationTime";
     public static final String VISIBILITY = "visibility";
 
+    public static final String TARGET_TYPE = "targetType";
 
     public static final String EDGE_COUNT = "edgeCount";
 
@@ -233,8 +234,13 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             Permissions permission,
             String entityType) throws NdexException {
 
-        // Add entity type filter
-        String typeFilter = " AND (" + ENTITY_TYPE + ":\"" + entityType + "\")";
+        String typeFilter;
+        if ("SHORTCUT".equalsIgnoreCase(entityType)) {
+            typeFilter = " AND (" + ENTITY_TYPE + ":\"SHORTCUT\")";
+        } else {
+            typeFilter = " AND ((" + ENTITY_TYPE + ":\"" + entityType + "\") OR " +
+                    "(" + ENTITY_TYPE + ":\"SHORTCUT\" AND " + TARGET_TYPE + ":\"" + entityType + "\"))";
+        }
 
         SolrQuery solrQuery = new SolrQuery();
         String permissionFilter = buildPermissionFilter(userAccount, visibilityType, permission);
@@ -243,14 +249,13 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
         String coreName = getCoreNameFromVisibility(visibilityType);
-        //logger.info("QUERY {} FILTER: {}", solrQuery.toQueryString(), Arrays.toString(solrQuery.getFilterQueries()));
+
         try {
             QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery);
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
             throw convertException(e, coreName);
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             throw new NdexException("Error accessing Solr: " + e.getMessage());
         }
     }

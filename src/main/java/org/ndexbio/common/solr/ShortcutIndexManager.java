@@ -18,8 +18,6 @@ import java.io.IOException;
 
 public class ShortcutIndexManager extends NFSIndexManager<NdexShortcut> {
 
-    protected static final String TARGET_UUID = "targetUuid";
-    protected static final String TARGET_TYPE = "targetType";
     private static final Logger log = LoggerFactory.getLogger(ShortcutIndexManager.class);
 
     public ShortcutIndexManager(SolrClientWrapper solrClientWrapper){
