@@ -134,17 +134,27 @@ public class V3Migrator implements AutoCloseable {
 	// ========================================================================
 
 	public void processNetworkSets(DaoSet dao) throws Exception {
+		int totalSets = 0;
+		try (PreparedStatement countPst = db.prepareStatement("SELECT COUNT(*) FROM network_set WHERE is_deleted = false");
+			 ResultSet countRs = countPst.executeQuery()) {
+			if (countRs.next()) totalSets = countRs.getInt(1);
+		}
+		logger.info("Found {} network sets to migrate.", totalSets);
+
 		String sql = "SELECT creation_time, modification_time, \"UUID\", owner_id, name, description, "
 				+ "other_attributes, access_key, access_key_is_on, showcased, ndexdoi "
 				+ "FROM network_set WHERE is_deleted = false";
 
 		try (PreparedStatement pst = db.prepareStatement(sql);
-			 ResultSet rs = pst.executeQuery()) {
+			 ResultSet rs = pst.executeQuery();
+			 FolderIndexManager fim = solrObjectFactory.getFolderIndexManager();
+			 ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager()) {
 
 			while (rs.next()) {
 				UUID setId = (UUID) rs.getObject(3);
 				try {
 					NetworkSet set = readNetworkSet(rs, setId);
+					logger.info("Starting for network set {}", setId);
 					set.setNetworks(loadNetworkSetMembers(setId));
 
 					User owner = set.getOwnerId() != null
@@ -154,11 +164,15 @@ public class V3Migrator implements AutoCloseable {
 					String accessKey = rs.getString(8);
 					boolean accessKeyIsOn = rs.getBoolean(9) && !rs.wasNull();
 
-					migrateNetworkSetToFolder(set, folder, accessKey, accessKeyIsOn, dao, owner);
+					migrateNetworkSetToFolder(set, folder, accessKey, accessKeyIsOn, dao, owner, fim, sim);
 					networkSetsProcessed++;
+					logger.info("[Phase 1] {}/{} ({}%) - set {}",
+							networkSetsProcessed, totalSets,
+							(networkSetsProcessed * 100) / totalSets, setId);
 				} catch (Exception e) {
 					db.rollback();
 					logger.info("Failed to migrate network set " + setId, e);
+					throw new RuntimeException(e);
 				}
 			}
 		}
@@ -205,30 +219,36 @@ public class V3Migrator implements AutoCloseable {
 	}
 
 	private void migrateNetworkSetToFolder(NetworkSet set, NdexFolder folder, String accessKey,
-										   boolean accessKeyIsOn, DaoSet dao, User owner) throws Exception {
+										   boolean accessKeyIsOn, DaoSet dao, User owner, FolderIndexManager fim,
+										   ShortcutIndexManager sim) throws Exception {
 		UUID ownerId = set.getOwnerId();
 
 		// Create the folder
+		logger.info("[{}] Creating db entry", set.getExternalId());
 		dao.folderDAO.createFolder(folder.getExternalId(), ownerId, null,
 				folder.getName(), folder.getDescription());
+		dao.folderDAO.commit();
+
+		//logger.info("[{}] Folder created", set.getExternalId());
 
 		// Set access key
 		setAccessKey("folder", folder.getExternalId(), accessKey, accessKeyIsOn);
+		VisibilityType vis = determineFolderVisibility(set);
 
+		logger.info("[{}] Creating index", set.getExternalId());
 		// Index folder in Solr
-		try (FolderIndexManager fim = solrObjectFactory.getFolderIndexManager()) {
-			VisibilityType vis = determineFolderVisibility(set);
-			fim.createIndex(folder, vis, null, null);
-		}
-
-		// Create shortcuts for each network in the set
-		try (ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager()) {
-			for (UUID networkId : set.getNetworks()) {
+		fim.createIndex(folder, vis, null, null);
+		logger.info("[{}] Creating shortcuts for {} networks", set.getExternalId(), set.getNetworks().size());
+		for (UUID networkId : set.getNetworks()) {
+			try {
 				createNetworkShortcut(networkId, folder.getExternalId(), ownerId, owner, dao, sim, null);
+			} catch (Exception e){
+				logger.info("Failed to create shortcut for network {} in set {}", networkId, set.getExternalId());
+				throw new RuntimeException(e);
 			}
 		}
+		dao.shortcutDAO.commit();
 
-		db.commit();
 	}
 
 	// ========================================================================
@@ -567,6 +587,7 @@ public class V3Migrator implements AutoCloseable {
 	// Phase 4: Users -> Search Opt-in
 	// ========================================================================
 
+
 	public void processUsers() throws Exception {
 		// User search opt-in: not yet implemented, ndex_user schema changes pending.
 		// TODO: add is_searchable column to ndex_user and set default to false
@@ -583,33 +604,46 @@ public class V3Migrator implements AutoCloseable {
 	private void createNetworkShortcut(UUID networkId, UUID parentFolderId, UUID ownerId,
 									   User owner, DaoSet dao, ShortcutIndexManager sim,
 									   List<String> userReads) throws Exception {
-		NetworkSummary ns = dao.networkDAO.getNetworkSummaryById(networkId);
-		if (ns == null) {
+		String[] nameAndVis = getNetworkNameAndVisibility(networkId);
+		if (nameAndVis == null) {
 			logger.info("Network " + networkId + " not found, skipping shortcut.");
 			return;
 		}
+		String netName = nameAndVis[0] != null ? nameAndVis[0] : "(unnamed network)";
+		VisibilityType vis = VisibilityType.valueOf(nameAndVis[1]);
 
 		UUID shortcutId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
 		dao.shortcutDAO.createShortcut(shortcutId, ownerId, parentFolderId,
-				ns.getName(), networkId, FileType.NETWORK);
+				netName, networkId, FileType.NETWORK);
 
 		NdexShortcut shortcut = new NdexShortcut();
 		shortcut.setExternalId(shortcutId);
 		shortcut.setOwner(owner != null ? owner.getUserName() : null);
-		shortcut.setName(ns.getName());
+		shortcut.setName(netName);
 		shortcut.setParent(parentFolderId);
 		shortcut.setTarget(networkId);
 		shortcut.setTargetType(FileType.NETWORK);
-		shortcut.setCreationTime(ns.getCreationTime());
-		shortcut.setModificationTime(ns.getModificationTime());
+		//shortcut.setCreationTime(netName);
+		//shortcut.setModificationTime(ns.getModificationTime());
 		shortcut.setIsDeleted(false);
 
-		VisibilityType vis = VisibilityType.valueOf(ns.getVisibility().name());
+		//VisibilityType vis = VisibilityType.valueOf(ns.getVisibility().name());
 		sim.createIndex(shortcut, vis, userReads, null);
 		shortcutsCreated++;
 	}
-
+	private String[] getNetworkNameAndVisibility(UUID networkId) throws SQLException {
+		String sql = "SELECT name, visibility FROM network WHERE \"UUID\" = ? AND is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			pst.setObject(1, networkId);
+			try (ResultSet rs = pst.executeQuery()) {
+				if (rs.next()) {
+					return new String[]{rs.getString(1), rs.getString(2)};
+				}
+				return null;
+			}
+		}
+	}
 	/**
 	 * Set access key on a folder or network via direct SQL.
 	 */
