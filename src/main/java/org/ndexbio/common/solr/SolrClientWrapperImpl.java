@@ -2,6 +2,8 @@ package org.ndexbio.common.solr;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.solr.client.solrj.SolrClient;
@@ -32,7 +34,8 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	 * Base client for solr, needed for core operations
 	 */
 	private SolrClient _baseClient;
-	
+	private final Map<String, SolrClient> _clientCache = new ConcurrentHashMap<>();
+
 	/**
 	 * Factory to get solrclient and coreadmin objects
 	 * to communicate with Solr
@@ -40,7 +43,6 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	private SolrObjectFactory _factory;
 	
 	private static final Logger logger = LoggerFactory.getLogger(SolrClientWrapperImpl.class.getName());
-	
 
 	/**
 	 * Constructor
@@ -138,7 +140,8 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	 */
 	@Override
 	public void commit(final String coreName, final Collection<SolrInputDocument> documents) throws SolrServerException, IOException {
-		var client = _factory.getSolrClient(coreName);
+
+		var client = getSolrClient(coreName);
 		if (documents != null && documents.isEmpty() == false){
 			var ur = client.add(documents);
 			if (ur != null && logger.isDebugEnabled()){
@@ -163,7 +166,7 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	 */
 	@Override
 	public void delete(final String coreName, final String id, boolean commit) throws SolrServerException, IOException {
-		var client = _factory.getSolrClient(coreName);
+		var client = getSolrClient(coreName);
 		var ur = client.deleteById(id);
 		if (ur != null && logger.isDebugEnabled()){
 			logger.debug("deleteById response: " + ur.toString());
@@ -196,6 +199,15 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 			throw convertException(e, coreName);
 		}
 	}
+	public SolrClient getSolrClient(final String coreName) {
+		String key = (coreName == null || coreName.trim().isEmpty()) ? "" : coreName;
+		return _clientCache.computeIfAbsent(key, k -> {
+			if (k.isEmpty()) {
+				return _baseClient;
+			}
+			return _factory.getSolrClient(coreName);
+		});
+	}
 
 	/**
 	 * Closes base client
@@ -206,9 +218,12 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 			if (_baseClient != null){
 				_baseClient.close();
 			}
+			for (SolrClient client : _clientCache.values()) {
+				try { client.close(); } catch (Exception ignored) {}
+			}
+			_clientCache.clear();
 		} catch (IOException e) {
 			logger.info("Caught exception closing client", e);
 		}
 	}
-	
 }
