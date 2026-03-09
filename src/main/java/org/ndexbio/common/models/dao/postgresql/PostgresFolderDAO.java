@@ -70,10 +70,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	protected static String createIsReadableConditionStr(UUID userId) {
 	    if (userId == null) {
 	        // Anonymous user => only PUBLIC is allowed
-	        return "f.visibility='PUBLIC'";
+	        return "f.visibility='PUBLIC' or f.visibility='UNLISTED'";
 	    }
 	    // Non-anonymous => public or same owner or has permission
-	    return "( f.visibility='PUBLIC' "
+	    return "( f.visibility='PUBLIC' or f.visibility='UNLISTED' "
 	         + "  OR f.owneruuid = '" + userId + "'::uuid "
 	         + "  OR EXISTS ( "
 	         + "       SELECT 1 "
