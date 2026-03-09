@@ -3,16 +3,21 @@ package org.ndexbio.common.models.search;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
+import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.solr.NFSIndexManager;
 import org.ndexbio.common.solr.SolrClientWrapper;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.ndexbio.rest.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-import java.util.UUID;
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class NFSSearchProvider implements SearchProvider {
@@ -46,11 +51,21 @@ public class NFSSearchProvider implements SearchProvider {
                     visibilityType, blockSize, skipBlocks, ownedBy,
                     query.getPermission());
         }
-
         List<FileItemSummary> fileItemSummaryList = documents
                 .stream()
                 .map(this::mapSolrDocumentToSummary)
                 .collect(Collectors.toList());
+
+        List<FileItemSummary> shortcuts = fileItemSummaryList.stream()
+                .filter(x->x.getType().equals(FileType.SHORTCUT))
+                .toList();
+
+        if (!shortcuts.isEmpty() && accesser!=null) {
+            try (ShortcutDAO shortcutDAO = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+                shortcuts.forEach(shortcut -> addTargetTypeToShortcutSummaryItem(shortcut, shortcutDAO, accesser));
+            } catch (Exception ignored) {}
+        }
+
 
         return new FileSearchResult(fileItemSummaryList.size(), (long) skipBlocks * blockSize, fileItemSummaryList);
     }
@@ -64,7 +79,26 @@ public class NFSSearchProvider implements SearchProvider {
         FileType fileType = FileType.valueOf(entityType);
 
         String name = (String)solrDocument.getOrDefault(NFSIndexManager.NAME, "unknown");
+
         return new FileItemSummary(UUID.fromString(uuid), fileType, name);
+    }
+
+    private void addTargetTypeToShortcutSummaryItem(FileItemSummary fileItemSummary, ShortcutDAO shortcutDAO,
+                                                    User accesser){
+        NdexShortcut ndexShortcut;
+        try {
+            ndexShortcut = shortcutDAO.getShortcut(fileItemSummary.getUuid(), accesser.getExternalId());
+        } catch (SQLException | ObjectNotFoundException | UnauthorizedOperationException | IOException e) {
+            ndexShortcut = null;
+        }
+        Map<String, Object> attributes = new HashMap<>();
+        if (ndexShortcut != null){
+            attributes.put(NFSIndexManager.TARGET_TYPE, ndexShortcut.getTargetType());
+        }
+        else attributes.put(NFSIndexManager.TARGET_TYPE, "unknown");
+
+        fileItemSummary.setAttributes(attributes);
+
     }
 
         @Override
