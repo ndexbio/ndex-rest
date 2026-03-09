@@ -1,5 +1,7 @@
 package org.ndexbio.server.migration.v3;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -7,20 +9,28 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
-import org.ndexbio.common.models.dao.postgresql.PostgresFolderDAO;
-import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.common.solr.FolderIndexManager;
-import org.ndexbio.common.solr.GlobalNetworkIndexManager;
-import org.ndexbio.common.solr.ShortcutIndexManager;
-import org.ndexbio.common.solr.SolrObjectFactory;
+import org.ndexbio.common.models.dao.postgresql.*;
+import org.ndexbio.common.persistence.CX2NetworkLoader;
+import org.ndexbio.common.solr.*;
 import org.ndexbio.common.util.NdexUUIDFactory;
+import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
+import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
+import org.ndexbio.cx2.aspect.element.core.CxNode;
+import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
+import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
+import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
+import org.ndexbio.cxio.aspects.datamodels.NodesElement;
+import org.ndexbio.cxio.core.AspectIterator;
+import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -30,6 +40,7 @@ import org.ndexbio.rest.Configuration;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrIndexScope;
 import org.ndexbio.task.SolrTaskDeleteFile;
 import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
@@ -63,6 +74,7 @@ public class V3Migrator implements AutoCloseable {
 	//todo
 	private List<String> preferredUsers = List.of("dexterpratt", "churas");
 	private List<UUID> preferredUserIds;
+	private final DAOFactory daoFactory;
 
 	public V3Migrator() throws Exception {
 		Configuration configuration = Configuration.createInstance();
@@ -71,7 +83,10 @@ public class V3Migrator implements AutoCloseable {
 		this.db = NdexDatabase.getInstance().getConnection();
 		this.db.setAutoCommit(false);
 		this.mapper = new ObjectMapper();
-		this.solrObjectFactory = configuration.getSolrObjectFactory();
+		this.solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();//new CachingSolrObjectFactoryImpl(configuration.getSolrURL());
+		//this.daoFactory = new CachingPostgresDAOFactory();
+		this.daoFactory = Configuration.getInstance().getDAOFactory();
+
 		this.mapTypeRef = new TypeReference<>() {};
 	}
 
@@ -79,10 +94,10 @@ public class V3Migrator implements AutoCloseable {
 	 * Run the full v3 migration in order.
 	 */
 	public void run() throws Exception {
-		try (UserDAO userDAO = new UserDAO();
-			 FolderDAO folderDAO = new PostgresFolderDAO();
-			 ShortcutDAO shortcutDAO = new PostgresShortcutDAO();
-			 NetworkDAO networkDAO = new PostgresNetworkDAO()) {
+		try (UserDAO userDAO = daoFactory.getUserDAO();
+			 FolderDAO folderDAO = daoFactory.getFolderDAO();
+			 ShortcutDAO shortcutDAO = daoFactory.getShortcutDAO();
+			 NetworkDAO networkDAO = daoFactory.getNetworkDAO()) {
 
 			DaoSet dao = new DaoSet(userDAO, folderDAO, shortcutDAO, networkDAO);
 
@@ -121,7 +136,7 @@ public class V3Migrator implements AutoCloseable {
                 throw new RuntimeException(e);
             }
         }
-		try (FolderIndexManager indexManager = Configuration.getInstance().getSolrObjectFactory().getFolderIndexManager()){
+		try (FolderIndexManager indexManager = solrObjectFactory.getFolderIndexManager()){
 			indexManager.createCoreIfNeeded();
 		} catch (SolrServerException | IOException | NdexException e) {
             throw new RuntimeException(e);
@@ -496,25 +511,35 @@ public class V3Migrator implements AutoCloseable {
 	// ========================================================================
 
 	public void processNetworks(DaoSet dao) throws Exception {
+		int totalNetworks = 0;
+		try (PreparedStatement countPst = db.prepareStatement("SELECT COUNT(*) FROM network WHERE is_deleted = false");
+			 ResultSet countRs = countPst.executeQuery()) {
+			if (countRs.next()) totalNetworks = countRs.getInt(1);
+		}
+		logger.info("Found {} networks to reindex.", totalNetworks);
+
 		String sql = "SELECT \"UUID\", owneruuid, \"owner\", visibility "
 				+ "FROM network WHERE is_deleted = false";
 
 		try (PreparedStatement pst = db.prepareStatement(sql);
-			 ResultSet rs = pst.executeQuery()) {
+			 ResultSet rs = pst.executeQuery();
+			 GlobalNetworkIndexManager globalNetworkIndexManager = solrObjectFactory.getGlobalNetworkIndexManager()) {
 
 			while (rs.next()) {
 				UUID networkId = (UUID) rs.getObject(1);
+				logger.info("Starting for {}", networkId);
 				try {
 					UUID ownerId = (UUID) rs.getObject(2);
 					String ownerName = rs.getString(3);
 					String visibility = rs.getString(4);
 
-					// Rebuild Solr index for this network with current permissions
-					reindexNetwork(networkId, ownerId, ownerName, visibility, dao);
+					reindexNetwork(networkId, ownerId, ownerName, visibility, dao,globalNetworkIndexManager);
 
 					networksProcessed++;
 					if (networksProcessed % 500 == 0) {
-						logger.info("Reindexed " + networksProcessed + " networks so far...");
+						logger.info("[Phase 3] {}/{} ({}%)",
+								networksProcessed, totalNetworks,
+								(networksProcessed * 100) / totalNetworks);
 					}
 				} catch (Exception e) {
 					logger.info("Failed to reindex network " + networkId, e);
@@ -523,20 +548,21 @@ public class V3Migrator implements AutoCloseable {
 		}
 		logger.info("Reindexed " + networksProcessed + " networks total.");
 	}
-
 	/**
 	 * Rebuild the Solr index for a single network using the new permission model.
 	 * Reads user_network_membership to build the permission map for the index.
 	 */
 	private void reindexNetwork(UUID networkId, UUID ownerId, String ownerName,
-								String visibility, DaoSet dao) throws Exception {
+								String visibility, DaoSet dao, GlobalNetworkIndexManager globalNetworkIndexManager) throws Exception {
 		NetworkSummary ns = dao.networkDAO.getNetworkSummaryById(networkId);
 		if (ns == null) return;
 
 		VisibilityType vis = VisibilityType.valueOf(visibility);
-		org.ndexbio.task.SolrTaskRebuildFileIdx t = new SolrTaskRebuildFileIdx(networkId, ownerId, ns.getOwner(),vis, FileType.NETWORK,false);
+		rebuildNetworkIndex(networkId, false, false, globalNetworkIndexManager,
+				dao.networkDAO);
+
 		//NdexServerQueue.INSTANCE.addSystemTask(t);
-		t.run();
+		//t.run();
 
 		/*
 		// Gather individual user permissions (including flattened group perms from phase 2)
@@ -711,6 +737,196 @@ public class V3Migrator implements AutoCloseable {
 		NdexDatabase.close();
 	}
 
+	private void rebuildNetworkIndex(UUID fileId, boolean createOnly, boolean ignoreCxFiles,
+									 GlobalNetworkIndexManager globalNetworkIndexManager,
+									 NetworkDAO dao) throws Exception {
+
+		try {
+			String id = fileId.toString();
+			NetworkSummary summary = dao.getNetworkSummaryById(fileId);
+			VisibilityType visibilityType = dao.getNetworkVisibility(fileId);
+			SolrIndexScope idxScope;
+
+			if (summary.getNodeCount() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD)
+				idxScope = SolrIndexScope.both;
+			else
+				idxScope = SolrIndexScope.global;
+
+			// drop the old ones.
+			if (!createOnly) {
+				globalNetworkIndexManager.delete(id, visibilityType);
+
+			}
+
+			// build the solr document obj
+			List<Map<Permissions, Collection<String>>> permissionTable = dao
+					.getAllMembershipsOnNetwork(fileId);
+			Map<Permissions, Collection<String>> userMemberships = permissionTable.get(0);
+			globalNetworkIndexManager.prepareIndexDocument(summary, visibilityType,
+					userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
+
+			String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
+			String cx2AspectPath = pathPrefix + id + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
+			File attrFile = new File(cx2AspectPath + CxNetworkAttribute.ASPECT_NAME);
+			File functionAspectFile = new File(cx2AspectPath + FunctionTermElement.ASPECT_NAME);
+
+			// Always index network attributes (META + ALL behavior)
+			if (attrFile.exists() && !ignoreCxFiles) {
+
+				File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
+				ObjectMapper om = new ObjectMapper();
+
+				CxAttributeDeclaration[] declarations = om.readValue(declFile, CxAttributeDeclaration[].class);
+
+				CxNetworkAttribute[] attrs = om.readValue(attrFile, CxNetworkAttribute[].class);
+				attrs[0].extendToFullNode(declarations[0].getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
+
+				List<String> indexWarnings = globalNetworkIndexManager.addCX2NetworkAttrToIndex(attrs[0]);
+				if (!indexWarnings.isEmpty())
+					for (String warning : indexWarnings)
+						System.err.println("Warning: " + warning);
+			}
+			else {
+				try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(id,
+						NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
+					while (it.hasNext()) {
+						NetworkAttributesElement e = it.next();
+						if (!e.getName().equals(NFSIndexManager.NAME)){
+							List<String> indexWarnings = globalNetworkIndexManager.addCXNetworkAttrToIndex(e);
+							if (!indexWarnings.isEmpty())
+								for (String warning : indexWarnings)
+									System.err.println("Warning: " + warning);
+						}
+
+					}
+				}
+			}
+
+			// Always index node attributes and nodes (ALL behavior)
+			if (functionAspectFile.exists() && !ignoreCxFiles) {
+				ObjectMapper om = new ObjectMapper();
+
+				try (FileInputStream inputStream = new FileInputStream(cx2AspectPath + FunctionTermElement.ASPECT_NAME)) {
+
+					Iterator<FunctionTermElement> it = om.readerFor(FunctionTermElement.class).readValues(inputStream);
+
+					while (it.hasNext()) {
+						FunctionTermElement fun = it.next();
+						globalNetworkIndexManager.addFunctionTermToIndex(fun);
+					}
+				}
+
+				processCx2Nodes(cx2AspectPath, om, globalNetworkIndexManager);
+
+			} else {
+				try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(fileId.toString(),
+						FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
+					while (it.hasNext()) {
+						FunctionTermElement fun = it.next();
+						globalNetworkIndexManager.addFunctionTermToIndex(fun);
+					}
+				}
+
+				try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(fileId.toString(),
+						NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
+					while (it.hasNext()) {
+						NodeAttributesElement e = it.next();
+						globalNetworkIndexManager.addCXNodeAttrToIndex(e);
+					}
+				}
+
+				try (AspectIterator<NodesElement> it = new AspectIterator<>(fileId.toString(), NodesElement.ASPECT_NAME,
+						NodesElement.class, pathPrefix)) {
+					while (it.hasNext()) {
+						NodesElement e = it.next();
+						globalNetworkIndexManager.addCXNodeToIndex(e);
+					}
+				}
+			}
+
+			globalNetworkIndexManager.commit(visibilityType);
+
+
+			try {
+				dao.setFlag(fileId, "iscomplete", true);
+				dao.commit();
+			} catch (SQLException e) {
+				throw new NdexException("DB error when setting iscomplete flag: " + e.getMessage(), e);
+			}
+
+		} catch (SQLException | IOException | NdexException | SolrServerException e1) {
+			e1.printStackTrace();
+			try {
+				dao.setErrorMessage(fileId, "Failed to create Index on network."
+						+ " Cause: " + e1.getMessage());
+				dao.commit();
+			} catch (Exception e2){
+				e2.printStackTrace();
+			}
+			throw e1;
+		}
+
+	}
+
+	private static void processCx2Nodes(String cx2AspectPath, ObjectMapper om, GlobalNetworkIndexManager globalIdx) throws JsonParseException, JsonMappingException, IOException {
+		File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
+		if (!declFile.exists())
+			return;
+
+		CxAttributeDeclaration[] declarations = om.readValue(declFile,
+				CxAttributeDeclaration[].class);
+
+		if ( declarations.length == 0 || ! declarations[0].getDeclarations().containsKey(CxNode.ASPECT_NAME))
+			return ;
+
+		Map<String, DeclarationEntry> nodeAttributeDecls = declarations[0].getAttributesInAspect(CxNode.ASPECT_NAME);
+		if ( nodeAttributeDecls.size() == 0 )
+			return ;
+
+		Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping = new HashMap<> ();
+		for ( Map.Entry<String,DeclarationEntry> entry: nodeAttributeDecls.entrySet()) {
+			String attrName = entry.getKey();
+			if (attrName.equals(CxNode.NAME)) {
+				if ( entry.getValue().getDataType() == null ||
+						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
+					attributeNameMapping.put (CxNode.NAME, entry);
+			} else if (attrName.equals(CxNode.REPRESENTS) ) {
+				if ( entry.getValue().getDataType() == null ||
+						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
+					attributeNameMapping.put (CxNode.REPRESENTS, entry);
+			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.ALIAS) ) {
+				if ( entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
+					attributeNameMapping.put (SingleNetworkSolrIdxManager.ALIAS, entry);
+				}
+			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.TYPE)) {
+				if ( entry.getValue().getDataType() == null ||
+						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
+					attributeNameMapping.put (SingleNetworkSolrIdxManager.TYPE, entry);
+			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.MEMBER)) {
+				if ( entry.getValue().getDataType() == null ||
+						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
+					attributeNameMapping.put (SingleNetworkSolrIdxManager.MEMBER, entry);
+			}
+
+		}
+
+		File nodeAspectFile = new File (cx2AspectPath + CxNode.ASPECT_NAME);
+		if ( nodeAspectFile.exists()) {
+			//go through node aspect
+			try (FileInputStream inputStream = new FileInputStream(cx2AspectPath + "nodes")) {
+
+				Iterator<CxNode> it = om.readerFor(CxNode.class).readValues(inputStream);
+
+				while (it.hasNext()) {
+					CxNode node = it.next();
+					node.extendToFullNode(nodeAttributeDecls);
+
+					globalIdx.addCX2NodeToIndex(node, attributeNameMapping);
+				}
+			}
+		}
+
+	}
 	// ========================================================================
 	// Inner helper classes
 	// ========================================================================
