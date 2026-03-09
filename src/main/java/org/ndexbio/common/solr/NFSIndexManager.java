@@ -146,15 +146,10 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     }
     public void commit(String coreName) throws SolrServerException, IOException {
         if ( !doc.isEmpty()) {
-            logger.info("Committing doc to core [{}]:", coreName);
-            for (String fieldName : doc.getFieldNames()) {
-                logger.info("  {} = {}", fieldName, doc.getFieldValues(fieldName));
-            }
             Collection<SolrInputDocument> docs = new ArrayList<>(1);
             docs.add(doc);
             solrClientWrapper.commit(coreName, docs);
         } else {
-            logger.info("Empty doc, committing to core [{}] with no additions", coreName);
             solrClientWrapper.commit(coreName, null);
         }
         doc = new SolrInputDocument();
@@ -248,7 +243,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
         String coreName = getCoreNameFromVisibility(visibilityType);
-        logger.info("QUERY {} FILTER: {}", solrQuery.toQueryString(), Arrays.toString(solrQuery.getFilterQueries()));
+        //logger.info("QUERY {} FILTER: {}", solrQuery.toQueryString(), Arrays.toString(solrQuery.getFilterQueries()));
         try {
             QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery);
             return rsp.getResults();
