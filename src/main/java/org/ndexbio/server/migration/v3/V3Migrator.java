@@ -256,29 +256,43 @@ public class V3Migrator implements AutoCloseable {
 	// ========================================================================
 
 	public void processGroups(DaoSet dao) throws Exception {
+		int totalGroups = 0;
+		try (PreparedStatement countPst = db.prepareStatement("SELECT COUNT(*) FROM ndex_group WHERE is_deleted = false");
+			 ResultSet countRs = countPst.executeQuery()) {
+			if (countRs.next()) totalGroups = countRs.getInt(1);
+		}
+		logger.info("Found {} groups to migrate.", totalGroups);
+
 		String sql = "SELECT \"UUID\", creation_time, modification_time, group_name, "
 				+ "description, other_attributes, image_url, website_url "
 				+ "FROM ndex_group WHERE is_deleted = false";
 
 		try (PreparedStatement pst = db.prepareStatement(sql);
-			 ResultSet rs = pst.executeQuery()) {
+			 ResultSet rs = pst.executeQuery();
+			 FolderIndexManager fim = solrObjectFactory.getFolderIndexManager();
+			 ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager()) {
 
 			while (rs.next()) {
 				UUID groupId = (UUID) rs.getObject(1);
+				logger.info("Starting for group {}", groupId);
 				try {
-					migrateGroup(rs, groupId, dao);
+					migrateGroup(rs, groupId, dao, fim, sim);
 					groupsProcessed++;
+					logger.info("[Phase 2] {}/{} ({}%) - group {}",
+							groupsProcessed, totalGroups,
+							(groupsProcessed * 100) / totalGroups, groupId);
 				} catch (Exception e) {
 					db.rollback();
-					logger.info( "Failed to migrate group " + groupId, e);
+					logger.info("Failed to migrate group " + groupId, e);
 				}
 			}
 		}
 		logger.info("Processed " + groupsProcessed + " groups.");
 	}
 
-	private void migrateGroup(ResultSet rs, UUID groupId, DaoSet dao) throws Exception {
+	private void migrateGroup(ResultSet rs, UUID groupId, DaoSet dao, FolderIndexManager fim, ShortcutIndexManager sim) throws Exception {
 		// Find the group owner (admin user)
+
 		UUID ownerId = findGroupOwner(groupId);
 		if (ownerId == null) {
 			logger.info("Group " + groupId + " has no admin user, skipping.");
@@ -288,44 +302,52 @@ public class V3Migrator implements AutoCloseable {
 
 		// Create folder from group
 		NdexFolder folder = new NdexFolder();
-		UUID folderId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-		folder.setExternalId(folderId);
-		folder.setName(rs.getString(4));         // group_name
+		//UUID folderId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		folder.setExternalId(groupId);
+		String groupName = rs.getString(4);
+		if (groupName == null || groupName.isBlank()) {
+			groupName = "(unnamed group)";
+		}
+		folder.setName(groupName);
 		folder.setDescription(rs.getString(5));  // description
 		folder.setCreationTime(rs.getTimestamp(2));
 		folder.setModificationTime(rs.getTimestamp(3));
 		if (owner != null) folder.setOwner(owner.getUserName());
 
-		dao.folderDAO.createFolder(folderId, ownerId, null, folder.getName(), folder.getDescription());
-
+		dao.folderDAO.createFolder(groupId, ownerId, null, groupName, folder.getDescription());
+		dao.folderDAO.commit();
+		logger.info("[{}] Created group's folder db entry", groupId);
 		// Load group members
 		List<GroupMember> members = loadGroupMembers(groupId);
 
 		// Grant READ on the folder to all group members (except owner, who has ADMIN implicitly)
 		List<String> folderUserReads = new ArrayList<>();
+		logger.info("[{}] Adding member permissions", groupId);
+
 		for (GroupMember member : members) {
 			if (!member.userId.equals(ownerId)) {
-				addFolderPermission(folderId, member.userId, "READ");
+				addFolderPermission(groupId, member.userId, "READ");
 				String username = getUsernameById(member.userId, dao);
 				if (username != null) folderUserReads.add(username);
 			}
 		}
 
-		// Index folder with member read permissions
-		try (FolderIndexManager fim = solrObjectFactory.getFolderIndexManager()) {
-			fim.createIndex(folder, VisibilityType.PRIVATE, folderUserReads, null);
-		}
 
+		logger.info("[{}] Indexing folder", groupId);
+		// Index folder with member read permissions
+		fim.createIndex(folder, VisibilityType.PRIVATE, folderUserReads, null);
 		// Get networks this group has access to
 		List<GroupNetworkEntry> groupNetworks = loadGroupNetworks(groupId);
 
+		logger.info("[{}] Creating {} network shortcuts.", groupId, groupNetworks.size());
 		// Create shortcuts in the folder for each network
-		try (ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager()) {
-			for (GroupNetworkEntry entry : groupNetworks) {
-				createNetworkShortcut(entry.networkId, folderId, ownerId, owner, dao, sim, folderUserReads);
-			}
+		for (GroupNetworkEntry entry : groupNetworks) {
+			createNetworkShortcut(entry.networkId, groupId, ownerId, owner, dao, sim, folderUserReads);
 		}
 
+
+
+		logger.info("[{}] Flattening permissions.", groupId);
 		// Flatten group permissions onto individual member users
 		for (GroupNetworkEntry entry : groupNetworks) {
 			for (GroupMember member : members) {
