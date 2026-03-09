@@ -2,10 +2,7 @@ package org.ndexbio.common.models.dao;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
@@ -154,4 +151,7 @@ public interface NetworkDAO extends AutoCloseable {
     NdexObjectUpdateStatus clearNetworkSummary(UUID networkId, long fileSize) throws SQLException, NdexException;
     
     void unlockNetwork (UUID networkId) throws  SQLException;
+
+    List<Map<Permissions, Collection<String>>> getAllMembershipsOnNetwork(UUID networkId)
+            throws ObjectNotFoundException, NdexException, SQLException;
 } 
