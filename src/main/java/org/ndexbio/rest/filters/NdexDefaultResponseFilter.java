@@ -103,11 +103,12 @@ public class NdexDefaultResponseFilter implements ContainerResponseFilter //, Fi
 	    if ( methodInvoker != null) {
 	    	final Method method = methodInvoker.getMethod();
 	      
-	    	if (!method.isAnnotationPresent(AuthenticationNotRequired.class) && 
+	  /* Removing this logic because it is no a recommended header setup for REST server designed for web applications. 	
+	   * if (!method.isAnnotationPresent(AuthenticationNotRequired.class) && 
 	    		  !method.isAnnotationPresent(NdexOpenFunction.class) && 
 	    		  !BasicAuthenticationFilter.setAuthHeaderIsFalse(arg0)) {
 	           	   headers.putSingle("WWW-Authenticate", "Basic");
-	    	}
+	    	} */
 	    	
 	    	int responseCode = responseContext.getStatus();
 	    	
