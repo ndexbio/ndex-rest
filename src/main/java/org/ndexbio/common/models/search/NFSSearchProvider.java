@@ -82,7 +82,7 @@ public class NFSSearchProvider implements SearchProvider {
             }
 
         } catch (Exception e) {
-            throw new NdexException("Failed to fetch data about search results.", e);
+            throw new NdexException("Failed to fetch data about search results. " + e.getMessage(), e);
         }
         if (allSummaries == null) allSummaries = new ArrayList<>();
 
@@ -206,7 +206,8 @@ public class NFSSearchProvider implements SearchProvider {
                 .toList();
     }
     private UUID getUUIDFromDocument(SolrDocument solrDocument){
-        return (UUID)solrDocument.get(NFSIndexManager.UUID);
+        String uuid = (String)solrDocument.get(NFSIndexManager.UUID);
+        return UUID.fromString(uuid);
     }
 
     private void addTargetTypeToShortcutSummaryItem(FileItemSummary fileItemSummary, ShortcutDAO shortcutDAO,
