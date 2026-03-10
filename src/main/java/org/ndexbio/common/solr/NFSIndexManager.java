@@ -275,13 +275,13 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      */
     protected String buildPermissionFilter(String userAccount, VisibilityType visibilityType,
                                            Permissions permission) {
-        // For PRIVATE cores
-        if (visibilityType.equals(VisibilityType.PRIVATE)) {
-            return buildPrivateCorePermissionFilter(userAccount, permission);
-        }
-        // For PUBLIC core
-        else {
+        // For PUBLIC cores
+        if (visibilityType.equals(VisibilityType.PUBLIC)) {
             return buildPublicCorePermissionFilter(userAccount, permission);
+        }
+        // For PRIVATE/UNLISTED core
+        else {
+            return buildPrivateCorePermissionFilter(userAccount, permission);
         }
     }
 
@@ -291,6 +291,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      * WRITE/ADMIN filters down to items they have those permissions on.
      */
     protected String buildPublicCorePermissionFilter(String userAccount, Permissions permission) {
+        return "*:*";
+        /*
         String excludeUnlisted = "(*:* NOT " + VISIBILITY + ":UNLISTED)";
 
         if (userAccount == null) {
@@ -314,6 +316,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
 
         return excludeUnlisted;
+
+         */
     }
     /**
      * Permission filter for private-nfs core (PRIVATE items)
@@ -417,10 +421,10 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         solrClientWrapper.close();
     }
     static String getCoreNameFromVisibility(VisibilityType visibilityType){
-        if (visibilityType.equals(VisibilityType.PRIVATE)){
-            return privateCoreName;
+        if (visibilityType.equals(VisibilityType.PUBLIC)){
+            return publicCoreName;
         }
-        return publicCoreName;
+        return privateCoreName;
     }
 
 
