@@ -37,16 +37,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.UUID;
+import java.util.*;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1171,7 +1162,37 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		 }
 		 return null;
 	}
-	
+	public List<NetworkSummary> getNetworkSummariesByIds(List<UUID> networkIds) throws SQLException, JsonParseException, JsonMappingException, IOException {
+		if (networkIds == null || networkIds.isEmpty())
+			return new ArrayList<>();
+
+		String placeholders = String.join(",", Collections.nCopies(networkIds.size(), "?"));
+		String sqlStr = networkSummarySelectClause + " from network n where n.\"UUID\" IN (" + placeholders + ") and n.is_deleted=false";
+
+		Map<UUID, NetworkSummary> summaryMap = new HashMap<>(networkIds.size());
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			for (int i = 0; i < networkIds.size(); i++) {
+				pst.setObject(i + 1, networkIds.get(i));
+			}
+			try (ResultSet rs = pst.executeQuery()) {
+				while (rs.next()) {
+					NetworkSummary s = new NetworkSummary();
+					populateNetworkSummaryFromResultSet(s, rs);
+					summaryMap.put(s.getExternalId(), s);
+				}
+			}
+		}
+
+		List<NetworkSummary> result = new ArrayList<>(networkIds.size());
+		for (UUID id : networkIds) {
+			NetworkSummary s = summaryMap.get(id);
+			if (s != null) {
+				result.add(s);
+			}
+		}
+		return result;
+	}
+
 	public NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause because populateNetworkSummaryFromResultSet function depends on the order.
 		String sqlStr = networkSummarySelectClause + " from network n where n.\"UUID\" = ? and n.is_deleted= false";

@@ -154,4 +154,5 @@ public interface NetworkDAO extends AutoCloseable {
 
     List<Map<Permissions, Collection<String>>> getAllMembershipsOnNetwork(UUID networkId)
             throws ObjectNotFoundException, NdexException, SQLException;
+    List<NetworkSummary> getNetworkSummariesByIds(List<UUID> networkIds) throws SQLException, JsonParseException, JsonMappingException, IOException;
 } 

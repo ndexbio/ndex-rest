@@ -6,9 +6,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.logging.Logger;
 
 import org.ndexbio.common.models.dao.ShortcutDAO;
@@ -83,27 +81,60 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 		}
 	}
 
+	private NdexShortcut mapResultSetToNdexShortcut(ResultSet rs) throws SQLException {
+		NdexShortcut s = new NdexShortcut();
+		s.setExternalId((UUID) rs.getObject("UUID"));
+		s.setName(rs.getString("name"));
+		s.setCreationTime(rs.getTimestamp("creation_time"));
+		s.setModificationTime(rs.getTimestamp("modification_time"));
+		s.setIsDeleted(rs.getBoolean("is_deleted"));
+		s.setTarget((UUID) rs.getObject("target"));
+		s.setParent((UUID) rs.getObject("parent"));
+		s.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
+		s.setOwner(rs.getString("owneruuid"));
+		return s;
+	}
+
 	@Override
 	public NdexShortcut getShortcut(UUID shortcutId, UUID userId) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
-
-		NdexShortcut result = new NdexShortcut();
-		String sqlStr = "select creation_time, modification_time, name, target, parent, is_deleted, target_type, owneruuid from shortcut where \"UUID\"=?";
-
+		String sqlStr = "select \"UUID\", creation_time, modification_time, name, target, parent, is_deleted, target_type, owneruuid from shortcut where \"UUID\"=?";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, shortcutId);
-			try ( ResultSet rs = p.executeQuery()) {
-				if ( rs.next()) {
-					result.setCreationTime(rs.getTimestamp(1));
-					result.setModificationTime(rs.getTimestamp(2));
-					result.setExternalId(shortcutId);
-					result.setName(rs.getString(3));
-					result.setTarget((UUID)(rs.getObject(4)));
-					result.setParent((UUID)(rs.getObject(5)));
-					result.setIsDeleted(rs.getBoolean(6));
-					result.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
-					result.setOwner(rs.getObject(8) != null ? rs.getObject(8).toString() : null);
+			try (ResultSet rs = p.executeQuery()) {
+				if (rs.next()) {
+					return mapResultSetToNdexShortcut(rs);
 				} else
 					throw new ObjectNotFoundException("Shortcut" + shortcutId + " not found in db.");
+			}
+		}
+	}
+
+	public List<NdexShortcut> getShortcutsByIds(List<UUID> shortcutIds) throws SQLException {
+		if (shortcutIds == null || shortcutIds.isEmpty())
+			return new ArrayList<>();
+
+		String placeholders = String.join(",", Collections.nCopies(shortcutIds.size(), "?"));
+		String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type, owneruuid " +
+				"FROM shortcut WHERE \"UUID\" IN (" + placeholders + ")";
+
+		Map<UUID, NdexShortcut> shortcutMap = new HashMap<>(shortcutIds.size());
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			for (int i = 0; i < shortcutIds.size(); i++) {
+				pst.setObject(i + 1, shortcutIds.get(i));
+			}
+			try (ResultSet rs = pst.executeQuery()) {
+				while (rs.next()) {
+					NdexShortcut s = mapResultSetToNdexShortcut(rs);
+					shortcutMap.put(s.getExternalId(), s);
+				}
+			}
+		}
+
+		List<NdexShortcut> result = new ArrayList<>(shortcutIds.size());
+		for (UUID id : shortcutIds) {
+			NdexShortcut s = shortcutMap.get(id);
+			if (s != null) {
+				result.add(s);
 			}
 		}
 		return result;

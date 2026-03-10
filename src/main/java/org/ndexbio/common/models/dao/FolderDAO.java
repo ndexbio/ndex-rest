@@ -75,5 +75,5 @@ public interface FolderDAO extends AutoCloseable {
 	List<FileItemSummary> listPublicRootItemsOfUser(UUID ownerId, boolean compact) throws SQLException;
 	
 	List<FileItemSummary> listPublicRootItemsOfUser(UUID ownerId, boolean compact, FileType fileType) throws SQLException;
-
+	List<NdexFolder> getFoldersByIds(List<UUID> folderIds) throws SQLException;
 }
