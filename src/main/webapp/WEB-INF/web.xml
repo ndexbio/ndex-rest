@@ -37,6 +37,28 @@
          xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">
 
     <display-name>NDEx RESTful API</display-name>
+
+    <!-- ================================================================
+         MCP endpoint — registered programmatically by the listener.
+         McpOAuthFilter guards /mcp/* exclusively (never fires for other paths).
+         ================================================================ -->
+    <listener>
+        <listener-class>org.ndexbio.rest.mcp.McpServletContextListener</listener-class>
+    </listener>
+
+    <filter>
+        <filter-name>McpOAuthFilter</filter-name>
+        <filter-class>org.ndexbio.rest.filters.McpOAuthFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>McpOAuthFilter</filter-name>
+        <url-pattern>/mcp/*</url-pattern>
+    </filter-mapping>
+
+    <!-- ================================================================
+         RESTEasy servlet — handles all non-/mcp requests via /*
+         (Jakarta Servlet spec: more-specific /mcp/* mapping wins over /*)
+         ================================================================ -->
     <servlet>
         <servlet-name>Resteasy</servlet-name>
         <servlet-class>org.ndexbio.rest.NdexHttpServletDispatcher</servlet-class>

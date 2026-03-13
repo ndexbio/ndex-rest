@@ -249,6 +249,13 @@
 			<artifactId>google-api-client</artifactId>
 			<version>2.6.0</version>
 		</dependency>
+
+		<!-- MCP Java SDK — servlet transport provider for /mcp endpoint -->
+		<dependency>
+			<groupId>io.modelcontextprotocol.sdk</groupId>
+			<artifactId>mcp-core</artifactId>
+			<version>1.1.0</version>
+		</dependency>
 		<dependency>
 			<groupId>com.google.oauth-client</groupId>
 			<artifactId>google-oauth-client</artifactId>
