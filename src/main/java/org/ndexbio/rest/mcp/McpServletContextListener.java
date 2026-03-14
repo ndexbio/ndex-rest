@@ -11,6 +11,7 @@ import jakarta.servlet.ServletRegistration;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
+import io.modelcontextprotocol.spec.McpSchema;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,7 @@ public class McpServletContextListener implements ServletContextListener {
                 .jsonMapper(new Jackson2McpJsonMapper())
                 .keepAliveInterval(Duration.ofSeconds(30))
                 .contextExtractor(req -> {
+                    // this will enable passing the authenticateduser context to each tool invocation
                     Object user = req.getAttribute("User");
                     return user != null
                         ? McpTransportContext.create(Map.of("ndexUser", user))
@@ -53,8 +55,16 @@ public class McpServletContextListener implements ServletContextListener {
 
         McpServer.sync(transport)
             .serverInfo("ndex-mcp", "1.0.0")
-            // TODO: register NDEx MCP tools here
-            .tools()
+            
+            .tools(
+                // TODO: register NDEx MCP tools here, passing the tool the user context as set by McpOAuthFilter via the transport context extractor:
+                // new McpSchema.Tool("search-networks", "Search NDEx networks", "Description of search-networks tool", ...),
+                //     (exchange, args) -> {
+                //     McpTransportContext ctx = exchange.getTransportContext();
+                //     User user = (User) ctx.get("ndexUser");
+                // }
+
+            )
             .build();
 
         ServletRegistration.Dynamic reg = ctx.addServlet("McpServlet", transport);
