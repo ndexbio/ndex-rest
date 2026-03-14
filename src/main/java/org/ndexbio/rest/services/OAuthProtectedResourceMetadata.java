@@ -20,9 +20,7 @@ import org.slf4j.LoggerFactory;
  * Config keys read from ndex.properties:
  *   HostURI              — public base URL of this NDEx server
  *   KEYCLOAK_PUBLIC_AUTHN — public-facing Keycloak realm URL
- *                           (e.g. https://www.ndexbio.org/auth2/realms/ndex)
- *                           NOTE: do NOT use KEYCLOAK_ISSUER here — that is an
- *                           internal host not reachable by external MCP clients.
+ *                           
  */
 @Path("/.well-known/oauth-protected-resource")
 public class OAuthProtectedResourceMetadata extends NdexService {
