@@ -10,9 +10,11 @@ import jakarta.servlet.ServletRegistration;
 
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.McpServer;
+import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
 
+import org.ndexbio.model.object.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,13 +59,23 @@ public class McpServletContextListener implements ServletContextListener {
             .serverInfo("ndex-mcp", "1.0.0")
             
             .tools(
-                // TODO: register NDEx MCP tools here, passing the tool the user context as set by McpOAuthFilter via the transport context extractor:
-                // new McpSchema.Tool("search-networks", "Search NDEx networks", "Description of search-networks tool", ...),
-                //     (exchange, args) -> {
-                //     McpTransportContext ctx = exchange.getTransportContext();
-                //     User user = (User) ctx.get("ndexUser");
-                // }
-
+                // TODO: register NDEx MCP tools here.
+                // Example of a tool registration with inline handler function to illustrate
+                // how tools can access the authenticated user context during their invocation.
+                new McpServerFeatures.SyncToolSpecification(
+                    McpSchema.Tool.builder()
+                        .name("example-search-networks-tool")
+                        .description("Example of a tool like Search NDEx networks")
+                        .build(),
+                    (exchange, req) -> {
+                        // inline example of tool invocation handler function
+                        // shows how tool handlers can access the authenticated ndex user from the transport context of a request
+                        McpTransportContext transportCtx = exchange.transportContext();
+                        User user = (User) transportCtx.get("ndexUser");
+                        logger.info("Handling tool request with ndex user: {}", user != null ? user.getUserName() : "anonymous");
+                        return McpSchema.CallToolResult.builder().addTextContent("result payload here ...").build();
+                    }
+                )
             )
             .build();
 
