@@ -3,6 +3,7 @@ package org.ndexbio.rest.filters;
 import java.io.IOException;
 
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.security.OAuthAuthenticator;
 import org.slf4j.Logger;
@@ -83,6 +84,13 @@ public class McpOAuthFilter implements Filter {
     }
 
     private static void sendUnauthorized(HttpServletResponse resp, String reason) throws IOException {
+        try {
+            String hostUri = Configuration.getInstance().getHostURI();
+            resp.setHeader("WWW-Authenticate",
+                "Bearer resource_metadata=\"" + hostUri + "/.well-known/oauth-protected-resource\"");
+        } catch (Exception e) {
+            logger.warn("McpOAuthFilter: could not read HostURI for WWW-Authenticate header — {}", e.getMessage());
+        }
         resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         resp.setContentType("application/json;charset=UTF-8");
         resp.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"" + reason + "\"}");
