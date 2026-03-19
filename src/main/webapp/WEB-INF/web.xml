@@ -40,18 +40,21 @@
 
     <!-- ================================================================
          MCP endpoint — registered programmatically by the listener.
-         McpOAuthFilter guards /mcp/* exclusively (never fires for other paths).
+         McpAuthFilter pre-authenticates /mcp/* requests:
+           - Basic credentials present and valid → User attribute set, request continues.
+           - Basic credentials present but invalid → plain JSON 401.
+           - No/non-Basic auth header → JSON 401 + WWW-Authenticate: Bearer resource_metadata="..."
          ================================================================ -->
     <listener>
         <listener-class>org.ndexbio.rest.mcp.McpServletContextListener</listener-class>
     </listener>
 
     <filter>
-        <filter-name>McpOAuthFilter</filter-name>
-        <filter-class>org.ndexbio.rest.filters.McpOAuthFilter</filter-class>
+        <filter-name>McpAuthFilter</filter-name>
+        <filter-class>org.ndexbio.rest.filters.McpAuthFilter</filter-class>
     </filter>
     <filter-mapping>
-        <filter-name>McpOAuthFilter</filter-name>
+        <filter-name>McpAuthFilter</filter-name>
         <url-pattern>/mcp/*</url-pattern>
     </filter-mapping>
 

@@ -60,7 +60,6 @@ import org.ndexbio.rest.services.GroupServiceV2;
 import org.ndexbio.rest.services.NetworkService;
 import org.ndexbio.rest.services.NetworkServiceV2;
 import org.ndexbio.rest.services.NetworkSetServiceV2;
-import org.ndexbio.rest.services.OAuthProtectedResourceMetadata;
 import org.ndexbio.rest.services.RequestServiceV2;
 import org.ndexbio.rest.services.SearchServiceV2;
 import org.ndexbio.rest.services.TaskService;
@@ -95,7 +94,6 @@ public class NdexRestApi extends Application
         _resources.add(NetworkServiceV2.class);
         _resources.add(AdminService.class);
         _resources.add(AdminServiceV2.class);
-        _resources.add(OAuthProtectedResourceMetadata.class);
         _resources.add(BatchServiceV2.class);
         _resources.add(SearchServiceV2.class);
         _resources.add(NetworkSetServiceV2.class);

@@ -1,6 +1,7 @@
 package org.ndexbio.rest.mcp;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 
 import jakarta.servlet.ServletContext;
@@ -10,28 +11,26 @@ import jakarta.servlet.ServletRegistration;
 
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.McpServer;
-import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
-import io.modelcontextprotocol.spec.McpSchema;
 
-import org.ndexbio.model.object.User;
+import org.ndexbio.rest.mcp.tools.SearchNetworkTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Programmatically builds and registers the MCP servlet at /mcp/*.
- * 
- * Creates servlet outside of RestEasy/Jax-Rs to avoid streaming http transport getting wrapped by RestEasy's buffering servlet, which breaks streaming responses.
  *
- * Reuses the MCP SDK HttpServletStreamableServerTransportProvider for MCP protocol handling. 
- * However, it has a private constructor (builder-only),
- * so it cannot be declared as a &lt;servlet-class&gt; in web.xml. This listener constructs
- * it via its builder, wires it to an McpServer, then registers it as a servlet using
- * the programmatic ServletContext API.
+ * Creates the servlet outside RESTEasy/JAX-RS to avoid streaming HTTP transport being wrapped
+ * by RESTEasy's buffering servlet, which breaks streaming responses.
  *
- * The contextExtractor lambda reads the authenticated NDEx User set by McpOAuthFilter
- * from the servlet request attribute "User" and propagates it into the MCP transport
- * context, making it available to every tool/resource handler invocation.
+ * Reuses the MCP SDK HttpServletStreamableServerTransportProvider for MCP protocol handling.
+ * However, it has a private constructor (builder-only), so it cannot be declared as a
+ * &lt;servlet-class&gt; in web.xml. This listener constructs it via its builder, wires it to an
+ * McpServer, then registers it as a servlet using the programmatic ServletContext API.
+ *
+ * The contextExtractor lambda reads the HttpServletRequest (always) and the optional NDEx User
+ * set by McpBasicAuthFilter from the servlet request attribute "User", propagating both into
+ * the MCP transport context and making them available to every tool handler invocation.
  */
 public class McpServletContextListener implements ServletContextListener {
 
@@ -47,41 +46,23 @@ public class McpServletContextListener implements ServletContextListener {
                 .jsonMapper(new Jackson2McpJsonMapper())
                 .keepAliveInterval(Duration.ofSeconds(30))
                 .contextExtractor(req -> {
-                    // this will enable passing the authenticateduser context to each tool invocation
+                    Map<String, Object> context = new HashMap<>();
+                    context.put("ndexRequest", req);  // always — needed by tool handlers
                     Object user = req.getAttribute("User");
-                    return user != null
-                        ? McpTransportContext.create(Map.of("ndexUser", user))
-                        : McpTransportContext.EMPTY;
+                    if (user != null) context.put("ndexUser", user);
+                    return McpTransportContext.create(context);
                 })
                 .build();
 
         McpServer.sync(transport)
             .serverInfo("ndex-mcp", "1.0.0")
-            
             .tools(
-                // TODO: register NDEx MCP tools here.
-                // Example of a tool registration with inline handler function to illustrate
-                // how tools can access the authenticated user context during their invocation.
-                new McpServerFeatures.SyncToolSpecification(
-                    McpSchema.Tool.builder()
-                        .name("example-search-networks-tool")
-                        .description("Example of a tool like Search NDEx networks")
-                        .build(),
-                    (exchange, req) -> {
-                        // inline example of tool invocation handler function
-                        // shows how tool handlers can access the authenticated ndex user from the transport context of a request
-                        McpTransportContext transportCtx = exchange.transportContext();
-                        User user = (User) transportCtx.get("ndexUser");
-                        logger.info("Handling tool request with ndex user: {}", user != null ? user.getUserName() : "anonymous");
-                        return McpSchema.CallToolResult.builder().addTextContent("result payload here ...").build();
-                    }
-                )
+                new SearchNetworkTool(new ToolsService()).toSpec()
             )
             .build();
 
         ServletRegistration.Dynamic reg = ctx.addServlet("McpServlet", transport);
         if (reg == null) {
-            // servlet name already registered — log and continue
             logger.warn("McpServletContextListener: 'McpServlet' already registered; " +
                         "skipping duplicate registration.");
             return;
