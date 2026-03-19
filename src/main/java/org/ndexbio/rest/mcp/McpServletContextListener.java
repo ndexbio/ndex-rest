@@ -11,10 +11,9 @@ import jakarta.servlet.ServletRegistration;
 
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.McpServer;
+import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 
-import org.ndexbio.rest.mcp.tools.GetNetworkSummaryTool;
-import org.ndexbio.rest.mcp.tools.SearchNetworkTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,13 +54,23 @@ public class McpServletContextListener implements ServletContextListener {
                 })
                 .build();
 
+        McpServerFeatures.SyncToolSpecification[] toolSpecs =
+            new McpToolRegistry().buildSpecs()
+                .toArray(new McpServerFeatures.SyncToolSpecification[0]);
+
         McpServer.sync(transport)
             .serverInfo("ndex-mcp", "1.0.0")
-            .tools(
-                new SearchNetworkTool(new ToolsService()).toSpec(),
-                new GetNetworkSummaryTool(new ToolsService()).toSpec()
-            )
+            .tools(toolSpecs)
             .build();
+
+        ServletRegistration.Dynamic manifestReg =
+            ctx.addServlet("McpManifestServlet", new McpManifestServlet());
+        if (manifestReg == null) {
+            logger.warn("McpServletContextListener: 'McpManifestServlet' already registered; " +
+                        "skipping duplicate registration.");
+        } else {
+            manifestReg.addMapping("/mcp/manifest");
+        }
 
         ServletRegistration.Dynamic reg = ctx.addServlet("McpServlet", transport);
         if (reg == null) {

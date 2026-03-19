@@ -437,6 +437,58 @@
 					</archive>
 				</configuration>
 			</plugin>
+		<plugin>
+			<groupId>org.codehaus.mojo</groupId>
+			<artifactId>exec-maven-plugin</artifactId>
+			<version>3.1.0</version>
+			<executions>
+				<execution>
+					<!-- process-classes is the earliest phase after compile where the
+					     generator class exists. Output goes to target/generated-resources/
+					     (a dedicated dir separate from compiled classes); the
+					     copy-generated-mcp-resources execution below copies it into
+					     target/classes/ so the WAR and JAR both include it. -->
+					<id>generate-mcp-manifest</id>
+					<phase>process-classes</phase>
+					<goals>
+						<goal>java</goal>
+					</goals>
+					<configuration>
+						<mainClass>org.ndexbio.rest.mcp.McpManifest</mainClass>
+						<arguments>
+							<argument>${project.build.directory}/generated-resources</argument>
+						</arguments>
+					</configuration>
+				</execution>
+			</executions>
+		</plugin>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-resources-plugin</artifactId>
+			<executions>
+				<execution>
+					<!-- Copies McpManifest.md from target/generated-resources/ into
+					     target/classes/ so it is bundled at the classpath root in both
+					     the WAR (WEB-INF/classes/McpManifest.md) and the JAR. Runs in
+					     the same process-classes phase, declared after exec so it fires
+					     second within the phase. -->
+					<id>copy-generated-mcp-resources</id>
+					<phase>process-classes</phase>
+					<goals>
+						<goal>copy-resources</goal>
+					</goals>
+					<configuration>
+						<outputDirectory>${project.build.outputDirectory}</outputDirectory>
+						<resources>
+							<resource>
+								<directory>${project.build.directory}/generated-resources</directory>
+								<filtering>false</filtering>
+							</resource>
+						</resources>
+					</configuration>
+				</execution>
+			</executions>
+		</plugin>
 	 		<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>buildnumber-maven-plugin</artifactId>

@@ -66,6 +66,8 @@ class TestMcpAuthFilter {
         HttpServletResponse resp = mock(HttpServletResponse.class);
         FilterChain chain = mock(FilterChain.class);
 
+        expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
+        expect(req.getContextPath()).andReturn("").once();
         expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
         chain.doFilter(req, resp);
         expectLastCall().once();
@@ -84,6 +86,8 @@ class TestMcpAuthFilter {
         HttpServletResponse resp = mock(HttpServletResponse.class);
         FilterChain chain = mock(FilterChain.class);
 
+        expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
+        expect(req.getContextPath()).andReturn("").once();
         expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
         req.setAttribute("User", mockUser);
         expectLastCall().once();
@@ -104,6 +108,8 @@ class TestMcpAuthFilter {
         FilterChain chain = mock(FilterChain.class);
         PrintWriter writer = mock(PrintWriter.class);
 
+        expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
+        expect(req.getContextPath()).andReturn("").once();
         expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
         expect(req.getHeader("Authorization")).andReturn("Basic dXNlcjpwYXNz").once();
         resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -129,6 +135,8 @@ class TestMcpAuthFilter {
         FilterChain chain = mock(FilterChain.class);
         PrintWriter writer = mock(PrintWriter.class);
 
+        expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
+        expect(req.getContextPath()).andReturn("").once();
         expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
         expect(req.getHeader("Authorization")).andReturn(null).once();
         resp.setHeader(eq("WWW-Authenticate"), contains("Bearer resource_metadata="));
@@ -157,6 +165,8 @@ class TestMcpAuthFilter {
         FilterChain chain = mock(FilterChain.class);
         PrintWriter writer = mock(PrintWriter.class);
 
+        expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
+        expect(req.getContextPath()).andReturn("").once();
         expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
         expect(req.getHeader("Authorization")).andReturn("Bearer old.token").once();
         resp.setHeader(eq("WWW-Authenticate"), and(

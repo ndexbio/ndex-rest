@@ -43,6 +43,15 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
         HttpServletRequest  httpReq  = (HttpServletRequest)  request;
         HttpServletResponse httpResp = (HttpServletResponse) response;
 
+        // Manifest is public documentation — no authentication required
+        String uri = httpReq.getRequestURI();
+        String contextPath = httpReq.getContextPath();
+        String relPath = uri.startsWith(contextPath) ? uri.substring(contextPath.length()) : uri;
+        if ("/mcp/manifest".equals(relPath)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // Adapt HttpServletRequest headers to MultivaluedMap for handleFilter()
         MultivaluedHashMap<String, String> headers = new MultivaluedHashMap<>();
         Enumeration<String> names = httpReq.getHeaderNames();
