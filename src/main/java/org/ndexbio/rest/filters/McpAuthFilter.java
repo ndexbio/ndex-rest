@@ -28,9 +28,8 @@ import jakarta.ws.rs.core.MultivaluedHashMap;
  * Handles its own 401 responses via private sendUnauthorizedResponse():
  *   - Basic credentials present and invalid → plain JSON 401
  *   - No/non-Basic auth header            → JSON 401 + WWW-Authenticate: Bearer resource_metadata="..."
- *   - Token expired (TokenExpiredException) → same + error="invalid_token"
+ *   - Token expired (TokenExpiredException) → JSON 401 + WWW-Authenticate: Bearer resource_metadata="..." + error="invalid_token"
  *
- * Does NOT override filter(ContainerRequestContext).
  */
 public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
 
@@ -56,19 +55,16 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
             User user = handleFilter(headers);  // from BasicAuthenticationFilter; throws Exception broadly
             if (user != null) httpReq.setAttribute("User", user);
         } catch (Exception e) {
-            // getHeader() used here (not the map) — servlet API is fine for a single read
             sendUnauthorizedResponse(httpResp, e, httpReq.getHeader("Authorization"));
             return;
         }
         chain.doFilter(request, response);
     }
 
-    // ── private helpers ──────────────────────────────────────────────────────
-
     private void sendUnauthorizedResponse(HttpServletResponse resp, Exception cause, String authHeader)
             throws IOException {
         if (authHeader == null || !authHeader.startsWith("Basic ")) {
-            // No/non-Basic auth → OAuth challenge with WWW-Authenticate header
+            // No auth header or non-Basic auth → OAuth challenge with WWW-Authenticate header
             try {
                 String hostUri = Configuration.getInstance().getHostURI();
                 String wwwAuth = "Bearer resource_metadata=\"" + hostUri +
