@@ -41,6 +41,9 @@ coverage: ## check code coverage with jacoco
 	mvn test jacoco:report
 	$(BROWSER) target/site/jacoco/index.html
 
+compile: ## compile sources
+	mvn compile
+
 install: clean ## install the package to local repo
 	mvn install
 

@@ -343,7 +343,22 @@
 				<configuration>
 				 <!--  	<release>11</release>  -->
 				    <source>17</source>
-					<target>17</target> 
+					<target>17</target>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.2.5</version>
+				<configuration>
+					<!-- Print each test name and PASS/FAIL as it runs -->
+					<printSummary>true</printSummary>
+					<verboseOutput>true</verboseOutput>
+					<!-- Show full stack traces for failures -->
+					<trimStackTrace>false</trimStackTrace>
+					<!-- Emit a per-class summary line even for passing suites -->
+					<reportFormat>plain</reportFormat>
+					<useFile>false</useFile>
 				</configuration>
 			</plugin>
 			<plugin>

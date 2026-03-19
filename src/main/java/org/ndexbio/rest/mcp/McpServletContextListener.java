@@ -13,6 +13,7 @@ import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 
+import org.ndexbio.rest.mcp.tools.GetNetworkSummaryTool;
 import org.ndexbio.rest.mcp.tools.SearchNetworkTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +58,8 @@ public class McpServletContextListener implements ServletContextListener {
         McpServer.sync(transport)
             .serverInfo("ndex-mcp", "1.0.0")
             .tools(
-                new SearchNetworkTool(new ToolsService()).toSpec()
+                new SearchNetworkTool(new ToolsService()).toSpec(),
+                new GetNetworkSummaryTool(new ToolsService()).toSpec()
             )
             .build();
 
