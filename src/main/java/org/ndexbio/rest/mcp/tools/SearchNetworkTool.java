@@ -1,14 +1,11 @@
 package org.ndexbio.rest.mcp.tools;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 import jakarta.servlet.http.HttpServletRequest;
 
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NetworkSearchResult;
 import org.ndexbio.model.object.SimpleNetworkQuery;
+import org.ndexbio.rest.mcp.McpSchema;
 import org.ndexbio.rest.mcp.ToolsService;
 import org.ndexbio.rest.services.SearchServiceV2;
 import org.slf4j.Logger;
@@ -20,7 +17,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
+import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import io.modelcontextprotocol.spec.McpSchema.JsonSchema;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 
 /**
  * MCP tool: search_network
@@ -54,11 +54,35 @@ public class SearchNetworkTool {
         "Example 4 — Paginate through a large result set:\n" +
         "{\"searchString\": \"cancer\", \"start\": 100, \"size\": 50}";
 
-    private static final McpSchema.Tool TOOL = McpSchema.Tool.builder()
-        .name(TOOL_NAME)
-        .description(TOOL_DESCRIPTION)
-        .inputSchema(buildInputSchema())
-        .build();
+    static final String INPUT_SCHEMA = McpSchema.toJson(
+        McpSchema.InputSchema.builder()
+            .required("searchString")
+            .property("searchString", new McpSchema.InputProperty("string",
+                "Required. Text to search across network names, descriptions, and node/edge data.\n\n" +
+                "Examples: \"BRCA1\", \"apoptosis signaling\", \"Homo sapiens\""))
+            .property("accountName", new McpSchema.InputProperty("string",
+                "Optional. Filter results to networks owned or shared by this NDEx account name.\n\n" +
+                "Examples: \"ndexcurator\", \"mylab\""))
+            .property("includeGroups", new McpSchema.InputProperty("boolean",
+                "Optional. When true, includes networks owned by groups the caller belongs to. Default false."))
+            .property("start", new McpSchema.InputProperty("integer",
+                "Optional. Zero-based pagination offset. Default 0."))
+            .property("size", new McpSchema.InputProperty("integer",
+                "Optional. Maximum number of results to return. Default 100."))
+            .build());
+
+    private static final Tool TOOL;
+    static {
+        try {
+            TOOL = Tool.builder()
+                .name(TOOL_NAME)
+                .description(TOOL_DESCRIPTION)
+                .inputSchema(MAPPER.readValue(INPUT_SCHEMA, JsonSchema.class))
+                .build();
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     private final ToolsService toolsService;
 
@@ -67,11 +91,11 @@ public class SearchNetworkTool {
     }
 
     public McpServerFeatures.SyncToolSpecification toSpec() {
-        return new McpServerFeatures.SyncToolSpecification(TOOL, this::handle);
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(TOOL).callHandler(this::handle).build();
     }
 
-    private McpSchema.CallToolResult handle(McpSyncServerExchange exchange,
-                                            McpSchema.CallToolRequest req) {
+    private CallToolResult handle(McpSyncServerExchange exchange, CallToolRequest req) {
         try {
             HttpServletRequest httpReq = (HttpServletRequest)
                     exchange.transportContext().get("ndexRequest");
@@ -89,49 +113,17 @@ public class SearchNetworkTool {
             NetworkSearchResult result = new SearchServiceV2(httpReq).searchNetwork(query, start, size);
 
             String json = MAPPER.writeValueAsString(result);
-            return McpSchema.CallToolResult.builder().addTextContent(json).build();
+            return CallToolResult.builder().addTextContent(json).build();
 
         } catch (UnauthorizedOperationException | SecurityException e) {
             return toolsService.unauthorizedResult();
         } catch (Exception e) {
             logger.error("search_network failed", e);
-            return McpSchema.CallToolResult.builder()
+            return CallToolResult.builder()
                     .isError(true)
                     .addTextContent("Search failed: " + e.getMessage())
                     .build();
         }
-    }
-
-    private static McpSchema.JsonSchema buildInputSchema() {
-        Map<String, Object> properties = new LinkedHashMap<>();
-
-        properties.put("searchString", Map.of(
-            "type", "string",
-            "description", "Required. Text to search across network names, descriptions, and node/edge data. " +
-                           "Supports keyword and phrase queries.\n\nExamples: \"BRCA1\", \"apoptosis signaling\", \"Homo sapiens\""
-        ));
-        properties.put("accountName", Map.of(
-            "type", "string",
-            "description", "Optional. Filter results to networks owned or shared by this NDEx account name " +
-                           "(exact, case-insensitive). Omit to search all public networks.\n\nExamples: \"ndexcurator\", \"mylab\", \"biopax\""
-        ));
-        properties.put("includeGroups", Map.of(
-            "type", "boolean",
-            "description", "Optional. When true, includes networks owned by groups the caller belongs to. " +
-                           "Default false.\n\nExamples: true, false"
-        ));
-        properties.put("start", Map.of(
-            "type", "integer",
-            "description", "Optional. Zero-based offset into the result set for pagination. " +
-                           "Default 0.\n\nExamples: 0, 50, 100"
-        ));
-        properties.put("size", Map.of(
-            "type", "integer",
-            "description", "Optional. Maximum number of network summaries to return. " +
-                           "Default 100.\n\nExamples: 25, 100, 200"
-        ));
-
-        return new McpSchema.JsonSchema("object", properties, List.of("searchString"), null, null, null);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

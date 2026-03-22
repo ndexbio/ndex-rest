@@ -1,13 +1,12 @@
 package org.ndexbio.rest.mcp.tools;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.network.NetworkSummaryV3;
+import org.ndexbio.rest.mcp.McpSchema;
 import org.ndexbio.rest.mcp.ToolsService;
 import org.ndexbio.rest.services.v3.NetworkServiceV3;
 import org.slf4j.Logger;
@@ -19,7 +18,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
+import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import io.modelcontextprotocol.spec.McpSchema.JsonSchema;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 
 /**
  * MCP tool: get_network_summary
@@ -56,11 +58,32 @@ public class GetNetworkSummaryTool {
         "Example 4 — Retrieve only network properties:\n" +
         "{\"networkId\": \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\", \"format\": \"PROPERTIES\"}";
 
-    private static final McpSchema.Tool TOOL = McpSchema.Tool.builder()
-        .name(TOOL_NAME)
-        .description(TOOL_DESCRIPTION)
-        .inputSchema(buildInputSchema())
-        .build();
+    static final String INPUT_SCHEMA = McpSchema.toJson(
+        McpSchema.InputSchema.builder()
+            .required("networkId")
+            .property("networkId", new McpSchema.InputProperty("string",
+                "Required. UUID of the NDEx network to retrieve.\n\n" +
+                "Examples: \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\""))
+            .property("accessKey", new McpSchema.InputProperty("string",
+                "Optional. Access key granting read permission on non-public networks."))
+            .property("format", new McpSchema.InputProperty("string",
+                "Optional. Controls which fields are included. Values: UPDATE, COMPACT, " +
+                "PROPERTIES, FULL (default).",
+                List.of("FULL", "COMPACT", "PROPERTIES", "UPDATE")))
+            .build());
+
+    private static final Tool TOOL;
+    static {
+        try {
+            TOOL = Tool.builder()
+                .name(TOOL_NAME)
+                .description(TOOL_DESCRIPTION)
+                .inputSchema(MAPPER.readValue(INPUT_SCHEMA, JsonSchema.class))
+                .build();
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     private final ToolsService toolsService;
 
@@ -69,11 +92,11 @@ public class GetNetworkSummaryTool {
     }
 
     public McpServerFeatures.SyncToolSpecification toSpec() {
-        return new McpServerFeatures.SyncToolSpecification(TOOL, this::handle);
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(TOOL).callHandler(this::handle).build();
     }
 
-    private McpSchema.CallToolResult handle(McpSyncServerExchange exchange,
-                                            McpSchema.CallToolRequest req) {
+    private CallToolResult handle(McpSyncServerExchange exchange, CallToolRequest req) {
         try {
             HttpServletRequest httpReq = (HttpServletRequest)
                     exchange.transportContext().get("ndexRequest");
@@ -87,7 +110,7 @@ public class GetNetworkSummaryTool {
                     new NetworkServiceV3(httpReq)
                             .getNetworkSummaryV3(input.networkId(), input.accessKey(), format);
 
-            return McpSchema.CallToolResult.builder()
+            return CallToolResult.builder()
                     .addTextContent(MAPPER.writeValueAsString(result))
                     .build();
 
@@ -95,41 +118,11 @@ public class GetNetworkSummaryTool {
             return toolsService.unauthorizedResult();
         } catch (Throwable e) {
             logger.error("get_network_summary failed", e);
-            return McpSchema.CallToolResult.builder()
+            return CallToolResult.builder()
                     .isError(true)
                     .addTextContent("get_network_summary failed: " + e.getMessage())
                     .build();
         }
-    }
-
-    private static McpSchema.JsonSchema buildInputSchema() {
-        Map<String, Object> properties = new LinkedHashMap<>();
-
-        properties.put("networkId", Map.of(
-            "type", "string",
-            "description", "Required. UUID of the NDEx network to retrieve. " +
-                           "Must be a valid UUID string.\n\n" +
-                           "Examples: \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\", " +
-                           "\"a1b2c3d4-0000-0000-0000-000000000001\", " +
-                           "\"9a8f5ab1-3a5c-11e8-a935-0ac135e8bacf\""
-        ));
-        properties.put("accessKey", Map.of(
-            "type", "string",
-            "description", "Optional. Access key granting read permission on non-public networks. " +
-                           "Omit for publicly visible networks.\n\n" +
-                           "Examples: \"mySecretKey\", \"sharedAccessToken123\", \"lab-private-key\""
-        ));
-        properties.put("format", Map.of(
-            "type", "string",
-            "description", "Optional. Controls which fields are included in the response. " +
-                           "Accepted values: UPDATE (uuid, modificationTime, updatedBy), " +
-                           "COMPACT (name, stats, no properties), " +
-                           "PROPERTIES (uuid, modificationTime, name, description, properties), " +
-                           "FULL (all fields, default). Omit for complete summary.\n\n" +
-                           "Examples: \"FULL\", \"COMPACT\", \"PROPERTIES\", \"UPDATE\""
-        ));
-
-        return new McpSchema.JsonSchema("object", properties, List.of("networkId"), null, null, null);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

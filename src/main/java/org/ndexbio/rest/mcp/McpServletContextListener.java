@@ -54,8 +54,10 @@ public class McpServletContextListener implements ServletContextListener {
                 })
                 .build();
 
+        UploadService uploadService = new UploadService();
+
         McpServerFeatures.SyncToolSpecification[] toolSpecs =
-            new McpToolRegistry().buildSpecs()
+            new McpToolRegistry().buildSpecs(uploadService)
                 .toArray(new McpServerFeatures.SyncToolSpecification[0]);
 
         McpServer.sync(transport)

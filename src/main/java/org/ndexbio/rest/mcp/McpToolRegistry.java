@@ -6,6 +6,7 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 
 import org.ndexbio.rest.mcp.tools.GetNetworkSummaryTool;
 import org.ndexbio.rest.mcp.tools.SearchNetworkTool;
+import org.ndexbio.rest.mcp.tools.UpdateNetworkTool;
 
 /**
  * Single source of truth for all registered MCP tool specifications.
@@ -17,10 +18,15 @@ import org.ndexbio.rest.mcp.tools.SearchNetworkTool;
 public class McpToolRegistry {
 
     public List<McpServerFeatures.SyncToolSpecification> buildSpecs() {
+        return buildSpecs(new UploadService());
+    }
+
+    public List<McpServerFeatures.SyncToolSpecification> buildSpecs(UploadService uploadService) {
         ToolsService ts = new ToolsService();
         return List.of(
             new SearchNetworkTool(ts).toSpec(),
-            new GetNetworkSummaryTool(ts).toSpec()
+            new GetNetworkSummaryTool(ts).toSpec(),
+            new UpdateNetworkTool(ts, uploadService).toSpec()
         );
     }
 }

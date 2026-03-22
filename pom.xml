@@ -256,6 +256,17 @@
 			<artifactId>mcp-core</artifactId>
 			<version>1.1.0</version>
 		</dependency>
+		<!-- victools JSON Schema Generator — derives JSON schema from annotated classes -->
+		<dependency>
+			<groupId>com.github.victools</groupId>
+			<artifactId>jsonschema-generator</artifactId>
+			<version>4.38.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.victools</groupId>
+			<artifactId>jsonschema-module-jackson</artifactId>
+			<version>4.38.0</version>
+		</dependency>
 		<dependency>
 			<groupId>com.google.oauth-client</groupId>
 			<artifactId>google-oauth-client</artifactId>
