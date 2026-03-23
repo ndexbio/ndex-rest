@@ -599,6 +599,52 @@ public class NetworkServiceV3  extends NdexService {
 		return s;
 	}
 
+	public NdexObjectUpdateStatus createNetworkFromInputStream(
+			InputStream cx2Stream,
+			String visibilityStr,
+			String extraNodeIndexStr,
+			String folderIdStr) throws Exception {
+
+		VisibilityType visibility = visibilityStr != null ? VisibilityType.valueOf(visibilityStr) : null;
+
+		Set<String> extraIndexOnNodes = null;
+		if (extraNodeIndexStr != null) {
+			extraIndexOnNodes = new HashSet<>(10);
+			for (String f : extraNodeIndexStr.split("\\s*,\\s*"))
+				extraIndexOnNodes.add(f);
+		}
+
+		try (UserDAO dao = new UserDAO()) {
+			dao.checkDiskSpace(getLoggedInUserId());
+		}
+
+		UUID uuid = storeRawNetworkFromStream(cx2Stream, CX2NetworkLoader.cx2NetworkFileName);
+		String uuidStr = uuid.toString();
+		accLogger.info("[data]\t[uuid:" + uuidStr + "]");
+
+		String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr
+				+ "/" + CX2NetworkLoader.cx2NetworkFileName;
+		long fileSize = new File(cxFileName).length();
+
+		NdexObjectUpdateStatus status;
+		try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+			status = dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(),
+					getLoggedInUser().getUserName(), fileSize, null, CX2NetworkLoader.cx2Format);
+			dao.commit();
+		}
+
+		if (folderIdStr != null && !folderIdStr.isEmpty()) {
+			try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+				networkDao.setNetworkFolder(uuid, UUID.fromString(folderIdStr));
+				networkDao.commit();
+			}
+		}
+
+		NdexServerQueue.INSTANCE.addSystemTask(
+				new CX2NetworkLoadingTask(uuid, false, visibility, extraIndexOnNodes));
+		return status;
+	}
+
 		private static NdexObjectUpdateStatus updateCx2NetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
 				UUID tmpNetworkId) throws SQLException, NdexException, IOException, JsonParseException,
 				JsonMappingException, ObjectNotFoundException {
