@@ -46,12 +46,16 @@ public class SearchNetworkTool {
         "Unauthorized error response is returned.\n\n" +
         "## Examples\n\n" +
         "Example 1 — Search for networks matching a keyword:\n" +
+        "Prompt: 'Search NDEx for networks related to BRCA1'\n" +
         "{\"searchString\": \"BRCA1\"}\n\n" +
         "Example 2 — Find networks owned by a specific account:\n" +
+        "Prompt: 'Find NDEx signaling networks owned by my account'\n" +
         "{\"searchString\": \"signaling\", \"accountName\": \"ndexcurator\"}\n\n" +
-        "Example 3 — Include group-owned networks in results:\n" +
+        "Example 3 — Include group-owned networks and search in results:\n" +
+        "Prompt: 'Find apoptosis ndex networks including ones owned by my groups'\n" +
         "{\"searchString\": \"apoptosis\", \"includeGroups\": true}\n\n" +
         "Example 4 — Paginate through a large result set:\n" +
+        "Prompt: 'Show me the next page of NDEx search results for cancer networks'\n" +
         "{\"searchString\": \"cancer\", \"start\": 100, \"size\": 50}";
 
     static final String INPUT_SCHEMA = McpSchema.toJson(

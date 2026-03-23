@@ -50,12 +50,16 @@ public class GetNetworkSummaryTool {
         "unrecognized; a 401 Unauthorized error response is returned when authentication is required.\n\n" +
         "## Examples\n\n" +
         "Example 1 — Retrieve full summary for a known network:\n" +
+        "Prompt: 'Get the summary for my NDEx network'\n" +
         "{\"networkId\": \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\"}\n\n" +
         "Example 2 — Retrieve only compact metadata (name, stats, no properties):\n" +
+        "Prompt: 'What are the basic stats for my NDEx network?'\n" +
         "{\"networkId\": \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\", \"format\": \"COMPACT\"}\n\n" +
         "Example 3 — Retrieve a private network using an access key:\n" +
+        "Prompt: 'Show me the details for my private NDEx network'\n" +
         "{\"networkId\": \"a1b2c3d4-0000-0000-0000-000000000001\", \"accessKey\": \"mySecretKey\"}\n\n" +
         "Example 4 — Retrieve only network properties:\n" +
+        "Prompt: 'List the properties of my NDEx network'\n" +
         "{\"networkId\": \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\", \"format\": \"PROPERTIES\"}";
 
     static final String INPUT_SCHEMA = McpSchema.toJson(

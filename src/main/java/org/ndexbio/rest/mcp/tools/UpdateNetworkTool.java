@@ -65,7 +65,26 @@ public class UpdateNetworkTool {
         "reports isCompleted is true or an errorMessage is set to confirm the final outcome. " +
         "Returns an error response if the network does not exist, is locked by another in-progress " +
         "operation, or is read-only; a 401 Unauthorized error response is returned when " +
-        "authentication is required or the caller lacks write permission.";
+        "authentication is required or the caller lacks write permission.\n\n" +
+        "## Examples\n\n" +
+        "Example 1 — Replace an existing NDEx network:\n" +
+        "Prompt: 'Update my NDEx network with this new CX2 data'\n" +
+        "{\"networkId\": \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\", " +
+        "\"cx2Network\": \"[{\\\"CXVersion\\\":\\\"2.0\\\",\\\"hasFragments\\\":false},...]\", " +
+        "\"cx2NetworkSize\": 512, \"cx2NetworkChunkTotalCount\": 1, " +
+        "\"cx2NetworkCurrentChunkNumber\": 1}\n\n" +
+        "Example 2 — Update my NDEx network and make it publicly visible:\n" +
+        "Prompt: 'Replace the NDEx network content and make it public'\n" +
+        "{\"networkId\": \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\", " +
+        "\"cx2Network\": \"[{\\\"CXVersion\\\":\\\"2.0\\\",...}]\", \"cx2NetworkSize\": 1024, " +
+        "\"cx2NetworkChunkTotalCount\": 1, \"cx2NetworkCurrentChunkNumber\": 1, " +
+        "\"visibility\": \"PUBLIC\"}\n\n" +
+        "Example 3 — Update NDEx network and index additional node attributes for search:\n" +
+        "Prompt: 'Replace my NDEx network and make sure gene symbols are searchable'\n" +
+        "{\"networkId\": \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\", " +
+        "\"cx2Network\": \"[{\\\"CXVersion\\\":\\\"2.0\\\",...}]\", \"cx2NetworkSize\": 800, " +
+        "\"cx2NetworkChunkTotalCount\": 1, \"cx2NetworkCurrentChunkNumber\": 1, " +
+        "\"extraNodeIndex\": \"geneSymbol\"}";
 
     static final String INPUT_SCHEMA = McpSchema.toJson(
         McpSchema.InputSchema.builder()
