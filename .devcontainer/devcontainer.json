@@ -1,0 +1,55 @@
+{
+  "name": "NDEx REST API",
+
+  "build": {
+    "context": "..",
+    "dockerfile": ".devcontainer/Dockerfile"
+  },
+
+  "workspaceFolder": "/workspaces/ndex-rest",
+  "overrideCommand": false,
+  "shutdownAction": "stopContainer",
+  "remoteUser": "root",
+
+  "mounts": [
+    "source=ndex-rest-data,target=/data,type=volume",
+    "source=ndex-rest-maven,target=/root/.m2,type=volume"
+  ],
+
+  "containerEnv": {
+    "NDEX_CONFIG": "/workspaces/ndex-rest/.devcontainer/config.toml"
+  },
+
+  "postCreateCommand": "bash /workspaces/ndex-rest/.devcontainer/scripts/post-create.sh",
+
+  "forwardPorts": [8080, 8085, 8025, 1025, 5432, 8983, 9000],
+  "portsAttributes": {
+    "8080": { "label": "NDEx API (Jetty)",       "onAutoForward": "notify" },
+    "8085": { "label": "Keycloak",               "onAutoForward": "silent" },
+    "8025": { "label": "MailHog UI",             "onAutoForward": "silent" },
+    "1025": { "label": "SMTP (MailHog)",          "onAutoForward": "silent" },
+    "5432": { "label": "PostgreSQL",             "onAutoForward": "silent" },
+    "8983": { "label": "Solr Admin",             "onAutoForward": "silent" },
+    "9000": { "label": "Keycloak Management",    "onAutoForward": "silent" }
+  },
+  "_comment_forwardPorts": "Port numbers above match the defaults in .devcontainer/config.toml. If you change any port there, update the matching entries here and in portsAttributes.",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "redhat.java",
+        "vscjava.vscode-maven"
+      ],
+      "settings": {
+        "java.configuration.runtimes": [
+          {
+            "name": "JavaSE-17",
+            "path": "/opt/java/openjdk",
+            "default": true
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,117 @@
+# config.toml — NDEx all-in-one container configuration
+#
+# Point the NDEX_CONFIG environment variable at this file before starting the container:
+#   docker run -e NDEX_CONFIG=/path/to/config.toml ...
+#
+# For devcontainer use, NDEX_CONFIG is set automatically via devcontainer.json
+# and points to .devcontainer/config.toml.
+#
+# Fields marked "MUST SET for production" have insecure defaults suitable only
+# for local development. Change them before any internet-accessible deployment.
+
+# ── [data] ────────────────────────────────────────────────────────────────────
+# All mutable runtime state lives under a single volume root.
+# Mount a host directory or named volume here to persist data across restarts.
+# In Kubernetes, mount a PersistentVolumeClaim at this path.
+[data]
+# DEFAULT: "/data"   MUST SET: no (default works for all scenarios)
+root = "/data"
+
+# ── [postgres] ────────────────────────────────────────────────────────────────
+[postgres]
+# Port PostgreSQL listens on inside the container.
+# DEFAULT: 5432   MUST SET: no
+port = 5432
+
+# Password for the postgres OS superuser (used only during first-boot schema init).
+# DEFAULT: "postgres"   MUST SET: yes for production
+superuser_password = "postgres"
+
+# Password for the ndexserver role (used by both NDEx and Keycloak to connect).
+# Written into ndex.properties as NdexDBDBPassword.
+# DEFAULT: "password"   MUST SET: yes for production
+ndexserver_password = "password"
+
+# ── [keycloak] ────────────────────────────────────────────────────────────────
+[keycloak]
+# HTTP port Keycloak listens on inside the container.
+# DEFAULT: 8085   MUST SET: no
+port = 8085
+
+# Keycloak management / health endpoint port.
+# DEFAULT: 9000   MUST SET: no
+management_port = 9000
+
+# Bootstrap admin credentials (used to create the initial admin account).
+# DEFAULT: admin/admin   MUST SET: yes for production
+admin_username = "admin"
+admin_password = "admin"
+
+# The issuer URL baked into JWTs and into ndex.properties as KEYCLOAK_ISSUER.
+# This MUST be the URL that API clients use to reach Keycloak — i.e. the
+# externally-accessible hostname for Kubernetes or remote docker run deployments.
+# For local use, localhost:port is correct.
+# DEFAULT: "http://localhost:8085"   MUST SET: yes for Kubernetes / external access
+issuer_url = "http://localhost:8085"
+
+# Path to the Keycloak realm import JSON baked into the image.
+# DEFAULT: "/opt/ndex-install/ndex-realm.json"   MUST SET: no
+realm_json = "/opt/ndex-install/ndex-realm.json"
+
+# ── [solr] ────────────────────────────────────────────────────────────────────
+[solr]
+# Port Solr listens on inside the container.
+# DEFAULT: 8983   MUST SET: no
+port = 8983
+
+# ── [smtp] ────────────────────────────────────────────────────────────────────
+# MailHog runs inside the container as a dev SMTP server (no auth, captures all mail).
+[smtp]
+# MailHog SMTP listener port.
+# DEFAULT: 1025   MUST SET: no
+port = 1025
+
+# MailHog web UI port (view captured emails in a browser).
+# DEFAULT: 8025   MUST SET: no
+ui_port = 8025
+
+# "From" address for emails sent by NDEx (password reset, feedback, etc.).
+# DEFAULT: "dev-support@ndexbio.org"   MUST SET: yes for production
+from_address = "dev-support@ndexbio.org"
+
+# ── [ndex] ────────────────────────────────────────────────────────────────────
+[ndex]
+# Port the NDEx Jetty server listens on inside the container.
+# DEFAULT: 8080   MUST SET: no
+port = 8080
+
+# NDEx system administrator account — auto-created by the server on first startup.
+# DEFAULT: ndexadministrator/admin   MUST SET: yes for production
+system_user = "ndexadministrator"
+system_user_password = "admin"
+system_user_email = "dev-support@ndexbio.org"
+
+# Server log level: trace | debug | info | warn | error | all | off
+# DEFAULT: "INFO"   MUST SET: no
+log_level = "INFO"
+
+# Optional external graph query microservice URLs.
+# When empty the corresponding API endpoints are disabled (return an error if called).
+# When set the endpoints proxy requests to these services.
+# DEFAULT: ""   MUST SET: only if you have the external microservices running
+neighborhood_query_url = ""
+advanced_query_url = ""
+
+# Per-user network storage quota in GB. -1 = unlimited.
+# DEFAULT: 50   MUST SET: no
+user_storage_limit_gb = 50
+
+# ── [ndex.email] ──────────────────────────────────────────────────────────────
+[ndex.email]
+# Address shown to users as the feedback contact.
+# DEFAULT: "support@ndexbio.org"   MUST SET: yes for production
+feedback_address = "support@ndexbio.org"
+
+# Address used for password reset emails.
+# DEFAULT: "support@ndexbio.org"   MUST SET: yes for production
+forgot_password_address = "support@ndexbio.org"

@@ -6,6 +6,7 @@ import jakarta.ws.rs.core.Response.Status;
 import jakarta.ws.rs.core.MediaType;
 import org.jboss.resteasy.mock.*;
 import static org.junit.Assert.*;
+import org.junit.BeforeClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.jboss.resteasy.spi.Dispatcher;
@@ -22,6 +23,7 @@ import org.ndexbio.model.object.ShortcutRequest;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.rest.TestConfigHelper;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 
 import java.io.IOException;
@@ -37,6 +39,11 @@ public class TestShortcutServiceV3 {
     private Dispatcher dispatcher;
     private HttpServletRequest mockHttpServletRequest;
     private MockHttpResponse response;
+
+    @BeforeClass
+    public static void initConfiguration() throws Exception {
+        TestConfigHelper.initIfNeeded();
+    }
 
     @Before
     public void setUp() {
