@@ -48,7 +48,7 @@ Available version variables (with defaults):
 |--------------------|----------|
 | `KEYCLOAK_VERSION` | `26.1.0` |
 | `SOLR_VERSION`     | `9.6.1`  |
-| `POSTGRES_VERSION` | `14`     |
+| `POSTGRES_VERSION` | `16`     |
 | `MAILHOG_VERSION`  | `1.0.1`  |
 
 ---

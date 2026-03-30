@@ -148,13 +148,13 @@ if [[ "${ENABLE_POSTGRES}" == "true" ]]; then
       echo "        on the Keycloak container before starting it."
     fi
 
-    gosu postgres /usr/lib/postgresql/14/bin/initdb \
+    gosu postgres initdb \
       -D "${PGDATA}" \
       --auth-host=scram-sha-256 \
       --auth-local=trust \
       -U postgres
 
-    gosu postgres /usr/lib/postgresql/14/bin/pg_ctl \
+    gosu postgres pg_ctl \
       -D "${PGDATA}" \
       -o "-p ${PG_PORT} -h '127.0.0.1,::1'" \
       start -w
@@ -194,13 +194,13 @@ HBA
     else
       cp /apps/postgres/config/pg_hba.conf "${PGDATA}/pg_hba.conf"
     fi
-    gosu postgres /usr/lib/postgresql/14/bin/pg_ctl -D "${PGDATA}" reload
+    gosu postgres pg_ctl -D "${PGDATA}" reload
 
     printf 'user: postgres\npassword: %s\n' "${PG_SUPERUSER_PASSWORD}" > /etc/pg.otp
     chmod 600 /etc/pg.otp
     echo "==> PostgreSQL initialized. Superuser password written to /etc/pg.otp (auto-deleted in 2 hours)."
 
-    gosu postgres /usr/lib/postgresql/14/bin/pg_ctl -D "${PGDATA}" stop -m fast -w
+    gosu postgres pg_ctl -D "${PGDATA}" stop -m fast -w
 
     touch "${PGDATA}/.initialized"
   fi

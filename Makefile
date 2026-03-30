@@ -58,7 +58,7 @@ servedocs: docs ## compile the docs watching for changes
 # Component version overrides — passed as Docker build-args
 KEYCLOAK_VERSION  ?= 26.1.0
 SOLR_VERSION      ?= 9.6.1
-POSTGRES_VERSION  ?= 14
+POSTGRES_VERSION  ?= 16
 MAILHOG_VERSION   ?= 1.0.1
 NDEX_COMMIT_HASH  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo docker)
 

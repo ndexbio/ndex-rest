@@ -15,9 +15,10 @@ FROM tomcat:10.1-jdk17-temurin-jammy
 
 ARG KEYCLOAK_VERSION=26.1.0
 ARG SOLR_VERSION=9.6.1
-ARG POSTGRES_VERSION=14
+ARG POSTGRES_VERSION=16
 ARG MAILHOG_VERSION=1.0.1
 ARG TARGETARCH
+ENV PATH="/usr/lib/postgresql/${POSTGRES_VERSION}/bin:${PATH}"
 
 # ── System packages ───────────────────────────────────────────────────────────
 # postgresql-${POSTGRES_VERSION}  — Postgres server
@@ -25,10 +26,16 @@ ARG TARGETARCH
 # curl jq openssl unzip           — used by start.sh and Dockerfile RUN steps
 # apache2-utils                   — htpasswd for bcrypt hashes (MailHog, Solr auth)
 RUN apt-get update \
+    && apt-get install -y --no-install-recommends gnupg curl \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] https://apt.postgresql.org/pub/repos/apt/ jammy-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
        postgresql-${POSTGRES_VERSION} postgresql-client-${POSTGRES_VERSION} \
        supervisor gosu \
-       curl jq openssl unzip \
+       jq openssl unzip \
        apache2-utils \
     && rm -rf /var/lib/apt/lists/*
 
