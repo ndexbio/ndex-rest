@@ -53,6 +53,65 @@ Available version variables (with defaults):
 
 ---
 
+## Testing
+
+An integration test script lives at `docker/test/integration-test.sh`. It builds the image, starts an ephemeral container, and validates the full API lifecycle across both v2 and v3 endpoints:
+
+- User creation and Basic Auth (v2)
+- CX1 network upload via v2, summary poll until `completed:true`, CX2 retrieval via v3
+- CX2 network upload via v3, summary poll until `completed:true`, CX2 retrieval via v3
+- Solr keyword search via v2
+
+The test **fails fast** — on the first failure it stops, prints the reason, how many calls passed, and how many were left unrun, then exits 1.
+
+**Fixtures required** (pre-built, committed in `docker/test/fixtures/`):
+- 3 × `.cx` files (CX1) — uploaded via `POST /v2/network`
+- 3 × `.cx2` files (CX2) — uploaded via `POST /v3/networks`
+
+### Full run (build + test)
+
+```bash
+cd docker/test
+./integration-test.sh
+```
+
+### Skip the image build (re-use existing image)
+
+```bash
+cd docker/test
+./integration-test.sh --skip-build
+```
+
+### What success looks like
+
+```
+=== STEP 1: Building Docker image ===
+  Image built successfully
+
+... rest of steps logged
+
+================================================
+  ✓ ALL 17 API CALLS PASSED — TEST PASSED
+================================================
+```
+
+Exit code 0 means all calls passed.
+
+### What failure looks like
+
+```
+ ... steps logged as running 
+
+TEST FAILED
+  Passed : 5 / 17
+  Remaining unrun: 12
+  Reason : POST /v2/search/network ["cancer"] → 0 result(s), expected ≥3
+```
+
+Exit code 1 means the test failed. The container is always stopped and removed on exit (pass or fail).
+
+---
+
 ## Running — Monolithic (all services in one container)
 
 ### Ephemeral (data lost on container removal)
@@ -98,22 +157,9 @@ docker run --rm -it \
 
 ## Stopping the Container
 
-If started with `--rm -it`, press `Ctrl-C` in the terminal or run from another terminal:
-```bash
-docker stop ndex
-```
-The container is automatically removed on exit.
+If started with `--rm -it` as foreground, press `Ctrl-C` in the terminal. It will stop and container removed.
 
-If started with `-d` for background mode
-```bash
-# Graceful stop (waits for supervisord to shut down services)
-docker stop ndex
-
-# Remove the container (volumes are preserved)
-docker rm ndex
-```
-
-To stop and remove container in one step:
+Otherwise to stop and remove container from any terminal in one step:
 ```bash
 docker rm -f ndex
 ```
@@ -121,9 +167,9 @@ Named volumes are **not** removed by `docker rm`. Use `docker volume rm` explici
 
 ---
 
-## Running — Distributed (NDEx only, external services)
+## Running — Distributed Deployments 
 
-When running NDEx alongside externally managed PostgreSQL, Keycloak, and Solr instances, start only the NDEx service and point it at those external endpoints via `/apps/ndex/config/ndex.properties`:
+The image supports configuration via [command line flags](#enabledisable-services) to run only select services in a given container instance allowing for microservice deployments rather than monolithic. For exaple, here is the NDEx only container config which points at other external container instances running other services from the same image by referencing their endpoints in `/apps/ndex/config/ndex.properties`:
 
 ```bash
 docker run -d \
@@ -256,7 +302,8 @@ Key config files per service:
 
 ---
 
-## Enable/Disable Services with entrypoint command line flags
+## Enable/Disable Services 
+Use command line flags
 
 | Flag          | Service enabled          |
 |---------------|--------------------------|
