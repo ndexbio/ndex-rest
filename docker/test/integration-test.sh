@@ -6,9 +6,10 @@
 # validates the full API lifecycle across both v2 and v3 endpoints:
 #   user creation → v2 CX1 upload (2 public + 1 private) → v2 summary poll →
 #   v3 CX2 retrieve → v3 CX2 upload (2 public + 1 private) → v3 summary poll →
-#   v3 CX2 retrieve → private network access control → public anonymous access
+#   v3 CX2 retrieve → private network access control → public anonymous access →
+#   v2 Solr search → v3 Solr search
 #
-# Exits 0 if all 22 API calls pass, exits 1 on the first failure.
+# Exits 0 if all 24 API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
 
 set -euo pipefail
@@ -23,7 +24,7 @@ TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
 
-TOTAL_API_CALLS=22
+TOTAL_API_CALLS=24
 PASSED=0
 LOAD_TIMEOUT=90
 
@@ -414,6 +415,55 @@ if [[ "${AUTH_HTTP}" == "200" ]]; then
   api_pass "GET /v3/networks/${V3_PRIV_UUID} (auth) → 200 OK (owner can retrieve private v3 network)"
 else
   api_fail "GET /v3/networks/${V3_PRIV_UUID} (auth) → HTTP ${AUTH_HTTP} (expected 200 for owner)"
+fi
+
+# ── STEP 15: v2 Solr search ───────────────────────────────────────────────────
+
+step 15 "Searching v2 networks via POST /v2/search/network"
+
+# V2_UUIDS[0] = WP1984 (first public CX1 network); search must find it because
+# "completed":true (verified in step 7) is set AFTER Solr commit(waitSearcher=true).
+echo "  API call 23/${TOTAL_API_CALLS}: POST /v2/search/network?searchString=WP1984 (anon, expect 200 + UUID)"
+
+SEARCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"searchString":"WP1984"}' \
+  "${BASE_URL}/v2/search/network?start=0&size=10")
+SEARCH_HTTP=$(echo "${SEARCH_RESPONSE}" | tail -1)
+SEARCH_BODY=$(echo "${SEARCH_RESPONSE}" | head -1)
+
+if [[ "${SEARCH_HTTP}" != "200" ]]; then
+  api_fail "POST /v2/search/network → HTTP ${SEARCH_HTTP} (expected 200). Body: ${SEARCH_BODY:0:300}"
+fi
+if echo "${SEARCH_BODY}" | grep -q "${V2_UUIDS[0]}"; then
+  api_pass "POST /v2/search/network → 200 OK, WP1984 UUID found in results (Solr reindex confirmed)"
+else
+  api_fail "POST /v2/search/network → 200 OK but UUID ${V2_UUIDS[0]} not in results. Body: ${SEARCH_BODY:0:500}"
+fi
+
+# ── STEP 16: v3 Solr search ───────────────────────────────────────────────────
+
+step 16 "Searching v3-uploaded CX2 networks via POST /v3/search/files (authenticated)"
+
+# V3_UUIDS[0] = BindingDB (first public CX2 network). Use the new v3 global search endpoint
+# which queries public-nfs directly. Requires authentication.
+echo "  API call 24/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (auth, expect 200 + UUID)"
+
+SEARCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d '{"searchString":"BindingDB"}' \
+  "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=10")
+SEARCH_HTTP=$(echo "${SEARCH_RESPONSE}" | tail -1)
+SEARCH_BODY=$(echo "${SEARCH_RESPONSE}" | head -1)
+
+if [[ "${SEARCH_HTTP}" != "200" ]]; then
+  api_fail "POST /v3/search/files (BindingDB) → HTTP ${SEARCH_HTTP} (expected 200). Body: ${SEARCH_BODY:0:300}"
+fi
+if echo "${SEARCH_BODY}" | grep -q "${V3_UUIDS[0]}"; then
+  api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
+else
+  api_fail "POST /v3/search/files (BindingDB) → 200 OK but UUID ${V3_UUIDS[0]} not in results. Body: ${SEARCH_BODY:0:500}"
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────

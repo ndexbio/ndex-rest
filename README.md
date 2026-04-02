@@ -3,6 +3,21 @@ ndex-rest
 
 NDEx Rest Server
 
+## Container Deployments
+
+A production-oriented Docker image (`docker/Dockerfile`) bundles the full NDEx stack — PostgreSQL, Keycloak, Apache Solr, MailHog, and the NDEx REST API (Tomcat) — into a single self-contained image built with `make docker`.
+
+Key features:
+- **Monolithic or distributed**: run all services in one container, or split them across containers using command-line flags (`--ndex`, `--postgres`, `--solr`, `--keycloak`, `--mailhog`)
+- **Flag-driven startup**: enable only the services you need — no environment variables required
+- **Persistent volumes**: mount `/apps/<svc>/config/` and `/apps/<svc>/data/` per-service to retain configuration and data across restarts
+- **Auto-provisioned credentials**: random admin passwords are written to `/etc/<svc>.otp` on first boot and deleted after 2 hours
+- **Integration tested**: a 24-step test script (`docker/test/integration-test.sh`) validates the full API lifecycle including CX1/CX2 network upload, summary polling, CX2 retrieval, and Solr search
+
+For complete build, run, configuration, and testing instructions, see **[docker/README.md](docker/README.md)**.
+
+---
+
 ## Development Environment
 
 A fully self-contained environment is provided as a single Docker image that runs all required services inside one container — no separate PostgreSQL, Keycloak, SMTP, or Solr installation needed. The same image works for local development (devcontainer), standalone `docker run`, and orchestration deployments such as Kubernetes.

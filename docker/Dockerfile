@@ -8,7 +8,8 @@ RUN chmod +x /usr/local/bin/build-ndex-object-model.sh \
 WORKDIR /build
 COPY pom.xml .
 COPY src/ src/
-RUN mvn install -q -DskipTests -DbuildNumber=docker
+ARG NDEX_COMMIT_HASH=docker
+RUN mvn install -q -DskipTests -DbuildNumber=${NDEX_COMMIT_HASH}
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM tomcat:10.1-jdk17-temurin-jammy

@@ -60,7 +60,7 @@ An integration test script lives at `docker/test/integration-test.sh`. It builds
 - User creation and Basic Auth (v2)
 - CX1 network upload via v2, summary poll until `completed:true`, CX2 retrieval via v3
 - CX2 network upload via v3, summary poll until `completed:true`, CX2 retrieval via v3
-- Solr keyword search via v2
+- Solr keyword search via v2 (step 15) and v3 (step 16)
 
 The test **fails fast** — on the first failure it stops, prints the reason, how many calls passed, and how many were left unrun, then exits 1.
 
@@ -91,7 +91,7 @@ cd docker/test
 ... rest of steps logged
 
 ================================================
-  ✓ ALL 17 API CALLS PASSED — TEST PASSED
+  ✓ ALL 24 API CALLS PASSED — TEST PASSED
 ================================================
 ```
 
@@ -103,9 +103,9 @@ Exit code 0 means all calls passed.
  ... steps logged as running 
 
 TEST FAILED
-  Passed : 5 / 17
-  Remaining unrun: 12
-  Reason : POST /v2/search/network ["cancer"] → 0 result(s), expected ≥3
+  Passed : 5 / 24
+  Remaining unrun: 19
+  Reason : POST /v2/search/network (WP1984) → UUID not found in results
 ```
 
 Exit code 1 means the test failed. The container is always stopped and removed on exit (pass or fail).
@@ -308,7 +308,7 @@ Use command line flags
 | Flag          | Service enabled          |
 |---------------|--------------------------|
 | `--ndex`      | NDEx REST API (Tomcat)   |
-| `--postgres`  | PostgreSQL 14            |
+| `--postgres`  | PostgreSQL 16            |
 | `--keycloak`  | Keycloak 26.x            |
 | `--solr`      | Apache Solr 9.x          |
 | `--mailhog`   | MailHog SMTP/UI          |
