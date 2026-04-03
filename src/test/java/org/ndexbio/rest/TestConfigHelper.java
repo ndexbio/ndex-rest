@@ -7,8 +7,7 @@ import java.nio.file.Files;
 
 /**
  * Test utility for initializing the Configuration singleton from test classes
- * outside the org.ndexbio.rest package. Configuration.reCreateInstance() is
- * protected, so access must go through this same-package helper.
+ * outside the org.ndexbio.rest package. 
  */
 public class TestConfigHelper {
 
