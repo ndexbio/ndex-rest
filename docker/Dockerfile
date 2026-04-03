@@ -1,24 +1,10 @@
-# ── Stage 1: Build NDEx WAR ──────────────────────────────────────────────────
-FROM eclipse-temurin:17-jdk-jammy AS builder
-RUN apt-get update && apt-get install -y --no-install-recommends maven git \
-    && rm -rf /var/lib/apt/lists/*
-COPY docker/scripts/build-ndex-object-model.sh /usr/local/bin/build-ndex-object-model.sh
-RUN chmod +x /usr/local/bin/build-ndex-object-model.sh \
-    && build-ndex-object-model.sh
-WORKDIR /build
-COPY pom.xml .
-COPY src/ src/
-ARG NDEX_COMMIT_HASH=docker
-RUN mvn install -q -DskipTests -DbuildNumber=${NDEX_COMMIT_HASH}
-
-# ── Stage 2: Runtime ─────────────────────────────────────────────────────────
-FROM tomcat:10.1-jdk17-temurin-jammy
+# ── Runtime base ──────────────
+FROM tomcat:10.1-jdk17-temurin-jammy AS runtime-base
 
 ARG KEYCLOAK_VERSION=26.1.0
 ARG SOLR_VERSION=9.6.1
 ARG POSTGRES_VERSION=16
 ARG MAILHOG_VERSION=1.0.1
-ARG TARGETARCH
 ENV PATH="/usr/lib/postgresql/${POSTGRES_VERSION}/bin:${PATH}"
 
 # ── System packages ───────────────────────────────────────────────────────────
@@ -60,10 +46,8 @@ RUN curl -fsSL \
     && chown -R solr:solr /opt/solr
 
 # ── MailHog ───────────────────────────────────────────────────────────────────
-RUN ARCH="${TARGETARCH:-amd64}"; \
-    [ "${ARCH}" = "arm64" ] && ARCH="arm"; \
-    curl -fsSL \
-      "https://github.com/mailhog/MailHog/releases/download/v${MAILHOG_VERSION}/MailHog_linux_${ARCH}" \
+RUN curl -fsSL \
+      "https://github.com/mailhog/MailHog/releases/download/v${MAILHOG_VERSION}/MailHog_linux_amd64" \
       -o /usr/local/bin/mailhog \
     && chmod +x /usr/local/bin/mailhog
 
@@ -72,9 +56,6 @@ RUN rm -rf /usr/local/tomcat/webapps/*
 
 # ── Tomcat JULI logging → stdout/stderr (visible via docker logs) ─────────────
 COPY docker/conf/tomcat-logging.properties /usr/local/tomcat/conf/logging.properties
-
-# ── Copy built WAR from builder stage ────────────────────────────────────────
-COPY --from=builder /build/target/ndexbio-rest.war /usr/local/tomcat/webapps/ROOT.war
 
 # ── Solr configsets (canonical source: src/main/resources/solr/) ─────────────
 # NDEx passes configset names to the remote Solr HTTP API; Solr reads them from its own
@@ -85,7 +66,6 @@ COPY src/main/resources/solr/ /opt/ndex-install/solr-configsets/
 # ── SQL schema files (init-postgres.sh applies these at first boot) ───────────
 COPY src/main/resources/postgresql/ /opt/ndex-install/sql/
 
-# ── Shared init-postgres.sh (canonical source; also used by devcontainer) ────
 COPY docker/scripts/init-postgres.sh /usr/local/bin/init-postgres.sh
 RUN chmod +x /usr/local/bin/init-postgres.sh
 
@@ -125,7 +105,4 @@ COPY docker/scripts/start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
 # ── Image metadata ────────────────────────────────────────────────────────────
-VOLUME ["/apps/ndex/config", "/apps/ndex/data", "/apps/postgres/config", "/apps/postgres/data", "/apps/keycloak/config", "/apps/keycloak/data", "/apps/solr/config", "/apps/solr/data", "/apps/mailhog/config"]
-EXPOSE 8080 8085 1025 8025 5432 8983 9000
-
-ENTRYPOINT ["/usr/local/bin/start.sh"]
+EXPOSE 8085 1025 8025 5432 8983 9000

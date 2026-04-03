@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # NDEx Docker Integration Test
-# Usage: ./integration-test.sh [--skip-build]
+# Usage: ./integration-test.sh [--skip-build] [--remote-ndex-url <url>]
 #
-# Builds the NDEx Docker image, runs an ephemeral monolithic container, and
-# validates the full API lifecycle across both v2 and v3 endpoints:
+#   --skip-build           Skip 'make docker' (reuse existing local image). Only
+#                          applies when running against a local container (no --remote-ndex-url).
+#   --remote-ndex-url URL  Run API tests against an already-running NDEx instance at URL.
+#                          
+#
+# Validates the full API lifecycle across both v2 and v3 endpoints:
 #   user creation → v2 CX1 upload (2 public + 1 private) → v2 summary poll →
 #   v3 CX2 retrieve → v3 CX2 upload (2 public + 1 private) → v3 summary poll →
 #   v3 CX2 retrieve → private network access control → public anonymous access →
@@ -27,6 +31,23 @@ TEST_EMAIL="ndextest@ndex-integration.local"
 TOTAL_API_CALLS=24
 PASSED=0
 LOAD_TIMEOUT=90
+
+SKIP_BUILD=false
+REMOTE_NDEX_URL=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-build)
+      SKIP_BUILD=true; shift ;;
+    --remote-ndex-url)
+      [[ -n "${2:-}" ]] || { echo "ERROR: --remote-ndex-url requires a URL argument" >&2; exit 1; }
+      REMOTE_NDEX_URL="$2"; BASE_URL="${REMOTE_NDEX_URL}"; shift 2 ;;
+    *)
+      echo "ERROR: Unknown argument: $1" >&2
+      echo "Usage: $0 [--skip-build] [--remote-ndex-url <url>]" >&2
+      exit 1 ;;
+  esac
+done
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -63,66 +84,76 @@ api_fail() {
 # ── Cleanup trap ──────────────────────────────────────────────────────────────
 
 cleanup() {
+  [[ -z "${REMOTE_NDEX_URL}" ]] || return 0
   echo ""
   echo -e "${CYAN}=== Cleanup ===${NC}"
-  echo -e "${CYAN}  Stopping container '${CONTAINER_NAME}'...${NC}"
-  docker stop "${CONTAINER_NAME}" 2>/dev/null || true
-  docker rm -v "${CONTAINER_NAME}" 2>/dev/null || true
+  echo -e "${CYAN}  Removing container '${CONTAINER_NAME}'...${NC}"
+  docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
 
   if docker inspect "${CONTAINER_NAME}" &>/dev/null; then
     echo -e "  ${RED}WARNING: Container '${CONTAINER_NAME}' still present — manual cleanup may be needed${NC}"
     echo -e "    Run: docker rm -fv ${CONTAINER_NAME}"
   else
     echo -e "  ${GREEN}✓ Container '${CONTAINER_NAME}' removed${NC}"
-    echo -e "  ${GREEN}✓ Anonymous volumes cleaned up${NC}"
   fi
 }
 trap cleanup EXIT
 
-# ── STEP 1: Build ─────────────────────────────────────────────────────────────
+if [[ -n "${REMOTE_NDEX_URL}" ]]; then
+  # ── Remote mode: target already-running NDEx ────────────────────────────────
+  echo ""
+  echo "  Mode: REMOTE — targeting ${BASE_URL}"
+  echo "  Skipping Docker build, container start, and readiness poll."
 
-step 1 "Building Docker image"
-if [[ "${1:-}" == "--skip-build" ]]; then
-  echo "  --skip-build flag set, skipping make docker"
+  step 3 "Checking remote NDEx at ${BASE_URL}"
+  MAX_WAIT=60
+  ELAPSED=0
+  until curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/user" \
+        | grep -qE '^[2-9][0-9]{2}$|^401$'; do
+    if [[ ${ELAPSED} -ge ${MAX_WAIT} ]]; then
+      api_fail "Remote NDEx at ${BASE_URL} did not respond within ${MAX_WAIT}s"
+    fi
+    echo -e "  ${CYAN}Waiting for response... (${ELAPSED}s)${NC}"
+    sleep 5; ELAPSED=$((ELAPSED + 5))
+  done
+  echo "  Remote NDEx is responding."
 else
-  echo "  Running: make docker (from ${REPO_DIR})"
-  make -C "${REPO_DIR}" docker
-  echo "  Image built successfully"
-fi
-
-# ── STEP 2: Start container ───────────────────────────────────────────────────
-
-step 2 "Starting ephemeral container"
-
-docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
-
-echo "  Running: docker run -d --rm --name ${CONTAINER_NAME} -p 8080:8080 ..."
-docker run -d --rm \
-  --name "${CONTAINER_NAME}" \
-  -p 8080:8080 \
-  ndexbio/ndex-rest \
-  --ndex --postgres --keycloak --solr --mailhog
-
-echo "  Container started (ID: $(docker inspect -f '{{.Id}}' "${CONTAINER_NAME}" | cut -c1-12))"
-
-# ── STEP 3: Wait for Ready banner ─────────────────────────────────────────────
-
-step 3 "Waiting for NDEx to be ready"
-
-MAX_WAIT=120
-ELAPSED=0
-until docker logs "${CONTAINER_NAME}" 2>&1 | grep -q "NDEx Deploy Container Ready"; do
-  if [[ ${ELAPSED} -ge ${MAX_WAIT} ]]; then
-    echo ""
-    echo "  Last 30 lines of container log:"
-    docker logs "${CONTAINER_NAME}" 2>&1 | tail -30
-    api_fail "Container did not reach Ready state within ${MAX_WAIT}s"
+  # ── Local container mode ────────────────────────────────────────────────────
+  step 1 "Building Docker image"
+  if [[ "${SKIP_BUILD}" == "true" ]]; then
+    echo "  --skip-build set, skipping make docker"
+  else
+    echo "  Running: make docker (from ${REPO_DIR})"
+    make -C "${REPO_DIR}" docker
+    echo "  Image built successfully"
   fi
-  echo -e "  ${CYAN}Container initializing... (${ELAPSED}s elapsed)${NC}"
-  sleep 5
-  ELAPSED=$((ELAPSED + 5))
-done
-echo "  Container is ready!"
+
+  step 2 "Starting ephemeral container"
+  docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
+  echo "  Running: docker run -d --name ${CONTAINER_NAME} -p 8080:8080 ..."
+  docker run -d \
+    --name "${CONTAINER_NAME}" \
+    -p 8080:8080 \
+    ndexbio/ndex-rest \
+    --ndex --postgres --keycloak --solr --mailhog
+  echo "  Container started (ID: $(docker inspect -f '{{.Id}}' "${CONTAINER_NAME}" | cut -c1-12))"
+
+  step 3 "Waiting for NDEx to be ready"
+  MAX_WAIT=120
+  ELAPSED=0
+  until docker logs "${CONTAINER_NAME}" 2>&1 | grep -q "NDEx Deploy Container Ready"; do
+    if [[ ${ELAPSED} -ge ${MAX_WAIT} ]]; then
+      echo ""
+      echo "  Last 30 lines of container log:"
+      docker logs "${CONTAINER_NAME}" 2>&1 | tail -30
+      api_fail "Container did not reach Ready state within ${MAX_WAIT}s"
+    fi
+    echo -e "  ${CYAN}Container initializing... (${ELAPSED}s elapsed)${NC}"
+    sleep 5
+    ELAPSED=$((ELAPSED + 5))
+  done
+  echo "  Container is ready!"
+fi
 
 # ── STEP 4: Create test user ──────────────────────────────────────────────────
 

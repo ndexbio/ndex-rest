@@ -2,39 +2,48 @@
 
 ## Overview
 
-The deploy image (`docker/Dockerfile`) is a self-contained, production-oriented image for running NDEx and its supporting services. 
+The deploy image is a self-contained, production-oriented image for running NDEx and its supporting services. It is built from two Dockerfiles:
 
-- **Monolithic Mode**: THe whole stack of services runs in one container - Keycloak, Solr, MailHog, and PostgreSQL and NDEX Web.
-- **Distributed Microservices Mode**: Optoinally, each service can be run in separate container - Keycloak, Solr, MailHog, and PostgreSQL and then configure NDEX Web to use their external endpoints. Or some services don't have to be run from this image, could use your own existing Postgres server.
-- **Multi-stage build**: Maven compiles the NDEx WAR in a builder stage; the runtime stage is based on Tomcat 10.1 with JDK 17.
-- **All services bundled**: PostgreSQL, Keycloak, Solr, MailHog, and NDEx (Tomcat) are all installed in a single image.
+- `docker/Dockerfile` — defines the shared `runtime-base` stage: installs PostgreSQL, Keycloak, Solr, MailHog, and all scripts/configs (no WAR, no entrypoint). 
+- `docker/Dockerfile_deploy` — self-contained deploy pipeline: `builder` stage compiles the NDEx WAR from source using Maven, then layers it onto `runtime-base` with the production entrypoint (`start.sh`)
+
+The `runtime-base` stage is the single source of truth for service installation. the deploy image builds FROM it, ensuring identical service versions and configurations in development and production.
+
+- **Monolithic Mode**: The whole stack of services runs in one container — Keycloak, Solr, MailHog, PostgreSQL, and NDEx web.
+- **Distributed Microservices Mode**: Optionally, each service can run in a separate container. The `--ndex` container can point at external endpoints via `/apps/ndex/config/ndex.properties`.
 - **Flag-driven service selection**: You choose which services to start at container runtime via command-line flags (`--ndex`, `--postgres`, etc.). Run all flags together for monolithic mode; split across containers for distributed deployment.
 - **Per Service Config at `/apps/<svc>/config/`**: Every service reads its configuration from `/apps/<svc>/config/`. On first boot, defaults are seeded from `/apps/<svc>/default/config/` (baked into the image). Mount volumes at `/apps/<svc>/config/` and `/apps/<svc>/data/` independently — you can persist only config, only data, or both.
 - **No environment variable configuration**: All service settings live in config files under `/apps/<svc>/config/`. There are no required `docker run -e` variables.
-- **Auto provisioned service credentials **: First boot of enabled dependent services will trigger randomly generated admin passwords for Keycloak, Solr, MailHog, and PostgreSQL and ndex are written to `/etc/<svc>.otp`. Each file is automatically deleted after 2 hours.
-- **Persistence or Ephemeral**: Image supports external volume mounts for servcies in container to persist data outside of ephemeral container storage, durability across restarts.
+- **Auto-provisioned credentials**: First boot generates random admin passwords for Keycloak, MailHog, and PostgreSQL, written to `/etc/<svc>.otp`. Each file is automatically deleted after 2 hours.
+- **Ephemeral by default**: All service state lives in the container layer. No Docker volumes are created automatically. To persist data across container removals, bind-mount host directories at the relevant `/apps/<svc>/config/` or `/apps/<svc>/data/` paths using `-v` flags — see [Persistence](#persistence) below.
 
 ---
 
 ## Services
 
-| Service    | Port(s)        | Config dir                    | Data dir                |
-|------------|----------------|-------------------------------|-------------------------|
-| NDEx       | 8080           | `/apps/ndex/config/`          | `/apps/ndex/data/`      |
-| Keycloak   | 8085 (UI/API), 9000 (internal management — not exposed in run examples) | `/apps/keycloak/config/`      | `/apps/keycloak/data/`  |
-| Solr       | 8983           | `/apps/solr/config/`          | `/apps/solr/data/`      |
-| MailHog    | 1025, 8025     | `/apps/mailhog/config/`       | —                       |
-| PostgreSQL | 5432           | `/apps/postgres/config/`      | `/apps/postgres/data/`  |
+| Service    | Internal Port(s) | Config dir                    | Data dir                |
+|------------|------------------|-------------------------------|-------------------------|
+| NDEx       | 8080             | `/apps/ndex/config/`          | `/apps/ndex/data/`      |
+| Keycloak   | 8085 (UI/API), 9000 (mgmt) | `/apps/keycloak/config/` | `/apps/keycloak/data/` |
+| Solr       | 8983             | `/apps/solr/config/`          | `/apps/solr/data/`      |
+| MailHog    | 1025 (SMTP), 8025 (UI) | `/apps/mailhog/config/` | —                  |
+| PostgreSQL | 5432             | `/apps/postgres/config/`      | `/apps/postgres/data/`  |
+
+All internal service ports are fixed — they cannot be changed via environment variables. Use `-p host:container` flags in `docker run` to publish any service port to your host machine. Only publish what you need.
 
 ---
 
 ## Building
 
-Build with default component versions:
+The deploy image is built in two steps — `docker/Dockerfile` produces the shared `runtime-base`, then `docker/Dockerfile_deploy` compiles the WAR and assembles the final image. `make docker` handles the full sequence:
 
 ```bash
 make docker
 ```
+
+`docker/Dockerfile` defines only `runtime-base` — installs PostgreSQL, Keycloak, Solr, MailHog, all scripts and configs. No NDEX, no build tooling.
+
+`docker/Dockerfile_deploy` is self-contained: it compiles the NDEx WAR in a `builder` stage (eclipse-temurin + Maven), then layers the WAR onto `ndex-runtime-base`.
 
 Override one or more component versions:
 
@@ -130,7 +139,9 @@ docker run --rm -it \
 
 > **Startup feedback**: while services initialize, the container prints `NDEx Container initializing...  (Xs)` to the console every 3 seconds. The `NDEx Deploy Container Ready!` banner (with service URLs) only appears once all enabled services have reached the `RUNNING` state. Wait for that banner before hitting API endpoints.
 
-### Persistent (data survives container restarts)
+### Persistent (data survives container removal)
+
+Bind-mount host directories at the paths you want to persist. Mount only what you need — each path is independent:
 
 ```bash
 docker run --rm -it \
@@ -140,18 +151,20 @@ docker run --rm -it \
   -p 8025:8025 \
   -p 8983:8983 \
   -p 5432:5432 \
-  -v ndex-ndex-config:/apps/ndex/config \
-  -v ndex-ndex-data:/apps/ndex/data \
-  -v ndex-postgres-config:/apps/postgres/config \
-  -v ndex-postgres-data:/apps/postgres/data \
-  -v ndex-keycloak-config:/apps/keycloak/config \
-  -v ndex-keycloak-data:/apps/keycloak/data \
-  -v ndex-solr-config:/apps/solr/config \
-  -v ndex-solr-data:/apps/solr/data \
-  -v ndex-mailhog-config:/apps/mailhog/config \
+  -v /host/path/ndex-config:/apps/ndex/config \
+  -v /host/path/ndex-data:/apps/ndex/data \
+  -v /host/path/postgres-config:/apps/postgres/config \
+  -v /host/path/postgres-data:/apps/postgres/data \
+  -v /host/path/keycloak-config:/apps/keycloak/config \
+  -v /host/path/keycloak-data:/apps/keycloak/data \
+  -v /host/path/solr-config:/apps/solr/config \
+  -v /host/path/solr-data:/apps/solr/data \
+  -v /host/path/mailhog-config:/apps/mailhog/config \
   ndexbio/ndex-rest \
   --ndex --postgres --keycloak --solr --mailhog
 ```
+
+No Docker-managed volumes are created. Each `-v` flag routes directly to your host filesystem. Persistence is entirely at your discretion — omit any `-v` flag to let that service's state remain ephemeral.
 
 ---
 
@@ -163,7 +176,7 @@ Otherwise to stop and remove container from any terminal in one step:
 ```bash
 docker rm -f ndex
 ```
-Named volumes are **not** removed by `docker rm`. Use `docker volume rm` explicitly if you want to discard data (see Re-initializing below).
+All container state is ephemeral by default. If no bind mounts were used, removing the container discards all state — nothing else to clean up.
 
 ---
 
@@ -175,12 +188,12 @@ The image supports configuration via [command line flags](#enabledisable-service
 docker run -d \
   --name ndex-app \
   -p 8080:8080 \
-  -v ndex-ndex-config:/apps/ndex/config \
+  -v /host/path/ndex-config:/apps/ndex/config \
   ndexbio/ndex-rest \
   --ndex
 ```
 
-Before starting, edit `/apps/ndex/config/ndex.properties` on the host volume to set `NdexDBURL`, `SolrURL`, `KEYCLOAK_ISSUER`, and `KEYCLOAK_PUBLIC_KEY` to point at the external services.
+Before starting, edit `/host/path/ndex-config/ndex.properties` on the host to set `NdexDBURL`, `SolrURL`, `KEYCLOAK_ISSUER`, and `KEYCLOAK_PUBLIC_KEY` to point at the external services. The bind mount makes the file directly accessible from the host — no `docker exec` needed to edit it.
 
 ---
 
@@ -195,6 +208,32 @@ Once running, services are available at:
 | MailHog UI      | http://localhost:8025                |
 | Solr Admin UI   | http://localhost:8983/solr           |
 | PostgreSQL      | localhost:5432                       |
+
+---
+
+## Logging
+
+All service output is consolidated to the container's **stdout and stderr** — there is a single stream to observe, accessible without execing into the container.
+
+Sources that contribute to this stream:
+- `start.sh` init phase messages (service seeding, PostgreSQL init, key generation, etc.)
+- PostgreSQL startup and runtime logs
+- Keycloak startup and runtime logs
+- Solr startup and core initialization logs
+- MailHog startup and access logs
+- supervisord lifecycle events (service spawning, RUNNING state transitions)
+- Tomcat (JULI) — server startup, WAR deployment, unhandled exception stack traces
+- NDEx application logs (logback) — API request processing, auth events, errors, and debug output at the level configured by `Log-Level` in `ndex.properties` (default: `INFO`)
+
+```bash
+# Snapshot of all output so far
+docker logs ndex
+
+# Follow live (Ctrl-C to stop)
+docker logs -f ndex
+```
+
+No log files inside the container need to be accessed for normal operation or troubleshooting.
 
 ---
 
@@ -272,13 +311,13 @@ The file is automatically deleted 2 hours after container start. After deletion,
 
 To customize or override configuration:
 
-1. Mount a named volume at `/apps/<svc>/config/` so config persists across restarts.
-2. After first boot, edit files under `/apps/<svc>/config/` directly (e.g., `docker exec -it ndex vi /apps/ndex/config/ndex.properties`).
+1. Bind-mount a host directory at `/apps/<svc>/config/` (e.g., `-v /host/path/ndex-config:/apps/ndex/config`) so config persists across container removals and is editable directly from the host.
+2. After first boot, edit files under `/apps/<svc>/config/` directly (e.g., `docker exec -it ndex vi /apps/ndex/config/ndex.properties`, or edit the bind-mounted host path if using persistence).
 3. Restart the container — `start.sh` will not overwrite existing config.
 
-To customize data storage:
+To persist data across container removals:
 
-Mount a named volume at `/apps/<svc>/data/` to control where each service writes its runtime data. Each service writes different things:
+Bind-mount a host directory at `/apps/<svc>/data/` to route each service's runtime data to your host filesystem. Each service writes different things:
 
 | Service    | Data path               | What is stored                                                                 |
 |------------|-------------------------|--------------------------------------------------------------------------------|
@@ -338,25 +377,45 @@ Removes the config seeding sentinel; `start.sh` re-seeds from image defaults on 
 docker exec ndex rm -f /apps/ndex/config/.initialized
 docker restart ndex
 ```
-### Full reset of one service
 
-Stop the container, drop both volumes, and restart:
+### Full reset of one service (ephemeral mode)
 
-```bash
-docker stop ndex
-docker volume rm ndex-solr-config ndex-solr-data
-docker start ndex
-```
-
-### Full reset of all services
+Remove and recreate the container. All state resets on the next boot:
 
 ```bash
 docker rm -f ndex
-docker volume rm \
-  ndex-ndex-config ndex-ndex-data \
-  ndex-postgres-config ndex-postgres-data \
-  ndex-keycloak-config ndex-keycloak-data \
-  ndex-solr-config ndex-solr-data \
-  ndex-mailhog-config
-docker run -d --name ndex ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+```
+
+### Full reset of one service (persistent mode — bind mounts)
+
+Delete the host-side directory for the service(s) you want to reset, then restart:
+
+```bash
+docker rm -f ndex
+rm -rf /host/path/solr-config /host/path/solr-data
+docker run -v /host/path/solr-config:/apps/solr/config -v /host/path/solr-data:/apps/solr/data ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+```
+
+`start.sh` detects the absent sentinel and re-initializes only the cleared service(s) on the next boot.
+
+### Full reset of all services
+
+**Ephemeral mode**: remove and recreate the container — no other cleanup needed:
+
+```bash
+docker rm -f ndex
+docker run ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+```
+
+**Persistent mode**: delete all bind-mounted host directories, then recreate:
+
+```bash
+docker rm -f ndex
+rm -rf /host/path/ndex-config /host/path/ndex-data \
+        /host/path/postgres-config /host/path/postgres-data \
+        /host/path/keycloak-config /host/path/keycloak-data \
+        /host/path/solr-config /host/path/solr-data \
+        /host/path/mailhog-config
+docker run -v /host/path/ndex-config:/apps/ndex/config ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```

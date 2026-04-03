@@ -1,38 +1,55 @@
 {
   "name": "NDEx REST API",
 
-  "build": {
-    "context": "..",
-    "dockerfile": ".devcontainer/Dockerfile"
-  },
+  // The devcontainer image is built entirely by 'make docker-dev' (which first builds
+  // ndex-runtime-base via its docker-base dep, then builds ndexbio/ndex-rest-dev).
+  // initializeCommand runs on the host before the container starts — no manual make step needed.
+  "image": "ndexbio/ndex-rest-dev",
+  "initializeCommand": "make docker-dev",
 
   "workspaceFolder": "/workspaces/ndex-rest",
   "overrideCommand": false,
   "shutdownAction": "stopContainer",
   "remoteUser": "root",
 
+  // Port env vars: set a var to expose that service port to your host machine.
+  // To expose an additional port:
+  //   1. Uncomment the desired env var below (or add it with a custom port number)
+  //   2. Add that port number to the forwardPorts array below
+  //   3. Rebuild: VS Code → "Dev Containers: Rebuild Container"
+  //
+  // All service ports are always reachable inside the container regardless of
+  // these settings. Only host-side access is controlled here.
+  "containerEnv": {
+    // NDEX_PORT is set by default — NDEx API is always exposed to the host.
+    "NDEX_PORT": "8080"
+    // "KEYCLOAK_PORT":      "8085",
+    // "POSTGRES_PORT":      "5432",
+    // "SOLR_PORT":          "8983",
+    // "MAILHOG_UI_PORT":    "8025",
+    // "MAILHOG_SMTP_PORT":  "1025",
+    // "KEYCLOAK_MGMT_PORT": "9000"
+  },
+
+  // Maven dependencies are persisted in a Docker-managed named volume (ndex-rest-m2).
+  // First container start on a new host incurs a full Maven download; all subsequent
+  // container builds reuse the cached volume — no re-download even after container removal.
   "mounts": [
-    "source=ndex-rest-data,target=/data,type=volume",
-    "source=ndex-rest-maven,target=/root/.m2,type=volume"
+    "type=volume,source=ndex-rest-m2,target=/root/.m2"
   ],
 
-  "containerEnv": {
-    "NDEX_CONFIG": "/workspaces/ndex-rest/.devcontainer/config.toml"
-  },
-
-  "postCreateCommand": "bash /workspaces/ndex-rest/.devcontainer/scripts/post-create.sh",
-
-  "forwardPorts": [8080, 8085, 8025, 1025, 5432, 8983, 9000],
+  // Keep forwardPorts in sync with containerEnv above: list only the ports
+  // whose env var is set. Remove a port from both places to stop exposing it.
+  "forwardPorts": [8080],
   "portsAttributes": {
-    "8080": { "label": "NDEx API (Jetty)",       "onAutoForward": "notify" },
-    "8085": { "label": "Keycloak",               "onAutoForward": "silent" },
-    "8025": { "label": "MailHog UI",             "onAutoForward": "silent" },
-    "1025": { "label": "SMTP (MailHog)",          "onAutoForward": "silent" },
-    "5432": { "label": "PostgreSQL",             "onAutoForward": "silent" },
-    "8983": { "label": "Solr Admin",             "onAutoForward": "silent" },
-    "9000": { "label": "Keycloak Management",    "onAutoForward": "silent" }
+    "8080": { "label": "NDEx API (Jetty)", "onAutoForward": "notify"  },
+    "8085": { "label": "Keycloak",         "onAutoForward": "silent"  },
+    "8025": { "label": "MailHog UI",       "onAutoForward": "silent"  },
+    "1025": { "label": "SMTP (MailHog)",   "onAutoForward": "silent"  },
+    "5432": { "label": "PostgreSQL",       "onAutoForward": "silent"  },
+    "8983": { "label": "Solr Admin",       "onAutoForward": "silent"  },
+    "9000": { "label": "Keycloak Mgmt",    "onAutoForward": "silent"  }
   },
-  "_comment_forwardPorts": "Port numbers above match the defaults in .devcontainer/config.toml. If you change any port there, update the matching entries here and in portsAttributes.",
 
   "customizations": {
     "vscode": {
