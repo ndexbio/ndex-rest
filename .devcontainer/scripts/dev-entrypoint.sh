@@ -118,16 +118,7 @@ if [[ ! -f "${NDX_OBJ_JAR}" ]]; then
   echo "==> ndex-object-model installed."
 fi
 
-# ── Phase 6: Tail NDEx log files to container stdout ─────────────────────────
-# logback writes NDEx application logs to files, not stdout. tail -F follows both
-# files and pipes their content to container stdout so they're visible via docker logs.
-# These background processes survive the exec below (reparented to PID 1 / mvn) and
-# retain their stdout connection to the container console.
-mkdir -p /workspaces/logs
-tail -F /workspaces/logs/ndex.log       2>/dev/null &
-tail -F /workspaces/logs/ndex-debug.log 2>/dev/null &
-
-# ── Phase 7: Launch Jetty ─────────────────────────────────────────────────────
+# ── Phase 6: Launch Jetty ─────────────────────────────────────────────────────
 echo ""
 echo "========================================================"
 echo "  NDEx Devcontainer Ready!"
@@ -138,4 +129,4 @@ echo "========================================================"
 echo ""
 export ndexConfigurationPath=/apps/ndex/config/ndex.properties
 cd /workspaces/ndex-rest
-exec mvn jetty:run
+exec mvn jetty:run -Dlogback.configurationFile=/apps/ndex/default/config/logback.xml

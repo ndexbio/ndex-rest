@@ -126,8 +126,8 @@ Exit code 1 means the test failed. The container is always stopped and removed o
 ### Ephemeral (data lost on container removal)
 
 ```bash
-docker run --rm -it \
-  --name ndex \ 
+docker run --platform linux/amd64 -d \
+  --name ndex \
   -p 8080:8080 \
   -p 8085:8085 \
   -p 8025:8025 \
@@ -144,7 +144,7 @@ docker run --rm -it \
 Bind-mount host directories at the paths you want to persist. Mount only what you need — each path is independent:
 
 ```bash
-docker run --rm -it \
+docker run --platform linux/amd64 -d \
   --name ndex \
   -p 8080:8080 \
   -p 8085:8085 \
@@ -170,13 +170,17 @@ No Docker-managed volumes are created. Each `-v` flag routes directly to your ho
 
 ## Stopping the Container
 
-If started with `--rm -it` as foreground, press `Ctrl-C` in the terminal. It will stop and container removed.
+**Graceful stop (container preserved):**
+```bash
+docker stop ndex
+```
 
-Otherwise to stop and remove container from any terminal in one step:
+**Force Stop and remove (container is deleted):**
 ```bash
 docker rm -f ndex
 ```
-All container state is ephemeral by default. If no bind mounts were used, removing the container discards all state — nothing else to clean up.
+
+All services state is ephemeral by default since the services store data on intenral container file system, which means all service level data is gone when container is deleted. Unless bind-mounts to host directories were used, then those paths are unaffected by container removal since they reside outside of container.
 
 ---
 
@@ -185,7 +189,7 @@ All container state is ephemeral by default. If no bind mounts were used, removi
 The image supports configuration via [command line flags](#enabledisable-services) to run only select services in a given container instance allowing for microservice deployments rather than monolithic. For exaple, here is the NDEx only container config which points at other external container instances running other services from the same image by referencing their endpoints in `/apps/ndex/config/ndex.properties`:
 
 ```bash
-docker run -d \
+docker run --platform linux/amd64 -d \
   --name ndex-app \
   -p 8080:8080 \
   -v /host/path/ndex-config:/apps/ndex/config \
@@ -201,13 +205,16 @@ Before starting, edit `/host/path/ndex-config/ndex.properties` on the host to se
 
 Once running, services are available at:
 
-| Service         | URL / Address                        |
-|-----------------|--------------------------------------|
-| NDEx REST API   | http://localhost:8080/v3             |
-| Keycloak Admin  | http://localhost:8085/admin          |
-| MailHog UI      | http://localhost:8025                |
-| Solr Admin UI   | http://localhost:8983/solr           |
-| PostgreSQL      | localhost:5432                       |
+| Service                  | URL / Address                                         | Description                                                                                                                                                       |
+|--------------------------|-------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| NDEx REST API            | http://localhost:8080/v3                              | REST API base path for NDEx network operations.                                                                                                                   |
+| Keycloak Admin Console   | http://localhost:8085/admin                           | Browser UI for realm and user administration. Requires the admin credentials from `/etc/keycloak.otp`.                                                           |
+| Keycloak Account Console | http://localhost:8085/realms/ndex/account             | Browser UI for user login and self-registration. Unauthenticated visitors are redirected to the login form, which includes a Register link to enroll a new account. |
+| Solr Admin UI            | http://localhost:8983/solr                            | Browser UI for core management, index inspection, and query testing.                                                                                              |
+| Solr REST API            | http://localhost:8983/solr/\<core\>/select, .../update | REST API used internally by NDEx for indexing and search. Primary cores: `public-nfs`, `private-nfs`, `ndex-networks`, `ndex-users`.                             |
+| MailHog SMTP             | localhost:1025                                        | Internal SMTP endpoint that captures outbound email from NDEx. Not published to the host — only accessible to processes running inside the container.             |
+| MailHog UI               | http://localhost:8025                                 | Browser UI for inspecting email captured by MailHog.                                                                                                              |
+| PostgreSQL               | localhost:5432                                        | TCP endpoint for direct database client connections (e.g. psql, pgAdmin).                                                                                         |
 
 ---
 
@@ -233,7 +240,7 @@ docker logs ndex
 docker logs -f ndex
 ```
 
-No log files inside the container need to be accessed for normal operation or troubleshooting.
+NDEx application logs are written directly to the container's stdout by logback — no log files are created inside the container.
 
 ---
 
@@ -287,6 +294,10 @@ Solr runs with **no authentication** — it is bound to localhost inside the con
 
 ### MailHog
 
+Enable `--mailhog` alongside `--ndex` when you want to capture and inspect email sent by NDEx during local development. NDEx is pre-configured to deliver to `localhost:1025` inside the container — no changes to `ndex.properties` are needed.
+
+If you have an external SMTP relay, set `SMTP-Host` and `SMTP-Port` (and optionally `SMTP-Auth`, `SMTP-Username`, `SMTP-Password`) in `/apps/ndex/config/ndex.properties` and omit `--mailhog` entirely — no capture service is needed when NDEx delivers directly to a real mail server.
+
 When enabled with `--mailhog` On first boot, a random admin password is generated and written to `/etc/mailhog.otp`:
 
 ```
@@ -314,6 +325,42 @@ To customize or override configuration:
 1. Bind-mount a host directory at `/apps/<svc>/config/` (e.g., `-v /host/path/ndex-config:/apps/ndex/config`) so config persists across container removals and is editable directly from the host.
 2. After first boot, edit files under `/apps/<svc>/config/` directly (e.g., `docker exec -it ndex vi /apps/ndex/config/ndex.properties`, or edit the bind-mounted host path if using persistence).
 3. Restart the container — `start.sh` will not overwrite existing config.
+
+### Log Level
+
+NDEx application log verbosity is controlled by `Log-Level` in `/apps/ndex/config/ndex.properties`. Default: `INFO`. Valid values: `trace`, `debug`, `info`, `warn`, `error`.
+
+To enable DEBUG logging:
+
+```bash
+docker exec ndex vi /apps/ndex/config/ndex.properties
+# Set: Log-Level=DEBUG
+docker restart ndex
+```
+
+Or with a bind-mounted config directory, edit the host-side file and restart. Note: even at `Log-Level=DEBUG`, Tomcat server internals are capped at INFO to avoid flooding the log stream with server-level noise.
+
+### Keycloak Log Level
+
+Keycloak logging is split across two controls:
+
+- **Root log level** — set via `--log-level=info` on the `kc.sh` startup command (in the container's supervisord config). This overrides Quarkus dev-mode defaults, which otherwise emit DEBUG output during startup before runtime configuration is applied.
+- **Category overrides** — `io.netty` and `io.vertx` are pinned to `WARN` in `/apps/keycloak/config/keycloak.conf` (generated on first boot) to suppress networking-internal noise from Keycloak's embedded Vert.x server.
+
+To change Keycloak's root log level, edit the supervisord config inside the running container and restart Keycloak:
+
+```bash
+docker exec ndex vi /opt/ndex-supervisord/keycloak.conf
+# Change --log-level=info to e.g. --log-level=debug
+docker restart ndex
+```
+
+Category-specific overrides (`log-level=io.netty:WARN,io.vertx:WARN`) can be edited in keycloak.conf inside the container without touching the startup command:
+
+```bash
+docker exec ndex vi /apps/keycloak/config/keycloak.conf
+docker restart ndex
+```
 
 To persist data across container removals:
 
@@ -350,7 +397,7 @@ Use command line flags
 | `--postgres`  | PostgreSQL 16            |
 | `--keycloak`  | Keycloak 26.x            |
 | `--solr`      | Apache Solr 9.x          |
-| `--mailhog`   | MailHog SMTP/UI          |
+| `--mailhog`   | MailHog email capture (enable alongside `--ndex` for local dev) |
 
 At least one flag must be specified. Flags can be combined in any order.
 
@@ -384,7 +431,7 @@ Remove and recreate the container. All state resets on the next boot:
 
 ```bash
 docker rm -f ndex
-docker run ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run --platform linux/amd64 ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```
 
 ### Full reset of one service (persistent mode — bind mounts)
@@ -394,7 +441,7 @@ Delete the host-side directory for the service(s) you want to reset, then restar
 ```bash
 docker rm -f ndex
 rm -rf /host/path/solr-config /host/path/solr-data
-docker run -v /host/path/solr-config:/apps/solr/config -v /host/path/solr-data:/apps/solr/data ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run --platform linux/amd64 -v /host/path/solr-config:/apps/solr/config -v /host/path/solr-data:/apps/solr/data ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```
 
 `start.sh` detects the absent sentinel and re-initializes only the cleared service(s) on the next boot.
@@ -405,7 +452,7 @@ docker run -v /host/path/solr-config:/apps/solr/config -v /host/path/solr-data:/
 
 ```bash
 docker rm -f ndex
-docker run ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run --platform linux/amd64 ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```
 
 **Persistent mode**: delete all bind-mounted host directories, then recreate:
@@ -417,5 +464,5 @@ rm -rf /host/path/ndex-config /host/path/ndex-data \
         /host/path/keycloak-config /host/path/keycloak-data \
         /host/path/solr-config /host/path/solr-data \
         /host/path/mailhog-config
-docker run -v /host/path/ndex-config:/apps/ndex/config ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run --platform linux/amd64 -v /host/path/ndex-config:/apps/ndex/config ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```

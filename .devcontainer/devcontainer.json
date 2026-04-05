@@ -12,14 +12,8 @@
   "shutdownAction": "stopContainer",
   "remoteUser": "root",
 
-  // Port env vars: set a var to expose that service port to your host machine.
-  // To expose an additional port:
-  //   1. Uncomment the desired env var below (or add it with a custom port number)
-  //   2. Add that port number to the forwardPorts array below
-  //   3. Rebuild: VS Code → "Dev Containers: Rebuild Container"
-  //
-  // All service ports are always reachable inside the container regardless of
-  // these settings. Only host-side access is controlled here.
+  // NDEX_PORT controls Jetty's listen port and HostURI in ndex.properties — keep it set.
+  // Other port env vars here are unused placeholders (host publishing is handled by runArgs).
   "containerEnv": {
     // NDEX_PORT is set by default — NDEx API is always exposed to the host.
     "NDEX_PORT": "8080"
@@ -38,12 +32,16 @@
     "type=volume,source=ndex-rest-m2,target=/root/.m2"
   ],
 
-  // Keep forwardPorts in sync with containerEnv above: list only the ports
-  // whose env var is set. Remove a port from both places to stop exposing it.
-  "forwardPorts": [8080],
+  // Publish NDEx API and Keycloak to the host via Docker (works for both CLI and VS Code).
+  // runArgs are passed directly to docker run — ports are always available on the host
+  // without relying on VS Code port forwarding.
+  "runArgs": ["-p", "8080:8080", "-p", "8085:8085"],
+
+  // forwardPorts intentionally empty — host publishing is handled by runArgs above.
+  "forwardPorts": [],
   "portsAttributes": {
-    "8080": { "label": "NDEx API (Jetty)", "onAutoForward": "notify"  },
-    "8085": { "label": "Keycloak",         "onAutoForward": "silent"  },
+    "8080": { "label": "NDEx API (Jetty)", "onAutoForward": "ignore"  },
+    "8085": { "label": "Keycloak",         "onAutoForward": "ignore"  },
     "8025": { "label": "MailHog UI",       "onAutoForward": "silent"  },
     "1025": { "label": "SMTP (MailHog)",   "onAutoForward": "silent"  },
     "5432": { "label": "PostgreSQL",       "onAutoForward": "silent"  },

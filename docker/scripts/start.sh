@@ -85,7 +85,7 @@ http-management-port=9000
 hostname-url=http://localhost:8085
 hostname-admin-url=http://localhost:8085
 health-enabled=true
-log-level=WARN
+log-level=io.netty:WARN,io.vertx:WARN
 KCSETTINGS
   fi
 }
@@ -391,17 +391,6 @@ fi
     sleep 5
   done
 ) &
-
-# ── Phase 8.5: Tail NDEx log files to container stdout ───────────────────────
-# logback writes NDEx application logs to files, not stdout. tail -F follows both
-# files and pipes their content to container stdout so they're visible via docker logs.
-# -F retries automatically if the file doesn't exist yet; output appears as soon as
-# Tomcat begins writing.
-if [[ "${ENABLE_NDEX}" == "true" ]]; then
-    mkdir -p /usr/local/logs
-    tail -F /usr/local/logs/ndex.log       2>/dev/null &
-    tail -F /usr/local/logs/ndex-debug.log 2>/dev/null &
-fi
 
 # ── Phase 9: Assemble supervisord.conf ────────────────────────────────────────
 echo "==> Assembling supervisord.conf..."

@@ -102,6 +102,8 @@ docker ps --filter name=ndex-rest
 docker stop <container-id> && docker rm <container-id>
 ```
 
+The devcontainer image (`ndexbio/ndex-rest-dev`) is never deleted by container removal. The next `devcontainer up` reuses cached image layers — no full rebuild unless you pass `--build-no-cache`.
+
 Most container state is ephemeral — removing the container resets service data (NDEx networks, PostgreSQL, Keycloak, Solr). The Maven cache (`ndex-rest-m2` Docker volume) is an exception: it survives container removal automatically. To persist additional state across container removals, bind-mount host directories (see [Persistence](#persistence) below).
 
 ---
@@ -147,7 +149,53 @@ docker logs <container-id>
 docker logs -f <container-id>
 ```
 
-No separate log files need to be accessed for normal development or troubleshooting.
+NDEx application logs are written directly to the container's stdout by logback — no log files are created inside the container.
+
+### Log Level
+
+NDEx application log verbosity is controlled by `Log-Level` in `/apps/ndex/config/ndex.properties` (default: `INFO`). Valid values: `trace`, `debug`, `info`, `warn`, `error`.
+
+To enable DEBUG logging, edit the file inside the container and restart:
+
+```bash
+vi /apps/ndex/config/ndex.properties
+# Set: Log-Level=DEBUG
+# Then restart the container to apply
+```
+
+Note: even at `Log-Level=DEBUG`, Jetty server internals (`org.eclipse.jetty.*`) are capped at INFO to avoid flooding the log stream.
+
+### Keycloak Log Level
+
+Keycloak logging is split across two controls:
+
+- **Root log level** — set via `--log-level=info` on the `kc.sh` startup command (in the container's supervisord config). This overrides Quarkus dev-mode defaults, which otherwise emit DEBUG output during startup before runtime configuration is applied.
+- **Category overrides** — `io.netty` and `io.vertx` are pinned to `WARN` in `/apps/keycloak/config/keycloak.conf` to suppress networking-internal noise from Keycloak's embedded Vert.x server.
+
+To change the root log level, edit the supervisord config inside the running container and restart Keycloak:
+
+```bash
+# From a container shell:
+vi /opt/ndex-supervisord/keycloak.conf
+# Change --log-level=info to e.g. --log-level=debug
+supervisorctl restart keycloak
+```
+
+Category-specific overrides (`log-level=io.netty:WARN,io.vertx:WARN`) can be edited in `/apps/keycloak/config/keycloak.conf` independently.
+
+---
+
+## Accessing Services
+
+NDEx and Keycloak are published directly to the host by Docker (`runArgs` in `devcontainer.json`) — no VS Code port forwarding required. Both are available from the host as soon as the container starts.
+
+| Service | Host URL | Auth |
+|---|---|---|
+| NDEx API | http://localhost:8080/v3 | — |
+| Keycloak admin | http://localhost:8085/admin | admin / see `/etc/keycloak.otp` |
+| Keycloak account | http://localhost:8085/realms/ndex/account/ | your account |
+
+Other services (PostgreSQL, Solr, MailHog) run inside the container but are not exposed to the host by default. See [Exposed Ports](#exposed-ports) to change this.
 
 ---
 
@@ -170,23 +218,6 @@ devcontainer exec --workspace-folder /path/to/ndex-rest bash -c \
 ```
 
 `--remote-ndex-url` skips all Docker build and container management steps — it runs only the 24 API calls against the given URL. See `docker/README.md` for full integration test documentation including deploy image testing.
-
----
-
-## Accessing Services
-
-Once the container is running, the NDEx API is available at `http://localhost:8080`. Other services are reachable inside the container but not forwarded to the host by default. See [Exposed Ports](#exposed-ports) to change this.
-
-| Service | URL (from inside container) | Auth |
-|---------|-----|------|
-| NDEx API | http://localhost:8080/v3 | — |
-| Keycloak admin | http://localhost:8085/admin | admin / see `/etc/keycloak.otp` |
-| Keycloak NDEx realm | http://localhost:8085/realms/ndex/account/ | your account |
-| MailHog UI | http://localhost:8025 | admin / see `/etc/mailhog.otp` |
-| Solr Admin | http://localhost:8983/solr | open (no auth) |
-| PostgreSQL | localhost:5432 | ndexserver / see `ndex.properties` |
-
-> **Keycloak RSA key pair:** Generated at first boot using `openssl`. Stored at `/apps/ndex/config/priv.key` and `/apps/ndex/config/cert.pem`. Public key injected into `ndex.properties` on first boot.
 
 ---
 

@@ -82,6 +82,7 @@
       "builtIn": false,
       "authenticationExecutions": [
         {
+          "authenticator": "registration-page-form",
           "authenticatorFlow": true,
           "requirement": "REQUIRED",
           "priority": 10,
@@ -97,7 +98,6 @@
       "builtIn": false,
       "authenticationExecutions": [
         { "authenticator": "registration-user-creation",        "requirement": "REQUIRED",  "priority": 10 },
-        { "authenticator": "registration-profile-action",       "requirement": "REQUIRED",  "priority": 20 },
         { "authenticator": "registration-password-action",      "requirement": "REQUIRED",  "priority": 30 },
         { "authenticator": "registration-recaptcha-action",     "requirement": "DISABLED",  "priority": 40 },
         { "authenticator": "registration-terms-and-conditions", "requirement": "DISABLED",  "priority": 50 },
