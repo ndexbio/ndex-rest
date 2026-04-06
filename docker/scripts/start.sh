@@ -26,14 +26,16 @@ ENABLE_POSTGRES=false
 ENABLE_KEYCLOAK=false
 ENABLE_SOLR=false
 ENABLE_MAILHOG=false
+DISABLE_CREDENTIAL_REMOVAL=false
 
 for arg in "$@"; do
   case "${arg}" in
-    --ndex)     ENABLE_NDEX=true ;;
-    --postgres) ENABLE_POSTGRES=true ;;
-    --keycloak) ENABLE_KEYCLOAK=true ;;
-    --solr)     ENABLE_SOLR=true ;;
-    --mailhog)  ENABLE_MAILHOG=true ;;
+    --ndex)                      ENABLE_NDEX=true ;;
+    --postgres)                  ENABLE_POSTGRES=true ;;
+    --keycloak)                  ENABLE_KEYCLOAK=true ;;
+    --solr)                      ENABLE_SOLR=true ;;
+    --mailhog)                   ENABLE_MAILHOG=true ;;
+    --disable-credential-removal) DISABLE_CREDENTIAL_REMOVAL=true ;;
     *) echo "Unknown flag: ${arg}" >&2; exit 1 ;;
   esac
 done
@@ -374,23 +376,26 @@ fi
 
 # ── Phase 8: Launch OTP cleanup daemon ───────────────────────────────────────
 # Scans /etc/*.otp every 5 seconds; deletes files older than 2 hours; exits
-# when no OTP files remain.
-(
-  while true; do
-    found=0
-    for f in /etc/*.otp; do
-      [[ -f "${f}" ]] || continue
-      found=1
-      age=$(( $(date +%s) - $(stat -c %Y "${f}") ))
-      if [[ ${age} -ge 7200 ]]; then
-        echo "[otp-cleanup] Purging expired OTP file: ${f}"
-        rm -f "${f}"
-      fi
+# when no OTP files remain. Suppressed when --disable-credential-removal is set
+# (e.g. devcontainer — developer may need credentials throughout the session).
+if [[ "${DISABLE_CREDENTIAL_REMOVAL}" == "false" ]]; then
+  (
+    while true; do
+      found=0
+      for f in /etc/*.otp; do
+        [[ -f "${f}" ]] || continue
+        found=1
+        age=$(( $(date +%s) - $(stat -c %Y "${f}") ))
+        if [[ ${age} -ge 7200 ]]; then
+          echo "[otp-cleanup] Purging expired OTP file: ${f}"
+          rm -f "${f}"
+        fi
+      done
+      [[ ${found} -eq 0 ]] && exit 0
+      sleep 5
     done
-    [[ ${found} -eq 0 ]] && exit 0
-    sleep 5
-  done
-) &
+  ) &
+fi
 
 # ── Phase 9: Assemble supervisord.conf ────────────────────────────────────────
 echo "==> Assembling supervisord.conf..."

@@ -23,7 +23,7 @@
 #      fill all __PLACEHOLDER__ values in ndex.properties.
 #   4  Ensure NDEx data subdirectories exist; copy support files to NdexRoot/conf/.
 #   5  First boot only: build ndex-object-model:3.0.0-SNAPSHOT if not in Maven cache
-#   6  exec mvn jetty:run from /workspaces/ndex-rest (becomes PID 1)
+#   6  Print ready banner; exec sleep infinity (NDEx started manually via ndex-server.sh)
 set -euo pipefail
 
 NDEX_PORT="${NDEX_PORT:-8080}"
@@ -36,7 +36,7 @@ echo ""
 
 # ── Phase 1: Start supporting services ───────────────────────────────────────
 echo "==> Starting support services (postgres, keycloak, solr, mailhog)..."
-/usr/local/bin/start.sh --postgres --keycloak --solr --mailhog &
+/usr/local/bin/start.sh --postgres --keycloak --solr --mailhog --disable-credential-removal &
 
 # ── Phase 2: Wait for services ready ─────────────────────────────────────────
 echo "==> Waiting for all services to reach RUNNING state..."
@@ -118,15 +118,19 @@ if [[ ! -f "${NDX_OBJ_JAR}" ]]; then
   echo "==> ndex-object-model installed."
 fi
 
-# ── Phase 6: Launch Jetty ─────────────────────────────────────────────────────
+# ── Phase 6: Ready — NDEx must be started manually ───────────────────────────
 echo ""
 echo "========================================================"
 echo "  NDEx Devcontainer Ready!"
-echo "  NDEx API (Jetty):  http://localhost:${NDEX_PORT}/v3"
-echo "  Config:            /apps/ndex/config/ndex.properties"
-echo "  Hot reload:        active (Jetty scans every 5s)"
+echo "  Core services: postgres, keycloak, solr, mailhog — RUNNING"
+echo ""
+echo "  To start the NDEx API server, open a terminal in the"
+echo "  container and run:"
+echo ""
+echo "    ndex-server.sh start"
+echo ""
+echo "  To stop it:  ndex-server.sh stop"
+echo "  Logs:        /apps/ndex/data/ndex.log"
 echo "========================================================"
 echo ""
-export ndexConfigurationPath=/apps/ndex/config/ndex.properties
-cd /workspaces/ndex-rest
-exec mvn jetty:run -Dlogback.configurationFile=/apps/ndex/default/config/logback.xml
+exec sleep infinity

@@ -2,11 +2,9 @@
 
 A fully self-contained devcontainer provides a complete NDEx development environment — no separate PostgreSQL, Keycloak, SMTP, or Solr installation needed.
 
-On first launch, all supporting services initialize and the NDEx API starts automatically on port 8080, running directly from your working copy source code with hot reload active.
+On first launch, all supporting services (PostgreSQL, Keycloak, Solr, MailHog) initialize automatically. Once the **"NDEx Devcontainer Ready!"** banner appears, start the NDEx API server manually from inside the container — giving you full control over when to build and run it.
 
-> **First boot is slower**: supporting services initialize, and `ndex-object-model:3.0.0-SNAPSHOT` is cloned and built from source (not available in any public Maven repo). Subsequent container starts are fast — the Maven cache is preserved in a Docker volume across container removals. Wait for the **"NDEx Devcontainer Ready!"** banner before hitting API endpoints.
-
-> **Hot reload**: Java source changes are picked up automatically within ~5 seconds via Jetty's file scanner. No restart required.
+> **First boot is slower**: supporting services initialize, and `ndex-object-model:3.0.0-SNAPSHOT` is cloned and built from source (not available in any public Maven repo). Subsequent container starts are fast — the Maven cache is preserved in a Docker volume across container removals. When the **"NDEx Devcontainer Ready!"** banner appears, start NDEx manually (see [Development Cycles](#development-cycles)).
 
 ---
 
@@ -24,10 +22,12 @@ On first launch, all supporting services initialize and the NDEx API starts auto
 
 All services run inside the container and are reachable from within it regardless of host exposure settings. See [Exposed Ports](#exposed-ports) below to expose additional services to the host.
 
-Credentials for Keycloak, PostgreSQL, and MailHog are auto-generated on first boot. Read them from inside the container:
+Credentials for Keycloak, PostgreSQL, and MailHog are auto-generated on first boot. In the devcontainer, `.otp` files are never auto-deleted — they remain available for the duration of your session. Read them from inside the container:
 - Keycloak admin: `cat /etc/keycloak.otp`
 - MailHog admin: `cat /etc/mailhog.otp`
 - PostgreSQL ndexserver password: `grep NdexDBDBPassword /apps/ndex/config/ndex.properties`
+
+For full context on what `.otp` files are and how credential management works, see [Credentials](../docker/README.md#credentials) in docker/README.md.
 
 ---
 
@@ -45,13 +45,17 @@ Credentials for Keycloak, PostgreSQL, and MailHog are auto-generated on first bo
 1. Open the repository folder in VS Code.
 2. When prompted *"Reopen in Container"*, click it. Or open the Command Palette (`Cmd+Shift+P`) and run **Dev Containers: Reopen in Container**.
 3. VS Code builds the `runtime-base` image (installs all services) then builds the devcontainer image on top of it. On first launch this takes several minutes.
-4. Once the container starts, all supporting services (PostgreSQL, Keycloak, Solr, MailHog) initialize automatically, then the NDEx API starts on port 8080. Wait for the "NDEx Devcontainer Ready!" banner in the terminal before hitting API endpoints.
+4. Once the container starts, all supporting services (PostgreSQL, Keycloak, Solr, MailHog) initialize automatically. When the **"NDEx Devcontainer Ready!"** banner appears in the terminal, open a new integrated terminal (**Terminal → New Terminal**) and start the NDEx API server:
+   ```bash
+   ndex-server.sh start
+   ```
+   This returns immediately — NDEx starts in the background. All output goes to `/apps/ndex/data/ndex.log`. Follow startup with `tail -f /apps/ndex/data/ndex.log` and wait for a Jetty "Started" message before hitting API endpoints.
 
 ---
 
 ## Running (CLI)
 
-`devcontainer up` returns to the shell prompt once the container is running, but its stdout/stderr remain attached — container output continues to appear in the terminal while services initialize and NDEx starts. The CLI has no built-in output suppression. Choose one of the following approaches:
+`devcontainer up` returns to the shell prompt once the container is running, but its stdout/stderr remain attached — container output continues to appear in the terminal while services initialize. The CLI has no built-in output suppression. Choose one of the following approaches:
 
 **Option A — two terminals (simplest):**
 
@@ -61,6 +65,12 @@ devcontainer up --workspace-folder /path/to/ndex-rest
 
 # Terminal 2 — open a shell in the running container
 devcontainer exec --workspace-folder /path/to/ndex-rest bash
+
+# Once inside the container — start NDEx in the background:
+ndex-server.sh start
+
+# Follow startup output:
+tail -f /apps/ndex/data/ndex.log
 ```
 
 **Option B — background, single terminal:**
@@ -73,7 +83,11 @@ devcontainer up --workspace-folder /path/to/ndex-rest > /tmp/devcontainer-up.log
 until grep -q "NDEx Devcontainer Ready!" /tmp/devcontainer-up.log 2>/dev/null; do
   sleep 5
 done
-echo "NDEx is ready"
+echo "Core services ready"
+
+# Start NDEx inside the container (async — returns immediately):
+devcontainer exec --workspace-folder /path/to/ndex-rest bash -c "ndex-server.sh start"
+# Logs at /apps/ndex/data/ndex.log inside the container
 
 # Open a shell in the same terminal
 devcontainer exec --workspace-folder /path/to/ndex-rest bash
@@ -84,7 +98,7 @@ devcontainer exec --workspace-folder /path/to/ndex-rest bash
 devcontainer up --workspace-folder /path/to/ndex-rest --build-no-cache
 ```
 
-In both cases, wait for the **"NDEx Devcontainer Ready!"** banner before hitting API endpoints.
+In both cases, wait for the **"NDEx Devcontainer Ready!"** banner (core services ready) before starting NDEx with `ndex-server.sh start`.
 
 ---
 
@@ -116,83 +130,54 @@ All supporting services (PostgreSQL, Keycloak, Solr, MailHog) are managed by sup
 supervisorctl status   # postgres, keycloak, solr, mailhog should all be RUNNING
 ```
 
-**NDEx API (Jetty)** starts automatically as the container's main process. It runs as PID 1 and the container's lifetime is tied to it — it is not managed by supervisord.
+**NDEx API (Jetty)** is started manually after the container is ready. Open a terminal inside the container and run:
 
-**Hot reload**: Edit Java source files directly in VS Code while connected to the devcontainer. Jetty scans for class changes every 5 seconds. Changes compiled by your IDE (or by `mvn compile` in a terminal) are reflected live without restarting.
+```bash
+ndex-server.sh start
+```
 
-**Restarting NDEx**: Stop the container (VS Code or `docker stop`) and start it again. All services are already initialized and the Maven cache is warm (persisted in the `ndex-rest-m2` Docker volume), so startup is significantly faster than the first boot — even after container removal and recreation.
+`ndex-server.sh start` starts Jetty in the background and returns immediately. If NDEx is already running it is a no-op. All NDEx output (application logs + Maven console output) is written to `/apps/ndex/data/ndex.log`. Follow it with:
+
+```bash
+tail -f /apps/ndex/data/ndex.log
+```
+
+**Stopping NDEx**: Run `ndex-server.sh stop` — this blocks until the Jetty process has fully exited. Supporting services (postgres, keycloak, solr, mailhog) keep running.
+
+**Hot reload**: Java source changes are picked up automatically within ~5 seconds via Jetty's file scanner. Changes compiled by your IDE (or by `mvn compile` in a terminal) are reflected live — no restart required.
+
+**Restarting NDEx**: `ndex-server.sh stop` then `ndex-server.sh start`. The log file appends across restarts. All services are already initialized and the Maven cache is warm, so restart is fast.
 
 ---
 
 ## Logging
 
-All service output is consolidated to the container's **stdout and stderr** — there is a single stream to observe.
+The devcontainer has two separate log streams:
 
-Sources that contribute to this stream:
-- `dev-entrypoint.sh` init phase messages (service wait, ndex-object-model build, Jetty launch)
-- PostgreSQL, Keycloak, Solr, MailHog startup and runtime logs (via supervisord)
-- supervisord lifecycle events (service spawning, RUNNING state transitions)
-- Jetty server output
-- NDEx application logs (logback) — API request processing, auth events, errors, and debug output at the level configured by `Log-Level` in `ndex.properties` (default: `INFO`)
+**Core services** (postgres, keycloak, solr, mailhog) log to the container's stdout/stderr alongside `dev-entrypoint.sh` init messages. View them from the host:
 
-**In VS Code**: the integrated terminal shows this output live while connected to the devcontainer.
-
-**From the host**:
 ```bash
-# Find the container ID
-docker ps --filter name=ndex-rest
-
-# Snapshot of all output so far
-docker logs <container-id>
-
-# Follow live (Ctrl-C to stop)
 docker logs -f <container-id>
 ```
 
-NDEx application logs are written directly to the container's stdout by logback — no log files are created inside the container.
-
-### Log Level
-
-NDEx application log verbosity is controlled by `Log-Level` in `/apps/ndex/config/ndex.properties` (default: `INFO`). Valid values: `trace`, `debug`, `info`, `warn`, `error`.
-
-To enable DEBUG logging, edit the file inside the container and restart:
+**NDEx API** logs to `/apps/ndex/data/ndex.log` inside the container (not stdout). Follow it from a container shell:
 
 ```bash
-vi /apps/ndex/config/ndex.properties
-# Set: Log-Level=DEBUG
-# Then restart the container to apply
+tail -f /apps/ndex/data/ndex.log
 ```
 
-Note: even at `Log-Level=DEBUG`, Jetty server internals (`org.eclipse.jetty.*`) are capped at INFO to avoid flooding the log stream.
-
-### Keycloak Log Level
-
-Keycloak logging is split across two controls:
-
-- **Root log level** — set via `--log-level=info` on the `kc.sh` startup command (in the container's supervisord config). This overrides Quarkus dev-mode defaults, which otherwise emit DEBUG output during startup before runtime configuration is applied.
-- **Category overrides** — `io.netty` and `io.vertx` are pinned to `WARN` in `/apps/keycloak/config/keycloak.conf` to suppress networking-internal noise from Keycloak's embedded Vert.x server.
-
-To change the root log level, edit the supervisord config inside the running container and restart Keycloak:
-
-```bash
-# From a container shell:
-vi /opt/ndex-supervisord/keycloak.conf
-# Change --log-level=info to e.g. --log-level=debug
-supervisorctl restart keycloak
-```
-
-Category-specific overrides (`log-level=io.netty:WARN,io.vertx:WARN`) can be edited in `/apps/keycloak/config/keycloak.conf` independently.
+For log level configuration (NDEx `Log-Level`, Keycloak log level controls), the same settings and procedures apply as in the deploy image — see [Log Level](../docker/README.md#log-level) and [Keycloak Log Level](../docker/README.md#keycloak-log-level) in docker/README.md. In the devcontainer, use `supervisorctl restart keycloak` instead of `docker restart ndex` when restarting Keycloak.
 
 ---
 
 ## Accessing Services
 
-NDEx and Keycloak are published directly to the host by Docker (`runArgs` in `devcontainer.json`) — no VS Code port forwarding required. Both are available from the host as soon as the container starts.
+NDEx and Keycloak ports are published directly to the host by Docker (`runArgs` in `devcontainer.json`) — no VS Code port forwarding required. Keycloak is available as soon as the container starts. The NDEx API is available on port 8080 only after starting it manually (see [Development Cycles](#development-cycles)).
 
 | Service | Host URL | Auth |
 |---|---|---|
 | NDEx API | http://localhost:8080/v3 | — |
-| Keycloak admin | http://localhost:8085/admin | admin / see `/etc/keycloak.otp` |
+| Keycloak admin | http://localhost:8085/admin | admin / get credentials from `/etc/keycloak.otp` |
 | Keycloak account | http://localhost:8085/realms/ndex/account/ | your account |
 
 Other services (PostgreSQL, Solr, MailHog) run inside the container but are not exposed to the host by default. See [Exposed Ports](#exposed-ports) to change this.
@@ -201,23 +186,27 @@ Other services (PostgreSQL, Solr, MailHog) run inside the container but are not 
 
 ## Testing the Devcontainer
 
-The devcontainer CLI (`devcontainer up`) does not publish ports to the host — that is handled by VS Code's port forwarding. To run the integration test against the running devcontainer, exec into the container and run it targeting localhost:
+NDEx must be running before executing integration tests. Start it first and confirm startup is complete:
 
 ```bash
-# Open a shell inside the running devcontainer:
-devcontainer exec --workspace-folder /path/to/ndex-rest bash
+ndex-server.sh start
+tail -f /apps/ndex/data/ndex.log   # wait until you see Jetty "Started" message, then Ctrl-C
+```
 
+Then run the integration test targeting localhost:
+
+```bash
 # From inside the container:
 docker/test/integration-test.sh --remote-ndex-url http://localhost:8080
 ```
 
-Or as a one-liner:
+Or as a one-liner from the host:
 ```bash
 devcontainer exec --workspace-folder /path/to/ndex-rest bash -c \
   "cd /workspaces/ndex-rest && docker/test/integration-test.sh --remote-ndex-url http://localhost:8080"
 ```
 
-`--remote-ndex-url` skips all Docker build and container management steps — it runs only the 24 API calls against the given URL. See `docker/README.md` for full integration test documentation including deploy image testing.
+`--remote-ndex-url` skips all Docker build and container management steps — it runs only the API calls against a running NDEx instance at the given URL. See `docker/README.md` for full integration test documentation including deploy image testing.
 
 ---
 
@@ -225,45 +214,23 @@ devcontainer exec --workspace-folder /path/to/ndex-rest bash -c \
 
 ### Exposed Ports
 
-All services run on fixed internal ports. By default, only the NDEx API (port 8080) is forwarded to the host via VS Code port forwarding. All other service ports are reachable inside the container but not exposed to the host.
+All services run on fixed internal ports. NDEx (8080) and Keycloak (8085) are published to the host via `runArgs` in `devcontainer.json` — no VS Code port forwarding involved. All other services are reachable inside the container but not exposed to the host by default.
 
-There are two distinct mechanisms:
+**`NDEX_PORT`** is the only env var that changes actual service behavior — it sets Jetty's listen port and the `HostURI` value written into `ndex.properties` on first boot. Default: `8080`.
 
-**`NDEX_PORT`** is the only env var that changes actual service behavior. It sets Jetty's listen port inside the container *and* writes the `HostURI` value in `ndex.properties` on first boot. Default: `8080`. Change this value to make Jetty listen on a different port (and keep `forwardPorts` in sync).
+To expose an additional service port to the host, add a `-p host:container` entry to `runArgs` in `.devcontainer/devcontainer.json` and rebuild:
 
-**All other port env vars** (`KEYCLOAK_PORT`, `POSTGRES_PORT`, etc.) do **not** change where any service listens. Those services always bind to their fixed internal ports. These env vars only tell VS Code which container port to forward to your host machine. When absent, the service still runs — only host access is gated.
-
-| Env Var | Internal port | What it controls | Default |
-|---|---|---|---|
-| `NDEX_PORT` | configurable (default 8080) | Jetty listen port + `HostURI` in `ndex.properties` | **8080** (set — forwarded) |
-| `KEYCLOAK_PORT` | 8085 (fixed) | VS Code port forwarding to host only | unset (internal only) |
-| `POSTGRES_PORT` | 5432 (fixed) | VS Code port forwarding to host only | unset (internal only) |
-| `SOLR_PORT` | 8983 (fixed) | VS Code port forwarding to host only | unset (internal only) |
-| `MAILHOG_UI_PORT` | 8025 (fixed) | VS Code port forwarding to host only | unset (internal only) |
-| `MAILHOG_SMTP_PORT` | 1025 (fixed) | VS Code port forwarding to host only | unset (internal only) |
-| `KEYCLOAK_MGMT_PORT` | 9000 (fixed) | VS Code port forwarding to host only | unset (internal only) |
-
-To expose an additional service port to the host:
-1. Open `.devcontainer/devcontainer.json`
-2. Uncomment the desired env var in `containerEnv` (e.g. `"KEYCLOAK_PORT": "8085"`)
-3. Add that same port number to the `forwardPorts` array
-4. Rebuild: VS Code Command Palette → **Dev Containers: Rebuild Container**
+```jsonc
+"runArgs": ["-p", "8080:8080", "-p", "8085:8085", "-p", "8983:8983"]
+```
 
 ### NDEx Properties
 
-The NDEx application reads `/apps/ndex/config/ndex.properties`, generated on first boot from the image template with auto-generated credentials. To apply advanced configuration (e.g. enable graph query microservices via `NeighborhoodQueryURL` or `AdvancedQueryURL`), edit this file inside the running container and restart:
-
-```bash
-# From a container shell:
-vi /apps/ndex/config/ndex.properties
-# Then restart the container to pick up changes
-```
-
-For production/server deployments, see **[docker/README.md](../docker/README.md)**.
+The NDEx application reads `/apps/ndex/config/ndex.properties`, generated on first boot. Edit it inside the container and restart NDEx (`ndex-server.sh stop && ndex-server.sh start`) to apply changes. For full configuration reference, see [Configuration](../docker/README.md#configuration) in docker/README.md.
 
 ### Persistence
 
-All service state lives inside the container by default and is lost when the container is removed. To persist specific state across container removals, bind-mount a host directory at the relevant path. For example in `.devcontainer/devcontainer.json`:
+All service state is ephemeral by default — removed with the container. To persist service data across container removals, add bind mounts to `devcontainer.json`:
 
 ```jsonc
 "mounts": [
@@ -272,7 +239,7 @@ All service state lives inside the container by default and is lost when the con
 ]
 ```
 
-Or via the devcontainer CLI with `--mount` flags. One Docker-managed volume (`ndex-rest-m2`) is created automatically for the Maven cache — see [Maven Cache](#maven-cache) below. All other persistence is at your discretion.
+One Docker-managed volume (`ndex-rest-m2`) is created automatically for the Maven cache — see [Maven Cache](#maven-cache) below. For details on what each service stores and how config/data paths are structured, see [Configuration](../docker/README.md#configuration) in docker/README.md.
 
 ### Maven Cache
 
@@ -295,19 +262,16 @@ Then restart the devcontainer. The next start incurs the one-time cost again.
 
 ## Re-initializing the Environment
 
-Removing and recreating the container resets all service state (NDEx networks, PostgreSQL, Keycloak, Solr). The Maven cache is **not** reset by container removal — it persists in the `ndex-rest-m2` Docker volume.
+Removing and recreating the container resets all service state. The Maven cache is **not** reset by container removal — it persists in the `ndex-rest-m2` Docker volume.
 
 ```bash
-# Stop and remove the container (resets service state)
+# Stop and remove (resets service state)
 docker stop <container-id> && docker rm <container-id>
 
-# Then restart via VS Code or:
+# Restart:
 devcontainer up --workspace-folder /path/to/ndex-rest
 ```
 
-To also reset the Maven cache (forces a full re-download on next start):
-```bash
-docker volume rm ndex-rest-m2
-```
+To reset the Maven cache: `docker volume rm ndex-rest-m2`
 
-In persistent mode (bind mounts active for service data), delete the host-side directories for the services you want to reset, then restart. Service initialization sentinels live under `/apps/<svc>/config/.initialized` and `/apps/<svc>/data/.initialized` — deleting the relevant host directory causes that service to re-initialize on next boot.
+For selective per-service resets (config only, data only, or individual services), see [Re-initializing](../docker/README.md#re-initializing) in docker/README.md — the sentinel-based reset mechanism is identical in the devcontainer.
