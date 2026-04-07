@@ -49,7 +49,7 @@ For full context on what `.otp` files are and how credential management works, s
    ```bash
    ndex-server.sh start
    ```
-   This returns immediately — NDEx starts in the background. All output goes to `/apps/ndex/data/ndex.log`. Follow startup with `tail -f /apps/ndex/data/ndex.log` and wait for a Jetty "Started" message before hitting API endpoints.
+   This returns immediately — NDEx starts in the background. All output goes to `/apps/ndex/data/ndex.log`. To block until the API is responding, run `ndex-server.sh wait` (polls the API endpoint, default 120s timeout). To follow the raw startup output instead: `tail -f /apps/ndex/data/ndex.log`.
 
 ---
 
@@ -186,11 +186,11 @@ Other services (PostgreSQL, Solr, MailHog) run inside the container but are not 
 
 ## Testing the Devcontainer
 
-NDEx must be running before executing integration tests. Start it first and confirm startup is complete:
+NDEx must be running before executing integration tests. Start it first and wait until the API is responding:
 
 ```bash
 ndex-server.sh start
-tail -f /apps/ndex/data/ndex.log   # wait until you see Jetty "Started" message, then Ctrl-C
+ndex-server.sh wait        # blocks until NDEx API is responding (default 120s timeout)
 ```
 
 Then run the integration test targeting localhost:

@@ -10,7 +10,7 @@ The deploy image is a self-contained, production-oriented image for running NDEx
 The `runtime-base` stage is the single source of truth for service installation. the deploy image builds FROM it, ensuring identical service versions and configurations in development and production.
 
 - **Monolithic Mode**: The whole stack of services runs in one container — Keycloak, Solr, MailHog, PostgreSQL, and NDEx web.
-- **Distributed Microservices Mode**: Optionally, each service can run in a separate container. The `--ndex` container can point at external endpoints via `/apps/ndex/config/ndex.properties`.
+- **Distributed Microservices Mode**: Optionally, each service can run in a separate container. External service endpoints (database, Solr, Keycloak) are configured via `--config /path/to/config.toml` — see [Runtime Configuration](#runtime-configuration) below.
 - **Flag-driven service selection**: You choose which services to start at container runtime via command-line flags (`--ndex`, `--postgres`, etc.). Run all flags together for monolithic mode; split across containers for distributed deployment.
 - **Per Service Config at `/apps/<svc>/config/`**: Every service reads its configuration from `/apps/<svc>/config/`. On first boot, defaults are seeded from `/apps/<svc>/default/config/` (baked into the image). Mount volumes at `/apps/<svc>/config/` and `/apps/<svc>/data/` independently — you can persist only config, only data, or both.
 - **No environment variable configuration**: All service settings live in config files under `/apps/<svc>/config/`. There are no required `docker run -e` variables.
@@ -189,12 +189,12 @@ docker exec ndex cat /etc/keycloak.otp
 
 The file is automatically deleted 2 hours after container start. After deletion, use the Keycloak admin UI or CLI to manage admin credentials.
 
-**RSA key pair**: `start.sh` generates a 2048-bit RSA key pair on first boot and stores it in `/apps/ndex/config/`:
+**RSA key pair**: `start.sh` generates a 2048-bit RSA key pair on first boot and stores it in `/apps/keycloak/config/`:
 
 - `priv.key` — PEM private key (used by Keycloak to sign JWTs)
 - `cert.pem` — self-signed X.509 certificate; contains the public key embedded in its X.509 structure along with a self-signed signature
 
-The public key is extracted from `cert.pem` at every boot (as base64 DER) and written into `ndex.properties` as `KEYCLOAK_PUBLIC_KEY`. Do not delete these files — they must persist across reboots for NDEx to verify Keycloak-issued JWTs.
+The public key is extracted from `cert.pem` at every boot (as base64 DER) and written into `ndex.properties` as `KEYCLOAK_PUBLIC_KEY`. Do not delete these files — they must persist in the Keycloak config volume across reboots for NDEx to verify Keycloak-issued JWTs.
 
 ### PostgreSQL
 
@@ -245,11 +245,63 @@ The file is automatically deleted 2 hours after container start. After deletion,
 
 `/apps/<svc>/config/` is the sole source of truth for each service's configuration in the container. On first boot, `start.sh` seeds each service's config directory from the image defaults at `/apps/<svc>/default/config/`. Subsequent boots skip seeding (guarded by a `.initialized` sentinel file in each config directory).
 
-To customize or override configuration:
+For most deployments, you will not need to touch any of these files directly — the `--config` option described below covers the common customization needs. Per-service config file overrides remain available for advanced cases.
 
-1. Bind-mount a host directory at `/apps/<svc>/config/` (e.g., `-v /host/path/ndex-config:/apps/ndex/config`) so config persists across container removals and is editable directly from the host.
-2. After first boot, edit files under `/apps/<svc>/config/` directly (e.g., `docker exec -it ndex vi /apps/ndex/config/ndex.properties`, or edit the bind-mounted host path if using persistence).
-3. Restart the container — `start.sh` will not overwrite existing config.
+### Runtime Configuration
+
+The `--config /path/to/config.toml` flag is a convenience option that covers what most users will ever need. Pass it at container startup alongside the service flags. `start.sh` reads the file and applies its values to the appropriate low-level service configs automatically — no manual editing of `ndex.properties`, `keycloak.conf`, or any other service file required.
+
+```bash
+docker run ... ndexbio/ndex-rest --ndex --config /etc/my-config.toml
+```
+
+Mount the file read-only into the container:
+
+```bash
+-v /host/path/config.toml:/etc/ndex-config.toml:ro
+```
+
+**Supported TOML sections:**
+
+`[ndexDb]` — External PostgreSQL for the NDEx application:
+```toml
+[ndexDb]
+host     = "db.example.com"
+port     = 5432
+name     = "ndex"
+user     = "ndexserver"
+password = "secret"
+```
+
+`[keycloakDb]` — External PostgreSQL for Keycloak:
+```toml
+[keycloakDb]
+host     = "db.example.com"
+port     = 5432
+name     = "keycloak"
+user     = "keycloak"
+password = "secret"
+```
+
+`[keycloak]` — Keycloak external hostname (used when Keycloak runs in its own container):
+```toml
+[keycloak]
+hostName = "keycloak.example.com"
+```
+
+`[ndex]` — NDEx service endpoints (required when Solr and Keycloak are external):
+```toml
+[ndex]
+smtpHost          = "mail.example.com"
+solrUrl           = "http://solr.example.com:8983/solr"
+hostUri           = "http://ndex.example.com:8080"
+keycloakIssuer    = "http://keycloak.example.com:8085/realms/ndex"
+keycloakPublicKey = "<base64-DER-encoded public key>"
+```
+
+Include only the sections relevant to your deployment. For full microservices topology examples with complete `config.toml` samples, see [RUNBOOK.md](./RUNBOOK.md).
+
+> Per-service config files under `/apps/<svc>/config/` remain the underlying source of truth — the `--config` option is a convenience layer on top of them. Advanced customization (e.g. custom `pg_hba.conf`, custom Solr configsets) can still be done by editing those files directly in bind mounted pre-populated volumes.
 
 ### Log Level
 
@@ -310,6 +362,8 @@ Key config files per service:
 | PostgreSQL | `/apps/postgres/config/pg_hba.conf` | `/apps/postgres/data/` |
 
 > **PostgreSQL `pg_hba.conf`**: The seeded default at `/apps/postgres/config/pg_hba.conf` contains a single sentinel line (`# NDEX DEFAULT - INTENTIONALLY BLANK`). On first boot, `start.sh` detects this sentinel and generates a hardened config (marked `# NDEX GENERATED - DO NOT EDIT`) requiring `scram-sha-256` for all connections. To supply a custom access-control policy, replace the file content with your own `pg_hba.conf` rules (e.g. by editing it after first boot or by mounting a volume with a pre-populated file) — any content other than the sentinel causes `start.sh` to apply your file as-is.
+
+> **PostgreSQL schema management**: `schema_upgrade.sh` runs automatically on every container boot. It initializes the NDEx schema from scratch on a fresh database, or applies any pending migrations if the schema is already present. This means container restarts are safe — no manual schema setup or upgrade steps are needed. The script is idempotent: running against an already-current schema is a no-op.
 
 ---
 

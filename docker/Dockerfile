@@ -104,5 +104,8 @@ COPY docker/supervisord/ /opt/ndex-supervisord/
 COPY docker/scripts/start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
+COPY docker/scripts/schema_upgrade.sh /usr/local/bin/schema_upgrade.sh
+RUN chmod +x /usr/local/bin/schema_upgrade.sh
+
 # ── Image metadata ────────────────────────────────────────────────────────────
 EXPOSE 8085 1025 8025 5432 8983 9000

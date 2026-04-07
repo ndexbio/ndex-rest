@@ -101,3 +101,13 @@ CREATE INDEX IF NOT EXISTS shortcut_owner_idx
 CREATE INDEX IF NOT EXISTS shortcut_parent_idx
     ON core.shortcut USING btree (parent)
     WHERE is_deleted = false;
+
+-- ── schema version tracking ───────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS core.schema_version
+(
+    version    character varying(20)            NOT NULL,
+    applied_at timestamp without time zone NOT NULL DEFAULT now()
+);
+
+ALTER TABLE IF EXISTS core.schema_version OWNER TO ndexserver;

@@ -18,10 +18,10 @@
 #   1  Start postgres, keycloak, solr, mailhog via start.sh (background)
 #   2  Wait for all services RUNNING (sentinel: /tmp/ndex-services-ready)
 #   3  First boot only: seed /apps/ndex/config/, generate NDEx DB credentials from
-#      /etc/pg.otp (written by start.sh --postgres), create ndex role/DB, load SQL
-#      schema, extract Keycloak RSA public key from /apps/keycloak/config/cert.pem
-#      (written by start.sh --keycloak), substitute all 8 __PLACEHOLDER__ values in
-#      ndex.properties.
+#      /etc/pg.otp (written by start.sh --postgres), create ndex role/DB (with existence
+#      checks), install extensions as superuser, substitute all 8 __PLACEHOLDER__ values
+#      in ndex.properties.  Every boot: call schema_upgrade.sh to apply any pending SQL
+#      updates.
 #   4  Ensure NDEx data subdirectories exist; copy support files to NdexRoot/conf/.
 #   5  First boot only: build ndex-object-model:3.0.0-SNAPSHOT if not in Maven cache
 #   6  Print ready banner; exec sleep infinity (NDEx started manually via ndex-server.sh)
@@ -53,72 +53,64 @@ while [[ ! -f /tmp/ndex-services-ready ]]; do
 done
 echo "==> All services RUNNING."
 
-# ── Phase 3: First-boot ndex.properties configuration ─────────────────────────
-# Guarded by .initialized sentinel — same pattern as start.sh's Phase 7.
-# On subsequent boots the sentinel exists and ndex.properties already has the
-# correct credentials. start.sh skips postgres re-init so no OTP files are
-# written after first boot.
+# Wait for PostgreSQL to accept connections (supervisord marks RUNNING on process start,
+# not TCP readiness — critical on restart when there is no init-time postgres).
+echo -n "==> Waiting for PostgreSQL to accept connections..."
+PG_WAIT=0
+until pg_isready -h 127.0.0.1 -p 5432 -U postgres -q 2>/dev/null; do
+  sleep 1; (( PG_WAIT++ )) || true
+  (( PG_WAIT % 10 == 0 )) && echo -n " (${PG_WAIT}s)"
+done
+echo " ready."
+
+# ── Phase 3: First-boot ndex.properties configuration / every-boot schema upgrade ──
+# On first boot: seed config, create role/DB (with existence checks + extension setup),
+# substitute all 8 placeholders in ndex.properties.
+# Every boot: call schema_upgrade.sh to apply any pending SQL updates.
+DB_HOST="127.0.0.1"
+DB_PORT="5432"
+DB_NAME="ndex"
+DB_USER="ndexserver"
+
 if [[ ! -f /apps/ndex/config/.initialized ]]; then
   echo "==> First boot — configuring NDEx..."
 
   # Seed /apps/ndex/config/ from deploy image defaults.
-  # Copies: ndex.properties (with __PLACEHOLDERS__), ndex_importer_exporter.json,
-  # forgot-password.txt from /apps/ndex/default/config/.
   mkdir -p /apps/ndex/config
   cp -r /apps/ndex/default/config/. /apps/ndex/config/
 
-  # Generate NDEx DB credentials using the PG superuser password written by start.sh --postgres.
+  # Generate NDEx DB credentials from PG superuser password written by start.sh --postgres.
   # (start.sh --ndex is NOT called in devcontainer — Tomcat must not start alongside Jetty.)
   if [[ ! -f /etc/pg.otp ]]; then
     echo "ERROR: /etc/pg.otp not found — start.sh --postgres did not complete" >&2
     exit 1
   fi
   PG_SUPER_PASS=$(grep '^password:' /etc/pg.otp | cut -d' ' -f2)
-
-  DB_HOST="127.0.0.1"
-  DB_PORT="5432"
-  DB_NAME="ndex"
-  DB_USER="ndexserver"
   DB_PASS=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 16 || true)
 
-  PGPASSWORD="${PG_SUPER_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U postgres \
-    -c "CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASS}';" \
-    -c "CREATE DATABASE ${DB_NAME} WITH OWNER ${DB_USER} ENCODING 'UTF8';"
+  role_exists=$(PGPASSWORD="${PG_SUPER_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U postgres \
+    -tAc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" 2>/dev/null || true)
+  if [[ "${role_exists}" != "1" ]]; then
+    PGPASSWORD="${PG_SUPER_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U postgres \
+      -c "CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASS}';"
+  fi
 
-  # Load NDEx schema into the new database.
-  # Base schema requires superuser (CREATE EXTENSION dblink); updates run as ndexserver.
-  SQL_DIR=/opt/ndex-install/sql
-  _ndex_psql() {
-    PGPASSWORD="${DB_PASS}" psql -v ON_ERROR_STOP=1 \
-      -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" "$@"
-  }
-  _super_psql() {
-    PGPASSWORD="${PG_SUPER_PASS}" psql -v ON_ERROR_STOP=1 \
-      -h "${DB_HOST}" -p "${DB_PORT}" -U postgres -d "${DB_NAME}" "$@"
-  }
-  _strip_compat() {
-    perl -0777 -pe '
-      s/\s*WITH\s*\(\s*OIDS\s*=\s*FALSE\s*\)//g;
-      s/[ \t]*SET\s+default_with_oids[^\n]*\n//g;
-      s/[ \t]*COMMENT ON EXTENSION[^\n]*\n//g;
-    '
-  }
-  echo "==> Loading NDEx schema..."
-  _strip_compat < "${SQL_DIR}/ndex_db_schema_v2_5_3.sql" | _super_psql
-  _super_psql -c "ALTER DATABASE ${DB_NAME} SET search_path TO core, public;"
-  SCHEMA_BASE_VERSION="2.5.3"
-  while IFS= read -r -d '' f; do
-    fname=$(basename "${f}")
-    from_ver=$(echo "${fname}" | sed 's/schema_update_\([0-9.]*\)_to_.*/\1/')
-    if printf '%s\n' "${SCHEMA_BASE_VERSION}" "${from_ver}" | sort -V -C 2>/dev/null || \
-       echo "${SCHEMA_BASE_VERSION}" | grep -q "^${from_ver}[.]"; then
-      echo "    -> ${fname}"
-      _strip_compat < "${f}" | _ndex_psql
-    else
-      echo "    (skip ${fname} — predates base schema ${SCHEMA_BASE_VERSION})"
-    fi
-  done < <(find "${SQL_DIR}" -maxdepth 1 -name "schema_update_*.sql" -print0 | sort -z)
-  echo "==> NDEx schema initialized."
+  db_exists=$(PGPASSWORD="${PG_SUPER_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U postgres \
+    -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" 2>/dev/null || true)
+  if [[ "${db_exists}" != "1" ]]; then
+    PGPASSWORD="${PG_SUPER_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U postgres \
+      -c "CREATE DATABASE ${DB_NAME} WITH OWNER ${DB_USER} ENCODING 'UTF8';"
+    # Install required extensions as superuser (once on fresh DB)
+    PGPASSWORD="${PG_SUPER_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U postgres \
+      --dbname "${DB_NAME}" <<SQL
+CREATE SCHEMA IF NOT EXISTS core;
+ALTER SCHEMA core OWNER TO ${DB_USER};
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+CREATE EXTENSION IF NOT EXISTS dblink WITH SCHEMA core;
+COMMENT ON EXTENSION dblink IS 'connect to other PostgreSQL databases from within a database';
+SQL
+  fi
 
   # Extract Keycloak RSA public key (base64 DER) from cert written by start.sh --keycloak.
   if [[ ! -f /apps/keycloak/config/cert.pem ]]; then
@@ -142,7 +134,13 @@ if [[ ! -f /apps/ndex/config/.initialized ]]; then
 
   touch /apps/ndex/config/.initialized
   echo "==> ndex.properties configured at /apps/ndex/config/ndex.properties"
+else
+  # Re-boot: parse password from already-substituted ndex.properties
+  DB_PASS=$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
 fi
+
+# ── Every boot: apply schema upgrades ─────────────────────────────────────────
+/usr/local/bin/schema_upgrade.sh "${DB_HOST}" "${DB_PORT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}"
 
 # ── Phase 4: NDEx data directories ───────────────────────────────────────────
 # NdexRoot=/apps/ndex/data — subdirs required by the NDEx Java server.
@@ -168,10 +166,12 @@ if [[ ! -f "${NDX_OBJ_JAR}" ]]; then
 fi
 
 # ── Phase 6: Ready — NDEx must be started manually ───────────────────────────
+touch /tmp/ndex-dev-ready
 echo ""
 echo "========================================================"
 echo "  NDEx Devcontainer Ready!"
 echo "  Core services: postgres, keycloak, solr, mailhog — RUNNING"
+echo "  ndex-object-model — INSTALLED"
 echo ""
 echo "  To start the NDEx API server, open a terminal in the"
 echo "  container and run:"

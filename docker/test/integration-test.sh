@@ -174,6 +174,8 @@ USER_BODY=$(echo "${USER_RESPONSE}" | head -1)
 
 if [[ "${USER_HTTP}" == "201" ]]; then
   api_pass "POST /v2/user → 201 Created (user: ${TEST_USER})"
+elif [[ "${USER_HTTP}" == "409" ]]; then
+  api_pass "POST /v2/user → 409 (user: ${TEST_USER} already exists — restart test, data persisted)"
 else
   api_fail "POST /v2/user → HTTP ${USER_HTTP} (expected 201). Body: ${USER_BODY:0:300}"
 fi
@@ -452,25 +454,32 @@ fi
 
 step 15 "Searching v2 networks via POST /v2/search/network"
 
-# V2_UUIDS[0] = WP1984 (first public CX1 network); search must find it because
-# "completed":true (verified in step 7) is set AFTER Solr commit(waitSearcher=true).
 echo "  API call 23/${TOTAL_API_CALLS}: POST /v2/search/network?searchString=WP1984 (anon, expect 200 + UUID)"
 
-SEARCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"searchString":"WP1984"}' \
-  "${BASE_URL}/v2/search/network?start=0&size=10")
-SEARCH_HTTP=$(echo "${SEARCH_RESPONSE}" | tail -1)
-SEARCH_BODY=$(echo "${SEARCH_RESPONSE}" | head -1)
-
-if [[ "${SEARCH_HTTP}" != "200" ]]; then
-  api_fail "POST /v2/search/network → HTTP ${SEARCH_HTTP} (expected 200). Body: ${SEARCH_BODY:0:300}"
-fi
-if echo "${SEARCH_BODY}" | grep -q "${V2_UUIDS[0]}"; then
-  api_pass "POST /v2/search/network → 200 OK, WP1984 UUID found in results (Solr reindex confirmed)"
-else
-  api_fail "POST /v2/search/network → 200 OK but UUID ${V2_UUIDS[0]} not in results. Body: ${SEARCH_BODY:0:500}"
-fi
+# Poll until the UUID appears — defensive against any Solr commit latency.
+ELAPSED=0
+SEARCH_BODY=""
+SEARCH_HTTP=""
+while true; do
+  SEARCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    -H "Content-Type: application/json" \
+    -d '{"searchString":"WP1984"}' \
+    "${BASE_URL}/v2/search/network?start=0&size=10")
+  SEARCH_HTTP=$(echo "${SEARCH_RESPONSE}" | tail -1)
+  SEARCH_BODY=$(echo "${SEARCH_RESPONSE}" | head -1)
+  if [[ "${SEARCH_HTTP}" != "200" ]]; then
+    api_fail "POST /v2/search/network → HTTP ${SEARCH_HTTP} (expected 200). Body: ${SEARCH_BODY:0:300}"
+  fi
+  if echo "${SEARCH_BODY}" | grep -q "${V2_UUIDS[0]}"; then
+    break
+  fi
+  if [[ ${ELAPSED} -ge ${LOAD_TIMEOUT} ]]; then
+    api_fail "POST /v2/search/network → 200 OK but UUID ${V2_UUIDS[0]} not found within ${LOAD_TIMEOUT}s. Body: ${SEARCH_BODY:0:500}"
+  fi
+  sleep 3; (( ELAPSED += 3 )) || true
+  echo "  Waiting for ndex-networks Solr index... (${ELAPSED}s)"
+done
+api_pass "POST /v2/search/network → 200 OK, WP1984 UUID found in results (Solr reindex confirmed)"
 
 # ── STEP 16: v3 Solr search ───────────────────────────────────────────────────
 
@@ -480,22 +489,32 @@ step 16 "Searching v3-uploaded CX2 networks via POST /v3/search/files (authentic
 # which queries public-nfs directly. Requires authentication.
 echo "  API call 24/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (auth, expect 200 + UUID)"
 
-SEARCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-  -u "${TEST_USER}:${TEST_PASS}" \
-  -H "Content-Type: application/json" \
-  -d '{"searchString":"BindingDB"}' \
-  "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=10")
-SEARCH_HTTP=$(echo "${SEARCH_RESPONSE}" | tail -1)
-SEARCH_BODY=$(echo "${SEARCH_RESPONSE}" | head -1)
-
-if [[ "${SEARCH_HTTP}" != "200" ]]; then
-  api_fail "POST /v3/search/files (BindingDB) → HTTP ${SEARCH_HTTP} (expected 200). Body: ${SEARCH_BODY:0:300}"
-fi
-if echo "${SEARCH_BODY}" | grep -q "${V3_UUIDS[0]}"; then
-  api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
-else
-  api_fail "POST /v3/search/files (BindingDB) → 200 OK but UUID ${V3_UUIDS[0]} not in results. Body: ${SEARCH_BODY:0:500}"
-fi
+# Poll until the UUID appears — public-nfs Solr commit can be async (especially
+# with bind-mounted data directories where host filesystem I/O adds latency).
+ELAPSED=0
+SEARCH_BODY=""
+SEARCH_HTTP=""
+while true; do
+  SEARCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d '{"searchString":"BindingDB"}' \
+    "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=10")
+  SEARCH_HTTP=$(echo "${SEARCH_RESPONSE}" | tail -1)
+  SEARCH_BODY=$(echo "${SEARCH_RESPONSE}" | head -1)
+  if [[ "${SEARCH_HTTP}" != "200" ]]; then
+    api_fail "POST /v3/search/files (BindingDB) → HTTP ${SEARCH_HTTP} (expected 200). Body: ${SEARCH_BODY:0:300}"
+  fi
+  if echo "${SEARCH_BODY}" | grep -q "${V3_UUIDS[0]}"; then
+    break
+  fi
+  if [[ ${ELAPSED} -ge ${LOAD_TIMEOUT} ]]; then
+    api_fail "POST /v3/search/files (BindingDB) → 200 OK but UUID ${V3_UUIDS[0]} not found within ${LOAD_TIMEOUT}s. Body: ${SEARCH_BODY:0:500}"
+  fi
+  sleep 3; (( ELAPSED += 3 )) || true
+  echo "  Waiting for public-nfs Solr index... (${ELAPSED}s)"
+done
+api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 

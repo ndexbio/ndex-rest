@@ -156,76 +156,6 @@ _seed_config() {
   fi
 }
 
-# ── Helper: load NDEx schema into a target PostgreSQL database ────────────────
-# _init_ndex_schema <host> <port> <db> <ndex_user> <ndex_pass> [<super_user> <super_pass>]
-#
-# The base schema (ndex_db_schema_v2_5_3.sql) contains CREATE EXTENSION statements
-# that require superuser. When super_user/super_pass are provided (local PG path),
-# the base schema is loaded as that superuser. Schema update files are always loaded
-# as ndex_user. When super credentials are omitted (external PG path), the base schema
-# is attempted as ndex_user — the DBA must have pre-created the dblink extension.
-# Idempotent: gates on core.network table existence before loading.
-_init_ndex_schema() {
-  local host="$1" port="$2" db="$3" user="$4" pass="$5"
-  local super_user="${6:-}" super_pass="${7:-}"
-  local SQL_DIR=/opt/ndex-install/sql
-
-  _psql_ndex_schema() {
-    PGPASSWORD="${pass}" psql -v ON_ERROR_STOP=1 \
-      --host "${host}" --port "${port}" --username "${user}" "$@"
-  }
-
-  _psql_base_schema() {
-    if [[ -n "${super_user}" && -n "${super_pass}" ]]; then
-      PGPASSWORD="${super_pass}" psql -v ON_ERROR_STOP=1 \
-        --host "${host}" --port "${port}" --username "${super_user}" "$@"
-    else
-      _psql_ndex_schema "$@"
-    fi
-  }
-
-  _strip_compat() {
-    perl -0777 -pe '
-      s/\s*WITH\s*\(\s*OIDS\s*=\s*FALSE\s*\)//g;
-      s/[ \t]*SET\s+default_with_oids[^\n]*\n//g;
-      s/[ \t]*COMMENT ON EXTENSION[^\n]*\n//g;
-    '
-  }
-
-  local initialized
-  initialized=$(PGPASSWORD="${pass}" psql -tAc \
-    "SELECT 1 FROM information_schema.tables WHERE table_schema='core' AND table_name='network'" \
-    --host "${host}" --port "${port}" --username "${user}" --dbname "${db}" 2>/dev/null || true)
-
-  if [[ "${initialized}" == "1" ]]; then
-    echo "==> NDEx schema already initialized in '${db}' — skipping."
-    return 0
-  fi
-
-  echo "==> Loading NDEx base schema (v2.5.3) into '${db}'..."
-  _strip_compat < "${SQL_DIR}/ndex_db_schema_v2_5_3.sql" | \
-    _psql_base_schema --dbname "${db}"
-  _psql_base_schema --dbname "${db}" \
-    -c "ALTER DATABASE ${db} SET search_path TO core, public;"
-
-  echo "==> Applying schema updates..."
-  local SCHEMA_BASE_VERSION="2.5.3"
-  while IFS= read -r -d '' f; do
-    local fname from_ver
-    fname=$(basename "${f}")
-    from_ver=$(echo "${fname}" | sed 's/schema_update_\([0-9.]*\)_to_.*/\1/')
-    if printf '%s\n' "${SCHEMA_BASE_VERSION}" "${from_ver}" | sort -V -C 2>/dev/null || \
-       echo "${SCHEMA_BASE_VERSION}" | grep -q "^${from_ver}[.]"; then
-      echo "    -> ${fname}"
-      _strip_compat < "${f}" | _psql_ndex_schema --dbname "${db}"
-    else
-      echo "    (skip ${fname} — predates base schema ${SCHEMA_BASE_VERSION})"
-    fi
-  done < <(find "${SQL_DIR}" -maxdepth 1 -name "schema_update_*.sql" -print0 | sort -z)
-
-  echo "==> NDEx schema initialized."
-}
-
 # ── Phase 2: Seed operational config dirs from defaults ──────────────────────
 [[ "${ENABLE_POSTGRES}" == "true" ]] && _seed_config postgres
 [[ "${ENABLE_KEYCLOAK}" == "true" ]] && _seed_config keycloak
@@ -272,9 +202,19 @@ if [[ "${ENABLE_KEYCLOAK}" == "true" ]]; then
       KC_DB_USER="keycloak"
       KC_DB_PASSWORD=$(_gen_password)
 
-      PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
-        -c "CREATE ROLE ${KC_DB_USER} WITH LOGIN PASSWORD '${KC_DB_PASSWORD}';" \
-        -c "CREATE DATABASE keycloak WITH OWNER ${KC_DB_USER} ENCODING 'UTF8';"
+      role_exists=$(PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+        -tAc "SELECT 1 FROM pg_roles WHERE rolname='${KC_DB_USER}'" 2>/dev/null || true)
+      if [[ "${role_exists}" != "1" ]]; then
+        PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+          -c "CREATE ROLE ${KC_DB_USER} WITH LOGIN PASSWORD '${KC_DB_PASSWORD}';"
+      fi
+
+      db_exists=$(PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+        -tAc "SELECT 1 FROM pg_database WHERE datname='keycloak'" 2>/dev/null || true)
+      if [[ "${db_exists}" != "1" ]]; then
+        PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+          -c "CREATE DATABASE keycloak WITH OWNER ${KC_DB_USER} ENCODING 'UTF8';"
+      fi
 
       _prepare_kc_conf "127.0.0.1" "5432" "keycloak" "${KC_DB_USER}" "${KC_DB_PASSWORD}" "localhost"
     fi
@@ -395,51 +335,83 @@ fi
 
 # ── Phase 7: Setup NDEx ───────────────────────────────────────────────────────
 if [[ "${ENABLE_NDEX}" == "true" ]]; then
+
+  # ── DB credential resolution (every boot) ────────────────────────────────────
+  # Credentials must be available before both the .initialized block (first boot)
+  # and the every-boot schema_upgrade.sh call.
+  if [[ -n "${NDEX_CONFIG_FILE}" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" ndexDb; then
+    # External PG: read from config.toml [ndexDb]
+    DB_HOST=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb host)
+    DB_PORT=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb port)
+    DB_NAME=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb name)
+    DB_USER=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb user)
+    DB_PASS=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb password)
+  elif [[ -f /apps/ndex/config/.initialized ]]; then
+    # Local PG re-boot: parse credentials already substituted into ndex.properties
+    DB_URL_RAW=$(grep '^NdexDBURL=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_HOST=$(echo "${DB_URL_RAW}" | sed 's|.*://\([^:/]*\).*|\1|')
+    DB_PORT=$(echo "${DB_URL_RAW}" | sed 's|.*://[^:]*:\([0-9]*\)/.*|\1|')
+    DB_NAME=$(echo "${DB_URL_RAW}" | sed 's|.*/\([^/]*\)$|\1|')
+    DB_USER=$(grep '^NdexDBUsername='  /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+  else
+    # Local PG first boot: credentials generated inside .initialized block below
+    DB_HOST="127.0.0.1"
+    DB_PORT="5432"
+    DB_NAME="ndex"
+    DB_USER="ndexserver"
+    DB_PASS=""  # assigned inside .initialized block
+  fi
+
   if [[ ! -f /apps/ndex/config/.initialized ]]; then
     echo "==> Initializing NDEx configuration..."
 
     mkdir -p /apps/ndex/config
     cp -r /apps/ndex/default/config/. /apps/ndex/config/
 
-    # ── DB credentials ────────────────────────────────────────────────────────
     if [[ -n "${NDEX_CONFIG_FILE}" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" ndexDb; then
-      # External PG: role and DB must already exist.
-      DB_HOST=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb host)
-      DB_PORT=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb port)
-      DB_NAME=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb name)
-      DB_USER=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb user)
-      DB_PASS=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb password)
-      # Optional superUser/superPassword for base schema loading (CREATE EXTENSION requires superuser)
-      EXT_SUPER_USER=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb superUser   2>/dev/null || true)
-      EXT_SUPER_PASS=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb superPassword 2>/dev/null || true)
-
-      _init_ndex_schema "${DB_HOST}" "${DB_PORT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}" \
-        "${EXT_SUPER_USER}" "${EXT_SUPER_PASS}"
+      # External PG: role and DB must already exist; verify connectivity
+      PGPASSWORD="${DB_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" \
+        -d "${DB_NAME}" -c "SELECT 1" > /dev/null \
+        || { echo "ERROR: Cannot connect to NDEx DB at ${DB_HOST}:${DB_PORT}/${DB_NAME}" >&2; exit 1; }
+      echo "==> NDEx external DB connection verified: ${DB_HOST}:${DB_PORT}/${DB_NAME}"
     else
-      # Local PG: generate credentials, create role + DB, load schema as superuser
+      # Local PG: generate credentials, create role + DB (idempotent existence checks)
       [[ ! -f /etc/pg.otp ]] && \
         { echo "ERROR: /etc/pg.otp not found — --postgres must run before --ndex on same container" >&2; exit 1; }
       PG_SUPER_PASS=$(grep '^password:' /etc/pg.otp | cut -d' ' -f2)
-
-      DB_HOST="127.0.0.1"
-      DB_PORT="5432"
-      DB_NAME="ndex"
-      DB_USER="ndexserver"
       DB_PASS=$(_gen_password)
 
-      PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
-        -c "CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASS}';" \
-        -c "CREATE DATABASE ${DB_NAME} WITH OWNER ${DB_USER} ENCODING 'UTF8';"
+      role_exists=$(PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+        -tAc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" 2>/dev/null || true)
+      if [[ "${role_exists}" != "1" ]]; then
+        PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+          -c "CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASS}';"
+      fi
 
-      _init_ndex_schema "${DB_HOST}" "${DB_PORT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}" \
-        "postgres" "${PG_SUPER_PASS}"
+      db_exists=$(PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+        -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" 2>/dev/null || true)
+      if [[ "${db_exists}" != "1" ]]; then
+        PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+          -c "CREATE DATABASE ${DB_NAME} WITH OWNER ${DB_USER} ENCODING 'UTF8';"
+        # Install required extensions as superuser (must be done once on a fresh DB)
+        PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+          --dbname "${DB_NAME}" <<SQL
+CREATE SCHEMA IF NOT EXISTS core;
+ALTER SCHEMA core OWNER TO ${DB_USER};
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+CREATE EXTENSION IF NOT EXISTS dblink WITH SCHEMA core;
+COMMENT ON EXTENSION dblink IS 'connect to other PostgreSQL databases from within a database';
+SQL
+      fi
     fi
 
-    # Substitute DB placeholders
+    # ── Substitute DB placeholders ─────────────────────────────────────────────
     sed -i "s|__NDEX_DB_URL__|jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}|g" \
       /apps/ndex/config/ndex.properties
-    sed -i "s|__NDEX_DB_USER__|${DB_USER}|g"     /apps/ndex/config/ndex.properties
-    sed -i "s|__NDEX_DB_PASSWORD__|${DB_PASS}|g" /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_DB_USER__|${DB_USER}|g"      /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_DB_PASSWORD__|${DB_PASS}|g"  /apps/ndex/config/ndex.properties
 
     # ── Service endpoint properties ───────────────────────────────────────────
     if [[ -n "${NDEX_CONFIG_FILE}" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" ndex; then
@@ -468,6 +440,19 @@ if [[ "${ENABLE_NDEX}" == "true" ]]; then
     touch /apps/ndex/config/.initialized
     echo "==> NDEx configuration initialized."
   fi
+
+  # ── Every boot: apply schema upgrades ─────────────────────────────────────────
+  # On restart with local postgres, init-time postgres was skipped (PGDATA already
+  # initialized) so postgres isn't running yet — start it temporarily so
+  # schema_upgrade.sh can connect. Phase 8 stops it before supervisord takes over.
+  if [[ "${ENABLE_POSTGRES}" == "true" ]] && [[ "${DB_HOST}" == "127.0.0.1" ]]; then
+    if ! pg_isready -h 127.0.0.1 -p "${DB_PORT}" -U postgres -q 2>/dev/null; then
+      echo "==> Starting PostgreSQL temporarily for schema upgrade (restart)..."
+      gosu postgres pg_ctl -D /apps/postgres/data -l /tmp/pg_temp_start.log start -w -t 60 \
+        || { echo "ERROR: Failed to start PostgreSQL for schema upgrade" >&2; exit 1; }
+    fi
+  fi
+  /usr/local/bin/schema_upgrade.sh "${DB_HOST}" "${DB_PORT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}"
 
   # Every-boot: ensure data dirs and support files are present
   mkdir -p \

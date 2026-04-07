@@ -88,7 +88,7 @@ Run these SQL commands as a PostgreSQL superuser **before starting any container
 
 ### Step 1 — Create NDEx database and role
 
-Replace `<NDEX_DB_PASSWORD>` with a strong password. Record it — needed in Step 8.
+Replace `<NDEX_DB_PASSWORD>` with a strong password.
 
 ```sql
 CREATE ROLE ndexserver WITH LOGIN PASSWORD '<NDEX_DB_PASSWORD>';
@@ -98,16 +98,15 @@ GRANT CONNECT ON DATABASE ndex TO ndexserver;
 GRANT USAGE ON SCHEMA public TO ndexserver;
 -- NDEx creates and owns the 'core' schema on first start; pre-grant defaults so all
 -- future tables in both schemas are accessible to ndexserver.
+CREATE SCHEMA core
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+CREATE EXTENSION IF NOT EXISTS dblink WITH SCHEMA core;
+COMMENT ON EXTENSION dblink IS 'connect to other PostgreSQL databases from within a database';
+
 ALTER DEFAULT PRIVILEGES IN SCHEMA core   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ndexserver;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ndexserver;
 ```
-
-> **Note**: NDEx requires the `dblink` extension (used by `UserStatsMailer`). `start.sh` loads
-> the NDEx base schema automatically on first boot. The schema SQL includes
-> `CREATE EXTENSION IF NOT EXISTS dblink WITH SCHEMA core` — this statement requires a
-> PostgreSQL superuser. To satisfy this, add `superUser` and `superPassword` to the
-> `[ndexDb]` section of your `config.toml` (see Step 8); `start.sh` will use those
-> credentials for the base schema load only.
 
 ### Step 2 — Create Keycloak database and role
 
@@ -248,10 +247,6 @@ port          = 5432
 name          = "ndex"
 user          = "ndexserver"
 password      = "<NDEX_DB_PASSWORD>"
-# Superuser credentials required for first-boot schema load (CREATE EXTENSION dblink).
-# May be omitted if the schema was pre-initialized by a DBA.
-superUser     = "postgres"
-superPassword = "<PG_SUPERUSER_PASSWORD>"
 
 [ndex]
 smtpHost          = "<SERVICES_HOST>"
