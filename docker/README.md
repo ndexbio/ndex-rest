@@ -64,7 +64,7 @@ Available version variables (with defaults):
 
 ## Testing
 
-An integration test script lives at `docker/test/integration-test.sh`. It builds the image, starts an ephemeral container, and validates the full API lifecycle across both v2 and v3 endpoints:
+An integration test script lives at `docker/test/integration-test.sh`. It builds the image, starts an ephemeral container, and validates the full API lifecycle across both v2 and v3 endpoints. Or can skip the build and running a new container and instead point the script at an already running container with `--remote-ndex-url http://<ndex_api_host:port>`:
 
 - User creation and Basic Auth (v2)
 - CX1 network upload via v2, summary poll until `completed:true`, CX2 retrieval via v3
