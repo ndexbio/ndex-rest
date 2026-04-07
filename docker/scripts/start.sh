@@ -2,19 +2,25 @@
 # start.sh — NDEx deploy image container startup.
 #
 # Usage: start.sh [--ndex] [--postgres] [--keycloak] [--solr] [--mailhog]
+#                 [--config <path>] [--disable-credential-removal]
 #
 # Each flag enables the corresponding service. Combine flags to run multiple
 # services in one container (monolithic mode). Run with a single flag for
 # distributed deployment.
 #
+# --config <path>  Optional TOML config file for external PostgreSQL credentials
+#                  and service endpoint overrides. Required when running --ndex or
+#                  --keycloak without --postgres (external DB path).
+#
 # Phases:
-#   1  Parse flags
+#   1  Parse flags + config validation
 #   2  Seed operational config dirs from defaults (first run per service)
-#   3  Setup postgres — credential fills (config paths) + data init (sentinel-guarded)
-#   4  Setup keycloak
+#   3  Setup postgres — cluster init via init-postgres.sh (sentinel-guarded)
+#   4  Setup keycloak — DB init (sentinel-guarded), RSA keys, bootstrap admin
 #   5  Setup solr (first boot only)
 #   6  Setup mailhog
-#   7  Setup ndex
+#   7  Setup ndex — self-contained: config seeding, DB creds, schema, placeholder substitution
+#      Stop init-time postgres before supervisord
 #   8  Launch OTP cleanup daemon
 #   9  Assemble supervisord.conf
 #  10  Exec supervisord (PID 1)
@@ -27,17 +33,24 @@ ENABLE_KEYCLOAK=false
 ENABLE_SOLR=false
 ENABLE_MAILHOG=false
 DISABLE_CREDENTIAL_REMOVAL=false
+NDEX_CONFIG_FILE=""
 
-for arg in "$@"; do
-  case "${arg}" in
-    --ndex)                      ENABLE_NDEX=true ;;
-    --postgres)                  ENABLE_POSTGRES=true ;;
-    --keycloak)                  ENABLE_KEYCLOAK=true ;;
-    --solr)                      ENABLE_SOLR=true ;;
-    --mailhog)                   ENABLE_MAILHOG=true ;;
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ndex)     ENABLE_NDEX=true ;;
+    --postgres) ENABLE_POSTGRES=true ;;
+    --keycloak) ENABLE_KEYCLOAK=true ;;
+    --solr)     ENABLE_SOLR=true ;;
+    --mailhog)  ENABLE_MAILHOG=true ;;
     --disable-credential-removal) DISABLE_CREDENTIAL_REMOVAL=true ;;
-    *) echo "Unknown flag: ${arg}" >&2; exit 1 ;;
+    --config)
+      shift
+      [[ -z "${1:-}" ]] && { echo "ERROR: --config requires a path argument" >&2; exit 1; }
+      NDEX_CONFIG_FILE="$1"
+      ;;
+    *) echo "Unknown flag: $1" >&2; exit 1 ;;
   esac
+  shift
 done
 
 if [[ "${ENABLE_NDEX}" == "false" && "${ENABLE_POSTGRES}" == "false" && \
@@ -69,27 +82,66 @@ _gen_password() {
   tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 16 || true
 }
 
-# ── Helper: ensure keycloak.conf present with NDEx deployment settings ────────
-# -- /apps/keycloak/default/config/keycloak.conf is created in Dockerfile, it copies it from the keycloak installation in the image
-_prepare_kc_conf() {
-  [[ -f /apps/keycloak/config/keycloak.conf ]] || \
-    cp /apps/keycloak/default/config/keycloak.conf /apps/keycloak/config/keycloak.conf
-  if ! grep -q '^db=postgres' /apps/keycloak/config/keycloak.conf; then
-    cat >> /apps/keycloak/config/keycloak.conf <<'KCSETTINGS'
+# ── Helper: read a value from a TOML file ────────────────────────────────────
+_toml_get() {
+  # Usage: _toml_get <file> <section> <key>
+  local file="$1" section="$2" key="$3"
+  awk -F' *= *' -v s="[${section}]" -v k="${key}" '
+    $0==s          { in_s=1; next }
+    /^\[/          { in_s=0 }
+    in_s && $1==k  { v=$2; gsub(/^"|"$|^'"'"'|'"'"'$/, "", v); print v; exit }
+  ' "${file}"
+}
 
-# NDEx deployment settings — managed by start.sh
+# ── Helper: test whether a TOML section exists ────────────────────────────────
+_toml_has_section() {
+  # Usage: _toml_has_section <file> <section>  — returns 0 if section exists
+  grep -q "^\[${2}\]" "${1}"
+}
+
+# ── Config validation ─────────────────────────────────────────────────────────
+if [[ -n "${NDEX_CONFIG_FILE}" && ! -f "${NDEX_CONFIG_FILE}" ]]; then
+  echo "ERROR: config file not found: ${NDEX_CONFIG_FILE}" >&2; exit 1
+fi
+
+if [[ "${ENABLE_POSTGRES}" == "true" && -n "${NDEX_CONFIG_FILE}" ]]; then
+  if [[ "${ENABLE_NDEX}" == "true" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" ndexDb; then
+    echo "ERROR: [ndexDb] in config conflicts with --postgres + --ndex. Local PG auto-generates NDEx credentials — remove [ndexDb] from config." >&2; exit 1
+  fi
+  if [[ "${ENABLE_KEYCLOAK}" == "true" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" keycloakDb; then
+    echo "ERROR: [keycloakDb] in config conflicts with --postgres + --keycloak. Local PG auto-generates Keycloak credentials — remove [keycloakDb] from config." >&2; exit 1
+  fi
+fi
+
+if [[ "${ENABLE_NDEX}" == "true" && "${ENABLE_POSTGRES}" == "false" ]]; then
+  if [[ -z "${NDEX_CONFIG_FILE}" ]] || ! _toml_has_section "${NDEX_CONFIG_FILE}" ndexDb; then
+    echo "ERROR: --ndex requires either --postgres (local DB) or --config with [ndexDb] section (external DB)." >&2; exit 1
+  fi
+fi
+
+if [[ "${ENABLE_KEYCLOAK}" == "true" && "${ENABLE_POSTGRES}" == "false" ]]; then
+  if [[ -z "${NDEX_CONFIG_FILE}" ]] || ! _toml_has_section "${NDEX_CONFIG_FILE}" keycloakDb; then
+    echo "ERROR: --keycloak requires either --postgres (local DB) or --config with [keycloakDb] section (external DB)." >&2; exit 1
+  fi
+fi
+
+# ── Helper: generate keycloak.conf with provided connection details ────────────
+# _prepare_kc_conf <db_host> <db_port> <db_name> <db_user> <db_pass> <kc_hostname>
+_prepare_kc_conf() {
+  local db_host="$1" db_port="$2" db_name="$3" db_user="$4" db_pass="$5" kc_host="$6"
+  cat > /apps/keycloak/config/keycloak.conf <<KC_EOF
+# NDEX GENERATED — do not edit manually
 db=postgres
-db-url=jdbc:postgresql://127.0.0.1:5432/keycloak
-db-username=__KC_DB_USER__
-db-password=__KC_DB_PASSWORD__
+db-url=jdbc:postgresql://${db_host}:${db_port}/${db_name}
+db-username=${db_user}
+db-password=${db_pass}
 http-port=8085
 http-management-port=9000
-hostname-url=http://localhost:8085
-hostname-admin-url=http://localhost:8085
+hostname-url=http://${kc_host}:8085
+hostname-admin-url=http://${kc_host}:8085
 health-enabled=true
 log-level=io.netty:WARN,io.vertx:WARN
-KCSETTINGS
-  fi
+KC_EOF
 }
 
 # ── Helper: seed config dir from default if no sentinel present ──────────────
@@ -104,8 +156,77 @@ _seed_config() {
   fi
 }
 
+# ── Helper: load NDEx schema into a target PostgreSQL database ────────────────
+# _init_ndex_schema <host> <port> <db> <ndex_user> <ndex_pass> [<super_user> <super_pass>]
+#
+# The base schema (ndex_db_schema_v2_5_3.sql) contains CREATE EXTENSION statements
+# that require superuser. When super_user/super_pass are provided (local PG path),
+# the base schema is loaded as that superuser. Schema update files are always loaded
+# as ndex_user. When super credentials are omitted (external PG path), the base schema
+# is attempted as ndex_user — the DBA must have pre-created the dblink extension.
+# Idempotent: gates on core.network table existence before loading.
+_init_ndex_schema() {
+  local host="$1" port="$2" db="$3" user="$4" pass="$5"
+  local super_user="${6:-}" super_pass="${7:-}"
+  local SQL_DIR=/opt/ndex-install/sql
+
+  _psql_ndex_schema() {
+    PGPASSWORD="${pass}" psql -v ON_ERROR_STOP=1 \
+      --host "${host}" --port "${port}" --username "${user}" "$@"
+  }
+
+  _psql_base_schema() {
+    if [[ -n "${super_user}" && -n "${super_pass}" ]]; then
+      PGPASSWORD="${super_pass}" psql -v ON_ERROR_STOP=1 \
+        --host "${host}" --port "${port}" --username "${super_user}" "$@"
+    else
+      _psql_ndex_schema "$@"
+    fi
+  }
+
+  _strip_compat() {
+    perl -0777 -pe '
+      s/\s*WITH\s*\(\s*OIDS\s*=\s*FALSE\s*\)//g;
+      s/[ \t]*SET\s+default_with_oids[^\n]*\n//g;
+      s/[ \t]*COMMENT ON EXTENSION[^\n]*\n//g;
+    '
+  }
+
+  local initialized
+  initialized=$(PGPASSWORD="${pass}" psql -tAc \
+    "SELECT 1 FROM information_schema.tables WHERE table_schema='core' AND table_name='network'" \
+    --host "${host}" --port "${port}" --username "${user}" --dbname "${db}" 2>/dev/null || true)
+
+  if [[ "${initialized}" == "1" ]]; then
+    echo "==> NDEx schema already initialized in '${db}' — skipping."
+    return 0
+  fi
+
+  echo "==> Loading NDEx base schema (v2.5.3) into '${db}'..."
+  _strip_compat < "${SQL_DIR}/ndex_db_schema_v2_5_3.sql" | \
+    _psql_base_schema --dbname "${db}"
+  _psql_base_schema --dbname "${db}" \
+    -c "ALTER DATABASE ${db} SET search_path TO core, public;"
+
+  echo "==> Applying schema updates..."
+  local SCHEMA_BASE_VERSION="2.5.3"
+  while IFS= read -r -d '' f; do
+    local fname from_ver
+    fname=$(basename "${f}")
+    from_ver=$(echo "${fname}" | sed 's/schema_update_\([0-9.]*\)_to_.*/\1/')
+    if printf '%s\n' "${SCHEMA_BASE_VERSION}" "${from_ver}" | sort -V -C 2>/dev/null || \
+       echo "${SCHEMA_BASE_VERSION}" | grep -q "^${from_ver}[.]"; then
+      echo "    -> ${fname}"
+      _strip_compat < "${f}" | _psql_ndex_schema --dbname "${db}"
+    else
+      echo "    (skip ${fname} — predates base schema ${SCHEMA_BASE_VERSION})"
+    fi
+  done < <(find "${SQL_DIR}" -maxdepth 1 -name "schema_update_*.sql" -print0 | sort -z)
+
+  echo "==> NDEx schema initialized."
+}
+
 # ── Phase 2: Seed operational config dirs from defaults ──────────────────────
-[[ "${ENABLE_NDEX}" == "true" ]]     && _seed_config ndex
 [[ "${ENABLE_POSTGRES}" == "true" ]] && _seed_config postgres
 [[ "${ENABLE_KEYCLOAK}" == "true" ]] && _seed_config keycloak
 [[ "${ENABLE_SOLR}" == "true" ]]     && _seed_config solr
@@ -114,104 +235,52 @@ _seed_config() {
 # ── Phase 3: Setup PostgreSQL ─────────────────────────────────────────────────
 if [[ "${ENABLE_POSTGRES}" == "true" ]]; then
   PGDATA=/apps/postgres/data
-  PG_PORT=5432
 
   if [[ ! -f "${PGDATA}/.initialized" ]]; then
     echo "==> Initializing PostgreSQL..."
-
-    # ── Generate NDEx DB credentials ──────────────────────────────────────────
-    NDEX_DB_USER="ndexserver"
-    NDEX_DB_PASSWORD=$(_gen_password)
-    if [[ "${ENABLE_NDEX}" == "true" ]]; then
-      sed -i "s|__NDEX_DB_USER__|${NDEX_DB_USER}|g"         /apps/ndex/config/ndex.properties
-      sed -i "s|__NDEX_DB_PASSWORD__|${NDEX_DB_PASSWORD}|g" /apps/ndex/config/ndex.properties
-    else
-      printf 'NdexDBUsername=%s\nNdexDBDBPassword=%s\n' "${NDEX_DB_USER}" "${NDEX_DB_PASSWORD}" \
-        > /etc/ndex_db_user.otp
-      chmod 600 /etc/ndex_db_user.otp
-      echo "NOTICE: NDEx is not on this container — DB credentials written to /etc/ndex_db_user.otp"
-      echo "        Set NdexDBUsername and NdexDBDBPassword in /apps/ndex/config/ndex.properties"
-      echo "        on the NDEx container before starting it."
-    fi
-
-    # ── Generate Keycloak DB credentials ──────────────────────────────────────
-    KC_DB_USER="keycloak"
-    KC_DB_PASSWORD=$(_gen_password)
-    if [[ "${ENABLE_KEYCLOAK}" == "true" ]]; then
-      _prepare_kc_conf
-      sed -i "s|__KC_DB_USER__|${KC_DB_USER}|g"         /apps/keycloak/config/keycloak.conf
-      sed -i "s|__KC_DB_PASSWORD__|${KC_DB_PASSWORD}|g" /apps/keycloak/config/keycloak.conf
-    else
-      printf 'db-username=%s\ndb-password=%s\n' "${KC_DB_USER}" "${KC_DB_PASSWORD}" \
-        > /etc/keycloak_db_user.otp
-      chmod 600 /etc/keycloak_db_user.otp
-      echo "NOTICE: Keycloak is not on this container — DB credentials written to /etc/keycloak_db_user.otp"
-      echo "        Set db-username and db-password in /apps/keycloak/config/keycloak.conf"
-      echo "        on the Keycloak container before starting it."
-    fi
-
-    gosu postgres initdb \
-      -D "${PGDATA}" \
-      --auth-host=scram-sha-256 \
-      --auth-local=trust \
-      -U postgres
-
-    gosu postgres pg_ctl \
-      -D "${PGDATA}" \
-      -o "-p ${PG_PORT} -h '127.0.0.1,::1'" \
-      start -w
-
-    _wait=0
-    until pg_isready -h 127.0.0.1 -p "${PG_PORT}" -U postgres -q; do
-      sleep 1; _wait=$(( _wait + 1 ))
-      (( _wait % 5 == 0 )) && echo "==> Waiting for PostgreSQL... (${_wait}s)"
-    done
-
-    SQL_DIR=/opt/ndex-install/sql \
-    PG_PORT="${PG_PORT}" \
-    PG_NDEX_USERNAME="${NDEX_DB_USER}" \
-    PG_NDEX_PASSWORD="${NDEX_DB_PASSWORD}" \
-      bash /usr/local/bin/init-postgres.sh
-
-    # Create keycloak DB unconditionally — keycloak may be on a separate container
-    gosu postgres psql -v ON_ERROR_STOP=1 --port "${PG_PORT}" --username postgres <<EOSQL
-      CREATE ROLE ${KC_DB_USER} WITH LOGIN PASSWORD '${KC_DB_PASSWORD}';
-      CREATE DATABASE keycloak WITH OWNER ${KC_DB_USER} ENCODING 'UTF8';
-EOSQL
-
-    PG_SUPERUSER_PASSWORD=$(_gen_password)
-    gosu postgres psql -v ON_ERROR_STOP=1 --port "${PG_PORT}" --username postgres \
-      -c "ALTER USER postgres PASSWORD '${PG_SUPERUSER_PASSWORD}';"
-
-    # pg_hba.conf — if the seeded file still contains the default sentinel, generate
-    # the hardened config; otherwise the user has customized it, so apply it as-is.
-    if [[ "$(cat /apps/postgres/config/pg_hba.conf 2>/dev/null)" == "# NDEX DEFAULT - INTENTIONALLY BLANK" ]]; then
-      cat > "${PGDATA}/pg_hba.conf" <<HBA
-# NDEX GENERATED - DO NOT EDIT
-# NDEx deploy image — hardened pg_hba.conf (no trust)
-local   all    all                      scram-sha-256
-host    all    all    127.0.0.1/32      scram-sha-256
-host    all    all    ::1/128           scram-sha-256
-HBA
-    else
-      cp /apps/postgres/config/pg_hba.conf "${PGDATA}/pg_hba.conf"
-    fi
-    gosu postgres pg_ctl -D "${PGDATA}" reload
-
-    printf 'user: postgres\npassword: %s\n' "${PG_SUPERUSER_PASSWORD}" > /etc/pg.otp
-    chmod 600 /etc/pg.otp
-    echo "==> PostgreSQL initialized. Superuser password written to /etc/pg.otp (auto-deleted in 2 hours)."
-
-    gosu postgres pg_ctl -D "${PGDATA}" stop -m fast -w
-
+    PGDATA="${PGDATA}" PG_PORT=5432 bash /usr/local/bin/init-postgres.sh
     touch "${PGDATA}/.initialized"
   fi
 fi
 
 # ── Phase 4: Setup Keycloak ───────────────────────────────────────────────────
 if [[ "${ENABLE_KEYCLOAK}" == "true" ]]; then
-  # Ensure keycloak.conf present with NDEx settings — guards ENABLE_POSTGRES=false path; no-op if Phase 3 ran
-  _prepare_kc_conf
+  # ── DB init (first boot only) ─────────────────────────────────────────────
+  if [[ ! -f /apps/keycloak/config/.db_initialized ]]; then
+    if [[ -n "${NDEX_CONFIG_FILE}" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" keycloakDb; then
+      # ── External PG path ───────────────────────────────────────────────────
+      KC_HOST=$(_toml_get "${NDEX_CONFIG_FILE}" keycloakDb host)
+      KC_PORT=$(_toml_get "${NDEX_CONFIG_FILE}" keycloakDb port)
+      KC_DB=$(_toml_get   "${NDEX_CONFIG_FILE}" keycloakDb name)
+      KC_USER=$(_toml_get "${NDEX_CONFIG_FILE}" keycloakDb user)
+      KC_PASS=$(_toml_get "${NDEX_CONFIG_FILE}" keycloakDb password)
+      KC_HOSTNAME=$(_toml_get "${NDEX_CONFIG_FILE}" keycloak hostName 2>/dev/null || true)
+      [[ -z "${KC_HOSTNAME}" ]] && KC_HOSTNAME="localhost"
+
+      PGPASSWORD="${KC_PASS}" psql -h "${KC_HOST}" -p "${KC_PORT}" -U "${KC_USER}" \
+        -d "${KC_DB}" -c "SELECT 1" > /dev/null \
+        || { echo "ERROR: Cannot connect to Keycloak DB at ${KC_HOST}:${KC_PORT}/${KC_DB}" >&2; exit 1; }
+      echo "==> Keycloak external DB connection verified: ${KC_HOST}:${KC_PORT}/${KC_DB}"
+
+      _prepare_kc_conf "${KC_HOST}" "${KC_PORT}" "${KC_DB}" "${KC_USER}" "${KC_PASS}" "${KC_HOSTNAME}"
+    else
+      # ── Local PG path ──────────────────────────────────────────────────────
+      [[ ! -f /etc/pg.otp ]] && \
+        { echo "ERROR: /etc/pg.otp not found — --postgres must run before --keycloak on same container" >&2; exit 1; }
+      PG_SUPER_PASS=$(grep '^password:' /etc/pg.otp | cut -d' ' -f2)
+
+      KC_DB_USER="keycloak"
+      KC_DB_PASSWORD=$(_gen_password)
+
+      PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+        -c "CREATE ROLE ${KC_DB_USER} WITH LOGIN PASSWORD '${KC_DB_PASSWORD}';" \
+        -c "CREATE DATABASE keycloak WITH OWNER ${KC_DB_USER} ENCODING 'UTF8';"
+
+      _prepare_kc_conf "127.0.0.1" "5432" "keycloak" "${KC_DB_USER}" "${KC_DB_PASSWORD}" "localhost"
+    fi
+
+    touch /apps/keycloak/config/.db_initialized
+  fi
 
   # Symlink must always exist (every boot)
   if [[ -d /opt/keycloak/data && ! -L /opt/keycloak/data ]]; then
@@ -220,8 +289,8 @@ if [[ "${ENABLE_KEYCLOAK}" == "true" ]]; then
   fi
   [[ ! -L /opt/keycloak/data ]] && ln -s /apps/keycloak/data /opt/keycloak/data
 
-  # RSA key pair — idempotent (file existence); writes /apps/ndex/config/
-  KC_KEY_DIR=/apps/ndex/config
+  # RSA key pair — idempotent (file existence); writes /apps/keycloak/config/
+  KC_KEY_DIR=/apps/keycloak/config
   mkdir -p "${KC_KEY_DIR}"
   if [[ -f "${KC_KEY_DIR}/priv.key" && -f "${KC_KEY_DIR}/cert.pem" ]]; then
     echo "==> Using existing RSA key pair from ${KC_KEY_DIR}/"
@@ -278,14 +347,6 @@ if [[ "${ENABLE_KEYCLOAK}" == "true" ]]; then
 
     touch /apps/keycloak/data/.initialized
   fi
-
-  # Extract public key in base64-DER format for ndex.properties (every boot)
-  if [[ -f "${KC_KEY_DIR}/cert.pem" ]]; then
-    KEYCLOAK_PUBLIC_KEY=$(openssl x509 -in "${KC_KEY_DIR}/cert.pem" -pubkey -noout \
-      | openssl rsa -pubin -pubout -outform DER | base64 -w 0)
-    export KEYCLOAK_PUBLIC_KEY
-    echo "==> RSA public key ready (${#KEYCLOAK_PUBLIC_KEY} chars)."
-  fi
 fi
 
 # ── Phase 5: Setup Solr ───────────────────────────────────────────────────────
@@ -334,30 +395,93 @@ fi
 
 # ── Phase 7: Setup NDEx ───────────────────────────────────────────────────────
 if [[ "${ENABLE_NDEX}" == "true" ]]; then
-  echo "==> Configuring NDEx..."
+  if [[ ! -f /apps/ndex/config/.initialized ]]; then
+    echo "==> Initializing NDEx configuration..."
 
-  # Ensure NDEx data subdirectories exist (NdexRoot subdirs referenced in ndex.properties)
+    mkdir -p /apps/ndex/config
+    cp -r /apps/ndex/default/config/. /apps/ndex/config/
+
+    # ── DB credentials ────────────────────────────────────────────────────────
+    if [[ -n "${NDEX_CONFIG_FILE}" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" ndexDb; then
+      # External PG: role and DB must already exist.
+      DB_HOST=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb host)
+      DB_PORT=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb port)
+      DB_NAME=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb name)
+      DB_USER=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb user)
+      DB_PASS=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb password)
+      # Optional superUser/superPassword for base schema loading (CREATE EXTENSION requires superuser)
+      EXT_SUPER_USER=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb superUser   2>/dev/null || true)
+      EXT_SUPER_PASS=$(_toml_get "${NDEX_CONFIG_FILE}" ndexDb superPassword 2>/dev/null || true)
+
+      _init_ndex_schema "${DB_HOST}" "${DB_PORT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}" \
+        "${EXT_SUPER_USER}" "${EXT_SUPER_PASS}"
+    else
+      # Local PG: generate credentials, create role + DB, load schema as superuser
+      [[ ! -f /etc/pg.otp ]] && \
+        { echo "ERROR: /etc/pg.otp not found — --postgres must run before --ndex on same container" >&2; exit 1; }
+      PG_SUPER_PASS=$(grep '^password:' /etc/pg.otp | cut -d' ' -f2)
+
+      DB_HOST="127.0.0.1"
+      DB_PORT="5432"
+      DB_NAME="ndex"
+      DB_USER="ndexserver"
+      DB_PASS=$(_gen_password)
+
+      PGPASSWORD="${PG_SUPER_PASS}" psql -h 127.0.0.1 -p 5432 -U postgres \
+        -c "CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASS}';" \
+        -c "CREATE DATABASE ${DB_NAME} WITH OWNER ${DB_USER} ENCODING 'UTF8';"
+
+      _init_ndex_schema "${DB_HOST}" "${DB_PORT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}" \
+        "postgres" "${PG_SUPER_PASS}"
+    fi
+
+    # Substitute DB placeholders
+    sed -i "s|__NDEX_DB_URL__|jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}|g" \
+      /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_DB_USER__|${DB_USER}|g"     /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_DB_PASSWORD__|${DB_PASS}|g" /apps/ndex/config/ndex.properties
+
+    # ── Service endpoint properties ───────────────────────────────────────────
+    if [[ -n "${NDEX_CONFIG_FILE}" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" ndex; then
+      # Microservices: all 5 values provided in config.toml [ndex] section
+      SMTP_HOST=$(_toml_get     "${NDEX_CONFIG_FILE}" ndex smtpHost)
+      SOLR_URL=$(_toml_get      "${NDEX_CONFIG_FILE}" ndex solrUrl)
+      HOST_URI=$(_toml_get      "${NDEX_CONFIG_FILE}" ndex hostUri)
+      KC_ISSUER=$(_toml_get     "${NDEX_CONFIG_FILE}" ndex keycloakIssuer)
+      KC_PUBLIC_KEY=$(_toml_get "${NDEX_CONFIG_FILE}" ndex keycloakPublicKey)
+    else
+      # Monolithic: use localhost defaults; derive RSA public key from Keycloak cert.pem
+      SMTP_HOST="localhost"
+      SOLR_URL="http://localhost:8983/solr"
+      HOST_URI="http://localhost:8080"
+      KC_ISSUER="http://localhost:8085/realms/ndex"
+      KC_PUBLIC_KEY=$(openssl x509 -in /apps/keycloak/config/cert.pem -pubkey -noout \
+        | openssl rsa -pubin -pubout -outform DER | base64 -w 0)
+    fi
+
+    sed -i "s|__NDEX_SMTP_HOST__|${SMTP_HOST}|g"               /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_SOLR_URL__|${SOLR_URL}|g"                 /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_HOST_URI__|${HOST_URI}|g"                 /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_KEYCLOAK_ISSUER__|${KC_ISSUER}|g"         /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_KEYCLOAK_PUBLIC_KEY__|${KC_PUBLIC_KEY}|g" /apps/ndex/config/ndex.properties
+
+    touch /apps/ndex/config/.initialized
+    echo "==> NDEx configuration initialized."
+  fi
+
+  # Every-boot: ensure data dirs and support files are present
   mkdir -p \
     /apps/ndex/data/conf \
     /apps/ndex/data/img/background \
     /apps/ndex/data/img/foreground \
     /apps/ndex/data/importer_exporter
 
-  # Copy support files NDEx reads from NdexRoot/conf/
   cp /apps/ndex/config/ndex_importer_exporter.json /apps/ndex/data/conf/
   cp /apps/ndex/config/forgot-password.txt         /apps/ndex/data/conf/
 
-  # Fill KEYCLOAK_PUBLIC_KEY placeholder in ndex.properties on first boot
-  if [[ -f /apps/ndex/config/.initialized && -n "${KEYCLOAK_PUBLIC_KEY:-}" ]]; then
-    sed -i "s|__KEYCLOAK_PUBLIC_KEY__|${KEYCLOAK_PUBLIC_KEY}|g" \
-      /apps/ndex/config/ndex.properties
-    echo "==> KEYCLOAK_PUBLIC_KEY filled in ndex.properties."
-  fi
-
   # Wire ndexConfigurationPath into Tomcat's JNDI context so the NDEx webapp
-  # can resolve java:comp/env/ndexConfigurationPath. The same path is exposed
-  # as an OS env var by the supervisord ndex.conf for the Tomcat process.
-  NDEX_CONFIG_FILE=/apps/ndex/config/ndex.properties
+  # can resolve java:comp/env/ndexConfigurationPath.
+  NDEX_PROPS_FILE=/apps/ndex/config/ndex.properties
   mkdir -p /usr/local/tomcat/conf/Catalina/localhost
   cat > /usr/local/tomcat/conf/Catalina/localhost/ROOT.xml <<XML
 <?xml version="1.0" encoding="UTF-8"?>
@@ -366,12 +490,22 @@ if [[ "${ENABLE_NDEX}" == "true" ]]; then
        as java:comp/env/ndexConfigurationPath. Must match the environment variable
        ndexConfigurationPath set in the supervisord ndex.conf for the Tomcat process. -->
   <Environment name="ndexConfigurationPath"
-               value="${NDEX_CONFIG_FILE}"
+               value="${NDEX_PROPS_FILE}"
                type="java.lang.String"
                override="false"/>
 </Context>
 XML
-  echo "==> Tomcat JNDI context written: ndexConfigurationPath → ${NDEX_CONFIG_FILE}"
+  echo "==> Tomcat JNDI context written: ndexConfigurationPath → ${NDEX_PROPS_FILE}"
+fi
+
+# ── Stop init-time PostgreSQL before supervisord takes over ───────────────────
+# On first boot, init-postgres.sh leaves postgres running so that --keycloak and
+# --ndex service methods can create their roles/databases. Stop it here so
+# supervisord can manage the process from Phase 9 onward.
+if [[ "${ENABLE_POSTGRES}" == "true" ]] && \
+   pg_isready -h 127.0.0.1 -p 5432 -U postgres -q 2>/dev/null; then
+  echo "==> Stopping init-time PostgreSQL before supervisord takes over..."
+  gosu postgres pg_ctl -D /apps/postgres/data stop -m fast -w
 fi
 
 # ── Phase 8: Launch OTP cleanup daemon ───────────────────────────────────────

@@ -17,10 +17,11 @@
 # Phases:
 #   1  Start postgres, keycloak, solr, mailhog via start.sh (background)
 #   2  Wait for all services RUNNING (sentinel: /tmp/ndex-services-ready)
-#   3  First boot only: seed /apps/ndex/config/, read DB credentials from
-#      /etc/ndex_db_user.otp (written by start.sh --postgres), extract Keycloak
-#      RSA public key from /apps/ndex/config/cert.pem (written by start.sh --keycloak),
-#      fill all __PLACEHOLDER__ values in ndex.properties.
+#   3  First boot only: seed /apps/ndex/config/, generate NDEx DB credentials from
+#      /etc/pg.otp (written by start.sh --postgres), create ndex role/DB, load SQL
+#      schema, extract Keycloak RSA public key from /apps/keycloak/config/cert.pem
+#      (written by start.sh --keycloak), substitute all 8 __PLACEHOLDER__ values in
+#      ndex.properties.
 #   4  Ensure NDEx data subdirectories exist; copy support files to NdexRoot/conf/.
 #   5  First boot only: build ndex-object-model:3.0.0-SNAPSHOT if not in Maven cache
 #   6  Print ready banner; exec sleep infinity (NDEx started manually via ndex-server.sh)
@@ -53,7 +54,7 @@ done
 echo "==> All services RUNNING."
 
 # ── Phase 3: First-boot ndex.properties configuration ─────────────────────────
-# Guarded by .initialized sentinel — same pattern as start.sh's _seed_config.
+# Guarded by .initialized sentinel — same pattern as start.sh's Phase 7.
 # On subsequent boots the sentinel exists and ndex.properties already has the
 # correct credentials. start.sh skips postgres re-init so no OTP files are
 # written after first boot.
@@ -66,30 +67,78 @@ if [[ ! -f /apps/ndex/config/.initialized ]]; then
   mkdir -p /apps/ndex/config
   cp -r /apps/ndex/default/config/. /apps/ndex/config/
 
-  # Read NDEx DB credentials from OTP file written by start.sh --postgres.
-  # Format (two lines): NdexDBUsername=<user>  /  NdexDBDBPassword=<password>
-  if [[ ! -f /etc/ndex_db_user.otp ]]; then
-    echo "ERROR: /etc/ndex_db_user.otp not found — start.sh --postgres did not complete" >&2
+  # Generate NDEx DB credentials using the PG superuser password written by start.sh --postgres.
+  # (start.sh --ndex is NOT called in devcontainer — Tomcat must not start alongside Jetty.)
+  if [[ ! -f /etc/pg.otp ]]; then
+    echo "ERROR: /etc/pg.otp not found — start.sh --postgres did not complete" >&2
     exit 1
   fi
-  NDEX_DB_USER=$(grep '^NdexDBUsername='    /etc/ndex_db_user.otp | cut -d= -f2)
-  NDEX_DB_PASSWORD=$(grep '^NdexDBDBPassword=' /etc/ndex_db_user.otp | cut -d= -f2)
+  PG_SUPER_PASS=$(grep '^password:' /etc/pg.otp | cut -d' ' -f2)
+
+  DB_HOST="127.0.0.1"
+  DB_PORT="5432"
+  DB_NAME="ndex"
+  DB_USER="ndexserver"
+  DB_PASS=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 16 || true)
+
+  PGPASSWORD="${PG_SUPER_PASS}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U postgres \
+    -c "CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASS}';" \
+    -c "CREATE DATABASE ${DB_NAME} WITH OWNER ${DB_USER} ENCODING 'UTF8';"
+
+  # Load NDEx schema into the new database.
+  # Base schema requires superuser (CREATE EXTENSION dblink); updates run as ndexserver.
+  SQL_DIR=/opt/ndex-install/sql
+  _ndex_psql() {
+    PGPASSWORD="${DB_PASS}" psql -v ON_ERROR_STOP=1 \
+      -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" "$@"
+  }
+  _super_psql() {
+    PGPASSWORD="${PG_SUPER_PASS}" psql -v ON_ERROR_STOP=1 \
+      -h "${DB_HOST}" -p "${DB_PORT}" -U postgres -d "${DB_NAME}" "$@"
+  }
+  _strip_compat() {
+    perl -0777 -pe '
+      s/\s*WITH\s*\(\s*OIDS\s*=\s*FALSE\s*\)//g;
+      s/[ \t]*SET\s+default_with_oids[^\n]*\n//g;
+      s/[ \t]*COMMENT ON EXTENSION[^\n]*\n//g;
+    '
+  }
+  echo "==> Loading NDEx schema..."
+  _strip_compat < "${SQL_DIR}/ndex_db_schema_v2_5_3.sql" | _super_psql
+  _super_psql -c "ALTER DATABASE ${DB_NAME} SET search_path TO core, public;"
+  SCHEMA_BASE_VERSION="2.5.3"
+  while IFS= read -r -d '' f; do
+    fname=$(basename "${f}")
+    from_ver=$(echo "${fname}" | sed 's/schema_update_\([0-9.]*\)_to_.*/\1/')
+    if printf '%s\n' "${SCHEMA_BASE_VERSION}" "${from_ver}" | sort -V -C 2>/dev/null || \
+       echo "${SCHEMA_BASE_VERSION}" | grep -q "^${from_ver}[.]"; then
+      echo "    -> ${fname}"
+      _strip_compat < "${f}" | _ndex_psql
+    else
+      echo "    (skip ${fname} — predates base schema ${SCHEMA_BASE_VERSION})"
+    fi
+  done < <(find "${SQL_DIR}" -maxdepth 1 -name "schema_update_*.sql" -print0 | sort -z)
+  echo "==> NDEx schema initialized."
 
   # Extract Keycloak RSA public key (base64 DER) from cert written by start.sh --keycloak.
-  if [[ ! -f /apps/ndex/config/cert.pem ]]; then
-    echo "ERROR: /apps/ndex/config/cert.pem not found — start.sh --keycloak did not complete" >&2
+  if [[ ! -f /apps/keycloak/config/cert.pem ]]; then
+    echo "ERROR: /apps/keycloak/config/cert.pem not found — start.sh --keycloak did not complete" >&2
     exit 1
   fi
-  KC_PUBLIC_KEY=$(openssl x509 -in /apps/ndex/config/cert.pem -pubkey -noout \
+  KC_PUBLIC_KEY=$(openssl x509 -in /apps/keycloak/config/cert.pem -pubkey -noout \
     | openssl rsa -pubin -pubout -outform DER | base64 -w 0)
 
-  # Fill all placeholders in ndex.properties
-  sed -i "s|__NDEX_DB_USER__|${NDEX_DB_USER}|g"          /apps/ndex/config/ndex.properties
-  sed -i "s|__NDEX_DB_PASSWORD__|${NDEX_DB_PASSWORD}|g"  /apps/ndex/config/ndex.properties
-  sed -i "s|__KEYCLOAK_PUBLIC_KEY__|${KC_PUBLIC_KEY}|g"  /apps/ndex/config/ndex.properties
-  # Update HostURI port (template hardcodes 8080; NDEX_PORT env var may differ)
-  sed -i "s|HostURI=http://localhost:8080|HostURI=http://localhost:${NDEX_PORT}|g" \
+  # Substitute all 8 placeholders in ndex.properties.
+  sed -i "s|__NDEX_DB_URL__|jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}|g" \
     /apps/ndex/config/ndex.properties
+  sed -i "s|__NDEX_DB_USER__|${DB_USER}|g"                          /apps/ndex/config/ndex.properties
+  sed -i "s|__NDEX_DB_PASSWORD__|${DB_PASS}|g"                      /apps/ndex/config/ndex.properties
+  sed -i "s|__NDEX_SMTP_HOST__|localhost|g"                         /apps/ndex/config/ndex.properties
+  sed -i "s|__NDEX_SOLR_URL__|http://localhost:8983/solr|g"         /apps/ndex/config/ndex.properties
+  sed -i "s|__NDEX_HOST_URI__|http://localhost:${NDEX_PORT}|g"      /apps/ndex/config/ndex.properties
+  sed -i "s|__NDEX_KEYCLOAK_ISSUER__|http://localhost:8085/realms/ndex|g" \
+    /apps/ndex/config/ndex.properties
+  sed -i "s|__NDEX_KEYCLOAK_PUBLIC_KEY__|${KC_PUBLIC_KEY}|g"        /apps/ndex/config/ndex.properties
 
   touch /apps/ndex/config/.initialized
   echo "==> ndex.properties configured at /apps/ndex/config/ndex.properties"

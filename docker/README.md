@@ -121,87 +121,12 @@ Exit code 1 means the test failed. The container is always stopped and removed o
 
 ---
 
-## Running — Monolithic (all services in one container)
-
-### Ephemeral (data lost on container removal)
-
-```bash
-docker run --platform linux/amd64 -d \
-  --name ndex \
-  -p 8080:8080 \
-  -p 8085:8085 \
-  -p 8025:8025 \
-  -p 8983:8983 \
-  -p 5432:5432 \
-  ndexbio/ndex-rest \
-  --ndex --postgres --keycloak --solr --mailhog
-```
-
-> **Startup feedback**: while services initialize, the container prints `NDEx Container initializing...  (Xs)` to the console every 3 seconds. The `NDEx Deploy Container Ready!` banner (with service URLs) only appears once all enabled services have reached the `RUNNING` state. Wait for that banner before hitting API endpoints.
-
-### Persistent (data survives container removal)
-
-Bind-mount host directories at the paths you want to persist. Mount only what you need — each path is independent:
-
-```bash
-docker run --platform linux/amd64 -d \
-  --name ndex \
-  -p 8080:8080 \
-  -p 8085:8085 \
-  -p 8025:8025 \
-  -p 8983:8983 \
-  -p 5432:5432 \
-  -v /host/path/ndex-config:/apps/ndex/config \
-  -v /host/path/ndex-data:/apps/ndex/data \
-  -v /host/path/postgres-config:/apps/postgres/config \
-  -v /host/path/postgres-data:/apps/postgres/data \
-  -v /host/path/keycloak-config:/apps/keycloak/config \
-  -v /host/path/keycloak-data:/apps/keycloak/data \
-  -v /host/path/solr-config:/apps/solr/config \
-  -v /host/path/solr-data:/apps/solr/data \
-  -v /host/path/mailhog-config:/apps/mailhog/config \
-  ndexbio/ndex-rest \
-  --ndex --postgres --keycloak --solr --mailhog
-```
-
-No Docker-managed volumes are created. Each `-v` flag routes directly to your host filesystem. Persistence is entirely at your discretion — omit any `-v` flag to let that service's state remain ephemeral.
+## Running deployment modes
+Refer to [RUNBOOK.md](./RUNBOOK.md) for how to run the deployment container in monolithic or distributed modes.
 
 ---
 
-## Stopping the Container
-
-**Graceful stop (container preserved):**
-```bash
-docker stop ndex
-```
-
-**Force Stop and remove (container is deleted):**
-```bash
-docker rm -f ndex
-```
-
-All services state is ephemeral by default since the services store data on intenral container file system, which means all service level data is gone when container is deleted. Unless bind-mounts to host directories were used, then those paths are unaffected by container removal since they reside outside of container.
-
----
-
-## Running — Distributed Deployments 
-
-The image supports configuration via [command line flags](#enabledisable-services) to run only select services in a given container instance allowing for microservice deployments rather than monolithic. For exaple, here is the NDEx only container config which points at other external container instances running other services from the same image by referencing their endpoints in `/apps/ndex/config/ndex.properties`:
-
-```bash
-docker run --platform linux/amd64 -d \
-  --name ndex-app \
-  -p 8080:8080 \
-  -v /host/path/ndex-config:/apps/ndex/config \
-  ndexbio/ndex-rest \
-  --ndex
-```
-
-Before starting, edit `/host/path/ndex-config/ndex.properties` on the host to set `NdexDBURL`, `SolrURL`, `KEYCLOAK_ISSUER`, and `KEYCLOAK_PUBLIC_KEY` to point at the external services. The bind mount makes the file directly accessible from the host — no `docker exec` needed to edit it.
-
----
-
-## Accessing Services from the Host
+## Accessing Services from the Container Host
 
 Once running, services are available at:
 

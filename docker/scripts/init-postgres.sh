@@ -1,76 +1,54 @@
 #!/usr/bin/env bash
-# init-postgres.sh — One-time NDEx PostgreSQL initialization.
-# Called by entrypoint.sh on first boot only (after PostgreSQL is running).
-# Runs as root; uses gosu to execute psql as the postgres OS user.
+# init-postgres.sh — Initialize the local PostgreSQL cluster.
+# Called by start.sh --postgres service method on first boot only.
+# Sets up PGDATA, starts postgres, writes superuser password to /etc/pg.otp.
+# Postgres is left running so that subsequent service methods (--keycloak, --ndex)
+# can create their roles/databases; start.sh stops it before supervisord takes over.
 #
-# Required env vars (set by start.sh / entrypoint.sh before calling this script):
-#   SQL_DIR             — path to directory containing SQL schema files
-#   PG_PORT             — PostgreSQL port
-#   PG_NDEX_USERNAME    — login role name for the NDEx application (default: ndexserver)
-#   PG_NDEX_PASSWORD    — password for the NDEx application role
+# Required env vars (set by start.sh):
+#   PGDATA    — path to postgres data directory
+#   PG_PORT   — port postgres listens on
+
 set -euo pipefail
 
-SQL_DIR="${SQL_DIR:-/opt/ndex-install/sql}"
+PGDATA="${PGDATA:-/apps/postgres/data}"
 PG_PORT="${PG_PORT:-5432}"
-PG_NDEX_USERNAME="${PG_NDEX_USERNAME:-ndexserver}"
-PG_NDEX_PASSWORD="${PG_NDEX_PASSWORD:-}"
 
-_psql_super() {
-  # Connect via unix socket (auth-local=trust — no password needed for postgres OS user)
-  gosu postgres psql -v ON_ERROR_STOP=1 --port "${PG_PORT}" --username postgres "$@"
-}
+echo "==> Initializing PostgreSQL cluster..."
+gosu postgres initdb \
+  -D "${PGDATA}" \
+  --auth-host=trust \
+  --auth-local=trust \
+  -U postgres
 
-_psql_ndex() {
-  PGPASSWORD="${PG_NDEX_PASSWORD}" psql -v ON_ERROR_STOP=1 \
-    --host 127.0.0.1 --port "${PG_PORT}" \
-    --username "${PG_NDEX_USERNAME}" "$@"
-}
+echo "==> Starting PostgreSQL (temp — trust auth)..."
+gosu postgres pg_ctl -D "${PGDATA}" -o "-p ${PG_PORT} -h '127.0.0.1,::1'" start -w
 
-# Remove PG12-incompatible directives from SQL on stdin:
-#   WITH (OIDS = FALSE)   — removed in PG 12 (multi-line block)
-#   SET default_with_oids — removed in PG 12 (single-line)
-_strip_compat() {
-  perl -0777 -pe '
-    s/\s*WITH\s*\(\s*OIDS\s*=\s*FALSE\s*\)//g;
-    s/[ \t]*SET\s+default_with_oids[^\n]*\n//g;
-  '
-}
+_wait=0
+until pg_isready -h 127.0.0.1 -p "${PG_PORT}" -U postgres -q; do
+  sleep 1; (( _wait++ )) || true
+  (( _wait % 5 == 0 )) && echo "==> Waiting for PostgreSQL... (${_wait}s)"
+done
 
-echo "==> Creating NDEx database role and database..."
-_psql_super <<-EOSQL
-    CREATE ROLE ${PG_NDEX_USERNAME} WITH LOGIN PASSWORD '${PG_NDEX_PASSWORD}';
-    CREATE DATABASE ndex WITH OWNER ${PG_NDEX_USERNAME} ENCODING 'UTF8';
-EOSQL
+# Generate superuser password and switch to scram-sha-256 auth
+PG_SUPERUSER_PASSWORD=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 16 || true)
+PGPASSWORD="" psql -h 127.0.0.1 -p "${PG_PORT}" -U postgres \
+  -c "ALTER USER postgres PASSWORD '${PG_SUPERUSER_PASSWORD}';"
 
-echo "==> Loading NDEx base schema (v2.5.3)..."
-# Run as postgres superuser (required for CREATE EXTENSION statements).
-# Strip PG12-incompatible directives before loading.
-_strip_compat < "${SQL_DIR}/ndex_db_schema_v2_5_3.sql" | _psql_super --dbname ndex
+# Apply pg_hba.conf — hardened default or user-provided override
+if [[ "$(cat /apps/postgres/config/pg_hba.conf 2>/dev/null)" == "# NDEX DEFAULT - INTENTIONALLY BLANK" ]]; then
+  cat > "${PGDATA}/pg_hba.conf" <<HBA
+# NDEX GENERATED - DO NOT EDIT
+# NDEx deploy image — hardened pg_hba.conf (no trust)
+local   all    all                      scram-sha-256
+host    all    all    127.0.0.1/32      scram-sha-256
+host    all    all    ::1/128           scram-sha-256
+HBA
+else
+  cp /apps/postgres/config/pg_hba.conf "${PGDATA}/pg_hba.conf"
+fi
+gosu postgres pg_ctl -D "${PGDATA}" reload
 
-# Set default search_path so NDEx JDBC queries resolve tables in the core schema
-# without fully-qualifying every table name.
-_psql_super --dbname ndex -c "ALTER DATABASE ndex SET search_path TO core, public;"
-
-echo "==> Applying schema updates in order..."
-# Discover all schema_update_*.sql files, sort lexicographically, and apply only
-# those whose from-version is >= the base schema version (skip old migration files
-# that predated the base schema and would fail on the current table structure).
-# Filename format: schema_update_<FROM>_to_<TO>.sql
-SCHEMA_BASE_VERSION="2.5.3"
-while IFS= read -r -d '' f; do
-  fname=$(basename "${f}")
-  from_ver=$(echo "${fname}" | sed 's/schema_update_\([0-9.]*\)_to_.*/\1/')
-  # Apply if from_ver >= base (e.g. 2.5.4 → apply) OR
-  # if base starts with from_ver (e.g. from_ver=2.5, base=2.5.3 → same minor series → apply).
-  # The second condition handles files like schema_update_2.5_to_2.6.sql where
-  # the from-version names the minor series rather than a specific patch.
-  if printf '%s\n' "${SCHEMA_BASE_VERSION}" "${from_ver}" | sort -V -C 2>/dev/null || \
-     echo "${SCHEMA_BASE_VERSION}" | grep -q "^${from_ver}[.]"; then
-    echo "    -> ${fname}"
-    _strip_compat < "${f}" | _psql_ndex --dbname ndex
-  else
-    echo "    (skip ${fname} — predates base schema ${SCHEMA_BASE_VERSION})"
-  fi
-done < <(find "${SQL_DIR}" -maxdepth 1 -name "schema_update_*.sql" -print0 | sort -z)
-
-echo "==> NDEx database initialized successfully."
+printf 'user: postgres\npassword: %s\n' "${PG_SUPERUSER_PASSWORD}" > /etc/pg.otp
+chmod 600 /etc/pg.otp
+echo "==> PostgreSQL ready. Superuser password written to /etc/pg.otp (auto-deleted in 2 hours)."
