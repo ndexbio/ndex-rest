@@ -21,8 +21,10 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Build and test
+      - name: Build and unit test
         run: mvn install -B
+      - name: integration test
+        run: docker/test/integration-test.sh 
 
   docker-push-latest:
     runs-on: ubuntu-latest
