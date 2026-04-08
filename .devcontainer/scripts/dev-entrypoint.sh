@@ -37,7 +37,9 @@ echo ""
 
 # ── Phase 1: Start supporting services ───────────────────────────────────────
 echo "==> Starting support services (postgres, keycloak, solr, mailhog)..."
-/usr/local/bin/start.sh --postgres --keycloak --solr --mailhog --disable-credential-removal &
+echo "==> Core service output → /tmp/core-services.log"
+/usr/local/bin/start.sh --postgres --keycloak --solr --mailhog --disable-credential-removal \
+  > /tmp/core-services.log 2>&1 &
 
 # ── Phase 2: Wait for services ready ─────────────────────────────────────────
 echo "==> Waiting for all services to reach RUNNING state..."

@@ -2,9 +2,10 @@
 # ndex-server.sh — Start or stop the NDEx API server in the devcontainer.
 #
 # Usage:
-#   ndex-server.sh start         — Start NDEx in the background (no-op if already running)
-#   ndex-server.sh stop          — Stop NDEx and block until the process exits
-#   ndex-server.sh wait [secs]   — Block until NDEx HTTP is responding (default timeout: 120s)
+#   ndex-server.sh start   — Start NDEx in the background (no-op if already running),
+#                            then block briefly (up to 120s) until the API is responding.
+#                            Prints definitive success ("NDEx API ready") or error on timeout.
+#   ndex-server.sh stop    — Stop NDEx and block until the process exits.
 #
 # All NDEx output (application logs + Maven console output) is written to
 # /apps/ndex/data/ndex.log. Follow with: tail -f /apps/ndex/data/ndex.log
@@ -19,22 +20,22 @@ _detect_ndex() {
 }
 
 _wait_http() {
-  local timeout="${1:-120}"
+  local timeout=120
   local elapsed=0
-  echo -n "Waiting for NDEx HTTP on port ${NDEX_PORT}"
-  while ! curl -s -X POST -H 'Content-Type: application/json' -d '{}' \
-      "http://localhost:${NDEX_PORT}/v3/search/files" \
+  echo -n "Waiting for NDEx API on port ${NDEX_PORT} to be ready"
+  while ! curl -s "http://localhost:${NDEX_PORT}/v2/admin/status" \
       -o /dev/null 2>/dev/null; do
     if (( elapsed >= timeout )); then
       echo ""
-      echo "ERROR: NDEx did not respond within ${timeout}s" >&2
+      echo "ERROR: NDEx did not respond within ${timeout}s — check ${NDEX_LOG} for details" >&2
       exit 1
     fi
     echo -n "."
-    sleep 3
-    (( elapsed += 3 )) || true
+    sleep 2
+    (( elapsed += 2 )) || true
   done
   echo " ready."
+  echo "NDEx API is up. Logs: ${NDEX_LOG}"
 }
 
 case "${1:-}" in
@@ -57,9 +58,7 @@ case "${1:-}" in
       -Dlogback.configurationFile=/apps/ndex/default/config/logback-dev.xml \
       >> "${NDEX_LOG}" 2>&1 &
     echo "NDEx server started. Logs: ${NDEX_LOG}"
-    ;;
-  wait)
-    _wait_http "${2:-120}"
+    _wait_http
     ;;
   stop)
     if ! _detect_ndex; then
@@ -75,7 +74,7 @@ case "${1:-}" in
     echo " done."
     ;;
   *)
-    echo "Usage: ndex-server.sh {start|stop|wait [timeout_secs]}" >&2
+    echo "Usage: ndex-server.sh {start|stop}" >&2
     exit 1
     ;;
 esac

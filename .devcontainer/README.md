@@ -49,7 +49,7 @@ For full context on what `.otp` files are and how credential management works, s
    ```bash
    ndex-server.sh start
    ```
-   This returns immediately — NDEx starts in the background. All output goes to `/apps/ndex/data/ndex.log`. To block until the API is responding, run `ndex-server.sh wait` (polls the API endpoint, default 120s timeout). To follow the raw startup output instead: `tail -f /apps/ndex/data/ndex.log`.
+   This launches Jetty in the background, then blocks for up to 120 seconds polling the API endpoint. It prints a dot every 2 seconds while waiting, then exits with a definitive **"NDEx API ready"** message on success or an error message with the log path on timeout. All NDEx output is written to `/apps/ndex/data/ndex.log`.
 
 ---
 
@@ -66,10 +66,10 @@ devcontainer up --workspace-folder /path/to/ndex-rest
 # Terminal 2 — open a shell in the running container
 devcontainer exec --workspace-folder /path/to/ndex-rest bash
 
-# Once inside the container — start NDEx in the background:
+# Start NDEx — blocks briefly (~up to 120s) until the API is ready or times out:
 ndex-server.sh start
 
-# Follow startup output:
+# To follow detailed startup output in a separate terminal while it warms up:
 tail -f /apps/ndex/data/ndex.log
 ```
 
@@ -85,7 +85,7 @@ until grep -q "NDEx Devcontainer Ready!" /tmp/devcontainer-up.log 2>/dev/null; d
 done
 echo "Core services ready"
 
-# Start NDEx inside the container (async — returns immediately):
+# Start NDEx inside the container — blocks until API is ready or 120s timeout:
 devcontainer exec --workspace-folder /path/to/ndex-rest bash -c "ndex-server.sh start"
 # Logs at /apps/ndex/data/ndex.log inside the container
 
@@ -136,7 +136,9 @@ supervisorctl status   # postgres, keycloak, solr, mailhog should all be RUNNING
 ndex-server.sh start
 ```
 
-`ndex-server.sh start` starts Jetty in the background and returns immediately. If NDEx is already running it is a no-op. All NDEx output (application logs + Maven console output) is written to `/apps/ndex/data/ndex.log`. Follow it with:
+`ndex-server.sh start` launches Jetty in the background and then briefly blocks — it polls the API endpoint every 2 seconds, printing a dot for each attempt, for up to 120 seconds. When the API responds it prints **"NDEx API ready"** and returns. If the 120-second timeout is reached without a response it prints an error with the log path and exits with a non-zero status. If NDEx is already running the command is a no-op.
+
+All NDEx output (application logs + Maven console output) is written to `/apps/ndex/data/ndex.log`. To follow the detailed startup output in parallel while `ndex-server.sh start` is waiting, open a second terminal and run:
 
 ```bash
 tail -f /apps/ndex/data/ndex.log
@@ -144,9 +146,9 @@ tail -f /apps/ndex/data/ndex.log
 
 **Stopping NDEx**: Run `ndex-server.sh stop` — this blocks until the Jetty process has fully exited. Supporting services (postgres, keycloak, solr, mailhog) keep running.
 
-**Hot reload**: Java source changes are picked up automatically within ~5 seconds via Jetty's file scanner. Changes compiled by your IDE (or by `mvn compile` in a terminal) are reflected live — no restart required.
+**Hot reload**: Java source changes in project workspace code are picked up automatically via Jetty's file scanner.
 
-**Restarting NDEx**: `ndex-server.sh stop` then `ndex-server.sh start`. The log file appends across restarts. All services are already initialized and the Maven cache is warm, so restart is fast.
+**Restarting NDEx**: `ndex-server.sh stop` then `ndex-server.sh start`. Note - the log file is recreated on each start.
 
 ---
 
@@ -154,17 +156,25 @@ tail -f /apps/ndex/data/ndex.log
 
 The devcontainer has two separate log streams:
 
-**Core services** (postgres, keycloak, solr, mailhog) log to the container's stdout/stderr alongside `dev-entrypoint.sh` init messages. View them from the host:
+**Core services** (postgres, keycloak, solr, mailhog) — all output from `start.sh` (including supervisord and service init messages) is written to `/tmp/core-services.log` inside the container. Follow it from a container shell:
 
 ```bash
-docker logs -f <container-id>
+tail -f /tmp/core-services.log
 ```
 
-**NDEx API** logs to `/apps/ndex/data/ndex.log` inside the container (not stdout). Follow it from a container shell:
+**NDEx API** logs to `/apps/ndex/data/ndex.log` inside the container. Follow it from a container shell:
 
 ```bash
 tail -f /apps/ndex/data/ndex.log
 ```
+
+To watch both streams side-by-side, combine them in a single terminal:
+
+```bash
+tail -f /tmp/core-services.log /apps/ndex/data/ndex.log
+```
+
+`/tmp/core-services.log` is reset upon each devcontainer restart and `/apps/ndex/data/ndex.log` is reset on NDEx restarts which includes devcontainer restarts.
 
 For log level configuration (NDEx `Log-Level`, Keycloak log level controls), the same settings and procedures apply as in the deploy image — see [Log Level](../docker/README.md#log-level) and [Keycloak Log Level](../docker/README.md#keycloak-log-level) in docker/README.md. In the devcontainer, use `supervisorctl restart keycloak` instead of `docker restart ndex` when restarting Keycloak.
 
@@ -176,7 +186,7 @@ NDEx and Keycloak ports are published directly to the host by Docker (`runArgs` 
 
 | Service | Host URL | Auth |
 |---|---|---|
-| NDEx API | http://localhost:8080/v3 | — |
+| NDEx API | http://localhost:8080 | — |
 | Keycloak admin | http://localhost:8085/admin | admin / get credentials from `/etc/keycloak.otp` |
 | Keycloak account | http://localhost:8085/realms/ndex/account/ | your account |
 
@@ -186,11 +196,10 @@ Other services (PostgreSQL, Solr, MailHog) run inside the container but are not 
 
 ## Testing the Devcontainer
 
-NDEx must be running before executing integration tests. Start it first and wait until the API is responding:
+NDEx must be running before executing integration tests. Start it and wait for the API to be ready:
 
 ```bash
-ndex-server.sh start
-ndex-server.sh wait        # blocks until NDEx API is responding (default 120s timeout)
+ndex-server.sh start   # blocks until the API is responding (up to 120s), then returns
 ```
 
 Then run the integration test targeting localhost:

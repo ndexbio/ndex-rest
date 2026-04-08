@@ -3,7 +3,9 @@
 #   make docker-base
 FROM ndex-runtime-base
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends maven git httpie \
+    && apt-get install -y --no-install-recommends \
+        maven git httpie \
+        vim less jq curl wget tree \
     && rm -rf /var/lib/apt/lists/*
 # TODO - remove this once the object model is published to Maven Central and can be pulled as a dependency in pom.xml
 COPY docker/scripts/build-ndex-object-model.sh        /usr/local/bin/build-ndex-object-model.sh
