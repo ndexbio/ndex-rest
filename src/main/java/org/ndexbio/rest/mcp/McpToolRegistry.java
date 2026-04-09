@@ -5,6 +5,7 @@ import java.util.List;
 import io.modelcontextprotocol.server.McpServerFeatures;
 
 import org.ndexbio.rest.mcp.tools.CreateNetworkTool;
+import org.ndexbio.rest.mcp.tools.DeleteNetworkTool;
 import org.ndexbio.rest.mcp.tools.GetNetworkSummaryTool;
 import org.ndexbio.rest.mcp.tools.SearchNetworkTool;
 import org.ndexbio.rest.mcp.tools.UpdateNetworkTool;
@@ -28,7 +29,8 @@ public class McpToolRegistry {
             new SearchNetworkTool(ts).toSpec(),
             new GetNetworkSummaryTool(ts).toSpec(),
             new UpdateNetworkTool(ts, uploadService).toSpec(),
-            new CreateNetworkTool(ts, uploadService).toSpec()
+            new CreateNetworkTool(ts, uploadService).toSpec(),
+            new DeleteNetworkTool(ts).toSpec()
         );
     }
 }
