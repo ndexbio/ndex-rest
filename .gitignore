@@ -9,3 +9,5 @@
 .settings/
 *.iml
 /nbproject/
+.claude
+.vscode

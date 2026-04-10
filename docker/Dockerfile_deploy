@@ -1,0 +1,20 @@
+# ── Stage 1: Build NDEx WAR ──────────────────────────────────────────────────
+FROM eclipse-temurin:17-jdk-jammy AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends maven git \
+    && rm -rf /var/lib/apt/lists/*
+COPY docker/scripts/build-ndex-object-model.sh /usr/local/bin/build-ndex-object-model.sh
+RUN chmod +x /usr/local/bin/build-ndex-object-model.sh
+RUN --mount=type=cache,target=/root/.m2 \
+    build-ndex-object-model.sh
+WORKDIR /build
+COPY pom.xml .
+COPY src/ src/
+ARG NDEX_COMMIT_HASH=docker
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn install -DskipTests -DbuildNumber=${NDEX_COMMIT_HASH}
+
+# ── Stage 2: Deploy image ─────────────────────────────────────────────────────
+FROM ndex-runtime-base
+COPY --from=builder /build/target/ndexbio-rest.war /usr/local/tomcat/webapps/ROOT.war
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/start.sh"]
