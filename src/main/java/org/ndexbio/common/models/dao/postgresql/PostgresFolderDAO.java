@@ -122,16 +122,19 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return false;
 
 	}
-	
+
 	@Override
 	public NdexFolder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
-		
+
 		NdexFolder result;
-		String sqlStr = "select \"UUID\", creation_time, modification_time, name, parent, is_deleted, description, owneruuid from folder where \"UUID\"=?";
+		String sqlStr = "SELECT f.\"UUID\", f.name, f.parent, f.creation_time, f.modification_time, f.is_deleted, f.description, f.owneruuid as owner_id, " +
+				"u.user_name AS owner_name " +
+				"FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" " +
+				"WHERE f.\"UUID\"=?";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, folderId);
-			try ( ResultSet rs = p.executeQuery()) {
-				if ( rs.next()) {
+			try (ResultSet rs = p.executeQuery()) {
+				if (rs.next()) {
 					result = mapResultSetToNdexFolder(rs);
 				} else
 					throw new ObjectNotFoundException("Folder" + folderId + " not found in db.");
@@ -139,6 +142,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		}
 		return result;
 	}
+
 	private NdexFolder mapResultSetToNdexFolder(ResultSet rs) throws SQLException {
 		NdexFolder f = new NdexFolder();
 		f.setExternalId((UUID) rs.getObject("UUID"));
@@ -148,7 +152,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		f.setModificationTime(rs.getTimestamp("modification_time"));
 		f.setIsDeleted(rs.getBoolean("is_deleted"));
 		f.setDescription(rs.getString("description"));
-		f.setOwner(rs.getString("owneruuid"));
+		f.setOwner_id(rs.getString("owner_id"));
+		f.setOwner(rs.getString("owner_name"));
 		return f;
 	}
 
@@ -157,8 +162,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 			return new ArrayList<>();
 
 		String placeholders = String.join(",", Collections.nCopies(folderIds.size(), "?"));
-		String sql = "SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description, owneruuid " +
-				"FROM folder WHERE \"UUID\" IN (" + placeholders + ")";
+		String sql = "SELECT f.\"UUID\", f.name, f.parent, f.creation_time, f.modification_time, f.is_deleted, f.description, f.owneruuid AS owner_id, " +
+				"u.user_name AS owner_name " +
+				"FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" " +
+				"WHERE f.\"UUID\" IN (" + placeholders + ")";
 
 		Map<UUID, NdexFolder> folderMap = new HashMap<>(folderIds.size());
 		try (PreparedStatement pst = db.prepareStatement(sql)) {

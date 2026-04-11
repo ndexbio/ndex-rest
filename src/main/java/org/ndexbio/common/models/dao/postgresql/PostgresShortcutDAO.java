@@ -91,13 +91,17 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 		s.setTarget((UUID) rs.getObject("target"));
 		s.setParent((UUID) rs.getObject("parent"));
 		s.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
-		s.setOwner(rs.getString("owneruuid"));
+		s.setOwner_id(rs.getString("owner_id"));
+		s.setOwner(rs.getString("owner_name"));
 		return s;
 	}
 
 	@Override
 	public NdexShortcut getShortcut(UUID shortcutId, UUID userId) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
-		String sqlStr = "select \"UUID\", creation_time, modification_time, name, target, parent, is_deleted, target_type, owneruuid from shortcut where \"UUID\"=?";
+		String sqlStr = "SELECT s.\"UUID\", s.name, s.creation_time, s.modification_time, s.target, s.parent, s.is_deleted, s.target_type, " +
+				"s.owneruuid AS owner_id, u.user_name AS owner_name " +
+				"FROM shortcut s JOIN ndex_user u ON s.owneruuid = u.\"UUID\" " +
+				"WHERE s.\"UUID\"=?";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, shortcutId);
 			try (ResultSet rs = p.executeQuery()) {
@@ -114,8 +118,10 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 			return new ArrayList<>();
 
 		String placeholders = String.join(",", Collections.nCopies(shortcutIds.size(), "?"));
-		String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type, owneruuid " +
-				"FROM shortcut WHERE \"UUID\" IN (" + placeholders + ")";
+		String sql = "SELECT s.\"UUID\", s.name, s.creation_time, s.modification_time, s.is_deleted, s.target, s.parent, s.target_type, " +
+				"s.owneruuid AS owner_id, u.user_name AS owner_name " +
+				"FROM shortcut s JOIN ndex_user u ON s.owneruuid = u.\"UUID\" " +
+				"WHERE s.\"UUID\" IN (" + placeholders + ")";
 
 		Map<UUID, NdexShortcut> shortcutMap = new HashMap<>(shortcutIds.size());
 		try (PreparedStatement pst = db.prepareStatement(sql)) {
@@ -139,6 +145,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 		}
 		return result;
 	}
+
 	@Override
 	public boolean isShortcutOwner(UUID shortcutId, UUID ownerId) throws SQLException {
 		String sqlStr = "select 1 from shortcut where \"UUID\" = ? and owneruuid = ? and is_deleted=false";

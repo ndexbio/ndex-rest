@@ -133,6 +133,7 @@ public class NFSSearchProvider implements SearchProvider {
         fis.setAttributes(attr);
 
         fis.setOwner(ndexShortcut.getOwner());
+        fis.setOwnerId(UUID.fromString(ndexShortcut.getOwner_id()));
 
         return fis;
     }
@@ -150,6 +151,7 @@ public class NFSSearchProvider implements SearchProvider {
         fis.setAttributes(attr);
 
         fis.setOwner(ndexFolder.getOwner());
+        fis.setOwnerId(UUID.fromString(ndexFolder.getOwner_id()));
 
         return fis;
     }
