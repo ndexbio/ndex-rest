@@ -3,6 +3,8 @@ package org.ndexbio.server.migration.v3;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -72,11 +74,12 @@ public class V3Migrator implements AutoCloseable {
 	//todo if duplicate group admins contain preferred user, make them folder admin, if no preferred take first. all others have read/write
 	//todo v2 endpoints should correspond network sets with folders
 	//todo
-	private List<String> preferredUsers = List.of("dexterpratt", "churas");
+	private List<String> preferredUsers;
 	private List<UUID> preferredUserIds;
 	private final DAOFactory daoFactory;
+	private final Path priorityUserFilePath;
 
-	public V3Migrator() throws Exception {
+	public V3Migrator(String priorityUserFilePath) throws Exception {
 		Configuration configuration = Configuration.createInstance();
 		NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
 				configuration.getDBPasswd(), 10);
@@ -84,10 +87,10 @@ public class V3Migrator implements AutoCloseable {
 		this.db.setAutoCommit(false);
 		this.mapper = new ObjectMapper();
 		this.solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();//new CachingSolrObjectFactoryImpl(configuration.getSolrURL());
-		//this.daoFactory = new CachingPostgresDAOFactory();
 		this.daoFactory = Configuration.getInstance().getDAOFactory();
 
 		this.mapTypeRef = new TypeReference<>() {};
+		this.priorityUserFilePath = Path.of(priorityUserFilePath);
 	}
 
 	/**
@@ -126,23 +129,29 @@ public class V3Migrator implements AutoCloseable {
 		}
 	}
 
-	public void setupCoresAndPreferredUsers(UserDAO userDAO){
+	public void setupCoresAndPreferredUsers(UserDAO userDAO) throws NdexException {
+		logger.info("Reading priority user file...");
+		preferredUsers = readPriorityUsers(priorityUserFilePath);
+		logger.info("Fetching accounts for {} preferred users. ({})", preferredUsers.size(), String.join(",", preferredUsers));
 		preferredUserIds = new ArrayList<>();
 		for (String username: preferredUsers){
             try {
                 User user = userDAO.getUserByAccountName(username, false, false);
 				preferredUserIds.add(user.getExternalId());
             } catch (NdexException | IOException | SQLException e) {
-                throw new RuntimeException(e);
+				logger.info("Failed to fetch priority user with username {}", username);
+                throw new NdexException("Failed to fetch user with username " + username);
             }
         }
 		try (FolderIndexManager indexManager = solrObjectFactory.getFolderIndexManager()){
 			indexManager.createCoreIfNeeded();
 		} catch (SolrServerException | IOException | NdexException e) {
-            throw new RuntimeException(e);
+			logger.info("Failed to create core!");
+            throw new NdexException("Failed to create core!");
         }
 
     }
+
 
 	// ========================================================================
 	// Phase 1: Network Sets -> Folders + Shortcuts
@@ -561,46 +570,6 @@ public class V3Migrator implements AutoCloseable {
 		rebuildNetworkIndex(networkId, false, false, globalNetworkIndexManager,
 				dao.networkDAO);
 
-		//NdexServerQueue.INSTANCE.addSystemTask(t);
-		//t.run();
-
-		/*
-		// Gather individual user permissions (including flattened group perms from phase 2)
-		Map<String, String> userPerms = loadNetworkUserPermissions(networkId);
-
-		// Split into read and edit collections for Solr index
-		List<String> userReads = new ArrayList<>();
-		List<String> userEdits = new ArrayList<>();
-		for (Map.Entry<String, String> entry : userPerms.entrySet()) {
-			String userId = entry.getKey();
-			// Look up username for this userId
-			String username = getUsernameById(UUID.fromString(userId), dao);
-			if (username == null) continue;
-
-			switch (entry.getValue()) {
-				case "READ":
-					userReads.add(username);
-					break;
-				case "WRITE":
-				case "ADMIN":
-					userEdits.add(username);
-					break;
-			}
-		}
-
-		 */
-
-
-		/*
-		try (GlobalNetworkIndexManager nim = solrObjectFactory.getGlobalNetworkIndexManager()) {
-
-			// Delete old index entry from both cores, then recreate
-			try { nim.delete(networkId.toString(), VisibilityType.PRIVATE); } catch (Exception ignored) {}
-			try { nim.delete(networkId.toString(), VisibilityType.PUBLIC); } catch (Exception ignored) {}
-			nim.createIndex(ns, vis, userReads, userEdits);
-		}
-
-		 */
 	}
 
 	private String getUsernameById(UUID userId, DaoSet dao) {
@@ -705,6 +674,22 @@ public class V3Migrator implements AutoCloseable {
 			pst.setBoolean(2, accessKeyIsOn);
 			pst.setObject(3, entityId);
 			pst.executeUpdate();
+		}
+	}
+
+	private List<String> readPriorityUsers(Path priorityUsersPath) throws NdexException {
+		if (!Files.exists(priorityUsersPath)){
+			logger.info("Priority user file not found at {}!", priorityUsersPath);
+			throw new NdexException("Priority user file path not found!");
+		}
+		try {
+			return Files.readAllLines(priorityUsersPath).stream()
+					.map(String::trim)
+					.filter(line -> !line.isEmpty() && !line.startsWith("#"))
+					.toList();
+		} catch (IOException e) {
+			logger.info("Could not read priority users file: {}", priorityUsersPath, e);
+			throw new NdexException("Could not read priority user file");
 		}
 	}
 
@@ -962,19 +947,6 @@ public class V3Migrator implements AutoCloseable {
 		GroupMember(UUID userId, boolean isAdmin) {
 			this.userId = userId;
 			this.isAdmin = isAdmin;
-		}
-	}
-
-	// ========================================================================
-	// Main entry point
-	// ========================================================================
-
-	public static void main(String[] args) {
-		try (V3Migrator migrator = new V3Migrator()) {
-			migrator.run();
-		} catch (Exception e) {
-			logger.info("Migration failed", e);
-			System.exit(1);
 		}
 	}
 }
