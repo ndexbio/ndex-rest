@@ -22,12 +22,18 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 	private UUID fileId;
     private static final TaskType taskType = TaskType.SYS_SOLR_DELETE_NETWORK;
 	private final VisibilityType visibilityType;
+	private final boolean globalIdxOnly ;
 
 	public SolrTaskDeleteFile(UUID fileId, VisibilityType visibilityType) {
+		this(fileId, visibilityType, true);
+	}
+	public SolrTaskDeleteFile(UUID fileId, VisibilityType visibilityType, boolean globalIdxOnly) {
 		super();
 		this.fileId = fileId;
 		this.visibilityType = visibilityType;
+		this.globalIdxOnly = globalIdxOnly;
 	}
+
 
 	@Override
 	public void run() throws NdexException, SolrServerException, IOException  {
@@ -35,8 +41,13 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 		
 		try(FolderIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getFolderIndexManager()) {
 			globalIdx.delete(id, visibilityType);
+			if (!globalIdxOnly) {
+				try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
+					idxManager.dropIndex();
+				}
+			}
 		}
-		
+
 	}
 
 

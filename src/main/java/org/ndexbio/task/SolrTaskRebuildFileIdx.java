@@ -101,7 +101,9 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			if (!createOnly){
 				try (FolderIndexManager folderIdxManager = solrObjectFactory.getFolderIndexManager()) {
-					folderIdxManager.delete(id, visibilityType);
+					folderIdxManager.delete(id, VisibilityType.PRIVATE);
+					folderIdxManager.delete(id, VisibilityType.PUBLIC);
+
 				}
 
 			}
@@ -125,7 +127,9 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			if (!createOnly){
 				try (ShortcutIndexManager shortcutIndexManager = Configuration.getInstance()
 						.getSolrObjectFactory().getShortcutIndexManager()) {
-					shortcutIndexManager.delete(id, visibilityType);
+					shortcutIndexManager.delete(id, VisibilityType.PRIVATE);
+					shortcutIndexManager.delete(id, VisibilityType.PUBLIC);
+
 				}
 			}
 			NdexShortcut shortcut = dao.getShortcut(fileId, userId);
@@ -154,7 +158,9 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			// drop the old ones.
 			if (!createOnly) {
 				try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {
-					globalIdx.delete(id, visibilityType);
+					globalIdx.delete(id, VisibilityType.PRIVATE);
+					globalIdx.delete(id, VisibilityType.PUBLIC);
+
 				}
 				if (idxScope != SolrIndexScope.global)
 					try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(id)) {

@@ -296,6 +296,12 @@ public abstract class NdexService
 
 		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId, visibilityType));
 	}
+	protected void deleteFileIndex(UUID fileId,
+								   VisibilityType visibilityType, boolean globalIdxOnly) throws SQLException, NdexException, IOException {
+
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId, visibilityType, globalIdxOnly));
+	}
+
 	protected VisibilityType getVisibilityForFile(UUID fileId, FileType fileType) throws Exception {
 		switch (fileType) {
 			case FOLDER:
