@@ -78,6 +78,7 @@ public class NFSSearchProvider implements SearchProvider {
                 }
                 allSummaries = sortedUUIDs.stream()
                         .map(summariesById::get)
+                        .filter(Objects::nonNull)
                         .toList();
             }
 
