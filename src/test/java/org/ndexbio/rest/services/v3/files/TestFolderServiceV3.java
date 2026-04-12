@@ -13,8 +13,10 @@ import java.util.UUID;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.rest.TestConfigHelper;
 import org.jboss.resteasy.mock.*;
 import static org.junit.Assert.assertEquals;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.Before;
 import org.jboss.resteasy.spi.Dispatcher;
@@ -36,6 +38,11 @@ public class TestFolderServiceV3 {
     private Dispatcher dispatcher;
     private HttpServletRequest mockHttpServletRequest;
     private MockHttpResponse response;
+
+    @BeforeClass
+    public static void initConfiguration() throws Exception {
+        TestConfigHelper.initIfNeeded();
+    }
 
     @Before
     public void before() {

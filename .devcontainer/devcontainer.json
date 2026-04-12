@@ -1,0 +1,70 @@
+{
+  "name": "NDEx REST API",
+
+  // The devcontainer image is built entirely by 'make docker-dev' (which first builds
+  // ndex-runtime-base via its docker-base dep, then builds ndexbio/ndex-rest-dev).
+  // initializeCommand runs on the host before the container starts — no manual make step needed.
+  "image": "ndexbio/ndex-rest-dev",
+  "initializeCommand": "make docker-dev",
+
+  "workspaceFolder": "/workspaces/ndex-rest",
+  "overrideCommand": false,
+  "shutdownAction": "stopContainer",
+  "remoteUser": "root",
+
+  // NDEX_PORT controls Jetty's listen port and HostURI in ndex.properties — keep it set.
+  // Other port env vars here are unused placeholders (host publishing is handled by runArgs).
+  "containerEnv": {
+    // NDEX_PORT is set by default — NDEx API is always exposed to the host.
+    "NDEX_PORT": "8080"
+    // "KEYCLOAK_PORT":      "8085",
+    // "POSTGRES_PORT":      "5432",
+    // "SOLR_PORT":          "8983",
+    // "MAILHOG_UI_PORT":    "8025",
+    // "MAILHOG_SMTP_PORT":  "1025",
+    // "KEYCLOAK_MGMT_PORT": "9000"
+  },
+
+  // Maven dependencies are persisted in a Docker-managed named volume (ndex-rest-m2).
+  // First container start on a new host incurs a full Maven download; all subsequent
+  // container builds reuse the cached volume — no re-download even after container removal.
+  "mounts": [
+    "type=volume,source=ndex-rest-m2,target=/root/.m2"
+  ],
+
+  // Publish NDEx API and Keycloak to the host via Docker (works for both CLI and VS Code).
+  // runArgs are passed directly to docker run — ports are always available on the host
+  // without relying on VS Code port forwarding.
+  "runArgs": ["-p", "8080:8080", "-p", "8085:8085"],
+
+  // forwardPorts intentionally empty — host publishing is handled by runArgs above.
+  "forwardPorts": [],
+  "portsAttributes": {
+    "8080": { "label": "NDEx API (Jetty)", "onAutoForward": "ignore"  },
+    "8085": { "label": "Keycloak",         "onAutoForward": "ignore"  },
+    "8025": { "label": "MailHog UI",       "onAutoForward": "silent"  },
+    "1025": { "label": "SMTP (MailHog)",   "onAutoForward": "silent"  },
+    "5432": { "label": "PostgreSQL",       "onAutoForward": "silent"  },
+    "8983": { "label": "Solr Admin",       "onAutoForward": "silent"  },
+    "9000": { "label": "Keycloak Mgmt",    "onAutoForward": "silent"  }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "redhat.java",
+        "vscjava.vscode-maven"
+      ],
+      "settings": {
+        "java.configuration.runtimes": [
+          {
+            "name": "JavaSE-17",
+            "path": "/opt/java/openjdk",
+            "default": true
+          }
+        ]
+      }
+    }
+  }
+}

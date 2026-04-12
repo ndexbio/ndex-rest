@@ -392,6 +392,9 @@
 				<groupId>org.eclipse.jetty</groupId>
 				<artifactId>jetty-maven-plugin</artifactId>
 				<version>${jettyVersion}</version>
+				<configuration>
+					<scanIntervalSeconds>5</scanIntervalSeconds>
+				</configuration>
 			</plugin>
 
 			<!-- the "maven-war-plugin" below generates the "ndexbio-rest-{project.artifactId}-${project.version}.jar" 

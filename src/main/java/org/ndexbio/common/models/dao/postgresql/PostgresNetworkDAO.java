@@ -49,7 +49,9 @@ import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
+import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
 import org.ndexbio.cx2.converter.ConverterUtilities;
@@ -1107,32 +1109,32 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		if (simpleNetworkQuery.getPermission() != null && simpleNetworkQuery.getPermission() == Permissions.ADMIN)
 			throw new NdexException("Permission can only be WRITE or READ in this function.");
 
-		try (NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager()) {
+		try (GlobalNetworkIndexManager networkIdx =
+				Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
 
-			// prepare the query.
-			// if (simpleNetworkQuery.getPermission() == null)
-			// simpleNetworkQuery.setPermission(Permissions.READ);
+			// Always query public-nfs (returns PUBLIC networks + the authenticated user's UNLISTED ones)
+			SolrDocumentList publicResults = networkIdx.searchForNetworks(queryStr,
+					(loggedInUser == null ? null : loggedInUser.getUserName()),
+					VisibilityType.PUBLIC, top, skipBlocks * top,
+					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission());
 
-			List<UUID> groupUUIDs = new ArrayList<>();
-			if (loggedInUser != null && simpleNetworkQuery.getIncludeGroups()) {
-				try (UserDAO userDao = new UserDAO()) {
-					for (Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(),
-							Permissions.MEMBER, 0, 0, true)) {
-						groupUUIDs.add(m.getResourceUUID());
-					}
-				}
+			// If authenticated, also query private-nfs for the user's PRIVATE networks
+			SolrDocumentList privateResults = null;
+			if (loggedInUser != null) {
+				privateResults = networkIdx.searchForNetworks(queryStr,
+						loggedInUser.getUserName(),
+						VisibilityType.PRIVATE, top, skipBlocks * top,
+						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission());
 			}
 
-			SolrDocumentList solrResults = networkIdx.searchForNetworks(queryStr,
-					(loggedInUser == null ? null : loggedInUser.getUserName()), top, skipBlocks * top,
-					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), groupUUIDs);
+			List<NetworkSummary> results = new ArrayList<>(publicResults.size() +
+					(privateResults != null ? privateResults.size() : 0));
+			long numFound = publicResults.getNumFound();
 
-			List<NetworkSummary> results = new ArrayList<>(solrResults.size());
-			for (SolrDocument d : solrResults) {
-				String id = (String) d.get(NetworkGlobalIndexManager.UUID);
+			for (SolrDocument d : publicResults) {
+				String id = (String) d.get(GlobalNetworkIndexManager.UUID);
 				try {
 					NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
-
 					if (s != null) {
 						s.setWarnings(emptyStringList);
 						results.add(s);
@@ -1142,7 +1144,23 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 				}
 			}
 
-			return new NetworkSearchResult(solrResults.getNumFound(), solrResults.getStart(), results);
+			if (privateResults != null) {
+				numFound += privateResults.getNumFound();
+				for (SolrDocument d : privateResults) {
+					String id = (String) d.get(GlobalNetworkIndexManager.UUID);
+					try {
+						NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
+						if (s != null) {
+							s.setWarnings(emptyStringList);
+							results.add(s);
+						}
+					} catch (ObjectNotFoundException ne) {
+						logger.warning("Network " + id + " was not found in db: " + ne.getMessage());
+					}
+				}
+			}
+
+			return new NetworkSearchResult(numFound, publicResults.getStart(), results);
 		}
 	}
 	

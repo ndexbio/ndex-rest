@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help
+.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -54,3 +54,32 @@ docs: ## generate Sphinx HTML documentation, including API docs
 
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
+
+# Component version overrides — passed as Docker build-args
+KEYCLOAK_VERSION  ?= 26.1.0
+SOLR_VERSION      ?= 9.6.1
+POSTGRES_VERSION  ?= 16
+MAILHOG_VERSION   ?= 1.0.1
+NDEX_COMMIT_HASH  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo docker)
+
+DOCKER_BUILD_ARGS = \
+	    --build-arg KEYCLOAK_VERSION=$(KEYCLOAK_VERSION) \
+	    --build-arg SOLR_VERSION=$(SOLR_VERSION) \
+	    --build-arg POSTGRES_VERSION=$(POSTGRES_VERSION) \
+	    --build-arg MAILHOG_VERSION=$(MAILHOG_VERSION) \
+	    --build-arg NDEX_COMMIT_HASH=$(NDEX_COMMIT_HASH)
+
+docker-base: ## build the shared runtime-base image (docker/Dockerfile)
+	docker build --platform linux/amd64 -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) -t ndex-runtime-base .
+
+docker: docker-base ## build the deploy image (docker/Dockerfile_deploy)
+	docker build --platform linux/amd64 -f docker/Dockerfile_deploy $(DOCKER_BUILD_ARGS) -t ndexbio/ndex-rest .
+
+docker-dev: docker-base ## build the devcontainer image (.devcontainer/Dockerfile)
+	docker build --platform linux/amd64 -f .devcontainer/Dockerfile -t ndexbio/ndex-rest-dev .
+
+push-docker: docker ## push deploy image to registry (requires DOCKER_REPO and DOCKER_TAG)
+	@[ -n "$(DOCKER_REPO)" ] || { echo "ERROR: DOCKER_REPO is not set"; exit 1; }
+	@[ -n "$(DOCKER_TAG)" ]  || { echo "ERROR: DOCKER_TAG is not set"; exit 1; }
+	docker tag ndexbio/ndex-rest $(DOCKER_REPO):$(DOCKER_TAG)
+	docker push $(DOCKER_REPO):$(DOCKER_TAG)
