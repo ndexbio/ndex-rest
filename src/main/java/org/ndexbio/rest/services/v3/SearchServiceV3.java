@@ -541,9 +541,12 @@ public class SearchServiceV3 extends NdexService  {
 
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
 		User user = getLoggedInUser();
+		if (visibilityType == null){
+			visibilityType = VisibilityType.PUBLIC;
+		}
 		//todo allow non logged in user?
-		if (user == null) {
-			throw new UnauthorizedOperationException("You must be logged in to search.");
+		if (user == null && visibilityType.equals(VisibilityType.PRIVATE)) {
+			throw new UnauthorizedOperationException("You must be logged in to search private files.");
 		}
     	if(query.getAccountName() != null)
     		query.setAccountName(	query.getAccountName().toLowerCase());

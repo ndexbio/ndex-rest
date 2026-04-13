@@ -1,0 +1,15 @@
+{
+  "_comment": "MailHog outgoing SMTP relay configuration.",
+  "_comment2": "Copy relevant entries to outgoing-smtp.json and remove _comment fields.",
+  "_comment3": "See https://github.com/mailhog/MailHog/blob/master/docs/CONFIG.md for full docs.",
+  "example-relay": {
+    "name": "Example SMTP relay",
+    "save": true,
+    "host": "smtp.example.com",
+    "port": "587",
+    "email": "relay@example.com",
+    "username": "relay@example.com",
+    "password": "your-smtp-password",
+    "mechanism": "PLAIN"
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "realm": "ndex",
+  "enabled": true,
+  "displayName": "NDEx",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "smtpServer": {
+    "host": "localhost",
+    "port": "1025",
+    "from": "dev-support@ndexbio.org",
+    "fromDisplayName": "NDEx Dev",
+    "auth": "false",
+    "starttls": "false",
+    "ssl": "false"
+  },
+  "clients": [
+    {
+      "clientId": "ndex-app",
+      "name": "NDEx Application",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:8080/*",
+        "http://localhost/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8080",
+        "http://localhost"
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "ndex-user",
+        "description": "Standard NDEx user"
+      },
+      {
+        "name": "ndex-admin",
+        "description": "NDEx administrator"
+      }
+    ]
+  },
+
+  "components": {
+    "org.keycloak.storage.UserStorageProvider": [
+      {
+        "id": "ndex-user-storage-component",
+        "name": "NDEx User Storage",
+        "providerId": "NDEx-user-provider",
+        "subComponents": {},
+        "config": {
+          "NDExHostName": ["http://localhost:8080"],
+          "NDExAdminKey": ["admin"],
+          "priority": ["0"],
+          "enabled": ["true"],
+          "cachePolicy": ["DEFAULT"]
+        }
+      }
+    ]
+  },
+
+  "registrationFlow": "ndex registration",
+
+  "authenticationFlows": [
+    {
+      "alias": "ndex registration",
+      "description": "NDEx registration flow — syncs new users to NDEx user store",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "registration-page-form",
+          "authenticatorFlow": true,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "flowAlias": "ndex registration form"
+        }
+      ]
+    },
+    {
+      "alias": "ndex registration form",
+      "description": "Registration form with NDEx user creation",
+      "providerId": "form-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "registration-user-creation",        "requirement": "REQUIRED",  "priority": 10 },
+        { "authenticator": "registration-password-action",      "requirement": "REQUIRED",  "priority": 30 },
+        { "authenticator": "registration-recaptcha-action",     "requirement": "DISABLED",  "priority": 40 },
+        { "authenticator": "registration-terms-and-conditions", "requirement": "DISABLED",  "priority": 50 },
+        { "authenticator": "register-user-to-ndex-action",      "requirement": "REQUIRED",  "priority": 60 }
+      ]
+    }
+  ]
+}

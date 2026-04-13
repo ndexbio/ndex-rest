@@ -37,16 +37,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.UUID;
+import java.util.*;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -58,7 +49,9 @@ import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
+import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
 import org.ndexbio.cx2.converter.ConverterUtilities;
@@ -600,8 +593,8 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	 */
 	protected static String createIsReadableConditionStr(UUID userId) {
 		if ( userId == null)
-			return "n.visibility='PUBLIC'";
-		return "( n.visibility='PUBLIC' or n.owneruuid = '" + userId + "' ::uuid or " + 
+			return "n.visibility='PUBLIC' or n.visibility='UNLISTED'";
+		return "( n.visibility='PUBLIC' or n.visibility='UNLISTED' or n.owneruuid = '" + userId + "' ::uuid or " +
 			" exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = '"+ userId + "' limit 1) or " +
 		    " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
 		    + "and gn1.network_id = n.\"UUID\" and gu.user_id = '"+ userId + "' limit 1) )";
@@ -1116,32 +1109,32 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		if (simpleNetworkQuery.getPermission() != null && simpleNetworkQuery.getPermission() == Permissions.ADMIN)
 			throw new NdexException("Permission can only be WRITE or READ in this function.");
 
-		try (NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager()) {
+		try (GlobalNetworkIndexManager networkIdx =
+				Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
 
-			// prepare the query.
-			// if (simpleNetworkQuery.getPermission() == null)
-			// simpleNetworkQuery.setPermission(Permissions.READ);
+			// Always query public-nfs (returns PUBLIC networks + the authenticated user's UNLISTED ones)
+			SolrDocumentList publicResults = networkIdx.searchForNetworks(queryStr,
+					(loggedInUser == null ? null : loggedInUser.getUserName()),
+					VisibilityType.PUBLIC, top, skipBlocks * top,
+					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission());
 
-			List<UUID> groupUUIDs = new ArrayList<>();
-			if (loggedInUser != null && simpleNetworkQuery.getIncludeGroups()) {
-				try (UserDAO userDao = new UserDAO()) {
-					for (Membership m : userDao.getUserGroupMemberships(loggedInUser.getExternalId(),
-							Permissions.MEMBER, 0, 0, true)) {
-						groupUUIDs.add(m.getResourceUUID());
-					}
-				}
+			// If authenticated, also query private-nfs for the user's PRIVATE networks
+			SolrDocumentList privateResults = null;
+			if (loggedInUser != null) {
+				privateResults = networkIdx.searchForNetworks(queryStr,
+						loggedInUser.getUserName(),
+						VisibilityType.PRIVATE, top, skipBlocks * top,
+						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission());
 			}
 
-			SolrDocumentList solrResults = networkIdx.searchForNetworks(queryStr,
-					(loggedInUser == null ? null : loggedInUser.getUserName()), top, skipBlocks * top,
-					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), groupUUIDs);
+			List<NetworkSummary> results = new ArrayList<>(publicResults.size() +
+					(privateResults != null ? privateResults.size() : 0));
+			long numFound = publicResults.getNumFound();
 
-			List<NetworkSummary> results = new ArrayList<>(solrResults.size());
-			for (SolrDocument d : solrResults) {
-				String id = (String) d.get(NetworkGlobalIndexManager.UUID);
+			for (SolrDocument d : publicResults) {
+				String id = (String) d.get(GlobalNetworkIndexManager.UUID);
 				try {
 					NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
-
 					if (s != null) {
 						s.setWarnings(emptyStringList);
 						results.add(s);
@@ -1151,7 +1144,23 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 				}
 			}
 
-			return new NetworkSearchResult(solrResults.getNumFound(), solrResults.getStart(), results);
+			if (privateResults != null) {
+				numFound += privateResults.getNumFound();
+				for (SolrDocument d : privateResults) {
+					String id = (String) d.get(GlobalNetworkIndexManager.UUID);
+					try {
+						NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
+						if (s != null) {
+							s.setWarnings(emptyStringList);
+							results.add(s);
+						}
+					} catch (ObjectNotFoundException ne) {
+						logger.warning("Network " + id + " was not found in db: " + ne.getMessage());
+					}
+				}
+			}
+
+			return new NetworkSearchResult(numFound, publicResults.getStart(), results);
 		}
 	}
 	
@@ -1171,7 +1180,37 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		 }
 		 return null;
 	}
-	
+	public List<NetworkSummary> getNetworkSummariesByIds(List<UUID> networkIds) throws SQLException, JsonParseException, JsonMappingException, IOException {
+		if (networkIds == null || networkIds.isEmpty())
+			return new ArrayList<>();
+
+		String placeholders = String.join(",", Collections.nCopies(networkIds.size(), "?"));
+		String sqlStr = networkSummarySelectClause + " from network n where n.\"UUID\" IN (" + placeholders + ") and n.is_deleted=false";
+
+		Map<UUID, NetworkSummary> summaryMap = new HashMap<>(networkIds.size());
+		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+			for (int i = 0; i < networkIds.size(); i++) {
+				pst.setObject(i + 1, networkIds.get(i));
+			}
+			try (ResultSet rs = pst.executeQuery()) {
+				while (rs.next()) {
+					NetworkSummary s = new NetworkSummary();
+					populateNetworkSummaryFromResultSet(s, rs);
+					summaryMap.put(s.getExternalId(), s);
+				}
+			}
+		}
+
+		List<NetworkSummary> result = new ArrayList<>(networkIds.size());
+		for (UUID id : networkIds) {
+			NetworkSummary s = summaryMap.get(id);
+			if (s != null) {
+				result.add(s);
+			}
+		}
+		return result;
+	}
+
 	public NetworkSummary getNetworkSummaryById (UUID networkId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause because populateNetworkSummaryFromResultSet function depends on the order.
 		String sqlStr = networkSummarySelectClause + " from network n where n.\"UUID\" = ? and n.is_deleted= false";

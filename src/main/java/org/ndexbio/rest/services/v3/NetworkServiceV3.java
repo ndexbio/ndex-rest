@@ -933,7 +933,7 @@ public class NetworkServiceV3  extends NdexService {
 		            networkDao.deleteNetworkLogical(networkId, userId);
 		            networkDao.commit();
 		        }
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(networkId, visibilityType));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(networkId, visibilityType, false));
 
 			}
 		}

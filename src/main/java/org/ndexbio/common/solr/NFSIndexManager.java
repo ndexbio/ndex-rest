@@ -88,7 +88,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
                                      Collection<String> userEdits){
         setupIndexDocument(inputData, visibilityType);
         doc.addField(VISIBILITY, visibilityType.name());
-        if (visibilityType.equals(VisibilityType.PRIVATE)){
+        if (visibilityType.equals(VisibilityType.PRIVATE) || visibilityType.equals(VisibilityType.UNLISTED)){
             if(userReads != null) {
                 addKeyWithValues(doc, USER_READ, userReads);
             }
@@ -147,10 +147,18 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     }
     public void commit(String coreName) throws SolrServerException, IOException {
         if ( !doc.isEmpty()) {
+            /*
+            logger.info("Committing doc to core [{}]:", coreName);
+            for (String fieldName : doc.getFieldNames()) {
+                logger.info("  {} = {}", fieldName, doc.getFieldValues(fieldName));
+            }
+
+             */
             Collection<SolrInputDocument> docs = new ArrayList<>(1);
             docs.add(doc);
             solrClientWrapper.commit(coreName, docs);
         } else {
+            //logger.info("Empty doc, committing to core [{}] with no additions", coreName);
             solrClientWrapper.commit(coreName, null);
         }
         doc = new SolrInputDocument();
@@ -208,6 +216,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         // Set up the query
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
         String coreName = getCoreNameFromVisibility(visibilityType);
+        //logger.info("QUERY {} FILTER {}", solrQuery.toQueryString(), solrQuery.getFilterQueries());
 
         // Execute search
         try {
@@ -249,6 +258,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
         String coreName = getCoreNameFromVisibility(visibilityType);
+        //logger.info("QUERY {} FILTER {}", solrQuery.toQueryString(), solrQuery.getFilterQueries());
 
         try {
             QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery);
@@ -265,13 +275,13 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      */
     protected String buildPermissionFilter(String userAccount, VisibilityType visibilityType,
                                            Permissions permission) {
-        // For PRIVATE cores
-        if (visibilityType.equals(VisibilityType.PRIVATE)) {
-            return buildPrivateCorePermissionFilter(userAccount, permission);
-        }
-        // For PUBLIC core
-        else {
+        // For PUBLIC cores
+        if (visibilityType.equals(VisibilityType.PUBLIC)) {
             return buildPublicCorePermissionFilter(userAccount, permission);
+        }
+        // For PRIVATE/UNLISTED core
+        else {
+            return buildPrivateCorePermissionFilter(userAccount, permission);
         }
     }
 
@@ -281,6 +291,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      * WRITE/ADMIN filters down to items they have those permissions on.
      */
     protected String buildPublicCorePermissionFilter(String userAccount, Permissions permission) {
+        return "*:*";
+        /*
         String excludeUnlisted = "(*:* NOT " + VISIBILITY + ":UNLISTED)";
 
         if (userAccount == null) {
@@ -288,9 +300,14 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
 
         String userAccountStr = "\"" + userAccount + "\"";
+        // Match unlisted items the user has access to
+        String unlistedWithAccess = "(" + VISIBILITY + ":UNLISTED AND (" +
+                USER_ADMIN + ":" + userAccountStr + " OR " +
+                USER_READ + ":" + userAccountStr + " OR " +
+                USER_EDIT + ":" + userAccountStr + "))";
 
         if (permission == null || permission == Permissions.READ) {
-            return excludeUnlisted + " OR (" + USER_ADMIN + ":" + userAccountStr + ")";
+            return excludeUnlisted + " OR " + unlistedWithAccess;
         } else if (permission == Permissions.WRITE) {
             return "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
                     "(" + USER_EDIT + ":" + userAccountStr + ")";
@@ -299,8 +316,9 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
 
         return excludeUnlisted;
-    }
 
+         */
+    }
     /**
      * Permission filter for private-nfs core (PRIVATE items)
      * Anonymous users see nothing. Authenticated users only see items where they're listed in userAdmin, userRead,
@@ -403,10 +421,10 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         solrClientWrapper.close();
     }
     static String getCoreNameFromVisibility(VisibilityType visibilityType){
-        if (visibilityType.equals(VisibilityType.PRIVATE)){
-            return privateCoreName;
+        if (visibilityType.equals(VisibilityType.PUBLIC)){
+            return publicCoreName;
         }
-        return publicCoreName;
+        return privateCoreName;
     }
 
 

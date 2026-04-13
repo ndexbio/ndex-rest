@@ -70,10 +70,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	protected static String createIsReadableConditionStr(UUID userId) {
 	    if (userId == null) {
 	        // Anonymous user => only PUBLIC is allowed
-	        return "f.visibility='PUBLIC'";
+	        return "f.visibility='PUBLIC' or f.visibility='UNLISTED'";
 	    }
 	    // Non-anonymous => public or same owner or has permission
-	    return "( f.visibility='PUBLIC' "
+	    return "( f.visibility='PUBLIC' or f.visibility='UNLISTED' "
 	         + "  OR f.owneruuid = '" + userId + "'::uuid "
 	         + "  OR EXISTS ( "
 	         + "       SELECT 1 "
@@ -122,32 +122,73 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return false;
 
 	}
-	
+
 	@Override
 	public NdexFolder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
-		
-		NdexFolder result = new NdexFolder();
-		String sqlStr = "select creation_time, modification_time, name, parent, is_deleted, description, owneruuid from folder where \"UUID\"=?";
+
+		NdexFolder result;
+		String sqlStr = "SELECT f.\"UUID\", f.name, f.parent, f.creation_time, f.modification_time, f.is_deleted, f.description, f.owneruuid as owner_id, " +
+				"u.user_name AS owner_name " +
+				"FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" " +
+				"WHERE f.\"UUID\"=?";
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			p.setObject(1, folderId);
-			try ( ResultSet rs = p.executeQuery()) {
-				if ( rs.next()) {
-					result.setCreationTime(rs.getTimestamp(1));
-					result.setModificationTime(rs.getTimestamp(2));
-					result.setExternalId(folderId);
-					result.setName(rs.getString(3));
-					result.setParent((UUID)(rs.getObject(4)));
-					result.setIsDeleted(rs.getBoolean(5));
-					result.setDescription(rs.getString(6));
-					result.setOwner(rs.getString(7));
+			try (ResultSet rs = p.executeQuery()) {
+				if (rs.next()) {
+					result = mapResultSetToNdexFolder(rs);
 				} else
 					throw new ObjectNotFoundException("Folder" + folderId + " not found in db.");
 			}
 		}
-		
 		return result;
 	}
-	
+
+	private NdexFolder mapResultSetToNdexFolder(ResultSet rs) throws SQLException {
+		NdexFolder f = new NdexFolder();
+		f.setExternalId((UUID) rs.getObject("UUID"));
+		f.setName(rs.getString("name"));
+		f.setParent((UUID) rs.getObject("parent"));
+		f.setCreationTime(rs.getTimestamp("creation_time"));
+		f.setModificationTime(rs.getTimestamp("modification_time"));
+		f.setIsDeleted(rs.getBoolean("is_deleted"));
+		f.setDescription(rs.getString("description"));
+		f.setOwner_id(rs.getString("owner_id"));
+		f.setOwner(rs.getString("owner_name"));
+		return f;
+	}
+
+	public List<NdexFolder> getFoldersByIds(List<UUID> folderIds) throws SQLException {
+		if (folderIds == null || folderIds.isEmpty())
+			return new ArrayList<>();
+
+		String placeholders = String.join(",", Collections.nCopies(folderIds.size(), "?"));
+		String sql = "SELECT f.\"UUID\", f.name, f.parent, f.creation_time, f.modification_time, f.is_deleted, f.description, f.owneruuid AS owner_id, " +
+				"u.user_name AS owner_name " +
+				"FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" " +
+				"WHERE f.\"UUID\" IN (" + placeholders + ")";
+
+		Map<UUID, NdexFolder> folderMap = new HashMap<>(folderIds.size());
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			for (int i = 0; i < folderIds.size(); i++) {
+				pst.setObject(i + 1, folderIds.get(i));
+			}
+			try (ResultSet rs = pst.executeQuery()) {
+				while (rs.next()) {
+					NdexFolder f = mapResultSetToNdexFolder(rs);
+					folderMap.put(f.getExternalId(), f);
+				}
+			}
+		}
+
+		List<NdexFolder> result = new ArrayList<>(folderIds.size());
+		for (UUID id : folderIds) {
+			NdexFolder f = folderMap.get(id);
+			if (f != null) {
+				result.add(f);
+			}
+		}
+		return result;
+	}
 	@Override
 	public boolean isFolderOwner(UUID folderId, UUID ownerId) throws SQLException {
 		String sqlStr = "select 1 from folder where \"UUID\" = ? and owneruuid = ? and is_deleted=false";
