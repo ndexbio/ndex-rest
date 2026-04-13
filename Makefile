@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker
+.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker integration-test
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -83,3 +83,6 @@ push-docker: docker ## push deploy image to registry (requires DOCKER_REPO and D
 	@[ -n "$(DOCKER_TAG)" ]  || { echo "ERROR: DOCKER_TAG is not set"; exit 1; }
 	docker tag ndexbio/ndex-rest $(DOCKER_REPO):$(DOCKER_TAG)
 	docker push $(DOCKER_REPO):$(DOCKER_TAG)
+
+integration-test: ## run integration tests
+	docker/test/integration-test.sh

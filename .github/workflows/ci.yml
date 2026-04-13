@@ -22,9 +22,9 @@ jobs:
           cache: maven
 
       - name: Build and unit test
-        run: mvn install -B
+        run: make test
       - name: integration test
-        run: docker/test/integration-test.sh 
+        run: make integration-test
 
   docker-push-latest:
     runs-on: ubuntu-latest
