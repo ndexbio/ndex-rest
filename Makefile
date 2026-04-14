@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker
+.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker integration-test
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -72,11 +72,15 @@ DOCKER_BUILD_ARGS = \
 	    --build-arg MAILHOG_VERSION=$(MAILHOG_VERSION) \
 	    --build-arg NDEX_COMMIT_HASH=$(NDEX_COMMIT_HASH)
 
-docker-base: ## build the shared runtime-base image (docker/Dockerfile)
-	docker build --platform linux/amd64 -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) -t ndex-runtime-base .
+# Optional layer-cache flags — override from CI to enable e.g. --cache-from type=gha --cache-to type=gha,mode=max
+DOCKER_CACHE_ARGS ?=
 
-docker: docker-base ## build the deploy image (docker/Dockerfile_deploy)
-	docker build --platform linux/amd64 -f docker/Dockerfile_deploy $(DOCKER_BUILD_ARGS) -t ndexbio/ndex-rest .
+docker-base: ## build the shared runtime-base image (docker/Dockerfile)
+	docker buildx build --load --platform linux/amd64 -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndex-runtime-base .
+
+docker: docker-base ## build the deploy image (docker/Dockerfile)
+	docker buildx build --load --platform linux/amd64 -f docker/Dockerfile --target deploy \
+	    $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndexbio/ndex-rest .
 
 docker-dev: docker-base ## build the devcontainer image (.devcontainer/Dockerfile)
 	docker build --platform linux/amd64 -f .devcontainer/Dockerfile -t ndexbio/ndex-rest-dev .
@@ -86,3 +90,6 @@ push-docker: docker ## push deploy image to registry (requires DOCKER_REPO and D
 	@[ -n "$(DOCKER_TAG)" ]  || { echo "ERROR: DOCKER_TAG is not set"; exit 1; }
 	docker tag ndexbio/ndex-rest $(DOCKER_REPO):$(DOCKER_TAG)
 	docker push $(DOCKER_REPO):$(DOCKER_TAG)
+
+integration-test: ## run integration tests
+	docker/test/integration-test.sh

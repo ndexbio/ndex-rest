@@ -7,6 +7,7 @@ import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -34,6 +35,7 @@ import static org.junit.Assert.*;
  */
 public class TestFolderIndexManager {
 
+    private static Configuration savedInstance;
     private FolderIndexManager manager;
     private SolrClientWrapper mockWrapper;
 
@@ -45,7 +47,13 @@ public class TestFolderIndexManager {
 
         Field instanceField = Configuration.class.getDeclaredField("INSTANCE");
         instanceField.setAccessible(true);
+        savedInstance = (Configuration) instanceField.get(null);
         instanceField.set(null, mockConfig);
+    }
+
+    @AfterClass
+    public static void tearDownClass() {
+        Configuration.setInstance(savedInstance);
     }
 
     @After
