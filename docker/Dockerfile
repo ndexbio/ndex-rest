@@ -109,3 +109,20 @@ RUN chmod +x /usr/local/bin/schema_upgrade.sh
 
 # ── Image metadata ────────────────────────────────────────────────────────────
 EXPOSE 8085 1025 8025 5432 8983 9000
+
+# ── Stage 2: Build NDEx WAR ───────────────────────────────────────────────────
+FROM eclipse-temurin:17-jdk-jammy AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends maven git \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY pom.xml .
+COPY src/ src/
+ARG NDEX_COMMIT_HASH=docker
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn install -DskipTests -DbuildNumber=${NDEX_COMMIT_HASH}
+
+# ── Stage 3: Deploy image ─────────────────────────────────────────────────────
+FROM runtime-base AS deploy
+COPY --from=builder /build/target/ndexbio-rest.war /usr/local/tomcat/webapps/ROOT.war
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/start.sh"]
