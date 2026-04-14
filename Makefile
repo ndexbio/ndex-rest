@@ -76,7 +76,9 @@ docker-base: ## build the shared runtime-base image (docker/Dockerfile)
 	docker buildx build --load --platform linux/amd64 -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndex-runtime-base .
 
 docker: docker-base ## build the deploy image (docker/Dockerfile_deploy)
-	docker buildx build --load --platform linux/amd64 -f docker/Dockerfile_deploy $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndexbio/ndex-rest .
+	docker buildx build --load --platform linux/amd64 -f docker/Dockerfile_deploy \
+	    --build-context ndex-runtime-base=docker-image://ndex-runtime-base \
+	    $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndexbio/ndex-rest .
 
 docker-dev: docker-base ## build the devcontainer image (.devcontainer/Dockerfile)
 	docker build --platform linux/amd64 -f .devcontainer/Dockerfile -t ndexbio/ndex-rest-dev .
