@@ -34,10 +34,7 @@ clean: ## run mvn clean and docs clean
 lint: ## check style with checkstyle:checkstyle
 	mvn checkstyle:checkstyle
 
-ndex-model: ## build the ndex-object-model JAR, remove this target once in a repo
-	docker/scripts/build-ndex-object-model.sh
-
-test: ndex-model ## run tests with mvn test
+test: ## run tests with mvn test
 	mvn test
 
 coverage: ## check code coverage with jacoco
