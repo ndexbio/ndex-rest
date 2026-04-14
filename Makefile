@@ -69,11 +69,14 @@ DOCKER_BUILD_ARGS = \
 	    --build-arg MAILHOG_VERSION=$(MAILHOG_VERSION) \
 	    --build-arg NDEX_COMMIT_HASH=$(NDEX_COMMIT_HASH)
 
+# Optional layer-cache flags — override from CI to enable e.g. --cache-from type=gha --cache-to type=gha,mode=max
+DOCKER_CACHE_ARGS ?=
+
 docker-base: ## build the shared runtime-base image (docker/Dockerfile)
-	docker build --platform linux/amd64 -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) -t ndex-runtime-base .
+	docker buildx build --load --platform linux/amd64 -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndex-runtime-base .
 
 docker: docker-base ## build the deploy image (docker/Dockerfile_deploy)
-	docker build --platform linux/amd64 -f docker/Dockerfile_deploy $(DOCKER_BUILD_ARGS) -t ndexbio/ndex-rest .
+	docker buildx build --load --platform linux/amd64 -f docker/Dockerfile_deploy $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndexbio/ndex-rest .
 
 docker-dev: docker-base ## build the devcontainer image (.devcontainer/Dockerfile)
 	docker build --platform linux/amd64 -f .devcontainer/Dockerfile -t ndexbio/ndex-rest-dev .

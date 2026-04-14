@@ -1,6 +1,6 @@
 # ── Stage 1: Build NDEx WAR ──────────────────────────────────────────────────
 FROM eclipse-temurin:17-jdk-jammy AS builder
-RUN apt-get update && apt-get install -y --no-install-recommends maven \
+RUN apt-get update && apt-get install -y --no-install-recommends maven git \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY pom.xml .
