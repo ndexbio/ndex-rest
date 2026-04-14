@@ -4,7 +4,7 @@ A fully self-contained devcontainer provides a complete NDEx development environ
 
 On first launch, all supporting services (PostgreSQL, Keycloak, Solr, MailHog) initialize automatically. Once the **"NDEx Devcontainer Ready!"** banner appears, start the NDEx API server manually from inside the container — giving you full control over when to build and run it.
 
-> **First boot is slower**: supporting services initialize, and `ndex-object-model:3.0.0-SNAPSHOT` is cloned and built from source (not available in any public Maven repo). Subsequent container starts are fast — the Maven cache is preserved in a Docker volume across container removals. When the **"NDEx Devcontainer Ready!"** banner appears, start NDEx manually (see [Development Cycles](#development-cycles)).
+> **First boot is slower**: supporting services initialize and Maven downloads all project dependencies. Subsequent container starts are fast — the Maven cache is preserved in a Docker volume across container removals. When the **"NDEx Devcontainer Ready!"** banner appears, start NDEx manually (see [Development Cycles](#development-cycles)).
 
 ---
 
@@ -254,7 +254,7 @@ One Docker-managed volume (`ndex-rest-m2`) is created automatically for the Mave
 
 Maven dependencies are stored in a Docker-managed named volume (`ndex-rest-m2`). Docker creates and manages this volume automatically — no host path configuration needed, and it works identically on macOS, Linux, and Windows.
 
-**First container start on a new host**: `ndex-object-model` is built from source and Maven downloads all project dependencies. This is a one-time cost that takes several minutes.
+**First container start on a new host**: Maven downloads all project dependencies. This is a one-time cost that takes several minutes.
 
 **All subsequent container starts**: the `ndex-rest-m2` volume is reused automatically. No build or downloads occur — the container is ready in under a minute. This holds even after the container is stopped, removed, and recreated.
 

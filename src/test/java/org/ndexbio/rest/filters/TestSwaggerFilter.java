@@ -6,6 +6,7 @@ import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.info.Info;
 import org.easymock.EasyMock;
 import org.easymock.EasyMockSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.ndexbio.rest.Configuration;
@@ -19,12 +20,19 @@ class TestSwaggerFilter extends EasyMockSupport {
 
     private SwaggerFilter swaggerFilter;
     private OpenAPI openAPI;
+    private Configuration savedInstance;
 
     @BeforeEach
     void setUp() {
+        savedInstance = Configuration.getInstance();
         swaggerFilter = new SwaggerFilter();
         openAPI = new OpenAPI();
         openAPI.setInfo(new Info());
+    }
+
+    @AfterEach
+    void tearDown() {
+        Configuration.setInstance(savedInstance);
     }
 
     @Test
