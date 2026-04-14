@@ -43,7 +43,6 @@ public class McpServletContextListener implements ServletContextListener {
         HttpServletStreamableServerTransportProvider transport =
             HttpServletStreamableServerTransportProvider.builder()
                 .mcpEndpoint("/mcp")
-                .jsonMapper(new Jackson2McpJsonMapper())
                 .keepAliveInterval(Duration.ofSeconds(30))
                 .contextExtractor(req -> {
                     Map<String, Object> context = new HashMap<>();
