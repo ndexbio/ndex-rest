@@ -6,6 +6,7 @@ import java.util.Base64;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 
 import org.easymock.EasyMock;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.ndexbio.model.exceptions.NdexException;
@@ -18,8 +19,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class TestBasicAuthFilterHandleFilter {
 
+    private static Configuration savedInstance;
+
     @BeforeAll
     static void setupConfig() {
+        savedInstance = Configuration.getInstance();
         Configuration config = EasyMock.mock(Configuration.class);
         EasyMock.expect(config.getUseADAuthentication()).andReturn(false).anyTimes();
         EasyMock.expect(config.getProperty("AUTHENTICATED_USER_ONLY")).andReturn(null).anyTimes();
@@ -28,6 +32,11 @@ class TestBasicAuthFilterHandleFilter {
         EasyMock.expect(config.getHostURI()).andReturn("https://ndexbio.org").anyTimes();
         Configuration.setInstance(config);
         EasyMock.replay(config);
+    }
+
+    @AfterAll
+    static void teardownConfig() {
+        Configuration.setInstance(savedInstance);
     }
 
     private McpAuthFilter newFilter() throws NdexException {

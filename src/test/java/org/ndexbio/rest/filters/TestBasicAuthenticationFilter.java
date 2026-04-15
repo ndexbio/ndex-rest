@@ -14,6 +14,7 @@ import jakarta.ws.rs.core.UriInfo;
 
 import org.easymock.EasyMock;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,11 +61,13 @@ class TestBasicAuthenticationFilter {
     record ContextMocks(ContainerRequestContext ctx, ResourceMethodInvoker invoker, UriInfo uriInfo) {}
 
     // ── shared state ─────────────────────────────────────────────────────────
+    private static Configuration savedInstance;
     private StubFilter stub;
     private HttpServletRequest mockHttpRequest;
 
     @BeforeAll
     static void setupConfig() {
+        savedInstance = Configuration.getInstance();
         Configuration config = EasyMock.mock(Configuration.class);
         expect(config.getUseADAuthentication()).andReturn(false).anyTimes();
         expect(config.getProperty("AUTHENTICATED_USER_ONLY")).andReturn(null).anyTimes();
@@ -73,6 +76,11 @@ class TestBasicAuthenticationFilter {
         expect(config.getHostURI()).andReturn("https://ndexbio.org").anyTimes();
         Configuration.setInstance(config);
         EasyMock.replay(config);
+    }
+
+    @AfterAll
+    static void teardownConfig() {
+        Configuration.setInstance(savedInstance);
     }
 
     @BeforeEach
