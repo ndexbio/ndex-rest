@@ -6,6 +6,7 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 
 import org.ndexbio.rest.mcp.tools.CreateNetworkTool;
 import org.ndexbio.rest.mcp.tools.DeleteNetworkTool;
+import org.ndexbio.rest.mcp.tools.DownloadNetworkTool;
 import org.ndexbio.rest.mcp.tools.GetFolderTool;
 import org.ndexbio.rest.mcp.tools.GetNetworkSummaryTool;
 import org.ndexbio.rest.mcp.tools.ManageFolderTool;
@@ -24,10 +25,15 @@ import org.ndexbio.rest.mcp.tools.UpdateNetworkTool;
 public class McpToolRegistry {
 
     public List<McpServerFeatures.SyncToolSpecification> buildSpecs() {
-        return buildSpecs(new UploadService());
+        return buildSpecs(new UploadService(), new DownloadService());
     }
 
     public List<McpServerFeatures.SyncToolSpecification> buildSpecs(UploadService uploadService) {
+        return buildSpecs(uploadService, new DownloadService());
+    }
+
+    public List<McpServerFeatures.SyncToolSpecification> buildSpecs(UploadService uploadService,
+                                                                      DownloadService downloadService) {
         ToolsService ts = new ToolsService();
         return List.of(
             new SearchNetworkTool(ts).toSpec(),
@@ -38,7 +44,8 @@ public class McpToolRegistry {
             new CreateNetworkTool(ts, uploadService).toSpec(),
             new DeleteNetworkTool(ts).toSpec(),
             new GetFolderTool(ts).toSpec(),
-            new ManageFolderTool(ts).toSpec()
+            new ManageFolderTool(ts).toSpec(),
+            new DownloadNetworkTool(ts, downloadService).toSpec()
         );
     }
 }
