@@ -27,8 +27,11 @@ CONTAINER_NAME="ndex-integration-test"
 TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
+TEST_USER2="ndextest2"
+TEST_PASS2="NDExTest2!"
+TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=24
+TOTAL_API_CALLS=26
 PASSED=0
 LOAD_TIMEOUT=90
 
@@ -515,6 +518,53 @@ while true; do
   echo "  Waiting for public-nfs Solr index... (${ELAPSED}s)"
 done
 api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
+
+# ── STEP 17: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ──────────
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step 17 "Verifying AUTHENTICATED_USER_ONLY=true blocks anonymous POST /v2/user"
+
+  echo "  Injecting AUTHENTICATED_USER_ONLY=true into ndex.properties and restarting Tomcat..."
+  docker exec "${CONTAINER_NAME}" bash -c \
+    "echo 'AUTHENTICATED_USER_ONLY=true' >> /apps/ndex/config/ndex.properties"
+  docker exec "${CONTAINER_NAME}" supervisorctl restart ndex
+
+  echo "  Tomcat restart issued — waiting for NDEx to become responsive..."
+  MAX_WAIT=90
+  ELAPSED=0
+  until curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/user" \
+        | grep -qE '^[2-9][0-9]{2}$|^401$|^400$'; do
+    if [[ ${ELAPSED} -ge ${MAX_WAIT} ]]; then
+      api_fail "NDEx did not respond within ${MAX_WAIT}s after Tomcat restart"
+    fi
+    echo -e "  ${CYAN}Waiting for Tomcat restart... (${ELAPSED}s)${NC}"
+    sleep 5; (( ELAPSED += 5 )) || true
+  done
+  echo "  Tomcat is ready."
+
+  echo "  API call 25/${TOTAL_API_CALLS}: POST /v2/user (no auth, expect 401)"
+  ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+    -H "Content-Type: application/json" \
+    -d "{\"userName\":\"${TEST_USER2}\",\"password\":\"${TEST_PASS2}\",\"emailAddress\":\"${TEST_EMAIL2}\",\"firstName\":\"NDEx\",\"lastName\":\"Test2\"}" \
+    "${BASE_URL}/v2/user")
+  if [[ "${ANON_HTTP}" == "401" ]]; then
+    api_pass "POST /v2/user (anon) → 401 Unauthorized (AUTHENTICATED_USER_ONLY blocks anonymous user creation)"
+  else
+    api_fail "POST /v2/user (anon) → HTTP ${ANON_HTTP} (expected 401 with AUTHENTICATED_USER_ONLY=true)"
+  fi
+
+  echo "  API call 26/${TOTAL_API_CALLS}: POST /v2/user (auth as ${TEST_USER}, expect 201)"
+  AUTH_CREATE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+    -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"userName\":\"${TEST_USER2}\",\"password\":\"${TEST_PASS2}\",\"emailAddress\":\"${TEST_EMAIL2}\",\"firstName\":\"NDEx\",\"lastName\":\"Test2\"}" \
+    "${BASE_URL}/v2/user")
+  if [[ "${AUTH_CREATE_HTTP}" == "201" ]]; then
+    api_pass "POST /v2/user (auth) → 201 Created (authenticated caller can create users when AUTHENTICATED_USER_ONLY=true)"
+  else
+    api_fail "POST /v2/user (auth) → HTTP ${AUTH_CREATE_HTTP} (expected 201 — endpoint must work for authenticated users)"
+  fi
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
