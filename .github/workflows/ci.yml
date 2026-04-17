@@ -63,7 +63,7 @@ jobs:
 
       - name: Push latest image
         env:
-          DOCKER_REPO: ndexbio/ndex-api
+          DOCKER_REPO: ndexbio/ndex-rest
           DOCKER_TAG: latest
         run: make push-docker
 
@@ -86,5 +86,5 @@ jobs:
 
       - name: Push image
         env:
-          DOCKER_REPO: ndexbio/ndex-api
+          DOCKER_REPO: ndexbio/ndex-rest
         run: make push-docker
