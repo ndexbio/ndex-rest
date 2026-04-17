@@ -160,7 +160,6 @@ public class UserServiceV2 extends NdexService {
 
 	@POST
 	@PermitAll
-	@NdexOpenFunction
 	@Operation(summary = "Create User", description = "Create a new user based on a JSON object specifying username, password, and emailAddress.")
 	@Produces("text/plain")
 	@Consumes("application/json")
