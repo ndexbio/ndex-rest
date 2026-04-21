@@ -33,6 +33,7 @@ TEST_EMAIL2="ndextest2@ndex-integration.local"
 
 TOTAL_API_CALLS=26
 PASSED=0
+CALL_NUM=0
 LOAD_TIMEOUT=90
 
 SKIP_BUILD=false
@@ -161,7 +162,8 @@ fi
 # ── STEP 4: Create test user ──────────────────────────────────────────────────
 
 step 4 "Creating test user"
-echo "  API call 1/${TOTAL_API_CALLS}: POST /v2/user"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user"
 
 USER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/v2/user" \
   -H "Content-Type: application/json" \
@@ -186,7 +188,8 @@ fi
 # ── STEP 5: Verify Basic Auth ─────────────────────────────────────────────────
 
 step 5 "Verifying Basic Auth login"
-echo "  API call 2/${TOTAL_API_CALLS}: GET /user/authenticate"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /user/authenticate"
 
 AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
   -u "${TEST_USER}:${TEST_PASS}" \
@@ -207,7 +210,6 @@ V2_PRIV_UUID=""
 CX_INDEX=0
 for CX_FILE in "${FIXTURES_DIR}"/*.cx; do
   CX_INDEX=$((CX_INDEX + 1))
-  API_CALL_NUM=$((2 + CX_INDEX))
   NETWORK_LABEL="$(basename "${CX_FILE}")"
 
   if [[ ${CX_INDEX} -eq 3 ]]; then
@@ -216,7 +218,8 @@ for CX_FILE in "${FIXTURES_DIR}"/*.cx; do
     VISIBILITY="PUBLIC"
   fi
 
-  echo "  API call ${API_CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/network?visibility=${VISIBILITY}  [${NETWORK_LABEL}]"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/network?visibility=${VISIBILITY}  [${NETWORK_LABEL}]"
 
   UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -269,8 +272,8 @@ step 8 "Retrieving v2-uploaded CX1 networks as CX2 via GET /v3/networks/{uuid}"
 
 for i in "${!V2_UUIDS[@]}"; do
   UUID="${V2_UUIDS[$i]}"
-  API_CALL_NUM=$((5 + i + 1))
-  echo "  API call ${API_CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${UUID}"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${UUID}"
 
   V3_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -292,7 +295,6 @@ V3_PRIV_UUID=""
 CX2_INDEX=0
 for CX2_FILE in "${FIXTURES_DIR}"/*.cx2; do
   CX2_INDEX=$((CX2_INDEX + 1))
-  API_CALL_NUM=$((8 + CX2_INDEX))
   NETWORK_LABEL="$(basename "${CX2_FILE}")"
 
   if [[ ${CX2_INDEX} -eq 3 ]]; then
@@ -301,7 +303,8 @@ for CX2_FILE in "${FIXTURES_DIR}"/*.cx2; do
     VISIBILITY="PUBLIC"
   fi
 
-  echo "  API call ${API_CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks?visibility=${VISIBILITY}  [${NETWORK_LABEL}]"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks?visibility=${VISIBILITY}  [${NETWORK_LABEL}]"
 
   UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -354,8 +357,8 @@ step 11 "Retrieving v3 networks via GET /v3/networks/{uuid}"
 
 for i in "${!V3_UUIDS[@]}"; do
   UUID="${V3_UUIDS[$i]}"
-  API_CALL_NUM=$((11 + i + 1))
-  echo "  API call ${API_CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${UUID}"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${UUID}"
 
   V3_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -374,7 +377,8 @@ step 12 "Asserting anonymous clients cannot retrieve private networks"
 echo "  Private v2 network (WP5434): ${V2_PRIV_UUID}"
 echo "  Private v3 network (ChEMBL):  ${V3_PRIV_UUID}"
 
-echo "  API call 15/${TOTAL_API_CALLS}: GET /v3/networks/${V2_PRIV_UUID} (no auth, expect 401)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V2_PRIV_UUID} (no auth, expect 401)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")
 if [[ "${ANON_HTTP}" == "401" ]]; then
   api_pass "GET /v3/networks/${V2_PRIV_UUID} (anon) → 401 Unauthorized (private v2 network blocked)"
@@ -382,7 +386,8 @@ else
   api_fail "GET /v3/networks/${V2_PRIV_UUID} (anon) → HTTP ${ANON_HTTP} (expected 401 for private network)"
 fi
 
-echo "  API call 16/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PRIV_UUID} (no auth, expect 401)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PRIV_UUID} (no auth, expect 401)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}")
 if [[ "${ANON_HTTP}" == "401" ]]; then
   api_pass "GET /v3/networks/${V3_PRIV_UUID} (anon) → 401 Unauthorized (private v3 network blocked)"
@@ -390,7 +395,8 @@ else
   api_fail "GET /v3/networks/${V3_PRIV_UUID} (anon) → HTTP ${ANON_HTTP} (expected 401 for private network)"
 fi
 
-echo "  API call 17/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}/summary (no auth, expect 401)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}/summary (no auth, expect 401)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/network/${V2_PRIV_UUID}/summary")
 if [[ "${ANON_HTTP}" == "401" ]]; then
   api_pass "GET /v2/network/${V2_PRIV_UUID}/summary (anon) → 401 Unauthorized (private v2 summary blocked)"
@@ -398,7 +404,8 @@ else
   api_fail "GET /v2/network/${V2_PRIV_UUID}/summary (anon) → HTTP ${ANON_HTTP} (expected 401 for private network)"
 fi
 
-echo "  API call 18/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PRIV_UUID}/summary (no auth, expect 401)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PRIV_UUID}/summary (no auth, expect 401)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}/summary")
 if [[ "${ANON_HTTP}" == "401" ]]; then
   api_pass "GET /v3/networks/${V3_PRIV_UUID}/summary (anon) → 401 Unauthorized (private v3 summary blocked)"
@@ -413,7 +420,8 @@ step 13 "Asserting anonymous clients can retrieve public networks"
 V2_PUB_UUID="${V2_UUIDS[0]}"
 V3_PUB_UUID="${V3_UUIDS[0]}"
 
-echo "  API call 19/${TOTAL_API_CALLS}: GET /v3/networks/${V2_PUB_UUID} (no auth, expect 200)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V2_PUB_UUID} (no auth, expect 200)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PUB_UUID}")
 if [[ "${ANON_HTTP}" == "200" ]]; then
   api_pass "GET /v3/networks/${V2_PUB_UUID} (anon) → 200 OK (public v2 network accessible)"
@@ -421,7 +429,8 @@ else
   api_fail "GET /v3/networks/${V2_PUB_UUID} (anon) → HTTP ${ANON_HTTP} (expected 200 for public network)"
 fi
 
-echo "  API call 20/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PUB_UUID} (no auth, expect 200)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PUB_UUID} (no auth, expect 200)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V3_PUB_UUID}")
 if [[ "${ANON_HTTP}" == "200" ]]; then
   api_pass "GET /v3/networks/${V3_PUB_UUID} (anon) → 200 OK (public v3 network accessible)"
@@ -433,7 +442,8 @@ fi
 
 step 14 "Asserting authenticated owner can retrieve their private networks"
 
-echo "  API call 21/${TOTAL_API_CALLS}: GET /v3/networks/${V2_PRIV_UUID} (auth, expect 200)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V2_PRIV_UUID} (auth, expect 200)"
 AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
   -u "${TEST_USER}:${TEST_PASS}" \
   "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")
@@ -443,7 +453,8 @@ else
   api_fail "GET /v3/networks/${V2_PRIV_UUID} (auth) → HTTP ${AUTH_HTTP} (expected 200 for owner)"
 fi
 
-echo "  API call 22/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PRIV_UUID} (auth, expect 200)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PRIV_UUID} (auth, expect 200)"
 AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
   -u "${TEST_USER}:${TEST_PASS}" \
   "${BASE_URL}/v3/networks/${V3_PRIV_UUID}")
@@ -457,7 +468,8 @@ fi
 
 step 15 "Searching v2 networks via POST /v2/search/network"
 
-echo "  API call 23/${TOTAL_API_CALLS}: POST /v2/search/network?searchString=WP1984 (anon, expect 200 + UUID)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/search/network?searchString=WP1984 (anon, expect 200 + UUID)"
 
 # Poll until the UUID appears — defensive against any Solr commit latency.
 ELAPSED=0
@@ -490,7 +502,8 @@ step 16 "Searching v3-uploaded CX2 networks via POST /v3/search/files (authentic
 
 # V3_UUIDS[0] = BindingDB (first public CX2 network). Use the new v3 global search endpoint
 # which queries public-nfs directly. Requires authentication.
-echo "  API call 24/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (auth, expect 200 + UUID)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (auth, expect 200 + UUID)"
 
 # Poll until the UUID appears — public-nfs Solr commit can be async (especially
 # with bind-mounted data directories where host filesystem I/O adds latency).
@@ -542,7 +555,8 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   done
   echo "  Tomcat is ready."
 
-  echo "  API call 25/${TOTAL_API_CALLS}: POST /v2/user (no auth, expect 401)"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (no auth, expect 401)"
   ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
     -H "Content-Type: application/json" \
     -d "{\"userName\":\"${TEST_USER2}\",\"password\":\"${TEST_PASS2}\",\"emailAddress\":\"${TEST_EMAIL2}\",\"firstName\":\"NDEx\",\"lastName\":\"Test2\"}" \
@@ -553,7 +567,8 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     api_fail "POST /v2/user (anon) → HTTP ${ANON_HTTP} (expected 401 with AUTHENTICATED_USER_ONLY=true)"
   fi
 
-  echo "  API call 26/${TOTAL_API_CALLS}: POST /v2/user (auth as ${TEST_USER}, expect 201)"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (auth as ${TEST_USER}, expect 201)"
   AUTH_CREATE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" \
