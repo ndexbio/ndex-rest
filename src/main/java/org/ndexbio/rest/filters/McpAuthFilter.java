@@ -60,10 +60,10 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
         Enumeration<String> names = httpReq.getHeaderNames();
         while (names != null && names.hasMoreElements()) {
             String name = names.nextElement();
-            headers.addAll(name, Collections.list(httpReq.getHeaders(name)));
+            // Normalize Authorization to canonical capitalization — Tomcat may lowercase header names
+            String canonicalName = "authorization".equalsIgnoreCase(name) ? "Authorization" : name;
+            headers.addAll(canonicalName, Collections.list(httpReq.getHeaders(name)));
         }
-        String authorizationValue = httpReq.getHeader("Authorization");
-        if (authorizationValue != null) headers.putSingle("Authorization", authorizationValue);
 
         try {
             User user = handleFilter(headers);  // from BasicAuthenticationFilter; throws Exception broadly
