@@ -5,9 +5,8 @@ NDEx Rest Server
 
 ## Container Deployments
 
-A production-oriented Docker image bundles the full NDEx stack — PostgreSQL, Keycloak, Apache Solr, MailHog, and the NDEx REST API (Tomcat) — into a single self-contained image.
+A production-oriented [Docker image](docker/README.md]) bundles the full NDEx stack — PostgreSQL, Keycloak, Apache Solr, MailHog, and the NDEx REST API (Tomcat) — into a single self-contained image.
 
-The `runtime-base` stage is also used by the devcontainer image, ensuring both environments run identical service installations.
 
 Key features:
 - **Monolithic or distributed**: run all services in one container, or split them across containers using command-line flags (`--ndex`, `--postgres`, `--solr`, `--keycloak`, `--mailhog`)
@@ -46,3 +45,93 @@ NDEx exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) 
 - **Write/mutate tools** (`create_network`, `update_network`, `delete_network`, `manage_folder`, `set_network_properties`, `set_network_system_properties`, `update_network_profile`) perform an explicit auth check — requests with no authenticated user are rejected immediately with a structured 401 result
 - **Read tools** (`search_network`, `get_network_summary`, `download_network`, `get_folder`) delegate to the underlying NDEx service layer, which enforces per-resource visibility: public networks and folders are accessible without credentials; private resources require either an authenticated user or a valid `accessKey` query parameter
 - All tools invoke NDEx services **in-process** (no outbound HTTP) — the same `HttpServletRequest` carrying the authenticated user is passed directly to `NetworkServiceV3`, `SearchServiceV2`, `FolderServiceV3`, etc., so permission checks work transparently without any re-authentication
+
+---
+
+### Connecting an AI Agent
+
+If your agent is not listed below, consult its documentation for configuring an MCP server
+with Streamable HTTP transport. The NDEx MCP server URL is:
+
+```
+http://<host>:8080/mcp
+```
+
+For a local Docker container that is `http://localhost:8080/mcp`. Replace the host and port
+for any remote NDEx server.
+
+---
+
+#### Claude Desktop
+
+**Prerequisite:** In Claude Desktop go to **Settings > Extensions > Advanced** and enable
+**Use Built-in Node.js for MCP**. This is required for the extension to function.
+
+Download `ndex-mcp.mcpb` from the
+[releases page](https://github.com/ndexbio/ndex-rest/releases). In Claude Desktop go to
+**Settings > Extensions**, click **Install Extension**, and select the downloaded file.
+
+The **NDEx MCP** connector will appear in **Customize > Connectors**. Fill in the host,
+port, username, and password fields. Leave username/password blank for anonymous read-only
+access to public networks.
+
+---
+
+#### Claude Code
+
+```bash
+claude mcp add --transport http ndex http://localhost:8080/mcp \
+  --header "Authorization: Basic $(echo -n 'username:password' | base64)"
+```
+
+Or add to `~/.claude.json` (user-wide) or `.mcp.json` (project root):
+
+```json
+{
+  "mcpServers": {
+    "ndex": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp",
+      "headers": {
+        "Authorization": "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+      }
+    }
+  }
+}
+```
+
+`dXNlcm5hbWU6cGFzc3dvcmQ=` is the base64 encoding of `username:password`.
+Generate yours: `echo -n 'username:password' | base64` (macOS/Linux) or
+`[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("username:password"))`
+(Windows PowerShell). Omit the `headers` block for anonymous access.
+
+---
+
+#### VS Code GitHub Copilot
+
+Add to `.vscode/mcp.json` in the workspace root. The `${input:ndex-token}` reference
+prompts once and is stored securely by VS Code:
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "ndex-token",
+      "description": "NDEx Basic Auth token — base64 of username:password",
+      "password": true
+    }
+  ],
+  "servers": {
+    "ndex": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp",
+      "headers": {
+        "Authorization": "Basic ${input:ndex-token}"
+      }
+    }
+  }
+}
+```
+
+Omit the `headers` block and `inputs` array for anonymous access.

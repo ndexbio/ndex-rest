@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker integration-test integration-test-mcp
+.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker integration-test integration-test-mcp build_claude_mcpb
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -96,3 +96,12 @@ integration-test: ## run integration tests
 
 integration-test-mcp: ## run MCP integration tests (standalone)
 	docker/test/integration-mcp-test.sh
+
+build_claude_mcpb: ## package claude-extension/ into build/ndex-mcp.mcpb
+	rm -rf build/mcpb-staging build/ndex-mcp.mcpb
+	mkdir -p build/mcpb-staging
+	cp claude-extension/manifest.json build/mcpb-staging/manifest.json
+	cp claude-extension/icon.png build/mcpb-staging/icon.png
+	cp -r claude-extension/server build/mcpb-staging/server
+	cd build/mcpb-staging && zip -r ../ndex-mcp.mcpb .
+	@echo "Built build/ndex-mcp.mcpb"

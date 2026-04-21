@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-mcpb:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Claude Desktop extension
+        run: make build_claude_mcpb
+
+      - name: Upload ndex-mcp.mcpb to release
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "build/ndex-mcp.mcpb" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
