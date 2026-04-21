@@ -52,13 +52,18 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
             return;
         }
 
-        // Adapt HttpServletRequest headers to MultivaluedMap for handleFilter()
+        // Adapt HttpServletRequest headers to MultivaluedMap for handleFilter().
+        // parseCredentials() does case-sensitive map lookups (e.g. "Authorization"),
+        // but Tomcat may normalize header names. Use the case-insensitive Servlet API
+        // getHeader() to always populate the expected canonical key.
         MultivaluedHashMap<String, String> headers = new MultivaluedHashMap<>();
         Enumeration<String> names = httpReq.getHeaderNames();
         while (names != null && names.hasMoreElements()) {
             String name = names.nextElement();
             headers.addAll(name, Collections.list(httpReq.getHeaders(name)));
         }
+        String authorizationValue = httpReq.getHeader("Authorization");
+        if (authorizationValue != null) headers.putSingle("Authorization", authorizationValue);
 
         try {
             User user = handleFilter(headers);  // from BasicAuthenticationFilter; throws Exception broadly

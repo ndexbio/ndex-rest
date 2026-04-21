@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker integration-test
+.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker integration-test integration-test-mcp
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -93,3 +93,6 @@ push-docker: docker ## push deploy image to registry (requires DOCKER_REPO and D
 
 integration-test: ## run integration tests
 	docker/test/integration-test.sh
+
+integration-test-mcp: ## run MCP integration tests (standalone)
+	docker/test/integration-mcp-test.sh

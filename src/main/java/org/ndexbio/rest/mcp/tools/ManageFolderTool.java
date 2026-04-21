@@ -190,7 +190,8 @@ public class ManageFolderTool {
                     if (parent != null) request.setParent(UUID.fromString(parent));
                     if (description != null) request.setDescription(description);
                     Response response = new FolderServiceV3(httpReq).createFolder(request);
-                    NdexObjectUpdateStatus status = (NdexObjectUpdateStatus) response.getEntity();
+                    NdexObjectUpdateStatus status = MAPPER.readValue(
+                            (String) response.getEntity(), NdexObjectUpdateStatus.class);
                     String folderId = status.getUuid().toString();
                     return CallToolResult.builder()
                             .structuredContent(new ManageFolderResponse(

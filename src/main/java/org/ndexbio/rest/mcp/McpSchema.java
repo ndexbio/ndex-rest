@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.github.victools.jsonschema.generator.CustomDefinition;
 import com.github.victools.jsonschema.generator.OptionPreset;
 import com.github.victools.jsonschema.generator.SchemaGenerator;
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder;
@@ -47,11 +48,20 @@ public class McpSchema {
      * registered for external/third-party classes that cannot be annotated directly).
      */
     public static String toSchemaJson(Class<?> clazz, ObjectMapper mapper) {
-        SchemaGenerator generator = new SchemaGenerator(
+        SchemaGeneratorConfigBuilder configBuilder =
             new SchemaGeneratorConfigBuilder(mapper, SchemaVersion.DRAFT_2020_12, OptionPreset.PLAIN_JSON)
-                .with(new JacksonModule(JacksonOption.FLATTENED_ENUMS_FROM_JSONPROPERTY))
-                .build());
-        return generator.generateSchema(clazz).toPrettyString();
+                .with(new JacksonModule(JacksonOption.FLATTENED_ENUMS_FROM_JSONPROPERTY));
+        // java.sql.Timestamp and other Date subclasses serialize as Unix-epoch integers in Jackson
+        // but victools generates {"type":"object"} for them — map to integer to match serialization.
+        configBuilder.forTypesInGeneral()
+            .withCustomDefinitionProvider((javaType, context) -> {
+                if (java.util.Date.class.isAssignableFrom(javaType.getErasedType())) {
+                    return new CustomDefinition(
+                        mapper.createObjectNode().put("type", "integer"));
+                }
+                return null;
+            });
+        return new SchemaGenerator(configBuilder.build()).generateSchema(clazz).toPrettyString();
     }
 
     // --- Conditional parameter support ---

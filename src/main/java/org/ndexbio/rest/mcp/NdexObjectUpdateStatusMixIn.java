@@ -16,7 +16,7 @@ public abstract class NdexObjectUpdateStatusMixIn {
 
     @JsonProperty("modificationTime")
     @JsonPropertyDescription(
-        "Server timestamp when the update was accepted. " +
+        "Server timestamp when the update was accepted, as Unix epoch milliseconds. " +
         "Poll get_network_summary with this networkId until the summary's isCompleted is true.")
-    public abstract java.sql.Timestamp getModificationTime();
+    public abstract long getModificationTime();
 }

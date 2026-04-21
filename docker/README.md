@@ -119,6 +119,38 @@ TEST FAILED
 
 Exit code 1 means the test failed. The container is always stopped and removed on exit (pass or fail).
 
+### MCP Integration Test
+
+A separate standalone script at `docker/test/integration-mcp-test.sh` validates the NDEx MCP server end-to-end. It creates its own test data, runs all 11 registered MCP tools against a live server, and relies on container teardown for cleanup — no manual teardown needed.
+
+**What it validates:**
+- MCP manifest endpoint is publicly accessible (`GET /mcp/manifest`)
+- `search_network` and `get_network_summary` work unauthenticated for public networks
+- `get_network_summary` rejects unauthenticated access to private networks
+- All auth-required tools (`create_network`, `update_network`, `delete_network`,
+  `update_network_profile`, `set_network_properties`, `set_network_systemproperties`,
+  `get_folder`, `manage_folder`) reject requests with no credentials
+- All 11 tools execute successfully end-to-end with valid Basic Auth credentials
+- `download_network` returns chunk data for a public network without authentication
+
+```bash
+# Full run (build + test)
+make integration-test-mcp
+
+# Skip the image build
+docker/test/integration-mcp-test.sh --skip-build
+
+# Run against an existing server
+docker/test/integration-mcp-test.sh --remote-ndex-url http://<host>:<port>
+```
+
+Expected output on success:
+```
+================================================
+  ✓ ALL 31 API CALLS PASSED — TEST PASSED
+================================================
+```
+
 ---
 
 ## Running deployment modes
