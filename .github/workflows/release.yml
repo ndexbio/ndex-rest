@@ -21,3 +21,28 @@ jobs:
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-mcp-manifest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Generate McpManifest.md
+        run: make mcp-manifest
+
+      - name: Upload McpManifest to release
+        run: |
+          cp target/generated-resources/McpManifest.md \
+             "McpManifest-${{ github.event.release.tag_name }}.md"
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "McpManifest-${{ github.event.release.tag_name }}.md" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

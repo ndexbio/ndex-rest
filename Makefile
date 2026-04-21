@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker integration-test integration-test-mcp build_claude_mcpb
+.PHONY: clean clean-test clean-pyc clean-build docs mcp-manifest help docker docker-dev push-docker integration-test integration-test-mcp build_claude_mcpb
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -57,6 +57,10 @@ docs: ## generate Sphinx HTML documentation, including API docs
 
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
+
+mcp-manifest: ## generate McpManifest.md from registered MCP tools
+	mvn process-classes
+	@echo "McpManifest.md written to target/generated-resources/McpManifest.md"
 
 # Component version overrides — passed as Docker build-args
 KEYCLOAK_VERSION  ?= 26.1.0
