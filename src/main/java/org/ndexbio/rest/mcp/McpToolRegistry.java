@@ -12,7 +12,7 @@ import org.ndexbio.rest.mcp.tools.GetNetworkSummaryTool;
 import org.ndexbio.rest.mcp.tools.ManageFolderTool;
 import org.ndexbio.rest.mcp.tools.SearchNetworkTool;
 import org.ndexbio.rest.mcp.tools.SetNetworkPropertiesTool;
-import org.ndexbio.rest.mcp.tools.SetNetworkVisibilityTool;
+import org.ndexbio.rest.mcp.tools.SetNetworkSystemPropertiesTool;
 import org.ndexbio.rest.mcp.tools.UpdateNetworkProfileTool;
 import org.ndexbio.rest.mcp.tools.UpdateNetworkTool;
 
@@ -42,7 +42,7 @@ public class McpToolRegistry {
             new UpdateNetworkTool(ts, uploadService).toSpec(),
             new UpdateNetworkProfileTool(ts).toSpec(),
             new SetNetworkPropertiesTool(ts).toSpec(),
-            new SetNetworkVisibilityTool(ts).toSpec(),
+            new SetNetworkSystemPropertiesTool(ts).toSpec(),
             new CreateNetworkTool(ts, uploadService).toSpec(),
             new DeleteNetworkTool(ts).toSpec(),
             new GetFolderTool(ts).toSpec(),

@@ -1,6 +1,5 @@
 package org.ndexbio.rest.mcp.tools;
 
-import java.util.List;
 import java.util.Map;
 
 import io.modelcontextprotocol.common.McpTransportContext;
@@ -16,22 +15,22 @@ import org.ndexbio.rest.mcp.ToolsService;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class TestSetNetworkVisibilityTool {
+class TestSetNetworkSystemPropertiesTool {
 
     private ToolsService toolsService;
-    private SetNetworkVisibilityTool tool;
+    private SetNetworkSystemPropertiesTool tool;
 
     @BeforeEach
     void setUp() {
         toolsService = new ToolsService();
-        tool = new SetNetworkVisibilityTool(toolsService);
+        tool = new SetNetworkSystemPropertiesTool(toolsService);
     }
 
     // --- Tool spec metadata ---
 
     @Test
     void toSpec_hasCorrectToolName() {
-        assertEquals(SetNetworkVisibilityTool.TOOL_NAME, tool.toSpec().tool().name());
+        assertEquals(SetNetworkSystemPropertiesTool.TOOL_NAME, tool.toSpec().tool().name());
     }
 
     @Test
@@ -49,25 +48,26 @@ class TestSetNetworkVisibilityTool {
     }
 
     @Test
-    void inputSchema_requiresNetworkIdAndVisibility() {
+    void inputSchema_requiresOnlyNetworkId() {
         McpSchema.JsonSchema schema = tool.toSpec().tool().inputSchema();
-        assertTrue(schema.required().contains("networkId"),   "networkId should be required");
-        assertTrue(schema.required().contains("visibility"),  "visibility should be required");
+        assertTrue(schema.required().contains("networkId"), "networkId should be required");
+        assertFalse(schema.required().contains("visibility"), "visibility should not be required");
+        assertFalse(schema.required().contains("readonly"),   "readonly should not be required");
     }
 
     @Test
-    void inputSchema_hasExactlyTwoProperties() {
+    void inputSchema_exactlyOneRequiredField() {
+        McpSchema.JsonSchema schema = tool.toSpec().tool().inputSchema();
+        assertEquals(1, schema.required().size(), "only networkId should be required");
+    }
+
+    @Test
+    void inputSchema_hasExactlyThreeProperties() {
         Map<String, Object> props = tool.toSpec().tool().inputSchema().properties();
         assertTrue(props.containsKey("networkId"));
         assertTrue(props.containsKey("visibility"));
-        assertEquals(2, props.size());
-    }
-
-    @Test
-    void inputSchema_exactlyTwoRequiredFields() {
-        McpSchema.JsonSchema schema = tool.toSpec().tool().inputSchema();
-        assertEquals(2, schema.required().size(),
-                "only networkId and visibility should be required");
+        assertTrue(props.containsKey("readonly"));
+        assertEquals(3, props.size());
     }
 
     @Test
@@ -76,12 +76,21 @@ class TestSetNetworkVisibilityTool {
         Map<String, Object> props = tool.toSpec().tool().inputSchema().properties();
         Map<String, Object> visibilityProp = (Map<String, Object>) props.get("visibility");
         assertNotNull(visibilityProp, "visibility property should exist");
-        List<String> enumValues = (List<String>) visibilityProp.get("enum");
+        java.util.List<String> enumValues = (java.util.List<String>) visibilityProp.get("enum");
         assertNotNull(enumValues, "visibility property should have an enum constraint");
         assertTrue(enumValues.contains("PUBLIC"),   "enum should include PUBLIC");
         assertTrue(enumValues.contains("PRIVATE"),  "enum should include PRIVATE");
         assertTrue(enumValues.contains("UNLISTED"), "enum should include UNLISTED");
         assertEquals(3, enumValues.size(), "enum should have exactly 3 values");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void inputSchema_readonlyIsBooleanType() {
+        Map<String, Object> props = tool.toSpec().tool().inputSchema().properties();
+        Map<String, Object> readonlyProp = (Map<String, Object>) props.get("readonly");
+        assertNotNull(readonlyProp, "readonly property should exist");
+        assertEquals("boolean", readonlyProp.get("type"), "readonly should have type boolean");
     }
 
     // --- Output schema ---
@@ -101,6 +110,7 @@ class TestSetNetworkVisibilityTool {
         assertNotNull(props, "outputSchema should have a 'properties' entry");
         assertTrue(props.containsKey("networkId"),  "output schema missing 'networkId'");
         assertTrue(props.containsKey("visibility"), "output schema missing 'visibility'");
+        assertTrue(props.containsKey("readonly"),   "output schema missing 'readonly'");
         assertTrue(props.containsKey("message"),    "output schema missing 'message'");
     }
 
@@ -108,8 +118,6 @@ class TestSetNetworkVisibilityTool {
 
     @Test
     void handle_returnsErrorResult_whenHttpRequestMissingFromContext() {
-        // Transport context has no "ndexRequest" — handler receives null httpReq,
-        // causing NPE on httpReq.getAttribute("User"), caught as generic Throwable.
         McpSyncServerExchange exchange = EasyMock.mock(McpSyncServerExchange.class);
         EasyMock.expect(exchange.transportContext())
                 .andReturn(McpTransportContext.EMPTY)
@@ -174,9 +182,29 @@ class TestSetNetworkVisibilityTool {
     }
 
     @Test
-    void handle_withValidUser_publicVisibility_failsAtService() {
-        // Auth passes; uppercase-already value "PUBLIC" exercises the toUpperCase path.
-        // Service call fails (no DB) — caught as Throwable, returns isError=true.
+    void handle_withValidUser_neitherParam_returnsError() {
+        // Auth passes but neither visibility nor readonly is provided — handler returns
+        // isError=true without reaching the service layer.
+        User user = new User();
+        HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
+        EasyMock.expect(httpReq.getAttribute("User")).andReturn(user).once();
+        McpTransportContext ctx = McpTransportContext.create(Map.of("ndexRequest", httpReq));
+        McpSyncServerExchange exchange = EasyMock.mock(McpSyncServerExchange.class);
+        EasyMock.expect(exchange.transportContext()).andReturn(ctx).once();
+        EasyMock.replay(httpReq, exchange);
+
+        McpSchema.CallToolResult result = invokeHandler(exchange,
+                Map.of("networkId", "f93f402c-86d4-11e7-a10d-0ac135e8bacf"));
+
+        assertTrue(result.isError(), "should return isError=true when neither param provided");
+        String msg = ((McpSchema.TextContent) result.content().get(0)).text();
+        assertTrue(msg.contains("at least one"), "error message should mention at-least-one requirement");
+        EasyMock.verify(httpReq, exchange);
+    }
+
+    @Test
+    void handle_withValidUser_visibilityOnly_failsAtService() {
+        // Auth passes; only visibility provided; service call fails (no DB) → isError=true.
         User user = new User();
         HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
         EasyMock.expect(httpReq.getAttribute("User")).andReturn(user).anyTimes();
@@ -195,8 +223,7 @@ class TestSetNetworkVisibilityTool {
 
     @Test
     void handle_withValidUser_lowercaseVisibility_failsAtService() {
-        // Exercises the toUpperCase() normalization branch with lowercase input "private".
-        // Service call fails (no DB) — caught as Throwable, returns isError=true.
+        // Exercises the toUpperCase() normalization branch with lowercase "private".
         User user = new User();
         HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
         EasyMock.expect(httpReq.getAttribute("User")).andReturn(user).anyTimes();
@@ -213,12 +240,51 @@ class TestSetNetworkVisibilityTool {
         EasyMock.verify(httpReq, exchange);
     }
 
+    @Test
+    void handle_withValidUser_readonlyTrue_failsAtService() {
+        // Only readonly=true provided; service call fails (no DB) → isError=true.
+        User user = new User();
+        HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
+        EasyMock.expect(httpReq.getAttribute("User")).andReturn(user).anyTimes();
+        McpTransportContext ctx = McpTransportContext.create(Map.of("ndexRequest", httpReq));
+        McpSyncServerExchange exchange = EasyMock.mock(McpSyncServerExchange.class);
+        EasyMock.expect(exchange.transportContext()).andReturn(ctx).once();
+        EasyMock.replay(httpReq, exchange);
+
+        McpSchema.CallToolResult result = invokeHandler(exchange,
+                Map.of("networkId", "f93f402c-86d4-11e7-a10d-0ac135e8bacf",
+                       "readonly", true));
+
+        assertTrue(result.isError(), "should return isError=true when service call fails");
+        EasyMock.verify(httpReq, exchange);
+    }
+
+    @Test
+    void handle_withValidUser_bothParams_failsAtService() {
+        // Both visibility and readonly provided in one call; service fails (no DB) → isError=true.
+        User user = new User();
+        HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
+        EasyMock.expect(httpReq.getAttribute("User")).andReturn(user).anyTimes();
+        McpTransportContext ctx = McpTransportContext.create(Map.of("ndexRequest", httpReq));
+        McpSyncServerExchange exchange = EasyMock.mock(McpSyncServerExchange.class);
+        EasyMock.expect(exchange.transportContext()).andReturn(ctx).once();
+        EasyMock.replay(httpReq, exchange);
+
+        McpSchema.CallToolResult result = invokeHandler(exchange,
+                Map.of("networkId",  "f93f402c-86d4-11e7-a10d-0ac135e8bacf",
+                       "visibility", "PUBLIC",
+                       "readonly",   false));
+
+        assertTrue(result.isError(), "should return isError=true when service call fails");
+        EasyMock.verify(httpReq, exchange);
+    }
+
     // Helper: invokes the registered handler synchronously
     private McpSchema.CallToolResult invokeHandler(McpSyncServerExchange exchange,
                                                     Map<String, Object> arguments) {
         McpServerFeatures.SyncToolSpecification spec = tool.toSpec();
         McpSchema.CallToolRequest request =
-                new McpSchema.CallToolRequest(SetNetworkVisibilityTool.TOOL_NAME, arguments);
+                new McpSchema.CallToolRequest(SetNetworkSystemPropertiesTool.TOOL_NAME, arguments);
         return spec.callHandler().apply(exchange, request);
     }
 }
