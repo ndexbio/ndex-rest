@@ -11,7 +11,8 @@
 
 'use strict';
 
-const http = require('http');
+const http  = require('http');
+const https = require('https');
 
 const HOST     = process.env.NDEX_HOST     || 'localhost';
 const PORT     = parseInt(process.env.NDEX_PORT || '8080', 10);
@@ -20,6 +21,8 @@ const password = process.env.NDEX_PASSWORD || '';
 const authHeader = username
   ? 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64')
   : null;
+const useSSL = process.env.NDEX_SSL === 'true';
+const transport = useSSL ? https : http;
 
 let sessionId = null; // MCP session assigned by the server on first response
 let stdinBuffer = '';
@@ -77,7 +80,7 @@ function forwardToServer(jsonLine, attempt = 0) {
     }
   }
 
-  const req = http.request(
+  const req = transport.request(
     { hostname: HOST, port: PORT, path: '/mcp', method: 'POST', headers },
     (res) => {
       // Capture session ID for all subsequent requests.
@@ -126,7 +129,7 @@ function forwardToServer(jsonLine, attempt = 0) {
         JSON.stringify({
           jsonrpc: '2.0',
           id,
-          error: { code: -32603, message: `Cannot reach NDEx at ${HOST}:${PORT}: ${err.message}` },
+          error: { code: -32603, message: `Cannot reach NDEx at ${useSSL ? 'https' : 'http'}://${HOST}:${PORT}: ${err.message}` },
         }) + '\n'
       );
     }

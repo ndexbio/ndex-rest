@@ -34,6 +34,13 @@
       "title": "NDEx Password",
       "description": "Your NDEx account password. Required for write operations and private network access.",
       "required": false
+    },
+    "NDEX_SSL": {
+      "type": "boolean",
+      "title": "Use HTTPS",
+      "description": "Enable HTTPS for connections to the NDEx server. Disable for local HTTP-only servers.",
+      "default": false,
+      "required": false
     }
   },
   "server": {
@@ -46,7 +53,8 @@
         "NDEX_HOST":     "${user_config.NDEX_HOST}",
         "NDEX_PORT":     "${user_config.NDEX_PORT}",
         "NDEX_USERNAME": "${user_config.NDEX_USERNAME}",
-        "NDEX_PASSWORD": "${user_config.NDEX_PASSWORD}"
+        "NDEX_PASSWORD": "${user_config.NDEX_PASSWORD}",
+        "NDEX_SSL":      "${user_config.NDEX_SSL}"
       }
     }
   }
