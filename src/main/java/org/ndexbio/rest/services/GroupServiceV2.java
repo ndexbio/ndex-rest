@@ -339,6 +339,7 @@ public class GroupServiceV2 extends NdexService {
 	
 	/**************************************************************************
 	 * Retrieves array of network membership objects
+	 * DEPRECATED FOR NDEX 3
 	 * 
 	 * @param groupId
 	 *            The group ID.
@@ -346,6 +347,7 @@ public class GroupServiceV2 extends NdexService {
 	 **************************************************************************/
 	
 	@GET
+	@Deprecated
 	@PermitAll
 	@Path("/{groupid}/permission")
 	@Operation(summary = "Get Network Permissions of a Group", description = "Returns network permissions for the specified group.")
@@ -358,6 +360,8 @@ public class GroupServiceV2 extends NdexService {
 					throws NdexException, SQLException, IllegalArgumentException {
 
 
+		throw new UnsupportedOperationException("Group permissions are no longer supported.");
+		/*
 		UUID groupId = UUID.fromString(groupIdStr);
 
 
@@ -386,11 +390,13 @@ public class GroupServiceV2 extends NdexService {
 			//logger.info("[end: Getting {} networks of group {}]", permissions, groupId);
 			//return l;
 		}
+
+		 */
 	}
 	
 	/**************************************************************************
 	 * Retrieves array of user membership objects
-	 * 
+	 *
 	 * @param groupId
 	 *            The group ID.
 	 * @throws IllegalArgumentException
@@ -487,16 +493,20 @@ public class GroupServiceV2 extends NdexService {
             throw new NdexException("Failed to get group user memberships");
         }
     }
-	
+
+
 	   @POST
 	   @Path("/{groupid}/permissionrequest")
 	   @Operation(summary = "Create User Permission Request", description = "Creates a request to ask the owner of the network for permission for access by the authenticated user.")
 	   @Produces("text/plain")
-	 
+	   @Deprecated
 	    public Response createRequest(
 	    		@PathParam("groupid") final String groupIdStr,
 	    		final PermissionRequest newRequest) 
 	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+
+		    throw new UnsupportedOperationException("Group permission requests are no longer supported.");
+		/*
 
 			if ( newRequest.getNetworkid() == null)
 					throw new NdexException("Networkid is required in the Posted object.");
@@ -526,7 +536,9 @@ public class GroupServiceV2 extends NdexService {
 				return Response.created(l).entity(l).build();
 			} catch (URISyntaxException e) {
 				throw new NdexException ("Failed to create location URL: " + e.getMessage(), e);
-			} 
+			}
+
+		 */
 	    	
 	    }
 
@@ -535,13 +547,16 @@ public class GroupServiceV2 extends NdexService {
 		@Path("/{groupid}/permissionrequest")
 	    @Operation(summary = "Get a User’s Permission Requests", description = "Returns a JSON array of permission request objects in which the authenticated user is either the recipient or the sender.")
 		@Produces("application/json")
-	
+		@Deprecated
 		public List<Request> getPermissionRequests(@PathParam("groupid") final String groupIdStr,
 				@QueryParam("networkid") final String networkIdStr,
 				@QueryParam("permission") final String permissionStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-			
+
+			throw new UnsupportedOperationException("Group permission requests are no longer supported.");
+
+			/*
 			UUID groupId = UUID.fromString(groupIdStr);
-			
+			throw new Illegal
 			try (GroupDAO dao = new GroupDAO()) {
 				if ( !dao.isInGroup(groupId,getLoggedInUserId()) )
 					throw new NdexException ("Only a group member or admin can check group permission on a network");
@@ -559,7 +574,9 @@ public class GroupServiceV2 extends NdexService {
 				
 				List<Request> m = dao.getGroupPermissionRequest(groupId, networkId, permission);
 				return m;
-			} 
+			}
+
+			 */
 		} 
 	   
 	
@@ -567,11 +584,13 @@ public class GroupServiceV2 extends NdexService {
 		@Path("/{groupid}/permissionrequest/{requestid}")
 		@Operation(summary = "Get a User's Permission Requests by id", description = "Returns the permission request object specified by requestid.")
 		@Produces("application/json")
+		@Deprecated
 		public Request getPermissionRequestById(@PathParam("groupid") String groupIdStr,
 				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
 
 		//	logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
-			
+			throw new UnsupportedOperationException("Group permission requests are no longer supported.");
+			/*
 			UUID groupId = UUID.fromString(groupIdStr);
 			UUID requestId = UUID.fromString(requestIdStr);
 			
@@ -585,6 +604,8 @@ public class GroupServiceV2 extends NdexService {
 		//		logger.info("[end: Returning request]");
 				return reqs;
 			}
+
+			 */
 		}
 
 
