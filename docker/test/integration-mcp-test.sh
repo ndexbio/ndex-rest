@@ -7,11 +7,11 @@
 #                          applies when running against a local container (no --remote-ndex-url).
 #   --remote-ndex-url URL  Run tests against an already-running NDEx instance at URL.
 #
-# Validates all 14 MCP tools end-to-end:
+# Validates all 15 MCP tools end-to-end:
 #   manifest → get_connection_status → anon-allowed tools → auth barriers → create/update → profile/properties →
-#   systemproperties → download → get_user_networks → share → folder management → delete
+#   systemproperties → download → get_user_networks → get_user_info → share → folder management → delete
 #
-# Exits 0 if all 39 API calls pass, exits 1 on the first failure.
+# Exits 0 if all 41 API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
 
 set -euo pipefail
@@ -26,7 +26,7 @@ TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
 
-TOTAL_API_CALLS=39
+TOTAL_API_CALLS=41
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -474,6 +474,11 @@ echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_networks (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-gun-noauth","method":"tools/call","params":{"name":"get_user_networks","arguments":{}}}'
 mcp_fail_expected "get_user_networks (no auth)"
 
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_info (no auth)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-gui-noauth","method":"tools/call","params":{"name":"get_user_info","arguments":{}}}'
+mcp_fail_expected "get_user_info (no auth)"
+
 # ── STEP: MCP create_network + update_network (auth) ─────────────────────────
 
 step "MCP create_network and update_network (auth)"
@@ -585,6 +590,22 @@ echo "${MCP_JSON}" | grep -qE '"count":[1-9][0-9]*' \
   || api_fail "get_user_networks → expected count >= 1 in response: ${MCP_JSON:0:300}"
 echo "${MCP_JSON}" | grep -q '"networks":\[' \
   || api_fail "get_user_networks → expected networks array in response: ${MCP_JSON:0:300}"
+
+# ── STEP: MCP get_user_info ───────────────────────────────────────────────────
+
+step "MCP get_user_info: happy-path"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_info (auth)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-gui","method":"tools/call","params":{"name":"get_user_info","arguments":{}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+mcp_pass "get_user_info (auth)"
+echo "${MCP_JSON}" | grep -q '"user":{' \
+  || api_fail "get_user_info → expected 'user' object in response: ${MCP_JSON:0:300}"
+echo "${MCP_JSON}" | grep -q '"network_count":' \
+  || api_fail "get_user_info → expected 'network_count' in response: ${MCP_JSON:0:300}"
+echo "${MCP_JSON}" | grep -q "\"userName\":\"${TEST_USER}\"" \
+  || api_fail "get_user_info → expected userName:${TEST_USER} in response: ${MCP_JSON:0:300}"
 
 # ── STEP: MCP share_network ───────────────────────────────────────────────────
 
