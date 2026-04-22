@@ -5,6 +5,7 @@ import java.util.List;
 import io.modelcontextprotocol.server.McpServerFeatures;
 
 import org.ndexbio.rest.mcp.tools.CreateNetworkTool;
+import org.ndexbio.rest.mcp.tools.GetConnectionStatusTool;
 import org.ndexbio.rest.mcp.tools.DeleteNetworkTool;
 import org.ndexbio.rest.mcp.tools.DownloadNetworkTool;
 import org.ndexbio.rest.mcp.tools.GetFolderTool;
@@ -19,7 +20,7 @@ import org.ndexbio.rest.mcp.tools.UpdateNetworkProfileTool;
 import org.ndexbio.rest.mcp.tools.UpdateNetworkTool;
 
 /**
- * Single source of truth for all 13 registered MCP tool specifications.
+ * Single source of truth for all 14 registered MCP tool specifications.
  *
  * Used by McpServletContextListener (runtime registration) and McpManifest (build-time
  * schema generation) so both always reflect the same tool set. When adding a new tool,
@@ -51,7 +52,8 @@ public class McpToolRegistry {
             new ManageFolderTool(ts).toSpec(),
             new DownloadNetworkTool(ts, downloadService).toSpec(),
             new ShareNetworkTool(ts).toSpec(),
-            new GetUserNetworksTool(ts).toSpec()
+            new GetUserNetworksTool(ts).toSpec(),
+            new GetConnectionStatusTool(new org.ndexbio.rest.mcp.DefaultConfigLocator()).toSpec()
         );
     }
 }

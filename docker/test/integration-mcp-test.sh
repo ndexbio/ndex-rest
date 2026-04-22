@@ -7,11 +7,11 @@
 #                          applies when running against a local container (no --remote-ndex-url).
 #   --remote-ndex-url URL  Run tests against an already-running NDEx instance at URL.
 #
-# Validates all 13 MCP tools end-to-end:
-#   manifest → anon-allowed tools → auth barriers → create/update → profile/properties →
+# Validates all 14 MCP tools end-to-end:
+#   manifest → get_connection_status → anon-allowed tools → auth barriers → create/update → profile/properties →
 #   systemproperties → download → get_user_networks → share → folder management → delete
 #
-# Exits 0 if all 37 API calls pass, exits 1 on the first failure.
+# Exits 0 if all 39 API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
 
 set -euo pipefail
@@ -26,7 +26,7 @@ TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
 
-TOTAL_API_CALLS=37
+TOTAL_API_CALLS=39
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -354,6 +354,31 @@ mcp_initialize
 [[ -n "${MCP_SESSION_ID}" ]] \
   || api_fail "MCP initialize did not return a Mcp-Session-Id header"
 echo "  Session ID: ${MCP_SESSION_ID}"
+
+# ── STEP: MCP get_connection_status ──────────────────────────────────────────
+
+step "MCP get_connection_status: anonymous and authenticated"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_connection_status (anon)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-cs-anon","method":"tools/call","params":{"name":"get_connection_status","arguments":{}}}'
+mcp_pass "get_connection_status (anon)"
+echo "${MCP_JSON}" | grep -q '"authenticated":false' \
+  || api_fail "get_connection_status anon → expected authenticated:false: ${MCP_JSON:0:300}"
+echo "${MCP_JSON}" | grep -q '"username":"anonymous"' \
+  || api_fail "get_connection_status anon → expected username:anonymous: ${MCP_JSON:0:300}"
+echo "${MCP_JSON}" | grep -q '"server":' \
+  || api_fail "get_connection_status anon → expected server field: ${MCP_JSON:0:300}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_connection_status (auth)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-cs-auth","method":"tools/call","params":{"name":"get_connection_status","arguments":{}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+mcp_pass "get_connection_status (auth)"
+echo "${MCP_JSON}" | grep -q '"authenticated":true' \
+  || api_fail "get_connection_status auth → expected authenticated:true: ${MCP_JSON:0:300}"
+echo "${MCP_JSON}" | grep -q "\"username\":\"${TEST_USER}\"" \
+  || api_fail "get_connection_status auth → expected username:${TEST_USER}: ${MCP_JSON:0:300}"
 
 # ── STEP: MCP anon-allowed tools ──────────────────────────────────────────────
 
