@@ -7,11 +7,11 @@
 #                          applies when running against a local container (no --remote-ndex-url).
 #   --remote-ndex-url URL  Run tests against an already-running NDEx instance at URL.
 #
-# Validates all 12 MCP tools end-to-end:
+# Validates all 13 MCP tools end-to-end:
 #   manifest → anon-allowed tools → auth barriers → create/update → profile/properties →
-#   systemproperties → download → share → folder management → delete
+#   systemproperties → download → get_user_networks → share → folder management → delete
 #
-# Exits 0 if all 35 API calls pass, exits 1 on the first failure.
+# Exits 0 if all 37 API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
 
 set -euo pipefail
@@ -26,9 +26,10 @@ TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
 
-TOTAL_API_CALLS=35
+TOTAL_API_CALLS=37
 PASSED=0
 CALL_NUM=0
+STEP_NUM=0
 LOAD_TIMEOUT=90
 
 SKIP_BUILD=false
@@ -58,8 +59,9 @@ NC='\033[0m'
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 step() {
+  STEP_NUM=$((STEP_NUM + 1))
   echo ""
-  echo -e "${BOLD}=== STEP $1: $2 ===${NC}"
+  echo -e "${BOLD}=== STEP ${STEP_NUM}: $1 ===${NC}"
 }
 
 api_pass() {
@@ -167,7 +169,7 @@ if [[ -n "${REMOTE_NDEX_URL}" ]]; then
   echo "  Mode: REMOTE — targeting ${BASE_URL}"
   echo "  Skipping Docker build, container start, and readiness poll."
 
-  step 3 "Checking remote NDEx at ${BASE_URL}"
+  step "Checking remote NDEx at ${BASE_URL}"
   MAX_WAIT=60
   ELAPSED=0
   until curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/user" \
@@ -180,7 +182,7 @@ if [[ -n "${REMOTE_NDEX_URL}" ]]; then
   done
   echo "  Remote NDEx is responding."
 else
-  step 1 "Building Docker image"
+  step "Building Docker image"
   if [[ "${SKIP_BUILD}" == "true" ]]; then
     echo "  --skip-build set, skipping make docker"
   else
@@ -189,7 +191,7 @@ else
     echo "  Image built successfully"
   fi
 
-  step 2 "Starting ephemeral container"
+  step "Starting ephemeral container"
   docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
   echo "  Running: docker run --platform linux/amd64 -d --name ${CONTAINER_NAME} -p 8080:8080 ..."
   docker run --platform linux/amd64 -d \
@@ -199,7 +201,7 @@ else
     --ndex --postgres --keycloak --solr --mailhog
   echo "  Container started (ID: $(docker inspect -f '{{.Id}}' "${CONTAINER_NAME}" | cut -c1-12))"
 
-  step 3 "Waiting for NDEx to be ready"
+  step "Waiting for NDEx to be ready"
   MAX_WAIT=120
   ELAPSED=0
   until docker logs "${CONTAINER_NAME}" 2>&1 | grep -q "NDEx Deploy Container Ready"; do
@@ -216,9 +218,9 @@ else
   echo "  Container is ready!"
 fi
 
-# ── STEP 4: Create test user ──────────────────────────────────────────────────
+# ── STEP: Create test user ────────────────────────────────────────────────────
 
-step 4 "Creating test user"
+step "Creating test user"
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user"
 
@@ -268,9 +270,9 @@ TEST_USER2_UUID=$(curl -s "${BASE_URL}/v2/user?username=${TEST_USER2}" \
   | grep -o '"externalId":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
 [[ -n "${TEST_USER2_UUID}" ]] || api_fail "Could not resolve UUID for ${TEST_USER2} via GET /v2/user?username=${TEST_USER2}"
 
-# ── STEP 5: Upload 2 CX2 test networks (1 public, 1 private) ─────────────────
+# ── STEP: Upload 2 CX2 test networks (1 public, 1 private) ───────────────────
 
-step 5 "Uploading 2 CX2 test networks via POST /v3/networks"
+step "Uploading 2 CX2 test networks via POST /v3/networks"
 
 MCP_PUBLIC_UUID=""
 MCP_PRIVATE_UUID=""
@@ -310,9 +312,9 @@ else
   api_fail "POST /v3/networks → HTTP ${PRIV_HTTP} (expected 201). Body: ${PRIV_BODY:0:300}"
 fi
 
-# ── STEP 6: Poll until both setup networks complete ───────────────────────────
+# ── STEP: Poll until both setup networks complete ─────────────────────────────
 
-step 6 "Polling setup networks until completed:true"
+step "Polling setup networks until completed:true"
 echo "  Polling GET /v2/network/{uuid}/summary until completed:true..."
 
 for UUID in "${MCP_PUBLIC_UUID}" "${MCP_PRIVATE_UUID}"; do
@@ -332,9 +334,9 @@ for UUID in "${MCP_PUBLIC_UUID}" "${MCP_PRIVATE_UUID}"; do
 done
 echo "  Both setup networks confirmed complete"
 
-# ── STEP 7: MCP Manifest ──────────────────────────────────────────────────────
+# ── STEP: MCP Manifest ────────────────────────────────────────────────────────
 
-step 7 "MCP Manifest and Session Init"
+step "MCP Manifest and Session Init"
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /mcp/manifest"
 
@@ -353,9 +355,9 @@ mcp_initialize
   || api_fail "MCP initialize did not return a Mcp-Session-Id header"
 echo "  Session ID: ${MCP_SESSION_ID}"
 
-# ── STEP 8: MCP anon-allowed tools ────────────────────────────────────────────
+# ── STEP: MCP anon-allowed tools ──────────────────────────────────────────────
 
-step 8 "MCP anon-allowed tools: search_network, get_network_summary"
+step "MCP anon-allowed tools: search_network, get_network_summary"
 echo "  Both tools must work unauthenticated on public data and also with auth."
 echo "  get_network_summary on a private network without auth must reject."
 
@@ -392,9 +394,9 @@ mcp_call '{"jsonrpc":"2.0","id":"mcp-10","method":"tools/call","params":{"name":
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_network_summary private (auth/owner)"
 
-# ── STEP 9: MCP auth barrier — no-auth rejection ──────────────────────────────
+# ── STEP: MCP auth barrier — no-auth rejection ────────────────────────────────
 
-step 9 "MCP auth barrier: no credentials must be rejected by all auth-required tools"
+step "MCP auth barrier: no credentials must be rejected by all auth-required tools"
 echo "  User=null check fires before any service call, so minimal args are fine."
 
 CALL_NUM=$((CALL_NUM+1))
@@ -442,9 +444,14 @@ echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: share_network (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-sn-noauth","method":"tools/call","params":{"name":"share_network","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'","userId":"00000000-0000-0000-0000-000000000000","permission":"READ"}}}'
 mcp_fail_expected "share_network (no auth)"
 
-# ── STEP 10: MCP create_network + update_network (auth) ───────────────────────
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_networks (no auth)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-gun-noauth","method":"tools/call","params":{"name":"get_user_networks","arguments":{}}}'
+mcp_fail_expected "get_user_networks (no auth)"
 
-step 10 "MCP create_network and update_network (auth)"
+# ── STEP: MCP create_network + update_network (auth) ─────────────────────────
+
+step "MCP create_network and update_network (auth)"
 echo "  Preparing CX2 content from fixture..."
 
 MCP_CX2_FILE="${FIXTURES_DIR}/C. burnetii Network.cx2"
@@ -493,9 +500,9 @@ while true; do
 done
 echo "  MCP-updated network confirmed complete"
 
-# ── STEP 11: MCP profile, properties, systemproperties, download ──────────────
+# ── STEP: MCP profile, properties, systemproperties, download ────────────────
 
-step 11 "MCP update_network_profile, set_network_properties, set_network_systemproperties, download_network"
+step "MCP update_network_profile, set_network_properties, set_network_systemproperties, download_network"
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: update_network_profile (auth)"
@@ -540,9 +547,23 @@ mcp_call '{"jsonrpc":"2.0","id":"mcp-27","method":"tools/call","params":{"name":
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "download_network public (auth)"
 
-# ── STEP 11½: MCP share_network ──────────────────────────────────────────────
+# ── STEP: MCP get_user_networks ───────────────────────────────────────────────
 
-step 12 "MCP share_network: validation and happy-path tests"
+step "MCP get_user_networks: happy-path"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_networks (auth)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-gun","method":"tools/call","params":{"name":"get_user_networks","arguments":{}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+mcp_pass "get_user_networks (auth)"
+echo "${MCP_JSON}" | grep -qE '"count":[1-9][0-9]*' \
+  || api_fail "get_user_networks → expected count >= 1 in response: ${MCP_JSON:0:300}"
+echo "${MCP_JSON}" | grep -q '"networks":\[' \
+  || api_fail "get_user_networks → expected networks array in response: ${MCP_JSON:0:300}"
+
+# ── STEP: MCP share_network ───────────────────────────────────────────────────
+
+step "MCP share_network: validation and happy-path tests"
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: share_network no subject (auth, expect isError)"
@@ -560,9 +581,9 @@ echo "${MCP_JSON}" | grep -q '"subjectType":"user"' \
 echo "${MCP_JSON}" | grep -q '"permission":"READ"' \
   || api_fail "share_network → expected permission:READ in response: ${MCP_JSON:0:300}"
 
-# ── STEP 13: MCP folder management ───────────────────────────────────────────
+# ── STEP: MCP folder management ───────────────────────────────────────────────
 
-step 13 "MCP folder management: manage_folder create/delete, get_folder list"
+step "MCP folder management: manage_folder create/delete, get_folder list"
 
 MCP_FOLDER_ID=""
 
@@ -587,9 +608,9 @@ mcp_call '{"jsonrpc":"2.0","id":"mcp-30","method":"tools/call","params":{"name":
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "manage_folder mode=delete (auth)"
 
-# ── STEP 14: MCP delete_network (cleanup) ────────────────────────────────────
+# ── STEP: MCP delete_network (cleanup) ────────────────────────────────────────
 
-step 14 "MCP delete_network — permanent delete of MCP-created network"
+step "MCP delete_network — permanent delete of MCP-created network"
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: delete_network permanent (auth)"
