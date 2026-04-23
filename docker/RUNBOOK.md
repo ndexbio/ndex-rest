@@ -59,6 +59,84 @@ docker stop ndex
 docker rm -f ndex
 ```
 
+# NDEx Kubernetes / Podman Deployment
+
+Deploy the full NDEx monolithic stack on Kubernetes or Podman using
+`docker/k8s-ndex-deployment.yml`. The manifest bundles a PersistentVolume,
+PersistentVolumeClaim, Deployment (with an init container that seeds the
+`/data/ndex` sub-directories), and a ClusterIP Service — all in one file.
+
+## Prerequisites
+
+- **kubectl** (Kubernetes) or **podman** ≥ 4.x with `play kube` support
+- A storage class named `default` that binds hostPath volumes, **or** a cluster
+  node with at least 512 GB available at `/data/ndex`
+- The `ndexbio/ndex-rest` image accessible from your cluster / Podman daemon
+
+## Deploy
+
+**kubectl:**
+```bash
+kubectl apply -f docker/k8s-ndex-deployment.yml
+```
+
+**podman:**
+```bash
+podman play kube docker/k8s-ndex-deployment.yml
+```
+
+The init container runs once and creates the following sub-directories under
+`/data/ndex` on the host before the main container starts:
+
+```
+/data/ndex/
+├── ndex-config        → /apps/ndex/config
+├── ndex-data          → /apps/ndex/data
+├── postgres-config    → /apps/postgres/config
+├── postgres-data      → /apps/postgres/data
+├── keycloak-config    → /apps/keycloak/config
+├── keycloak-data      → /apps/keycloak/data
+├── solr-config        → /apps/solr/config
+├── solr-data          → /apps/solr/data
+└── mailhog-config     → /apps/mailhog/config
+```
+
+On first boot, default configs are seeded automatically from the image into each
+`/apps/<svc>/config/` directory (same first-boot behaviour as `docker run`).
+
+## Verify
+
+```bash
+# kubectl — forward the ClusterIP port locally
+kubectl get pods -l app=ndex
+kubectl port-forward svc/ndex 8080:8080
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v2/network
+# Expect: 200
+
+# podman
+podman pod ps
+podman logs -f ndex
+```
+
+Wait for `NDEx Deploy Container Ready!` in the logs before querying the API.
+
+## Teardown
+
+**kubectl:**
+```bash
+kubectl delete -f docker/k8s-ndex-deployment.yml
+```
+
+**podman:**
+```bash
+podman play kube --down docker/k8s-ndex-deployment.yml
+```
+
+> **Note:** The PersistentVolume uses `persistentVolumeReclaimPolicy: Retain`.
+> Host data under `/data/ndex` is **not** deleted on teardown.
+
+---
+
 # NDEx Microservices Deployment
 
 This is example of a three-container deployment of `ndexbio/ndex-rest` with persistence. It uses an externally provided Postgres DB. Each container runs on a dedicated host and services communicate via published ports and hostnames.

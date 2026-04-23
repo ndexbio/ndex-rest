@@ -14,14 +14,22 @@
 const http  = require('http');
 const https = require('https');
 
-const HOST     = process.env.NDEX_HOST     || 'localhost';
-const PORT     = parseInt(process.env.NDEX_PORT || '8080', 10);
-const username = process.env.NDEX_USERNAME || '';
-const password = process.env.NDEX_PASSWORD || '';
+// Guard against unsubstituted MCPB template literals (e.g. "${user_config.ndex_username}")
+// when an optional field has no value configured by the user.
+const RAW_TEMPLATE = /^\$\{[^}]+\}$/;
+function envOrEmpty(key) {
+  const v = process.env[key] || '';
+  return RAW_TEMPLATE.test(v) ? '' : v;
+}
+
+const HOST     = envOrEmpty('NDEX_HOST') || 'localhost';
+const PORT     = parseInt(envOrEmpty('NDEX_PORT') || '8080', 10);
+const username = envOrEmpty('NDEX_USERNAME');
+const password = envOrEmpty('NDEX_PASSWORD');
 const authHeader = username
   ? 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64')
   : null;
-const useSSL = process.env.NDEX_SSL === 'true';
+const useSSL = envOrEmpty('NDEX_SSL') === 'true';
 const transport = useSSL ? https : http;
 
 let sessionId = null; // MCP session assigned by the server on first response

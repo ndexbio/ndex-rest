@@ -1,0 +1,148 @@
+# NDEx Kubernetes / Podman Deployment
+#
+# Deploy with kubectl:
+#   kubectl apply -f k8s-ndex-deployment.yml
+#
+# Deploy with podman:
+#   podman play kube k8s-ndex-deployment.yml
+#
+# All service state is stored under the host path /data/ndex, which is
+# mounted into the container via a 512Gi PersistentVolume.  An init
+# container creates the required sub-directories on first boot.
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ndex-pv
+  labels:
+    app: ndex
+spec:
+  capacity:
+    storage: 512Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: default
+  hostPath:
+    path: /data/ndex
+    type: DirectoryOrCreate
+  claimRef:
+    name: ndex-pvc
+    namespace: default
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ndex-pvc
+spec:
+  storageClassName: default
+  volumeName: ndex-pv
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 512Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ndex
+  labels:
+    app: ndex
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ndex
+  template:
+    metadata:
+      labels:
+        app: ndex
+    spec:
+      initContainers:
+        - name: ndex-init
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p \
+                /data/ndex/ndex-config \
+                /data/ndex/ndex-data \
+                /data/ndex/postgres-config \
+                /data/ndex/postgres-data \
+                /data/ndex/keycloak-config \
+                /data/ndex/keycloak-data \
+                /data/ndex/solr-config \
+                /data/ndex/solr-data \
+                /data/ndex/mailhog-config
+          volumeMounts:
+            - name: ndex-storage
+              mountPath: /data/ndex
+
+      containers:
+        - name: ndex
+          image: ndexbio/ndex-rest
+          args:
+            - --ndex
+            - --postgres
+            - --keycloak
+            - --solr
+            - --mailhog
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: ndex-storage
+              mountPath: /apps/ndex/config
+              subPath: ndex-config
+            - name: ndex-storage
+              mountPath: /apps/ndex/data
+              subPath: ndex-data
+            - name: ndex-storage
+              mountPath: /apps/postgres/config
+              subPath: postgres-config
+            - name: ndex-storage
+              mountPath: /apps/postgres/data
+              subPath: postgres-data
+            - name: ndex-storage
+              mountPath: /apps/keycloak/config
+              subPath: keycloak-config
+            - name: ndex-storage
+              mountPath: /apps/keycloak/data
+              subPath: keycloak-data
+            - name: ndex-storage
+              mountPath: /apps/solr/config
+              subPath: solr-config
+            - name: ndex-storage
+              mountPath: /apps/solr/data
+              subPath: solr-data
+            - name: ndex-storage
+              mountPath: /apps/mailhog/config
+              subPath: mailhog-config
+
+      volumes:
+        - name: ndex-storage
+          persistentVolumeClaim:
+            claimName: ndex-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ndex
+  labels:
+    app: ndex
+spec:
+  type: ClusterIP
+  selector:
+    app: ndex
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

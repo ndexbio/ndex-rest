@@ -1,5 +1,5 @@
 {
-  "dxt_version": "0.1",
+  "manifest_version": "0.3",
   "name": "ndex-mcp",
   "display_name": "NDEx MCP",
   "version": "1.0.0",
@@ -9,33 +9,36 @@
   },
   "icon": "icon.png",
   "user_config": {
-    "NDEX_HOST": {
+    "ndex_host": {
       "type": "string",
       "title": "NDEx Host",
       "description": "Hostname of the NDEx server. Use 'localhost' for a local Docker container.",
       "default": "localhost",
       "required": false
     },
-    "NDEX_PORT": {
+    "ndex_port": {
       "type": "number",
       "title": "NDEx API Port",
       "description": "The port the NDEx API server is listening on. Default is 8080.",
       "default": 8080,
       "required": false
     },
-    "NDEX_USERNAME": {
+    "ndex_username": {
       "type": "string",
       "title": "NDEx Username",
       "description": "Your NDEx account username. Leave blank for anonymous read-only access to public networks.",
+      "default": "",
       "required": false
     },
-    "NDEX_PASSWORD": {
+    "ndex_password": {
       "type": "string",
       "title": "NDEx Password",
       "description": "Your NDEx account password. Required for write operations and private network access.",
+      "sensitive": true,
+      "default": "",
       "required": false
     },
-    "NDEX_SSL": {
+    "ndex_ssl": {
       "type": "boolean",
       "title": "Use HTTPS",
       "description": "Enable HTTPS for connections to the NDEx server. Disable for local HTTP-only servers.",
@@ -50,11 +53,11 @@
       "command": "node",
       "args": ["${__dirname}/server/index.js"],
       "env": {
-        "NDEX_HOST":     "${user_config.NDEX_HOST}",
-        "NDEX_PORT":     "${user_config.NDEX_PORT}",
-        "NDEX_USERNAME": "${user_config.NDEX_USERNAME}",
-        "NDEX_PASSWORD": "${user_config.NDEX_PASSWORD}",
-        "NDEX_SSL":      "${user_config.NDEX_SSL}"
+        "NDEX_HOST":     "${user_config.ndex_host}",
+        "NDEX_PORT":     "${user_config.ndex_port}",
+        "NDEX_USERNAME": "${user_config.ndex_username}",
+        "NDEX_PASSWORD": "${user_config.ndex_password}",
+        "NDEX_SSL":      "${user_config.ndex_ssl}"
       }
     }
   }
