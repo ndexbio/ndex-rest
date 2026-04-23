@@ -7,11 +7,11 @@
 #                          applies when running against a local container (no --remote-ndex-url).
 #   --remote-ndex-url URL  Run tests against an already-running NDEx instance at URL.
 #
-# Validates all 15 MCP tools end-to-end:
-#   manifest → get_connection_status → anon-allowed tools → auth barriers → create/update → profile/properties →
+# Validates all 14 MCP tools end-to-end:
+#   manifest → get_connection_status → anon-allowed tools → auth barriers → request_network_upload → profile/properties →
 #   systemproperties → download → get_user_networks → get_user_info → share → folder management → delete
 #
-# Exits 0 if all 41 API calls pass, exits 1 on the first failure.
+# Exits 0 if all 43 API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
 
 set -euo pipefail
@@ -26,7 +26,7 @@ TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
 
-TOTAL_API_CALLS=41
+TOTAL_API_CALLS=43
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -425,14 +425,14 @@ step "MCP auth barrier: no credentials must be rejected by all auth-required too
 echo "  User=null check fires before any service call, so minimal args are fine."
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: create_network (no auth)"
-mcp_call '{"jsonrpc":"2.0","id":"mcp-11","method":"tools/call","params":{"name":"create_network","arguments":{"cx2Network":"[]","cx2NetworkSize":2,"cx2NetworkChunkTotalCount":1,"cx2NetworkCurrentChunkNumber":1}}}'
-mcp_fail_expected "create_network (no auth)"
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_upload (no auth, create)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-11","method":"tools/call","params":{"name":"request_network_upload","arguments":{"file_path":"/tmp/test.cx2"}}}'
+mcp_fail_expected "request_network_upload (no auth, create)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: update_network (no auth)"
-mcp_call '{"jsonrpc":"2.0","id":"mcp-12","method":"tools/call","params":{"name":"update_network","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'","cx2Network":"[]","cx2NetworkSize":2,"cx2NetworkChunkTotalCount":1,"cx2NetworkCurrentChunkNumber":1}}}'
-mcp_fail_expected "update_network (no auth)"
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_upload (no auth, update)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-12","method":"tools/call","params":{"name":"request_network_upload","arguments":{"file_path":"/tmp/test.cx2","network_id":"00000000-0000-0000-0000-000000000000"}}}'
+mcp_fail_expected "request_network_upload (no auth, update)"
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: delete_network (no auth, fake UUID)"
@@ -479,26 +479,28 @@ echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_info (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-gui-noauth","method":"tools/call","params":{"name":"get_user_info","arguments":{}}}'
 mcp_fail_expected "get_user_info (no auth)"
 
-# ── STEP: MCP create_network + update_network (auth) ─────────────────────────
+# ── STEP: MCP request_network_upload (auth) ──────────────────────────────────
 
-step "MCP create_network and update_network (auth)"
-echo "  Preparing CX2 content from fixture..."
+step "MCP request_network_upload (auth)"
 
 MCP_CX2_FILE="${FIXTURES_DIR}/C. burnetii Network.cx2"
-MCP_CX2_SIZE=$(wc -c < "${MCP_CX2_FILE}" | tr -d ' ')
-# Escape for embedding as a JSON string value: backslash first, then double-quote, then strip newlines.
-MCP_CX2_ESCAPED=$(sed 's/\\/\\\\/g; s/"/\\"/g' "${MCP_CX2_FILE}" | tr -d '\n\r')
-
 MCP_NETWORK_UUID=""
+LAST_PRESIGNED_URL=""
 
+# Sub-step A: create via pre-signed URL
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: create_network (auth)"
-mcp_call "{\"jsonrpc\":\"2.0\",\"id\":\"mcp-19\",\"method\":\"tools/call\",\"params\":{\"name\":\"create_network\",\"arguments\":{\"cx2Network\":\"${MCP_CX2_ESCAPED}\",\"cx2NetworkSize\":${MCP_CX2_SIZE},\"cx2NetworkChunkTotalCount\":1,\"cx2NetworkCurrentChunkNumber\":1,\"visibility\":\"PRIVATE\"}}}" \
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_upload create (auth)"
+mcp_call "{\"jsonrpc\":\"2.0\",\"id\":\"mcp-19\",\"method\":\"tools/call\",\"params\":{\"name\":\"request_network_upload\",\"arguments\":{\"file_path\":\"${MCP_CX2_FILE}\",\"visibility\":\"PRIVATE\"}}}" \
   "-u ${TEST_USER}:${TEST_PASS}"
-mcp_pass "create_network (auth)"
-MCP_NETWORK_UUID=$(echo "${MCP_JSON}" | grep -o '"networkId":"[^"]*"' | head -1 | cut -d'"' -f4)
+mcp_pass "request_network_upload create (auth)"
+UPLOAD_URL=$(echo "${MCP_JSON}" | grep -o '"upload_url":"[^"]*"' | head -1 | cut -d'"' -f4)
+[[ -n "${UPLOAD_URL}" ]] \
+  || api_fail "request_network_upload create → no upload_url in response: ${MCP_JSON:0:300}"
+
+UPLOAD_RESPONSE=$(curl -s -X POST -F "CXNetworkStream=@${MCP_CX2_FILE};type=application/json" "${UPLOAD_URL}")
+MCP_NETWORK_UUID=$(echo "${UPLOAD_RESPONSE}" | grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
 [[ -n "${MCP_NETWORK_UUID}" ]] \
-  || api_fail "create_network → no networkId in response: ${MCP_JSON:0:300}"
+  || api_fail "request_network_upload create → no uuid in upload response: ${UPLOAD_RESPONSE:0:300}"
 
 echo "  Polling GET /v2/network/${MCP_NETWORK_UUID}/summary until completed:true..."
 ELAPSED=0
@@ -512,11 +514,28 @@ while true; do
 done
 echo "  MCP-created network confirmed complete"
 
+# Sub-step B: 401 for invalid token
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: update_network (auth)"
-mcp_call "{\"jsonrpc\":\"2.0\",\"id\":\"mcp-20\",\"method\":\"tools/call\",\"params\":{\"name\":\"update_network\",\"arguments\":{\"networkId\":\"${MCP_NETWORK_UUID}\",\"cx2Network\":\"${MCP_CX2_ESCAPED}\",\"cx2NetworkSize\":${MCP_CX2_SIZE},\"cx2NetworkChunkTotalCount\":1,\"cx2NetworkCurrentChunkNumber\":1}}}" \
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: pre-signed upload 401 for invalid token"
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  "${BASE_URL}/mcp/upload?upload_token=invalid-token-xyz")
+[[ "${HTTP_STATUS}" == "401" ]] \
+  || api_fail "pre-signed upload with invalid token: expected 401, got ${HTTP_STATUS}"
+api_pass "pre-signed upload 401 for invalid token"
+
+# Sub-step C: update via pre-signed URL
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_upload update (auth)"
+mcp_call "{\"jsonrpc\":\"2.0\",\"id\":\"mcp-20\",\"method\":\"tools/call\",\"params\":{\"name\":\"request_network_upload\",\"arguments\":{\"file_path\":\"${MCP_CX2_FILE}\",\"network_id\":\"${MCP_NETWORK_UUID}\"}}}" \
   "-u ${TEST_USER}:${TEST_PASS}"
-mcp_pass "update_network (auth)"
+mcp_pass "request_network_upload update (auth)"
+UPLOAD_URL=$(echo "${MCP_JSON}" | grep -o '"upload_url":"[^"]*"' | head -1 | cut -d'"' -f4)
+[[ -n "${UPLOAD_URL}" ]] \
+  || api_fail "request_network_upload update → no upload_url in response: ${MCP_JSON:0:300}"
+LAST_PRESIGNED_URL="${UPLOAD_URL}"
+
+curl -s -X POST -F "CXNetworkStream=@${MCP_CX2_FILE};type=application/json" "${UPLOAD_URL}" \
+  || api_fail "pre-signed update curl failed"
 
 echo "  Polling GET /v2/network/${MCP_NETWORK_UUID}/summary until updated network completes..."
 ELAPSED=0
@@ -529,6 +548,16 @@ while true; do
   sleep 5; (( ELAPSED += 5 )) || true
 done
 echo "  MCP-updated network confirmed complete"
+
+# Sub-step D: 401 for reused (single-use) token
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: pre-signed upload 401 for reused token"
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -F "CXNetworkStream=@${MCP_CX2_FILE};type=application/json" \
+  "${LAST_PRESIGNED_URL}")
+[[ "${HTTP_STATUS}" == "401" ]] \
+  || api_fail "reused token: expected 401, got ${HTTP_STATUS}"
+api_pass "pre-signed upload 401 for reused token"
 
 # ── STEP: MCP profile, properties, systemproperties, download ────────────────
 

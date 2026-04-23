@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+import jakarta.servlet.MultipartConfigElement;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletContextEvent;
 import jakarta.servlet.ServletContextListener;
@@ -53,11 +54,10 @@ public class McpServletContextListener implements ServletContextListener {
                 })
                 .build();
 
-        UploadService uploadService = new UploadService();
         DownloadService downloadService = new DownloadService();
 
         McpServerFeatures.SyncToolSpecification[] toolSpecs =
-            new McpToolRegistry().buildSpecs(uploadService, downloadService)
+            new McpToolRegistry().buildSpecs(downloadService)
                 .toArray(new McpServerFeatures.SyncToolSpecification[0]);
 
         McpServer.sync(transport)
@@ -74,6 +74,18 @@ public class McpServletContextListener implements ServletContextListener {
             manifestReg.addMapping("/mcp/manifest");
         }
 
+        ServletRegistration.Dynamic uploadReg =
+            ctx.addServlet("UploadPreSignedServlet", new UploadPreSignedServlet());
+        if (uploadReg == null) {
+            logger.warn("McpServletContextListener: 'UploadPreSignedServlet' already registered; " +
+                        "skipping duplicate registration.");
+        } else {
+            uploadReg.addMapping("/mcp/upload");
+            // @MultipartConfig on the class is NOT honored for programmatically registered servlets
+            // in Tomcat — multipart support must be enabled via setMultipartConfig() on the Dynamic.
+            uploadReg.setMultipartConfig(new MultipartConfigElement(""));
+        }
+
         ServletRegistration.Dynamic reg = ctx.addServlet("McpServlet", transport);
         if (reg == null) {
             logger.warn("McpServletContextListener: 'McpServlet' already registered; " +
@@ -88,6 +100,6 @@ public class McpServletContextListener implements ServletContextListener {
 
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
-        // transport shuts down with the container; no explicit teardown needed
+        UploadService.getInstance().stop();
     }
 }

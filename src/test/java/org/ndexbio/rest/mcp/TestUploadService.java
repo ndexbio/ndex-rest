@@ -1,145 +1,199 @@
 package org.ndexbio.rest.mcp;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import org.easymock.EasyMock;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.ndexbio.model.object.User;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class TestUploadService {
 
     private UploadService service;
-    private static final String NETWORK_ID = "f93f402c-86d4-11e7-a10d-0ac135e8bacf";
-    private static final String CACHE_KEY  = "session123:" + NETWORK_ID;
 
     @BeforeEach
     void setUp() {
         service = new UploadService();
     }
 
+    @AfterEach
+    void tearDown() {
+        service.stop();
+    }
+
+    private UploadFileRequest makeRequest(String networkId) {
+        User user = EasyMock.createMock(User.class);
+        return new UploadFileRequest(user, networkId, null, null, null, System.currentTimeMillis());
+    }
+
+    // ── singleton ────────────────────────────────────────────────────────────
+
     @Test
-    void writeChunk_singleChunk_returnsTrue() throws IOException {
-        boolean done = service.writeChunk(CACHE_KEY, 1, 1, NETWORK_ID, "[{}]");
-        assertTrue(done);
+    void getInstance_returnsSameInstance() {
+        assertSame(UploadService.getInstance(), UploadService.getInstance());
+    }
+
+    // ── createToken ──────────────────────────────────────────────────────────
+
+    @Test
+    void createToken_returnsNonNullUUID() {
+        String token = service.createToken(makeRequest(null));
+        assertNotNull(token);
+        assertFalse(token.isBlank());
     }
 
     @Test
-    void writeChunk_firstOfMany_returnsFalse() throws IOException {
-        boolean done = service.writeChunk(CACHE_KEY, 1, 3, NETWORK_ID, "chunk1");
-        assertFalse(done);
+    void createToken_eachCallReturnsDifferentToken() {
+        String t1 = service.createToken(makeRequest(null));
+        String t2 = service.createToken(makeRequest(null));
+        assertNotEquals(t1, t2);
+    }
+
+    // ── resolveToken ─────────────────────────────────────────────────────────
+
+    @Test
+    void resolveToken_returnsRequest_whenTokenValid() {
+        UploadFileRequest req = makeRequest("net-1");
+        String token = service.createToken(req);
+        UploadFileRequest resolved = service.resolveToken(token);
+        assertNotNull(resolved);
+        assertEquals("net-1", resolved.networkId());
     }
 
     @Test
-    void writeChunk_lastChunk_returnsTrue() throws IOException {
-        service.writeChunk(CACHE_KEY, 1, 2, NETWORK_ID, "chunk1");
-        boolean done = service.writeChunk(CACHE_KEY, 2, 2, NETWORK_ID, "chunk2");
-        assertTrue(done);
+    void resolveToken_deletesToken_afterFirstResolve() {
+        String token = service.createToken(makeRequest(null));
+        assertNotNull(service.resolveToken(token));
+        assertNull(service.resolveToken(token)); // single-use
     }
 
     @Test
-    void writeChunk_accumulates_correctContent() throws IOException {
-        service.writeChunk(CACHE_KEY, 1, 3, NETWORK_ID, "aaa");
-        service.writeChunk(CACHE_KEY, 2, 3, NETWORK_ID, "bbb");
-        service.writeChunk(CACHE_KEY, 3, 3, NETWORK_ID, "ccc");
+    void resolveToken_returnsNull_whenTokenUnknown() {
+        assertNull(service.resolveToken("bogus-token-xyz"));
+    }
 
-        Path file = service.takeCompletedUpload(CACHE_KEY);
-        assertNotNull(file);
-        try {
-            String content = Files.readString(file, StandardCharsets.UTF_8);
-            assertEquals("aaabbbccc", content);
-        } finally {
-            Files.deleteIfExists(file);
+    @Test
+    void resolveToken_returnsNull_whenTokenIsNull() {
+        assertDoesNotThrow(() -> assertNull(service.resolveToken(null)));
+    }
+
+    @Test
+    void resolveToken_returnsNull_whenTokenExpired() {
+        long pastTime = System.currentTimeMillis() - 130_000L;
+        User user = EasyMock.createMock(User.class);
+        UploadFileRequest expired = new UploadFileRequest(user, null, null, null, null, pastTime);
+        String token = service.createToken(expired);
+        // Belt-and-suspenders check: resolveToken detects expired entry even if purger hasn't run
+        assertNull(service.resolveToken(token));
+    }
+
+    // ── purgeExpired ──────────────────────────────────────────────────────────
+
+    @Test
+    void purgeExpired_removesOldEntries() {
+        long pastTime = System.currentTimeMillis() - 130_000L;
+        User user = EasyMock.createMock(User.class);
+        UploadFileRequest stale = new UploadFileRequest(user, null, null, null, null, pastTime);
+        String token = service.createToken(stale);
+
+        service.purgeExpired();
+
+        assertFalse(service.tokenCache.containsKey(token), "stale entry should be purged");
+    }
+
+    @Test
+    void purgeExpired_keepsValidEntries() {
+        String token = service.createToken(makeRequest(null));
+        service.purgeExpired();
+        assertTrue(service.tokenCache.containsKey(token), "fresh entry should survive purge");
+    }
+
+    @Test
+    void purgeExpired_abortsEarly_whenStopped() {
+        long pastTime = System.currentTimeMillis() - 130_000L;
+        User user = EasyMock.createMock(User.class);
+        for (int i = 0; i < 100; i++) {
+            UploadFileRequest stale = new UploadFileRequest(user, null, null, null, null, pastTime);
+            service.tokenCache.put("stale-" + i, stale);
         }
+        service.stopped = true;
+        service.purgeExpired();
+        // If stopped check works, not all 100 entries are removed on first iteration abort
+        // We can't deterministically assert exact count, but the cache must still have entries
+        assertFalse(service.tokenCache.isEmpty(), "purge should abort early when stopped=true");
+    }
+
+    // ── stop ─────────────────────────────────────────────────────────────────
+
+    @Test
+    void stop_setsStoppedFlag_andShutdownsExecutor() throws Exception {
+        // Create a fresh service so we don't stop the singleton's purger
+        UploadService svc = new UploadService();
+        svc.stop();
+        assertTrue(svc.stopped, "stopped flag must be true after stop()");
+    }
+
+    // ── concurrency ──────────────────────────────────────────────────────────
+
+    @Test
+    void concurrentCreateAndResolve_noDataRace() throws InterruptedException {
+        int threads = 20;
+        CountDownLatch latch = new CountDownLatch(threads);
+        AtomicInteger successCount = new AtomicInteger(0);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+
+        for (int i = 0; i < threads; i++) {
+            pool.submit(() -> {
+                try {
+                    String token = service.createToken(makeRequest(null));
+                    UploadFileRequest resolved = service.resolveToken(token);
+                    if (resolved != null) successCount.incrementAndGet();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        pool.shutdown();
+        assertEquals(threads, successCount.get(), "all tokens should resolve successfully");
+        assertTrue(service.tokenCache.isEmpty(), "all tokens consumed — cache should be empty");
     }
 
     @Test
-    void writeChunk_outOfOrder_throws() throws IOException {
-        service.writeChunk(CACHE_KEY, 1, 3, NETWORK_ID, "chunk1");
-        assertThrows(IllegalArgumentException.class,
-            () -> service.writeChunk(CACHE_KEY, 3, 3, NETWORK_ID, "chunk3"));
-    }
+    void concurrentResolve_sameToken_onlyOneSucceeds() throws InterruptedException {
+        String token = service.createToken(makeRequest(null));
 
-    @Test
-    void writeChunk_skipChunk_throws() throws IOException {
-        service.writeChunk(CACHE_KEY, 1, 3, NETWORK_ID, "chunk1");
-        assertThrows(IllegalArgumentException.class,
-            () -> service.writeChunk(CACHE_KEY, 3, 3, NETWORK_ID, "chunk3"));
-    }
+        int threads = 10;
+        CountDownLatch latch = new CountDownLatch(threads);
+        List<UploadFileRequest> results = new ArrayList<>();
+        Object lock = new Object();
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
 
-    @Test
-    void writeChunk_chunkNumberExceedsTotalChunks_throws() {
-        assertThrows(IllegalArgumentException.class,
-            () -> service.writeChunk(CACHE_KEY, 3, 2, NETWORK_ID, "data"));
-    }
+        for (int i = 0; i < threads; i++) {
+            pool.submit(() -> {
+                try {
+                    UploadFileRequest r = service.resolveToken(token);
+                    synchronized (lock) { results.add(r); }
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
 
-    @Test
-    void writeChunk_chunkNumberZero_throws() {
-        assertThrows(IllegalArgumentException.class,
-            () -> service.writeChunk(CACHE_KEY, 0, 2, NETWORK_ID, "data"));
-    }
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        pool.shutdown();
 
-    @Test
-    void writeChunk_totalChunksZero_throws() {
-        assertThrows(IllegalArgumentException.class,
-            () -> service.writeChunk(CACHE_KEY, 1, 0, NETWORK_ID, "data"));
-    }
-
-    @Test
-    void writeChunk_totalChunksMismatchMidUpload_throws() throws IOException {
-        service.writeChunk(CACHE_KEY, 1, 3, NETWORK_ID, "chunk1");
-        assertThrows(IllegalArgumentException.class,
-            () -> service.writeChunk(CACHE_KEY, 2, 2, NETWORK_ID, "chunk2"));
-    }
-
-    @Test
-    void writeChunk_noActiveSession_throws() {
-        assertThrows(IllegalStateException.class,
-            () -> service.writeChunk(CACHE_KEY, 2, 3, NETWORK_ID, "chunk2"));
-    }
-
-    @Test
-    void takeCompletedUpload_removesEntry() throws IOException {
-        service.writeChunk(CACHE_KEY, 1, 1, NETWORK_ID, "[{}]");
-
-        Path first = service.takeCompletedUpload(CACHE_KEY);
-        assertNotNull(first);
-
-        Path second = service.takeCompletedUpload(CACHE_KEY);
-        assertNull(second);
-
-        // Clean up
-        if (first != null) Files.deleteIfExists(first);
-    }
-
-    @Test
-    void takeCompletedUpload_unknownKey_returnsNull() {
-        assertNull(service.takeCompletedUpload("unknown:key"));
-    }
-
-    @Test
-    void writeChunk_chunk1_replacesStaleSession_andCleansTempFile() throws IOException {
-        // First session: chunk 1 of 2
-        service.writeChunk(CACHE_KEY, 1, 2, NETWORK_ID, "old_chunk1");
-        Path oldTempFile = service.takeCompletedUpload(CACHE_KEY);
-        // Re-add to simulate stale session (put back via a new chunk1)
-        service.writeChunk(CACHE_KEY, 1, 2, NETWORK_ID, "old_chunk1_again");
-
-        // Now get the temp file path before replacement
-        // We can't directly inspect the cache, but we verify the old file is cleaned up
-        // by submitting chunk 1 again (restart), which replaces the cache entry
-        service.writeChunk(CACHE_KEY, 1, 2, NETWORK_ID, "new_chunk1");
-
-        // The new session should have a new (different) temp file
-        Path newTempFile = service.takeCompletedUpload(CACHE_KEY);
-        assertNotNull(newTempFile);
-        String content = Files.readString(newTempFile, StandardCharsets.UTF_8);
-        assertEquals("new_chunk1", content);
-
-        Files.deleteIfExists(newTempFile);
-        if (oldTempFile != null) Files.deleteIfExists(oldTempFile);
+        long nonNullCount = results.stream().filter(r -> r != null).count();
+        assertEquals(1, nonNullCount, "exactly one thread should win the single-use token race");
     }
 }
