@@ -26,7 +26,7 @@ TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
 
-TOTAL_API_CALLS=43
+TOTAL_API_CALLS=45
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -435,6 +435,11 @@ mcp_call '{"jsonrpc":"2.0","id":"mcp-12","method":"tools/call","params":{"name":
 mcp_fail_expected "request_network_upload (no auth, update)"
 
 CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_download (no auth)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-nd-na","method":"tools/call","params":{"name":"request_network_download","arguments":{"network_id":"'"${MCP_PUBLIC_UUID}"'","file_path":"/tmp/test_dl.cx2"}}}'
+mcp_fail_expected "request_network_download (no auth)"
+
+CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: delete_network (no auth, fake UUID)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-13","method":"tools/call","params":{"name":"delete_network","arguments":{"networkId":"00000000-0000-0000-0000-000000000000"}}}'
 mcp_fail_expected "delete_network (no auth)"
@@ -559,9 +564,9 @@ HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   || api_fail "reused token: expected 401, got ${HTTP_STATUS}"
 api_pass "pre-signed upload 401 for reused token"
 
-# ── STEP: MCP profile, properties, systemproperties, download ────────────────
+# ── STEP: MCP profile, properties, systemproperties ──────────────────────────
 
-step "MCP update_network_profile, set_network_properties, set_network_systemproperties, download_network"
+step "MCP update_network_profile, set_network_properties, set_network_systemproperties"
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: update_network_profile (auth)"
@@ -593,18 +598,46 @@ mcp_call '{"jsonrpc":"2.0","id":"mcp-25","method":"tools/call","params":{"name":
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_network_summary MCP-created network (auth)"
 
-CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: download_network public network (anon)"
-# network_summary passes {"modificationTime":0} — Jackson sets Date to epoch.
-# file_path does not exist on server, so cache-hit check is skipped; first chunk is returned.
-mcp_call '{"jsonrpc":"2.0","id":"mcp-26","method":"tools/call","params":{"name":"download_network","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'","network_summary":{"modificationTime":0},"file_path":"/tmp/mcp_dl_anon.cx2","cx2NetworkCurrentChunkNumber":1}}}'
-mcp_pass "download_network public (anon)"
+# ── STEP: MCP request_network_download ───────────────────────────────────────
 
+step "MCP request_network_download (auth)"
+
+MCP_DOWNLOAD_FILE="/tmp/mcp_downloaded.cx2"
+LAST_DOWNLOAD_URL=""
+
+# Sub-step A: request download token (auth)
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: download_network public network (auth)"
-mcp_call '{"jsonrpc":"2.0","id":"mcp-27","method":"tools/call","params":{"name":"download_network","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'","network_summary":{"modificationTime":0},"file_path":"/tmp/mcp_dl_auth.cx2","cx2NetworkCurrentChunkNumber":1}}}' \
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_download (auth)"
+mcp_call "{\"jsonrpc\":\"2.0\",\"id\":\"mcp-dl\",\"method\":\"tools/call\",\"params\":{\"name\":\"request_network_download\",\"arguments\":{\"network_id\":\"${MCP_NETWORK_UUID}\",\"file_path\":\"${MCP_DOWNLOAD_FILE}\"}}}" \
   "-u ${TEST_USER}:${TEST_PASS}"
-mcp_pass "download_network public (auth)"
+mcp_pass "request_network_download (auth)"
+DOWNLOAD_URL=$(echo "${MCP_JSON}" | grep -o '"download_url":"[^"]*"' | head -1 | cut -d'"' -f4)
+[[ -n "${DOWNLOAD_URL}" ]] \
+  || api_fail "request_network_download → no download_url in response: ${MCP_JSON:0:300}"
+LAST_DOWNLOAD_URL="${DOWNLOAD_URL}"
+
+curl -s -o "${MCP_DOWNLOAD_FILE}" "${DOWNLOAD_URL}" \
+  || api_fail "pre-signed download curl failed"
+[[ -s "${MCP_DOWNLOAD_FILE}" ]] \
+  || api_fail "Downloaded file is empty or missing: ${MCP_DOWNLOAD_FILE}"
+echo "  Downloaded file size: $(wc -c < "${MCP_DOWNLOAD_FILE}") bytes"
+
+# Sub-step B: 401 for invalid token
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: pre-signed download 401 for invalid token"
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+  "${BASE_URL}/mcp/download?download_token=invalid-token-xyz")
+[[ "${HTTP_STATUS}" == "401" ]] \
+  || api_fail "pre-signed download with invalid token: expected 401, got ${HTTP_STATUS}"
+api_pass "pre-signed download 401 for invalid token"
+
+# Sub-step C: 401 for reused (single-use) token
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: pre-signed download 401 for reused token"
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${LAST_DOWNLOAD_URL}")
+[[ "${HTTP_STATUS}" == "401" ]] \
+  || api_fail "reused download token: expected 401, got ${HTTP_STATUS}"
+api_pass "pre-signed download 401 for reused token"
 
 # ── STEP: MCP get_user_networks ───────────────────────────────────────────────
 

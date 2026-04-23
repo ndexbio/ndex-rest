@@ -35,15 +35,16 @@ NDEx exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) 
 - The MCP servlet is registered programmatically at startup by `McpServletContextListener` using the MCP SDK's `HttpServletStreamableServerTransportProvider` — it cannot be declared in `web.xml` because the provider uses a builder-only construction pattern
 - It runs as an independent async servlet alongside the RESTEasy JAX-RS servlet, sharing the same Tomcat/Jetty container but with its own request pipeline
 - `/mcp/manifest` is served by a dedicated `McpManifestServlet` and is always publicly accessible — no credentials required
+- `/mcp/upload` and `/mcp/download` are served by `UploadPreSignedServlet` and `DownloadPreSignedServlet` — both bypass `McpAuthFilter` because they are guarded by single-use pre-signed tokens (120-second TTL) issued by `request_network_upload` and `request_network_download`; authorization is enforced at token-issuance time (the calling user must be authenticated), not at transfer time
 
 **Authentication (handled by `McpAuthFilter` before tools are invoked):**
-- All `/mcp/*` requests (except `/mcp/manifest`) pass through `McpAuthFilter`, which supports Basic auth and Bearer token (KeyCloak / Google OAuth)
+- All `/mcp/*` requests (except `/mcp/manifest`, `/mcp/upload`, and `/mcp/download`) pass through `McpAuthFilter`, which supports Basic auth and Bearer token (KeyCloak / Google OAuth)
 - Invalid or missing credentials return HTTP 401 with a `WWW-Authenticate: Bearer` OAuth challenge header
 - On success the resolved `User` object is attached to the servlet request and propagated into every tool call via MCP transport context
 
 **Auth and no-auth tool pathways:**
-- **Write/mutate tools** (`create_network`, `update_network`, `delete_network`, `manage_folder`, `set_network_properties`, `set_network_system_properties`, `update_network_profile`) perform an explicit auth check — requests with no authenticated user are rejected immediately with a structured 401 result
-- **Read tools** (`search_network`, `get_network_summary`, `download_network`, `get_folder`) delegate to the underlying NDEx service layer, which enforces per-resource visibility: public networks and folders are accessible without credentials; private resources require either an authenticated user or a valid `accessKey` query parameter
+- **Auth-required tools** (`request_network_upload`, `request_network_download`, `delete_network`, `manage_folder`, `share_network`, `get_user_networks`, `get_user_info`, `set_network_properties`, `set_network_systemproperties`, `update_network_profile`) perform an explicit auth check — requests with no authenticated user are rejected immediately with a structured 401 result
+- **Read tools** (`search_network`, `get_network_summary`, `get_folder`) delegate to the underlying NDEx service layer, which enforces per-resource visibility: public networks and folders are accessible without credentials; private resources require either an authenticated user or a valid `accessKey` query parameter
 - All tools invoke NDEx services **in-process** (no outbound HTTP) — the same `HttpServletRequest` carrying the authenticated user is passed directly to `NetworkServiceV3`, `SearchServiceV2`, `FolderServiceV3`, etc., so permission checks work transparently without any re-authentication
 
 ---

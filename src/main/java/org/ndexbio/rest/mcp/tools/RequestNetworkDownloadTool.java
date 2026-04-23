@@ -1,0 +1,176 @@
+package org.ndexbio.rest.mcp.tools;
+
+import java.util.Map;
+
+import org.ndexbio.model.object.User;
+import org.ndexbio.rest.mcp.ConfigLocator;
+import org.ndexbio.rest.mcp.DownloadFileRequest;
+import org.ndexbio.rest.mcp.DownloadTokenService;
+import org.ndexbio.rest.mcp.McpSchema;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.modelcontextprotocol.server.McpServerFeatures;
+import io.modelcontextprotocol.server.McpSyncServerExchange;
+import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import io.modelcontextprotocol.spec.McpSchema.JsonSchema;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
+
+/**
+ * MCP tool: request_network_download
+ *
+ * Issues a pre-signed single-use download token. The agent uses the returned download_url
+ * to GET the CX2 file directly from /mcp/download outside the MCP channel, avoiding
+ * in-protocol inline string transfer that causes agent hangs on large files.
+ */
+public class RequestNetworkDownloadTool {
+
+    private static final Logger logger = LoggerFactory.getLogger(RequestNetworkDownloadTool.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    static final String TOOL_NAME = "request_network_download";
+
+    private static final String TOOL_DESCRIPTION =
+        "Obtain a time-limited download URL for transferring a CX2 network file directly from NDEx " +
+        "to the agent's local machine over HTTP. Use when the CX2 content of an NDEx network needs " +
+        "to be saved as a local file — for example before analysis, transformation, or archiving. " +
+        "The returned URL accepts a standard HTTP GET request and streams the complete CX2 file in " +
+        "a single response. After calling this tool, immediately perform an HTTP GET to the returned " +
+        "download_url before the 2-minute token expires and save the response body to the desired " +
+        "local path. For example, using curl:\n" +
+        "  curl -s -o \"<file_path>\" \"<download_url>\"\n" +
+        "Read-only: does not modify any server state. Returns an error response when the caller is " +
+        "not authenticated; the error message identifies the specific cause.\n\n" +
+        "## Examples\n\n" +
+        "Example 1 — Download a network to a local path:\n" +
+        "Prompt: 'Download NDEx network f93f402c-86d4-11e7-a10d-0ac135e8bacf as CX2 to /tmp/net.cx2'\n" +
+        "{\"network_id\": \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\", \"file_path\": \"/tmp/net.cx2\"}\n" +
+        "Then immediately: curl -s -o \"/tmp/net.cx2\" \"<download_url from response>\"\n\n" +
+        "Example 2 — Download a private network using an access key:\n" +
+        "Prompt: 'Download my private network and save it at /home/user/mynet.cx2'\n" +
+        "{\"network_id\": \"9a8f5ab1-3a5c-11e8-a935-0ac135e8bacf\",\n" +
+        " \"file_path\": \"/home/user/mynet.cx2\",\n" +
+        " \"access_key\": \"abc123xyz\"}\n" +
+        "Then immediately: curl -s -o \"/home/user/mynet.cx2\" \"<download_url from response>\"";
+
+    static final String INPUT_SCHEMA = McpSchema.toJson(
+        McpSchema.InputSchema.builder()
+            .required("network_id", "file_path")
+            .property("network_id", new McpSchema.InputProperty("string",
+                "Required. UUID of the NDEx network to download in CX2 format. The network must have " +
+                "a CX2 representation available on the server.\n\n" +
+                "Examples: \"f93f402c-86d4-11e7-a10d-0ac135e8bacf\", " +
+                "\"9a8f5ab1-3a5c-11e8-a935-0ac135e8bacf\""))
+            .property("file_path", new McpSchema.InputProperty("string",
+                "Required. Absolute path on the agent's local machine where the downloaded CX2 file " +
+                "should be saved. Used by the agent when executing the follow-on HTTP GET (e.g. as the " +
+                "-o argument to curl); never transmitted to the NDEx server.\n\n" +
+                "Examples: \"/tmp/mynetwork.cx2\", \"/home/ndex/exports/net.cx2\""))
+            .property("access_key", new McpSchema.InputProperty("string",
+                "Optional. Access key granting read permission on networks that are not publicly " +
+                "visible. Ignored for public networks.\n\n" +
+                "Examples: \"abc123xyz\", \"private-key-99\""))
+            .build());
+
+    static final String OUTPUT_SCHEMA = McpSchema.toSchemaJson(DownloadTokenResponse.class);
+
+    private static final Tool TOOL;
+    static {
+        try {
+            TOOL = Tool.builder()
+                .name(TOOL_NAME)
+                .description(TOOL_DESCRIPTION)
+                .inputSchema(MAPPER.readValue(INPUT_SCHEMA, JsonSchema.class))
+                .outputSchema(MAPPER.readValue(OUTPUT_SCHEMA, new TypeReference<Map<String, Object>>() {}))
+                .build();
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    private final ConfigLocator configLocator;
+
+    public RequestNetworkDownloadTool(ConfigLocator configLocator) {
+        this.configLocator = configLocator;
+    }
+
+    public McpServerFeatures.SyncToolSpecification toSpec() {
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(TOOL)
+                .callHandler(this::handle)
+                .build();
+    }
+
+    private CallToolResult handle(McpSyncServerExchange exchange, CallToolRequest req) {
+        try {
+            User user = (User) exchange.transportContext().get("ndexUser");
+            if (user == null) {
+                return CallToolResult.builder()
+                        .isError(true)
+                        .addTextContent("401 Unauthorized")
+                        .build();
+            }
+
+            DownloadToolRequest input = MAPPER.convertValue(req.arguments(), DownloadToolRequest.class);
+
+            String token = DownloadTokenService.getInstance().createToken(
+                new DownloadFileRequest(user, input.networkId(), input.accessKey(),
+                                        System.currentTimeMillis()));
+
+            String baseUrl = configLocator.getHostURI();
+            if (baseUrl == null || baseUrl.isBlank()) baseUrl = "http://localhost";
+            String downloadUrl = baseUrl + "/mcp/download?download_token=" + token;
+
+            return CallToolResult.builder()
+                    .structuredContent(new DownloadTokenResponse(downloadUrl, "GET", 120))
+                    .build();
+
+        } catch (Exception e) {
+            logger.error("request_network_download failed", e);
+            return CallToolResult.builder()
+                    .isError(true)
+                    .addTextContent("request_network_download failed: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record DownloadToolRequest(
+        @JsonProperty("network_id")  String networkId,
+        @JsonProperty("file_path")   String filePath,
+        @JsonProperty("access_key")  String accessKey
+    ) {}
+
+    static record DownloadTokenResponse(
+
+        @JsonPropertyDescription(
+            "Time-limited pre-signed URL for downloading the CX2 file from NDEx. Retrieve this URL " +
+            "using any HTTP GET client immediately after calling this tool, before the token expires. " +
+            "The token is single-use: the server returns 401 Unauthorized if the URL is used after " +
+            "expiry or reused. To save the file using curl:\n" +
+            "  curl -s -o \"<file_path>\" \"<download_url>\"\n\n" +
+            "Examples: \"http://www.ndexbio.org/mcp/download?download_token=550e8400-e29b-41d4-a716-446655440000\", " +
+            "\"http://localhost:8080/mcp/download?download_token=6ba7b810-9dad-11d1-80b4-00c04fd430c8\"")
+        @JsonProperty("download_url") String downloadUrl,
+
+        @JsonPropertyDescription(
+            "HTTP method to use when retrieving the CX2 file. Always 'GET'.\n\n" +
+            "Examples: \"GET\"")
+        @JsonProperty("method") String method,
+
+        @JsonPropertyDescription(
+            "Number of seconds from the time this tool was called until the download_url token expires. " +
+            "The HTTP GET must be submitted before this duration elapses. After expiry the server rejects " +
+            "the request with a 401 Unauthorized response.\n\n" +
+            "Examples: 120")
+        @JsonProperty("expires_in_seconds") int expiresInSeconds
+
+    ) {}
+}

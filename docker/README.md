@@ -127,11 +127,13 @@ A separate standalone script at `docker/test/integration-mcp-test.sh` validates 
 - MCP manifest endpoint is publicly accessible (`GET /mcp/manifest`)
 - `search_network` and `get_network_summary` work unauthenticated for public networks
 - `get_network_summary` rejects unauthenticated access to private networks
-- All auth-required tools (`create_network`, `update_network`, `delete_network`,
-  `update_network_profile`, `set_network_properties`, `set_network_systemproperties`,
-  `get_folder`, `manage_folder`) reject requests with no credentials
-- All 11 tools execute successfully end-to-end with valid Basic Auth credentials
-- `download_network` returns chunk data for a public network without authentication
+- All auth-required tools (`request_network_upload`, `request_network_download`,
+  `delete_network`, `update_network_profile`, `set_network_properties`,
+  `set_network_systemproperties`, `manage_folder`, `share_network`, `get_user_networks`,
+  `get_user_info`) reject requests with no credentials
+- All tools execute successfully end-to-end with valid Basic Auth credentials
+- `request_network_download` requires authentication; it returns a pre-signed URL that the
+  agent uses in a plain HTTP GET to `/mcp/download` — no credentials required for the transfer
 
 ```bash
 # Full run (build + test)

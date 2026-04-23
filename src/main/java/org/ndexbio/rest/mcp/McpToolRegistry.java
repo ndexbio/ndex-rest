@@ -5,13 +5,13 @@ import java.util.List;
 import io.modelcontextprotocol.server.McpServerFeatures;
 
 import org.ndexbio.rest.mcp.tools.DeleteNetworkTool;
-import org.ndexbio.rest.mcp.tools.DownloadNetworkTool;
 import org.ndexbio.rest.mcp.tools.GetConnectionStatusTool;
 import org.ndexbio.rest.mcp.tools.GetFolderTool;
 import org.ndexbio.rest.mcp.tools.GetNetworkSummaryTool;
 import org.ndexbio.rest.mcp.tools.GetUserInfoTool;
 import org.ndexbio.rest.mcp.tools.GetUserNetworksTool;
 import org.ndexbio.rest.mcp.tools.ManageFolderTool;
+import org.ndexbio.rest.mcp.tools.RequestNetworkDownloadTool;
 import org.ndexbio.rest.mcp.tools.RequestNetworkUploadTool;
 import org.ndexbio.rest.mcp.tools.SearchNetworkTool;
 import org.ndexbio.rest.mcp.tools.SetNetworkPropertiesTool;
@@ -29,10 +29,6 @@ import org.ndexbio.rest.mcp.tools.UpdateNetworkProfileTool;
 public class McpToolRegistry {
 
     public List<McpServerFeatures.SyncToolSpecification> buildSpecs() {
-        return buildSpecs(new DownloadService());
-    }
-
-    public List<McpServerFeatures.SyncToolSpecification> buildSpecs(DownloadService downloadService) {
         ToolsService ts = new ToolsService();
         return List.of(
             new SearchNetworkTool(ts).toSpec(),
@@ -44,7 +40,7 @@ public class McpToolRegistry {
             new DeleteNetworkTool(ts).toSpec(),
             new GetFolderTool(ts).toSpec(),
             new ManageFolderTool(ts).toSpec(),
-            new DownloadNetworkTool(ts, downloadService).toSpec(),
+            new RequestNetworkDownloadTool(new DefaultConfigLocator()).toSpec(),
             new ShareNetworkTool(ts).toSpec(),
             new GetUserNetworksTool(ts).toSpec(),
             new GetConnectionStatusTool(new DefaultConfigLocator()).toSpec(),

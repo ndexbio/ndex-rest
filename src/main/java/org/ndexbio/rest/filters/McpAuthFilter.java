@@ -47,7 +47,7 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
         String uri = httpReq.getRequestURI();
         String contextPath = httpReq.getContextPath();
         String relPath = uri.startsWith(contextPath) ? uri.substring(contextPath.length()) : uri;
-        if ("/mcp/manifest".equals(relPath) || "/mcp/upload".equals(relPath)) {
+        if ("/mcp/manifest".equals(relPath) || "/mcp/upload".equals(relPath) || "/mcp/download".equals(relPath)) {
             chain.doFilter(request, response);
             return;
         }

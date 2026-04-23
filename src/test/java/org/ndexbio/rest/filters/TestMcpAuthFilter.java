@@ -68,6 +68,24 @@ class TestMcpAuthFilter {
     // ── tests ────────────────────────────────────────────────────────────────
 
     @Test
+    void doFilter_bypassesAuth_forDownloadPath() throws Exception {
+        TestableMcpFilter filter = new TestableMcpFilter(null, new org.ndexbio.model.exceptions.UnauthorizedOperationException("should not reach auth"));
+
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        HttpServletResponse resp = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class);
+
+        expect(req.getRequestURI()).andReturn("/mcp/download").once();
+        expect(req.getContextPath()).andReturn("").once();
+        chain.doFilter(req, resp);
+        expectLastCall().once();
+
+        replay(req, resp, chain);
+        filter.doFilter(req, resp, chain);
+        verify(req, resp, chain);
+    }
+
+    @Test
     void doFilter_bypassesAuth_forUploadPath() throws Exception {
         TestableMcpFilter filter = new TestableMcpFilter(null, new org.ndexbio.model.exceptions.UnauthorizedOperationException("should not reach auth"));
 

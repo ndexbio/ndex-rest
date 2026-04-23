@@ -54,10 +54,8 @@ public class McpServletContextListener implements ServletContextListener {
                 })
                 .build();
 
-        DownloadService downloadService = new DownloadService();
-
         McpServerFeatures.SyncToolSpecification[] toolSpecs =
-            new McpToolRegistry().buildSpecs(downloadService)
+            new McpToolRegistry().buildSpecs()
                 .toArray(new McpServerFeatures.SyncToolSpecification[0]);
 
         McpServer.sync(transport)
@@ -86,6 +84,15 @@ public class McpServletContextListener implements ServletContextListener {
             uploadReg.setMultipartConfig(new MultipartConfigElement(""));
         }
 
+        ServletRegistration.Dynamic downloadReg =
+            ctx.addServlet("DownloadPreSignedServlet", new DownloadPreSignedServlet());
+        if (downloadReg == null) {
+            logger.warn("McpServletContextListener: 'DownloadPreSignedServlet' already registered; " +
+                        "skipping duplicate registration.");
+        } else {
+            downloadReg.addMapping("/mcp/download");
+        }
+
         ServletRegistration.Dynamic reg = ctx.addServlet("McpServlet", transport);
         if (reg == null) {
             logger.warn("McpServletContextListener: 'McpServlet' already registered; " +
@@ -101,5 +108,6 @@ public class McpServletContextListener implements ServletContextListener {
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
         UploadService.getInstance().stop();
+        DownloadTokenService.getInstance().stop();
     }
 }
