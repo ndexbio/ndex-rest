@@ -7,29 +7,7 @@
 #   podman play kube k8s-ndex-deployment.yml
 #
 # All service state is stored under the host path /data/ndex, which is
-# mounted into the container via a 512Gi PersistentVolume.  An init
-# container creates the required sub-directories on first boot.
-
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: ndex-pv
-  labels:
-    app: ndex
-spec:
-  capacity:
-    storage: 512Gi
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: default
-  hostPath:
-    path: /data/ndex
-    type: DirectoryOrCreate
-  claimRef:
-    name: ndex-pvc
-    namespace: default
+# mounted into the container via a 512Gi PersistentVolumeClaim.
 
 ---
 apiVersion: v1
@@ -38,7 +16,6 @@ metadata:
   name: ndex-pvc
 spec:
   storageClassName: default
-  volumeName: ndex-pv
   accessModes:
     - ReadWriteOnce
   resources:
@@ -70,18 +47,18 @@ spec:
             - -c
             - |
               mkdir -p \
-                /data/ndex/ndex-config \
-                /data/ndex/ndex-data \
-                /data/ndex/postgres-config \
-                /data/ndex/postgres-data \
-                /data/ndex/keycloak-config \
-                /data/ndex/keycloak-data \
-                /data/ndex/solr-config \
-                /data/ndex/solr-data \
-                /data/ndex/mailhog-config
+                /apps/ndex/config \
+                /apps/ndex/data \
+                /apps/postgres/config \
+                /apps/postgres/data \
+                /apps/keycloak/config \
+                /apps/keycloak/data \
+                /apps/solr/config \
+                /apps/solr/data \
+                /apps/mailhog/config
           volumeMounts:
             - name: ndex-storage
-              mountPath: /data/ndex
+              mountPath: /apps
 
       containers:
         - name: ndex
@@ -98,32 +75,7 @@ spec:
               protocol: TCP
           volumeMounts:
             - name: ndex-storage
-              mountPath: /apps/ndex/config
-              subPath: ndex-config
-            - name: ndex-storage
-              mountPath: /apps/ndex/data
-              subPath: ndex-data
-            - name: ndex-storage
-              mountPath: /apps/postgres/config
-              subPath: postgres-config
-            - name: ndex-storage
-              mountPath: /apps/postgres/data
-              subPath: postgres-data
-            - name: ndex-storage
-              mountPath: /apps/keycloak/config
-              subPath: keycloak-config
-            - name: ndex-storage
-              mountPath: /apps/keycloak/data
-              subPath: keycloak-data
-            - name: ndex-storage
-              mountPath: /apps/solr/config
-              subPath: solr-config
-            - name: ndex-storage
-              mountPath: /apps/solr/data
-              subPath: solr-data
-            - name: ndex-storage
-              mountPath: /apps/mailhog/config
-              subPath: mailhog-config
+              mountPath: /apps
 
       volumes:
         - name: ndex-storage
