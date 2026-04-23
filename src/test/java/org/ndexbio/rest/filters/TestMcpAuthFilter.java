@@ -185,7 +185,9 @@ class TestMcpAuthFilter {
         expect(req.getContextPath()).andReturn("").once();
         expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
         expect(req.getHeader("Authorization")).andReturn(null).once();
-        resp.setHeader(eq("WWW-Authenticate"), contains("Bearer resource_metadata="));
+        resp.setHeader(eq("WWW-Authenticate"), and(
+                contains("Bearer resource_metadata="),
+                contains("/.well-known/oauth-protected-resource/mcp")));
         expectLastCall().once();
         resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         expectLastCall().once();
@@ -217,7 +219,8 @@ class TestMcpAuthFilter {
         expect(req.getHeader("Authorization")).andReturn("Bearer old.token").once();
         resp.setHeader(eq("WWW-Authenticate"), and(
                 contains("Bearer resource_metadata="),
-                and(contains("error=\"invalid_token\""), contains("session expired"))));
+                and(contains("/.well-known/oauth-protected-resource/mcp"),
+                    and(contains("error=\"invalid_token\""), contains("session expired")))));
         expectLastCall().once();
         resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         expectLastCall().once();

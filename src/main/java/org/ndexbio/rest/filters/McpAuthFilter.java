@@ -82,7 +82,7 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
             try {
                 String hostUri = Configuration.getInstance().getHostURI();
                 String wwwAuth = "Bearer resource_metadata=\"" + hostUri +
-                                 "/.well-known/oauth-protected-resource\"";
+                                 "/.well-known/oauth-protected-resource/mcp\"";
                 if (cause instanceof TokenExpiredException) {
                     wwwAuth += " error=\"invalid_token\" error_description=\"" + cause.getMessage() + "\"";
                 }

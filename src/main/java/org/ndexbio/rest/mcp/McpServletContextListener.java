@@ -93,6 +93,15 @@ public class McpServletContextListener implements ServletContextListener {
             downloadReg.addMapping("/mcp/download");
         }
 
+        ServletRegistration.Dynamic oauthMetaReg =
+            ctx.addServlet("OAuthProtectedResourceServlet", new OAuthProtectedResourceServlet());
+        if (oauthMetaReg == null) {
+            logger.warn("McpServletContextListener: 'OAuthProtectedResourceServlet' already registered; " +
+                        "skipping duplicate registration.");
+        } else {
+            oauthMetaReg.addMapping("/.well-known/oauth-protected-resource/mcp");
+        }
+
         ServletRegistration.Dynamic reg = ctx.addServlet("McpServlet", transport);
         if (reg == null) {
             logger.warn("McpServletContextListener: 'McpServlet' already registered; " +
