@@ -107,6 +107,33 @@ Generate yours: `echo -n 'username:password' | base64` (macOS/Linux) or
 
 ---
 
+#### GitHub Copilot CLI
+
+Add to `~/.copilot/mcp-config.json` (user-wide, default location — override with `COPILOT_HOME`):
+
+```json
+{
+  "mcpServers": {
+    "ndex": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp",
+      "headers": {
+        "Authorization": "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+      }
+    }
+  }
+}
+```
+
+`dXNlcm5hbWU6cGFzc3dvcmQ=` is the base64 encoding of `username:password`.
+Generate yours: `echo -n 'username:password' | base64` (macOS/Linux) or
+`[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("username:password"))`
+(Windows PowerShell). Omit the `headers` block for anonymous access.
+
+Alternatively, add the server interactively from within a running `copilot` session using the `/mcp add` slash command.
+
+---
+
 #### VS Code GitHub Copilot
 
 Add to `.vscode/mcp.json` in the workspace root. The `${input:ndex-token}` reference
