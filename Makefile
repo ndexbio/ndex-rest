@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker integration-test
+.PHONY: clean clean-test clean-pyc clean-build docs mcp-manifest help docker docker-dev push-docker integration-test integration-test-mcp build_claude_mcpb
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -35,11 +35,14 @@ lint: ## check style with checkstyle:checkstyle
 	mvn checkstyle:checkstyle
 
 test: ## run tests with mvn test
-	mvn test
+	mvn test -Dmaven.compiler.useIncrementalCompilation=false
 
 coverage: ## check code coverage with jacoco
 	mvn test jacoco:report
 	$(BROWSER) target/site/jacoco/index.html
+
+compile: ## compile sources
+	mvn compile
 
 install: clean ## install the package to local repo
 	mvn install
@@ -54,6 +57,10 @@ docs: ## generate Sphinx HTML documentation, including API docs
 
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
+
+mcp-manifest: ## generate McpManifest.md from registered MCP tools
+	mvn process-classes
+	@echo "McpManifest.md written to target/generated-resources/McpManifest.md"
 
 # Component version overrides — passed as Docker build-args
 KEYCLOAK_VERSION  ?= 26.1.0
@@ -90,3 +97,15 @@ push-docker: docker ## push deploy image to registry (requires DOCKER_REPO and D
 
 integration-test: ## run integration tests
 	docker/test/integration-test.sh
+
+integration-test-mcp: ## run MCP integration tests (standalone)
+	docker/test/integration-mcp-test.sh
+
+build_claude_mcpb: ## package claude-extension/ into build/ndex-mcp.mcpb
+	rm -rf build/mcpb-staging build/ndex-mcp.mcpb
+	mkdir -p build/mcpb-staging
+	cp claude-extension/manifest.json build/mcpb-staging/manifest.json
+	cp claude-extension/icon.png build/mcpb-staging/icon.png
+	cp -r claude-extension/server build/mcpb-staging/server
+	cd build/mcpb-staging && zip -r ../ndex-mcp.mcpb .
+	@echo "Built build/ndex-mcp.mcpb"

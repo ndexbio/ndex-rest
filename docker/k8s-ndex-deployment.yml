@@ -1,0 +1,100 @@
+# NDEx Kubernetes / Podman Deployment
+#
+# Deploy with kubectl:
+#   kubectl apply -f k8s-ndex-deployment.yml
+#
+# Deploy with podman:
+#   podman play kube k8s-ndex-deployment.yml
+#
+# All service state is stored under the host path /data/ndex, which is
+# mounted into the container via a 512Gi PersistentVolumeClaim.
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ndex-pvc
+spec:
+  storageClassName: default
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 512Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ndex
+  labels:
+    app: ndex
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ndex
+  template:
+    metadata:
+      labels:
+        app: ndex
+    spec:
+      initContainers:
+        - name: ndex-init
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p \
+                /apps/ndex/config \
+                /apps/ndex/data \
+                /apps/postgres/config \
+                /apps/postgres/data \
+                /apps/keycloak/config \
+                /apps/keycloak/data \
+                /apps/solr/config \
+                /apps/solr/data \
+                /apps/mailhog/config
+          volumeMounts:
+            - name: ndex-storage
+              mountPath: /apps
+
+      containers:
+        - name: ndex
+          image: ndexbio/ndex-rest
+          args:
+            - --ndex
+            - --postgres
+            - --keycloak
+            - --solr
+            - --mailhog
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: ndex-storage
+              mountPath: /apps
+
+      volumes:
+        - name: ndex-storage
+          persistentVolumeClaim:
+            claimName: ndex-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ndex
+  labels:
+    app: ndex
+spec:
+  type: ClusterIP
+  selector:
+    app: ndex
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
