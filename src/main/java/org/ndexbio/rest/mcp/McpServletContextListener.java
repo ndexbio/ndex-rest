@@ -99,7 +99,10 @@ public class McpServletContextListener implements ServletContextListener {
             logger.warn("McpServletContextListener: 'OAuthProtectedResourceServlet' already registered; " +
                         "skipping duplicate registration.");
         } else {
-            oauthMetaReg.addMapping("/.well-known/oauth-protected-resource/mcp");
+            oauthMetaReg.addMapping(
+                "/.well-known/oauth-protected-resource/mcp",
+                "/.well-known/oauth-protected-resource"
+            );
         }
 
         ServletRegistration.Dynamic reg = ctx.addServlet("McpServlet", transport);

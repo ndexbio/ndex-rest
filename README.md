@@ -38,9 +38,43 @@ NDEx exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) 
 - `/mcp/upload` and `/mcp/download` are served by `UploadPreSignedServlet` and `DownloadPreSignedServlet` — both bypass `McpAuthFilter` because they are guarded by single-use pre-signed tokens (120-second TTL) issued by `request_network_upload` and `request_network_download`; authorization is enforced at token-issuance time (the calling user must be authenticated), not at transfer time
 
 **Authentication (handled by `McpAuthFilter` before tools are invoked):**
-- All `/mcp/*` requests (except `/mcp/manifest`, `/mcp/upload`, and `/mcp/download`) pass through `McpAuthFilter`, which supports Basic auth and Bearer token (KeyCloak / Google OAuth)
-- Invalid or missing credentials return HTTP 401 with a `WWW-Authenticate: Bearer` OAuth challenge header
-- On success the resolved `User` object is attached to the servlet request and propagated into every tool call via MCP transport context
+
+All `/mcp/*` requests (except `/mcp/manifest`, `/mcp/upload`, and `/mcp/download`) pass through
+`McpAuthFilter`. On success the resolved `User` object is attached to the servlet request and
+propagated into every tool call via MCP transport context.
+
+Auth is attempted in this order:
+
+1. **Basic auth (primary)** — if `Authorization: Basic <base64>` is present it is validated
+   against the NDEx user database. On success the request proceeds. On failure a plain 401 is
+   returned with no `WWW-Authenticate` header (no OAuth fallback is triggered).
+
+2. **Bearer token** — if `Authorization: Bearer <token>` is present it is validated using the
+   configured OAuth authenticator (Keycloak or Google — see configuration below). On failure a
+   plain 401 is returned.
+
+3. **No credentials** — if no `Authorization` header is present the request is rejected with
+   HTTP 401 and a `WWW-Authenticate: Bearer resource_metadata="<host>/.well-known/oauth-protected-resource/mcp"`
+   header. This is the RFC 9728 OAuth discovery hint that tells MCP clients where to find auth
+   server metadata.
+
+**OAuth discovery endpoints (`/.well-known/oauth-protected-resource`):**
+
+`OAuthProtectedResourceServlet` serves RFC 9728 Protected Resource Metadata at both
+`/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-protected-resource`.
+The response always includes an `authorization_servers` field whose value depends on what is
+configured in `ndex.properties`:
+
+| `ndex.properties` setting | `authorization_servers` value in response |
+|---------------------------|-------------------------------------------|
+| `USE_KEYCLOAK_AUTHENTICATION=true` + `KEYCLOAK_ISSUER=<url>` | `["<KEYCLOAK_ISSUER value>"]` |
+| `USE_GOOGLE_AUTHENTICATION=true` | `["https://accounts.google.com"]` |
+| Neither (default) | `[]` — empty array |
+
+An empty `authorization_servers` array explicitly tells MCP clients that no OAuth authorization
+server is configured, preventing them from probing `/.well-known/oauth-authorization-server/*`.
+When a Keycloak or Google issuer is present, MCP clients can use that server to obtain Bearer
+tokens that the server will then validate via `McpAuthFilter`.
 
 **Auth and no-auth tool pathways:**
 - **Auth-required tools** (`request_network_upload`, `request_network_download`, `delete_network`, `manage_folder`, `share_network`, `get_user_networks`, `get_user_info`, `set_network_properties`, `set_network_systemproperties`, `update_network_profile`) perform an explicit auth check — requests with no authenticated user are rejected immediately with a structured 401 result
