@@ -33,13 +33,13 @@ NDEx exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) 
 
 **Servlet architecture (separate from the REST API):**
 - The MCP servlet is registered programmatically at startup by `McpServletContextListener` using the MCP SDK's `HttpServletStreamableServerTransportProvider` — it cannot be declared in `web.xml` because the provider uses a builder-only construction pattern
-- It runs as an independent async servlet alongside the RESTEasy JAX-RS servlet, sharing the same Tomcat/Jetty container but with its own request pipeline
+- It runs as an independent async servlet alongside the RESTEasy JAX-RS servlet, sharing the same Tomcat/Jetty container but with its own request pipeline which is necessary to support the streaming transport over http that mcp protocol requires and JAX-RS servlet doesn't support.
 - `/mcp/manifest` is served by a dedicated `McpManifestServlet` and is always publicly accessible — no credentials required
-- `/mcp/upload` and `/mcp/download` are served by `UploadPreSignedServlet` and `DownloadPreSignedServlet` — both bypass `McpAuthFilter` because they are guarded by single-use pre-signed tokens (120-second TTL) issued by `request_network_upload` and `request_network_download`; authorization is enforced at token-issuance time (the calling user must be authenticated), not at transfer time
+- `/mcp/upload` and `/mcp/download` are served by `UploadPreSignedServlet` and `DownloadPreSignedServlet` — both bypass auth filtering because they are guarded by single-use pre-signed tokens based an authenticated users(120-second TTL) issued by `request_network_upload` and `request_network_download`; authorization is enforced at token-issuance time (the calling user must be authenticated), not at transfer time
 
 **Authentication (handled by `McpAuthFilter` before tools are invoked):**
 
-All `/mcp/*` requests (except `/mcp/manifest`, `/mcp/upload`, and `/mcp/download`) pass through
+All `/mcp` requests (except `/mcp/manifest`, `/mcp/upload`, and `/mcp/download`) pass through
 `McpAuthFilter`. On success the resolved `User` object is attached to the servlet request and
 propagated into every tool call via MCP transport context.
 
@@ -53,13 +53,16 @@ Auth is attempted in this order:
    configured OAuth authenticator (Keycloak or Google — see configuration below). On failure a
    plain 401 is returned.
 
-3. **No credentials** — if no `Authorization` header is present the request is rejected with
-   HTTP 401 and a `WWW-Authenticate: Bearer resource_metadata="<host>/.well-known/oauth-protected-resource/mcp"`
-   header. This is the RFC 9728 OAuth discovery hint that tells MCP clients where to find auth
-   server metadata.
+3. **No credentials** — anonymous is allowed on mcp, it will allow an agent to handshake with mcp server and excehange manifests. However, each specific tool additionally checks authentication vs. anon during invocation as as a pass-through to the underlying api auth requirements that each tool wraps. some tools will allow anon invocation and others wont.
+
+**Auth and no-auth tool pathways:**
+- **Auth-required tools** (`request_network_upload`, `request_network_download`, `delete_network`, `manage_folder`, `share_network`, `get_user_networks`, `get_user_info`, `set_network_properties`, `set_network_systemproperties`, `update_network_profile`) perform an explicit auth check — requests with no authenticated user are rejected immediately with a structured 401 result
+- **Read tools** (`search_network`, `get_network_summary`, `get_folder`) delegate to the underlying NDEx service layer, which enforces per-resource visibility: public networks and folders are accessible without credentials; private resources require either an authenticated user or a valid `accessKey` query parameter
+- All tools invoke NDEx services **in-process** (no outbound HTTP) — the same `HttpServletRequest` carrying the authenticated user is passed directly to `NetworkServiceV3`, `SearchServiceV2`, `FolderServiceV3`, etc., so permission checks work transparently without any re-authentication
 
 **OAuth discovery endpoints (`/.well-known/oauth-protected-resource`):**
 
+As of current, the NDEx MCP server will not initiate OAuth 2.1 + PKCE flows for unauthenticated clients. It will accept an existing OAuth Bearer token but that is the extent of support for now. 
 `OAuthProtectedResourceServlet` serves RFC 9728 Protected Resource Metadata at both
 `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-protected-resource`.
 The response always includes an `authorization_servers` field whose value depends on what is
@@ -75,11 +78,6 @@ An empty `authorization_servers` array explicitly tells MCP clients that no OAut
 server is configured, preventing them from probing `/.well-known/oauth-authorization-server/*`.
 When a Keycloak or Google issuer is present, MCP clients can use that server to obtain Bearer
 tokens that the server will then validate via `McpAuthFilter`.
-
-**Auth and no-auth tool pathways:**
-- **Auth-required tools** (`request_network_upload`, `request_network_download`, `delete_network`, `manage_folder`, `share_network`, `get_user_networks`, `get_user_info`, `set_network_properties`, `set_network_systemproperties`, `update_network_profile`) perform an explicit auth check — requests with no authenticated user are rejected immediately with a structured 401 result
-- **Read tools** (`search_network`, `get_network_summary`, `get_folder`) delegate to the underlying NDEx service layer, which enforces per-resource visibility: public networks and folders are accessible without credentials; private resources require either an authenticated user or a valid `accessKey` query parameter
-- All tools invoke NDEx services **in-process** (no outbound HTTP) — the same `HttpServletRequest` carrying the authenticated user is passed directly to `NetworkServiceV3`, `SearchServiceV2`, `FolderServiceV3`, etc., so permission checks work transparently without any re-authentication
 
 ---
 

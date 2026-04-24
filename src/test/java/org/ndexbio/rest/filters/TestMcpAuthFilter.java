@@ -114,7 +114,7 @@ class TestMcpAuthFilter {
 
         expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
         expect(req.getContextPath()).andReturn("").once();
-        expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
+        expect(req.getHeader("Authorization")).andReturn(null).once();
         chain.doFilter(req, resp);
         expectLastCall().once();
 
@@ -134,6 +134,7 @@ class TestMcpAuthFilter {
 
         expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
         expect(req.getContextPath()).andReturn("").once();
+        expect(req.getHeader("Authorization")).andReturn("Basic dXNlcjpwYXNz").once();
         expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
         req.setAttribute("User", mockUser);
         expectLastCall().once();
@@ -173,34 +174,25 @@ class TestMcpAuthFilter {
     }
 
     @Test
-    void doFilter_noAuthException_401_withWwwAuthenticate() throws Exception {
-        TestableMcpFilter filter = new TestableMcpFilter(null, new UnauthorizedOperationException("no auth"));
+    void doFilter_noAuthHeader_passesThrough_evenWhenHandleFilterWouldThrow() throws Exception {
+        // handleFilter is configured to throw, but must never be called when no header present
+        TestableMcpFilter filter = new TestableMcpFilter(null, new UnauthorizedOperationException("should not reach auth"));
 
         HttpServletRequest req = mock(HttpServletRequest.class);
         HttpServletResponse resp = mock(HttpServletResponse.class);
         FilterChain chain = mock(FilterChain.class);
-        PrintWriter writer = mock(PrintWriter.class);
 
         expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
         expect(req.getContextPath()).andReturn("").once();
-        expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
         expect(req.getHeader("Authorization")).andReturn(null).once();
-        resp.setHeader(eq("WWW-Authenticate"), and(
-                contains("Bearer resource_metadata="),
-                contains("/.well-known/oauth-protected-resource/mcp")));
+        // chain MUST be called — anonymous pass-through guaranteed
+        chain.doFilter(req, resp);
         expectLastCall().once();
-        resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        expectLastCall().once();
-        resp.setContentType("application/json;charset=UTF-8");
-        expectLastCall().once();
-        expect(resp.getWriter()).andReturn(writer).once();
-        writer.write(anyString());
-        expectLastCall().once();
-        // chain must NOT be called
+        // resp must NOT receive setStatus — no 401 generated for missing auth header
 
-        replay(req, resp, chain, writer);
+        replay(req, resp, chain);
         filter.doFilter(req, resp, chain);
-        verify(req, resp, chain, writer);
+        verify(req, resp, chain);
     }
 
     @Test

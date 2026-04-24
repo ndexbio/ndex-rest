@@ -38,6 +38,16 @@ class TestMcpManifestServlet {
         };
     }
 
+    private static McpManifestServlet servletWithKnownContent() {
+        return new McpManifestServlet() {
+            @Override InputStream openManifestStream() {
+                return new java.io.ByteArrayInputStream(
+                    "# NDEx MCP Server\n\nTest manifest content.\n"
+                        .getBytes(StandardCharsets.UTF_8));
+            }
+        };
+    }
+
     private static McpManifestServlet servletWithBrokenStream() {
         return new McpManifestServlet() {
             @Override InputStream openManifestStream() {
@@ -53,7 +63,7 @@ class TestMcpManifestServlet {
         };
     }
 
-    // --- Success path (McpManifest.md present in src/test/resources) ---
+    // --- Success path ---
 
     @Test
     void doGet_setsContentType_textMarkdown() throws Exception {
@@ -64,7 +74,7 @@ class TestMcpManifestServlet {
         EasyMock.expect(resp.getOutputStream()).andReturn(cos);
         EasyMock.replay(resp);
 
-        new McpManifestServlet().doGet(null, resp);
+        servletWithKnownContent().doGet(null, resp);
 
         EasyMock.verify(resp);
     }
@@ -78,7 +88,7 @@ class TestMcpManifestServlet {
         EasyMock.expect(resp.getOutputStream()).andReturn(cos);
         EasyMock.replay(resp);
 
-        new McpManifestServlet().doGet(null, resp);
+        servletWithKnownContent().doGet(null, resp);
 
         assertFalse(cos.text().isEmpty(), "response body must not be empty");
         assertTrue(cos.text().contains("NDEx MCP Server"), "body must contain manifest header");
@@ -96,7 +106,7 @@ class TestMcpManifestServlet {
         EasyMock.expect(resp.getOutputStream()).andReturn(cos);
         EasyMock.replay(resp);
 
-        assertDoesNotThrow(() -> new McpManifestServlet().doGet(null, resp));
+        assertDoesNotThrow(() -> servletWithKnownContent().doGet(null, resp));
         EasyMock.verify(resp);
     }
 

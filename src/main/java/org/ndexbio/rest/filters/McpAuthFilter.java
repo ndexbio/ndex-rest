@@ -24,11 +24,14 @@ import jakarta.ws.rs.core.MultivaluedHashMap;
 /**
  * Servlet filter for /mcp/* — extends BasicAuthenticationFilter.
  *
- * doFilter() calls BasicAuthenticationFilter.handleFilter() for the shared auth core.
- * Handles its own 401 responses via private sendUnauthorizedResponse():
+ * doFilter() skips handleFilter() entirely when no Authorization header is present, guaranteeing
+ * anonymous pass-through. Tools enforce per-resource auth via their own user-null checks.
+ * When credentials ARE present, doFilter() calls BasicAuthenticationFilter.handleFilter() and
+ * handles 401 responses via private sendUnauthorizedResponse():
  *   - Basic credentials present and invalid → plain JSON 401
- *   - No/non-Basic auth header            → JSON 401 + WWW-Authenticate: Bearer resource_metadata="..."
- *   - Token expired (TokenExpiredException) → JSON 401 + WWW-Authenticate: Bearer resource_metadata="..." + error="invalid_token"
+ *   - No Authorization header              → anonymous pass-through (handleFilter not called)
+ *   - Bearer token invalid/expired         → JSON 401 + WWW-Authenticate: Bearer resource_metadata="..."
+ *   - Bearer token expired                 → JSON 401 + WWW-Authenticate: Bearer ... error="invalid_token"
  *
  */
 public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
@@ -52,6 +55,15 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
             return;
         }
 
+        // Anonymous pass-through: skip handleFilter() entirely when no credentials are present.
+        // This prevents any edge-case exception from sending a spurious 401 to anonymous clients.
+        // Tools enforce per-resource auth via their own user-null checks.
+        String authHeader = httpReq.getHeader("Authorization");
+        if (authHeader == null) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // Adapt HttpServletRequest headers to MultivaluedMap for handleFilter().
         // parseCredentials() does case-sensitive map lookups (e.g. "Authorization"),
         // but Tomcat may normalize header names. Use the case-insensitive Servlet API
@@ -69,7 +81,7 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
             User user = handleFilter(headers);  // from BasicAuthenticationFilter; throws Exception broadly
             if (user != null) httpReq.setAttribute("User", user);
         } catch (Exception e) {
-            sendUnauthorizedResponse(httpResp, e, httpReq.getHeader("Authorization"));
+            sendUnauthorizedResponse(httpResp, e, authHeader);
             return;
         }
         chain.doFilter(request, response);
@@ -77,8 +89,8 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
 
     private void sendUnauthorizedResponse(HttpServletResponse resp, Exception cause, String authHeader)
             throws IOException {
-        if (authHeader == null || !authHeader.startsWith("Basic ")) {
-            // No auth header or non-Basic auth → OAuth challenge with WWW-Authenticate header
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            // Bearer token was attempted but failed → OAuth challenge with WWW-Authenticate header
             try {
                 String hostUri = Configuration.getInstance().getHostURI();
                 String wwwAuth = "Bearer resource_metadata=\"" + hostUri +
