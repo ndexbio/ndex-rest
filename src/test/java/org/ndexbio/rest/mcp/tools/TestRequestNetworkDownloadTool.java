@@ -96,6 +96,7 @@ class TestRequestNetworkDownloadTool {
                    "download_url should start with configured host + /mcp/download?download_token=");
         assertEquals("GET", response.get("method"));
         assertEquals(120, response.get("expires_in_seconds"));
+        assertEquals("/tmp/net.cx2", response.get("file_path"), "file_path should be echoed in response");
     }
 
     @Test
@@ -109,6 +110,7 @@ class TestRequestNetworkDownloadTool {
         assertFalse(result.isError());
         Map<String, Object> response = parseStructuredContent(result);
         assertTrue(((String) response.get("download_url")).startsWith("http://localhost/mcp/download"));
+        assertEquals("/tmp/net.cx2", response.get("file_path"), "file_path should be echoed in response");
     }
 
     @Test
@@ -122,6 +124,7 @@ class TestRequestNetworkDownloadTool {
         assertFalse(result.isError());
         Map<String, Object> response = parseStructuredContent(result);
         assertTrue(((String) response.get("download_url")).startsWith("http://localhost/mcp/download"));
+        assertEquals("/tmp/net.cx2", response.get("file_path"), "file_path should be echoed in response");
     }
 
     @Test
@@ -144,5 +147,20 @@ class TestRequestNetworkDownloadTool {
         assertNotNull(downloadReq);
         assertEquals(networkId, downloadReq.networkId());
         assertEquals(accessKey, downloadReq.accessKey());
+    }
+
+    @Test
+    void handle_echosFilePathWithSpaces() throws Exception {
+        RequestNetworkDownloadTool tool = new RequestNetworkDownloadTool(() -> "http://host");
+        String pathWithSpaces = "/Users/jsmith/Downloads/My Network.cx2";
+        CallToolResult result = tool.toSpec().callHandler()
+                .apply(exchangeWith(mockUser),
+                       requestWith(Map.of("network_id", "f93f402c-86d4-11e7-a10d-0ac135e8bacf",
+                                          "file_path", pathWithSpaces)));
+
+        assertFalse(result.isError());
+        Map<String, Object> response = parseStructuredContent(result);
+        assertEquals(pathWithSpaces, response.get("file_path"),
+                     "file_path with spaces must be echoed verbatim in the response");
     }
 }
