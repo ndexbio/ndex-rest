@@ -47,7 +47,10 @@ public class RequestNetworkUploadTool {
         "'application/json'. The caller must perform this HTTP POST immediately after calling this tool, " +
         "before the 2-minute token embedded in the URL expires; any HTTP client capable of issuing a " +
         "multipart POST request can perform the transfer — for example, using curl:\n" +
-        "  curl -s -X POST -F \"CXNetworkStream=@/path/to/file.cx2;type=application/json\" \"<upload_url>\"\n" +
+        "  curl -s -X POST -F \"CXNetworkStream=@\\\"<file_path>\\\";type=application/json\" \"<upload_url>\"\n" +
+        "where <file_path> and <upload_url> are taken from this tool's response. " +
+        "Always wrap <file_path> in double-quotes inside the -F value so that spaces and special " +
+        "characters in the path are handled safely by the shell.\n" +
         "State-mutating when the follow-on HTTP POST is executed: creates a new network or replaces " +
         "the CX2 content of an existing one, then triggers asynchronous validation and search indexing " +
         "on the server side. Returns an error response when the caller is not authenticated; the error " +
@@ -72,12 +75,18 @@ public class RequestNetworkUploadTool {
         McpSchema.InputSchema.builder()
             .required("file_path")
             .property("file_path", new McpSchema.InputProperty("string",
-                "Required. Absolute path to the CX2 file on the agent's local machine. This path is " +
-                "embedded in the returned upload metadata so the agent can supply it directly to an HTTP " +
-                "client when executing the follow-on file transfer; the path itself is never read or " +
-                "transmitted to the NDEx server by this tool.\n\n" +
+                "Required. Absolute path to the CX2 file on the agent's local machine.\n\n" +
+                "IMPORTANT — before calling this tool the agent MUST verify that the file exists " +
+                "at this path (e.g. with a bash `test -f \"<path>\" && echo exists` check). If the " +
+                "file is not found, stop and inform the user; do NOT call this tool with a path that " +
+                "does not exist.\n\n" +
+                "Pass the path exactly as provided by the user — as a plain JSON string with no " +
+                "URL-encoding or shell escaping. Spaces and special characters are valid in the " +
+                "JSON value. The path is echoed back in the response so the agent can use it " +
+                "verbatim in the follow-on curl command without re-constructing it from memory.\n\n" +
                 "Examples: \"/home/user/networks/my_network.cx2\", " +
                 "\"/Users/jsmith/Downloads/test_export.cx2\", " +
+                "\"/Users/jsmith/Downloads/My Network.cx2\", " +
                 "\"C:\\\\Users\\\\jsmith\\\\Downloads\\\\test_export.cx2\""))
             .property("network_id", new McpSchema.InputProperty("string",
                 "Optional. UUID of the existing NDEx network whose CX2 content should be replaced. " +
@@ -166,7 +175,8 @@ public class RequestNetworkUploadTool {
 
             return CallToolResult.builder()
                     .structuredContent(new UploadTokenResponse(uploadUrl, "POST",
-                                                               "CXNetworkStream", "application/json", 120))
+                                                               "CXNetworkStream", "application/json", 120,
+                                                               input.filePath()))
                     .build();
 
         } catch (Exception e) {
@@ -205,8 +215,9 @@ public class RequestNetworkUploadTool {
             "form field named 'CXNetworkStream' with content-type 'application/json'. The token " +
             "embedded in this URL is single-use and expires after the number of seconds indicated by " +
             "expires_in_seconds; the server returns a 401 Unauthorized response if the URL is " +
-            "submitted after expiry or reused. Example using curl: " +
-            "  curl -s -X POST -F \\\"CXNetworkStream=@<file_path>;type=application/json\\\" \\\"<upload_url>\\\"\n\n" +
+            "submitted after expiry or reused. Use the file_path field from this response in the " +
+            "curl command, wrapped in double-quotes to handle spaces and special characters safely:\n" +
+            "  curl -s -X POST -F \\\"CXNetworkStream=@\\\\\\\"<file_path>\\\\\\\";type=application/json\\\" \\\"<upload_url>\\\"\n\n" +
             "Examples: \\\"http://www.ndexbio.org/mcp/upload?upload_token=550e8400-e29b-41d4-a716-446655440000\\\", " +
             "\\\"http://localhost:8080/mcp/upload?upload_token=6ba7b810-9dad-11d1-80b4-00c04fd430c8\\\"")
         @JsonProperty("upload_url") String uploadUrl,
@@ -234,7 +245,16 @@ public class RequestNetworkUploadTool {
             "The HTTP POST to upload_url must be submitted before this duration elapses. After expiry " +
             "the server rejects the request with a 401 Unauthorized response.\n\n" +
             "Examples: 120")
-        @JsonProperty("expires_in_seconds") int expiresInSeconds
+        @JsonProperty("expires_in_seconds") int expiresInSeconds,
+
+        @JsonPropertyDescription(
+            "The exact file_path value supplied to this tool. Use this verbatim in the follow-on " +
+            "curl command, wrapped in double-quotes, so that spaces and special characters in the " +
+            "path are handled safely by the shell. Do not re-construct the path from memory — " +
+            "always use this field.\n\n" +
+            "Examples: \"/Users/jsmith/Downloads/test_export.cx2\", " +
+            "\"/Users/jsmith/Downloads/My Network.cx2\"")
+        @JsonProperty("file_path") String filePath
 
     ) {}
 }

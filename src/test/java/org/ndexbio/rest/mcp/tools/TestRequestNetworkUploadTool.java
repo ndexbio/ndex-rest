@@ -95,6 +95,7 @@ class TestRequestNetworkUploadTool {
         assertEquals("CXNetworkStream", response.get("field"));
         assertEquals("application/json", response.get("content_type"));
         assertEquals(120, response.get("expires_in_seconds"));
+        assertEquals("/tmp/net.cx2", response.get("file_path"), "file_path should be echoed in response");
     }
 
     @Test
@@ -183,5 +184,19 @@ class TestRequestNetworkUploadTool {
         var uploadReq = UploadService.getInstance().resolveToken(token);
         assertNotNull(uploadReq);
         assertNull(uploadReq.folderId(), "waived folder_id should resolve to null");
+    }
+
+    @Test
+    void handle_echosFilePathWithSpaces() throws Exception {
+        RequestNetworkUploadTool tool = new RequestNetworkUploadTool(() -> "http://host");
+        String pathWithSpaces = "/Users/jsmith/Downloads/My Network File.cx2";
+        CallToolResult result = tool.toSpec().callHandler()
+                .apply(exchangeWith(mockUser),
+                       requestWith(Map.of("file_path", pathWithSpaces)));
+
+        assertFalse(result.isError());
+        Map<String, Object> response = parseStructuredContent(result);
+        assertEquals(pathWithSpaces, response.get("file_path"),
+                     "file_path with spaces must be echoed verbatim in the response");
     }
 }
