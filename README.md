@@ -56,9 +56,10 @@ Auth is attempted in this order:
 3. **No credentials** — anonymous is allowed on mcp, it will allow an agent to handshake with mcp server and excehange manifests. However, each specific tool additionally checks authentication vs. anon during invocation as as a pass-through to the underlying api auth requirements that each tool wraps. some tools will allow anon invocation and others wont.
 
 **Auth and no-auth tool pathways:**
-- **Auth-required tools** (`request_network_upload`, `request_network_download`, `delete_network`, `manage_folder`, `share_network`, `get_user_networks`, `get_user_info`, `set_network_properties`, `set_network_systemproperties`, `update_network_profile`) perform an explicit auth check — requests with no authenticated user are rejected immediately with a structured 401 result
-- **Read tools** (`search_network`, `get_network_summary`, `get_folder`) delegate to the underlying NDEx service layer, which enforces per-resource visibility: public networks and folders are accessible without credentials; private resources require either an authenticated user or a valid `accessKey` query parameter
-- All tools invoke NDEx services **in-process** (no outbound HTTP) — the same `HttpServletRequest` carrying the authenticated user is passed directly to `NetworkServiceV3`, `SearchServiceV2`, `FolderServiceV3`, etc., so permission checks work transparently without any re-authentication
+- **Auth-required tools** (`request_network_upload`, `delete_network`, `manage_folder`, `get_folder`, `share_network`, `get_user_networks`, `get_user_info`, `set_network_properties`, `set_network_systemproperties`, `update_network_profile`) perform an explicit auth check — requests with no authenticated user are rejected and get a mcp response with reason of authentication error.
+- **Always-public tools** (`get_connection_status`, `search_network`, `get_network_summary`) never require authentication.
+- **Conditionally-auth tools** (`request_network_download`) perform a visibility pre-check on requested file, if the target network is PUBLIC or UNLISTED, anonymous callers are allowed if the network is PRIVATE and the caller has no authenticated session, the tool is denied.
+
 
 **OAuth discovery endpoints (`/.well-known/oauth-protected-resource`):**
 

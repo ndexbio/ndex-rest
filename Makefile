@@ -35,7 +35,7 @@ lint: ## check style with checkstyle:checkstyle
 	mvn checkstyle:checkstyle
 
 test: ## run tests with mvn test
-	mvn test
+	mvn test -Dmaven.compiler.useIncrementalCompilation=false
 
 coverage: ## check code coverage with jacoco
 	mvn test jacoco:report

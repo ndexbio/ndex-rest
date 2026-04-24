@@ -2,8 +2,12 @@ package org.ndexbio.rest.mcp.tools;
 
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
+
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.User;
 import org.ndexbio.rest.mcp.ConfigLocator;
+import org.ndexbio.rest.services.v3.NetworkServiceV3;
 import org.ndexbio.rest.mcp.DownloadFileRequest;
 import org.ndexbio.rest.mcp.DownloadTokenService;
 import org.ndexbio.rest.mcp.McpSchema;
@@ -48,8 +52,9 @@ public class RequestNetworkDownloadTool {
         "in the path are handled safely by the shell. For example, using curl:\n" +
         "  curl -s -o \"<file_path>\" \"<download_url>\"\n" +
         "where <file_path> and <download_url> are taken from this tool's response. " +
-        "Read-only: does not modify any server state. Returns an error response when the caller is " +
-        "not authenticated; the error message identifies the specific cause.\n\n" +
+        "Read-only: does not modify any server state. Public networks can be downloaded without " +
+        "authentication. Private networks require the caller to be authenticated; if the network is " +
+        "inaccessible an error response is returned identifying the cause.\n\n" +
         "## Examples\n\n" +
         "Example 1 — Download a network to a local path:\n" +
         "Prompt: 'Download NDEx network f93f402c-86d4-11e7-a10d-0ac135e8bacf as CX2 to /tmp/net.cx2'\n" +
@@ -128,14 +133,29 @@ public class RequestNetworkDownloadTool {
     private CallToolResult handle(McpSyncServerExchange exchange, CallToolRequest req) {
         try {
             User user = (User) exchange.transportContext().get("ndexUser");
-            if (user == null) {
-                return CallToolResult.builder()
-                        .isError(true)
-                        .addTextContent("401 Unauthorized")
-                        .build();
-            }
+            HttpServletRequest httpReq =
+                    (HttpServletRequest) exchange.transportContext().get("ndexRequest");
 
             DownloadToolRequest input = MAPPER.convertValue(req.arguments(), DownloadToolRequest.class);
+
+            // Visibility pre-check: public networks allow anonymous; private networks require auth.
+            // NetworkServiceV3 uses the User attribute McpAuthFilter already set on httpReq
+            // (null for anonymous), so isReadable(networkId, null) is used for unauthenticated callers.
+            try {
+                checkNetworkReadable(httpReq, input.networkId(), input.accessKey());
+            } catch (Exception e) {
+                boolean isAuthError = e instanceof UnauthorizedOperationException
+                        || e instanceof SecurityException;
+                if (isAuthError) {
+                    return CallToolResult.builder()
+                            .isError(true)
+                            .addTextContent(user == null
+                                    ? "401 Unauthorized: authentication required to access this network"
+                                    : "403 Forbidden: " + e.getMessage())
+                            .build();
+                }
+                throw e;
+            }
 
             String token = DownloadTokenService.getInstance().createToken(
                 new DownloadFileRequest(user, input.networkId(), input.accessKey(),
@@ -156,6 +176,11 @@ public class RequestNetworkDownloadTool {
                     .addTextContent("request_network_download failed: " + e.getMessage())
                     .build();
         }
+    }
+
+    protected void checkNetworkReadable(HttpServletRequest httpReq, String networkId, String accessKey)
+            throws Exception {
+        new NetworkServiceV3(httpReq).getNetworkSummaryV3(networkId, accessKey, "COMPACT");
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

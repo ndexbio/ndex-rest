@@ -6,6 +6,7 @@ import java.util.Map;
 import org.easymock.EasyMock;
 import org.junit.jupiter.api.Test;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.mcp.ConfigLocator;
 import org.ndexbio.rest.mcp.DownloadTokenService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,6 +23,26 @@ class TestRequestNetworkDownloadTool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private User mockUser = EasyMock.createMock(User.class);
+
+    private static class TestableRequestNetworkDownloadTool extends RequestNetworkDownloadTool {
+        private final boolean readable;
+        private final String errorMessage;
+
+        TestableRequestNetworkDownloadTool(ConfigLocator cfg, boolean readable, String errorMessage) {
+            super(cfg);
+            this.readable = readable;
+            this.errorMessage = errorMessage;
+        }
+
+        @Override
+        protected void checkNetworkReadable(
+                jakarta.servlet.http.HttpServletRequest httpReq,
+                String networkId, String accessKey)
+                throws Exception {
+            if (!readable)
+                throw new org.ndexbio.model.exceptions.UnauthorizedOperationException(errorMessage);
+        }
+    }
 
     private McpSyncServerExchange exchangeWith(User user) {
         Map<String, Object> ctxMap = new HashMap<>();
@@ -68,8 +89,9 @@ class TestRequestNetworkDownloadTool {
     // ── auth ─────────────────────────────────────────────────────────────────
 
     @Test
-    void handle_returnsUnauthorized_whenUserMissing() {
-        RequestNetworkDownloadTool tool = new RequestNetworkDownloadTool(() -> "http://host");
+    void handle_returnsUnauthorized_whenNetworkNotAccessible_anonymousCaller() {
+        RequestNetworkDownloadTool tool =
+                new TestableRequestNetworkDownloadTool(() -> "http://host", false, "no read access");
         CallToolResult result = tool.toSpec().callHandler()
                 .apply(exchangeWith(null),
                        requestWith(Map.of("network_id", "f93f402c-86d4-11e7-a10d-0ac135e8bacf",
@@ -78,11 +100,34 @@ class TestRequestNetworkDownloadTool {
         assertTrue(result.content().get(0).toString().contains("401"));
     }
 
+    @Test
+    void handle_returnsForbidden_whenNetworkNotAccessible_authenticatedCaller() {
+        RequestNetworkDownloadTool tool =
+                new TestableRequestNetworkDownloadTool(() -> "http://host", false, "no read access");
+        CallToolResult result = tool.toSpec().callHandler()
+                .apply(exchangeWith(mockUser),
+                       requestWith(Map.of("network_id", "f93f402c-86d4-11e7-a10d-0ac135e8bacf",
+                                          "file_path", "/tmp/net.cx2")));
+        assertTrue(result.isError());
+        assertTrue(result.content().get(0).toString().contains("403"));
+    }
+
+    @Test
+    void handle_allowsAnonymousDownload_whenNetworkIsPublic() {
+        RequestNetworkDownloadTool tool =
+                new TestableRequestNetworkDownloadTool(() -> "http://host", true, null);
+        CallToolResult result = tool.toSpec().callHandler()
+                .apply(exchangeWith(null),
+                       requestWith(Map.of("network_id", "f93f402c-86d4-11e7-a10d-0ac135e8bacf",
+                                          "file_path", "/tmp/net.cx2")));
+        assertFalse(result.isError());
+    }
+
     // ── token response ────────────────────────────────────────────────────────
 
     @Test
     void handle_returnsDownloadTokenResponse() throws Exception {
-        RequestNetworkDownloadTool tool = new RequestNetworkDownloadTool(() -> "http://test-host:8080");
+        RequestNetworkDownloadTool tool = new TestableRequestNetworkDownloadTool(() -> "http://test-host:8080", true, null);
         CallToolResult result = tool.toSpec().callHandler()
                 .apply(exchangeWith(mockUser),
                        requestWith(Map.of("network_id", "f93f402c-86d4-11e7-a10d-0ac135e8bacf",
@@ -101,7 +146,7 @@ class TestRequestNetworkDownloadTool {
 
     @Test
     void handle_usesLocalhostFallback_whenHostURIisNull() throws Exception {
-        RequestNetworkDownloadTool tool = new RequestNetworkDownloadTool(() -> null);
+        RequestNetworkDownloadTool tool = new TestableRequestNetworkDownloadTool(() -> null, true, null);
         CallToolResult result = tool.toSpec().callHandler()
                 .apply(exchangeWith(mockUser),
                        requestWith(Map.of("network_id", "f93f402c-86d4-11e7-a10d-0ac135e8bacf",
@@ -115,7 +160,7 @@ class TestRequestNetworkDownloadTool {
 
     @Test
     void handle_usesLocalhostFallback_whenHostURIisBlank() throws Exception {
-        RequestNetworkDownloadTool tool = new RequestNetworkDownloadTool(() -> "   ");
+        RequestNetworkDownloadTool tool = new TestableRequestNetworkDownloadTool(() -> "   ", true, null);
         CallToolResult result = tool.toSpec().callHandler()
                 .apply(exchangeWith(mockUser),
                        requestWith(Map.of("network_id", "f93f402c-86d4-11e7-a10d-0ac135e8bacf",
@@ -129,7 +174,7 @@ class TestRequestNetworkDownloadTool {
 
     @Test
     void handle_storesNetworkIdAndAccessKeyInToken() throws Exception {
-        RequestNetworkDownloadTool tool = new RequestNetworkDownloadTool(() -> "http://host");
+        RequestNetworkDownloadTool tool = new TestableRequestNetworkDownloadTool(() -> "http://host", true, null);
         String networkId = "f93f402c-86d4-11e7-a10d-0ac135e8bacf";
         String accessKey = "secret-key-xyz";
         CallToolResult result = tool.toSpec().callHandler()
@@ -151,7 +196,7 @@ class TestRequestNetworkDownloadTool {
 
     @Test
     void handle_echosFilePathWithSpaces() throws Exception {
-        RequestNetworkDownloadTool tool = new RequestNetworkDownloadTool(() -> "http://host");
+        RequestNetworkDownloadTool tool = new TestableRequestNetworkDownloadTool(() -> "http://host", true, null);
         String pathWithSpaces = "/Users/jsmith/Downloads/My Network.cx2";
         CallToolResult result = tool.toSpec().callHandler()
                 .apply(exchangeWith(mockUser),

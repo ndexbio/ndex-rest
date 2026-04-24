@@ -26,7 +26,7 @@ TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
 
-TOTAL_API_CALLS=45
+TOTAL_API_CALLS=46
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -422,7 +422,7 @@ mcp_pass "get_network_summary private (auth/owner)"
 # ── STEP: MCP auth barrier — no-auth rejection ────────────────────────────────
 
 step "MCP auth barrier: no credentials must be rejected by all auth-required tools"
-echo "  User=null check fires before any service call, so minimal args are fine."
+echo "  Tool makes a visibility pre-check; public networks allow anonymous, private require auth."
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_upload (no auth, create)"
@@ -435,9 +435,14 @@ mcp_call '{"jsonrpc":"2.0","id":"mcp-12","method":"tools/call","params":{"name":
 mcp_fail_expected "request_network_upload (no auth, update)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_download (no auth)"
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_download public (no auth — expect success)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-nd-na","method":"tools/call","params":{"name":"request_network_download","arguments":{"network_id":"'"${MCP_PUBLIC_UUID}"'","file_path":"/tmp/test_dl.cx2"}}}'
-mcp_fail_expected "request_network_download (no auth)"
+mcp_pass "request_network_download public (no auth)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_download private (no auth — expect rejection)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-nd-na-priv","method":"tools/call","params":{"name":"request_network_download","arguments":{"network_id":"'"${MCP_PRIVATE_UUID}"'","file_path":"/tmp/test_dl_priv.cx2"}}}'
+mcp_fail_expected "request_network_download private (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: delete_network (no auth, fake UUID)"
