@@ -95,7 +95,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 	public static final String accessLoggerName = "accesslog";
 	
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
-    private static final Logger accessLogger = LoggerFactory.getLogger(accessLoggerName);
+    protected static final Logger accessLogger = LoggerFactory.getLogger(accessLoggerName);
 
     //private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<>());
     //private static final ServerResponse ACCESS_DENIED_USER_NOT_FOUND = 
