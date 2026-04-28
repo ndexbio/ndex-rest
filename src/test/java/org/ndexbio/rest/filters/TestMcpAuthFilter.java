@@ -101,6 +101,12 @@ class TestMcpAuthFilter {
             .andReturn(new MockServletInputStream(TOOL_CALL_BODY)).once();
     }
 
+    /** Covers the getInputStream() call when the filter buffers an empty body. */
+    private static void expectEmptyBodyRead(HttpServletRequest req) throws IOException {
+        expect(req.getInputStream())
+            .andReturn(new MockServletInputStream(new byte[0])).once();
+    }
+
     // ── tests ────────────────────────────────────────────────────────────────
 
     @Test
@@ -283,5 +289,53 @@ class TestMcpAuthFilter {
         replay(req, resp, chain, writer);
         filter.doFilter(req, resp, chain);
         verify(req, resp, chain, writer);
+    }
+
+    @Test
+    void doFilter_anonymous_emptyBody_suppressesLog() throws Exception {
+        TestableMcpFilter filter = new TestableMcpFilter(null, null);
+
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        HttpServletResponse resp = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class);
+
+        expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
+        expect(req.getContextPath()).andReturn("").once();
+        expect(req.getHeader("Authorization")).andReturn(null).once();
+        expect(req.getQueryString()).andReturn(null).once();
+        expectEmptyBodyRead(req);
+        // toolLabel is "" — accessLogger must NOT be called; no expectLogCalls here
+        chain.doFilter(anyObject(), eq(resp));
+        expectLastCall().once();
+
+        replay(req, resp, chain);
+        filter.doFilter(req, resp, chain);
+        verify(req, resp, chain);
+    }
+
+    @Test
+    void doFilter_validUser_emptyBody_suppressesLog() throws Exception {
+        User mockUser = new User();
+        TestableMcpFilter filter = new TestableMcpFilter(mockUser, null);
+
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        HttpServletResponse resp = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class);
+
+        expect(req.getRequestURI()).andReturn("/mcp/tool-call").once();
+        expect(req.getContextPath()).andReturn("").once();
+        expect(req.getHeader("Authorization")).andReturn("Basic dXNlcjpwYXNz").once();
+        expect(req.getHeaderNames()).andReturn(java.util.Collections.emptyEnumeration()).once();
+        expect(req.getQueryString()).andReturn(null).once();
+        req.setAttribute("User", mockUser);
+        expectLastCall().once();
+        expectEmptyBodyRead(req);
+        // toolLabel is "" — accessLogger must NOT be called; no expectLogCalls here
+        chain.doFilter(anyObject(), eq(resp));
+        expectLastCall().once();
+
+        replay(req, resp, chain);
+        filter.doFilter(req, resp, chain);
+        verify(req, resp, chain);
     }
 }

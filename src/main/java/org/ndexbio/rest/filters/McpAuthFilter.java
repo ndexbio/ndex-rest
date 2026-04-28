@@ -117,7 +117,8 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
             CachedBodyRequestWrapper wrapped = new CachedBodyRequestWrapper(httpReq);
             if (user != null) wrapped.setAttribute("User", user);
             String toolLabel = extractToolLabel(wrapped.getBody());
-            accessLogger.info("[start]\t" + buildMcpLogString(httpReq, fullPath, user, authType, toolLabel));
+            if (!toolLabel.isEmpty())
+                accessLogger.info("[start]\t" + buildMcpLogString(httpReq, fullPath, user, authType, toolLabel));
             chain.doFilter(wrapped, response);
             return;
         }
@@ -126,7 +127,8 @@ public class McpAuthFilter extends BasicAuthenticationFilter implements Filter {
         // Tools enforce per-resource auth via their own user-null checks.
         CachedBodyRequestWrapper wrapped = new CachedBodyRequestWrapper(httpReq);
         String toolLabel = extractToolLabel(wrapped.getBody());
-        accessLogger.info("[start]\t" + buildMcpLogString(httpReq, fullPath, null, "", toolLabel));
+        if (!toolLabel.isEmpty())
+            accessLogger.info("[start]\t" + buildMcpLogString(httpReq, fullPath, null, "", toolLabel));
         chain.doFilter(wrapped, response);
     }
 
