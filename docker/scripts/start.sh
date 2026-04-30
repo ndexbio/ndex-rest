@@ -148,7 +148,7 @@ KC_EOF
 _seed_config() {
   local svc="$1"
   local config_dir="/apps/${svc}/config"
-  local default_dir="/apps/${svc}/default/config"
+  local default_dir="/opt/defaults/${svc}/config"
   if [[ ! -f "${config_dir}/.initialized" ]]; then
     echo "==> Seeding /apps/${svc}/config/ from defaults..."
     cp -r "${default_dir}/." "${config_dir}/"
@@ -367,7 +367,7 @@ if [[ "${ENABLE_NDEX}" == "true" ]]; then
     echo "==> Initializing NDEx configuration..."
 
     mkdir -p /apps/ndex/config
-    cp -r /apps/ndex/default/config/. /apps/ndex/config/
+    cp -r /opt/defaults/ndex/config/. /apps/ndex/config/
 
     if [[ -n "${NDEX_CONFIG_FILE}" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" ndexDb; then
       # External PG: role and DB must already exist; verify connectivity
@@ -422,13 +422,12 @@ SQL
       KC_ISSUER=$(_toml_get     "${NDEX_CONFIG_FILE}" ndex keycloakIssuer)
       KC_PUBLIC_KEY=$(_toml_get "${NDEX_CONFIG_FILE}" ndex keycloakPublicKey)
     else
-      # Monolithic: use localhost defaults; derive RSA public key from Keycloak cert.pem
+      # Monolithic: use localhost defaults; KC cert values applied every boot below
       SMTP_HOST="localhost"
       SOLR_URL="http://localhost:8983/solr"
       HOST_URI="http://localhost:8080"
-      KC_ISSUER="http://localhost:8085/realms/ndex"
-      KC_PUBLIC_KEY=$(openssl x509 -in /apps/keycloak/config/cert.pem -pubkey -noout \
-        | openssl rsa -pubin -pubout -outform DER | base64 -w 0)
+      KC_ISSUER=""
+      KC_PUBLIC_KEY=""
     fi
 
     sed -i "s|__NDEX_SMTP_HOST__|${SMTP_HOST}|g"               /apps/ndex/config/ndex.properties
@@ -439,6 +438,29 @@ SQL
 
     touch /apps/ndex/config/.initialized
     echo "==> NDEx configuration initialized."
+  fi
+
+  # ── Every boot: sync Keycloak auth settings from cert.pem ────────────────────
+  # Runs on every boot (not just first) so an admin can provide cert.pem via a
+  # volume mount and restart to enable Keycloak auth without resetting state.
+  # Skipped for microservices deployments that supply KC settings via --config [ndex].
+  if [[ -z "${NDEX_CONFIG_FILE}" ]] || ! _toml_has_section "${NDEX_CONFIG_FILE}" ndex; then
+    if [[ "${ENABLE_KEYCLOAK}" == "true" ]]; then
+      if [[ -f /apps/keycloak/config/cert.pem ]]; then
+        _kc_pub=$(openssl x509 -in /apps/keycloak/config/cert.pem -pubkey -noout \
+          | openssl rsa -pubin -pubout -outform DER | base64 -w 0)
+        sed -i "s|^KEYCLOAK_PUBLIC_KEY=.*|KEYCLOAK_PUBLIC_KEY=${_kc_pub}|"           /apps/ndex/config/ndex.properties
+        sed -i "s|^KEYCLOAK_ISSUER=.*|KEYCLOAK_ISSUER=http://localhost:8085/realms/ndex|" /apps/ndex/config/ndex.properties
+        sed -i "s|^USE_KEYCLOAK_AUTHENTICATION=.*|USE_KEYCLOAK_AUTHENTICATION=true|" /apps/ndex/config/ndex.properties
+        echo "==> Keycloak authentication configured from cert.pem."
+      else
+        echo "WARN: --keycloak enabled but cert.pem not found at /apps/keycloak/config/cert.pem" >&2
+        echo "WARN: Keycloak authentication disabled. Mount cert.pem and restart to enable." >&2
+        sed -i "s|^USE_KEYCLOAK_AUTHENTICATION=.*|USE_KEYCLOAK_AUTHENTICATION=false|" /apps/ndex/config/ndex.properties
+      fi
+    else
+      sed -i "s|^USE_KEYCLOAK_AUTHENTICATION=.*|USE_KEYCLOAK_AUTHENTICATION=false|"  /apps/ndex/config/ndex.properties
+    fi
   fi
 
   # ── Every boot: apply schema upgrades ─────────────────────────────────────────

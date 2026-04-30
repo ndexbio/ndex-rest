@@ -53,42 +53,24 @@ make docker KEYCLOAK_VERSION=26.2.0 SOLR_VERSION=9.7.0
 
 Available version variables (with defaults):
 
-| Variable           | Default  |
+| Variable           | Default  | 
 |--------------------|----------|
 | `KEYCLOAK_VERSION` | `26.1.0` |
 | `SOLR_VERSION`     | `9.6.1`  |
 | `POSTGRES_VERSION` | `16`     |
 | `MAILHOG_VERSION`  | `1.0.1`  |
 
----
+### Platform support
 
-## Testing
+`make docker` builds a single-platform image for the **host's native architecture** (linux/amd64 on Intel/AMD, linux/arm64 on Apple Silicon). This image is loaded directly into the local Docker daemon.
 
-An integration test script lives at `docker/test/integration-test.sh`. It builds the image, starts an ephemeral container, and validates the full API lifecycle across both v2 and v3 endpoints. Or can skip the build and running a new container and instead point the script at an already running container with `--remote-ndex-url http://<ndex_api_host:port>`:
+`make docker-multi-platform` cross builds a multi-platform manifest supporting both **linux/amd64** and **linux/arm64**. `make push-docker` will push the multi platform manifest and images at `docker.io/ndexbio/ndex-rest` isDocker automatically pulls the correct variant for your host.
 
-- User creation and Basic Auth (v2)
-- CX1 network upload via v2, summary poll until `completed:true`, CX2 retrieval via v3
-- CX2 network upload via v3, summary poll until `completed:true`, CX2 retrieval via v3
-- Solr keyword search via v2 (step 15) and v3 (step 16)
-
-The test **fails fast** — on the first failure it stops, prints the reason, how many calls passed, and how many were left unrun, then exits 1.
-
-**Fixtures required** (pre-built, committed in `docker/test/fixtures/`):
-- 3 × `.cx` files (CX1) — uploaded via `POST /v2/network`
-- 3 × `.cx2` files (CX2) — uploaded via `POST /v3/networks`
-
-### Full run (build + test)
+### Integration test
 
 ```bash
 cd docker/test
 ./integration-test.sh
-```
-
-### Skip the image build (re-use existing image)
-
-```bash
-cd docker/test
-./integration-test.sh --skip-build
 ```
 
 ### What success looks like
@@ -118,6 +100,40 @@ TEST FAILED
 ```
 
 Exit code 1 means the test failed. The container is always stopped and removed on exit (pass or fail).
+
+### MCP Integration Test
+
+A separate standalone script at `docker/test/integration-mcp-test.sh` validates the NDEx MCP server end-to-end. It creates its own test data, runs all 11 registered MCP tools against a live server, and relies on container teardown for cleanup — no manual teardown needed.
+
+**What it validates:**
+- MCP manifest endpoint is publicly accessible (`GET /mcp/manifest`)
+- `search_network` and `get_network_summary` work unauthenticated for public networks
+- `get_network_summary` rejects unauthenticated access to private networks
+- All auth-required tools (`request_network_upload`, `request_network_download`,
+  `delete_network`, `update_network_profile`, `set_network_properties`,
+  `set_network_systemproperties`, `manage_folder`, `share_network`, `get_user_networks`,
+  `get_user_info`) reject requests with no credentials
+- All tools execute successfully end-to-end with valid Basic Auth credentials
+- `request_network_download` requires authentication; it returns a pre-signed URL that the
+  agent uses in a plain HTTP GET to `/mcp/download` — no credentials required for the transfer
+
+```bash
+# Full run (build + test)
+make integration-test-mcp
+
+# Skip the image build
+docker/test/integration-mcp-test.sh --skip-build
+
+# Run against an existing server
+docker/test/integration-mcp-test.sh --remote-ndex-url http://<host>:<port>
+```
+
+Expected output on success:
+```
+================================================
+  ✓ ALL 31 API CALLS PASSED — TEST PASSED
+================================================
+```
 
 ---
 
@@ -410,7 +426,7 @@ Remove and recreate the container. All state resets on the next boot:
 
 ```bash
 docker rm -f ndex
-docker run --platform linux/amd64 ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```
 
 ### Full reset of one service (persistent mode — bind mounts)
@@ -420,7 +436,7 @@ Delete the host-side directory for the service(s) you want to reset, then restar
 ```bash
 docker rm -f ndex
 rm -rf /host/path/solr-config /host/path/solr-data
-docker run --platform linux/amd64 -v /host/path/solr-config:/apps/solr/config -v /host/path/solr-data:/apps/solr/data ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run -v /host/path/solr-config:/apps/solr/config -v /host/path/solr-data:/apps/solr/data ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```
 
 `start.sh` detects the absent sentinel and re-initializes only the cleared service(s) on the next boot.
@@ -431,7 +447,7 @@ docker run --platform linux/amd64 -v /host/path/solr-config:/apps/solr/config -v
 
 ```bash
 docker rm -f ndex
-docker run --platform linux/amd64 ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```
 
 **Persistent mode**: delete all bind-mounted host directories, then recreate:
@@ -443,5 +459,5 @@ rm -rf /host/path/ndex-config /host/path/ndex-data \
         /host/path/keycloak-config /host/path/keycloak-data \
         /host/path/solr-config /host/path/solr-data \
         /host/path/mailhog-config
-docker run --platform linux/amd64 -v /host/path/ndex-config:/apps/ndex/config ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run -v /host/path/ndex-config:/apps/ndex/config ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```

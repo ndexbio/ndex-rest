@@ -286,13 +286,12 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     }
 
     /**
-     * Permission filter for public-nfs core (PUBLIC and UNLISTED items)
-     * Anonymous users see everything. Authenticated users see everything for READ,
-     * WRITE/ADMIN filters down to items they have those permissions on.
+     * Permission filter for public-nfs core (PUBLIC and UNLISTED items).
+     * Anonymous users see all public (non-unlisted) items.
+     * Authenticated users additionally see unlisted items they own for READ,
+     * and are filtered to owned/editable items for WRITE/ADMIN.
      */
     protected String buildPublicCorePermissionFilter(String userAccount, Permissions permission) {
-        return "*:*";
-        /*
         String excludeUnlisted = "(*:* NOT " + VISIBILITY + ":UNLISTED)";
 
         if (userAccount == null) {
@@ -300,24 +299,16 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
 
         String userAccountStr = "\"" + userAccount + "\"";
-        // Match unlisted items the user has access to
-        String unlistedWithAccess = "(" + VISIBILITY + ":UNLISTED AND (" +
-                USER_ADMIN + ":" + userAccountStr + " OR " +
-                USER_READ + ":" + userAccountStr + " OR " +
-                USER_EDIT + ":" + userAccountStr + "))";
 
         if (permission == null || permission == Permissions.READ) {
-            return excludeUnlisted + " OR " + unlistedWithAccess;
+            return excludeUnlisted + " OR (" + USER_ADMIN + ":" + userAccountStr + ")";
         } else if (permission == Permissions.WRITE) {
-            return "(" + USER_ADMIN + ":" + userAccountStr + ") OR " +
-                    "(" + USER_EDIT + ":" + userAccountStr + ")";
+            return "(" + USER_ADMIN + ":" + userAccountStr + ") OR (" + USER_EDIT + ":" + userAccountStr + ")";
         } else if (permission == Permissions.ADMIN) {
             return USER_ADMIN + ":" + userAccountStr;
         }
 
         return excludeUnlisted;
-
-         */
     }
     /**
      * Permission filter for private-nfs core (PRIVATE items)
@@ -421,7 +412,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         solrClientWrapper.close();
     }
     static String getCoreNameFromVisibility(VisibilityType visibilityType){
-        if (visibilityType.equals(VisibilityType.PUBLIC)){
+        if (visibilityType.equals(VisibilityType.PUBLIC) || visibilityType.equals(VisibilityType.UNLISTED)){
             return publicCoreName;
         }
         return privateCoreName;

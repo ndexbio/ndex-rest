@@ -128,7 +128,7 @@ public abstract class NdexService
     		return _httpRequest.getInputStream();
     }
     
-    protected static OAuthAuthenticator getOAuthAuthenticator() {return oauthAuthenticator;}
+    public static OAuthAuthenticator getOAuthAuthenticator() {return oauthAuthenticator;}
     public static void setOAuthAuthenticator(OAuthAuthenticator a) {
     	oauthAuthenticator = a;
     }

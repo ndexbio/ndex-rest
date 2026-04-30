@@ -23,8 +23,7 @@
 #      in ndex.properties.  Every boot: call schema_upgrade.sh to apply any pending SQL
 #      updates.
 #   4  Ensure NDEx data subdirectories exist; copy support files to NdexRoot/conf/.
-#   5  First boot only: build ndex-object-model:3.0.0-SNAPSHOT if not in Maven cache
-#   6  Print ready banner; exec sleep infinity (NDEx started manually via ndex-server.sh)
+#   5  Print ready banner; exec sleep infinity (NDEx started manually via ndex-server.sh)
 set -euo pipefail
 
 NDEX_PORT="${NDEX_PORT:-8080}"
@@ -156,24 +155,12 @@ mkdir -p \
 cp /apps/ndex/config/ndex_importer_exporter.json /apps/ndex/data/conf/
 cp /apps/ndex/config/forgot-password.txt         /apps/ndex/data/conf/
 
-# ── Phase 5: ndex-object-model ────────────────────────────────────────────────
-# ndex-object-model:3.0.0-SNAPSHOT is not published to any remote Maven repo;
-# it must be built from source. Build once; result is cached in /root/.m2 and reused
-# on subsequent boots of the same container (or a new container with /root/.m2 bind-mounted).
-NDX_OBJ_JAR="/root/.m2/repository/org/ndexbio/ndex-object-model/3.0.0-SNAPSHOT/ndex-object-model-3.0.0-SNAPSHOT.jar"
-if [[ ! -f "${NDX_OBJ_JAR}" ]]; then
-  echo "==> Building ndex-object-model (first boot only)..."
-  /usr/local/bin/build-ndex-object-model.sh
-  echo "==> ndex-object-model installed."
-fi
-
-# ── Phase 6: Ready — NDEx must be started manually ───────────────────────────
+# ── Phase 5: Ready — NDEx must be started manually ───────────────────────────
 touch /tmp/ndex-dev-ready
 echo ""
 echo "========================================================"
 echo "  NDEx Devcontainer Ready!"
 echo "  Core services: postgres, keycloak, solr, mailhog — RUNNING"
-echo "  ndex-object-model — INSTALLED"
 echo ""
 echo "  To start the NDEx API server, open a terminal in the"
 echo "  container and run:"

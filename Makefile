@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help docker docker-dev push-docker
+.PHONY: clean clean-test clean-pyc clean-build docs mcp-manifest help docker docker-dev docker-multi-platform buildx-setup push-docker integration-test integration-test-mcp build_claude_mcpb
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -35,11 +35,14 @@ lint: ## check style with checkstyle:checkstyle
 	mvn checkstyle:checkstyle
 
 test: ## run tests with mvn test
-	mvn test
+	mvn test -Dmaven.compiler.useIncrementalCompilation=false
 
 coverage: ## check code coverage with jacoco
 	mvn test jacoco:report
 	$(BROWSER) target/site/jacoco/index.html
+
+compile: ## compile sources
+	mvn compile
 
 install: clean ## install the package to local repo
 	mvn install
@@ -55,6 +58,10 @@ docs: ## generate Sphinx HTML documentation, including API docs
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
+mcp-manifest: ## generate McpManifest.md from registered MCP tools
+	mvn process-classes
+	@echo "McpManifest.md written to target/generated-resources/McpManifest.md"
+
 # Component version overrides — passed as Docker build-args
 KEYCLOAK_VERSION  ?= 26.1.0
 SOLR_VERSION      ?= 9.6.1
@@ -69,17 +76,63 @@ DOCKER_BUILD_ARGS = \
 	    --build-arg MAILHOG_VERSION=$(MAILHOG_VERSION) \
 	    --build-arg NDEX_COMMIT_HASH=$(NDEX_COMMIT_HASH)
 
-docker-base: ## build the shared runtime-base image (docker/Dockerfile)
-	docker build --platform linux/amd64 -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) -t ndex-runtime-base .
+# Optional layer-cache flags — override from CI to enable e.g. --cache-from type=gha --cache-to type=gha,mode=max
+DOCKER_CACHE_ARGS ?=
 
-docker: docker-base ## build the deploy image (docker/Dockerfile_deploy)
-	docker build --platform linux/amd64 -f docker/Dockerfile_deploy $(DOCKER_BUILD_ARGS) -t ndexbio/ndex-rest .
+# Local build-cache dir for docker-multi-platform (persistent across rebuilds)
+MULTIPLATFORM_CACHE_DIR ?= /tmp/ndex-buildcache
+# Output path for the multi-platform OCI tar
+MULTIPLATFORM_OCI_TAR   ?= /tmp/ndex-multiarch.tar
+
+docker-base: ## build the shared runtime-base image (docker/Dockerfile)
+	docker buildx build --load -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndex-runtime-base .
+
+docker: docker-base ## build the deploy image (docker/Dockerfile)
+	docker buildx build --load -f docker/Dockerfile --target deploy \
+	    $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndexbio/ndex-rest .
 
 docker-dev: docker-base ## build the devcontainer image (.devcontainer/Dockerfile)
-	docker build --platform linux/amd64 -f .devcontainer/Dockerfile -t ndexbio/ndex-rest-dev .
+	docker build -f .devcontainer/Dockerfile -t ndexbio/ndex-rest-dev .
 
-push-docker: docker ## push deploy image to registry (requires DOCKER_REPO and DOCKER_TAG)
+# ── Multi-platform build targets ─────────────────────────────────────────────
+# Prerequisite: QEMU must be installed once per host:
+#   docker run --privileged --rm tonistiigi/binfmt --install all
+
+buildx-setup: ## create the multi-platform builder (docker-container driver) — idempotent
+	docker buildx inspect ndex-builder > /dev/null 2>&1 || \
+	    docker buildx create --name ndex-builder --driver docker-container --bootstrap
+
+docker-multi-platform: buildx-setup ## build linux/amd64 + linux/arm64 OCI tar locally (no push) → $(MULTIPLATFORM_OCI_TAR)
+	docker buildx build --builder ndex-builder \
+	    --platform linux/amd64,linux/arm64 \
+	    --output type=oci,dest=$(MULTIPLATFORM_OCI_TAR) \
+	    --cache-to   type=local,dest=$(MULTIPLATFORM_CACHE_DIR),mode=max \
+	    --cache-from type=local,src=$(MULTIPLATFORM_CACHE_DIR) \
+	    -f docker/Dockerfile --target deploy \
+	    $(DOCKER_BUILD_ARGS) .
+
+push-docker: docker-multi-platform ## push multi-platform manifest to registry via cached rebuild (requires DOCKER_REPO and DOCKER_TAG)
 	@[ -n "$(DOCKER_REPO)" ] || { echo "ERROR: DOCKER_REPO is not set"; exit 1; }
 	@[ -n "$(DOCKER_TAG)" ]  || { echo "ERROR: DOCKER_TAG is not set"; exit 1; }
-	docker tag ndexbio/ndex-rest $(DOCKER_REPO):$(DOCKER_TAG)
-	docker push $(DOCKER_REPO):$(DOCKER_TAG)
+	docker buildx build --builder ndex-builder \
+	    --platform linux/amd64,linux/arm64 \
+	    --push \
+	    --cache-from type=local,src=$(MULTIPLATFORM_CACHE_DIR) \
+	    -f docker/Dockerfile --target deploy \
+	    $(DOCKER_BUILD_ARGS) \
+	    -t $(DOCKER_REPO):$(DOCKER_TAG) .
+
+integration-test: ## run integration tests
+	docker/test/integration-test.sh
+
+integration-test-mcp: ## run MCP integration tests (standalone)
+	docker/test/integration-mcp-test.sh
+
+build_claude_mcpb: ## package claude-extension/ into build/ndex-mcp.mcpb
+	rm -rf build/mcpb-staging build/ndex-mcp.mcpb
+	mkdir -p build/mcpb-staging
+	cp claude-extension/manifest.json build/mcpb-staging/manifest.json
+	cp claude-extension/icon.png build/mcpb-staging/icon.png
+	cp -r claude-extension/server build/mcpb-staging/server
+	cd build/mcpb-staging && zip -r ../ndex-mcp.mcpb .
+	@echo "Built build/ndex-mcp.mcpb"

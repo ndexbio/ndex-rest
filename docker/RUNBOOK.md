@@ -1,9 +1,11 @@
 # NDEX Monolithic deployment (all services in one container)
 
+The `ndexbio/ndex-rest` image is a multi-platform manifest supporting **linux/amd64** and **linux/arm64** — Docker pulls the correct variant automatically. Images built locally with `make docker` are single-platform for the host's native architecture.
+
 ## Ephemeral (data lost on container removal)
 
 ```bash
-docker run --platform linux/amd64 -d \
+docker run -d \
   --name ndex \
   -p 8080:8080 \
   -p 8085:8085 \
@@ -16,14 +18,14 @@ docker run --platform linux/amd64 -d \
 
 > **Startup feedback**: while services initialize, the container prints `NDEx Container initializing...  (Xs)` to the console every 3 seconds. The `NDEx Deploy Container Ready!` banner (with service URLs) only appears once all enabled services have reached the `RUNNING` state. Wait for that banner before hitting API endpoints.
 
-All services state is ephemeral by default since the services store data on intenral container file system, which means all service level data is gone when container is deleted. Unless bind-mounts to host directories were used, then those paths are unaffected by container removal since they reside outside of container.
+All services state is ephemeral by default since the services store data on internal container file system, which means all service level data is gone when container is deleted. Unless bind-mounts to host directories were used, then those paths are unaffected by container removal since they reside outside of container.
 
 ## Persistent (data survives container removal)
 
 Bind-mount host directories at the paths you want to persist. Mount only what you need — each path is independent:
 
 ```bash
-docker run --platform linux/amd64 -d \
+docker run -d \
   --name ndex \
   -p 8080:8080 \
   -p 8085:8085 \
@@ -58,6 +60,84 @@ docker stop ndex
 ```bash
 docker rm -f ndex
 ```
+
+# NDEx Kubernetes / Podman Deployment
+
+Deploy the full NDEx monolithic stack on Kubernetes or Podman using
+`docker/k8s-ndex-deployment.yml`. The manifest bundles a PersistentVolume,
+PersistentVolumeClaim, Deployment (with an init container that seeds the
+`/data/ndex` sub-directories), and a ClusterIP Service — all in one file.
+
+## Prerequisites
+
+- **kubectl** (Kubernetes) or **podman** ≥ 4.x with `play kube` support
+- A storage class named `default` that binds hostPath volumes, **or** a cluster
+  node with at least 512 GB available at `/data/ndex`
+- The `ndexbio/ndex-rest` image accessible from your cluster / Podman daemon
+
+## Deploy
+
+**kubectl:**
+```bash
+kubectl apply -f docker/k8s-ndex-deployment.yml
+```
+
+**podman:**
+```bash
+podman play kube docker/k8s-ndex-deployment.yml
+```
+
+The init container runs once and creates the following sub-directories under
+`/data/ndex` on the host before the main container starts:
+
+```
+/data/ndex/
+├── ndex-config        → /apps/ndex/config
+├── ndex-data          → /apps/ndex/data
+├── postgres-config    → /apps/postgres/config
+├── postgres-data      → /apps/postgres/data
+├── keycloak-config    → /apps/keycloak/config
+├── keycloak-data      → /apps/keycloak/data
+├── solr-config        → /apps/solr/config
+├── solr-data          → /apps/solr/data
+└── mailhog-config     → /apps/mailhog/config
+```
+
+On first boot, default configs are seeded automatically from the image into each
+`/apps/<svc>/config/` directory (same first-boot behaviour as `docker run`).
+
+## Verify
+
+```bash
+# kubectl — forward the ClusterIP port locally
+kubectl get pods -l app=ndex
+kubectl port-forward svc/ndex 8080:8080
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v2/network
+# Expect: 200
+
+# podman
+podman pod ps
+podman logs -f ndex
+```
+
+Wait for `NDEx Deploy Container Ready!` in the logs before querying the API.
+
+## Teardown
+
+**kubectl:**
+```bash
+kubectl delete -f docker/k8s-ndex-deployment.yml
+```
+
+**podman:**
+```bash
+podman play kube --down docker/k8s-ndex-deployment.yml
+```
+
+> **Note:** The PersistentVolume uses `persistentVolumeReclaimPolicy: Retain`.
+> Host data under `/data/ndex` is **not** deleted on teardown.
+
+---
 
 # NDEx Microservices Deployment
 

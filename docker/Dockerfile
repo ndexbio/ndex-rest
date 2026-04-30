@@ -69,19 +69,20 @@ COPY src/main/resources/postgresql/ /opt/ndex-install/sql/
 COPY docker/scripts/init-postgres.sh /usr/local/bin/init-postgres.sh
 RUN chmod +x /usr/local/bin/init-postgres.sh
 
-# ── Build-time defaults (/apps/<svc>/default/config/) ────────────────────────
-# Operational /apps/<svc>/config/ and /apps/<svc>/data/ start empty.
-# start.sh copies from default/config → config on first run (sentinel-guarded).
-COPY docker/apps/ndex/default/config/      /apps/ndex/default/config/
-COPY docker/apps/postgres/default/config/  /apps/postgres/default/config/
-COPY docker/apps/keycloak/default/config/  /apps/keycloak/default/config/
-COPY docker/apps/solr/default/config/      /apps/solr/default/config/
-COPY docker/apps/mailhog/default/config/   /apps/mailhog/default/config/
+# ── Build-time defaults (/opt/defaults/<svc>/config/) ───────────────────────
+# Stored under /opt/defaults/ (not /apps/) so a volume mount to /apps/ does not
+# wipe out these baked-in defaults. Operational /apps/<svc>/config/ and
+# /apps/<svc>/data/ start empty; start.sh seeds them on first run.
+COPY docker/apps/ndex/default/config/      /opt/defaults/ndex/config/
+COPY docker/apps/postgres/default/config/  /opt/defaults/postgres/config/
+COPY docker/apps/keycloak/default/config/  /opt/defaults/keycloak/config/
+COPY docker/apps/solr/default/config/      /opt/defaults/solr/config/
+COPY docker/apps/mailhog/default/config/   /opt/defaults/mailhog/config/
 
 # ── Capture KC distribution keycloak.conf as the clean default ────────────────
 # Copied verbatim — no NDEx settings. start.sh appends NDEx deployment settings
 # at container runtime. Tied to the installed KC version; rebuild to pick up changes.
-RUN cp /opt/keycloak/conf/keycloak.conf /apps/keycloak/default/config/keycloak.conf
+RUN cp /opt/keycloak/conf/keycloak.conf /opt/defaults/keycloak/config/keycloak.conf
 
 # ── Operational config and data directories (empty; populated at runtime) ─────
 RUN mkdir -p \
@@ -95,7 +96,7 @@ RUN mkdir -p \
         /apps/solr/data \
         /apps/mailhog/config \
     && chown postgres:postgres /apps/postgres/data /apps/postgres/config \
-    && chown -R solr:solr /apps/solr/data /apps/solr/config /apps/solr/default
+    && chown -R solr:solr /apps/solr/data /apps/solr/config /opt/defaults/solr
 
 # ── Per-service supervisord snippets ─────────────────────────────────────────
 COPY docker/supervisord/ /opt/ndex-supervisord/
@@ -109,3 +110,20 @@ RUN chmod +x /usr/local/bin/schema_upgrade.sh
 
 # ── Image metadata ────────────────────────────────────────────────────────────
 EXPOSE 8085 1025 8025 5432 8983 9000
+
+# ── Stage 2: Build NDEx WAR ───────────────────────────────────────────────────
+FROM eclipse-temurin:17-jdk-jammy AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends maven git \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY pom.xml .
+COPY src/ src/
+ARG NDEX_COMMIT_HASH=docker
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn install -DskipTests -DbuildNumber=${NDEX_COMMIT_HASH}
+
+# ── Stage 3: Deploy image ─────────────────────────────────────────────────────
+FROM runtime-base AS deploy
+COPY --from=builder /build/target/ndexbio-rest.war /usr/local/tomcat/webapps/ROOT.war
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/start.sh"]

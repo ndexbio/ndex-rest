@@ -37,6 +37,32 @@
          xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">
 
     <display-name>NDEx RESTful API</display-name>
+
+    <!-- ================================================================
+         MCP endpoint — registered programmatically by the listener.
+         McpAuthFilter pre-authenticates /mcp/* requests:
+           - Basic credentials present and valid → User attribute set, request continues.
+           - Basic credentials present but invalid → plain JSON 401.
+           - No/non-Basic auth header → JSON 401 + WWW-Authenticate: Bearer resource_metadata="..."
+         ================================================================ -->
+    <listener>
+        <listener-class>org.ndexbio.rest.mcp.McpServletContextListener</listener-class>
+    </listener>
+
+    <filter>
+        <filter-name>McpAuthFilter</filter-name>
+        <filter-class>org.ndexbio.rest.filters.McpAuthFilter</filter-class>
+        <async-supported>true</async-supported>
+    </filter>
+    <filter-mapping>
+        <filter-name>McpAuthFilter</filter-name>
+        <url-pattern>/mcp/*</url-pattern>
+    </filter-mapping>
+
+    <!-- ================================================================
+         RESTEasy servlet — handles all non-/mcp requests via /*
+         (Jakarta Servlet spec: more-specific /mcp/* mapping wins over /*)
+         ================================================================ -->
     <servlet>
         <servlet-name>Resteasy</servlet-name>
         <servlet-class>org.ndexbio.rest.NdexHttpServletDispatcher</servlet-class>
