@@ -1,9 +1,11 @@
 # NDEX Monolithic deployment (all services in one container)
 
+The `ndexbio/ndex-rest` image is a multi-platform manifest supporting **linux/amd64** and **linux/arm64** — Docker pulls the correct variant automatically. Images built locally with `make docker` are single-platform for the host's native architecture.
+
 ## Ephemeral (data lost on container removal)
 
 ```bash
-docker run --platform linux/amd64 -d \
+docker run -d \
   --name ndex \
   -p 8080:8080 \
   -p 8085:8085 \
@@ -16,14 +18,14 @@ docker run --platform linux/amd64 -d \
 
 > **Startup feedback**: while services initialize, the container prints `NDEx Container initializing...  (Xs)` to the console every 3 seconds. The `NDEx Deploy Container Ready!` banner (with service URLs) only appears once all enabled services have reached the `RUNNING` state. Wait for that banner before hitting API endpoints.
 
-All services state is ephemeral by default since the services store data on intenral container file system, which means all service level data is gone when container is deleted. Unless bind-mounts to host directories were used, then those paths are unaffected by container removal since they reside outside of container.
+All services state is ephemeral by default since the services store data on internal container file system, which means all service level data is gone when container is deleted. Unless bind-mounts to host directories were used, then those paths are unaffected by container removal since they reside outside of container.
 
 ## Persistent (data survives container removal)
 
 Bind-mount host directories at the paths you want to persist. Mount only what you need — each path is independent:
 
 ```bash
-docker run --platform linux/amd64 -d \
+docker run -d \
   --name ndex \
   -p 8080:8080 \
   -p 8085:8085 \

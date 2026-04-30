@@ -148,7 +148,7 @@ KC_EOF
 _seed_config() {
   local svc="$1"
   local config_dir="/apps/${svc}/config"
-  local default_dir="/apps/${svc}/default/config"
+  local default_dir="/opt/defaults/${svc}/config"
   if [[ ! -f "${config_dir}/.initialized" ]]; then
     echo "==> Seeding /apps/${svc}/config/ from defaults..."
     cp -r "${default_dir}/." "${config_dir}/"
@@ -367,7 +367,7 @@ if [[ "${ENABLE_NDEX}" == "true" ]]; then
     echo "==> Initializing NDEx configuration..."
 
     mkdir -p /apps/ndex/config
-    cp -r /apps/ndex/default/config/. /apps/ndex/config/
+    cp -r /opt/defaults/ndex/config/. /apps/ndex/config/
 
     if [[ -n "${NDEX_CONFIG_FILE}" ]] && _toml_has_section "${NDEX_CONFIG_FILE}" ndexDb; then
       # External PG: role and DB must already exist; verify connectivity

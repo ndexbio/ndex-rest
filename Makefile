@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs mcp-manifest help docker docker-dev push-docker integration-test integration-test-mcp build_claude_mcpb
+.PHONY: clean clean-test clean-pyc clean-build docs mcp-manifest help docker docker-dev docker-multi-platform buildx-setup push-docker integration-test integration-test-mcp build_claude_mcpb
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -79,21 +79,48 @@ DOCKER_BUILD_ARGS = \
 # Optional layer-cache flags — override from CI to enable e.g. --cache-from type=gha --cache-to type=gha,mode=max
 DOCKER_CACHE_ARGS ?=
 
+# Local build-cache dir for docker-multi-platform (persistent across rebuilds)
+MULTIPLATFORM_CACHE_DIR ?= /tmp/ndex-buildcache
+# Output path for the multi-platform OCI tar
+MULTIPLATFORM_OCI_TAR   ?= /tmp/ndex-multiarch.tar
+
 docker-base: ## build the shared runtime-base image (docker/Dockerfile)
-	docker buildx build --load --platform linux/amd64 -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndex-runtime-base .
+	docker buildx build --load -f docker/Dockerfile --target runtime-base $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndex-runtime-base .
 
 docker: docker-base ## build the deploy image (docker/Dockerfile)
-	docker buildx build --load --platform linux/amd64 -f docker/Dockerfile --target deploy \
+	docker buildx build --load -f docker/Dockerfile --target deploy \
 	    $(DOCKER_BUILD_ARGS) $(DOCKER_CACHE_ARGS) -t ndexbio/ndex-rest .
 
 docker-dev: docker-base ## build the devcontainer image (.devcontainer/Dockerfile)
-	docker build --platform linux/amd64 -f .devcontainer/Dockerfile -t ndexbio/ndex-rest-dev .
+	docker build -f .devcontainer/Dockerfile -t ndexbio/ndex-rest-dev .
 
-push-docker: docker ## push deploy image to registry (requires DOCKER_REPO and DOCKER_TAG)
+# ── Multi-platform build targets ─────────────────────────────────────────────
+# Prerequisite: QEMU must be installed once per host:
+#   docker run --privileged --rm tonistiigi/binfmt --install all
+
+buildx-setup: ## create the multi-platform builder (docker-container driver) — idempotent
+	docker buildx inspect ndex-builder > /dev/null 2>&1 || \
+	    docker buildx create --name ndex-builder --driver docker-container --bootstrap
+
+docker-multi-platform: buildx-setup ## build linux/amd64 + linux/arm64 OCI tar locally (no push) → $(MULTIPLATFORM_OCI_TAR)
+	docker buildx build --builder ndex-builder \
+	    --platform linux/amd64,linux/arm64 \
+	    --output type=oci,dest=$(MULTIPLATFORM_OCI_TAR) \
+	    --cache-to   type=local,dest=$(MULTIPLATFORM_CACHE_DIR),mode=max \
+	    --cache-from type=local,src=$(MULTIPLATFORM_CACHE_DIR) \
+	    -f docker/Dockerfile --target deploy \
+	    $(DOCKER_BUILD_ARGS) .
+
+push-docker: docker-multi-platform ## push multi-platform manifest to registry via cached rebuild (requires DOCKER_REPO and DOCKER_TAG)
 	@[ -n "$(DOCKER_REPO)" ] || { echo "ERROR: DOCKER_REPO is not set"; exit 1; }
 	@[ -n "$(DOCKER_TAG)" ]  || { echo "ERROR: DOCKER_TAG is not set"; exit 1; }
-	docker tag ndexbio/ndex-rest $(DOCKER_REPO):$(DOCKER_TAG)
-	docker push $(DOCKER_REPO):$(DOCKER_TAG)
+	docker buildx build --builder ndex-builder \
+	    --platform linux/amd64,linux/arm64 \
+	    --push \
+	    --cache-from type=local,src=$(MULTIPLATFORM_CACHE_DIR) \
+	    -f docker/Dockerfile --target deploy \
+	    $(DOCKER_BUILD_ARGS) \
+	    -t $(DOCKER_REPO):$(DOCKER_TAG) .
 
 integration-test: ## run integration tests
 	docker/test/integration-test.sh
