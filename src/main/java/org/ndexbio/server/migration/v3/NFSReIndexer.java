@@ -71,7 +71,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
             resetIndexes(); //should clear public-nfs and private-nfs indexes
             reIndexFolders(dao); // should pull all folders from db and index
             reIndexShortcuts(dao); // should pull all shortcuts from db and index.
-            //reIndexNetworks(dao); // already implemented
+            reIndexNetworks(dao); // already implemented
 
 
         } catch (Exception e) {

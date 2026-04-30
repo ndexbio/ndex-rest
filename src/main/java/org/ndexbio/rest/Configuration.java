@@ -132,6 +132,7 @@ public class Configuration
 	private String DOIPrefix;
 	private String ezidUser;
 	private String ezidpswd;
+	private String migrationPassword;
 	
 	private DAOFactory daoFactory;
 	private SearchProviderFactory searchFactory;
@@ -213,6 +214,7 @@ public class Configuration
 			
             this.ndexSystemUser = getRequiredProperty("NdexSystemUser");
             this.ndexSystemUserPassword = getRequiredProperty("NdexSystemUserPassword");
+			this.migrationPassword = getRequiredProperty("MigrationPassword");
 
             this.ndexRoot = getRequiredProperty("NdexRoot");
             hostURI = getRequiredProperty("HostURI");
@@ -521,6 +523,8 @@ public class Configuration
     //public long   getServerElementLimit() { return serverElementLimit;}
     public String getStatsDBLink()   {return statsDBLink;}
     public String getRestAPIPrefix() {return restAPIPrefix;}
+	public String getMigrationPassword() {return migrationPassword;}
+
 
 	public boolean getUseADAuthentication() {
 		return useADAuthentication;
