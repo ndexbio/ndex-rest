@@ -8,6 +8,10 @@
 #
 # All service state is stored under the host path /data/ndex, which is
 # mounted into the container via a 512Gi PersistentVolumeClaim.
+#
+# PVC:
+# specify a different storageClassName no PVC if cluster default for storage class
+# does not support dynamic provisioning:
 
 ---
 apiVersion: v1
@@ -15,7 +19,6 @@ kind: PersistentVolumeClaim
 metadata:
   name: ndex-pvc
 spec:
-  storageClassName: default
   accessModes:
     - ReadWriteOnce
   resources:
@@ -41,7 +44,10 @@ spec:
     spec:
       initContainers:
         - name: ndex-init
-          image: busybox:latest
+          # Use the ndex image so that the postgres and solr system users exist
+          # and chown can reference them by name rather than fragile numeric UIDs.
+          image: docker.io/ndexbio/ndex-rest
+          imagePullPolicy: Always
           command:
             - sh
             - -c
@@ -56,13 +62,16 @@ spec:
                 /apps/solr/config \
                 /apps/solr/data \
                 /apps/mailhog/config
+              chown postgres:postgres /apps/postgres/config /apps/postgres/data
+              chown -R solr:solr /apps/solr/config /apps/solr/data
           volumeMounts:
             - name: ndex-storage
               mountPath: /apps
 
       containers:
         - name: ndex
-          image: ndexbio/ndex-rest
+          image: docker.io/ndexbio/ndex-rest
+          imagePullPolicy: Always
           args:
             - --ndex
             - --postgres
@@ -70,9 +79,19 @@ spec:
             - --solr
             - --mailhog
           ports:
-            - name: http
+            - name: ndex-rest
               containerPort: 8080
               protocol: TCP
+            - name: keycloak-http
+              containerPort: 8085
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /v3/admin/status
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
           volumeMounts:
             - name: ndex-storage
               mountPath: /apps
@@ -97,4 +116,21 @@ spec:
     - name: http
       port: 8080
       targetPort: 8080
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  labels:
+    app: ndex
+spec:
+  type: ClusterIP
+  selector:
+    app: ndex
+  ports:
+    - name: http
+      port: 8085
+      targetPort: 8085
       protocol: TCP

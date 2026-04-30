@@ -193,8 +193,8 @@ else
 
   step "Starting ephemeral container"
   docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
-  echo "  Running: docker run --platform linux/amd64 -d --name ${CONTAINER_NAME} -p 8080:8080 ..."
-  docker run --platform linux/amd64 -d \
+  echo "  Running: docker run -d --name ${CONTAINER_NAME} -p 8080:8080 ..."
+  docker run -d \
     --name "${CONTAINER_NAME}" \
     -p 8080:8080 \
     ndexbio/ndex-rest \
