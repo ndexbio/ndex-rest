@@ -84,7 +84,14 @@ spec:
               protocol: TCP
             - name: keycloak-http
               containerPort: 8085
-              protocol: TCP  
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /v3/admin/status
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
           volumeMounts:
             - name: ndex-storage
               mountPath: /apps
