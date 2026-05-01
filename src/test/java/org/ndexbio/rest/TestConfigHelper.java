@@ -19,6 +19,8 @@ public class TestConfigHelper {
             bw.write("NdexDBURL=somedburl\nNdexSystemUser=sysuser\nNdexSystemUserPassword=hithere\n");
             bw.write("NdexRoot=" + tmpDir.getAbsolutePath() + "\nHostURI=http://localhost\n");
             bw.write("NDEX_KEY=effggekk\nDOI_CREATOR=CqmUkFe5kW5sJVMKNQYYLg==\n");
+            bw.append("MigrationPassword=migration\n");
+
         }
         Configuration.reCreateInstance(configFile.getAbsolutePath());
     }
