@@ -713,10 +713,6 @@ public class V3Migrator implements AutoCloseable {
 
 	@Override
 	public void close() throws Exception {
-		if (db != null && !db.isClosed()) {
-			db.close();
-		}
-		NdexDatabase.close();
 	}
 
 	private void rebuildNetworkIndex(UUID fileId, boolean createOnly, boolean ignoreCxFiles,

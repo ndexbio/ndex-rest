@@ -116,7 +116,7 @@ public class AdminServiceV3 extends NdexService {
 		}
 
 		try (V3Migrator migrator = new V3Migrator(priorityUserFile)) {
-			//migrator.run();
+			migrator.run();
 			return Response.ok("Migration complete").build();
 		} catch (Exception e) {
 			return Response.serverError().entity(e.getMessage()).build();
