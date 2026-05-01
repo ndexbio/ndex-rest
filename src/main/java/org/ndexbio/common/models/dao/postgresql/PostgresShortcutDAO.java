@@ -13,9 +13,7 @@ import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
-import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.NdexObjectUpdateStatus;
-import org.ndexbio.model.object.NdexShortcut;
+import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.VisibilityType;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -111,6 +109,83 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 					throw new ObjectNotFoundException("Shortcut" + shortcutId + " not found in db.");
 			}
 		}
+	}
+	public List<FileItemSummary> getShortcutSummariesByIds(List<UUID> shortcutIds) throws SQLException {
+		if (shortcutIds == null || shortcutIds.isEmpty())
+			return new ArrayList<>();
+
+		String placeholders = String.join(",", Collections.nCopies(shortcutIds.size(), "?"));
+		String sql = "SELECT s.\"UUID\", s.name, s.modification_time, s.updated_by, s.visibility, "
+				+ "s.owneruuid AS owner_id, u.user_name AS owner_name, "
+				+ "s.target_type, s.target, s.parent, s.creation_time, "
+				+ "f.is_deleted AS target_folder_deleted, "
+				+ "n.is_deleted AS target_network_deleted, "
+				+ "n.edgecount AS network_edgecount "
+				+ "FROM shortcut s "
+				+ "JOIN ndex_user u ON s.owneruuid = u.\"UUID\" "
+				+ "LEFT JOIN folder f ON s.target_type = 'FOLDER' AND s.target = f.\"UUID\" "
+				+ "LEFT JOIN network n ON s.target_type = 'NETWORK' AND s.target = n.\"UUID\" "
+				+ "WHERE s.\"UUID\" IN (" + placeholders + ") "
+				+ "AND s.is_deleted=false";
+
+		Map<UUID, FileItemSummary> shortcutMap = new HashMap<>(shortcutIds.size());
+		try (PreparedStatement pst = db.prepareStatement(sql)) {
+			for (int i = 0; i < shortcutIds.size(); i++) {
+				pst.setObject(i + 1, shortcutIds.get(i));
+			}
+			try (ResultSet rs = pst.executeQuery()) {
+				while (rs.next()) {
+					Map<String, Object> attr = new HashMap<>();
+					String targetType = rs.getString("target_type");
+					UUID targetId = (UUID) rs.getObject("target");
+					attr.put("target_type", targetType);
+					attr.put("target", targetId);
+					attr.put("parent", rs.getObject("parent"));
+					attr.put("creationTime", rs.getTimestamp("creation_time"));
+
+					Integer edgecount = null;
+					ShortcutTargetStatus targetStatus = ShortcutTargetStatus.DELETED;
+					if (targetId != null && targetType != null) {
+						if ("FOLDER".equals(targetType)) {
+							Boolean deleted = (Boolean) rs.getObject("target_folder_deleted");
+							if (deleted != null) {
+								targetStatus = deleted ? ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
+							}
+						} else if ("NETWORK".equals(targetType)) {
+							Boolean deleted = (Boolean) rs.getObject("target_network_deleted");
+							if (deleted != null) {
+								targetStatus = deleted ? ShortcutTargetStatus.IN_TRASH : ShortcutTargetStatus.ACTIVE;
+							}
+							edgecount = (Integer) rs.getObject("network_edgecount");
+						}
+					}
+					attr.put("target_status", targetStatus.toString());
+
+					UUID uuid = (UUID) rs.getObject("UUID");
+					FileItemSummary summary = new FileItemSummary(
+							uuid, FileType.SHORTCUT,
+							rs.getString("name"), rs.getTimestamp("modification_time"),
+							rs.getString("updated_by"), attr);
+					summary.setVisibility(rs.getString("visibility"));
+					summary.setOwnerId((UUID) rs.getObject("owner_id"));
+					summary.setOwner(rs.getString("owner_name"));
+					if (edgecount != null) {
+						summary.setEdges(edgecount);
+					}
+					shortcutMap.put(uuid, summary);
+				}
+			}
+		}
+
+		// Preserve the input order
+		List<FileItemSummary> result = new ArrayList<>(shortcutIds.size());
+		for (UUID id : shortcutIds) {
+			FileItemSummary s = shortcutMap.get(id);
+			if (s != null) {
+				result.add(s);
+			}
+		}
+		return result;
 	}
 
 	public List<NdexShortcut> getShortcutsByIds(List<UUID> shortcutIds) throws SQLException {

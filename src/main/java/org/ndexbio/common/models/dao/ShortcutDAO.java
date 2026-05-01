@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.NdexShortcut;
@@ -38,5 +39,6 @@ public interface ShortcutDAO extends AutoCloseable {
 	void setShortcutVisibility(UUID shortcutId, VisibilityType visibility) throws SQLException, NdexException;
 	VisibilityType getShortcutVisibility(UUID shortcutId) throws SQLException, NdexException;
 	List<NdexShortcut> getShortcutsByIds(List<UUID> shortcutIds) throws SQLException;
+	List<FileItemSummary> getShortcutSummariesByIds(List<UUID> shortcutIds) throws SQLException;
 
 }

@@ -95,8 +95,7 @@ public class NFSSearchProvider implements SearchProvider {
         List<FileItemSummary> result;
         if (fileType.equals(FileType.SHORTCUT)){
             try (ShortcutDAO shortcutDAO = daoFactory.getShortcutDAO()){
-                result = shortcutDAO.getShortcutsByIds(ids).stream()
-                        .map(this::mapShortcutToSummary)
+                result = shortcutDAO.getShortcutSummariesByIds(ids).stream()
                         .toList();
             }
         } else if (fileType.equals(FileType.FOLDER)) {
