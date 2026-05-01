@@ -265,7 +265,7 @@ public class V3Migrator implements AutoCloseable {
 		logger.info("[{}] Creating shortcuts for {} networks", set.getExternalId(), set.getNetworks().size());
 		for (UUID networkId : set.getNetworks()) {
 			try {
-				createNetworkShortcut(networkId, folder.getExternalId(), ownerId, owner, dao, sim, null);
+				createNetworkShortcut(networkId, folder.getExternalId(), ownerId, owner, dao, sim, null, vis);
 			} catch (Exception e){
 				logger.info("Failed to create shortcut for network {} in set {}", networkId, set.getExternalId());
 				throw new RuntimeException(e);
@@ -366,7 +366,7 @@ public class V3Migrator implements AutoCloseable {
 		logger.info("[{}] Creating {} network shortcuts.", groupId, groupNetworks.size());
 		// Create shortcuts in the folder for each network
 		for (GroupNetworkEntry entry : groupNetworks) {
-			createNetworkShortcut(entry.networkId, groupId, ownerId, owner, dao, sim, folderUserReads);
+			createNetworkShortcut(entry.networkId, groupId, ownerId, owner, dao, sim, folderUserReads, VisibilityType.PRIVATE);
 		}
 
 
@@ -620,14 +620,14 @@ public class V3Migrator implements AutoCloseable {
 	 */
 	private void createNetworkShortcut(UUID networkId, UUID parentFolderId, UUID ownerId,
 									   User owner, DaoSet dao, ShortcutIndexManager sim,
-									   List<String> userReads) throws Exception {
+									   List<String> userReads,
+									   VisibilityType folderVisibility) throws Exception {
 		String[] nameAndVis = getNetworkNameAndVisibility(networkId);
 		if (nameAndVis == null) {
 			logger.info("Network " + networkId + " not found, skipping shortcut.");
 			return;
 		}
 		String netName = nameAndVis[0] != null ? nameAndVis[0] : "(unnamed network)";
-		VisibilityType vis = VisibilityType.valueOf(nameAndVis[1]);
 
 		UUID shortcutId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
@@ -641,12 +641,9 @@ public class V3Migrator implements AutoCloseable {
 		shortcut.setParent(parentFolderId);
 		shortcut.setTarget(networkId);
 		shortcut.setTargetType(FileType.NETWORK);
-		//shortcut.setCreationTime(netName);
-		//shortcut.setModificationTime(ns.getModificationTime());
 		shortcut.setIsDeleted(false);
 
-		//VisibilityType vis = VisibilityType.valueOf(ns.getVisibility().name());
-		sim.createIndex(shortcut, vis, userReads, null);
+		sim.createIndex(shortcut, folderVisibility, userReads, null);
 		shortcutsCreated++;
 	}
 	private String[] getNetworkNameAndVisibility(UUID networkId) throws SQLException {
