@@ -6,6 +6,10 @@ import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.net.URISyntaxException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+
+import javax.net.ssl.SSLContext;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -194,7 +198,14 @@ public class SearchServiceV3 extends NdexService  {
 		else
 			networkName = "Neighborhood query result on network - " + networkName;
 		
-		Client client = ClientBuilder.newBuilder().build();
+		SSLContext sslContext;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, null, null);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new NdexException("Failed to initialize HTTP client: " + e.getMessage());
+		}
+		Client client = ClientBuilder.newBuilder().sslContext(sslContext).build();
 		
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
 		String param = preserveNodeCoordinates ? "&perserveCoordinates=true" : "";
@@ -277,7 +288,14 @@ public class SearchServiceV3 extends NdexService  {
 		else
 			networkName = "Interconnect query result on network - " + networkName;
 				
-		Client client = ClientBuilder.newBuilder().build();
+		SSLContext sslContext;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, null, null);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new NdexException("Failed to initialize HTTP client: " + e.getMessage());
+		}
+		Client client = ClientBuilder.newBuilder().sslContext(sslContext).build();
 		
 		/*Map<String, Object> queryEntity = new TreeMap<>();
 		queryEntity.put("terms", queryParameters.getSearchString());
@@ -485,7 +503,14 @@ public class SearchServiceV3 extends NdexService  {
 			
 		}   
 	
-		Client client = ClientBuilder.newBuilder().build();
+		SSLContext sslContext;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, null, null);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new NdexException("Failed to initialize HTTP client: " + e.getMessage());
+		}
+		Client client = ClientBuilder.newBuilder().sslContext(sslContext).build();
 		
 		
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");

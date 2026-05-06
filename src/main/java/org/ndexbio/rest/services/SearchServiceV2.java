@@ -35,6 +35,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+
+import javax.net.ssl.SSLContext;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -328,8 +332,15 @@ public class SearchServiceV2 extends NdexService {
 		else
 			networkName = "Neighborhood query result on network - " + networkName;
 		
-		Client client = ClientBuilder.newBuilder().build();
-		
+		SSLContext sslContext;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, null, null);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new NdexException("Failed to initialize HTTP client: " + e.getMessage());
+		}
+		Client client = ClientBuilder.newBuilder().sslContext(sslContext).build();
+
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
         WebTarget target = client.target(prefix + networkId + "/query");
         Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
