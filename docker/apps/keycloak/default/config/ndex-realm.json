@@ -32,10 +32,12 @@
       "directAccessGrantsEnabled": true,
       "redirectUris": [
         "http://localhost:8080/*",
+        "http://localhost:3001/*",
         "http://localhost/*"
       ],
       "webOrigins": [
         "http://localhost:8080",
+        "http://localhost:3001",
         "http://localhost"
       ]
     }

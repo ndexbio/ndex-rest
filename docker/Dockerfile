@@ -24,6 +24,7 @@ RUN apt-get update \
        supervisor gosu \
        jq openssl unzip \
        apache2-utils \
+       python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Keycloak ──────────────────────────────────────────────────────────────────

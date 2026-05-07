@@ -268,7 +268,7 @@ For most deployments, you will not need to touch any of these files directly —
 The `--config /path/to/config.toml` flag is a convenience option that covers what most users will ever need. Pass it at container startup alongside the service flags. `start.sh` reads the file and applies its values to the appropriate low-level service configs automatically — no manual editing of `ndex.properties`, `keycloak.conf`, or any other service file required.
 
 ```bash
-docker run ... ndexbio/ndex-rest --ndex --config /etc/my-config.toml
+docker run ndexbio/ndex-rest --ndex --config /etc/my-config.toml
 ```
 
 Mount the file read-only into the container:
@@ -426,7 +426,7 @@ Remove and recreate the container. All state resets on the next boot:
 
 ```bash
 docker rm -f ndex
-docker run ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```
 
 ### Full reset of one service (persistent mode — bind mounts)
@@ -447,7 +447,7 @@ docker run -v /host/path/solr-config:/apps/solr/config -v /host/path/solr-data:/
 
 ```bash
 docker rm -f ndex
-docker run ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```
 
 **Persistent mode**: delete all bind-mounted host directories, then recreate:
@@ -459,5 +459,5 @@ rm -rf /host/path/ndex-config /host/path/ndex-data \
         /host/path/keycloak-config /host/path/keycloak-data \
         /host/path/solr-config /host/path/solr-data \
         /host/path/mailhog-config
-docker run -v /host/path/ndex-config:/apps/ndex/config ... ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
+docker run -v /host/path/ndex-config:/apps/ndex/config ndexbio/ndex-rest --ndex --postgres --keycloak --solr --mailhog
 ```

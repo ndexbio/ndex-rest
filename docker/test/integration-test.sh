@@ -11,9 +11,9 @@
 #   user creation → v2 CX1 upload (2 public + 1 private) → v2 summary poll →
 #   v3 CX2 retrieve → v3 CX2 upload (2 public + 1 private) → v3 summary poll →
 #   v3 CX2 retrieve → private network access control → public anonymous access →
-#   v2 Solr search → v3 Solr search
+#   v2 Solr search → v3 Solr search → v2 neighborhood query (SSL context)
 #
-# Exits 0 if all 24 API calls pass, exits 1 on the first failure.
+# Exits 0 if all 28 API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
 
 set -euo pipefail
@@ -31,7 +31,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=26
+TOTAL_API_CALLS=28
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -533,6 +533,86 @@ while true; do
   echo "  Waiting for public-nfs Solr index... (${ELAPSED}s)"
 done
 api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
+
+# ── STEP: Neighborhood query — SSL context fix (local container only) ─────────
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "Verifying neighborhood query endpoint initializes SSL context correctly"
+
+  echo "  Injecting NeighborhoodQueryURL into ndex.properties and starting mock stub..."
+  docker exec "${CONTAINER_NAME}" bash -c \
+    "echo 'NeighborhoodQueryURL=http://localhost:8284/query/v1/network/' >> /apps/ndex/config/ndex.properties"
+
+  # Python stub: drains the request body before responding (avoids RST),
+  # handles multiple connections without re-arming, no race between v2 and v3 calls.
+  docker exec -d "${CONTAINER_NAME}" python3 -c "
+import http.server, socketserver
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length', 0))
+        self.rfile.read(length)
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', '2')
+        self.end_headers()
+        self.wfile.write(b'[]')
+    def log_message(self, *a): pass
+socketserver.TCPServer.allow_reuse_address = True
+with socketserver.TCPServer(('', 8284), H) as s:
+    s.serve_forever()
+"
+
+  docker exec "${CONTAINER_NAME}" supervisorctl -c /tmp/supervisord.conf restart ndex
+
+  echo "  Tomcat restart issued — waiting for NDEx to become responsive..."
+  MAX_WAIT=90
+  ELAPSED=0
+  until curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/user" \
+        | grep -qE '^[2-9][0-9]{2}$|^401$|^400$'; do
+    if [[ ${ELAPSED} -ge ${MAX_WAIT} ]]; then
+      api_fail "NDEx did not respond within ${MAX_WAIT}s after Tomcat restart"
+    fi
+    echo -e "  ${CYAN}Waiting for Tomcat restart... (${ELAPSED}s)${NC}"
+    sleep 5; (( ELAPSED += 5 )) || true
+  done
+  echo "  Tomcat is ready."
+
+  CALL_NUM=$((CALL_NUM+1))
+  QUERY_UUID="${V2_UUIDS[0]}"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/search/network/${QUERY_UUID}/query (auth, expect 200)"
+
+  QUERY_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d '{"searchString":"EGFR","searchDepth":1}' \
+    "${BASE_URL}/v2/search/network/${QUERY_UUID}/query")
+  QUERY_HTTP=$(echo "${QUERY_RESPONSE}" | tail -1)
+  QUERY_BODY=$(echo "${QUERY_RESPONSE}" | head -1)
+
+  if [[ "${QUERY_HTTP}" == "200" ]]; then
+    api_pass "POST /v2/search/network/${QUERY_UUID}/query → 200 OK (SSL context initialized, stub proxied correctly)"
+  else
+    api_fail "POST /v2/search/network/${QUERY_UUID}/query → HTTP ${QUERY_HTTP}. Body: ${QUERY_BODY:0:400}"
+  fi
+
+  CALL_NUM=$((CALL_NUM+1))
+  QUERY_UUID_V3="${V3_UUIDS[0]}"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/networks/${QUERY_UUID_V3}/query (auth, expect 200)"
+
+  QUERY_V3_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d '{"searchString":"EGFR","searchDepth":1}' \
+    "${BASE_URL}/v3/search/networks/${QUERY_UUID_V3}/query")
+  QUERY_V3_HTTP=$(echo "${QUERY_V3_RESPONSE}" | tail -1)
+  QUERY_V3_BODY=$(echo "${QUERY_V3_RESPONSE}" | head -1)
+
+  if [[ "${QUERY_V3_HTTP}" == "200" ]]; then
+    api_pass "POST /v3/search/networks/${QUERY_UUID_V3}/query → 200 OK (SSL context initialized, stub proxied correctly)"
+  else
+    api_fail "POST /v3/search/networks/${QUERY_UUID_V3}/query → HTTP ${QUERY_V3_HTTP}. Body: ${QUERY_V3_BODY:0:400}"
+  fi
+fi
 
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────
 
