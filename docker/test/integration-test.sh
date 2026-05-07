@@ -543,23 +543,17 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   docker exec "${CONTAINER_NAME}" bash -c \
     "echo 'NeighborhoodQueryURL=http://localhost:8284/query/v1/network/' >> /apps/ndex/config/ndex.properties"
 
-  # Python stub: drains the request body before responding (avoids RST),
+  # Node.js stub: drains the request body before responding (avoids RST),
   # handles multiple connections without re-arming, no race between v2 and v3 calls.
-  docker exec -d "${CONTAINER_NAME}" python3 -c "
-import http.server, socketserver
-class H(http.server.BaseHTTPRequestHandler):
-    def do_POST(self):
-        length = int(self.headers.get('Content-Length', 0))
-        self.rfile.read(length)
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', '2')
-        self.end_headers()
-        self.wfile.write(b'[]')
-    def log_message(self, *a): pass
-socketserver.TCPServer.allow_reuse_address = True
-with socketserver.TCPServer(('', 8284), H) as s:
-    s.serve_forever()
+  docker exec -d "${CONTAINER_NAME}" node -e "
+const http = require('http');
+http.createServer((req, res) => {
+  req.resume();
+  req.on('end', () => {
+    res.writeHead(200, {'Content-Type': 'application/json', 'Content-Length': '2'});
+    res.end('[]');
+  });
+}).listen(8284);
 "
 
   docker exec "${CONTAINER_NAME}" supervisorctl -c /tmp/supervisord.conf restart ndex
