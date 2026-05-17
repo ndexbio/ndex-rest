@@ -111,3 +111,5 @@ CREATE TABLE IF NOT EXISTS core.schema_version
 );
 
 ALTER TABLE IF EXISTS core.schema_version OWNER TO ndexserver;
+
+INSERT INTO core.schema_version (version) VALUES ('3.0');

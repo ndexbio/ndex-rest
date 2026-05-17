@@ -16,8 +16,7 @@
 #   Path 1 — v0 migration (core.schema_version table absent):
 #     If core.network also absent: load base schema (ndex_db_schema_v2_5_3.sql)
 #     Apply all schema_update_*.sql files where from_ver >= 2.5.3 in sorted order.
-#     The 2.5.5→3.0 update creates core.schema_version; after the chain insert the
-#     final version row.
+#     The 2.5.5→3.0 update creates core.schema_version and inserts the 3.0 version row.
 #
 #   Path 2 — tracked upgrade (core.schema_version table present):
 #     Query current version from core.schema_version.
@@ -92,9 +91,8 @@ if [[ "${version_table_exists}" != "1" ]]; then
     fi
   done < <(find "${SQL_DIR}" -maxdepth 1 -name "schema_update_*.sql" -print0 | sort -z)
 
-  # Record the final version (core.schema_version now exists from the 2.5.5→3.0 update).
-  _psql -c "INSERT INTO core.schema_version (version) VALUES ('${last_ver}');"
-  echo "==> V0 migration complete. Schema at v${last_ver}."
+  # core.schema_version was created and populated by the 2.5.5→3.0 update script.
+  echo "==> V0 migration complete. Schema at v${last_ver}."  
 
 else
   # ── Path 2: tracked upgrade ───────────────────────────────────────────────────
