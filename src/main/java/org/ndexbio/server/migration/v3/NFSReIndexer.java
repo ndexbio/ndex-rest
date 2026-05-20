@@ -330,8 +330,8 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
 				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(fileId.toString())) {
 						idx2.createIndexFromCx2(null);
 				}
-				long t = Calendar.getInstance().getTimeInMillis() -t1;
-				System.out.println("Takes " + t/1000 +" secs to create index for network " + fileId.toString());
+				long t = Calendar.getInstance().getTimeInMillis() - t1;
+				logger.info("Takes {} secs to create index for network {}", t / 1000, fileId);
 			}
             
             
