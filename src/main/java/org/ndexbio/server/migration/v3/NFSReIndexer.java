@@ -188,15 +188,9 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                     String ownerName = getUsernameById(ownerId, dao);
                     shortcut.setOwner(ownerName);
 
-                    // Shortcuts inherit permissions from parent folder
-                    List<String> userReads = null;
-                    if (shortcut.getParent() != null) {
-                        Map<String, List<String>> perms = loadFolderPermissions(shortcut.getParent(), dao);
-                        userReads = perms.get("READ");
-                    }
-
-                    sim.createIndex(shortcut, vis, userReads, null);
-
+                    // Shortcuts have no shareable permissions — only owner + visibility govern access (see PostgresShortcutDAO.isReadable)
+                    sim.createIndex(shortcut, vis, null, null);
+                    
                     shortcutsProcessed++;
                     if (shortcutsProcessed % 500 == 0) {
                         logger.info("[Shortcuts] {}/{} ({}%)",
@@ -294,10 +288,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
      */
     private void reindexNetwork(UUID networkId, UUID ownerId, String ownerName,
                                 String visibility, V3Migrator.DaoSet dao, GlobalNetworkIndexManager globalNetworkIndexManager) throws Exception {
-        NetworkSummary ns = dao.networkDAO.getNetworkSummaryById(networkId);
-        if (ns == null) return;
-
-        VisibilityType vis = VisibilityType.valueOf(visibility);
+        
         rebuildNetworkIndex(networkId, false, false, globalNetworkIndexManager,
                 dao.networkDAO);
 
@@ -326,8 +317,24 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
             // drop the old ones.
             if (!createOnly) {
                 globalNetworkIndexManager.delete(id, visibilityType);
-
+                
+                if ( idxScope == SolrIndexScope.both)
+					try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(fileId.toString())) {
+						idx2.dropIndex();
+					}
             }
+            
+            //build the individual index for queries
+			if (idxScope == SolrIndexScope.both) {
+				long t1 = Calendar.getInstance().getTimeInMillis();
+				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(fileId.toString())) {
+						idx2.createIndexFromCx2(null);
+				}
+				long t = Calendar.getInstance().getTimeInMillis() -t1;
+				System.out.println("Takes " + t/1000 +" secs to create index for network " + fileId.toString());
+			}
+            
+            
 
             // build the solr document obj
             List<Map<Permissions, Collection<String>>> permissionTable = dao
