@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS core.shortcut
     owneruuid           uuid                        NOT NULL,
     parent              uuid,
     updated_by          character varying(100),
+    show_in_trash       boolean                     NOT NULL DEFAULT false,
     CONSTRAINT shortcut_pkey PRIMARY KEY ("UUID"),
     CONSTRAINT shortcut_owner_fk FOREIGN KEY (owneruuid)
         REFERENCES core.ndex_user ("UUID") MATCH SIMPLE
@@ -93,6 +94,9 @@ CREATE TABLE IF NOT EXISTS core.shortcut
 );
 
 ALTER TABLE IF EXISTS core.shortcut OWNER TO ndexserver;
+
+ALTER TABLE IF EXISTS core.shortcut
+    ADD COLUMN IF NOT EXISTS show_in_trash boolean NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS shortcut_owner_idx
     ON core.shortcut USING btree (owneruuid)
