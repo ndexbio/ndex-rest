@@ -24,12 +24,17 @@ import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -422,8 +427,95 @@ public class SolrIndexBuilder implements AutoCloseable {
 		  
 		  rebuildNetworkIndex(networkid, false);
 		}  
-	}	  
-	
+	}
+	/**
+	 * Find all networks where visibility='PUBLIC' and solr_idx_lvl='NONE',
+	 * flip them to UNLISTED in Postgres, and queue Solr delete+rebuild tasks
+	 * so the file index moves from public-nfs to private-nfs.
+	 *
+	 * Per-network commit; on failure the current network is rolled back and
+	 * the loop continues. Already-processed networks remain UNLISTED.
+	 */
+	private static void unlistPublicNoneNetworks() throws SQLException, NdexException, IOException {
+		logger.info("Finding PUBLIC networks with solr_idx_lvl='NONE'...");
+
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+			@SuppressWarnings("resource")
+			Connection db = dao.getDBConnection();
+			boolean priorAutoCommit = db.getAutoCommit();
+			db.setAutoCommit(false);
+
+			int total = 0;
+			int processed = 0;
+			int failed = 0;
+
+			try {
+				// 1. Collect targets (UUID, ownerId, ownerName) up front so the iterating
+				//    ResultSet isn't held open across writes/commits.
+				List<Object[]> targets = new java.util.ArrayList<>();
+				String selectSql = "SELECT \"UUID\", owneruuid, \"owner\" FROM network "
+						+ "WHERE visibility = 'PUBLIC' AND solr_idx_lvl = 'NONE' AND is_deleted = false";
+				try (PreparedStatement pst = db.prepareStatement(selectSql);
+					 ResultSet rs = pst.executeQuery()) {
+					while (rs.next()) {
+						targets.add(new Object[] {
+								(UUID) rs.getObject(1),
+								(UUID) rs.getObject(2),
+								rs.getString(3)
+						});
+					}
+				}
+				total = targets.size();
+				logger.info("Found {} networks to convert from PUBLIC to UNLISTED.", total);
+				if (total == 0) {
+					db.commit();
+					return;
+				}
+
+				String updateSql = "UPDATE network SET visibility = 'UNLISTED' WHERE \"UUID\" = ?";
+				try (PreparedStatement updatePst = db.prepareStatement(updateSql)) {
+					for (Object[] row : targets) {
+						UUID networkId = (UUID) row[0];
+						UUID ownerId   = (UUID) row[1];
+						String ownerName = (String) row[2];
+
+						try {
+							// 2. DB: flip visibility
+							updatePst.setObject(1, networkId);
+							int rows = updatePst.executeUpdate();
+							if (rows != 1) {
+								throw new NdexException("Expected 1 row updated for " + networkId
+										+ " but got " + rows);
+							}
+							db.commit();
+
+							// 3. Solr: delete from public-nfs, rebuild in private-nfs.
+							//    ignoreCxFiles=true because these networks have solr_idx_lvl=NONE
+							//    and may not have CX aspect files on disk to index from.
+							NdexServerQueue.INSTANCE.addSystemTask(
+									new SolrTaskDeleteFile(networkId, VisibilityType.PUBLIC));
+							NdexServerQueue.INSTANCE.addSystemTask(
+									new SolrTaskRebuildFileIdx(networkId, ownerId, ownerName,
+											VisibilityType.UNLISTED, FileType.NETWORK, false, true));
+
+							processed++;
+							if (processed % 500 == 0) {
+								logger.info("Processed {}/{} ({}%)",
+										processed, total, (processed * 100) / total);
+							}
+						} catch (Exception e) {
+							db.rollback();
+							failed++;
+							logger.error("Failed to convert network {}: {}", networkId, e.getMessage(), e);
+						}
+					}
+				}
+				logger.info("Done. processed={}, failed={}, total={}", processed, failed, total);
+			} finally {
+				db.setAutoCommit(priorAutoCommit);
+			}
+		}
+	}
 	private static void rebuildUserIndex() throws Exception {
 		logger.info("Start rebuild user index.");
 		try (UserIndexManager umgr = new UserIndexManager()) {
@@ -541,6 +633,9 @@ public class SolrIndexBuilder implements AutoCloseable {
 				break;
 			case "nfs":
 				SolrIndexBuilder.rebuildNFSIdx();
+				break;
+			case "unlist-public-none":
+				SolrIndexBuilder.unlistPublicNoneNetworks();
 				break;
 			default:	
 				builder.rebuildSingleNetworkIndex(UUID.fromString(args[0]));
