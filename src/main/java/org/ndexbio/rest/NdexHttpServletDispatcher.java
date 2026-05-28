@@ -43,11 +43,13 @@ import jakarta.servlet.ServletContext;
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
+import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.task.ClientTaskProcessor;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NdexSystemTask;
@@ -115,6 +117,10 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			try (NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager()) {
 				mgr.createCoreIfNotExists();
 			}
+			try (GlobalNetworkIndexManager mgr = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
+				mgr.createCoreIfNeeded();
+			}
+
 			try (UserIndexManager umgr = new UserIndexManager()) {
 				umgr.createCoreIfNotExists();
 			}

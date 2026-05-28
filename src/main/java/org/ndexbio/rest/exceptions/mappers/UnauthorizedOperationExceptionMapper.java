@@ -30,9 +30,11 @@
  */
 package org.ndexbio.rest.exceptions.mappers;
 
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.ResponseBuilder;
 import jakarta.ws.rs.core.Response.Status;
+import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 
@@ -44,24 +46,33 @@ import org.slf4j.MDC;
 @Provider
 public class UnauthorizedOperationExceptionMapper implements ExceptionMapper<UnauthorizedOperationException>
 {
-	static Logger logger = LoggerFactory.getLogger(UnauthorizedOperationExceptionMapper.class);
+    static Logger logger = LoggerFactory.getLogger(UnauthorizedOperationExceptionMapper.class);
+
+    @Context
+    private UriInfo uriInfo;
 
     @Override
     public Response toResponse(UnauthorizedOperationException exception)
     {
-    	logger.error("SERVER ERROR:", exception);
-    	MDC.put("error", exception.getMessage());
- //   	exception.printStackTrace();
-    	ResponseBuilder b = Response
+        logger.error("SERVER ERROR:", exception);
+        MDC.put("error", exception.getMessage());
+
+        ResponseBuilder b = Response
                 .status(Status.UNAUTHORIZED)
                 .entity(exception.getNdexExceptionInJason());
-    	
-    	/*if( exception.getChallengeHeader())
-    		b = b.header("WWW-Authenticate", "Basic");*/
-    	
-    	Response r = b.type("application/json")
-                .build(); 
-    	
+
+        // Add WWW-Authenticate: Basic for v2 API endpoints so HTTP clients
+        // (like Cytoscape's Apache HttpClient in challenge-response mode) know
+        // to retry with Basic Auth credentials. v3 endpoints use OIDC tokens
+        // and shouldn't trigger browser Basic-auth dialogs.
+        String path = uriInfo != null ? uriInfo.getPath() : null;
+        if (path != null && (path.startsWith("v2/") || path.startsWith("/v2/"))) {
+            b = b.header("WWW-Authenticate", "Basic");
+        }
+
+        Response r = b.type("application/json")
+                .build();
+
         return r;
     }
 }

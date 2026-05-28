@@ -15,7 +15,7 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
 
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxEdge;
@@ -59,7 +59,7 @@ public class CX2NetworkFileGenerator {
 	 * @throws JsonParseException 
 	 * @throws NdexException 
 	 */
-	public CX2NetworkFileGenerator(UUID networkUUID, NetworkDAO networkDao) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
+	public CX2NetworkFileGenerator(UUID networkUUID, PostgresNetworkDAO networkDao) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
 		this(networkUUID, networkDao.getCx2MetaDataList(networkUUID));
 		
 	}	

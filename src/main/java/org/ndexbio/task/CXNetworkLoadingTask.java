@@ -7,7 +7,7 @@ import java.util.UUID;
 import java.util.logging.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
@@ -39,7 +39,7 @@ public class CXNetworkLoadingTask extends NdexSystemTask {
 	@Override
 	public void run()  {
 		
-	  try (NetworkDAO dao = new NetworkDAO ()) {
+	  try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 		try ( CXNetworkLoader loader = new CXNetworkLoader(networkId, /*ownerUserName,*/ isUpdate,dao, visibility, nodeAttributeIndexList, 0) ) {
 				loader.persistCXNetwork();
 		} catch ( IOException | NdexException | SQLException | RuntimeException | SolrServerException e1) {

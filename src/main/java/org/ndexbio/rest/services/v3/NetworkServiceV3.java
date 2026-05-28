@@ -8,12 +8,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.io.SequenceInputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -27,6 +30,7 @@ import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -40,10 +44,15 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.ResponseBuilder;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
+import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxAspectElement;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
@@ -63,6 +72,7 @@ import org.ndexbio.model.object.network.NetworkSummaryV3;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.NetworkSummaryFormat;
 import org.ndexbio.model.object.network.VisibilityType;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.helpers.AmazonSESMailSender;
@@ -71,6 +81,7 @@ import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.task.CX2NetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -101,6 +112,7 @@ public class NetworkServiceV3  extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}")
+	@Operation(summary = "Get Network in CX2 format", description = "Returns the specified network in CX2 format. This is performed as a monolithic operation, so it is typically advisable for applications to first use the getNetworkSummary method to check the node and edge counts for a network before retrieving the network.")
 
 	public Response getCX2Network(	@PathParam("networkid") final String networkId,
 			@QueryParam("download") boolean isDownload,
@@ -110,7 +122,7 @@ public class NetworkServiceV3  extends NdexService {
 			throws Exception {
     	
     	String title = null;
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
     		UUID networkUUID = UUID.fromString(networkId);
     		if ( !dao.hasCX2(networkUUID)) {
     			throw new ObjectNotFoundException("CX2 network is not available for this network. ");
@@ -167,7 +179,7 @@ public class NetworkServiceV3  extends NdexService {
 
     	UUID networkUUID = UUID.fromString(networkId);
 
-		try (NetworkDAO dao = new NetworkDAO() ) {
+		try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO() ) {
 			if ( dao.isReadable(networkUUID, getLoggedInUserId()) || dao.accessKeyIsValid(networkUUID, accessKey)) {
 				List<CxMetadata> mdc = dao.getCx2MetaDataList(networkUUID);
 		    	return mdc;
@@ -183,7 +195,7 @@ public class NetworkServiceV3  extends NdexService {
 			@PathParam("networkid") final String networkId,
 			@DefaultValue("first") @QueryParam("method") String method,
 			@DefaultValue("-1") @QueryParam("size") int limit,
-			@QueryParam("accesskey") String accessKey ) throws NdexException, SQLException {
+			@QueryParam("accesskey") String accessKey ) throws Exception {
 		if ( method.equalsIgnoreCase("first"))
 			return getAspectElements(networkId, CxEdge.ASPECT_NAME, limit, accessKey);
 		else if ( !method.equalsIgnoreCase("random"))
@@ -194,7 +206,7 @@ public class NetworkServiceV3  extends NdexService {
 			
 			UUID networkUUID = UUID.fromString(networkId);
 	    	
-	    	try (NetworkDAO dao = new NetworkDAO()) {
+	    	try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 	    		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
 	    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 	    			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -242,12 +254,12 @@ public class NetworkServiceV3  extends NdexService {
 	public Response getAspectElements(	@PathParam("networkid") final String networkId,
 			@PathParam("aspectname") final String aspectName,
 			@DefaultValue("-1") @QueryParam("size") int limit,
-			@QueryParam("accesskey") String accessKey ) throws SQLException, NdexException
+			@QueryParam("accesskey") String accessKey ) throws Exception
 		 {
 
     	UUID networkUUID = UUID.fromString(networkId);
     	
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
     		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
     				! dao.accessKeyIsValid(networkUUID, accessKey)) {
     			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -407,7 +419,8 @@ public class NetworkServiceV3  extends NdexService {
 				  })
 	   public Response createNetworkJson( 
 			   @Parameter(description="Can be set to **PUBLIC** (visible to all) or **PRIVATE** (visibile to only user and is default if not set)", example="PUBLIC") @QueryParam("visibility") String visibilityStr,
-				@Parameter(description="Additional fields to index on network. **DO NOT USE, NOT IMPLEMENTED YET**") @QueryParam("indexedfields") String fieldListStr // comma separated list		
+			   @Parameter(description="Additional fields to index on network. **DO NOT USE, NOT IMPLEMENTED YET**") @QueryParam("indexedfields") String fieldListStr, // comma separated list
+			   @Parameter(description="UUID of the parent folder. If provided, the network will be created in this folder.") @QueryParam("folderId") String folderIdStr
 			   ) throws Exception
 	   {
 	   
@@ -429,38 +442,54 @@ public class NetworkServiceV3  extends NdexService {
 		   
 		   try (InputStream in = this.getInputStreamFromRequest()) {
 			   UUID uuid = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
-			   return processRawCX2Network(visibility, extraIndexOnNodes, uuid);
+			   UUID folderId = null;
+			   if (folderIdStr != null && !folderIdStr.isEmpty()) {
+				folderId = UUID.fromString(folderIdStr);
+			   }
+			   return processRawCX2Network(visibility, extraIndexOnNodes, uuid, folderId);
 
 		   }		   
 
 	   	}
+	   
+	   public Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid) throws JsonProcessingException, ObjectNotFoundException, SQLException, NdexException, IOException, URISyntaxException, Exception {
+		   return processRawCX2Network(visibility, extraIndexOnNodes, uuid, null);
+	   }
 
-		private Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid)
+	   private Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid, UUID folderId)
 				throws SQLException, NdexException, IOException, ObjectNotFoundException, JsonProcessingException,
-				URISyntaxException {
-			String uuidStr = uuid.toString();
+				URISyntaxException, Exception {
+		   
+		   String uuidStr = uuid.toString();
 			   accLogger.info("[data]\t[uuid:" +uuidStr + "]" );
 		   
-			   String urlStr = Configuration.getInstance().getHostURI() +"/v3/networks/"+ uuidStr;
-			   
-			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/" + CX2NetworkLoader.cx2NetworkFileName;
-			   long fileSize = new File(cxFileName).length();
+		   String urlStr = Configuration.getInstance().getHostURI() +"/v3/networks/"+ uuidStr;
+		   
+		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/" + CX2NetworkLoader.cx2NetworkFileName;
+		   long fileSize = new File(cxFileName).length();
 
-			   // create entry in db. 
-			   NdexObjectUpdateStatus status;
-		       try (NetworkDAO dao = new NetworkDAO()) {
-		    	   status = 
-		    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null, CX2NetworkLoader.cx2Format);
+		   // create entry in db. 
+		   NdexObjectUpdateStatus status;
+	       try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+	    	   status = 
+	    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null, CX2NetworkLoader.cx2Format);
+       
+			   dao.commit();
+	       }
 	       
-				   dao.commit();
-		       }
-		       
-		       NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(uuid, false, visibility, extraIndexOnNodes));		   
-			   URI l = new URI (urlStr);
-			   ObjectMapper om = new ObjectMapper();
+		   if (folderId != null) {
+				try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+					networkDao.setNetworkFolder(uuid, folderId);
+					networkDao.commit();
+				}
+		   }
+	       
+	       NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(uuid, false, visibility, extraIndexOnNodes));		   
+		   URI l = new URI (urlStr);
+		   ObjectMapper om = new ObjectMapper();
 
-			   return Response.created(l).header("Access-Control-Expose-Headers", "Location")
-					   .entity(om.writeValueAsString(status)).build();
+		   return Response.created(l).header("Access-Control-Expose-Headers", "Location")
+				   .entity(om.writeValueAsString(status)).build();
 		}
 		
 		
@@ -470,7 +499,8 @@ public class NetworkServiceV3  extends NdexService {
 		@Produces("application/json")
 		@Consumes("multipart/form-data")
 		public Response createCX2Network(MultipartFormDataInput input, @QueryParam("visibility") String visibilityStr,
-				@QueryParam("indexedfields") String fieldListStr // comma seperated list
+				@QueryParam("indexedfields") String fieldListStr, // comma seperated list
+				@QueryParam("folderId") String folderIdStr
 		) throws Exception {
 
 			VisibilityType visibility = null;
@@ -490,58 +520,28 @@ public class NetworkServiceV3  extends NdexService {
 			}
 
 			UUID uuid = storeRawNetworkFromMultipart(input, CX2NetworkLoader.cx2NetworkFileName);
-			return processRawCX2Network(visibility, extraIndexOnNodes, uuid);
+		    UUID folderId = null;
+		    if (folderIdStr != null && !folderIdStr.isEmpty()) {
+		    	folderId = UUID.fromString(folderIdStr);
+		    }
+			return processRawCX2Network(visibility, extraIndexOnNodes, uuid, folderId);
 
 		}
 		
 		
 	    @PUT
 	    @Path("/{networkid}")
+		@Operation(summary = "Update a Network", description = "Update the specified network with new content, based on CX2 data. If the content type is multipart/form-data, the CX2 data is in the CXNetworkStream field of PUTed multipart/form-data.  If the content type is application/json, the CX data is in the payload. Errors if the CX data is not provided Errors if the UUID does not correspond to an existing network on the NDEx Server for which the authenticated user owns or for which they have WRITE permission.")
 	    @Consumes(MediaType.APPLICATION_JSON)
 	    @Produces("application/json")
 
-	    public NdexObjectUpdateStatus updateNetworkJson(final @PathParam("networkid") String networkIdStr,
-	    		 @QueryParam("visibility") String visibilityStr,
-			 @QueryParam("extranodeindex") String fieldListStr // comma seperated list		
-	    		) throws Exception 
-	    {
-	    	  VisibilityType visibility = null;
-			   if ( visibilityStr !=null) {
-				   visibility = VisibilityType.valueOf(visibilityStr);
-			   }
-			   
-			   Set<String> extraIndexOnNodes = null;
-			   if ( fieldListStr != null) {
-				   extraIndexOnNodes = new HashSet<>(10);
-				   for ( String f: fieldListStr.split("\\s*,\\s*") ) {
-					   extraIndexOnNodes.add(f);
-				   }
-			   }
-				    	
-	        UUID networkId = UUID.fromString(networkIdStr);
-	        
-	        NdexObjectUpdateStatus s;
-	        try ( NetworkDAO daoNew = lockNetworkForUpdate(networkId) ) {
-				
-				try (InputStream in = this.getInputStreamFromRequest()) {
-						UUID tmpNetworkId = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
-
-					s =	updateCx2NetworkFromSavedFile(networkId, daoNew, tmpNetworkId);
-				
-	           } catch (SQLException | NdexException | IOException e) {
-	        	  // e.printStackTrace();
-	        	   daoNew.rollback();
-	        	   daoNew.unlockNetwork(networkId);  
-
-	        	   throw e;
-	           } 
-				
-				
-	        }  
-	    	      
-		     NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, true, visibility,extraIndexOnNodes));
-		     return s; 
-	    }
+    public NdexObjectUpdateStatus updateNetworkJson(final @PathParam("networkid") String networkIdStr,
+    		 @QueryParam("visibility") String visibilityStr,
+		 @QueryParam("extranodeindex") String fieldListStr // comma seperated list
+    		) throws Exception
+    {
+        return updateNetworkFromInputStream(networkIdStr, getInputStreamFromRequest(), visibilityStr, fieldListStr);
+    }
 	    
 	    
 	    @PUT
@@ -549,47 +549,101 @@ public class NetworkServiceV3  extends NdexService {
 	    @Consumes("multipart/form-data")
 	    @Produces("application/json")
 
-	    public NdexObjectUpdateStatus updateCX2Network(final @PathParam("networkid") String networkIdStr,
-	    		 @QueryParam("visibility") String visibilityStr,
-			 @QueryParam("extranodeindex") String fieldListStr, // comma seperated list		
-	    		MultipartFormDataInput input) throws Exception 
-	    {
-	    	  VisibilityType visibility = null;
-			   if ( visibilityStr !=null) {
-				   visibility = VisibilityType.valueOf(visibilityStr);
-			   }
-			   
-			   Set<String> extraIndexOnNodes = null;
-			   if ( fieldListStr != null) {
-				   extraIndexOnNodes = new HashSet<>(10);
-				   for ( String f: fieldListStr.split("\\s*,\\s*") ) {
-					   extraIndexOnNodes.add(f);
-				   }
-			   }
-	    	
-	        UUID networkId = UUID.fromString(networkIdStr);
-	        
-            NdexObjectUpdateStatus s;
-            
-	        try ( NetworkDAO daoNew =lockNetworkForUpdate(networkId) ) {
-				try {			
-					UUID tmpNetworkId = storeRawNetworkFromMultipart (input, CX2NetworkLoader.cx2NetworkFileName);
+    public NdexObjectUpdateStatus updateCX2Network(final @PathParam("networkid") String networkIdStr,
+    		 @QueryParam("visibility") String visibilityStr,
+		 @QueryParam("extranodeindex") String fieldListStr, // comma seperated list
+    		MultipartFormDataInput input) throws Exception
+    {
+        List<InputPart> parts = input.getFormDataMap().get("CXNetworkStream");
+        if (parts == null || parts.isEmpty())
+            throw new BadRequestException("Field CXNetworkStream is not found in the POSTed Data.");
 
-					s = updateCx2NetworkFromSavedFile( networkId, daoNew, tmpNetworkId);
-				
-				} catch (SQLException | NdexException | IOException e) {
-	        	   e.printStackTrace();
-	        	   daoNew.rollback();
-	        	   daoNew.unlockNetwork(networkId);  
-	        	   throw e;
-	           } 
-	        }	
-	    	      
-		    NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, true, visibility,extraIndexOnNodes));
-		    
-		    return s;
-	    }
+        List<InputStream> streams = new ArrayList<>();
+        for (InputPart part : parts)
+            streams.add(part.getBody(InputStream.class, null));
 
+        InputStream reassembled = new SequenceInputStream(Collections.enumeration(streams));
+        return updateNetworkFromInputStream(networkIdStr, reassembled, visibilityStr, fieldListStr);
+    }
+
+
+
+	public NdexObjectUpdateStatus updateNetworkFromInputStream(
+			String networkIdStr,
+			InputStream cx2Stream,
+			String visibilityStr,
+			String fieldListStr) throws Exception {
+
+		VisibilityType visibility = visibilityStr != null ? VisibilityType.valueOf(visibilityStr) : null;
+
+		Set<String> extraIndexOnNodes = null;
+		if (fieldListStr != null) {
+			extraIndexOnNodes = new HashSet<>(10);
+			for (String f : fieldListStr.split("\\s*,\\s*"))
+				extraIndexOnNodes.add(f);
+		}
+
+		UUID networkId = UUID.fromString(networkIdStr);
+		NdexObjectUpdateStatus s;
+		try (NetworkDAO daoNew = lockNetworkForUpdate(networkId)) {
+			try (InputStream in = cx2Stream) {
+				UUID tmpNetworkId = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
+				s = updateCx2NetworkFromSavedFile(networkId, daoNew, tmpNetworkId);
+			} catch (SQLException | NdexException | IOException e) {
+				daoNew.rollback();
+				daoNew.unlockNetwork(networkId);
+				throw e;
+			}
+		}
+		NdexServerQueue.INSTANCE.addSystemTask(new CX2NetworkLoadingTask(networkId, true, visibility, extraIndexOnNodes));
+		return s;
+	}
+
+	public NdexObjectUpdateStatus createNetworkFromInputStream(
+			InputStream cx2Stream,
+			String visibilityStr,
+			String extraNodeIndexStr,
+			String folderIdStr) throws Exception {
+
+		VisibilityType visibility = visibilityStr != null ? VisibilityType.valueOf(visibilityStr) : null;
+
+		Set<String> extraIndexOnNodes = null;
+		if (extraNodeIndexStr != null) {
+			extraIndexOnNodes = new HashSet<>(10);
+			for (String f : extraNodeIndexStr.split("\\s*,\\s*"))
+				extraIndexOnNodes.add(f);
+		}
+
+		try (UserDAO dao = new UserDAO()) {
+			dao.checkDiskSpace(getLoggedInUserId());
+		}
+
+		UUID uuid = storeRawNetworkFromStream(cx2Stream, CX2NetworkLoader.cx2NetworkFileName);
+		String uuidStr = uuid.toString();
+		accLogger.info("[data]\t[uuid:" + uuidStr + "]");
+
+		String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr
+				+ "/" + CX2NetworkLoader.cx2NetworkFileName;
+		long fileSize = new File(cxFileName).length();
+
+		NdexObjectUpdateStatus status;
+		try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+			status = dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(),
+					getLoggedInUser().getUserName(), fileSize, null, CX2NetworkLoader.cx2Format);
+			dao.commit();
+		}
+
+		if (folderIdStr != null && !folderIdStr.isEmpty()) {
+			try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+				networkDao.setNetworkFolder(uuid, UUID.fromString(folderIdStr));
+				networkDao.commit();
+			}
+		}
+
+		NdexServerQueue.INSTANCE.addSystemTask(
+				new CX2NetworkLoadingTask(uuid, false, visibility, extraIndexOnNodes));
+		return status;
+	}
 
 		private static NdexObjectUpdateStatus updateCx2NetworkFromSavedFile(UUID networkId, NetworkDAO daoNew,
 				UUID tmpNetworkId) throws SQLException, NdexException, IOException, JsonParseException,
@@ -616,7 +670,8 @@ public class NetworkServiceV3  extends NdexService {
 		@PermitAll
 		@GET
 		@Path("/{networkid}/export")
-		
+		@Operation(summary = "Export nodes or edges in TSV format", description = "Returns the nodes or edges of this network specified by networkid in TSV format. Content type of the response is text/tab-separated-values.")
+
 		public Response exportTSVText( 
 				@PathParam("networkid") final String networkId,
 				@QueryParam("accesskey") String accessKey,
@@ -627,14 +682,14 @@ public class NetworkServiceV3  extends NdexService {
 				@QueryParam("nodeattributes") String nodeAttrStr,
 				@QueryParam("edgeattributes") String edgeAttrStr,
 				@DefaultValue("false")  @QueryParam("quotestringinlist") boolean quoteStringInList
-				) throws NdexException, SQLException, IOException {
+				) throws Exception {
 			
 			if  (!type.equals("node") && !type.equals("edge") )
 				throw new BadRequestException("Parameter \"type\" can only be 'node' or 'edge'.");	
 			
 			UUID networkUUID = UUID.fromString(networkId);
 	    	
-	    	try (NetworkDAO dao = new NetworkDAO()) {
+	    	try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 	    		if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
 	    				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 	    			throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -724,9 +779,9 @@ public class NetworkServiceV3  extends NdexService {
 			
 			UUID networkUUID = UUID.fromString(networkId);
 			
-			try (NetworkDAO dao = new NetworkDAO() ) {
+			try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO() ) {
 				String currentDOI = dao.getNetworkDOI(networkUUID);
-				if ( currentDOI ==null || !currentDOI.equals(NetworkDAO.PENDING)) {
+				if ( currentDOI ==null || !currentDOI.equals(PostgresNetworkDAO.PENDING)) {
 					throw new ForbiddenOperationException("This operation only works when a DOI is pending. The current value of DOI is: " + currentDOI );
 				}
 				dao.setDOI(networkUUID, "CREATING");
@@ -741,7 +796,7 @@ public class NetworkServiceV3  extends NdexService {
 					
 				}
 				if ( author == null)  {
-					dao.setDOI(networkUUID, NetworkDAO.PENDING);
+					dao.setDOI(networkUUID, PostgresNetworkDAO.PENDING);
 					dao.commit();
 					throw new NdexException("Property author is missing in the network.");
 				}
@@ -761,7 +816,7 @@ public class NetworkServiceV3  extends NdexService {
 							Configuration.getInstance().getDOIUser(),
 							Configuration.getInstance().getDOIPswd());
 				} catch (Exception e) {
-					dao.setDOI(networkUUID, NetworkDAO.PENDING);
+					dao.setDOI(networkUUID, PostgresNetworkDAO.PENDING);
 					dao.commit();
 					e.printStackTrace();
 					throw new NdexException("Failed to create DOI in EZID site. Cause: " + e.getMessage());
@@ -803,6 +858,7 @@ public class NetworkServiceV3  extends NdexService {
 		@PermitAll
 		@GET
 		@Path("/{networkid}/summary")
+		@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId. A NetworkSummary object is a subset of a network object. It is used to convey basic information about a network in this API. NOTE: If value of 'completed' is False this result may not contain all attributes below (name, description, version might be missing, nodeCount and edgeCount will be zero, properties will be empty, etc…)")
 		@Produces("application/json")
 		
 		public NetworkSummaryV3 getNetworkSummaryV3(
@@ -811,12 +867,12 @@ public class NetworkServiceV3  extends NdexService {
 				@DefaultValue("FULL") @QueryParam("format") String format
 				/*@Context org.jboss.resteasy.spi.HttpResponse response*/ )
 
-				throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+				throws Exception {
 			
 			try {
 			NetworkSummaryFormat fmt = NetworkSummaryFormat.valueOf(format.toUpperCase());
 					
-			try (NetworkDAO dao = new NetworkDAO())  {
+			try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO())  {
 				UUID userId = getLoggedInUserId();
 				UUID networkId = UUID.fromString(networkIdStr);
 				if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
@@ -831,5 +887,54 @@ public class NetworkServiceV3  extends NdexService {
 			}
 		} 
 		
-	
+		@DELETE
+		@Path("/{networkid}")
+		@Operation(summary = "Delete a Network", description = "Deletes the network specified by networkId. If permanent is true, the network will be permanently deleted. Otherwise, it will be soft deleted.")
+		@Produces("application/json")
+		public void deleteNetwork(
+		    @PathParam("networkid") final String id,
+		    @QueryParam("permanent") @DefaultValue("false") boolean permanent
+		) throws Exception {
+		    try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+		        UUID networkId = UUID.fromString(id);
+		        UUID userId = getLoggedInUser().getExternalId();
+
+		        if (!networkDao.isAdmin(networkId, userId)) {
+		            throw new UnauthorizedOperationException("Only network owner can delete a network.");
+		        }
+		        
+		        if (networkDao.isReadOnly(networkId)) {
+		            throw new NdexException("Can't delete a read-only network.");
+		        }
+		        
+		        if (networkDao.networkIsLocked(networkId)) {
+		            throw new NdexException("Network is locked by another updating process. Please try again.");
+		        }
+				VisibilityType visibilityType = networkDao.getNetworkVisibility(networkId);
+
+
+				if (permanent) {
+		            // Perform permanent deletion
+		            networkDao.deleteNetworkPermanently(networkId, userId);
+		            networkDao.commit();
+
+		            // Delete network files from filesystem
+		            String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + networkId.toString();
+		            try {
+		                FileUtils.deleteDirectory(new File(pathPrefix));
+		            } catch (IOException e) {
+		                throw new NdexException("Failed to delete network files. Error: " + e.getMessage());
+		            }
+		            
+			        // Update search index -- TODO: does it need to be done with soft delete?
+			        //NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId));
+		        } else {
+		            // Perform soft deletion
+		            networkDao.deleteNetworkLogical(networkId, userId);
+		            networkDao.commit();
+		        }
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(networkId, visibilityType, false));
+
+			}
+		}
 }

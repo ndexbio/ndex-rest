@@ -52,6 +52,8 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.tools.SearchUtilities;
 import org.ndexbio.rest.Configuration;
 
+import static org.ndexbio.common.solr.NFSIndexManager.convertException;
+
 public class GroupIndexManager implements AutoCloseable{
 
 	private String solrUrl ;
@@ -142,7 +144,7 @@ public class GroupIndexManager implements AutoCloseable{
 			SolrDocumentList dds = rsp.getResults();
 			return dds;
 		} catch (BaseHttpSolrClient.RemoteSolrException e) {
-			throw NetworkGlobalIndexManager.convertException(e, coreName);
+			throw convertException(e, coreName);
 		}
 		
 	}

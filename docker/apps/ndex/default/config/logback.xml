@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<!-- the &#9; below is code for tabulation -->
+			<pattern>[%date]&#9;[%level]&#9;[%X{ClientIP}]&#9;[%X{RequestsUniqueId}]&#9;[%X{UserName}]&#9;%msg&#9;[%C{0}.%method]%n</pattern>
+		</encoder>
+	</appender>
+
+	<logger name="accesslog" level="INFO" additivity="false">
+		<appender-ref ref="STDOUT"/>
+	</logger>
+	<!-- Pin Jetty server internals to INFO regardless of Log-Level in ndex.properties.
+	     Without this, Log-Level=DEBUG would flood the log stream with org.eclipse.jetty.*
+	     debug output unrelated to NDEx application code. -->
+	<logger name="org.eclipse.jetty" level="INFO" additivity="false">
+		<appender-ref ref="STDOUT"/>
+	</logger>
+	<!-- Root level INFO matches the Log-Level=INFO default in ndex.properties.
+	     Configuration.java overrides this at runtime via logback's programmatic API. -->
+	<root level="INFO">
+		<appender-ref ref="STDOUT"/>
+	</root>
+</configuration>

@@ -35,9 +35,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -55,8 +58,11 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -66,6 +72,8 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.MembershipRequest;
 import org.ndexbio.model.object.NetworkSet;
 import org.ndexbio.model.object.PermissionRequest;
@@ -73,6 +81,7 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Request;
 import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.ResponseType;
+import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -90,6 +99,8 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.ws.rs.Consumes;
 
 @Path("/v2/user")
@@ -121,6 +132,7 @@ public class UserServiceV2 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("/{userid}/verification")
+	@Operation(summary = "Verify a User", description = "Verify the given user with UUID and verificationCode.")
 	@NdexOpenFunction
 	@Produces("text/plain")
 	public static String verifyUser(@PathParam("userid") String userUUID,
@@ -148,7 +160,7 @@ public class UserServiceV2 extends NdexService {
 
 	@POST
 	@PermitAll
-	@NdexOpenFunction
+	@Operation(summary = "Create User", description = "Create a new user based on a JSON object specifying username, password, and emailAddress.")
 	@Produces("text/plain")
 	@Consumes("application/json")
 	public Response createUser(final User newUser, 
@@ -327,6 +339,7 @@ public class UserServiceV2 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("")
+	@Operation(summary = "Get User By userName or email", description = "Return the user corresponding to the provided user name.")
 	@Produces("application/json")
 	public User getUserByAccountNameOrAuthenticatUser(
 			@QueryParam("username") /*@Encoded*/ final String accountName,
@@ -370,6 +383,7 @@ public class UserServiceV2 extends NdexService {
 	@GET
 	@PermitAll
 	@Path("/{userid}")
+	@Operation(summary = "Get User By UUID", description = "Returns the user JSON object corresponding to the user’s UUID provided in the userid route parameter.")
 	@Produces("application/json")
 	public User getUserByUUID(@PathParam("userid") final String userIdStr)
 			throws IllegalArgumentException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
@@ -413,6 +427,7 @@ public class UserServiceV2 extends NdexService {
 	
 	@PUT
 	@Path("/{userid}/password")
+	@Operation(summary = "Change Password", description = "Changes the authenticated user's password to the new password in the PUT body.")
 //	@Consumes(MediaType.APPLICATION_JSON)
 	@PermitAll
 	@Produces("application/json")
@@ -462,6 +477,7 @@ public class UserServiceV2 extends NdexService {
 	 **************************************************************************/
 	@DELETE
 	@Path("/{userid}")
+	@Operation(summary = "Delete User", description = "Deletes the authenticated user, removing any other objects in the database that depend on the user.")
 	@Produces("application/json")
 
 	public void deleteUser(@PathParam("userid") final String userIdStr)
@@ -531,6 +547,7 @@ public class UserServiceV2 extends NdexService {
 	 **************************************************************************/
 	@PUT
 	@Path("/{userid}")
+	@Operation(summary = "Update User", description = "Updates the authenticated user based on the serialized user object in the PUT data.")
 	@Produces("application/json")
 
 	public void updateUser(@PathParam("userid") final String userId, final User updatedUser)
@@ -601,6 +618,7 @@ public class UserServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{userid}/membership")
+	@Operation(summary = "Get User's Membership", description = "Returns the permission that the user specified in the URL has on the given group.")
 	@Produces("application/json")
 	public static Map<String,String> getMembershipInfo(
 				@PathParam("userid") final String userIdStr,
@@ -643,6 +661,7 @@ public class UserServiceV2 extends NdexService {
 	@Deprecated
 	@GET
 	@Path("/{userid}/permission")
+	@Operation(summary = "Get User's Network Permission (DEPRECATED)", description = "Get the type(s) of permission assigned to the authenticated user for the specified network. This endpoint is deprecated and will be removed in a future version.", deprecated = true)
 	@Produces("application/json")
 	public Map<String,String> getNetworkPermissionInfo(
 			@PathParam("userid") final String userIdStr,
@@ -688,6 +707,7 @@ public class UserServiceV2 extends NdexService {
 	
 	   @POST
 	   @Path("/{userid}/membershiprequest")
+	   @Operation(summary = "Create Membership Request", description = "Create a request to the group admin for the authenticated user to join the specified group.")
 	   @Produces("text/plain")
 	    public Response createMembershipRequest(
 	    		@PathParam("userid") final String userIdStr,
@@ -725,6 +745,7 @@ public class UserServiceV2 extends NdexService {
 
 	   @POST
 	   @Path("/{userid}/permissionrequest")
+	   @Operation(summary = "Create User Permission Request", description = "Creates a request to ask the owner of the network for permission for access by the authenticated user.")
 	   @Produces("text/plain")
 	    public Response createPermissionRequest(
 	    		@PathParam("userid") final String userIdStr,
@@ -765,6 +786,7 @@ public class UserServiceV2 extends NdexService {
 	   
 	   	@GET
 		@Path("/{userid}/permissionrequest/{requestid}")
+		@Operation(summary = "Get a User's Permission Requests by id", description = "Returns the permission request object specified by requestid.")
 		@Produces("application/json")
 		public Request getPermissionRequestById(@PathParam("userid") String userIdStr,
 				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
@@ -788,6 +810,7 @@ public class UserServiceV2 extends NdexService {
 	
 	   	@GET
 		@Path("/{userid}/permissionrequest")
+		@Operation(summary = "Get a User's Permission Requests", description = "Returns a JSON array of permission request objects in which the authenticated user is either the recipient or the sender.")
 		@Produces("application/json")
 		public List<Request> getPermissionRequests (
 				 @PathParam("userid") String userIdStr,
@@ -829,6 +852,7 @@ public class UserServiceV2 extends NdexService {
 
 	   	@GET
 		@Path("/{userid}/membershiprequest")
+		@Operation(summary = "Get a User's Permission Requests", description = "Returns a JSON array of permission request objects in which the authenticated user is either the recipient or the sender.")
 		@Produces("application/json")
 		public List<Request> getMembershipRequests (
 				 @PathParam("userid") String userIdStr,
@@ -871,6 +895,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@GET
 			@Path("/{userid}/membershiprequest/{requestid}")
+		@Operation(summary = "Get a User's Membership Request by id", description = "Returns the membership request object specified by requestid.")
 			@Produces("application/json")
 			public Request getMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
@@ -895,6 +920,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@PUT
 		@Path("/{userid}/membershiprequest/{requestid}")
+		@Operation(summary = "Respond to Membership Request", description = "Respond to a membership request with accept or deny action. The user must be the group admin to respond to membership requests.")
 		@Produces("application/json")
 		public void respondMembershipRequest(
 				 @PathParam("userid") String userIdStr,
@@ -955,6 +981,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@PUT
 		@Path("/{userid}/permissionrequest/{requestid}")
+		@Operation(summary = "Respond to Permission Request", description = "Respond to a permission request with accept or deny action. The user must be the network owner to respond to permission requests.")
 		@Produces("application/json")
 		public void respondPermissionRequest(
 				 @PathParam("userid") String userIdStr,
@@ -987,7 +1014,7 @@ public class UserServiceV2 extends NdexService {
 			}
 			
 			// check if user is the admin of network
-			try ( NetworkDAO ndao = new NetworkDAO()) {
+			try ( PostgresNetworkDAO ndao = new PostgresNetworkDAO()) {
 				if (!ndao.isAdmin(reqs.getDestinationUUID(), getLoggedInUserId()))
 					throw new UnauthorizedOperationException("Authenticated user is not an admin of the network.");			
 			}
@@ -996,7 +1023,7 @@ public class UserServiceV2 extends NdexService {
 			reqs.setResponseMessage(message);
 			if ( act.equals("accept")) {
 				reqs.setResponse(ResponseType.ACCEPTED);
-				try ( NetworkDAO ndao = new NetworkDAO()) {
+				try ( PostgresNetworkDAO ndao = new PostgresNetworkDAO()) {
 					if( reqs.getRequestType() == RequestType.UserNetworkAccess)
 						ndao.grantPrivilegeToUser(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission());
 					else 
@@ -1026,6 +1053,7 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@DELETE
 		@Path("/{userid}/membershiprequest/{requestid}")
+		@Operation(summary = "Delete Membership Request", description = "Delete a membership request by its ID. The authenticated user must be the owner of the request.")
 		@Produces("application/json")
 		public void deleteMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
@@ -1053,6 +1081,7 @@ public class UserServiceV2 extends NdexService {
 	
 	   	@DELETE
 		@Path("/{userid}/permissionrequest/{requestid}")
+		@Operation(summary = "Delete Permission Request", description = "Delete a permission request by its ID. The authenticated user must be the owner of the request.")
 		@Produces("application/json")
 		public void deletePermissionRequestById(
 					 @PathParam("userid") String userIdStr,
@@ -1074,24 +1103,51 @@ public class UserServiceV2 extends NdexService {
 
 	   	
 	   	@GET
-		@Path("/{userid}/showcase")
-		@Produces("application/json")
-		@PermitAll
-		public List<NetworkSummary> getUserShowcaseNetworks(
-					 @PathParam("userid") String userIdStr
-					) throws SQLException, JsonParseException, JsonMappingException, IOException {
+	   	@Path("/{userid}/showcase")
+	   	@Deprecated
+	   	@Operation(
+	   	    summary = "[DEPRECATED] Get User's Showcase Networks",
+	   	    description = "DEPRECATED: Use /v3/users/{userid}/home instead. Returns list of public networks, folders and shortcuts from a user's home folder or those shared with the viewer."
+	   	)
+	   	@Produces("application/json")
+	   	@PermitAll
+	   	public List<FileItemSummary> getUserShowcaseNetworks(
+	   	        @PathParam("userid") String userIdStr
+	   	) throws Exception {
+	   	    
+	   	    UUID userId = UUID.fromString(userIdStr);
+	   	    UUID requesterId = getLoggedInUserId();
+	   	    boolean compact = true;
+		    boolean isSelf = requesterId != null && requesterId.equals(userId);
 
-				UUID userId = UUID.fromString(userIdStr);
-								
-				try (NetworkDAO dao = new NetworkDAO()) {
-					
-					return dao.getUserShowCaseNetworkSummaries(userId, this.getLoggedInUserId());
-				} 
-				
-			}   
+		    List<FileItemSummary> items;
+	        if (isSelf) {
+		        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+		            items = dao.listRootItemsOfUser(userId, compact, null);
+		        }
+	        } else if (requesterId != null) {
+	            // Shared-with-me content in user's home folder
+	            try (NetworkDAO networkDAO = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+	                items = networkDAO.listNetworksSharedBySpecificUser(requesterId, userId, compact);
+	            }
+	            try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	            	items.addAll(folderDAO.listFoldersSharedBySpecificUser(requesterId, userId, compact));
+	            	items.addAll(folderDAO.listPublicRootItemsOfUser(userId, compact, FileType.SHORTCUT));
+	            }
+	        } else {
+	            // Anonymous - public content only
+	            try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	                items = folderDAO.listPublicRootItemsOfUser(userId, compact);
+	            }
+	        }
+
+	   	    return items;
+	   	}  
 	   	
 	  	@GET
 		@Path("/{userid}/networksummary")
+	  	// @Deprecated
+		@Operation(summary = "[DEPRECATED] Get User's Account Page Networks", description = "DEPRECATED: Use /v3/users/{userid}/home instead. This is a function designed to support My Account pages in NDEx applications. It returns a list of NetworkSummary objects to display.")
 		@Produces("application/json")
 		public List<NetworkSummary> getNetworkSummariesForMyAccountPage(
 						@PathParam("userid") String userIdStr,
@@ -1103,15 +1159,39 @@ public class UserServiceV2 extends NdexService {
 			if ( !userId.equals(getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Userid has to be the same as the autheticated user's");
 			
-			try (NetworkDAO dao = new NetworkDAO()) {
-				return dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+				List<NetworkSummary> result = dao.getNetworkSummariesForMyAccountPage(userId, offset, limit);
+				try (PostgresShortcutDAO shortcutDAO = new PostgresShortcutDAO();
+				     PostgresNetworkDAO networkDAO = new PostgresNetworkDAO()) {
+					List<NdexShortcut> shortcuts = shortcutDAO.listRootShortcutsOfUser(userId);
+					Set<UUID> seen = new HashSet<>();
+					for (NetworkSummary ns : result) {
+						seen.add(ns.getExternalId());
+					}
+					for (NdexShortcut shortcut : shortcuts) {
+						if (shortcut.getTargetType() == FileType.NETWORK && shortcut.getTarget() != null) {
+							UUID networkId = shortcut.getTarget();
+							if (!seen.contains(networkId)) {
+								try {
+									NetworkSummary ns = networkDAO.getNetworkSummaryById(networkId);
+									result.add(ns);
+									seen.add(networkId);
+								} catch (Exception e) {
+									// Ignore missing or inaccessible networks
+								}
+							}
+						}
+					}
+				}
+				return result;
 			} 
 					
-		}      	
+		}       	
 
 
 	  	@GET
 		@Path("/{userid}/networkcount")
+		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary and networkSet objects for this page.")
 		@Produces("application/json")
 		public Map<String,Integer> getNumNetworksForMyAccountPage(
 						 @PathParam("userid") String userIdStr
@@ -1122,7 +1202,7 @@ public class UserServiceV2 extends NdexService {
 				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
 			
 			Map<String, Integer> result = new HashMap<>(2);
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				result.put("networkCount",  dao.getNumNetworksForMyAccountPage(userId));
 				try (NetworkSetDAO dao2 = new NetworkSetDAO()) {
 					result.put("networkSetCount", dao2.getNetworkSetCountByUserId(userId));
@@ -1135,6 +1215,7 @@ public class UserServiceV2 extends NdexService {
 	  	
 	   	@GET
 		@Path("/{userid}/networksets")
+		@Operation(summary = "Get All Network Sets owned by a user", description = "Get a list of network sets that are owned by a user.")
 		@Produces("application/json")
 		@PermitAll
 

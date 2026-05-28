@@ -8,7 +8,7 @@ import java.sql.SQLException;
 import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
@@ -32,7 +32,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 
 	private UUID aspectsCXNetworkID;
 	
-	public CXNetworkAspectsUpdater(UUID networkUUID,  NetworkDAO networkDao, UUID aspectsCXUUID) {
+	public CXNetworkAspectsUpdater(UUID networkUUID,  PostgresNetworkDAO networkDao, UUID aspectsCXUUID) {
 		super(networkUUID, true, networkDao, null,null, 0);
 		
 		this.aspectsCXNetworkID = aspectsCXUUID;
@@ -46,7 +46,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 
 			  UUID networkUUID = getNetworkId();
 			  @SuppressWarnings("resource")
-			  NetworkDAO dao = getDAO();
+			  PostgresNetworkDAO dao = getDAO();
 			  //handle the network properties 
 			  NetworkSummary summary = dao.getNetworkSummaryById(networkUUID);
 			  MetaDataCollection fullMetaData = dao.getMetaDataCollection(networkUUID);

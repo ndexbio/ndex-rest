@@ -26,7 +26,7 @@ COMMENT ON DATABASE ndex IS 'main database to store network, user, group info.';
 -- Name: core; Type: SCHEMA; Schema: -; Owner: ndexserver
 --
 
-CREATE SCHEMA core;
+CREATE SCHEMA if NOT EXISTS core;
 
 
 ALTER SCHEMA core OWNER TO ndexserver;

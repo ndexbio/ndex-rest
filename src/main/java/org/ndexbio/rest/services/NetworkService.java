@@ -71,7 +71,7 @@ import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
@@ -148,7 +148,7 @@ public class NetworkService extends NdexService {
 
 			throws IllegalArgumentException, JsonParseException, JsonMappingException, IOException, NdexException, SQLException {
 				
-		try (NetworkDAO daoNew = new NetworkDAO()) {
+		try (PostgresNetworkDAO daoNew = new PostgresNetworkDAO()) {
 			if ( !daoNew.isReadable(UUID.fromString(networkId), getLoggedInUserId()) )
 				throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
 
@@ -192,7 +192,7 @@ public class NetworkService extends NdexService {
     		final List<NdexPropertyValuePair> properties)
     		throws Exception {
 
-		try (NetworkDAO daoNew = new NetworkDAO()) {
+		try (PostgresNetworkDAO daoNew = new PostgresNetworkDAO()) {
 			
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
@@ -253,7 +253,7 @@ public class NetworkService extends NdexService {
 
 			throws IllegalArgumentException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			UUID networkId = UUID.fromString(networkIdStr);
 			if ( dao.isReadable(networkId, userId)) {
@@ -280,7 +280,7 @@ public class NetworkService extends NdexService {
 	public Response getCompleteNetworkAsCX(	@PathParam("networkid") final String networkId)
 			throws IllegalArgumentException, NdexException, SQLException {
     	
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
     		if ( ! dao.isReadable(UUID.fromString(networkId), getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 
@@ -308,7 +308,7 @@ public class NetworkService extends NdexService {
 	public Response getSampleNetworkAsCX(	@PathParam("networkid") final String networkId)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
     		if ( ! dao.isReadable(UUID.fromString(networkId), getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 
@@ -463,7 +463,7 @@ public class NetworkService extends NdexService {
 		
 		UUID networkId = UUID.fromString(networkIdStr);
 		
-		try (NetworkDAO networkDao = new NetworkDAO()) {
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 			if ( !networkDao.isAdmin(networkId, getLoggedInUserId())) 
 				throw new UnauthorizedOperationException("Authenticated user is not the admin of this network");
 
@@ -485,7 +485,7 @@ public class NetworkService extends NdexService {
             throws  NdexException, SQLException, IOException, IllegalArgumentException 
     {
 		
-		try (NetworkDAO networkDao = new NetworkDAO()){
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){
 
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
@@ -574,7 +574,7 @@ public class NetworkService extends NdexService {
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
         
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 
 			NetworkSearchResult result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
 			return result;
@@ -612,7 +612,7 @@ public class NetworkService extends NdexService {
 
      //   String ownerAccName = null;
 
-        try ( NetworkDAO daoNew = new NetworkDAO() ) {
+        try ( PostgresNetworkDAO daoNew = new PostgresNetworkDAO() ) {
            User user = getLoggedInUser();
            
          try {
@@ -686,7 +686,7 @@ public class NetworkService extends NdexService {
   
 	public void deleteNetwork(final @PathParam("networkid") String id) throws NdexException, SQLException {
 		    
-		try (NetworkDAO networkDao = new NetworkDAO()) {
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 			UUID networkId = UUID.fromString(id);
 			UUID userId = getLoggedInUser().getExternalId();
 			if(networkDao.isAdmin(networkId, userId) ) {
@@ -850,7 +850,7 @@ public class NetworkService extends NdexService {
 		    	throw new NdexException("Networks can only be exported in cx fromat in this server.");
 		    
 		    Map<UUID,UUID> result = new TreeMap<>();
-			try (NetworkDAO networkDao = new NetworkDAO()) {
+			try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 				try (TaskDAO taskdao = new TaskDAO()) {
 
 					for ( UUID networkID : exportRequest.getNetworkIds()) {
@@ -926,7 +926,7 @@ public class NetworkService extends NdexService {
 		   long fileSize = new File(cxFileName).length();
 
 		   // create entry in db. 
-	       try (NetworkDAO dao = new NetworkDAO()) {
+	       try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	    	//   NetworkSummary summary = 
 	    			 dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null,null);
 	    	   

@@ -137,7 +137,21 @@ public class Email
         for (String recipientAddress : recipientAddresses)
             emailToSend.addRecipient(Message.RecipientType.TO, InternetAddress.parse(recipientAddress)[0]);
  
-        Transport.send(emailToSend);
+        try {
+        	Transport.send(emailToSend);
+        } catch (MessagingException ex) {
+        	try {
+        		StringBuilder recipients = new StringBuilder();
+        		for (int i = 0; i < recipientAddresses.length; i++) {
+        			if (i > 0) recipients.append(", ");
+        			recipients.append(recipientAddresses[i]);
+        		}
+        		logger.error("Failed to send email to [" + recipients + "] with subject '" + subject + "' from '" + senderAddress + "'", ex);
+        	} catch (Exception logEx) {
+        		logger.error("Failed to log email send error details", logEx);
+        	}
+        	throw ex;
+        }
     }
     
     public static void sendHTMLEmailUsingLocalhost(final String senderAddress, final String recipientAddress, final String subject, final String emailText ) throws NdexException {

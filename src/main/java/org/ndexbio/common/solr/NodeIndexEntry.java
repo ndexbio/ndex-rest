@@ -21,6 +21,7 @@ public class NodeIndexEntry {
 		setAliases(new TreeSet<>());
 		//setMembers(new TreeSet<>());
 	//	memberIsToBeIndexed = false;
+		text = new TreeSet<>();
 	}
 	
 	public NodeIndexEntry(Long nodeId, String nodeName) {

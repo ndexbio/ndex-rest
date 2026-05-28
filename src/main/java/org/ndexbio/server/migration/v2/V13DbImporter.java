@@ -21,7 +21,7 @@ import java.util.logging.Logger;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
@@ -291,7 +291,7 @@ public class V13DbImporter implements AutoCloseable {
 
 		db.commit();
 		
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			String sql1 = "select id, (select owner from network n where n.\"UUID\" = id) from working_migrated_uuids where table_name = 'network'" + 
 							" and exists ( select 1 from network n where n.\"UUID\"= id and n.iscomplete is null)" ;
 			

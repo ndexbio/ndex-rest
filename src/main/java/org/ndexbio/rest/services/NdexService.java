@@ -51,7 +51,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.io.IOUtils;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
+import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.BadRequestException;
@@ -59,11 +61,17 @@ import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.security.GoogleOpenIDAuthenticator;
 import org.ndexbio.security.OAuthAuthenticator;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskRebuildFileIdx;
+import org.ndexbio.task.SolrTaskRebuildNetworkIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -120,7 +128,7 @@ public abstract class NdexService
     		return _httpRequest.getInputStream();
     }
     
-    protected static OAuthAuthenticator getOAuthAuthenticator() {return oauthAuthenticator;}
+    public static OAuthAuthenticator getOAuthAuthenticator() {return oauthAuthenticator;}
     public static void setOAuthAuthenticator(OAuthAuthenticator a) {
     	oauthAuthenticator = a;
     }
@@ -218,17 +226,16 @@ public abstract class NdexService
 	    * closed properly when an exception was thrown. 
 	    * @param networkId
 	    * @return
-	    * @throws SQLException
-	    * @throws NdexException
+	 * @throws Exception 
 	    */
-	   protected NetworkDAO lockNetworkForUpdate(UUID networkId) throws SQLException, NdexException {
+	   protected NetworkDAO lockNetworkForUpdate(UUID networkId) throws Exception {
 		   
 			try (UserDAO dao = new UserDAO()) {
 				   dao.checkDiskSpace(getLoggedInUserId());
 			}
 	    	
 	        @SuppressWarnings("resource")
-			NetworkDAO daoNew = new NetworkDAO() ;
+			NetworkDAO daoNew = Configuration.getInstance().getDAOFactory().getNetworkDAO() ;
 	        User user = getLoggedInUser();
 	           
 		  	   if( daoNew.isReadOnly(networkId)) {
@@ -260,5 +267,58 @@ public abstract class NdexService
 			return daoNew;
 		   
 	   }
-	
+	/**
+	 * Index or reindex a file (folder, shortcut, or network) in Solr.
+	 * @param fileId       UUID of the file
+	 * @param user         the user performing the action (owner info for indexing)
+	 * @param visibility   visibility type determines which Solr core
+	 * @param fileType     FOLDER, SHORTCUT, or NETWORK
+	 * @param createOnly   if true, only create (no delete of old record first)
+	 */
+	protected void createFileIndex(UUID fileId, User user, VisibilityType visibility,
+							 FileType fileType, boolean createOnly) throws SQLException, NdexException, IOException {
+
+		createFileIndex(fileId, user.getExternalId(), user.getUserName(), visibility, fileType, createOnly, false);
+	}
+	protected void createFileIndex(UUID fileId, User user, VisibilityType visibility,
+								   FileType fileType, boolean createOnly, boolean ignoreCxFiles) throws SQLException, NdexException, IOException {
+
+		createFileIndex(fileId, user.getExternalId(), user.getUserName(), visibility, fileType, createOnly, ignoreCxFiles);
+	}
+
+	protected void createFileIndex(UUID fileId, UUID userId, String username, VisibilityType visibility,
+							 FileType fileType, boolean createOnly, boolean ignoreCxFiles) throws SQLException, NdexException, IOException {
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(
+				fileId, userId, username, visibility, fileType, createOnly, ignoreCxFiles));
+	}
+	protected void deleteFileIndex(UUID fileId,
+									 VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId, visibilityType));
+	}
+	protected void deleteFileIndex(UUID fileId,
+								   VisibilityType visibilityType, boolean globalIdxOnly) throws SQLException, NdexException, IOException {
+
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId, visibilityType, globalIdxOnly));
+	}
+
+	protected VisibilityType getVisibilityForFile(UUID fileId, FileType fileType) throws Exception {
+		switch (fileType) {
+			case FOLDER:
+				try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+					return dao.getFolderVisibility(fileId);
+				}
+			case NETWORK:
+				try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+					return dao.getNetworkVisibility(fileId);
+				}
+			case SHORTCUT:
+				try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
+					return dao.getShortcutVisibility(fileId);
+				}
+			default:
+				throw new NdexException("Unknown file type: " + fileType);
+		}
+	}
+
 }

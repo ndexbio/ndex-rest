@@ -35,6 +35,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+
+import javax.net.ssl.SSLContext;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -51,6 +55,7 @@ import java.util.UUID;
 
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -71,7 +76,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
@@ -98,6 +103,8 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.swagger.v3.oas.annotations.Operation;
 
 @Path("/v2/search")
 public class SearchServiceV2 extends NdexService {
@@ -135,6 +142,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/user")
+	@Operation(summary = "Search Users", description = "Returns a SearchResult object which contains an array of User objects and the total hit count of the search.")
 	@Produces("application/json")
 	
 	public static SolrSearchResult<User> findUsers(
@@ -170,6 +178,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/group")
+	@Operation(summary = "Search Groups", description = "Returns a SearchResult object which contains an array of Group objects and the total hit count of the search.")
 	@Produces("application/json")
 	public static SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -190,7 +199,9 @@ public class SearchServiceV2 extends NdexService {
 	@POST
 	@PermitAll
 	@Path("/network")
+	@Operation(summary = "Search Networks", description = "Returns a SearchResult object which contains an array of NetworkSummary objects and total hit count of the search.")
 	@Produces("application/json")
+	@Consumes("application/json")
 	// TODO: need to node accountName is a filter and you cannot use wildcards
 	public NetworkSearchResult searchNetwork(
 			final SimpleNetworkQuery query,
@@ -203,7 +214,7 @@ public class SearchServiceV2 extends NdexService {
     	if(query.getAccountName() != null)
     		query.setAccountName(query.getAccountName().toLowerCase());
         
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 
 			NetworkSearchResult result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
 			return result;
@@ -219,6 +230,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/nodes")
+	@Operation(summary = "Query Network Nodes", description = "Search for nodes within a specific network using a query string. Returns a list of matching nodes with their properties.")
 	@Produces("application/json")
    
 	public SolrDocumentList queryNetworkNodes(
@@ -232,7 +244,7 @@ public class SearchServiceV2 extends NdexService {
 		
 		UUID networkId = UUID.fromString(networkIdStr);
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
@@ -275,6 +287,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/query")
+	@Operation(summary = "Query Network", description = "Returns a CX network that is a 'neighborhood' subnetwork of the network specified by networkid.")
 	@Produces("application/json")
 
 	public Response queryNetworkAsCX(
@@ -301,7 +314,7 @@ public class SearchServiceV2 extends NdexService {
 		}
 		
 		String networkName;
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
@@ -319,8 +332,15 @@ public class SearchServiceV2 extends NdexService {
 		else
 			networkName = "Neighborhood query result on network - " + networkName;
 		
-		Client client = ClientBuilder.newBuilder().build();
-		
+		SSLContext sslContext;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, null, null);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new NdexException("Failed to initialize HTTP client: " + e.getMessage());
+		}
+		Client client = ClientBuilder.newBuilder().sslContext(sslContext).build();
+
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
         WebTarget target = client.target(prefix + networkId + "/query");
         Response response = target.request().post(Entity.entity(queryParameters, "application/json"));
@@ -347,7 +367,7 @@ public class SearchServiceV2 extends NdexService {
         
 	}
 
-	public static void getSolrIdxReady(UUID networkId, NetworkDAO dao)
+	public static void getSolrIdxReady(UUID networkId, PostgresNetworkDAO dao)
 			throws SQLException, ObjectNotFoundException, SolrServerException, IOException, NdexException {
 		int nodeCount = dao.getNodeCount(networkId);
 		
@@ -366,7 +386,7 @@ public class SearchServiceV2 extends NdexService {
 		// create a network entry in db
 		UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 
-	    try (NetworkDAO dao = new NetworkDAO()) {
+	    try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	    	   dao.CreateEmptyNetworkEntry(uuid, ownerUUID, ownerName, 0,networkName, null);
     // 	   dao.setProvenance(uuid, entity);
 		   dao.commit();
@@ -468,6 +488,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/interconnectquery")
+	@Operation(summary = "Interconnect Query", description = "Returns a CX network that is a 'neighborhood' subnetwork where all the paths must start and end at one of the query nodes in the network specified by networkid.")
 	@Produces("application/json")
 
 	public Response interconnectQuery(
@@ -496,7 +517,7 @@ public class SearchServiceV2 extends NdexService {
 		
 		String networkName;
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
@@ -550,6 +571,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/advancedquery")
+	@Operation(summary = "Advanced Query", description = "This method retrieves a filtered subnetwork of the network specified by ‘networkId’ based on a POSTed JSON query object.")
 	@Produces("application/json")
    
 	public Response advancedQuery(
@@ -569,7 +591,7 @@ public class SearchServiceV2 extends NdexService {
 
 		UUID networkId = UUID.fromString(networkIdStr);
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
@@ -601,7 +623,7 @@ public class SearchServiceV2 extends NdexService {
 	}
 	
 	
-	private static void checkIfQueryIsAllowed(UUID networkId, NetworkDAO dao) throws ForbiddenOperationException, ObjectNotFoundException, SQLException {
+	private static void checkIfQueryIsAllowed(UUID networkId, PostgresNetworkDAO dao) throws ForbiddenOperationException, ObjectNotFoundException, SQLException {
 		
 		if ( dao.getNetworkEdgeCount(networkId) > networkQuerySizeLimit)
 			throw new ForbiddenOperationException("Query on networks that have over " + networkQuerySizeLimit + " edges is not supported in this release. "
@@ -612,7 +634,9 @@ public class SearchServiceV2 extends NdexService {
 	@POST
 	@PermitAll
 	@Path("/network/genes")
+	@Operation(summary = "Search Networks by Gene/Protein", description = "Returns a SearchResult object which contains an array of NetworkSummary objects and total hit count of the search.")
 	@Produces("application/json")
+	@Consumes("application/json") 
 	public NetworkSearchResult searchNetworkByGenes(
 			final SimpleQuery geneQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -622,7 +646,7 @@ public class SearchServiceV2 extends NdexService {
 		accLogger.info("[data]\t[query:" +geneQuery.getSearchString() + "]" );
 		
 		if ( geneQuery.getSearchString().trim().length() == 0 || geneQuery.getSearchString().trim().equals("*")) {
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				SimpleNetworkQuery finalQuery = new SimpleNetworkQuery();
 				finalQuery.setSearchString(geneQuery.getSearchString());
 				NetworkSearchResult result = dao.findNetworks(finalQuery, skipBlocks, blockSize, this.getLoggedInUser());
@@ -660,7 +684,7 @@ public class SearchServiceV2 extends NdexService {
 		finalQuery.setSearchString(lStr.toString());
 		logger.info("Final search string is ("+ lStr.length()+"): " + lStr.toString());
 
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 
 			NetworkSearchResult result = dao.findNetworks(finalQuery, skipBlocks, blockSize, this.getLoggedInUser());
 			return result;
