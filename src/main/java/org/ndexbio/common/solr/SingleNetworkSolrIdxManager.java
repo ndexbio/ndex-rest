@@ -79,7 +79,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	private String collectionName; 
 	private HttpSolrClient client;
 	
-	static private final  int batchSize = 2000;
+	static private final  int batchSize = NodeIndexDocumentBuilder.DEFAULT_BATCH_SIZE;
 	
 	//NDEx will auto create index for networks with node count larger than this value
 	// other wise it will delay the creation until the first time this network is queried.
@@ -291,25 +291,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable{
 	
 	private void addNodeIndex(Long id, String name, Collection<String> represents, Collection<String> alias, Collection<String> txtArray) throws SolrServerException, IOException {
 		
-		SolrInputDocument doc = new SolrInputDocument();
-		doc.addField("id",  id );
-		
-		if ( name != null && name.length()>0 ) 
-			doc.addField(NAME, name);
-		if ( represents !=null && !represents.isEmpty()) {
-			for ( String rterm : represents )
-				doc.addField(CxNode.REPRESENTS, rterm.trim());
-		}	
-		if ( alias !=null && !alias.isEmpty()) {
-			for ( String aTerm : alias )
-				doc.addField(ALIAS, aTerm.trim());
-		}	
-		if ( txtArray !=null) {
-			for (String txt: txtArray) 
-				doc.addField(TEXT, txt.trim());
-		}
-
-		
+		SolrInputDocument doc = NodeIndexDocumentBuilder.buildNodeDocument(id, name, represents, alias, txtArray);
 		docs.add(doc);
 		counter ++;
 		if ( counter % batchSize == 0 ) {

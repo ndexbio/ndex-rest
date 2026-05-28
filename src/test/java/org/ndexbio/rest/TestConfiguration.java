@@ -40,7 +40,9 @@ public class TestConfiguration {
 		sb.append("\nHostURI=http://localhost\n");
 		sb.append("NDEX_KEY=effggekk\n");
 		sb.append("DOI_CREATOR=CqmUkFe5kW5sJVMKNQYYLg==\n");
-		
+		sb.append("MigrationPassword=migration\n");
+
+
 
 		if (exportertimeout != null) {
 			sb.append(Configuration.NDEX_EXPORTER_TIMEOUT);

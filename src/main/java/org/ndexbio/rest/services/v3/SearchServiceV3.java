@@ -6,6 +6,10 @@ import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.net.URISyntaxException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+
+import javax.net.ssl.SSLContext;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,6 +20,7 @@ import java.util.UUID;
 
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -31,7 +36,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
@@ -49,9 +54,11 @@ import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.CXObjectFilter;
 import org.ndexbio.model.network.query.FilterCriterion;
-import org.ndexbio.model.network.query.FilteredDirectQuery;
 import org.ndexbio.model.object.CXSimplePathQuery;
-import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.FileSearchResult;
+import org.ndexbio.model.object.SimpleFileQuery;
+import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.tools.EdgeFilter;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -67,6 +74,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.swagger.v3.oas.annotations.Operation;
+import org.ndexbio.common.models.search.SearchProvider;
 
 @Path("/v3/search")
 
@@ -96,7 +105,7 @@ public class SearchServiceV3 extends NdexService  {
 				
 		UUID networkUUID = UUID.fromString(networkId);
 	    	
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			if ( !dao.isReadable(networkUUID, getLoggedInUserId()) && 
     				! dao.accessKeyIsValid(networkUUID, accessKey)) {
 				throw new UnauthorizedOperationException("User doesn't have access to this network.");
@@ -171,7 +180,7 @@ public class SearchServiceV3 extends NdexService  {
 		}
 		
 		String networkName;
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
@@ -189,7 +198,14 @@ public class SearchServiceV3 extends NdexService  {
 		else
 			networkName = "Neighborhood query result on network - " + networkName;
 		
-		Client client = ClientBuilder.newBuilder().build();
+		SSLContext sslContext;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, null, null);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new NdexException("Failed to initialize HTTP client: " + e.getMessage());
+		}
+		Client client = ClientBuilder.newBuilder().sslContext(sslContext).build();
 		
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
 		String param = preserveNodeCoordinates ? "&perserveCoordinates=true" : "";
@@ -253,7 +269,7 @@ public class SearchServiceV3 extends NdexService  {
 		
 		String networkName;
 
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
@@ -272,7 +288,14 @@ public class SearchServiceV3 extends NdexService  {
 		else
 			networkName = "Interconnect query result on network - " + networkName;
 				
-		Client client = ClientBuilder.newBuilder().build();
+		SSLContext sslContext;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, null, null);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new NdexException("Failed to initialize HTTP client: " + e.getMessage());
+		}
+		Client client = ClientBuilder.newBuilder().sslContext(sslContext).build();
 		
 		/*Map<String, Object> queryEntity = new TreeMap<>();
 		queryEntity.put("terms", queryParameters.getSearchString());
@@ -320,7 +343,7 @@ public class SearchServiceV3 extends NdexService  {
 			throw new BadRequestException("At least one attribute name is reqired in the 'attributeNames' field.");
 		}
 		
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			UUID networkId = UUID.fromString(networkIdStr);
 			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
@@ -480,7 +503,14 @@ public class SearchServiceV3 extends NdexService  {
 			
 		}   
 	
-		Client client = ClientBuilder.newBuilder().build();
+		SSLContext sslContext;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, null, null);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new NdexException("Failed to initialize HTTP client: " + e.getMessage());
+		}
+		Client client = ClientBuilder.newBuilder().sslContext(sslContext).build();
 		
 		
 		String prefix = Configuration.getInstance().getProperty("NeighborhoodQueryURL");
@@ -504,4 +534,50 @@ public class SearchServiceV3 extends NdexService  {
 		
 	}
 */
+
+	@POST
+	@PermitAll
+	@Path("/files")
+	@Operation(
+		summary = "Search Files",
+		description = """
+			Returns a FileSearchResult object which contains an array of FileItemSummary objects and total hit count of the search.
+			Currently only supports searching networks, but the response format is designed to support folders and shortcuts in the future.
+			
+			Query Parameters:
+			- query: SimpleFileQuery object in the request body. See its documentation for details.
+            - visibility: Optional. Searches on only public or private data. (PUBLIC, PRIVATE) (default: unset denotes PUBLIC)
+			- start: Optional. Starting index for pagination (default: 0)
+			- size: Optional. Number of results per page (default: 100)
+			
+			Response:
+			- 200 OK: FileSearchResult with matching files
+			- 400 Bad Request: Invalid query parameters
+			"""
+	)
+	@Produces("application/json")
+	@Consumes("application/json")
+	public FileSearchResult searchFiles(
+			final SimpleFileQuery query,
+			@QueryParam("visibility") VisibilityType visibilityType,
+			@DefaultValue("0") @QueryParam("start") int skipBlocks,
+			@DefaultValue("100") @QueryParam("size") int blockSize)
+		throws SQLException, Exception {
+
+		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
+		User user = getLoggedInUser();
+		if (visibilityType == null){
+			visibilityType = VisibilityType.PUBLIC;
+		}
+		//todo allow non logged in user?
+		if (user == null && visibilityType.equals(VisibilityType.PRIVATE)) {
+			throw new UnauthorizedOperationException("You must be logged in to search private files.");
+		}
+    	if(query.getAccountName() != null)
+    		query.setAccountName(	query.getAccountName().toLowerCase());
+
+		try (SearchProvider search = Configuration.getInstance().getSearchProvider()){
+			return search.searchFiles(query, visibilityType, user, skipBlocks, blockSize);
+		}
+	}
 }

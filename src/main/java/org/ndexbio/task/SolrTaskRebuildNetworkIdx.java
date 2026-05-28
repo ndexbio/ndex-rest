@@ -14,8 +14,9 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
+import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
@@ -34,14 +35,18 @@ import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
-	
+
+	private static final Logger log = LoggerFactory.getLogger(SolrTaskRebuildNetworkIdx.class);
 	private UUID networkId;
 	private SolrIndexScope idxScope;
 	private boolean createOnly;
@@ -62,24 +67,26 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		this.idxScope = scope;
 		this.createOnly = createOnly;
 		this.indexedFields =indexedFields;
-		this.indexLevel = level;
+		this.indexLevel = NetworkIndexLevel.ALL;
 		this.fromCX2File = fromCX2File;
 	}
 	
 	@Override
-	public void run() throws Exception { // throws NdexException, SolrServerException, IOException, SQLException {
+	public void run() throws Exception {
 
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 
 			NetworkSummary summary = dao.getNetworkSummaryById(networkId);
+			VisibilityType visibilityType = dao.getNetworkVisibility(networkId);
+
 			if (summary == null)
 				throw new NdexException("Network " + networkId + " not found in the server.");
 
 			// drop the old ones.
 			if (!createOnly) {
 				if (idxScope != SolrIndexScope.individual) {
-					try (NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
-						globalIdx.deleteNetwork(networkId.toString());
+					try (GlobalNetworkIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
+						globalIdx.delete(networkId.toString(), visibilityType);
 					}
 				}
 				if (idxScope != SolrIndexScope.global)
@@ -91,125 +98,110 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 			if (this.idxScope != SolrIndexScope.global) {
 				long t1 = Calendar.getInstance().getTimeInMillis();
 				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
-					if ( this.fromCX2File)
+					if (this.fromCX2File)
 						idx2.createIndexFromCx2(indexedFields);
 					else
 						idx2.createIndex(indexedFields);
 					idx2.close();
 				}
-				long t = Calendar.getInstance().getTimeInMillis() -t1;
-				System.out.println("Takes " + t/1000 +" secs to create index");
+				long t = Calendar.getInstance().getTimeInMillis() - t1;
+				System.out.println("Takes " + t / 1000 + " secs to create index");
 			}
 
-			if (this.idxScope != SolrIndexScope.individual && indexLevel != NetworkIndexLevel.NONE) {
+			if (this.idxScope != SolrIndexScope.individual) {
 
-				try (NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager()) {
+				try (GlobalNetworkIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
 
 					// build the solr document obj
 					List<Map<Permissions, Collection<String>>> permissionTable = dao
 							.getAllMembershipsOnNetwork(networkId);
 					Map<Permissions, Collection<String>> userMemberships = permissionTable.get(0);
-					Map<Permissions, Collection<String>> grpMemberships = permissionTable.get(1);
-					globalIdx.createIndexDocFromSummary(summary, summary.getOwner(),
-							userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE),
-							grpMemberships.get(Permissions.READ), grpMemberships.get(Permissions.WRITE));
+					globalIdx.prepareIndexDocument(summary, visibilityType,
+							userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
 
-					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
+					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
 
-					if (indexLevel == NetworkIndexLevel.META || indexLevel == NetworkIndexLevel.ALL) {
-						if ( this.fromCX2File) {
-							
-							String cx2AspectPath = pathPrefix + networkId.toString() + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
-							File attrFile = new File (cx2AspectPath + CxNetworkAttribute.ASPECT_NAME);
-							if (attrFile.exists()) {
-							
-								//create the attribute name mapping table from attribute declaration
-								File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
-								ObjectMapper om = new ObjectMapper();
-							
-								CxAttributeDeclaration[] declarations = om.readValue(declFile, CxAttributeDeclaration[].class);
-								
-								CxNetworkAttribute[] attrs = om.readValue(attrFile,CxNetworkAttribute[].class);
-								attrs[0].extendToFullNode(declarations[0].getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
-								
-							
-								List<String> indexWarnings = globalIdx.addCX2NetworkAttrToIndex(attrs[0]);
+					// Always index network attributes (META + ALL behavior)
+					if (this.fromCX2File) {
+
+						String cx2AspectPath = pathPrefix + networkId.toString() + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
+						File attrFile = new File(cx2AspectPath + CxNetworkAttribute.ASPECT_NAME);
+						if (attrFile.exists()) {
+
+							File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
+							ObjectMapper om = new ObjectMapper();
+
+							CxAttributeDeclaration[] declarations = om.readValue(declFile, CxAttributeDeclaration[].class);
+
+							CxNetworkAttribute[] attrs = om.readValue(attrFile, CxNetworkAttribute[].class);
+							attrs[0].extendToFullNode(declarations[0].getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
+
+							List<String> indexWarnings = globalIdx.addCX2NetworkAttrToIndex(attrs[0]);
+							if (!indexWarnings.isEmpty())
+								for (String warning : indexWarnings)
+									System.err.println("Warning: " + warning);
+						}
+					} else {
+						try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId.toString(),
+								NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
+							while (it.hasNext()) {
+								NetworkAttributesElement e = it.next();
+
+								List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
 								if (!indexWarnings.isEmpty())
 									for (String warning : indexWarnings)
 										System.err.println("Warning: " + warning);
-								
 							}
-						} else { 
-							try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkId.toString(),
-								NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class,pathPrefix)) {
+						}
+					}
+
+					// Always index node attributes and nodes (ALL behavior)
+					if (fromCX2File) {
+						String cx2AspectPath = pathPrefix + networkId.toString() + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
+						ObjectMapper om = new ObjectMapper();
+
+						File functionAspectFile = new File(cx2AspectPath + FunctionTermElement.ASPECT_NAME);
+						if (functionAspectFile.exists()) {
+							try (FileInputStream inputStream = new FileInputStream(cx2AspectPath + FunctionTermElement.ASPECT_NAME)) {
+
+								Iterator<FunctionTermElement> it = om.readerFor(FunctionTermElement.class).readValues(inputStream);
+
 								while (it.hasNext()) {
-									NetworkAttributesElement e = it.next();
-
-									List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
-									if (!indexWarnings.isEmpty())
-										for (String warning : indexWarnings)
-											System.err.println("Warning: " + warning);
-
+									FunctionTermElement fun = it.next();
+									globalIdx.addFunctionTermToIndex(fun);
 								}
 							}
 						}
-					}	
-					
-					// process node attribute aspect and add to solr doc
-					if (indexLevel == NetworkIndexLevel.ALL) {
-						if ( fromCX2File) {
-							//TODO: build from CX2
-							String cx2AspectPath = pathPrefix + networkId.toString() + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
-							ObjectMapper om = new ObjectMapper();
-							
-							File functionAspectFile = new File (cx2AspectPath + FunctionTermElement.ASPECT_NAME);
-							if ( functionAspectFile.exists()) {
-								try (FileInputStream inputStream = new FileInputStream(cx2AspectPath + FunctionTermElement.ASPECT_NAME)) {
 
-									Iterator<FunctionTermElement> it = om.readerFor(FunctionTermElement.class).readValues(inputStream);
+						processCx2Nodes(cx2AspectPath, om, globalIdx);
 
-									while (it.hasNext()) {
-										FunctionTermElement fun = it.next();
-
-										globalIdx.addFunctionTermToIndex(fun);
-
-									}
-								}
-							}
-							
-							//create the attribute name mapping table from attribute declaration
-							processCx2Nodes(cx2AspectPath, om, globalIdx);
-							
-						} else { 
-							try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId.toString(),
+					} else {
+						try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkId.toString(),
 								FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
-								while (it.hasNext()) {
-									FunctionTermElement fun = it.next();
-
-									globalIdx.addFunctionTermToIndex(fun);
-
-								}
+							while (it.hasNext()) {
+								FunctionTermElement fun = it.next();
+								globalIdx.addFunctionTermToIndex(fun);
 							}
+						}
 
-							try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkId.toString(),
-									NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
-								while (it.hasNext()) {
-									NodeAttributesElement e = it.next();
-									globalIdx.addCXNodeAttrToIndex(e);
-								}
+						try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkId.toString(),
+								NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
+							while (it.hasNext()) {
+								NodeAttributesElement e = it.next();
+								globalIdx.addCXNodeAttrToIndex(e);
 							}
+						}
 
-							try (AspectIterator<NodesElement> it = new AspectIterator<>(networkId.toString(), NodesElement.ASPECT_NAME,
-									NodesElement.class,pathPrefix)) {
-								while (it.hasNext()) {
-									NodesElement e = it.next();
-									globalIdx.addCXNodeToIndex(e);
-								}
+						try (AspectIterator<NodesElement> it = new AspectIterator<>(networkId.toString(), NodesElement.ASPECT_NAME,
+								NodesElement.class, pathPrefix)) {
+							while (it.hasNext()) {
+								NodesElement e = it.next();
+								globalIdx.addCXNodeToIndex(e);
 							}
-						}	
+						}
 					}
-					
-					globalIdx.commit();
+
+					globalIdx.commit(visibilityType);
 				}
 			}
 
@@ -222,7 +214,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 
 		} catch (SQLException | IOException | NdexException | SolrServerException e1) {
 			e1.printStackTrace();
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				dao.setErrorMessage(networkId, "Failed to create Index on network. Index type: " + this.idxScope
 						+ ". Cause: " + e1.getMessage());
 				dao.commit();
@@ -232,8 +224,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 
 	}
 	
-	
-	private static void processCx2Nodes(String cx2AspectPath, ObjectMapper om, NetworkGlobalIndexManager globalIdx) throws JsonParseException, JsonMappingException, IOException {
+	private static void processCx2Nodes(String cx2AspectPath, ObjectMapper om, GlobalNetworkIndexManager globalIdx) throws JsonParseException, JsonMappingException, IOException {
 		File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
 		if (!declFile.exists())
 			return;

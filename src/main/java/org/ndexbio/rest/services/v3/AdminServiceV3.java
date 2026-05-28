@@ -15,6 +15,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 
+import jakarta.ws.rs.core.Response;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
@@ -25,11 +26,14 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.AdminServiceV2;
 import org.ndexbio.rest.services.NdexOpenFunction;
 import org.ndexbio.rest.services.NdexService;
+import org.ndexbio.server.migration.v3.NFSReIndexer;
+import org.ndexbio.server.migration.v3.V3Migrator;
 
 
 @Path("/v3/admin")
 
 public class AdminServiceV3 extends NdexService {
+	private static volatile boolean migrationRun = false;
 
 	public AdminServiceV3(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
@@ -102,6 +106,37 @@ public class AdminServiceV3 extends NdexService {
 			}
 	        
 	    }
-		
+
+	@GET
+	@NdexOpenFunction
+	@Path("/migrate-v3")
+	public Response runMigration(@QueryParam("priorityUserFile") final String priorityUserFile, @QueryParam("password") final String passwd) {
+		if (!passwd.equals(Configuration.getInstance().getMigrationPassword())){
+			return Response.status(401).entity("invalid migration password provided").build();
+		}
+
+		try (V3Migrator migrator = new V3Migrator(priorityUserFile)) {
+			migrator.run();
+			return Response.ok("Migration complete").build();
+		} catch (Exception e) {
+			return Response.serverError().entity(e.getMessage()).build();
+		}
+	}
+
+
+	@GET
+	@NdexOpenFunction
+	@Path("/reindex-v3")
+	public Response rerunIndex(@QueryParam("password") final String passwd) {
+		if (!passwd.equals(Configuration.getInstance().getMigrationPassword())){
+			return Response.status(401).entity("invalid migration password provided").build();
+		}
+		try (NFSReIndexer reIndexer = new NFSReIndexer()) {
+			reIndexer.run();
+			return Response.ok("Reindexing complete").build();
+		} catch (Exception e) {
+			return Response.serverError().entity(e.getMessage()).build();
+		}
+	}
 
 }

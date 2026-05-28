@@ -41,6 +41,7 @@ import org.ndexbio.cxio.aspects.datamodels.CartesianLayoutElement;
 import org.ndexbio.cxio.aspects.datamodels.CyVisualPropertiesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.EdgesElement;
+import org.ndexbio.cxio.aspects.datamodels.Mapping;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
@@ -516,21 +517,21 @@ public class CX2ToCXConverter {
 			if ( deps.get(VisualEditorProperties.ARROW_COLOR_MATCHES_EDGES) != null ) {
 				arrowColorMatchesEdge = ((Boolean)deps.get(VisualEditorProperties.ARROW_COLOR_MATCHES_EDGES)).booleanValue();
 				edgeVPDependencies.put(VisualEditorProperties.ARROW_COLOR_MATCHES_EDGES, Boolean.toString(arrowColorMatchesEdge));
-				vp.getProperties().put("EDGE_PAINT", vp.getProperties().get("EDGE_STROKE_UNSELECTED_PAINT"));	
+				vp.getProperties().put("EDGE_UNSELECTED_PAINT", vp.getProperties().get("EDGE_STROKE_UNSELECTED_PAINT"));	
 			}
 		}
 		
 		//set edge mapping
 		Map<String,VisualPropertyMapping> edgeMappings = vps.getEdgeMappings();
 		
+		convertMapping(vp, edgeMappings, CxEdge.ASPECT_NAME, attrDecls, warningHolder);
+
 		// add edge_paint mapping if dependency flag exists.
 		if ( arrowColorMatchesEdge) {
-			VisualPropertyMapping m = edgeMappings.get("EDGE_STROKE_UNSELECTED_PAINT");
+			Mapping m = vp.getMappings().get("EDGE_STROKE_UNSELECTED_PAINT");
 			if ( m != null)
-				edgeMappings.put("EDGE_PAINT", m);
+				vp.getMappings().put("EDGE_UNSELECTED_PAINT", m);
 		}
-		
-		convertMapping(vp, edgeMappings, CxEdge.ASPECT_NAME, attrDecls, warningHolder);
 		
 		return vp;
 	}

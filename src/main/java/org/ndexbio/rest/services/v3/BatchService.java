@@ -43,24 +43,30 @@ import java.util.stream.Collectors;
 
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Group;
+import org.ndexbio.model.object.MoveNetworksRequest;
 import org.ndexbio.model.object.NetworkExportRequestV2;
+import org.ndexbio.model.object.FileVisibilityRequest;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
@@ -68,9 +74,12 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.NetworkSummaryFormat;
 import org.ndexbio.model.object.network.NetworkSummaryV3;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
+import org.ndexbio.rest.services.v3.files.handlers.AbstractFileTypeHandler;
+import org.ndexbio.rest.services.v3.files.handlers.FileTypeHandlerFactory;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.NetworkExportTask;
 import org.slf4j.Logger;
@@ -80,12 +89,15 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 @Path("/v3/batch")
 public class BatchService extends NdexService {
 	
 	
 //	static Logger logger = LoggerFactory.getLogger(BatchServiceV2.class);
 	static Logger accLogger = LoggerFactory.getLogger(BasicAuthenticationFilter.accessLoggerName);
+	private final FileTypeHandlerFactory fileTypeHandlerFactory = new FileTypeHandlerFactory();
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -102,6 +114,7 @@ public class BatchService extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/networks/summary")
+	@Operation(summary = "Get Network Summaries By UUIDs (V3)", description = "Returns a JSON array of NetworkSummaryV3 objects selected by the POSTed JSON array of Network UUIDs. Supports different summary formats and access keys for private networks.")
 	@Produces("application/json")
 	public List<NetworkSummaryV3> getNetworkSummaries(
 			@QueryParam("accesskey") String accessKey,
@@ -120,7 +133,7 @@ public class BatchService extends NdexService {
 
 			accLogger.info("[data]\t[uuidcounts:" + networkIdStrs.size() + "]");
 
-			try (NetworkDAO dao = new NetworkDAO()) {
+			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				UUID userId = getLoggedInUserId();
 				return dao.getNetworkV3SummariesByIdStrList(networkIdStrs, userId, accessKey, fmt);
 			}
@@ -128,6 +141,68 @@ public class BatchService extends NdexService {
 			throw new BadRequestException("Format " + format + " is unsupported. Error message: " + e.getMessage());
 		}
 	}	
+	
+	@POST
+	@Path("/networks/move")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Operation(
+	    summary = "Move networks to a folder",
+	    description = "Moves a list of networks to the specified target folder. User must be the owner of the networks."
+	)
+	public void moveNetworksToFolder(final MoveNetworksRequest request) throws Exception {
+	    if (request == null || request.getNetworks() == null || request.getNetworks().isEmpty()) {
+	        throw new BadRequestException("Request must contain a target folder UUID and a non-empty list of network UUIDs.");
+	    }
+
+	    UUID userId = getLoggedInUserId();
+	    if (userId == null) {
+	        throw new NdexException("User must be logged in to move networks.");
+	    }
+
+	    try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
+	        for (UUID netId : request.getNetworks()) {
+	        	if (!networkDao.isAdmin(netId, userId)) {
+	                throw new NdexException("User does not own network " + netId);
+	            }
+
+	            networkDao.setNetworkFolder(netId, request.getTargetFolder());
+	        }
+	        networkDao.commit();
+	    }
+
+	    return ;
+	}
+	
+    @POST
+    @Path("/files/setvisibility")
+    @Operation(summary = "Set File Visibility", description = "Set the visibility (PUBLIC or PRIVATE) for a batch of files (networks, folders, etc.). User must be the owner of the files.")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public void setVisibility(FileVisibilityRequest request) throws Exception {
+        if (request == null || request.getVisibility() == null || request.getFiles() == null) {
+            throw new NdexException("Missing required parameters: visibility and items.");
+        }
+
+		User user = getLoggedInUser();
+        if (user == null || user.getExternalId() == null) {
+            throw new NdexException("User is not logged in.");
+        }
+		UUID userId = user.getExternalId();
+
+        for (Map.Entry<UUID, FileType> item : request.getFiles().entrySet()) {
+            UUID uuid = item.getKey();
+            FileType type = item.getValue();
+            AbstractFileTypeHandler handler = fileTypeHandlerFactory.getHandler(type);
+			VisibilityType oldVisibilityType = getVisibilityForFile(uuid, type);
+            handler.setVisibility(uuid, userId, request.getVisibility());
+			deleteFileIndex(uuid, oldVisibilityType, false);
+			createFileIndex(uuid, user, request.getVisibility(),type, true);
+        }
+
+        return ;
+    }
+
+
 	
 
 }

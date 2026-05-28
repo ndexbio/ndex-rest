@@ -95,7 +95,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 	public static final String accessLoggerName = "accesslog";
 	
     private static final Logger _logger = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
-    private static final Logger accessLogger = LoggerFactory.getLogger(accessLoggerName);
+    protected static final Logger accessLogger = LoggerFactory.getLogger(accessLoggerName);
 
     //private static final ServerResponse ACCESS_DENIED = new ServerResponse("Invalid username or password.", 401, new Headers<>());
     //private static final ServerResponse ACCESS_DENIED_USER_NOT_FOUND = 
@@ -185,58 +185,17 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 		NdexException authorizationException = null;
         try
         {
-            authInfo = parseCredentials(requestContext);
+            MultivaluedMap<String, String> reqHeaders = requestContext.getHeaders();
+            authInfo = parseCredentials(reqHeaders);  // provides authInfo for catch-block logging
+            authType = authInfo == null ? "" : authInfo.length == 1 ? "G" : "B";
 
-            if(authInfo != null) {  // server need to authenticate the user.
+            authUser = handleFilter(reqHeaders);
 
-            	if (authInfo.length == 1) { // google OAuth for now
-            		if ( oAuthAuthenticator == null) {
-            			throw new NdexException("Google OAuth is not enabled in NDEx server.");
-            		}
-  
-            		String token = authInfo[0].substring(7);
-            		authUser = oAuthAuthenticator.getUserByIdToken(token);
-            		authType = "G";	
-            	} else {
-            
-            		if (ADAuthenticator !=null ) {
-            			if ( ADAuthenticator.authenticateUser(authInfo[0], authInfo[1]) ) {
-            				authenticated = true;
-            				_logger.debug("User {} authenticated by AD.", authInfo[0]);
-            				try ( UserDAO dao = new UserDAO() ) {
-            					try {
-            						authUser = dao.getUserByAccountName(authInfo[0],true,true);
-            					} catch (ObjectNotFoundException e) {
-            						String autoCreateAccount = Configuration.getInstance().getProperty(AD_CREATE_USER_AUTOMATICALLY);
-            						if ( autoCreateAccount !=null && Boolean.parseBoolean(autoCreateAccount)) {
-            							User newUser = ADAuthenticator.getNewUser(authInfo[0], authInfo[1]);
-            						//	User newUser = getNewUserSimulator(authInfo[0], authInfo[1]); // only use this line one debugging AD authentication using simulator functions.
-            							authUser = dao.createNewUser(newUser,null);
-            							dao.commit();
-            							try (UserIndexManager mgr = new UserIndexManager()) {
-            								mgr.addUser(authUser.getExternalId().toString(), authUser.getUserName(), authUser.getFirstName(),
-            										authUser.getLastName(), authUser.getDisplayName(), authUser.getDescription());
-            							}
-            						} else 
-            							throw e;
-            					}	
-            				} 
-            			}
-            		} else {
-            			authInfo[0] = authInfo[0].toLowerCase();
-            			try ( UserDAO dao = new UserDAO() ) {
-            				authUser = dao.authenticateUser(authInfo[0],authInfo[1]);
-            			}
-            		}
-    				authType = "B";
-            	}
-            	
-            	if (authUser != null) {   // user is authenticated
-            		requestContext.setProperty("User", authUser);
-       
-            	} else {   // not user can be found based on the credentials in the header.
-            		authorizationException = new UnauthorizedOperationException("Credentials in HTTP head is invalid.");
-            	}           	
+            if (authUser != null) {
+                requestContext.setProperty("User", authUser);
+            } else if (authInfo != null) {
+                // credentials were present but handleFilter returned null (e.g. AD failure)
+                authorizationException = new UnauthorizedOperationException("Credentials in HTTP head is invalid.");
             }
         } catch (TokenExpiredException e ) {
         	_logger.info("OAuth access token expired. Cause: " +e.getMessage());
@@ -266,7 +225,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         } catch (ObjectNotFoundException e0) {
             _logger.info("User: " + authInfo[0] +" not found in Ndex db." /*requestContext.getUriInfo().getPath()*/);
             String mName = method.getName();
-            if ( !mName.equals("createUser")) {
+            if ( !mName.equals("createUser") && !mName.equals("signInByIdToken")) {
             	// instantiate NdexException exception, transform it to JSON, and send it back to the client 
             	authorizationException = e0;
             }
@@ -300,8 +259,8 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         ResponseBuilder rb = Response
                 .status(Status.UNAUTHORIZED)
                 .entity(authorizationException.getNdexExceptionInJason());
-        if (!setAuthHeaderIsFalse(requestContext))
-        	rb.header("WWW-Authenticate", "Basic");
+    /*    if (!setAuthHeaderIsFalse(requestContext) && "B".equals(authType))
+        	rb.header("WWW-Authenticate", "Basic"); */
         
         requestContext.abortWith(
            			rb.type("application/json")
@@ -312,11 +271,11 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
 		accessLogger.info("[start]\t" + buildLogString(authUser,requestContext,method, authType) + "\t[Unauthorized exception: "+ authorizationException.getMessage() + "]"  );
     }
     
-    public static boolean setAuthHeaderIsFalse(ContainerRequestContext arg0) {
+  /*  public static boolean setAuthHeaderIsFalse(ContainerRequestContext arg0) {
         UriInfo uriInfo = arg0.getUriInfo();
         MultivaluedMap<String,String> f = uriInfo.getQueryParameters();
         return f !=null && f.get("setAuthHeader") !=null && f.get("setAuthHeader").get(0).equals("false") ;
-    }
+    } */
     
     
     private String buildLogString(User authUser, ContainerRequestContext requestContext, Method method, String authorizationType ) {
@@ -364,20 +323,69 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
     }
     
     
+    /**
+     * Container-agnostic auth core. Extracts and parses the Authorization header via
+     * parseCredentials(), authenticates, and returns the User.
+     * @param headers full request headers (caller passes their container's header map)
+     * @return authenticated User, or null if anonymous (no credentials) or AD auth failed
+     * @throws NdexException   if credentials were presented but authentication failed
+     * @throws IOException     if header decoding failed
+     */
+    protected User handleFilter(MultivaluedMap<String, String> headers) throws Exception {
+        String[] authInfo = parseCredentials(headers);
+        if (authInfo == null) return null;  // anonymous
+
+        if (authInfo.length == 1) {  // Bearer token
+            if (oAuthAuthenticator == null)
+                throw new NdexException("Google OAuth is not enabled in NDEx server.");
+            return oAuthAuthenticator.getUserByIdToken(authInfo[0].substring("Bearer ".length()));
+        }
+
+        // Basic auth: authInfo[0]=username, authInfo[1]=password
+        String username = authInfo[0].toLowerCase();
+        String password = authInfo[1];
+
+        if (ADAuthenticator != null) {
+            if (!ADAuthenticator.authenticateUser(username, password))
+                return null; // AD authentication failed
+            try (UserDAO dao = new UserDAO()) {
+                try {
+                    return dao.getUserByAccountName(username, true, true);
+                } catch (ObjectNotFoundException e) {
+                    String autoCreate = Configuration.getInstance().getProperty(AD_CREATE_USER_AUTOMATICALLY);
+                    if (autoCreate != null && Boolean.parseBoolean(autoCreate)) {
+                        User newUser = ADAuthenticator.getNewUser(username, password);
+                        User created = dao.createNewUser(newUser, null);
+                        dao.commit();
+                        try (UserIndexManager mgr = new UserIndexManager()) {
+                            mgr.addUser(created.getExternalId().toString(), created.getUserName(),
+                                    created.getFirstName(), created.getLastName(),
+                                    created.getDisplayName(), created.getDescription());
+                        }
+                        return created;
+                    }
+                    throw e;
+                }
+            }
+        }
+        try (UserDAO dao = new UserDAO()) {
+            return dao.authenticateUser(username, password);
+        }
+    }
+
     /**************************************************************************
     * Base64-decodes and parses the Authorization header to get the username
     * and password.
-    * 
-    * @param requestContext
-    *            The servlet HTTP request context.
+    *
+    * @param headers
+    *            The request headers.
     * @throws IOException
     *            Decoding the Authorization header failed.
     * @return a String array containing the username and password.
-     * @throws UnauthorizedOperationException 
+     * @throws UnauthorizedOperationException
     **************************************************************************/
-    private static String[] parseCredentials(ContainerRequestContext requestContext) throws IOException, UnauthorizedOperationException
+    private static String[] parseCredentials(MultivaluedMap<String, String> headers) throws IOException, UnauthorizedOperationException
     {
-        final MultivaluedMap<String, String> headers = requestContext.getHeaders();
         final List<String> authHeader = headers.get("Authorization");
         
         if (authHeader == null || authHeader.isEmpty())
@@ -459,6 +467,5 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
         counter++;
         return counter;
    }
-
 
 }

@@ -7,7 +7,7 @@
 	<groupId>org.ndexbio</groupId>
 	<artifactId>ndexbio-rest</artifactId>
 	<packaging>war</packaging>
-	<version>2.5.8</version>
+	<version>3.0.0-SNAPSHOT</version>
 	<name>ndexbio-rest</name>
 	<url>http://maven.apache.org</url>
 	<inceptionYear>2013</inceptionYear>
@@ -95,7 +95,7 @@
 		<dependency>
 			<groupId>org.ndexbio</groupId>
 			<artifactId>ndex-object-model</artifactId>
-			<version>2.5.8</version>
+			<version>3.0.0-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
@@ -249,6 +249,33 @@
 			<artifactId>google-api-client</artifactId>
 			<version>2.6.0</version>
 		</dependency>
+
+		<!-- MCP Java SDK — servlet transport provider for /mcp endpoint -->
+		<dependency>
+			<groupId>io.modelcontextprotocol.sdk</groupId>
+			<artifactId>mcp-core</artifactId>
+			<version>1.1.1</version>
+		</dependency>
+		<!-- mcp-json-jackson2 registers McpJsonMapperSupplier and JsonSchemaValidatorSupplier
+		     via ServiceLoader (META-INF/services), both backed by Jackson 2 (com.fasterxml.jackson).
+		     Required: McpServer.build() unconditionally resolves these via ServiceLoader at startup.
+		     Uses the Jackson 2 already in the WAR — no new package namespaces introduced. -->
+		<dependency>
+			<groupId>io.modelcontextprotocol.sdk</groupId>
+			<artifactId>mcp-json-jackson2</artifactId>
+			<version>1.1.1</version>
+		</dependency>
+		<!-- victools JSON Schema Generator — derives JSON schema from annotated classes -->
+		<dependency>
+			<groupId>com.github.victools</groupId>
+			<artifactId>jsonschema-generator</artifactId>
+			<version>4.38.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.victools</groupId>
+			<artifactId>jsonschema-module-jackson</artifactId>
+			<version>4.38.0</version>
+		</dependency>
 		<dependency>
 			<groupId>com.google.oauth-client</groupId>
 			<artifactId>google-oauth-client</artifactId>
@@ -283,7 +310,7 @@
 		<dependency>
 			<groupId>org.easymock</groupId>
 			<artifactId>easymock</artifactId>
-			<version>5.3.0</version>
+			<version>5.4.0</version>
 			<scope>test</scope>
 		</dependency>
 
@@ -336,7 +363,22 @@
 				<configuration>
 				 <!--  	<release>11</release>  -->
 				    <source>17</source>
-					<target>17</target> 
+					<target>17</target>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.2.5</version>
+				<configuration>
+					<!-- Print each test name and PASS/FAIL as it runs -->
+					<printSummary>true</printSummary>
+					<verboseOutput>true</verboseOutput>
+					<!-- Show full stack traces for failures -->
+					<trimStackTrace>false</trimStackTrace>
+					<!-- Emit a per-class summary line even for passing suites -->
+					<reportFormat>plain</reportFormat>
+					<useFile>false</useFile>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -392,6 +434,9 @@
 				<groupId>org.eclipse.jetty</groupId>
 				<artifactId>jetty-maven-plugin</artifactId>
 				<version>${jettyVersion}</version>
+				<configuration>
+					<scanIntervalSeconds>5</scanIntervalSeconds>
+				</configuration>
 			</plugin>
 
 			<!-- the "maven-war-plugin" below generates the "ndexbio-rest-{project.artifactId}-${project.version}.jar" 
@@ -415,6 +460,58 @@
 					</archive>
 				</configuration>
 			</plugin>
+		<plugin>
+			<groupId>org.codehaus.mojo</groupId>
+			<artifactId>exec-maven-plugin</artifactId>
+			<version>3.1.0</version>
+			<executions>
+				<execution>
+					<!-- process-classes is the earliest phase after compile where the
+					     generator class exists. Output goes to target/generated-resources/
+					     (a dedicated dir separate from compiled classes); the
+					     copy-generated-mcp-resources execution below copies it into
+					     target/classes/ so the WAR and JAR both include it. -->
+					<id>generate-mcp-manifest</id>
+					<phase>process-classes</phase>
+					<goals>
+						<goal>java</goal>
+					</goals>
+					<configuration>
+						<mainClass>org.ndexbio.rest.mcp.McpManifest</mainClass>
+						<arguments>
+							<argument>${project.build.directory}/generated-resources</argument>
+						</arguments>
+					</configuration>
+				</execution>
+			</executions>
+		</plugin>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-resources-plugin</artifactId>
+			<executions>
+				<execution>
+					<!-- Copies McpManifest.md from target/generated-resources/ into
+					     target/classes/ so it is bundled at the classpath root in both
+					     the WAR (WEB-INF/classes/McpManifest.md) and the JAR. Runs in
+					     the same process-classes phase, declared after exec so it fires
+					     second within the phase. -->
+					<id>copy-generated-mcp-resources</id>
+					<phase>process-classes</phase>
+					<goals>
+						<goal>copy-resources</goal>
+					</goals>
+					<configuration>
+						<outputDirectory>${project.build.outputDirectory}</outputDirectory>
+						<resources>
+							<resource>
+								<directory>${project.build.directory}/generated-resources</directory>
+								<filtering>false</filtering>
+							</resource>
+						</resources>
+					</configuration>
+				</execution>
+			</executions>
+		</plugin>
 	 		<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>buildnumber-maven-plugin</artifactId>

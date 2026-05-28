@@ -81,7 +81,8 @@ import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.cx.CX2NetworkFileGenerator;
 import org.ndexbio.common.cx.CXNetworkFileGenerator;
-import org.ndexbio.common.models.dao.postgresql.NetworkDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXNetworkAspectsUpdater;
@@ -130,6 +131,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 @Path("/v2/network")
 public class NetworkServiceV2 extends NdexService {
 	
@@ -138,7 +141,7 @@ public class NetworkServiceV2 extends NdexService {
 	
 	static private final String readOnlyParameter = "readOnly";
 	
-	private static final String cx1NetworkFileName = "network.cx";
+	public static final String cx1NetworkFileName = "network.cx";
 
 	public NetworkServiceV2(@Context HttpServletRequest httpRequest
 		//	@Context org.jboss.resteasy.spi.HttpResponse response
@@ -160,6 +163,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/provenance")
+	@Operation(summary = "Get Network Provenance", description = "Returns the Provenance aspect of the network specified by networkid.")
 	@Produces("application/json")
 
 	public ProvenanceEntity getProvenance(
@@ -171,7 +175,7 @@ public class NetworkServiceV2 extends NdexService {
 		
 		UUID networkId = UUID.fromString(networkIdStr);
 		
-		try (NetworkDAO daoNew = new NetworkDAO()) {
+		try (PostgresNetworkDAO daoNew = new PostgresNetworkDAO()) {
 			if ( !daoNew.isReadable(networkId, getLoggedInUserId()) && (!daoNew.accessKeyIsValid(networkId, accessKey)))
 					throw new UnauthorizedOperationException("Network " + networkId + " is not readable to this user.");
 
@@ -187,6 +191,7 @@ public class NetworkServiceV2 extends NdexService {
     **************************************************************************/
     @PUT
 	@Path("/{networkid}/provenance")
+	@Operation(summary = "Set Network Provenance", description = "Updates the Provenance aspect of the network specified by networkid to be the ProvenanceEntity object in the PUT data.")
 	@Produces("application/json")
   public void setProvenance(@PathParam("networkid")final String networkIdStr, final ProvenanceEntity provenance)
     		throws Exception {
@@ -200,7 +205,7 @@ public class NetworkServiceV2 extends NdexService {
     @Deprecated
 	protected static void setProvenance_aux(final String networkIdStr, final ProvenanceEntity provenance, User user)
 			throws Exception {
-		try (NetworkDAO daoNew = new NetworkDAO()){
+		try (PostgresNetworkDAO daoNew = new PostgresNetworkDAO()){
 			
 			UUID networkId = UUID.fromString(networkIdStr);
 
@@ -251,6 +256,7 @@ public class NetworkServiceV2 extends NdexService {
     **************************************************************************/
     @PUT
 	@Path("/{networkid}/properties")
+	@Operation(summary = "Set Network Properties", description = "Updates the NetworkAttributes aspect the network specified by 'networkId' based on the list of NdexPropertyValuePair objects in the PUT data.")
 	@Produces("application/json")
     
     public int setNetworkProperties(
@@ -271,7 +277,7 @@ public class NetworkServiceV2 extends NdexService {
 		
 		
 		
-		try (NetworkDAO daoNew = new NetworkDAO()) {
+		try (PostgresNetworkDAO daoNew = new PostgresNetworkDAO()) {
 			
 	  	    if(daoNew.isReadOnly(networkUUID)) {
 				throw new NdexException ("Can't update readonly network.");				
@@ -331,6 +337,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/summary")
+	@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId.")
 	@Produces("application/json")
 	
 	public NetworkSummary getNetworkSummary(
@@ -340,7 +347,7 @@ public class NetworkServiceV2 extends NdexService {
 
 			throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
-		try (NetworkDAO dao = new NetworkDAO())  {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			UUID networkId = UUID.fromString(networkIdStr);
 			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
@@ -359,14 +366,15 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/aspect")
-	
+	@Operation(summary = "Get Network CX Metadata Collection", description = "Returns the CX metadata collection of the network specified by networkid.")
+
 	public Response getNetworkCXMetadataCollection(	@PathParam("networkid") final String networkId,
 			@QueryParam("accesskey") String accessKey)
 			throws Exception {
 
     	UUID networkUUID = UUID.fromString(networkId);
 
-		try (NetworkDAO dao = new NetworkDAO() ) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO() ) {
 			if ( dao.isReadable(networkUUID, getLoggedInUserId()) || dao.accessKeyIsValid(networkUUID, accessKey)) {
 				MetaDataCollection mdc = dao.getMetaDataCollection(networkUUID);
 		    	ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -383,6 +391,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/aspect/{aspectname}/metadata")
+	@Operation(summary = "Get Network Permissions of a Group", description = "Returns network permissions for the specified group.")
 	@Produces("application/json")
 	
 	public MetaDataElement getNetworkCXMetadata(	
@@ -393,7 +402,7 @@ public class NetworkServiceV2 extends NdexService {
 
     	UUID networkUUID = UUID.fromString(networkId);
 
-		try (NetworkDAO dao = new NetworkDAO() ) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO() ) {
 			if ( dao.isReadable(networkUUID, getLoggedInUserId())) {
 				MetaDataCollection mdc = dao.getMetaDataCollection(networkUUID);
 		    	return mdc.getMetaDataElement(aspectName);
@@ -406,6 +415,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/aspect/{aspectname}")
+	@Operation(summary = "Get a Network Aspect As CX", description = "Returns a JSON array of CX elements from the aspect specified by aspectName from the network specified by networkid.")
 	public Response getAspectElements(	@PathParam("networkid") final String networkId,
 			@PathParam("aspectname") final String aspectName,
 			@DefaultValue("-1") @QueryParam("size") int limit) throws SQLException, NdexException
@@ -413,7 +423,7 @@ public class NetworkServiceV2 extends NdexService {
 
     	UUID networkUUID = UUID.fromString(networkId);
     	
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
     		if ( !dao.isReadable(networkUUID, getLoggedInUserId())) {
     			throw new UnauthorizedOperationException("User doesn't have access to this network.");
     		}
@@ -481,7 +491,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}")
-
+	@Operation(summary = "Get Complete Network in CX format", description = "Returns the specified network as CX.")
 	public Response getCompleteNetworkAsCX(	@PathParam("networkid") final String networkId,
 			@QueryParam("download") boolean isDownload,
 			@QueryParam("accesskey") String accessKey,
@@ -490,7 +500,7 @@ public class NetworkServiceV2 extends NdexService {
 			throws Exception {
     	
     	String title = null;
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
     		UUID networkUUID = UUID.fromString(networkId);
     		UUID userId = getLoggedInUserId();
     		if ( userId == null ) {
@@ -538,13 +548,14 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/sample")
+	@Operation(summary = "Get Network Sample", description = "Returns a sample subnetwork of the network specified by networkid.")
 
 	public Response getSampleNetworkAsCX(	@PathParam("networkid") final String networkIdStr ,
 			@QueryParam("accesskey") String accessKey)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
     	UUID networkId = UUID.fromString(networkIdStr);
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
     		if ( ! dao.isReadable(networkId, getLoggedInUserId()) && (!dao.accessKeyIsValid(networkId, accessKey)))
                 throw new UnauthorizedOperationException("User doesn't have read access to this network.");
 
@@ -565,12 +576,13 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{networkid}/accesskey")
+	@Operation(summary = "Get Access key of Network", description = "This function returns an access key to the user. This access key will allow any user to have read access to this network regardless if that user has READ privilege on this network.")
 	@Produces("application/json")
 	public Map<String,String> getNetworkAccessKey(@PathParam("networkid") final String networkIdStr)
 			throws IllegalArgumentException, NdexException, SQLException {
   	
 		UUID networkId = UUID.fromString(networkIdStr);
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
     		if ( ! dao.isAdmin(networkId, getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User is not admin of this network.");
 
@@ -585,6 +597,7 @@ public class NetworkServiceV2 extends NdexService {
 		
 	@PUT
 	@Path("/{networkid}/accesskey")
+	@Operation(summary = "Disable/enable Access Key on Network", description = "This function turns off/on the access key. It returns the accessKey if the action=enable and returns nothing when action is disable.")
 	@Produces("application/json")
 	public Map<String,String> disableEnableNetworkAccessKey(@PathParam("networkid") final String networkIdStr,
 			@QueryParam("action") String action)
@@ -594,7 +607,7 @@ public class NetworkServiceV2 extends NdexService {
 		if ( ! action.equalsIgnoreCase("disable") && ! action.equalsIgnoreCase("enable"))
 			throw new NdexException("Value of 'action' paramter can only be 'disable' or 'enable'");
 		
-    	try (NetworkDAO dao = new NetworkDAO()) {
+    	try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
     		if ( ! dao.isAdmin(networkId, getLoggedInUserId()))
                 throw new UnauthorizedOperationException("User is not admin of this network.");
 
@@ -616,13 +629,14 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@PUT
 	@Path("/{networkid}/sample")
+	@Operation(summary = "Set Sample Network", description = "Sets the sample network for the network specified by networkid. The sample network is specified by CX data in the PUT data of the request.")
 	
 	public void setSampleNetwork(	@PathParam("networkid") final String networkId,
 			String CXString)
 			throws IllegalArgumentException, NdexException, SQLException, InterruptedException {
   	
 		UUID networkUUID = UUID.fromString(networkId);
-		try (NetworkDAO dao = new NetworkDAO()) {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			if (!dao.isAdmin(networkUUID, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("User is not admin of this network.");
 
@@ -705,6 +719,7 @@ public class NetworkServiceV2 extends NdexService {
 
 	@GET
 	@Path("/{networkid}/permission")
+	@Operation(summary = "Get All Permissions on a Network", description = "Returns a JSON object describing the user or group permissions for the network specified by networkid.")
 	@Produces("application/json")
 
 	public Map<String, String> getNetworkUserMemberships(
@@ -731,7 +746,7 @@ public class NetworkServiceV2 extends NdexService {
 		} else 
 			throw new NdexException("Parameter 'type' is required in this function.");
 		
-		try (NetworkDAO networkDao = new NetworkDAO()) {
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 			if ( !networkDao.isAdmin(networkUUID, getLoggedInUserId()) ) 
 				throw new UnauthorizedOperationException("Authenticate user is not the admin of this network.");
 			
@@ -746,6 +761,7 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@DELETE
 	@Path("/{networkid}/permission")
+	@Operation(summary = "Delete Network Permission", description = "Removes any permission for the network specified by networkid for the user or group specified by memberid parameter.")
 	@Produces("application/json")
 
 	public int deleteNetworkPermission(
@@ -770,7 +786,7 @@ public class NetworkServiceV2 extends NdexService {
 			throw new NdexException ("userid and gorupid can't both be set for this function.");
 		
 		
-		try (NetworkDAO networkDao = new NetworkDAO()){  
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){  
 		//	User user = getLoggedInUser();
 		//	networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
 			
@@ -812,6 +828,7 @@ public class NetworkServiceV2 extends NdexService {
 
 	@PUT
 	@Path("/{networkid}/permission")
+	@Operation(summary = "Update Network Permission", description = "Updates the permission of a user specified by userid or group specified by groupid for the network specified by networkid.")
 	@Produces("application/json")
 	public int updateNetworkPermission(
 			@PathParam("networkid") final String networkIdStr,
@@ -840,7 +857,7 @@ public class NetworkServiceV2 extends NdexService {
 			throw new NdexException ("permission parameter is required in this function.");
 		Permissions p = Permissions.valueOf(permissions.toUpperCase());
 		
-		try (NetworkDAO networkDao = new NetworkDAO()){
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){
 			
 			User user = getLoggedInUser();
 			
@@ -875,6 +892,7 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@PUT
 	@Path("/{networkid}/reference")
+	@Operation(summary = "Update Network Reference", description = "Update the reference information for a pre-certified network. This endpoint is used to update citation and reference data for networks that are being prepared for certification.")
 	@Produces("application/json")
 	public void updateReferenceOnPreCertifiedNetwork(@PathParam("networkid") final String networkId,
 			Map<String,String> reference) throws SQLException, NdexException, SolrServerException, IOException {
@@ -886,7 +904,7 @@ public class NetworkServiceV2 extends NdexService {
 			throw new BadRequestException("Field reference is missing in the object.");
 		}
 
-		try (NetworkDAO networkDao = new NetworkDAO()){
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){
 			if(networkDao.isAdmin(networkUUID, userId) ) {
 
 				if ( networkDao.hasDOI(networkUUID) && (!networkDao.isCertified(networkUUID)) ) {
@@ -935,6 +953,7 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@PUT
 	@Path("/{networkid}/profile")
+	@Operation(summary = "Update Network Profile", description = "Updates the profile information of the network specified by networkid based on a POSTed JSON object specifying the attributes to update.")
 	@Produces("application/json")
 
 	public void updateNetworkProfile(
@@ -944,7 +963,7 @@ public class NetworkServiceV2 extends NdexService {
             throws  NdexException, SQLException , IOException, IllegalArgumentException 
     {
 		
-		try (NetworkDAO networkDao = new NetworkDAO()){
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){
 
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
@@ -1050,7 +1069,7 @@ public class NetworkServiceV2 extends NdexService {
 	}
 	
 	// update the networkAttributes aspect file and also update the metadata in the db.
-	protected static void updateNetworkAttributesAspect(NetworkDAO networkDao, UUID networkUUID) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
+	protected static void updateNetworkAttributesAspect(PostgresNetworkDAO networkDao, UUID networkUUID) throws JsonParseException, JsonMappingException, SQLException, IOException, NdexException {
 		NetworkSummary fullSummary = networkDao.getNetworkSummaryById(networkUUID);
 		String fileStoreDir = Configuration.getInstance().getNdexRoot() + "/data/" + networkUUID.toString() + "/";
 		String aspectFilePath = fileStoreDir + CXNetworkLoader.CX1AspectDir + "/" + NetworkAttributesElement.ASPECT_NAME;
@@ -1177,6 +1196,7 @@ public class NetworkServiceV2 extends NdexService {
 
 	@PUT
 	@Path("/{networkid}/summary")
+	@Operation(summary = "Update Network Profile and properties", description = "This function uses the name,description, version, visibility and properties fields in the payload to overwrite the corresponding fields of the given network on server.")
 	@Produces("application/json")
 	public void updateNetworkSummary(
 			@PathParam("networkid") final String networkId,
@@ -1185,7 +1205,7 @@ public class NetworkServiceV2 extends NdexService {
             throws  NdexException, SQLException , IOException, IllegalArgumentException 
     {
 		
-		try (NetworkDAO networkDao = new NetworkDAO()){
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){
 
 			User user = getLoggedInUser();
 			UUID networkUUID = UUID.fromString(networkId);
@@ -1252,6 +1272,7 @@ public class NetworkServiceV2 extends NdexService {
 	
     @PUT
     @Path("/{networkid}")
+    @Operation(summary = "Update Network with multipart/form-data", description = "Update an entire network using multipart form data containing CX data. This endpoint is used for uploading network data as a file.")
     @Consumes("multipart/form-data")
     @Produces("application/json")
 
@@ -1280,7 +1301,7 @@ public class NetworkServiceV2 extends NdexService {
         UUID networkId = UUID.fromString(networkIdStr);
 
    //     String ownerAccName = null;
-        try ( NetworkDAO daoNew = new NetworkDAO() ) {
+        try ( PostgresNetworkDAO daoNew = new PostgresNetworkDAO() ) {
            User user = getLoggedInUser();
            
          try {
@@ -1319,6 +1340,7 @@ public class NetworkServiceV2 extends NdexService {
 
     @PUT
     @Path("/{networkid}")
+	@Operation(summary = "Update a Network", description = "Update the specified network with new content, based on CX data.")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces("application/json")
 
@@ -1396,6 +1418,7 @@ public class NetworkServiceV2 extends NdexService {
      */
     @PUT
     @Path("/{networkid}/aspects")
+	@Operation(summary = "Update Aspects of a Network", description = "Updates the aspects of the network specified by networkid.")
     @Consumes("multipart/form-data")
     @Produces("application/json")
     public void updateCXNetworkAspects(final @PathParam("networkid") String networkIdStr,
@@ -1408,7 +1431,7 @@ public class NetworkServiceV2 extends NdexService {
     	
         UUID networkId = UUID.fromString(networkIdStr);
 
-        try ( NetworkDAO daoNew = new NetworkDAO() ) {
+        try ( PostgresNetworkDAO daoNew = new PostgresNetworkDAO() ) {
            User user = getLoggedInUser();
            
 	  	   if( daoNew.isReadOnly(networkId)) {
@@ -1449,7 +1472,7 @@ public class NetworkServiceV2 extends NdexService {
         UUID networkId = UUID.fromString(networkIdStr);
 
      //   String ownerAccName = null;
-        try ( NetworkDAO daoNew = new NetworkDAO() ) {
+        try ( PostgresNetworkDAO daoNew = new PostgresNetworkDAO() ) {
            User user = getLoggedInUser();
            
 	  	   if( daoNew.isReadOnly(networkId)) {
@@ -1478,7 +1501,7 @@ public class NetworkServiceV2 extends NdexService {
 
 
 
-	private static void updateNetworkFromSavedAspects( UUID networkId, NetworkDAO daoNew,
+	private static void updateNetworkFromSavedAspects( UUID networkId, PostgresNetworkDAO daoNew,
 			UUID tmpNetworkId) throws SQLException, IOException {
 		try ( CXNetworkAspectsUpdater aspectUpdater = new CXNetworkAspectsUpdater(networkId, /*ownerAccName,*/daoNew, tmpNetworkId) ) {
 			
@@ -1498,11 +1521,12 @@ public class NetworkServiceV2 extends NdexService {
     
 	@DELETE
 	@Path("/{networkid}")
+	@Operation(summary = "Delete a Network", description = "Deletes the network specified by networkId.")
 	@Produces("application/json")
 
 	public void deleteNetwork(final @PathParam("networkid") String id) throws NdexException, SQLException {
 		    
-		try (NetworkDAO networkDao = new NetworkDAO()) {
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 			UUID networkId = UUID.fromString(id);
 			UUID userId = getLoggedInUser().getExternalId();
 			if(networkDao.isAdmin(networkId, userId) ) {
@@ -1681,6 +1705,16 @@ public class NetworkServiceV2 extends NdexService {
 
 	@PUT
 	@Path("/{networkid}/systemproperty")
+	@Operation(
+		    summary = "Set Network System Properties",
+		    description = """
+		        Network System properties describe the network’s status in a particular NDEx server,
+		        but are not part of the CX network object.
+
+		        **Deprecated Parameter**
+		        - `showcase`: This property is deprecated and will be removed in future versions. Avoid using it in requests.
+		        """
+		)
 	@Produces("application/json")
 	public void setNetworkFlag(
 			@PathParam("networkid") final String networkIdStr,
@@ -1694,7 +1728,7 @@ public class NetworkServiceV2 extends NdexService {
 					 + "]" );		
 
 		
-			try (NetworkDAO networkDao = new NetworkDAO()) {
+			try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 				UUID networkId = UUID.fromString(networkIdStr);
 				if ( networkDao.hasDOI(networkId)) {
 					if ( parameters.size() >1 || !parameters.containsKey("showcase"))
@@ -1739,13 +1773,14 @@ public class NetworkServiceV2 extends NdexService {
 						NetworkIndexLevel lvl = parameters.get("index_level") == null? 
 								NetworkIndexLevel.NONE : 
 								NetworkIndexLevel.valueOf((String)parameters.get("index_level"));
-						networkDao.setIndexLevel(networkId, lvl);	 
+						networkDao.setIndexLevel(networkId, lvl);
+						VisibilityType visibilityType = networkDao.getNetworkVisibility(networkId);
 						if (lvl !=NetworkIndexLevel.NONE) {
 							networkDao.setFlag(networkId, "iscomplete",false);	 				
 							networkDao.commit();
 							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl,true));
 						} else
-							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true)); //delete the entry from global idx.
+							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true, visibilityType)); //delete the entry from global idx.
 														
 					}
 					if ( parameters.containsKey("showcase")) {
@@ -1767,6 +1802,7 @@ public class NetworkServiceV2 extends NdexService {
 	//	@PermitAll
 
 	   @Path("")
+	   @Operation(summary = "Create Network from multipart/form-data", description = "Create a network from CX data using multipart form data. This is typically used for file uploads from web forms.")
 	   @Produces("text/plain")
 	   @Consumes("multipart/form-data")
 	   public Response createCXNetwork( MultipartFormDataInput input,
@@ -1812,7 +1848,7 @@ public class NetworkServiceV2 extends NdexService {
 		   long fileSize = new File(cxFileName).length();
 
 		   // create entry in db. 
-	       try (NetworkDAO dao = new NetworkDAO()) {
+	       try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	    	  // NetworkSummary summary = 
 	    			   dao.CreateEmptyNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize,null,null);
        
@@ -1828,6 +1864,7 @@ public class NetworkServiceV2 extends NdexService {
 
 	   @POST	   
 	   @Path("")
+	   @Operation(summary = "Create a CX Network", description = "Create a network from CX data.")
 	   @Produces("text/plain")
 	   @Consumes(MediaType.APPLICATION_JSON)
 	   public Response createNetworkJson( 
@@ -1947,114 +1984,116 @@ public class NetworkServiceV2 extends NdexService {
 		}
 	   
 	   
-	   	@POST
-		   @Path("/{networkid}/copy")
-		   @Produces("text/plain")
-		   public Response cloneNetwork( @PathParam("networkid") final String srcNetworkUUIDStr) throws Exception
-		   {
+	   @POST
+	   @Path("/{networkid}/copy")
+	   @Operation(summary = "Clone a Network", description = "This function clones the network specified by networkid to the signed in user’s account. It returns the URL of cloned network to the client.")
+	   @Produces("text/plain")
+	   public Response cloneNetwork( @PathParam("networkid") final String srcNetworkUUIDStr) throws Exception
+	   {
+	   
+		   try (UserDAO dao = new UserDAO()) {
+			   dao.checkDiskSpace(getLoggedInUserId());
+		   }
 		   
-			   try (UserDAO dao = new UserDAO()) {
-				   dao.checkDiskSpace(getLoggedInUserId());
+		   UUID srcNetUUID = UUID.fromString(srcNetworkUUIDStr);
+		   
+		   try ( PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
+			   if ( ! dao.isReadable(srcNetUUID, getLoggedInUserId()) ) 
+	                throw new UnauthorizedOperationException("User doesn't have read access to this network.");
+	    		
+			   if (!dao.networkIsValid(srcNetUUID)) {
+				   throw new NdexException ("Invalid networks can not be copied.");
 			   }
-			   
-			   UUID srcNetUUID = UUID.fromString(srcNetworkUUIDStr);
-			   
-			   try ( NetworkDAO dao = new NetworkDAO ()) {
-				   if ( ! dao.isReadable(srcNetUUID, getLoggedInUserId()) ) 
-		                throw new UnauthorizedOperationException("User doesn't have read access to this network.");
-		    		
-				   if (!dao.networkIsValid(srcNetUUID)) {
-					   throw new NdexException ("Invalid networks can not be copied.");
-				   }
-			   }
-			   
-			   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-			   String uuidStr = uuid.toString();
-			   
-			//	java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString());
-				java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr);
-				
-				//Create dir
-				Set<PosixFilePermission> perms =
-						    PosixFilePermissions.fromString("rwxrwxr-x");
-				FileAttribute<Set<PosixFilePermission>> attr =
-						    PosixFilePermissions.asFileAttribute(perms);
-				Files.createDirectory(tgt,attr);
-				
-				String srcPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/";
-				String tgtPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/";
+		   }
+		   
+		   UUID uuid = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
+		   String uuidStr = uuid.toString();
+		   
+		//	java.nio.file.Path src = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString());
+			java.nio.file.Path tgt = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr);
+			
+			//Create dir
+			Set<PosixFilePermission> perms =
+					    PosixFilePermissions.fromString("rwxrwxr-x");
+			FileAttribute<Set<PosixFilePermission>> attr =
+					    PosixFilePermissions.asFileAttribute(perms);
+			Files.createDirectory(tgt,attr);
+			
+			String srcPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/";
+			String tgtPathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/";
 
-			    File srcAspectDir = new File ( srcPathPrefix + CXNetworkLoader.CX1AspectDir);
-			    if ( srcAspectDir.exists()) {
-			    	File tgtAspectDir = new File ( tgtPathPrefix + CXNetworkLoader.CX1AspectDir);
-			    	FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
-			    }
-			    
-			    //copy the cx2 aspect directories
-			    String tgtCX2AspectPathPrefix = tgtPathPrefix + CX2NetworkLoader.cx2AspectDirName;
-			    String srcCX2AspectPathPrefix = srcPathPrefix + CX2NetworkLoader.cx2AspectDirName;
-			    File srcCX2AspectDir = new File (srcCX2AspectPathPrefix );
-			    Files.createDirectories(Paths.get(tgtCX2AspectPathPrefix), attr);
-			    for ( String fname : srcCX2AspectDir.list() ) {
-			    	java.nio.file.Path src = Paths.get(srcPathPrefix + CX2NetworkLoader.cx2AspectDirName , fname);
-			    	if (Files.isSymbolicLink(src)) {
-			    		java.nio.file.Path link = Paths.get(tgtCX2AspectPathPrefix, fname);
-			    		java.nio.file.Path target = Paths.get(tgtPathPrefix + CXNetworkLoader.CX1AspectDir, fname);
-			    		Files.createSymbolicLink(link, target);
-			    	} else {
-			    		Files.copy(Paths.get(srcCX2AspectPathPrefix, fname),
-			    				Paths.get(tgtCX2AspectPathPrefix, fname));
-			    	}
-			    	
-			    }
-			    
-			    String urlStr = Configuration.getInstance().getHostURI()  + 
-			            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
-			   // ProvenanceEntity entity = new ProvenanceEntity();
-			  //  entity.setUri(urlStr + "/summary");
-			   
-			   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/" + cx1NetworkFileName;
-			   long fileSize = new File(cxFileName).length();
+		    File srcAspectDir = new File ( srcPathPrefix + CXNetworkLoader.CX1AspectDir);
+		    if ( srcAspectDir.exists()) {
+		    	File tgtAspectDir = new File ( tgtPathPrefix + CXNetworkLoader.CX1AspectDir);
+		    	FileUtils.copyDirectory(srcAspectDir, tgtAspectDir);
+		    }
+		    
+		    //copy the cx2 aspect directories
+		    String tgtCX2AspectPathPrefix = tgtPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+		    String srcCX2AspectPathPrefix = srcPathPrefix + CX2NetworkLoader.cx2AspectDirName;
+		    File srcCX2AspectDir = new File (srcCX2AspectPathPrefix );
+		    Files.createDirectories(Paths.get(tgtCX2AspectPathPrefix), attr);
+		    for ( String fname : srcCX2AspectDir.list() ) {
+		    	java.nio.file.Path src = Paths.get(srcPathPrefix + CX2NetworkLoader.cx2AspectDirName , fname);
+		    	if (Files.isSymbolicLink(src)) {
+		    		java.nio.file.Path link = Paths.get(tgtCX2AspectPathPrefix, fname);
+		    		java.nio.file.Path target = Paths.get(tgtPathPrefix + CXNetworkLoader.CX1AspectDir, fname);
+		    		Files.createSymbolicLink(link, target);
+		    	} else {
+		    		Files.copy(Paths.get(srcCX2AspectPathPrefix, fname),
+		    				Paths.get(tgtCX2AspectPathPrefix, fname));
+		    	}
+		    	
+		    }
+		    
+		    String urlStr = Configuration.getInstance().getHostURI()  + 
+		            Configuration.getInstance().getRestAPIPrefix()+"/network/"+ uuidStr;
+		   // ProvenanceEntity entity = new ProvenanceEntity();
+		  //  entity.setUri(urlStr + "/summary");
+		   
+		   String cxFileName = Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/" + cx1NetworkFileName;
+		   long fileSize = new File(cxFileName).length();
 
-			   // copy sample 
-			   java.nio.file.Path srcSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/sample.cx");
-			   if ( Files.exists(srcSample, LinkOption.NOFOLLOW_LINKS)) {
-				   java.nio.file.Path tgtSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/sample.cx");
-				   Files.copy(srcSample, tgtSample);
-			   }
-			   
-			   
-			   //TODO: generate prov:wasDerivedFrom and prov:wasGeneratedby field in both db record and the recreated CX file.
-			   // Need to handle the case when this network was a clone (means it already has prov:wasGeneratedBy and wasDerivedFrom attributes
-			   // create entry in db. 
-		       try (NetworkDAO dao = new NetworkDAO()) {
-		    //	   NetworkSummary summary = 
-		    			   dao.CreateCloneNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize, srcNetUUID);
-	
-					CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao /*, new Provenance(copyProv)*/);
-					g.reCreateCXFile();
-					CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(uuid, dao);
-					String tmpFilePath = g2.createCX2File();
-					Files.move(Paths.get(tmpFilePath), 
-							Paths.get(tgtPathPrefix + CX2NetworkLoader.cx2NetworkFileName), 
-							StandardCopyOption.ATOMIC_MOVE); 				
+		   // copy sample 
+		   java.nio.file.Path srcSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + srcNetUUID.toString() + "/sample.cx");
+		   if ( Files.exists(srcSample, LinkOption.NOFOLLOW_LINKS)) {
+			   java.nio.file.Path tgtSample = Paths.get(Configuration.getInstance().getNdexRoot() + "/data/" + uuidStr + "/sample.cx");
+			   Files.copy(srcSample, tgtSample);
+		   }
+		   
+		   
+		   //TODO: generate prov:wasDerivedFrom and prov:wasGeneratedby field in both db record and the recreated CX file.
+		   // Need to handle the case when this network was a clone (means it already has prov:wasGeneratedBy and wasDerivedFrom attributes
+		   // create entry in db. 
+	       try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+	    //	   NetworkSummary summary = 
+	    			   dao.CreateCloneNetworkEntry(uuid, getLoggedInUser().getExternalId(), getLoggedInUser().getUserName(), fileSize, srcNetUUID);
 
-					dao.setFlag(uuid, "iscomplete", true);
-					dao.commit();
-		       }
-		       
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null, NetworkIndexLevel.NONE,false));
-		       			   
-			   URI l = new URI (urlStr);
+				CXNetworkFileGenerator g = new CXNetworkFileGenerator(uuid, dao /*, new Provenance(copyProv)*/);
+				g.reCreateCXFile();
+				CX2NetworkFileGenerator g2 = new CX2NetworkFileGenerator(uuid, dao);
+				String tmpFilePath = g2.createCX2File();
+				Files.move(Paths.get(tmpFilePath), 
+						Paths.get(tgtPathPrefix + CX2NetworkLoader.cx2NetworkFileName), 
+						StandardCopyOption.ATOMIC_MOVE); 				
 
-			   return Response.created(l).entity(l).build();
+				dao.setFlag(uuid, "iscomplete", true);
+				dao.commit();
+	       }
+	       
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null, NetworkIndexLevel.NONE,false));
+	       			   
+		   URI l = new URI (urlStr);
 
-		   	}
+		   return Response.created(l).entity(l).build();
+
+	   	}
 		  
 
 	    @POST
 		@PermitAll
 		@Path("/properties/score")
+		@Operation(summary = "Get Network Score from Properties", description = "Calculate and return a network score based on the provided network properties. This is a utility function for network quality assessment.")
 		@Produces("application/json")
 	    public static int getScoresFromProperties(
 	    		final List<NdexPropertyValuePair> properties)
@@ -2066,6 +2105,7 @@ public class NetworkServiceV2 extends NdexService {
 	    @POST
 		@PermitAll
 		@Path("/summary/score")
+		@Operation(summary = "Get Network Score from Summary", description = "Calculate and return a network score based on the provided network summary. This is a utility function for network quality assessment.")
 		@Produces("application/json")
 	    public static int getScoresFromNetworkSummary(
 	    		final NetworkSummary summary)

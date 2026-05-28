@@ -72,6 +72,9 @@ import org.ndexbio.rest.services.v3.CyWebWorkspaceServices;
 import org.ndexbio.rest.services.v3.NetworkServiceV3;
 import org.ndexbio.rest.services.v3.SearchServiceV3;
 import org.ndexbio.rest.services.v3.UserServicesV3;
+import org.ndexbio.rest.services.v3.files.FileServiceV3;
+import org.ndexbio.rest.services.v3.files.FolderServiceV3;
+import org.ndexbio.rest.services.v3.files.ShortcutServiceV3;
 
 public class NdexRestApi extends Application
 {
@@ -103,7 +106,9 @@ public class NdexRestApi extends Application
 		_resources.add(OpenApiResource.class);
 		_resources.add(AcceptHeaderOpenApiResource.class);
         _resources.add(AdminServiceV3.class); //
-
+        _resources.add(FileServiceV3.class);
+        _resources.add(FolderServiceV3.class);
+        _resources.add(ShortcutServiceV3.class);
         
          
         _providers.add(new BasicAuthenticationFilter());
