@@ -117,9 +117,7 @@ RUN chmod +x /usr/local/bin/schema_upgrade.sh
 EXPOSE 8085 1025 8025 5432 8983 9000
 
 # ── Stage 2: Build NDEx WAR ───────────────────────────────────────────────────
-FROM eclipse-temurin:17-jdk-jammy AS builder
-RUN apt-get update && apt-get install -y --no-install-recommends maven git \
-    && rm -rf /var/lib/apt/lists/*
+FROM maven:3.9-eclipse-temurin-17 AS builder
 WORKDIR /build
 COPY pom.xml .
 COPY src/ src/
