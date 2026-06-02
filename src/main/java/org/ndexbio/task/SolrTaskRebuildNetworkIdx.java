@@ -206,6 +206,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 			}
 
 			try {
+				dao.setErrorMessage(networkId, null);
 				dao.setFlag(this.networkId, "iscomplete", true);
 				dao.commit();
 			} catch (SQLException e) {

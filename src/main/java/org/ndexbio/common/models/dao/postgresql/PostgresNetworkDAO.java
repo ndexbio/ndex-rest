@@ -2068,13 +2068,14 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
     	String sql = "update network set error = ? where \"UUID\" = ? and is_deleted=false";
     	
     	String trimmedMsg = errorMessage;
-    	if ( trimmedMsg == null)
-    		trimmedMsg = "null";
-    	else if ( trimmedMsg.length() > 2000)
+    	if ( trimmedMsg != null && trimmedMsg.length() > 2000)
     		trimmedMsg = (errorMessage.substring(0, 1996) + "...");
-    	
+
     	try ( PreparedStatement pst = db.prepareStatement(sql)) {
-    		pst.setString(1, trimmedMsg);
+    		if (trimmedMsg == null)
+    			pst.setNull(1, java.sql.Types.VARCHAR);
+    		else
+    			pst.setString(1, trimmedMsg);
     		pst.setObject(2, networkId);
     		int i = pst.executeUpdate();
     		if ( i !=1)
