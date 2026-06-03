@@ -31,7 +31,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=28
+TOTAL_API_CALLS=30
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -533,6 +533,49 @@ while true; do
   echo "  Waiting for public-nfs Solr index... (${ELAPSED}s)"
 done
 api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
+
+# ── STEP: Reindex — trigger and verify clean completion ──────────────────────
+
+step "Triggering network reindex and verifying clean completion (no errorMessage)"
+
+REINDEX_UUID="${V3_UUIDS[0]}"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/network/${REINDEX_UUID}/systemproperty (index_level=ALL, expect 204)"
+
+REINDEX_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d '{"index_level":"ALL"}' \
+  "${BASE_URL}/v2/network/${REINDEX_UUID}/systemproperty")
+
+if [[ "${REINDEX_HTTP}" == "204" ]]; then
+  api_pass "PUT /v2/network/${REINDEX_UUID}/systemproperty → 204 No Content (reindex queued)"
+else
+  api_fail "PUT /v2/network/${REINDEX_UUID}/systemproperty → HTTP ${REINDEX_HTTP} (expected 204)"
+fi
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${REINDEX_UUID}/summary (poll until completed:true, expect no errorMessage)"
+
+ELAPSED=0
+SUMMARY_BODY=""
+while true; do
+  SUMMARY_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${REINDEX_UUID}/summary")
+  if echo "${SUMMARY_BODY}" | grep -q '"completed":true'; then
+    break
+  fi
+  if [[ ${ELAPSED} -ge ${LOAD_TIMEOUT} ]]; then
+    api_fail "Network ${REINDEX_UUID} did not complete reindex within ${LOAD_TIMEOUT}s. Last: ${SUMMARY_BODY:0:300}"
+  fi
+  echo -e "  ${CYAN}Waiting for reindex to complete... (${ELAPSED}s)${NC}"
+  sleep 5; ELAPSED=$((ELAPSED + 5))
+done
+
+if echo "${SUMMARY_BODY}" | grep -qE '"errorMessage"[[:space:]]*:[[:space:]]*"'; then
+  api_fail "Network ${REINDEX_UUID} has errorMessage after reindex. Summary: ${SUMMARY_BODY:0:300}"
+else
+  api_pass "GET /v3/networks/${REINDEX_UUID}/summary → completed:true, no errorMessage (reindex succeeded cleanly)"
+fi
 
 # ── STEP: Neighborhood query — SSL context fix (local container only) ─────────
 

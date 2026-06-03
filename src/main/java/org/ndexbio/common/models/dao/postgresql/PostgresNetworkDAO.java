@@ -92,7 +92,9 @@ import org.ndexbio.common.models.dao.NetworkDAO;
 public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 
 	private static Logger logger = Logger.getLogger(PostgresNetworkDAO.class.getName());
-	
+
+	public static final String INDEXING_ERROR_PREFIX = "Failed to create Index on network.";
+
 //	public static final String RESET_MOD_TIME = "resetMTime";
 	
 	private  static List<String> emptyStringList = new ArrayList<>(1); 
@@ -2087,6 +2089,11 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
     
     }
     
+    public void clearIndexingErrorIfPresent(UUID networkId, String currentError) {
+        if (currentError == null || currentError.startsWith(INDEXING_ERROR_PREFIX))
+            setErrorMessage(networkId, null);
+    }
+
     public void setWarning(UUID networkId, List<String> warnings) throws SQLException, NdexException {
     	String sqlStr = "update network set  warnings = ? where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
