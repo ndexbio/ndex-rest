@@ -92,9 +92,7 @@ import org.ndexbio.common.models.dao.NetworkDAO;
 public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 
 	private static Logger logger = Logger.getLogger(PostgresNetworkDAO.class.getName());
-
-	public static final String INDEXING_ERROR_PREFIX = "Failed to create Index on network.";
-
+	
 //	public static final String RESET_MOD_TIME = "resetMTime";
 	
 	private  static List<String> emptyStringList = new ArrayList<>(1); 
@@ -2070,14 +2068,13 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
     	String sql = "update network set error = ? where \"UUID\" = ? and is_deleted=false";
     	
     	String trimmedMsg = errorMessage;
-    	if ( trimmedMsg != null && trimmedMsg.length() > 2000)
+    	if ( trimmedMsg == null)
+    		trimmedMsg = "null";
+    	else if ( trimmedMsg.length() > 2000)
     		trimmedMsg = (errorMessage.substring(0, 1996) + "...");
-
+    	
     	try ( PreparedStatement pst = db.prepareStatement(sql)) {
-    		if (trimmedMsg == null)
-    			pst.setNull(1, java.sql.Types.VARCHAR);
-    		else
-    			pst.setString(1, trimmedMsg);
+    		pst.setString(1, trimmedMsg);
     		pst.setObject(2, networkId);
     		int i = pst.executeUpdate();
     		if ( i !=1)
@@ -2089,11 +2086,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
     
     }
     
-    public void clearIndexingErrorIfPresent(UUID networkId, String currentError) {
-        if (currentError == null || currentError.startsWith(INDEXING_ERROR_PREFIX))
-            setErrorMessage(networkId, null);
-    }
-
     public void setWarning(UUID networkId, List<String> warnings) throws SQLException, NdexException {
     	String sqlStr = "update network set  warnings = ? where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {

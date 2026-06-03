@@ -206,7 +206,6 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 			}
 
 			try {
-				dao.clearIndexingErrorIfPresent(networkId, summary.getErrorMessage());
 				dao.setFlag(this.networkId, "iscomplete", true);
 				dao.commit();
 			} catch (SQLException e) {
@@ -216,7 +215,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		} catch (SQLException | IOException | NdexException | SolrServerException e1) {
 			e1.printStackTrace();
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-				dao.setErrorMessage(networkId, PostgresNetworkDAO.INDEXING_ERROR_PREFIX + " Index type: " + this.idxScope
+				dao.setErrorMessage(networkId, "Failed to create Index on network. Index type: " + this.idxScope
 						+ ". Cause: " + e1.getMessage());
 				dao.commit();
 			}

@@ -137,12 +137,11 @@ public class SolrIndexBuilder implements AutoCloseable {
 				  globalIdx.commit();
 
 				  logger.info("Solr index of network " + networkid + " created.");
-			  }
-			  dao.clearIndexingErrorIfPresent(networkid, summary.getErrorMessage());
+			  } 
 		  } finally {
 			  dao.unlockNetwork(networkid);
-		  }
-		}
+		  }	 
+		}  
 	}
 	
 	
@@ -223,12 +222,12 @@ public class SolrIndexBuilder implements AutoCloseable {
 						
 				  }	
 				  globalIdx.commit();
-
+			
 				 // dao.unlockNetwork(networkid);
 				  logger.info("Solr index of network " + networkid + " created.");
-			  }
-			  dao.clearIndexingErrorIfPresent(networkid, summary.getErrorMessage());
-		}
+			  } 
+		  	 
+		}  
 	}
 	
 	
@@ -259,10 +258,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 				    logger.info("Solr index for query created.");
 			  }   			 	
 			
-		  }
+		  }	 
 		  //dao.unlockNetwork(networkid);
-		  dao.clearIndexingErrorIfPresent(networkid, summary.getErrorMessage());
-		}
+
+		}  
 	}
 
 	
@@ -271,8 +270,8 @@ public class SolrIndexBuilder implements AutoCloseable {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and (n.error is null or n.error like '" + PostgresNetworkDAO.INDEXING_ERROR_PREFIX + "%')";
-
+			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null";
+			
 			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
@@ -303,8 +302,8 @@ public class SolrIndexBuilder implements AutoCloseable {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and (n.error is null or n.error like '" + PostgresNetworkDAO.INDEXING_ERROR_PREFIX + "%')";
-
+			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null";
+			
 			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
@@ -335,7 +334,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and (n.error is null or n.error like '" + PostgresNetworkDAO.INDEXING_ERROR_PREFIX + "%') and cx2_file_size is not null and nodecount >= "
+			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null and cx2_file_size is not null and nodecount >= " 
 					+ SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ;
 			
 			int i = 0;
@@ -380,7 +379,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and (n.error is null or n.error like '" + PostgresNetworkDAO.INDEXING_ERROR_PREFIX + "%')";
+			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.error is null";
 			
 			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
