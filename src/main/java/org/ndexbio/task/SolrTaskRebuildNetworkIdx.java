@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.solr.GlobalNetworkIndexManager;
@@ -211,11 +212,15 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 			} catch (SQLException e) {
 				throw new NdexException("DB error when setting iscomplete flag: " + e.getMessage(), e);
 			}
+			String currentError = summary.getErrorMessage();
+			if (currentError != null && currentError.startsWith(NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX)) {
+				dao.setErrorMessage(networkId, null);
+			}
 
 		} catch (SQLException | IOException | NdexException | SolrServerException e1) {
 			e1.printStackTrace();
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-				dao.setErrorMessage(networkId, "Failed to create Index on network. Index type: " + this.idxScope
+				dao.setErrorMessage(networkId, NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX + " Index type: " + this.idxScope
 						+ ". Cause: " + e1.getMessage());
 				dao.commit();
 			}

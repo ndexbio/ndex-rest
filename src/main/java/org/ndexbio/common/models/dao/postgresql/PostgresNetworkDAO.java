@@ -33,6 +33,7 @@ package org.ndexbio.common.models.dao.postgresql;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.sql.Array;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -113,6 +114,10 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	
 	public PostgresNetworkDAO () throws  SQLException {
 	    super();
+	}
+
+	PostgresNetworkDAO(Connection conn) throws SQLException {
+		super(conn);
 	}
 
 	public NetworkSummary CreateCloneNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize, UUID srcUUID) throws SQLException {
@@ -2067,14 +2072,15 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
     public void setErrorMessage(UUID networkId, String errorMessage) {
     	String sql = "update network set error = ? where \"UUID\" = ? and is_deleted=false";
     	
-    	String trimmedMsg = errorMessage;
-    	if ( trimmedMsg == null)
-    		trimmedMsg = "null";
-    	else if ( trimmedMsg.length() > 2000)
-    		trimmedMsg = (errorMessage.substring(0, 1996) + "...");
-    	
     	try ( PreparedStatement pst = db.prepareStatement(sql)) {
-    		pst.setString(1, trimmedMsg);
+    		if (errorMessage == null) {
+    			pst.setNull(1, java.sql.Types.VARCHAR);
+    		} else {
+    			String trimmedMsg = errorMessage.length() > 2000
+    					? errorMessage.substring(0, 1996) + "..."
+    					: errorMessage;
+    			pst.setString(1, trimmedMsg);
+    		}
     		pst.setObject(2, networkId);
     		int i = pst.executeUpdate();
     		if ( i !=1)
