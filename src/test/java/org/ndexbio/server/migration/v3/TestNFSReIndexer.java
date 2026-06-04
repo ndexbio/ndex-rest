@@ -65,9 +65,9 @@ public class TestNFSReIndexer {
     public void testSqlConstantsContainErrorFilter() {
         // Regression guard: the SQL filter must reference both null-error and index-error networks
         String prefix = NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX;
-        assert NFSReIndexer.REINDEX_COUNT_SQL.contains("error IS NULL");
-        assert NFSReIndexer.REINDEX_COUNT_SQL.contains("error LIKE '" + prefix + "%'");
-        assert NFSReIndexer.REINDEX_SELECT_SQL.contains("error IS NULL");
-        assert NFSReIndexer.REINDEX_SELECT_SQL.contains("error LIKE '" + prefix + "%'");
+        org.junit.Assert.assertTrue(NFSReIndexer.REINDEX_COUNT_SQL.contains("error IS NULL"));
+        org.junit.Assert.assertTrue(NFSReIndexer.REINDEX_COUNT_SQL.contains("error LIKE '" + prefix + "%'"));
+        org.junit.Assert.assertTrue(NFSReIndexer.REINDEX_SELECT_SQL.contains("error IS NULL"));
+        org.junit.Assert.assertTrue(NFSReIndexer.REINDEX_SELECT_SQL.contains("error LIKE '" + prefix + "%'"));
     }
 }
