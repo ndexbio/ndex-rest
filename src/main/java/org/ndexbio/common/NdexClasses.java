@@ -116,6 +116,8 @@ public interface NdexClasses {
     public static final String Task_P_message   = "message";
     public static final String Task_P_attributes = "other_attributes";
     
-    public static final String Task_E_owner   = "ownedBy";    
+    public static final String Task_E_owner   = "ownedBy";
+
+    String NETWORK_INDEX_FAILED_MSG_PREFIX = "Failed to create Index on network.";
 }
 

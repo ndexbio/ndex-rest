@@ -27,6 +27,58 @@ For complete setup, configuration, testing, and persistence instructions, see **
 
 ---
 
+## Admin: Reindex Repair (`/v3/admin/reindex-v3`)
+
+The reindex endpoint rebuilds Solr search indexes for networks that are either unindexed or stuck in an index-failure error state. It is intended as an operational repair tool — run it after a Solr outage, a partial migration, or when networks appear unsearchable due to a prior indexing failure.
+
+### When to use it
+
+- Networks are missing from search results and show an `errorMessage` like `"Failed to create Index on network."` in their summary
+- After restoring Solr from a backup or recreating Solr cores
+- After a server restart that interrupted an in-progress reindex
+
+### Which networks are reindexed
+
+The endpoint processes a targeted subset of non-deleted networks — not every network indiscriminately:
+
+| Network error state | Included? |
+|---|---|
+| `errorMessage` is `null` (no error) | Yes |
+| `errorMessage` starts with `"Failed to create Index on network."` | Yes — prior index failure, safe to retry |
+| `errorMessage` set by upload or CX validation failure | **No** — skipped to avoid masking data integrity issues |
+
+After a network is successfully reindexed, its `errorMessage` is cleared to `null` automatically.
+
+The operation is **synchronous** — the HTTP response is not returned until all eligible networks have been processed. For large deployments with many networks, this call may take several minutes.
+
+### How to invoke it
+
+```
+GET /v3/admin/reindex-v3?password=<MigrationPassword>
+```
+
+The `MigrationPassword` is set in `ndex.properties` (key: `MigrationPassword`). In the default Docker image it is `changeme` — change it before production use.
+
+**curl example:**
+```bash
+curl "http://localhost:8080/v3/admin/reindex-v3?password=changeme"
+```
+
+Returns `200 OK` with body `Reindexing complete` on success. Returns `401` if the password is wrong, or `500` with an error message if reindexing fails partway through.
+
+### Verifying the result
+
+After the call completes, fetch a network summary to confirm the `errorMessage` field is cleared:
+
+```bash
+curl -u username:password \
+  "http://localhost:8080/v3/networks/<uuid>/summary" | python3 -m json.tool | grep errorMessage
+```
+
+A missing or `null` `errorMessage` field confirms the network was successfully reindexed.
+
+---
+
 ## MCP Server
 
 NDEx exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server at `/mcp/*`, enabling AI agents and LLM clients to interact with NDEx networks and folders through a standardized tool interface.

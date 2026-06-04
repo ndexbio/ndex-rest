@@ -31,7 +31,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=28
+TOTAL_API_CALLS=31
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -605,6 +605,54 @@ http.createServer((req, res) => {
     api_pass "POST /v3/search/networks/${QUERY_UUID_V3}/query → 200 OK (SSL context initialized, stub proxied correctly)"
   else
     api_fail "POST /v3/search/networks/${QUERY_UUID_V3}/query → HTTP ${QUERY_V3_HTTP}. Body: ${QUERY_V3_BODY:0:400}"
+  fi
+fi
+
+# ── STEP: Reindex endpoint clears prior index error ───────────────────────────
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "Reindex endpoint clears prior index error from network"
+
+  # Inject an index-failure error directly into the DB (simulates a prior failed reindex)
+  docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
+      -c \"UPDATE network SET error = 'Failed to create Index on network. Cause: test' WHERE \\\"UUID\\\" = '${V3_UUIDS[0]}'\"
+  "
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_UUIDS[0]}/summary (expect errorMessage set)"
+  PRE_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/networks/${V3_UUIDS[0]}/summary")
+  PRE_HTTP=$(echo "${PRE_RESP}" | tail -1)
+  PRE_BODY=$(echo "${PRE_RESP}" | head -1)
+  if [[ "${PRE_HTTP}" == "200" ]] && echo "${PRE_BODY}" | grep -q "Failed to create Index"; then
+    api_pass "GET /v3/networks/${V3_UUIDS[0]}/summary → 200 OK, errorMessage contains index failure text"
+  else
+    api_fail "GET /v3/networks/${V3_UUIDS[0]}/summary → HTTP ${PRE_HTTP}. Expected errorMessage with index failure. Body: ${PRE_BODY:0:400}"
+  fi
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/admin/reindex-v3?password=changeme (expect 200)"
+  REINDEX_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+    "${BASE_URL}/v3/admin/reindex-v3?password=changeme")
+  if [[ "${REINDEX_HTTP}" == "200" ]]; then
+    api_pass "GET /v3/admin/reindex-v3 → 200 OK"
+  else
+    api_fail "GET /v3/admin/reindex-v3 → HTTP ${REINDEX_HTTP} (expected 200)"
+  fi
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_UUIDS[0]}/summary (expect errorMessage cleared)"
+  POST_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/networks/${V3_UUIDS[0]}/summary")
+  POST_HTTP=$(echo "${POST_RESP}" | tail -1)
+  POST_BODY=$(echo "${POST_RESP}" | head -1)
+  if [[ "${POST_HTTP}" == "200" ]] && ! echo "${POST_BODY}" | grep -q "Failed to create Index"; then
+    api_pass "GET /v3/networks/${V3_UUIDS[0]}/summary → 200 OK, errorMessage cleared after successful reindex"
+  else
+    api_fail "GET /v3/networks/${V3_UUIDS[0]}/summary → HTTP ${POST_HTTP}. errorMessage was not cleared. Body: ${POST_BODY:0:400}"
   fi
 fi
 

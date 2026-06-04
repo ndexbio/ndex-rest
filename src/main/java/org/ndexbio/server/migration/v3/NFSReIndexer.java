@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.FolderDAO;
@@ -43,6 +44,16 @@ import java.util.*;
 
 public class NFSReIndexer implements Runnable,AutoCloseable {
     protected final static Logger logger = LoggerFactory.getLogger(NFSReIndexer.class.getSimpleName());
+
+    static final String REINDEX_COUNT_SQL =
+            "SELECT COUNT(*) FROM network WHERE is_deleted = false "
+            + "AND (error IS NULL OR error LIKE '" + NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX + "%')";
+
+    static final String REINDEX_SELECT_SQL =
+            "SELECT \"UUID\", owneruuid, \"owner\", visibility "
+            + "FROM network WHERE is_deleted = false "
+            + "AND (error IS NULL OR error LIKE '" + NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX + "%')";
+
     private final Connection db;
     private final SolrObjectFactory solrObjectFactory;
     private int networksProcessed = 0;
@@ -58,6 +69,13 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
         this.mapper = new ObjectMapper();
         this.solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();//new CachingSolrObjectFactoryImpl(configuration.getSolrURL());
         this.daoFactory = Configuration.getInstance().getDAOFactory();
+    }
+
+    NFSReIndexer(Connection conn, SolrObjectFactory solrFactory, DAOFactory daoFactory) {
+        this.db = conn;
+        this.solrObjectFactory = solrFactory;
+        this.daoFactory = daoFactory;
+        this.mapper = new ObjectMapper();
     }
 
     @Override
@@ -246,14 +264,13 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
     }
     public void reIndexNetworks(V3Migrator.DaoSet dao) throws Exception {
         int totalNetworks = 0;
-        try (PreparedStatement countPst = db.prepareStatement("SELECT COUNT(*) FROM network WHERE is_deleted = false");
+        try (PreparedStatement countPst = db.prepareStatement(REINDEX_COUNT_SQL);
              ResultSet countRs = countPst.executeQuery()) {
             if (countRs.next()) totalNetworks = countRs.getInt(1);
         }
         logger.info("Found {} networks to reindex.", totalNetworks);
 
-        String sql = "SELECT \"UUID\", owneruuid, \"owner\", visibility "
-                + "FROM network WHERE is_deleted = false";
+        String sql = REINDEX_SELECT_SQL;
 
         try (PreparedStatement pst = db.prepareStatement(sql);
              ResultSet rs = pst.executeQuery();
@@ -433,6 +450,10 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                 } catch (SQLException e) {
                     throw new NdexException("DB error when setting iscomplete flag: " + e.getMessage(), e);
                 }
+                String currentError = summary.getErrorMessage();
+                if (currentError != null && currentError.startsWith(NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX)) {
+                    dao.setErrorMessage(fileId, null);
+                }
             } finally {
                 dao.unlockNetwork(fileId);
             }
@@ -440,7 +461,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
         } catch (SQLException | IOException | NdexException | SolrServerException e1) {
             e1.printStackTrace();
             try {
-                dao.setErrorMessage(fileId, "Failed to create Index on network."
+                dao.setErrorMessage(fileId, NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX
                         + " Cause: " + e1.getMessage());
                 dao.commit();
             } catch (Exception e2){

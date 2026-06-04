@@ -14,6 +14,7 @@ import java.util.*;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.FolderDAO;
@@ -835,7 +836,7 @@ public class V3Migrator implements AutoCloseable {
 		} catch (SQLException | IOException | NdexException | SolrServerException e1) {
 			e1.printStackTrace();
 			try {
-				dao.setErrorMessage(fileId, "Failed to create Index on network."
+				dao.setErrorMessage(fileId, NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX
 						+ " Cause: " + e1.getMessage());
 				dao.commit();
 			} catch (Exception e2){
