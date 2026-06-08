@@ -24,12 +24,17 @@ import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.task.NdexServerQueue;
+import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,123 +43,123 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 
 public class SolrIndexBuilder implements AutoCloseable {
 
-    protected static Logger logger = LoggerFactory.getLogger(SolrIndexBuilder.class);
-	
-	  NetworkGlobalIndexManager globalIdx ;
-	
+	protected static Logger logger = LoggerFactory.getLogger(SolrIndexBuilder.class);
+
+	NetworkGlobalIndexManager globalIdx ;
+
 	public SolrIndexBuilder () throws NdexException, SolrServerException, IOException {
-		  globalIdx = new NetworkGlobalIndexManager();
-	      globalIdx.createCoreIfNotExists();
-		
+		globalIdx = new NetworkGlobalIndexManager();
+		globalIdx.createCoreIfNotExists();
+
 	}
-	
-	
-	private  void rebuildNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+
+
+	private void rebuildNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-		  logger.info("Rebuild solr index of network " + networkid);
-		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
-		  if (summary == null)
-			  throw new NdexException ("Network "+ networkid + " not found in the server." );
-		  
-		  dao.lockNetwork(networkid);
-		  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkid.toString())) {
-		  
-			  if (!ignoreDeletion) {
-				try {
-					globalIdx.deleteNetwork(networkid.toString());
-					globalIdx.commit();
-					idx2.dropIndex();
-				} catch (IOException | SolrServerException | NdexException e) {
-					e.printStackTrace();
-					logger.warn("Warning: Failed to delete node Index for network " + networkid.toString());
+			logger.info("Rebuild solr index of network " + networkid);
+			NetworkSummary summary = dao.getNetworkSummaryById(networkid);
+			if (summary == null)
+				throw new NdexException ("Network "+ networkid + " not found in the server." );
+
+			dao.lockNetwork(networkid);
+			try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkid.toString())) {
+
+				if (!ignoreDeletion) {
+					try {
+						globalIdx.deleteNetwork(networkid.toString());
+						globalIdx.commit();
+						idx2.dropIndex();
+					} catch (IOException | SolrServerException | NdexException e) {
+						e.printStackTrace();
+						logger.warn("Warning: Failed to delete node Index for network " + networkid.toString());
+					}
+
 				}
-				
-			  }		
-			  if (summary.getNodeCount() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ) {
-					
+				if (summary.getNodeCount() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ) {
+
 					idx2.createIndex(null);
 					idx2.close();
-				
-				    logger.info("Solr index for query created.");
-			  } 
-		  
-			  if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
-				  // build the solr document obj
-				  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
-				  Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
-				  Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
-				  globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
-					userMemberships.get(Permissions.READ),
-					userMemberships.get(Permissions.WRITE),
-					grpMemberships.get(Permissions.READ),
-					grpMemberships.get(Permissions.WRITE));
 
-				  //process node attribute aspect and add to solr doc
-				  String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
-			
-				  try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkid.toString(), 
-					  NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
-					  while (it.hasNext()) {
-						  NetworkAttributesElement e = it.next();
-					
-						  List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);	
-						  if ( !indexWarnings.isEmpty())
-							  for (String warning : indexWarnings) 
-								  System.err.println("Warning: " + warning);
-					
-					  }
-				  }
+					logger.info("Solr index for query created.");
+				}
 
-		  
-				  if (summary.getIndexLevel() == NetworkIndexLevel.ALL) {	
-					  try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkid.toString(), 
-							  FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
-						  while (it.hasNext()) {
-							  FunctionTermElement fun = it.next();
-					
-							  globalIdx.addFunctionTermToIndex(fun);
+				if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
+					// build the solr document obj
+					List<Map<Permissions, Collection<String>>> permissionTable = dao.getAllMembershipsOnNetwork(networkid);
+					Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
+					Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
+					globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
+							userMemberships.get(Permissions.READ),
+							userMemberships.get(Permissions.WRITE),
+							grpMemberships.get(Permissions.READ),
+							grpMemberships.get(Permissions.WRITE));
 
-						  }
-					  }
+					//process node attribute aspect and add to solr doc
+					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ;
 
-					  try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkid.toString(), 
-						  NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
-						  while (it.hasNext()) {
-							  NodeAttributesElement e = it.next();					
-							  globalIdx.addCXNodeAttrToIndex(e);	
-						  }
-					  }
+					try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkid.toString(),
+							NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
+						while (it.hasNext()) {
+							NetworkAttributesElement e = it.next();
 
-					  try (AspectIterator<NodesElement> it = new AspectIterator<>(networkid.toString(), 
-							  NodesElement.ASPECT_NAME, NodesElement.class, pathPrefix)) {
-						  while (it.hasNext()) {
-							  NodesElement e = it.next();					
-							  globalIdx.addCXNodeToIndex(e);	
-						  }
-					  }
-						
-				  }	
-				  globalIdx.commit();
+							List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
+							if ( !indexWarnings.isEmpty())
+								for (String warning : indexWarnings)
+									System.err.println("Warning: " + warning);
 
-				  logger.info("Solr index of network " + networkid + " created.");
-			  } 
-		  } finally {
-			  dao.unlockNetwork(networkid);
-		  }	 
-		}  
+						}
+					}
+
+
+					if (summary.getIndexLevel() == NetworkIndexLevel.ALL) {
+						try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkid.toString(),
+								FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
+							while (it.hasNext()) {
+								FunctionTermElement fun = it.next();
+
+								globalIdx.addFunctionTermToIndex(fun);
+
+							}
+						}
+
+						try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkid.toString(),
+								NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
+							while (it.hasNext()) {
+								NodeAttributesElement e = it.next();
+								globalIdx.addCXNodeAttrToIndex(e);
+							}
+						}
+
+						try (AspectIterator<NodesElement> it = new AspectIterator<>(networkid.toString(),
+								NodesElement.ASPECT_NAME, NodesElement.class, pathPrefix)) {
+							while (it.hasNext()) {
+								NodesElement e = it.next();
+								globalIdx.addCXNodeToIndex(e);
+							}
+						}
+
+					}
+					globalIdx.commit();
+
+					logger.info("Solr index of network " + networkid + " created.");
+				}
+			} finally {
+				dao.unlockNetwork(networkid);
+			}
+		}
 	}
-	
-	
-	private  void rebuildNetworkIndexInGlobalIdx (UUID networkid , boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+
+
+	private void rebuildNetworkIndexInGlobalIdx (UUID networkid , boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			logger.info("Rebuild global index of network " +networkid);
-		 
-			 NetworkSummary summary = dao.getNetworkSummaryById(networkid);
-			 if (summary == null)
-				  throw new NdexException ("Network "+ networkid + " not found in the server." );
-			  			
+
+			NetworkSummary summary = dao.getNetworkSummaryById(networkid);
+			if (summary == null)
+				throw new NdexException ("Network "+ networkid + " not found in the server." );
+
 			//dao.lockNetwork(networkid);
-		  
+
 			if (!ignoreDeletion) {
 				try {
 					globalIdx.deleteNetwork(networkid.toString());
@@ -163,267 +168,267 @@ public class SolrIndexBuilder implements AutoCloseable {
 					e.printStackTrace();
 					logger.warn("Warning: Failed to delete node Index for network " + networkid.toString());
 				}
-				
-			 }		
-		  
-			 if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
-				  // build the solr document obj
-				  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
-				  Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
-				  Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
-				  globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
-					userMemberships.get(Permissions.READ),
-					userMemberships.get(Permissions.WRITE),
-					grpMemberships.get(Permissions.READ),
-					grpMemberships.get(Permissions.WRITE));
 
-				  //process node attribute aspect and add to solr doc
-				  String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
-			
-				  try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkid.toString(), 
-					  NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
-					  while (it.hasNext()) {
-						  NetworkAttributesElement e = it.next();
-					
-						  List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);	
-						  if ( !indexWarnings.isEmpty())
-							  for (String warning : indexWarnings) 
-								  System.err.println("Warning: " + warning);
-					
-					  }
-				  }
-	  
-				  if (summary.getIndexLevel() == NetworkIndexLevel.ALL) {	
-					  try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkid.toString(), 
-							  FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
-						  while (it.hasNext()) {
-							  FunctionTermElement fun = it.next();
-					
-							  globalIdx.addFunctionTermToIndex(fun);
+			}
 
-						  }
-					  }
+			if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
+				// build the solr document obj
+				List<Map<Permissions, Collection<String>>> permissionTable = dao.getAllMembershipsOnNetwork(networkid);
+				Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
+				Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
+				globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
+						userMemberships.get(Permissions.READ),
+						userMemberships.get(Permissions.WRITE),
+						grpMemberships.get(Permissions.READ),
+						grpMemberships.get(Permissions.WRITE));
 
-					  try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkid.toString(), 
-						  NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
-						  while (it.hasNext()) {
-							  NodeAttributesElement e = it.next();					
-							  globalIdx.addCXNodeAttrToIndex(e);	
-						  }
-					  }
+				//process node attribute aspect and add to solr doc
+				String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ;
 
-					  try (AspectIterator<NodesElement> it = new AspectIterator<>(networkid.toString(), 
-							  NodesElement.ASPECT_NAME, NodesElement.class, pathPrefix)) {
-						  while (it.hasNext()) {
-							  NodesElement e = it.next();					
-							  globalIdx.addCXNodeToIndex(e);	
-						  }
-					  }
-						
-				  }	
-				  globalIdx.commit();
-			
-				 // dao.unlockNetwork(networkid);
-				  logger.info("Solr index of network " + networkid + " created.");
-			  } 
-		  	 
-		}  
-	}
-	
-	
-	private static  void rebuildLocalNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
-		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-		  logger.info("Rebuild local index of " + networkid);
-		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
-		  if (summary == null)
-			  throw new NdexException ("Network "+ networkid + " not found in the server." );
-		  
-		  //dao.lockNetwork(networkid);
-		  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkid.toString())) {
-		  
-			  if (!ignoreDeletion) {
-				try {
-					idx2.dropIndex();
-				} catch (IOException | SolrServerException | NdexException e) {
-					e.printStackTrace();
-					logger.warn("Warning: Failed to delete node Index for network " + networkid.toString());
+				try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(networkid.toString(),
+						NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
+					while (it.hasNext()) {
+						NetworkAttributesElement e = it.next();
+
+						List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
+						if ( !indexWarnings.isEmpty())
+							for (String warning : indexWarnings)
+								System.err.println("Warning: " + warning);
+
+					}
 				}
-				
-			  }		
-			  if (summary.getNodeCount() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ) {
-					
+
+				if (summary.getIndexLevel() == NetworkIndexLevel.ALL) {
+					try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(networkid.toString(),
+							FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
+						while (it.hasNext()) {
+							FunctionTermElement fun = it.next();
+
+							globalIdx.addFunctionTermToIndex(fun);
+
+						}
+					}
+
+					try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(networkid.toString(),
+							NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
+						while (it.hasNext()) {
+							NodeAttributesElement e = it.next();
+							globalIdx.addCXNodeAttrToIndex(e);
+						}
+					}
+
+					try (AspectIterator<NodesElement> it = new AspectIterator<>(networkid.toString(),
+							NodesElement.ASPECT_NAME, NodesElement.class, pathPrefix)) {
+						while (it.hasNext()) {
+							NodesElement e = it.next();
+							globalIdx.addCXNodeToIndex(e);
+						}
+					}
+
+				}
+				globalIdx.commit();
+
+				// dao.unlockNetwork(networkid);
+				logger.info("Solr index of network " + networkid + " created.");
+			}
+
+		}
+	}
+
+
+	private static void rebuildLocalNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+			logger.info("Rebuild local index of " + networkid);
+			NetworkSummary summary = dao.getNetworkSummaryById(networkid);
+			if (summary == null)
+				throw new NdexException ("Network "+ networkid + " not found in the server." );
+
+			//dao.lockNetwork(networkid);
+			try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkid.toString())) {
+
+				if (!ignoreDeletion) {
+					try {
+						idx2.dropIndex();
+					} catch (IOException | SolrServerException | NdexException e) {
+						e.printStackTrace();
+						logger.warn("Warning: Failed to delete node Index for network " + networkid.toString());
+					}
+
+				}
+				if (summary.getNodeCount() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ) {
+
 					idx2.createIndex(null);
 					idx2.close();
-				
-				    logger.info("Solr index for query created.");
-			  }   			 	
-			
-		  }	 
-		  //dao.unlockNetwork(networkid);
 
-		}  
+					logger.info("Solr index for query created.");
+				}
+
+			}
+			//dao.unlockNetwork(networkid);
+
+		}
 	}
 
-	
-	
-	private  void rebuildAll() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+
+
+	private void rebuildAll() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null";
-			
+
 			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
 					while (rs.next()) {
-				       //int nodeCount = rs.getInt(2);
-					   rebuildNetworkIndex((UUID)rs.getObject(1), true);
-					   i ++;
-					   if ( i % 500 == 0 ) {
-						   System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-						//   globalIdx.commit();
-						   try {
-							  Thread.sleep(2000);
-						   } catch (InterruptedException e) {
-							  // TODO Auto-generated catch block
-							  e.printStackTrace();
-						   }
-					   }	   
+						//int nodeCount = rs.getInt(2);
+						rebuildNetworkIndex((UUID)rs.getObject(1), true);
+						i ++;
+						if ( i % 500 == 0 ) {
+							System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
+							// globalIdx.commit();
+							try {
+								Thread.sleep(2000);
+							} catch (InterruptedException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+						}
 					}
 				}
 			}
 		}
-	//	globalIdx.commit();
+		// globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
-	
 
-	private  void rebuildGlobalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+
+	private void rebuildGlobalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null";
-			
+
 			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
 					while (rs.next()) {
-				       //int nodeCount = rs.getInt(2);
+						//int nodeCount = rs.getInt(2);
 						rebuildNetworkIndexInGlobalIdx((UUID)rs.getObject(1), true);
-					   i ++;
-					   if ( i % 1000 == 0 ) {
-						   System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-						//   globalIdx.commit();
-						   try {
-							  Thread.sleep(2000);
-						   } catch (InterruptedException e) {
-							  // TODO Auto-generated catch block
-							  e.printStackTrace();
-						   }
-					   }	   
+						i ++;
+						if ( i % 1000 == 0 ) {
+							System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
+							// globalIdx.commit();
+							try {
+								Thread.sleep(2000);
+							} catch (InterruptedException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+						}
 					}
 				}
 			}
 		}
-	//	globalIdx.commit();
+		// globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
-	
 
-	private static  void rebuildAllLocalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+
+	private static void rebuildAllLocalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
-			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null and cx2_file_size is not null and nodecount >= " 
+			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.islocked=false and n.error is null and cx2_file_size is not null and nodecount >= "
 					+ SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ;
-			
+
 			int i = 0;
-			int j = 0; 
+			int j = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
 					while (rs.next()) {
-				       //int nodeCount = rs.getInt(2);
+						//int nodeCount = rs.getInt(2);
 						UUID netid = (UUID)rs.getObject(1);
 						try {
 							rebuildLocalNetworkIndex(netid, true);
 							j++;
 						} catch (HttpSolrClient.RemoteSolrException e4) {
 							if ( e4.getMessage().indexOf("Core with name '"+
-						             netid.toString() +  "' already exists") == -1) {
+									netid.toString() + "' already exists") == -1) {
 								e4.printStackTrace();
 								throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
-							}	
+							}
 							logger.info("index exists. Ignore creating it.");
-						} 
-					   i ++;
-					   if ( i % 500 == 0 ) {
-						   System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-						//   globalIdx.commit();
-						   try {
-							  Thread.sleep(2000);
-						   } catch (InterruptedException e) {
-							  // TODO Auto-generated catch block
-							  e.printStackTrace();
-						   }
-					   }	   
+						}
+						i ++;
+						if ( i % 500 == 0 ) {
+							System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
+							// globalIdx.commit();
+							try {
+								Thread.sleep(2000);
+							} catch (InterruptedException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+						}
 					}
 				}
 			}
 			logger.info("Local index of " + i + " networks have been checked. " + j + " are created." );
 		}
-	//	globalIdx.commit();
+		// globalIdx.commit();
 	}
 
-	
-	private  void rebuildAllNetworksOnline() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+
+	private void rebuildAllNetworksOnline() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.error is null";
-			
+
 			int i = 0;
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
 					while (rs.next()) {
-				       //int nodeCount = rs.getInt(2);
-					   UUID networkId = (UUID)rs.getObject(1);
-					   try {
-						   
-						   rebuildNetworkIndex(networkId, false);
-					   } catch(Exception ex){
-						   logger.error("Failed to rebuild index for network: " + networkId.toString());
-					   }
-					   i ++;
-					   if ( i % 500 == 0 ) {
-						   System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-						//   globalIdx.commit();
-						   try {
-							  Thread.sleep(2000);
-						   } catch (InterruptedException e) {
-							  // TODO Auto-generated catch block
-							  e.printStackTrace();
-						   }
-					   }	   
+						//int nodeCount = rs.getInt(2);
+						UUID networkId = (UUID)rs.getObject(1);
+						try {
+
+							rebuildNetworkIndex(networkId, false);
+						} catch(Exception ex){
+							logger.error("Failed to rebuild index for network: " + networkId.toString());
+						}
+						i ++;
+						if ( i % 500 == 0 ) {
+							System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
+							// globalIdx.commit();
+							try {
+								Thread.sleep(2000);
+							} catch (InterruptedException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+						}
 					}
 				}
 			}
 		}
-	//	globalIdx.commit();
+		// globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
 
-	
-	private  void rebuildSingleNetworkIndex (UUID networkid) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+
+	private void rebuildSingleNetworkIndex (UUID networkid) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-		  logger.info("Rebuild solr index of network " + networkid);
-		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
-		  if (summary == null)
-			  throw new NdexException ("Network "+ networkid + " not found in the server." );
-		  
-		  rebuildNetworkIndex(networkid, false);
-		}  
-	}	  
-	
+			logger.info("Rebuild solr index of network " + networkid);
+			NetworkSummary summary = dao.getNetworkSummaryById(networkid);
+			if (summary == null)
+				throw new NdexException ("Network "+ networkid + " not found in the server." );
+
+			rebuildNetworkIndex(networkid, false);
+		}
+	}
+
 	private static void rebuildUserIndex() throws Exception {
 		logger.info("Start rebuild user index.");
 		try (UserIndexManager umgr = new UserIndexManager()) {
@@ -456,23 +461,23 @@ public class SolrIndexBuilder implements AutoCloseable {
 		}
 		logger.info("User index has been rebuilt.");
 	}
-	
+
 	private static void rebuildGroupIndex() throws Exception {
 		logger.info("Start rebuild group index.");
 		try (GroupIndexManager umgr = new GroupIndexManager()) {
 
 			umgr.createCoreIfNotExists();
-		/*	String coreName = GroupIndexManager.coreName;
-			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
-			creator.setCoreName(coreName);
-			creator.setConfigSet(coreName);
-			CoreAdminResponse foo = creator.process(umgr.client);
+ /* String coreName = GroupIndexManager.coreName;
+ CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
+ creator.setCoreName(coreName);
+ creator.setConfigSet(coreName);
+ CoreAdminResponse foo = creator.process(umgr.client);
 
-			if (foo.getStatus() != 0) {
-				throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
-						+ foo.getResponseHeader().toString());
-			}
-			logger.info("Solr core " + coreName + " created.");*/
+ if (foo.getStatus() != 0) {
+ throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
+ + foo.getResponseHeader().toString());
+ }
+ logger.info("Solr core " + coreName + " created.");*/
 
 
 			try (GroupDAO dao = new GroupDAO()) {
@@ -500,61 +505,150 @@ public class SolrIndexBuilder implements AutoCloseable {
 					}
 				}
 			}
-			
+
 			logger.info("Group index has been rebuilt.");
 		}
 	}
-	
-	private static void rebuildNFSIdx(){
-		
+	/**
+	 * Find all networks where visibility='PUBLIC' and solr_idx_lvl='NONE',
+	 * flip them to UNLISTED in Postgres, and queue Solr delete+rebuild tasks
+	 * so the file index moves from public-nfs to private-nfs.
+	 *
+	 * Per-network commit; on failure the current network is rolled back and
+	 * the loop continues. Already-processed networks remain UNLISTED.
+	 */
+	private static void unlistPublicNoneNetworks() throws SQLException, NdexException, IOException {
+		logger.info("Finding PUBLIC networks with solr_idx_lvl='NONE'...");
+
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+			@SuppressWarnings("resource")
+			Connection db = dao.getDBConnection();
+			boolean priorAutoCommit = db.getAutoCommit();
+			db.setAutoCommit(false);
+
+			int total = 0;
+			int processed = 0;
+			int failed = 0;
+
+			try {
+				// 1. Collect targets (UUID, ownerId, ownerName) up front so the iterating
+				// ResultSet isn't held open across writes/commits.
+				List<Object[]> targets = new java.util.ArrayList<>();
+				String selectSql = "SELECT \"UUID\", owneruuid, \"owner\" FROM network "
+						+ "WHERE visibility = 'PUBLIC' AND solr_idx_lvl = 'NONE' AND is_deleted = false";
+				try (PreparedStatement pst = db.prepareStatement(selectSql);
+					 ResultSet rs = pst.executeQuery()) {
+					while (rs.next()) {
+						targets.add(new Object[] {
+								(UUID) rs.getObject(1),
+								(UUID) rs.getObject(2),
+								rs.getString(3)
+						});
+					}
+				}
+				total = targets.size();
+				logger.info("Found {} networks to convert from PUBLIC to UNLISTED.", total);
+				if (total == 0) {
+					db.commit();
+					return;
+				}
+
+				String updateSql = "UPDATE network SET visibility = 'UNLISTED' WHERE \"UUID\" = ?";
+				try (PreparedStatement updatePst = db.prepareStatement(updateSql)) {
+					for (Object[] row : targets) {
+						UUID networkId = (UUID) row[0];
+						UUID ownerId = (UUID) row[1];
+						String ownerName = (String) row[2];
+
+						try {
+							// 2. DB: flip visibility
+							updatePst.setObject(1, networkId);
+							int rows = updatePst.executeUpdate();
+							if (rows != 1) {
+								throw new NdexException("Expected 1 row updated for " + networkId
+										+ " but got " + rows);
+							}
+							db.commit();
+
+							// 3. Solr: delete from public-nfs, rebuild in private-nfs.
+							// ignoreCxFiles=true because these networks have solr_idx_lvl=NONE
+							// and may not have CX aspect files on disk to index from.
+							new SolrTaskDeleteFile(networkId, VisibilityType.PUBLIC).run();
+							new SolrTaskRebuildFileIdx(networkId, ownerId, ownerName,
+									VisibilityType.UNLISTED, FileType.NETWORK, false, true).run();
+
+							processed++;
+							if (processed % 500 == 0) {
+								logger.info("Processed {}/{} ({}%)",
+										processed, total, (processed * 100) / total);
+							}
+						} catch (Exception e) {
+							db.rollback();
+							failed++;
+							logger.error("Failed to convert network {}: {}", networkId, e.getMessage(), e);
+						}
+					}
+				}
+				logger.info("Done. processed={}, failed={}, total={}", processed, failed, total);
+			} finally {
+				db.setAutoCommit(priorAutoCommit);
+			}
+		}
 	}
-	
+
+	private static void rebuildNFSIdx(){
+
+	}
+
 	public static void main(String[] args) throws Exception {
-	//	SolrIndexBuilder i = new SolrIndexBuider();
+		// SolrIndexBuilder i = new SolrIndexBuider();
 		Configuration configuration = Configuration.createInstance();
 
 		NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
 				configuration.getDBPasswd(), 10);
-	
+
 		try (SolrIndexBuilder builder = new SolrIndexBuilder()) {
-		if ( args.length == 1) {
-			switch ( args[0]) {
-			case "all":
-				SolrIndexBuilder.rebuildUserIndex();
-				SolrIndexBuilder.rebuildGroupIndex();
-				builder.rebuildAll();
-				break;
-			case "user":
-				SolrIndexBuilder.rebuildUserIndex();
-				break;
-			case "group":
-				SolrIndexBuilder.rebuildGroupIndex();
-				break;
-			case "all-networks-online":
-				builder.rebuildAllNetworksOnline();
-				break;
-			case "global-networks":
-				builder.rebuildGlobalIdx();
-				break;
-			case "all-local":
-				SolrIndexBuilder.rebuildAllLocalIdx();
-				break;
-			case "nfs":
-				SolrIndexBuilder.rebuildNFSIdx();
-				break;
-			default:	
-				builder.rebuildSingleNetworkIndex(UUID.fromString(args[0]));
-				builder.globalIdx.commit();
-				
+			if ( args.length == 1) {
+				switch ( args[0]) {
+					case "all":
+						SolrIndexBuilder.rebuildUserIndex();
+						SolrIndexBuilder.rebuildGroupIndex();
+						builder.rebuildAll();
+						break;
+					case "user":
+						SolrIndexBuilder.rebuildUserIndex();
+						break;
+					case "group":
+						SolrIndexBuilder.rebuildGroupIndex();
+						break;
+					case "all-networks-online":
+						builder.rebuildAllNetworksOnline();
+						break;
+					case "global-networks":
+						builder.rebuildGlobalIdx();
+						break;
+					case "all-local":
+						SolrIndexBuilder.rebuildAllLocalIdx();
+						break;
+					case "nfs":
+						SolrIndexBuilder.rebuildNFSIdx();
+						break;
+					case "unlist-public-none":
+						SolrIndexBuilder.unlistPublicNoneNetworks();
+						break;
+					default:
+						builder.rebuildSingleNetworkIndex(UUID.fromString(args[0]));
+						builder.globalIdx.commit();
+
+				}
+				logger.info("Index rebuild process finished.");
+			} else {
+				System.err.println("Supported argument: all/nfs/user/group/all-networks-online/global-networks/all-local/<networkUUID>");
+				//System.out.println("For the boolean argument after network ID, true means rebuild the Single Network index.");
 			}
-			logger.info("Index rebuild process finished.");
-		} else {
-			System.err.println("Supported argument: all/nfs/user/group/all-networks-online/global-networks/all-local/<networkUUID>");
-			//System.out.println("For the boolean argument after network ID, true means rebuild the Single Network index.");
+
 		}
-		
-		}
-		
+
 	}
 
 
@@ -564,3 +658,4 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 
 }
+
