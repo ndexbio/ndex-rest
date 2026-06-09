@@ -32,7 +32,6 @@ import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
-import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrTaskDeleteFile;
 import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
@@ -54,7 +53,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 
 
-	private void rebuildNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private  void rebuildNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			logger.info("Rebuild solr index of network " + networkid);
 			NetworkSummary summary = dao.getNetworkSummaryById(networkid);
@@ -85,7 +84,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 
 				if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
 					// build the solr document obj
-					List<Map<Permissions, Collection<String>>> permissionTable = dao.getAllMembershipsOnNetwork(networkid);
+					List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
 					Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
 					Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
 					globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
@@ -150,7 +149,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 
 
-	private void rebuildNetworkIndexInGlobalIdx (UUID networkid , boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private  void rebuildNetworkIndexInGlobalIdx (UUID networkid , boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			logger.info("Rebuild global index of network " +networkid);
 
@@ -173,7 +172,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 
 			if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
 				// build the solr document obj
-				List<Map<Permissions, Collection<String>>> permissionTable = dao.getAllMembershipsOnNetwork(networkid);
+				List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
 				Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
 				Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
 				globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
@@ -236,7 +235,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 
 
-	private static void rebuildLocalNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private static  void rebuildLocalNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			logger.info("Rebuild local index of " + networkid);
 			NetworkSummary summary = dao.getNetworkSummaryById(networkid);
@@ -271,7 +270,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 
 
 
-	private void rebuildAll() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private  void rebuildAll() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
@@ -286,7 +285,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 						i ++;
 						if ( i % 500 == 0 ) {
 							System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-							// globalIdx.commit();
+							//   globalIdx.commit();
 							try {
 								Thread.sleep(2000);
 							} catch (InterruptedException e) {
@@ -298,12 +297,12 @@ public class SolrIndexBuilder implements AutoCloseable {
 				}
 			}
 		}
-		// globalIdx.commit();
+		//	globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
 
 
-	private void rebuildGlobalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private  void rebuildGlobalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
@@ -318,7 +317,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 						i ++;
 						if ( i % 1000 == 0 ) {
 							System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-							// globalIdx.commit();
+							//   globalIdx.commit();
 							try {
 								Thread.sleep(2000);
 							} catch (InterruptedException e) {
@@ -330,12 +329,12 @@ public class SolrIndexBuilder implements AutoCloseable {
 				}
 			}
 		}
-		// globalIdx.commit();
+		//	globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
 
 
-	private static void rebuildAllLocalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private static  void rebuildAllLocalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
@@ -354,7 +353,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 							j++;
 						} catch (HttpSolrClient.RemoteSolrException e4) {
 							if ( e4.getMessage().indexOf("Core with name '"+
-									netid.toString() + "' already exists") == -1) {
+									netid.toString() +  "' already exists") == -1) {
 								e4.printStackTrace();
 								throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
 							}
@@ -363,7 +362,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 						i ++;
 						if ( i % 500 == 0 ) {
 							System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-							// globalIdx.commit();
+							//   globalIdx.commit();
 							try {
 								Thread.sleep(2000);
 							} catch (InterruptedException e) {
@@ -376,11 +375,11 @@ public class SolrIndexBuilder implements AutoCloseable {
 			}
 			logger.info("Local index of " + i + " networks have been checked. " + j + " are created." );
 		}
-		// globalIdx.commit();
+		//	globalIdx.commit();
 	}
 
 
-	private void rebuildAllNetworksOnline() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private  void rebuildAllNetworksOnline() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
@@ -401,7 +400,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 						i ++;
 						if ( i % 500 == 0 ) {
 							System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-							// globalIdx.commit();
+							//   globalIdx.commit();
 							try {
 								Thread.sleep(2000);
 							} catch (InterruptedException e) {
@@ -413,12 +412,12 @@ public class SolrIndexBuilder implements AutoCloseable {
 				}
 			}
 		}
-		// globalIdx.commit();
+		//	globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
 
 
-	private void rebuildSingleNetworkIndex (UUID networkid) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private  void rebuildSingleNetworkIndex (UUID networkid) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			logger.info("Rebuild solr index of network " + networkid);
 			NetworkSummary summary = dao.getNetworkSummaryById(networkid);
@@ -467,17 +466,17 @@ public class SolrIndexBuilder implements AutoCloseable {
 		try (GroupIndexManager umgr = new GroupIndexManager()) {
 
 			umgr.createCoreIfNotExists();
- /* String coreName = GroupIndexManager.coreName;
- CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
- creator.setCoreName(coreName);
- creator.setConfigSet(coreName);
- CoreAdminResponse foo = creator.process(umgr.client);
+		/*	String coreName = GroupIndexManager.coreName;
+			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
+			creator.setCoreName(coreName);
+			creator.setConfigSet(coreName);
+			CoreAdminResponse foo = creator.process(umgr.client);
 
- if (foo.getStatus() != 0) {
- throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
- + foo.getResponseHeader().toString());
- }
- logger.info("Solr core " + coreName + " created.");*/
+			if (foo.getStatus() != 0) {
+				throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
+						+ foo.getResponseHeader().toString());
+			}
+			logger.info("Solr core " + coreName + " created.");*/
 
 
 			try (GroupDAO dao = new GroupDAO()) {
@@ -511,11 +510,14 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 	/**
 	 * Find all networks where visibility='PUBLIC' and solr_idx_lvl='NONE',
-	 * flip them to UNLISTED in Postgres, and queue Solr delete+rebuild tasks
-	 * so the file index moves from public-nfs to private-nfs.
+	 * flip them to UNLISTED in Postgres, and synchronously run Solr delete+rebuild
+	 * tasks so the file index moves from public-nfs to private-nfs.
 	 *
-	 * Per-network commit; on failure the current network is rolled back and
-	 * the loop continues. Already-processed networks remain UNLISTED.
+	 * Each network is locked for the duration of its conversion. The visibility
+	 * flip is committed before the Solr work runs; if a Solr step fails, a
+	 * compensating UPDATE restores the network to PUBLIC so Postgres and Solr do
+	 * not drift out of sync. The loop continues on failure; successfully
+	 * processed networks remain UNLISTED.
 	 */
 	private static void unlistPublicNoneNetworks() throws SQLException, NdexException, IOException {
 		logger.info("Finding PUBLIC networks with solr_idx_lvl='NONE'...");
@@ -532,7 +534,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 
 			try {
 				// 1. Collect targets (UUID, ownerId, ownerName) up front so the iterating
-				// ResultSet isn't held open across writes/commits.
+				//    ResultSet isn't held open across writes/commits.
 				List<Object[]> targets = new java.util.ArrayList<>();
 				String selectSql = "SELECT \"UUID\", owneruuid, \"owner\" FROM network "
 						+ "WHERE visibility = 'PUBLIC' AND solr_idx_lvl = 'NONE' AND is_deleted = false";
@@ -557,35 +559,52 @@ public class SolrIndexBuilder implements AutoCloseable {
 				try (PreparedStatement updatePst = db.prepareStatement(updateSql)) {
 					for (Object[] row : targets) {
 						UUID networkId = (UUID) row[0];
-						UUID ownerId = (UUID) row[1];
+						UUID ownerId   = (UUID) row[1];
 						String ownerName = (String) row[2];
 
 						try {
-							// 2. DB: flip visibility
-							updatePst.setObject(1, networkId);
-							int rows = updatePst.executeUpdate();
-							if (rows != 1) {
-								throw new NdexException("Expected 1 row updated for " + networkId
-										+ " but got " + rows);
-							}
-							db.commit();
+							dao.lockNetwork(networkId);
+							try {
+								// 2. DB: flip visibility and commit.
+								updatePst.setObject(1, networkId);
+								int rows = updatePst.executeUpdate();
+								if (rows != 1) {
+									throw new NdexException("Expected 1 row updated for " + networkId
+											+ " but got " + rows);
+								}
+								db.commit();
 
-							// 3. Solr: delete from public-nfs, rebuild in private-nfs.
-							// ignoreCxFiles=true because these networks have solr_idx_lvl=NONE
-							// and may not have CX aspect files on disk to index from.
-							new SolrTaskDeleteFile(networkId, VisibilityType.PUBLIC).run();
-							new SolrTaskRebuildFileIdx(networkId, ownerId, ownerName,
-									VisibilityType.UNLISTED, FileType.NETWORK, false, true).run();
+								// 3. Solr: delete from public-nfs, rebuild in private-nfs.
+								//    ignoreCxFiles=true because these networks have solr_idx_lvl=NONE
+								//    and may not have CX aspect files on disk to index from.
+								new SolrTaskDeleteFile(networkId, VisibilityType.PUBLIC).run();
+								new SolrTaskRebuildFileIdx(networkId, ownerId, ownerName,
+										VisibilityType.UNLISTED, FileType.NETWORK, false, true).run();
 
-							processed++;
-							if (processed % 500 == 0) {
-								logger.info("Processed {}/{} ({}%)",
-										processed, total, (processed * 100) / total);
+								processed++;
+								if (processed % 500 == 0) {
+									logger.info("Processed {}/{} ({}%)",
+											processed, total, (processed * 100) / total);
+								}
+							} finally {
+								dao.unlockNetwork(networkId);
+								db.commit();
 							}
 						} catch (Exception e) {
-							db.rollback();
 							failed++;
 							logger.error("Failed to convert network {}: {}", networkId, e.getMessage(), e);
+
+							// Visibility flip may already be committed; compensate back to
+							// PUBLIC so Postgres and Solr don't drift out of sync.
+							try (PreparedStatement revertPst = db.prepareStatement(
+									"UPDATE network SET visibility = 'PUBLIC' WHERE \"UUID\" = ?")) {
+								revertPst.setObject(1, networkId);
+								revertPst.executeUpdate();
+								db.commit();
+							} catch (Exception revertEx) {
+								logger.error("Failed to revert visibility to PUBLIC for network {}: {}",
+										networkId, revertEx.getMessage(), revertEx);
+							}
 						}
 					}
 				}
@@ -601,7 +620,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 
 	public static void main(String[] args) throws Exception {
-		// SolrIndexBuilder i = new SolrIndexBuider();
+		//	SolrIndexBuilder i = new SolrIndexBuider();
 		Configuration configuration = Configuration.createInstance();
 
 		NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
@@ -643,7 +662,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 				}
 				logger.info("Index rebuild process finished.");
 			} else {
-				System.err.println("Supported argument: all/nfs/user/group/all-networks-online/global-networks/all-local/<networkUUID>");
+				System.err.println("Supported argument: all/nfs/user/group/all-networks-online/global-networks/all-local/unlist-public-none/<networkUUID>");
 				//System.out.println("For the boolean argument after network ID, true means rebuild the Single Network index.");
 			}
 
@@ -658,4 +677,3 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 
 }
-
