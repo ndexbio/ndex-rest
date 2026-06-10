@@ -508,111 +508,131 @@ public class SolrIndexBuilder implements AutoCloseable {
 			logger.info("Group index has been rebuilt.");
 		}
 	}
+	/** Executes the Solr delete+rebuild tasks for one network during unlist. */
+	@FunctionalInterface
+	interface SolrProcessor {
+		void process(UUID networkId, UUID ownerId, String ownerName) throws Exception;
+	}
+
 	/**
 	 * Find all networks where visibility='PUBLIC' and solr_idx_lvl='NONE',
-	 * flip them to UNLISTED in Postgres, and synchronously run Solr delete+rebuild
-	 * tasks so the file index moves from public-nfs to private-nfs.
+	 * flip them to UNLISTED in Postgres, then synchronously run Solr delete+rebuild
+	 * tasks so the file index is updated in public-nfs (both PUBLIC and UNLISTED
+	 * networks use the public-nfs core; visibility controls query-time filtering).
 	 *
-	 * Each network is locked for the duration of its conversion. The visibility
-	 * flip is committed before the Solr work runs; if a Solr step fails, a
-	 * compensating UPDATE restores the network to PUBLIC so Postgres and Solr do
-	 * not drift out of sync. The loop continues on failure; successfully
+	 * Per-network: (1) acquire lock, UPDATE visibility, commit, release lock;
+	 * (2) run Solr tasks with no lock held. On any failure, attempts a compensating
+	 * UPDATE back to PUBLIC (also under lock) then rethrows immediately — already-
 	 * processed networks remain UNLISTED.
 	 */
-	private static void unlistPublicNoneNetworks() throws SQLException, NdexException, IOException {
+	private static void unlistPublicNoneNetworks() throws Exception {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+			unlistPublicNoneNetworks(dao, (networkId, ownerId, ownerName) -> {
+				// ignoreCxFiles=true: these networks have solr_idx_lvl=NONE
+				// and may not have CX aspect files on disk to index from.
+				new SolrTaskDeleteFile(networkId, VisibilityType.PUBLIC).run();
+				new SolrTaskRebuildFileIdx(networkId, ownerId, ownerName,
+						VisibilityType.UNLISTED, FileType.NETWORK, false, true).run();
+			});
+		}
+	}
+
+	static void unlistPublicNoneNetworks(PostgresNetworkDAO dao, SolrProcessor solrProcessor) throws Exception {
 		logger.info("Finding PUBLIC networks with solr_idx_lvl='NONE'...");
 
-		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-			@SuppressWarnings("resource")
-			Connection db = dao.getDBConnection();
-			boolean priorAutoCommit = db.getAutoCommit();
-			db.setAutoCommit(false);
+		@SuppressWarnings("resource")
+		Connection db = dao.getDBConnection();
+		db.setAutoCommit(false);
 
-			int total = 0;
-			int processed = 0;
-			int failed = 0;
+		int total = 0;
+		int processed = 0;
 
-			try {
-				// 1. Collect targets (UUID, ownerId, ownerName) up front so the iterating
-				//    ResultSet isn't held open across writes/commits.
-				List<Object[]> targets = new java.util.ArrayList<>();
-				String selectSql = "SELECT \"UUID\", owneruuid, \"owner\" FROM network "
-						+ "WHERE visibility = 'PUBLIC' AND solr_idx_lvl = 'NONE' AND is_deleted = false";
-				try (PreparedStatement pst = db.prepareStatement(selectSql);
-					 ResultSet rs = pst.executeQuery()) {
-					while (rs.next()) {
-						targets.add(new Object[] {
-								(UUID) rs.getObject(1),
-								(UUID) rs.getObject(2),
-								rs.getString(3)
-						});
+		// Collect targets up front so the ResultSet isn't held open across writes/commits.
+		List<Object[]> targets = new java.util.ArrayList<>();
+		String selectSql = "SELECT \"UUID\", owneruuid, \"owner\" FROM network "
+				+ "WHERE visibility = 'PUBLIC' AND solr_idx_lvl = 'NONE' AND is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(selectSql);
+			 ResultSet rs = pst.executeQuery()) {
+			while (rs.next()) {
+				targets.add(new Object[] {
+						(UUID) rs.getObject(1),
+						(UUID) rs.getObject(2),
+						rs.getString(3)
+				});
+			}
+		}
+		total = targets.size();
+		logger.info("Found {} networks to convert from PUBLIC to UNLISTED.", total);
+
+		String updateSql = "UPDATE network SET visibility = 'UNLISTED' WHERE \"UUID\" = ?";
+		String revertSql = "UPDATE network SET visibility = 'PUBLIC'   WHERE \"UUID\" = ?";
+		try (PreparedStatement updatePst = db.prepareStatement(updateSql);
+			 PreparedStatement revertPst = db.prepareStatement(revertSql)) {
+			for (Object[] row : targets) {
+				UUID networkId = (UUID) row[0];
+				UUID ownerId   = (UUID) row[1];
+				String ownerName = (String) row[2];
+
+				// Phase 1: DB update under lock.
+				boolean locked = false;
+				try {
+					dao.lockNetwork(networkId);
+					locked = true;
+					updatePst.setObject(1, networkId);
+					int rows = updatePst.executeUpdate();
+					if (rows != 1) {
+						throw new NdexException("Expected 1 row updated for " + networkId
+								+ " but got " + rows);
 					}
-				}
-				total = targets.size();
-				logger.info("Found {} networks to convert from PUBLIC to UNLISTED.", total);
-				if (total == 0) {
 					db.commit();
-					return;
-				}
-
-				String updateSql = "UPDATE network SET visibility = 'UNLISTED' WHERE \"UUID\" = ?";
-				try (PreparedStatement updatePst = db.prepareStatement(updateSql)) {
-					for (Object[] row : targets) {
-						UUID networkId = (UUID) row[0];
-						UUID ownerId   = (UUID) row[1];
-						String ownerName = (String) row[2];
-
-						try {
-							dao.lockNetwork(networkId);
-							try {
-								// 2. DB: flip visibility and commit.
-								updatePst.setObject(1, networkId);
-								int rows = updatePst.executeUpdate();
-								if (rows != 1) {
-									throw new NdexException("Expected 1 row updated for " + networkId
-											+ " but got " + rows);
-								}
-								db.commit();
-
-								// 3. Solr: delete from public-nfs, rebuild in private-nfs.
-								//    ignoreCxFiles=true because these networks have solr_idx_lvl=NONE
-								//    and may not have CX aspect files on disk to index from.
-								new SolrTaskDeleteFile(networkId, VisibilityType.PUBLIC).run();
-								new SolrTaskRebuildFileIdx(networkId, ownerId, ownerName,
-										VisibilityType.UNLISTED, FileType.NETWORK, false, true).run();
-
-								processed++;
-								if (processed % 500 == 0) {
-									logger.info("Processed {}/{} ({}%)",
-											processed, total, (processed * 100) / total);
-								}
-							} finally {
-								dao.unlockNetwork(networkId);
-								db.commit();
-							}
-						} catch (Exception e) {
-							failed++;
-							logger.error("Failed to convert network {}: {}", networkId, e.getMessage(), e);
-
-							// Visibility flip may already be committed; compensate back to
-							// PUBLIC so Postgres and Solr don't drift out of sync.
-							try (PreparedStatement revertPst = db.prepareStatement(
-									"UPDATE network SET visibility = 'PUBLIC' WHERE \"UUID\" = ?")) {
-								revertPst.setObject(1, networkId);
-								revertPst.executeUpdate();
-								db.commit();
-							} catch (Exception revertEx) {
-								logger.error("Failed to revert visibility to PUBLIC for network {}: {}",
-										networkId, revertEx.getMessage(), revertEx);
-							}
+				} finally {
+					if (locked) {
+						try { dao.unlockNetwork(networkId); }
+						catch (SQLException unlockEx) {
+							logger.error("CRITICAL: Network {} is stuck locked — manual intervention required: {}",
+									networkId, unlockEx.getMessage(), unlockEx);
 						}
 					}
 				}
-				logger.info("Done. processed={}, failed={}, total={}", processed, failed, total);
-			} finally {
-				db.setAutoCommit(priorAutoCommit);
+
+				// Phase 2: Solr work — no lock held.
+				try {
+					solrProcessor.process(networkId, ownerId, ownerName);
+					processed++;
+					if (processed % 500 == 0) {
+						logger.info("Processed {}/{} ({}%)",
+								processed, total, (processed * 100) / total);
+					}
+				} catch (Exception e) {
+					logger.error("Failed Solr tasks for network {}: {}", networkId, e.getMessage(), e);
+					// Visibility was committed; compensate back to PUBLIC under a fresh lock.
+					try {
+						boolean revertLocked = false;
+						try {
+							dao.lockNetwork(networkId);
+							revertLocked = true;
+							revertPst.setObject(1, networkId);
+							revertPst.executeUpdate();
+							db.commit();
+							logger.info("Reverted visibility to PUBLIC for network {}", networkId);
+						} finally {
+							if (revertLocked) {
+								try { dao.unlockNetwork(networkId); }
+								catch (SQLException unlockEx) {
+									logger.error("CRITICAL: Network {} is stuck locked — manual intervention required: {}",
+											networkId, unlockEx.getMessage(), unlockEx);
+								}
+							}
+						}
+					} catch (Exception revertEx) {
+						logger.error("CRITICAL: Failed to revert visibility to PUBLIC for network {}: {}",
+								networkId, revertEx.getMessage(), revertEx);
+					}
+					throw e;
+				}
 			}
 		}
+		logger.info("Done. processed={}, total={}", processed, total);
 	}
 
 	private static void rebuildNFSIdx(){
