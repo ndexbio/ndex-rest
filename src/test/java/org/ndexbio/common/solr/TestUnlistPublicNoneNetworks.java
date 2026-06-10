@@ -12,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.easymock.EasyMock.*;
@@ -211,6 +212,61 @@ public class TestUnlistPublicNoneNetworks {
         }
 
         assertFalse("SolrProcessor must not be called when DB update fails", solrCalled.get());
+        verify(mockConn, mockSelectPst, mockUpdatePst, mockRevertPst, mockLockPst, mockUnlockPst, mockRs);
+    }
+
+    /**
+     * Two networks in the result set; Solr fails on the first.
+     * Verifies the routine does NOT continue to the second network — it exits immediately
+     * after compensating the first, proving fast-fail rather than continue-on-error.
+     */
+    @Test
+    public void testFastFailStopsAfterFirstNetworkException() throws Exception {
+        UUID networkId2  = UUID.randomUUID();
+        UUID ownerId2    = UUID.randomUUID();
+
+        PreparedStatement mockSelectPst = createNiceMock(PreparedStatement.class);
+        PreparedStatement mockUpdatePst = createNiceMock(PreparedStatement.class);
+        PreparedStatement mockRevertPst = createNiceMock(PreparedStatement.class);
+        PreparedStatement mockLockPst   = createNiceMock(PreparedStatement.class);
+        PreparedStatement mockUnlockPst = createNiceMock(PreparedStatement.class);
+        ResultSet mockRs = createNiceMock(ResultSet.class);
+
+        // Two rows returned from SELECT.
+        expect(mockSelectPst.executeQuery()).andReturn(mockRs);
+        expect(mockRs.next()).andReturn(true).andReturn(true).andReturn(false);
+        expect(mockRs.getObject(1)).andReturn(NETWORK_ID).andReturn(networkId2);
+        expect(mockRs.getObject(2)).andReturn(OWNER_ID).andReturn(ownerId2);
+        expect(mockRs.getString(3)).andReturn(OWNER_NAME).andReturn("owner2");
+
+        // Phase 1 lock for network 1, then compensation lock after Solr fails (2 total).
+        // Network 2 is never reached, so no additional lock calls.
+        expect(mockLockPst.executeUpdate()).andReturn(1).times(2);
+        expect(mockUpdatePst.executeUpdate()).andReturn(1);  // network 1 only
+        expect(mockRevertPst.executeUpdate()).andReturn(1);  // compensation for network 1 only
+
+        Connection mockConn = setupMockConnection(
+                mockSelectPst, mockUpdatePst, mockRevertPst, mockLockPst, mockUnlockPst);
+
+        RuntimeException solrEx = new RuntimeException("Solr down");
+        AtomicInteger solrCallCount = new AtomicInteger(0);
+        SolrIndexBuilder.SolrProcessor solrProcessor = (id, oId, oName) -> {
+            solrCallCount.incrementAndGet();
+            throw solrEx;
+        };
+
+        replay(mockConn, mockSelectPst, mockUpdatePst, mockRevertPst, mockLockPst, mockUnlockPst, mockRs);
+
+        PostgresNetworkDAO dao = daoWithConnection(mockConn);
+        try {
+            SolrIndexBuilder.unlistPublicNoneNetworks(dao, solrProcessor);
+            fail("Expected exception to propagate");
+        } catch (RuntimeException e) {
+            assertSame("Original exception must be rethrown", solrEx, e);
+        }
+
+        assertEquals("SolrProcessor must be called exactly once — second network not reached", 1, solrCallCount.get());
+        // verify() also confirms mockRevertPst.executeUpdate() fired (compensation ran for network 1)
         verify(mockConn, mockSelectPst, mockUpdatePst, mockRevertPst, mockLockPst, mockUnlockPst, mockRs);
     }
 }
