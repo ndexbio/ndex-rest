@@ -31,7 +31,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=31
+TOTAL_API_CALLS=33
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -653,6 +653,68 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     api_pass "GET /v3/networks/${V3_UUIDS[0]}/summary → 200 OK, errorMessage cleared after successful reindex"
   else
     api_fail "GET /v3/networks/${V3_UUIDS[0]}/summary → HTTP ${POST_HTTP}. errorMessage was not cleared. Body: ${POST_BODY:0:400}"
+  fi
+fi
+
+# ── STEP: unlist-public-none converts PUBLIC/NONE networks to UNLISTED ────────
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "SolrIndexBuilder unlist-public-none converts PUBLIC+NONE networks to UNLISTED"
+
+  # Force the BindingDB network to solr_idx_lvl='NONE' so it is a candidate.
+  docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
+      -c \"UPDATE network SET solr_idx_lvl = 'NONE' WHERE \\\"UUID\\\" = '${V3_PUB_UUID}'\"
+  "
+
+  docker exec "${CONTAINER_NAME}" bash -c "
+    ndexConfigurationPath=/apps/ndex/config/ndex.properties \
+    java -cp '/usr/local/tomcat/webapps/ROOT/WEB-INF/lib/*:/usr/local/tomcat/webapps/ROOT/WEB-INF/classes' \
+      org.ndexbio.common.solr.SolrIndexBuilder unlist-public-none
+  "
+
+  # Assert DB row was flipped to UNLISTED.
+  DB_VISIBILITY=$(docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex -tA \
+      -c \"SELECT visibility FROM network WHERE \\\"UUID\\\" = '${V3_PUB_UUID}'\"
+  ")
+  if [[ "${DB_VISIBILITY}" == "UNLISTED" ]]; then
+    echo "  DB check passed: visibility='UNLISTED' for network ${V3_PUB_UUID}"
+  else
+    api_fail "DB check failed: expected visibility='UNLISTED' but got '${DB_VISIBILITY}' for network ${V3_PUB_UUID}"
+  fi
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PUB_UUID}/summary (auth, expect UNLISTED)"
+  SUMM_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/networks/${V3_PUB_UUID}/summary")
+  SUMM_HTTP=$(echo "${SUMM_RESP}" | tail -1)
+  SUMM_BODY=$(echo "${SUMM_RESP}" | head -1)
+  if [[ "${SUMM_HTTP}" == "200" ]] && echo "${SUMM_BODY}" | grep -q '"UNLISTED"'; then
+    api_pass "GET /v3/networks/${V3_PUB_UUID}/summary (auth) → 200 OK, visibility=UNLISTED"
+  else
+    api_fail "GET /v3/networks/${V3_PUB_UUID}/summary (auth) → HTTP ${SUMM_HTTP}. Expected visibility=UNLISTED. Body: ${SUMM_BODY:0:400}"
+  fi
+
+  # Verify Solr was re-indexed: an anonymous PUBLIC search must no longer find this UUID.
+  # Authenticated owners still see their own UNLISTED networks (userAdmin filter), so
+  # anonymous is the right caller — it uses the pure "exclude UNLISTED" Solr filter.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (anon, expect UUID absent — Solr doc updated to UNLISTED)"
+  SEARCH_RESP=$(curl -s -w "\n%{http_code}" \
+    -X POST -H "Content-Type: application/json" \
+    -d "{\"searchString\":\"BindingDB\"}" \
+    "${BASE_URL}/v3/search/files?visibility=PUBLIC")
+  SEARCH_HTTP=$(echo "${SEARCH_RESP}" | tail -1)
+  SEARCH_BODY=$(echo "${SEARCH_RESP}" | head -1)
+  if [[ "${SEARCH_HTTP}" == "200" ]] && ! echo "${SEARCH_BODY}" | grep -q "${V3_PUB_UUID}"; then
+    api_pass "POST /v3/search/files?visibility=PUBLIC (anon) → 200 OK, UUID absent (Solr doc updated to UNLISTED)"
+  else
+    api_fail "POST /v3/search/files?visibility=PUBLIC (anon) → HTTP ${SEARCH_HTTP}, UUID still present (Solr re-index did not run or visibility field not updated). Body: ${SEARCH_BODY:0:400}"
   fi
 fi
 
