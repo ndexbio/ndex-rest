@@ -533,8 +533,9 @@ public class SolrIndexBuilder implements AutoCloseable {
 	private static void unlistPublicNoneNetworks() throws Exception {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			unlistPublicNoneNetworks(dao, (networkId, ownerId, ownerName) -> {
-				// ignoreCxFiles=true: these networks have solr_idx_lvl=NONE
-				// and may not have CX aspect files on disk to index from.
+				// ignoreCxFiles=true: skips CX2 aspect reads (these networks may have no CX2
+				// files on disk). The CX1 AspectIterator fallback still runs but returns nothing
+				// for NONE-indexed networks, so only metadata is indexed.
 				new SolrTaskDeleteFile(networkId, VisibilityType.PUBLIC).run();
 				new SolrTaskRebuildFileIdx(networkId, ownerId, ownerName,
 						VisibilityType.UNLISTED, FileType.NETWORK, false, true).run();
@@ -592,6 +593,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 					db.commit();
 				} finally {
 					if (locked) {
+						try { db.rollback(); } catch (SQLException rbe) { /* best-effort: clear aborted txn before unlock */ }
 						try { dao.unlockNetwork(networkId); }
 						catch (SQLException unlockEx) {
 							logger.error("CRITICAL: Network {} is stuck locked — manual intervention required: {}",
@@ -617,11 +619,15 @@ public class SolrIndexBuilder implements AutoCloseable {
 							dao.lockNetwork(networkId);
 							revertLocked = true;
 							revertPst.setObject(1, networkId);
-							revertPst.executeUpdate();
+							int revertRows = revertPst.executeUpdate();
+							if (revertRows != 1) {
+								throw new NdexException("Expected 1 row reverted for " + networkId + " but got " + revertRows);
+							}
 							db.commit();
 							logger.info("Reverted visibility to PUBLIC for network {}", networkId);
 						} finally {
 							if (revertLocked) {
+								try { db.rollback(); } catch (SQLException rbe) { /* best-effort: clear aborted txn before unlock */ }
 								try { dao.unlockNetwork(networkId); }
 								catch (SQLException unlockEx) {
 									logger.error("CRITICAL: Network {} is stuck locked — manual intervention required: {}",

@@ -69,12 +69,16 @@ public class TestUnlistPublicNoneNetworks {
     @Test
     public void testEmptyResultSet_noWorkDone() throws Exception {
         PreparedStatement mockSelectPst = createNiceMock(PreparedStatement.class);
-        PreparedStatement mockUpdatePst = createNiceMock(PreparedStatement.class);
-        PreparedStatement mockRevertPst = createNiceMock(PreparedStatement.class);
+        PreparedStatement mockUpdatePst = createMock(PreparedStatement.class);
+        PreparedStatement mockRevertPst = createMock(PreparedStatement.class);
         ResultSet mockRs = createNiceMock(ResultSet.class);
 
         expect(mockSelectPst.executeQuery()).andReturn(mockRs);
         expect(mockRs.next()).andReturn(false);
+        mockUpdatePst.close();
+        expectLastCall();
+        mockRevertPst.close();
+        expectLastCall();
 
         Connection mockConn = setupMockConnection(
                 mockSelectPst, mockUpdatePst, mockRevertPst,
@@ -97,7 +101,7 @@ public class TestUnlistPublicNoneNetworks {
     public void testHappyPath_visibilityFlippedAndSolrCalled() throws Exception {
         PreparedStatement mockSelectPst = createNiceMock(PreparedStatement.class);
         PreparedStatement mockUpdatePst = createNiceMock(PreparedStatement.class);
-        PreparedStatement mockRevertPst = createNiceMock(PreparedStatement.class);
+        PreparedStatement mockRevertPst = createMock(PreparedStatement.class);
         PreparedStatement mockLockPst   = createNiceMock(PreparedStatement.class);
         PreparedStatement mockUnlockPst = createNiceMock(PreparedStatement.class);
         ResultSet mockRs = createNiceMock(ResultSet.class);
@@ -110,6 +114,8 @@ public class TestUnlistPublicNoneNetworks {
 
         expect(mockLockPst.executeUpdate()).andReturn(1);
         expect(mockUpdatePst.executeUpdate()).andReturn(1);
+        mockRevertPst.close();
+        expectLastCall();
 
         Connection mockConn = setupMockConnection(
                 mockSelectPst, mockUpdatePst, mockRevertPst, mockLockPst, mockUnlockPst);
