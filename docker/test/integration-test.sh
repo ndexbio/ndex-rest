@@ -556,7 +556,7 @@ http.createServer((req, res) => {
 }).listen(8284);
 "
 
-  docker exec "${CONTAINER_NAME}" supervisorctl -c /tmp/supervisord.conf restart ndex
+  docker exec "${CONTAINER_NAME}" supervisorctl restart ndex
 
   echo "  Tomcat restart issued — waiting for NDEx to become responsive..."
   MAX_WAIT=90
@@ -726,7 +726,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   echo "  Injecting AUTHENTICATED_USER_ONLY=true into ndex.properties and restarting Tomcat..."
   docker exec "${CONTAINER_NAME}" bash -c \
     "echo 'AUTHENTICATED_USER_ONLY=true' >> /apps/ndex/config/ndex.properties"
-  docker exec "${CONTAINER_NAME}" supervisorctl -c /tmp/supervisord.conf restart ndex
+  docker exec "${CONTAINER_NAME}" supervisorctl restart ndex
 
   echo "  Tomcat restart issued — waiting for NDEx to become responsive..."
   MAX_WAIT=90
