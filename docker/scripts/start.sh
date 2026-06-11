@@ -452,9 +452,10 @@ SQL
       if [[ -f /apps/keycloak/config/cert.pem ]]; then
         _kc_pub=$(openssl x509 -in /apps/keycloak/config/cert.pem -pubkey -noout \
           | openssl rsa -pubin -pubout -outform DER | base64 -w 0)
-        sed -i "s|^KEYCLOAK_PUBLIC_KEY=.*|KEYCLOAK_PUBLIC_KEY=${_kc_pub}|"           /apps/ndex/config/ndex.properties
-        sed -i "s|^KEYCLOAK_ISSUER=.*|KEYCLOAK_ISSUER=http://localhost:8085/realms/ndex|" /apps/ndex/config/ndex.properties
-        sed -i "s|^USE_KEYCLOAK_AUTHENTICATION=.*|USE_KEYCLOAK_AUTHENTICATION=true|" /apps/ndex/config/ndex.properties
+        sed -i "s|^KEYCLOAK_PUBLIC_KEY=.*|KEYCLOAK_PUBLIC_KEY=${_kc_pub}|"                /apps/ndex/config/ndex.properties
+        sed -i "s|^KEYCLOAK_ISSUER=.*|KEYCLOAK_ISSUER=http://localhost:8085/realms/ndex|"  /apps/ndex/config/ndex.properties
+        sed -i "s|^KEYCLOAK_CLIENT_ID=.*|KEYCLOAK_CLIENT_ID=ndex-app|"                    /apps/ndex/config/ndex.properties
+        sed -i "s|^USE_KEYCLOAK_AUTHENTICATION=.*|USE_KEYCLOAK_AUTHENTICATION=true|"       /apps/ndex/config/ndex.properties
         echo "==> Keycloak authentication configured from cert.pem."
       else
         echo "WARN: --keycloak enabled but cert.pem not found at /apps/keycloak/config/cert.pem" >&2
