@@ -421,6 +421,7 @@ SQL
       HOST_URI=$(_toml_get      "${NDEX_CONFIG_FILE}" ndex hostUri)
       KC_ISSUER=$(_toml_get     "${NDEX_CONFIG_FILE}" ndex keycloakIssuer)
       KC_PUBLIC_KEY=$(_toml_get "${NDEX_CONFIG_FILE}" ndex keycloakPublicKey)
+      KC_CLIENT_ID=$(_toml_get  "${NDEX_CONFIG_FILE}" ndex keycloakClientId)
     else
       # Monolithic: use localhost defaults; KC cert values applied every boot below
       SMTP_HOST="localhost"
@@ -428,6 +429,7 @@ SQL
       HOST_URI="http://localhost:8080"
       KC_ISSUER=""
       KC_PUBLIC_KEY=""
+      KC_CLIENT_ID=""
     fi
 
     sed -i "s|__NDEX_SMTP_HOST__|${SMTP_HOST}|g"               /apps/ndex/config/ndex.properties
@@ -435,6 +437,7 @@ SQL
     sed -i "s|__NDEX_HOST_URI__|${HOST_URI}|g"                 /apps/ndex/config/ndex.properties
     sed -i "s|__NDEX_KEYCLOAK_ISSUER__|${KC_ISSUER}|g"         /apps/ndex/config/ndex.properties
     sed -i "s|__NDEX_KEYCLOAK_PUBLIC_KEY__|${KC_PUBLIC_KEY}|g" /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_KEYCLOAK_CLIENT_ID__|${KC_CLIENT_ID}|g"   /apps/ndex/config/ndex.properties
 
     touch /apps/ndex/config/.initialized
     echo "==> NDEx configuration initialized."

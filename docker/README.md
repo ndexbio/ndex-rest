@@ -313,6 +313,7 @@ solrUrl           = "http://solr.example.com:8983/solr"
 hostUri           = "http://ndex.example.com:8080"
 keycloakIssuer    = "http://keycloak.example.com:8085/realms/ndex"
 keycloakPublicKey = "<base64-DER-encoded public key>"
+keycloakClientId  = ""               # optional: enables oauth_register_url / oauth_reset_url in /v3/admin/status
 ```
 
 Include only the sections relevant to your deployment. For full microservices topology examples with complete `config.toml` samples, see [RUNBOOK.md](./RUNBOOK.md).
