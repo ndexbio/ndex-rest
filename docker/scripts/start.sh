@@ -543,7 +543,7 @@ fi
 
 # ── Phase 9: Assemble supervisord.conf ────────────────────────────────────────
 echo "==> Assembling supervisord.conf..."
-SUPERVISORD_CONF=/tmp/supervisord.conf
+SUPERVISORD_CONF=/etc/supervisor/supervisord.conf
 cat /opt/ndex-supervisord/header.conf > "${SUPERVISORD_CONF}"
 [[ "${ENABLE_POSTGRES}" == "true" ]] && cat /opt/ndex-supervisord/postgres.conf >> "${SUPERVISORD_CONF}"
 [[ "${ENABLE_KEYCLOAK}" == "true" ]] && cat /opt/ndex-supervisord/keycloak.conf >> "${SUPERVISORD_CONF}"
