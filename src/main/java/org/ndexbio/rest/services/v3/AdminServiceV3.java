@@ -45,10 +45,25 @@ public class AdminServiceV3 extends NdexService {
 	@NdexOpenFunction
 	@Path("/status")
 	@Produces("application/json")
-	public NdexStatus getStatus(
+	public NdexStatusV3 getStatus(
 			@DefaultValue("short") @QueryParam("format") String format) throws NdexException, SQLException	{
-		AdminServiceV2 adminService = new AdminServiceV2(this._httpRequest );
-		return adminService.getStatus(format);
+		AdminServiceV2 adminService = new AdminServiceV2(this._httpRequest);
+		NdexStatus base = adminService.getStatus(format);
+		NdexStatusV3 status = new NdexStatusV3(base);
+
+		Configuration config = Configuration.getInstance();
+		String useKeycloak = config.getProperty("USE_KEYCLOAK_AUTHENTICATION");
+		if ("true".equalsIgnoreCase(useKeycloak)) {
+			String issuer = config.getProperty("KEYCLOAK_ISSUER");
+			String clientId = config.getKeycloakClientId();
+			String hostUri = config.getHostURI();
+			if (issuer != null && !issuer.isBlank() && clientId != null && !clientId.isBlank()) {
+				status.setOauthRegisterUrl(status.buildRegisterUrl(issuer, clientId, hostUri));
+				status.setOauthResetUrl(status.buildResetUrl(issuer, clientId));
+			}
+		}
+
+		return status;
 	}
 	
 	

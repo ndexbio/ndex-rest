@@ -334,6 +334,7 @@ solrUrl           = "http://<SERVICES_HOST>:8983/solr"
 hostUri           = "http://<NDEX_HOST>:8080"
 keycloakIssuer    = "http://<KEYCLOAK_HOST>:8085/realms/ndex"
 keycloakPublicKey = "<value from Step 7>"
+keycloakClientId  = ""               # optional: enables oauth_register_url / oauth_reset_url in /v3/admin/status
 EOF
 chmod 600 $BASE/ndex-config.toml
 ```

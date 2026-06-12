@@ -421,6 +421,7 @@ SQL
       HOST_URI=$(_toml_get      "${NDEX_CONFIG_FILE}" ndex hostUri)
       KC_ISSUER=$(_toml_get     "${NDEX_CONFIG_FILE}" ndex keycloakIssuer)
       KC_PUBLIC_KEY=$(_toml_get "${NDEX_CONFIG_FILE}" ndex keycloakPublicKey)
+      KC_CLIENT_ID=$(_toml_get  "${NDEX_CONFIG_FILE}" ndex keycloakClientId)
     else
       # Monolithic: use localhost defaults; KC cert values applied every boot below
       SMTP_HOST="localhost"
@@ -428,6 +429,7 @@ SQL
       HOST_URI="http://localhost:8080"
       KC_ISSUER=""
       KC_PUBLIC_KEY=""
+      KC_CLIENT_ID=""
     fi
 
     sed -i "s|__NDEX_SMTP_HOST__|${SMTP_HOST}|g"               /apps/ndex/config/ndex.properties
@@ -435,6 +437,7 @@ SQL
     sed -i "s|__NDEX_HOST_URI__|${HOST_URI}|g"                 /apps/ndex/config/ndex.properties
     sed -i "s|__NDEX_KEYCLOAK_ISSUER__|${KC_ISSUER}|g"         /apps/ndex/config/ndex.properties
     sed -i "s|__NDEX_KEYCLOAK_PUBLIC_KEY__|${KC_PUBLIC_KEY}|g" /apps/ndex/config/ndex.properties
+    sed -i "s|__NDEX_KEYCLOAK_CLIENT_ID__|${KC_CLIENT_ID}|g"   /apps/ndex/config/ndex.properties
 
     touch /apps/ndex/config/.initialized
     echo "==> NDEx configuration initialized."
@@ -449,9 +452,10 @@ SQL
       if [[ -f /apps/keycloak/config/cert.pem ]]; then
         _kc_pub=$(openssl x509 -in /apps/keycloak/config/cert.pem -pubkey -noout \
           | openssl rsa -pubin -pubout -outform DER | base64 -w 0)
-        sed -i "s|^KEYCLOAK_PUBLIC_KEY=.*|KEYCLOAK_PUBLIC_KEY=${_kc_pub}|"           /apps/ndex/config/ndex.properties
-        sed -i "s|^KEYCLOAK_ISSUER=.*|KEYCLOAK_ISSUER=http://localhost:8085/realms/ndex|" /apps/ndex/config/ndex.properties
-        sed -i "s|^USE_KEYCLOAK_AUTHENTICATION=.*|USE_KEYCLOAK_AUTHENTICATION=true|" /apps/ndex/config/ndex.properties
+        sed -i "s|^KEYCLOAK_PUBLIC_KEY=.*|KEYCLOAK_PUBLIC_KEY=${_kc_pub}|"                /apps/ndex/config/ndex.properties
+        sed -i "s|^KEYCLOAK_ISSUER=.*|KEYCLOAK_ISSUER=http://localhost:8085/realms/ndex|"  /apps/ndex/config/ndex.properties
+        sed -i "s|^KEYCLOAK_CLIENT_ID=.*|KEYCLOAK_CLIENT_ID=ndex-app|"                    /apps/ndex/config/ndex.properties
+        sed -i "s|^USE_KEYCLOAK_AUTHENTICATION=.*|USE_KEYCLOAK_AUTHENTICATION=true|"       /apps/ndex/config/ndex.properties
         echo "==> Keycloak authentication configured from cert.pem."
       else
         echo "WARN: --keycloak enabled but cert.pem not found at /apps/keycloak/config/cert.pem" >&2
@@ -540,7 +544,7 @@ fi
 
 # ── Phase 9: Assemble supervisord.conf ────────────────────────────────────────
 echo "==> Assembling supervisord.conf..."
-SUPERVISORD_CONF=/tmp/supervisord.conf
+SUPERVISORD_CONF=/etc/supervisor/supervisord.conf
 cat /opt/ndex-supervisord/header.conf > "${SUPERVISORD_CONF}"
 [[ "${ENABLE_POSTGRES}" == "true" ]] && cat /opt/ndex-supervisord/postgres.conf >> "${SUPERVISORD_CONF}"
 [[ "${ENABLE_KEYCLOAK}" == "true" ]] && cat /opt/ndex-supervisord/keycloak.conf >> "${SUPERVISORD_CONF}"

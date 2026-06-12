@@ -525,6 +525,8 @@ public class Configuration
     public String getRestAPIPrefix() {return restAPIPrefix;}
 	public String getMigrationPassword() {return migrationPassword;}
 
+	public String getKeycloakClientId() { return getProperty("KEYCLOAK_CLIENT_ID"); }
+
 
 	public boolean getUseADAuthentication() {
 		return useADAuthentication;
