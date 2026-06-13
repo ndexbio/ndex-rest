@@ -99,6 +99,165 @@ _toml_has_section() {
   grep -q "^\[${2}\]" "${1}"
 }
 
+# ── Helper: read a root-level (no-section) value from a TOML file ────────────
+_toml_get_root() {
+  # Usage: _toml_get_root <file> <key>
+  # Reads keys that appear before the first [section] header.
+  local file="$1" key="$2"
+  awk -F' *= *' -v k="${key}" '
+    /^\[/   { exit }
+    $1==k   { v=$2; gsub(/^"|"$|^'"'"'|'"'"'$/, "", v); print v; exit }
+  ' "${file}"
+}
+
+# ── Helper: append a timestamped corruption event to the persistent log ───────
+_pg_log_corruption_event() {
+  # Usage: _pg_log_corruption_event <pgdata> <event-description>
+  # Log survives PGDATA wipes — written one level above PGDATA (/apps/postgres/).
+  local pgdata="$1" event="$2"
+  local logfile
+  logfile="$(dirname "${pgdata}")/corruption.log"
+  local entry
+  entry="$(date -u +"%Y-%m-%dT%H:%M:%SZ") CORRUPTION: ${event}"
+  mkdir -p "$(dirname "${logfile}")" 2>/dev/null || true
+  printf '%s\n' "${entry}" | tee -a "${logfile}" >&2 || true
+}
+
+# ── Helper: start postgres with escalating corruption recovery ────────────────
+# Attempts 1 → 2 → 3. Attempt 3 (wipe+reinit) requires reset_data_when_corrupt=true
+# in the top-level --config TOML. Always leaves postgres running on return.
+_pg_start_resilient() {
+  local pgdata="$1" port="$2"
+  local startlog="/tmp/pg_resilient_start.log"
+
+  # ── Fast path: already running (e.g. postgres survived container restart) ─
+  if pg_isready -h 127.0.0.1 -p "${port}" -U postgres -q 2>/dev/null; then
+    echo "==> PostgreSQL is already running."
+    return 0
+  fi
+
+  # ── Remove stale postmaster.pid left by abrupt shutdown (SIGKILL/OOM) ────
+  # After docker kill, postgres has no chance to clean up its pid file.
+  # pg_ctl refuses to start cleanly with a stale file; remove it if the
+  # recorded process is dead.
+  local pidfile="${pgdata}/postmaster.pid"
+  if [[ -f "${pidfile}" ]]; then
+    local stale_pid
+    stale_pid=$(head -1 "${pidfile}" 2>/dev/null || true)
+    if [[ -n "${stale_pid}" ]] && ! kill -0 "${stale_pid}" 2>/dev/null; then
+      echo "==> Removing stale postmaster.pid (PID ${stale_pid} is no longer running)..."
+      rm -f "${pidfile}"
+    fi
+  fi
+
+  # ── Attempt 1: normal start (crash recovery handles unclean shutdown) ─────
+  echo "==> Starting PostgreSQL..."
+  if gosu postgres pg_ctl -D "${pgdata}" -o "-p ${port} -h '127.0.0.1,::1'" \
+       -l "${startlog}" start -w -t 60 2>&1; then
+    echo "==> PostgreSQL started successfully."
+    return 0
+  fi
+
+  # pg_ctl can report failure even when postgres actually started (e.g. pid
+  # race on slow systems). Re-check before escalating to recovery.
+  if pg_isready -h 127.0.0.1 -p "${port}" -U postgres -q 2>/dev/null; then
+    echo "==> PostgreSQL is running (pg_ctl exited non-zero but server is ready)."
+    return 0
+  fi
+
+  echo "" >&2
+  echo "================================================================" >&2
+  echo "WARN: PostgreSQL failed to start — checking for data corruption" >&2
+  echo "================================================================" >&2
+  cat "${startlog}" >&2 || true
+  _pg_log_corruption_event "${pgdata}" "startup failed — attempting recovery"
+
+  # ── Attempt 2: pg_resetwal repairs corrupted WAL or pg_control ───────────
+  # A failed Attempt 1 may leave a fresh postmaster.pid (postgres started,
+  # created the pid file, then PANICed before cleaning it up). Remove it now
+  # so pg_resetwal does not refuse to run.
+  if [[ -f "${pidfile}" ]]; then
+    local stale_pid2
+    stale_pid2=$(head -1 "${pidfile}" 2>/dev/null || true)
+    if [[ -n "${stale_pid2}" ]] && ! kill -0 "${stale_pid2}" 2>/dev/null; then
+      echo "==> Removing stale postmaster.pid (PID ${stale_pid2}) left by failed startup..." >&2
+      rm -f "${pidfile}"
+    fi
+  fi
+
+  echo "==> [recovery] Attempting pg_resetwal to repair WAL/control corruption..." >&2
+  local resetlog="/tmp/pg_resetwal.log"
+  if gosu postgres pg_resetwal -f "${pgdata}" > "${resetlog}" 2>&1; then
+    echo "WARN: pg_resetwal completed. Database may contain inconsistent data." >&2
+    cat "${resetlog}" >&2 || true
+    rm -f "${startlog}"
+    if gosu postgres pg_ctl -D "${pgdata}" -o "-p ${port} -h '127.0.0.1,::1'" \
+         -l "${startlog}" start -w -t 60 2>&1; then
+      _pg_log_corruption_event "${pgdata}" "pg_resetwal recovery succeeded — data integrity NOT guaranteed"
+      echo "WARN: [recovery] PostgreSQL started after pg_resetwal." >&2
+      echo "WARN: [recovery] Database may be inconsistent. Run pg_dump as soon as possible." >&2
+      return 0
+    fi
+    echo "WARN: PostgreSQL still failed after pg_resetwal." >&2
+    cat "${startlog}" >&2 || true
+  else
+    echo "WARN: pg_resetwal failed: $(cat "${resetlog}")" >&2
+  fi
+
+  # ── Check reset_data_when_corrupt flag before attempting wipe ─────────────
+  local allow_wipe=false
+  if [[ -n "${NDEX_CONFIG_FILE:-}" ]]; then
+    local flag_val
+    flag_val=$(_toml_get_root "${NDEX_CONFIG_FILE}" reset_data_when_corrupt 2>/dev/null || true)
+    [[ "${flag_val}" == "true" ]] && allow_wipe=true
+  fi
+
+  if [[ "${allow_wipe}" == "false" ]]; then
+    _pg_log_corruption_event "${pgdata}" "UNRECOVERABLE — manual intervention required (reset_data_when_corrupt=false)"
+    echo "" >&2
+    echo "================================================================" >&2
+    echo "CRITICAL: PostgreSQL data is corrupt and cannot be automatically" >&2
+    echo "CRITICAL: recovered. The container will stop." >&2
+    echo "CRITICAL:" >&2
+    echo "CRITICAL: To enable automatic data wipe and re-initialization," >&2
+    echo "CRITICAL: add the following to the top of your --config TOML file" >&2
+    echo "CRITICAL: and restart:" >&2
+    echo "CRITICAL:" >&2
+    echo "CRITICAL:   reset_data_when_corrupt = true" >&2
+    echo "CRITICAL:" >&2
+    echo "CRITICAL: WARNING: setting this will permanently delete ALL data in:" >&2
+    echo "CRITICAL:   ${pgdata}" >&2
+    [[ "${ENABLE_NDEX:-false}"     == "true" ]] && echo "CRITICAL:   /apps/ndex/data/" >&2
+    [[ "${ENABLE_KEYCLOAK:-false}" == "true" ]] && echo "CRITICAL:   /apps/keycloak/data/" >&2
+    echo "CRITICAL: Consider restoring from backup instead." >&2
+    echo "================================================================" >&2
+    exit 1
+  fi
+
+  # ── Attempt 3: wipe PGDATA + dependent service data, reinitialize ─────────
+  echo "" >&2
+  echo "================================================================" >&2
+  echo "CRITICAL: All recovery attempts failed. Wiping PGDATA — DATA LOSS" >&2
+  echo "================================================================" >&2
+  _pg_log_corruption_event "${pgdata}" "PGDATA wiped — DATA LOSS, all database contents deleted"
+
+  find "${pgdata}" -mindepth 1 -delete 2>/dev/null || true
+
+  if [[ "${ENABLE_KEYCLOAK:-false}" == "true" ]]; then
+    rm -f /apps/keycloak/config/.db_initialized
+    rm -rf /apps/keycloak/data/* /apps/keycloak/data/.[!.]* 2>/dev/null || true
+  fi
+  if [[ "${ENABLE_NDEX:-false}" == "true" ]]; then
+    rm -f /apps/ndex/config/.initialized
+    rm -rf /apps/ndex/data/* /apps/ndex/data/.[!.]* 2>/dev/null || true
+  fi
+
+  echo "==> [recovery] Reinitializing PostgreSQL cluster from scratch..."
+  PGDATA="${pgdata}" PG_PORT="${port}" bash /usr/local/bin/init-postgres.sh
+  touch "${pgdata}/.initialized"
+  echo "==> [recovery] PostgreSQL reinitialized. All prior data has been lost."
+}
+
 # ── Config validation ─────────────────────────────────────────────────────────
 if [[ -n "${NDEX_CONFIG_FILE}" && ! -f "${NDEX_CONFIG_FILE}" ]]; then
   echo "ERROR: config file not found: ${NDEX_CONFIG_FILE}" >&2; exit 1
@@ -170,6 +329,13 @@ if [[ "${ENABLE_POSTGRES}" == "true" ]]; then
     echo "==> Initializing PostgreSQL..."
     PGDATA="${PGDATA}" PG_PORT=5432 bash /usr/local/bin/init-postgres.sh
     touch "${PGDATA}/.initialized"
+  else
+    # Restart path: start postgres with corruption detection and recovery.
+    # _pg_start_resilient always returns with postgres running (or exits the container
+    # if corruption is unrecoverable and reset_data_when_corrupt=false).
+    # Starting here (before Phase 4 and 7) means any wipe+reinit fires before
+    # Keycloak and NDEx DB setup, so those phases see wiped sentinels and re-run.
+    _pg_start_resilient "${PGDATA}" 5432
   fi
 fi
 
@@ -468,14 +634,13 @@ SQL
   fi
 
   # ── Every boot: apply schema upgrades ─────────────────────────────────────────
-  # On restart with local postgres, init-time postgres was skipped (PGDATA already
-  # initialized) so postgres isn't running yet — start it temporarily so
-  # schema_upgrade.sh can connect. Phase 8 stops it before supervisord takes over.
+  # On first boot: init-postgres.sh left postgres running.
+  # On restart: Phase 3 _pg_start_resilient already started postgres (with recovery if needed).
+  # Either way postgres must be running here — assert it rather than retry.
   if [[ "${ENABLE_POSTGRES}" == "true" ]] && [[ "${DB_HOST}" == "127.0.0.1" ]]; then
     if ! pg_isready -h 127.0.0.1 -p "${DB_PORT}" -U postgres -q 2>/dev/null; then
-      echo "==> Starting PostgreSQL temporarily for schema upgrade (restart)..."
-      gosu postgres pg_ctl -D /apps/postgres/data -l /tmp/pg_temp_start.log start -w -t 60 \
-        || { echo "ERROR: Failed to start PostgreSQL for schema upgrade" >&2; exit 1; }
+      echo "ERROR: PostgreSQL is not running before schema upgrade — Phase 3 should have ensured this" >&2
+      exit 1
     fi
   fi
   /usr/local/bin/schema_upgrade.sh "${DB_HOST}" "${DB_PORT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}"

@@ -277,6 +277,20 @@ Mount the file read-only into the container:
 -v /host/path/config.toml:/etc/ndex-config.toml:ro
 ```
 
+**Top-level keys (not inside any section):**
+
+`reset_data_when_corrupt` — Controls what happens when PostgreSQL data corruption is unrecoverable (crash recovery and `pg_resetwal` both fail):
+```toml
+# false (default): container stops and prints a diagnostic error. Operator must
+#   restore from backup or set this flag to true and restart.
+# true: all service data is wiped and re-initialized from scratch. The container
+#   always comes up, but DATA IS PERMANENTLY LOST:
+#     /apps/postgres/data/ — postgres cluster
+#     /apps/ndex/data/     — NDEx raw network files
+#     /apps/keycloak/data/ — Keycloak realm state
+reset_data_when_corrupt = false
+```
+
 **Supported TOML sections:**
 
 `[ndexDb]` — External PostgreSQL for the NDEx application:
