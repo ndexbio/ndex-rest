@@ -2,14 +2,23 @@ package org.ndexbio.rest.services.v3;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.ndexbio.model.object.NdexStatus;
 
 public class NdexStatusV3 extends NdexStatus {
 
+    @Schema(description = "Fully qualified URL to the OAuth identity server's user registration page. " +
+            "Only present when the server is configured to use OAuth authentication. " +
+            "Absent from the response when OAuth is not enabled.",
+            nullable = true)
     @JsonProperty("oauth_register_url")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String oauthRegisterUrl;
 
+    @Schema(description = "Fully qualified URL to the OAuth identity server's password reset page. " +
+            "Only present when the server is configured to use OAuth authentication. " +
+            "Absent from the response when OAuth is not enabled.",
+            nullable = true)
     @JsonProperty("oauth_reset_url")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String oauthResetUrl;
