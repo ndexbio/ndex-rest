@@ -148,7 +148,7 @@ else
   step "Starting ephemeral container"
   docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
   TMP_CATALINA_TOML=$(mktemp /tmp/ndex-catalina-opts-XXXXXX)
-  printf 'ndex_catalina_opts = "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=40.0 -XX:+ExitOnOutOfMemoryError"\n' \
+  printf 'ndex_catalina_opts = "-Xms64m -Xmx256m -XX:+ExitOnOutOfMemoryError"\n' \
     > "${TMP_CATALINA_TOML}"
   echo "  Running: docker run -d --name ${CONTAINER_NAME} -p 8080:8080 ..."
   docker run -d \
@@ -180,10 +180,10 @@ else
   CAT_JVM_FLAGS=$(docker exec "${CONTAINER_NAME}" bash -c \
     'cat /proc/$(supervisorctl pid ndex 2>/dev/null)/cmdline 2>/dev/null | tr "\0" "\n"' \
     2>/dev/null || echo "")
-  if echo "${CAT_JVM_FLAGS}" | grep -q "MaxRAMPercentage=40"; then
-    echo -e "  ${GREEN}✓${NC}: Tomcat JVM contains MaxRAMPercentage=40.0 (ndex_catalina_opts applied)"
+  if echo "${CAT_JVM_FLAGS}" | grep -q "Xmx256m"; then
+    echo -e "  ${GREEN}✓${NC}: Tomcat JVM contains Xmx256m (ndex_catalina_opts applied)"
   else
-    api_fail "ndex_catalina_opts: JVM flags missing MaxRAMPercentage=40. Got: '${CAT_JVM_FLAGS}'"
+    api_fail "ndex_catalina_opts: JVM flags missing Xmx256m. Got: '${CAT_JVM_FLAGS}'"
   fi
 fi
 
@@ -891,7 +891,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   until docker exec ndex-pg-wipe-test \
         pg_isready -h 127.0.0.1 -p 5432 -U postgres -q 2>/dev/null; do
     PG_WIPE_RUNNING=$(docker inspect -f '{{.State.Running}}' ndex-pg-wipe-test 2>/dev/null || echo false)
-    if [[ "${PG_WIPE_RUNNING}" == "false" || ${PG_WIPE_ELAPSED} -ge 60 ]]; then break; fi
+    if [[ "${PG_WIPE_RUNNING}" == "false" || ${PG_WIPE_ELAPSED} -ge 120 ]]; then break; fi
     sleep 3; PG_WIPE_ELAPSED=$((PG_WIPE_ELAPSED + 3))
   done
   docker exec ndex-pg-wipe-test \
