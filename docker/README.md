@@ -144,32 +144,31 @@ Refer to [RUNBOOK.md](./RUNBOOK.md) for how to run the deployment container in m
 
 ## Compute Resources
 
-The container imposes **no CPU or memory limits** by default — it runs unconstrained on the host. The numbers below are idle baselines observed after first boot with all five services enabled on an 11.67 GiB host.
+Each service inside the container enforces its own memory cap. No external `--memory` limit is set on the container itself — the per-service caps below are the operative bounds.
 
-### Per-service RSS and CPU at idle
+### Per-service RAM caps and idle baselines
 
-| Service | Process | RSS (idle) | %MEM | %CPU | JVM heap config |
-|---------|---------|------------|------|------|----------------|
-| Solr | java | ~697 MB | 5.8% | 5.6% | `-Xms512m -Xmx512m` (fixed) |
-| Keycloak | java | ~444 MB | 3.7% | 11.1% | `-Xms64m -Xmx512m` |
-| NDEx / Tomcat | java | ~241 MB | 2.0% | 4.6% | JVM ergonomic default (see below) |
-| PostgreSQL | postgres | ~158 MB total | ~1.2% | ~0.3% | — |
-| supervisord | supervisord | ~26 MB | 0.2% | 0.1% | — |
-| MailHog | MailHog | ~15 MB | 0.1% | 0.0% | — |
+| Service | RAM cap | How it is set | RSS at idle |
+|---------|---------|---------------|-------------|
+| NDEx / Tomcat | 25–60% of container RAM (default) | `ndex_catalina_opts` in `config.toml` → `CATALINA_OPTS` | ~241 MB |
+| Solr | 512 MB fixed | Solr's built-in default (`SOLR_HEAP=512m` in `/opt/solr/bin/solr`) | ~697 MB |
+| Keycloak | 512 MB max heap | Hardcoded in Keycloak's launch args (`-Xms64m -Xmx512m`) | ~444 MB |
+| PostgreSQL | No explicit cap (shared_buffers=128MB default) | `postgresql.conf` | ~158 MB |
+| MailHog | No cap | — | ~15 MB |
 
-**Total container (`docker stats`):** ~1.37 GiB RSS, ~2–11% CPU (higher at startup during Keycloak JVM warm-up).
+**Total at idle (~all five services):** ~1.4 GiB RSS.
 
-> CPU percentages are point-in-time snapshots. Keycloak shows elevated CPU immediately after startup (JVM/Quarkus warm-up); it settles to <1% at rest.
+> CPU is not capped per-service. Keycloak shows elevated CPU immediately after startup (JVM/Quarkus warm-up) and settles to <1% at rest.
 
-### Tomcat heap
+### Tuning Tomcat heap
 
-By default, Tomcat's JVM uses ergonomic sizing — it will grow the heap up to ~25% of available host RAM with no ceiling. On a host with 16 GiB this could reach ~4 GiB under load. Use `ndex_catalina_opts` in your `config.toml` to set an explicit bound:
+The default `ndex_catalina_opts` allows Tomcat to use between 25% and 60% of available container RAM. Override it in your `config.toml` to tighten or widen that range:
 
 ```toml
-# Cap Tomcat heap at 60% of container RAM (recommended for single-container deployments)
+# Percentage-based (scales with container --memory limit)
 ndex_catalina_opts = "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError"
 
-# Or use explicit values (useful when the container has a hard memory limit set via --memory)
+# Or explicit values
 ndex_catalina_opts = "-Xms256m -Xmx1g -XX:+ExitOnOutOfMemoryError"
 ```
 
