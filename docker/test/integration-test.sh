@@ -900,7 +900,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   PG_WIPE_CORRUPTION=$(docker exec ndex-pg-wipe-test bash -c \
     "cat /apps/postgres/corruption.log 2>/dev/null || echo ''" 2>/dev/null || echo "")
   docker rm -fv ndex-pg-wipe-test 2>/dev/null || true
-  rm -rf "${TMP_PG_C}"
+  rm -rf "${TMP_PG_C}" 2>/dev/null || true  # chown in container transfers ownership; sticky /tmp prevents runner cleanup
   rm -f "${TMP_RESET_TOML}"
 
   if [[ "${PG_WIPE_READY}" == "true" ]] && echo "${PG_WIPE_CORRUPTION}" | grep -qi 'DATA LOSS\|wiped'; then

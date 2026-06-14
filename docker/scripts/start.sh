@@ -242,6 +242,9 @@ _pg_start_resilient() {
   _pg_log_corruption_event "${pgdata}" "PGDATA wiped — DATA LOSS, all database contents deleted"
 
   find "${pgdata}" -mindepth 1 -delete 2>/dev/null || true
+  # Ensure the postgres user can write here after wipe (host-mounted dirs may be
+  # owned by an external UID that postgres cannot access).
+  chown postgres:postgres "${pgdata}"
 
   if [[ "${ENABLE_KEYCLOAK:-false}" == "true" ]]; then
     rm -f /apps/keycloak/config/.db_initialized
