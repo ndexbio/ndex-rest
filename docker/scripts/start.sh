@@ -89,7 +89,7 @@ _toml_get() {
   awk -F' *= *' -v s="[${section}]" -v k="${key}" '
     $0==s          { in_s=1; next }
     /^\[/          { in_s=0 }
-    in_s && $1==k  { v=$2; gsub(/^"|"$|^'"'"'|'"'"'$/, "", v); print v; exit }
+    in_s && $1==k  { v=$0; sub(/^[^=]*= */, "", v); gsub(/^"|"$|^'"'"'|'"'"'$/, "", v); print v; exit }
   ' "${file}"
 }
 
@@ -106,7 +106,7 @@ _toml_get_root() {
   local file="$1" key="$2"
   awk -F' *= *' -v k="${key}" '
     /^\[/   { exit }
-    $1==k   { v=$2; gsub(/^"|"$|^'"'"'|'"'"'$/, "", v); print v; exit }
+    $1==k   { v=$0; sub(/^[^=]*= */, "", v); gsub(/^"|"$|^'"'"'|'"'"'$/, "", v); print v; exit }
   ' "${file}"
 }
 
@@ -672,6 +672,17 @@ SQL
 </Context>
 XML
   echo "==> Tomcat JNDI context written: ndexConfigurationPath → ${NDEX_PROPS_FILE}"
+
+  # Resolve CATALINA_OPTS: logback flag always prepended; JVM tuning from
+  # ndex_catalina_opts in config.toml, falling back to percentage-based defaults.
+  _logback_opt="-Dlogback.configurationFile=/apps/ndex/config/logback.xml"
+  _default_jvm_opts="-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError"
+  _user_jvm_opts=""
+  if [[ -n "${NDEX_CONFIG_FILE}" ]]; then
+    _user_jvm_opts=$(_toml_get_root "${NDEX_CONFIG_FILE}" ndex_catalina_opts)
+  fi
+  NDEX_CATALINA_OPTS="${_logback_opt} ${_user_jvm_opts:-${_default_jvm_opts}}"
+  echo "==> Tomcat CATALINA_OPTS: ${NDEX_CATALINA_OPTS}"
 fi
 
 # ── Stop init-time PostgreSQL before supervisord takes over ───────────────────
@@ -715,7 +726,7 @@ cat /opt/ndex-supervisord/header.conf > "${SUPERVISORD_CONF}"
 [[ "${ENABLE_KEYCLOAK}" == "true" ]] && cat /opt/ndex-supervisord/keycloak.conf >> "${SUPERVISORD_CONF}"
 [[ "${ENABLE_SOLR}" == "true" ]]     && cat /opt/ndex-supervisord/solr.conf     >> "${SUPERVISORD_CONF}"
 [[ "${ENABLE_MAILHOG}" == "true" ]]  && cat /opt/ndex-supervisord/mailhog.conf  >> "${SUPERVISORD_CONF}"
-[[ "${ENABLE_NDEX}" == "true" ]]     && cat /opt/ndex-supervisord/ndex.conf     >> "${SUPERVISORD_CONF}"
+[[ "${ENABLE_NDEX}" == "true" ]]     && sed "s|__NDEX_CATALINA_OPTS__|${NDEX_CATALINA_OPTS}|" /opt/ndex-supervisord/ndex.conf >> "${SUPERVISORD_CONF}"
 
 # ── Phase 10: Start supervisord, wait for all services to reach RUNNING ───────
 /usr/bin/supervisord -c "${SUPERVISORD_CONF}" -n &

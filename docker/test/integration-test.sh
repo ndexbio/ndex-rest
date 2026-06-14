@@ -100,6 +100,7 @@ cleanup() {
   echo ""
   echo -e "${CYAN}=== Cleanup ===${NC}"
   _remove_test_containers
+  rm -f "${TMP_CATALINA_TOML:-}"
   if docker inspect "${CONTAINER_NAME}" &>/dev/null; then
     echo -e "  ${RED}WARNING: Container '${CONTAINER_NAME}' still present — manual cleanup may be needed${NC}"
     echo -e "    Run: docker rm -fv ${CONTAINER_NAME}"
@@ -146,12 +147,17 @@ else
 
   step "Starting ephemeral container"
   docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
+  TMP_CATALINA_TOML=$(mktemp /tmp/ndex-catalina-opts-XXXXXX)
+  printf 'ndex_catalina_opts = "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=40.0 -XX:+ExitOnOutOfMemoryError"\n' \
+    > "${TMP_CATALINA_TOML}"
   echo "  Running: docker run -d --name ${CONTAINER_NAME} -p 8080:8080 ..."
   docker run -d \
     --name "${CONTAINER_NAME}" \
     -p 8080:8080 \
+    -v "${TMP_CATALINA_TOML}:/tmp/catalina-opts.toml:ro" \
     ndexbio/ndex-rest \
-    --ndex --postgres --keycloak --solr --mailhog
+    --ndex --postgres --keycloak --solr --mailhog \
+    --config /tmp/catalina-opts.toml
   echo "  Container started (ID: $(docker inspect -f '{{.Id}}' "${CONTAINER_NAME}" | cut -c1-12))"
 
   step "Waiting for NDEx to be ready"
@@ -169,6 +175,16 @@ else
     ELAPSED=$((ELAPSED + 5))
   done
   echo "  Container is ready!"
+
+  # Assert ndex_catalina_opts from config.toml reached the Tomcat JVM
+  CAT_JVM_FLAGS=$(docker exec "${CONTAINER_NAME}" bash -c \
+    'cat /proc/$(supervisorctl pid ndex 2>/dev/null)/cmdline 2>/dev/null | tr "\0" "\n"' \
+    2>/dev/null || echo "")
+  if echo "${CAT_JVM_FLAGS}" | grep -q "MaxRAMPercentage=40"; then
+    echo -e "  ${GREEN}✓${NC}: Tomcat JVM contains MaxRAMPercentage=40.0 (ndex_catalina_opts applied)"
+  else
+    api_fail "ndex_catalina_opts: JVM flags missing MaxRAMPercentage=40. Got: '${CAT_JVM_FLAGS}'"
+  fi
 fi
 
 # ── STEP: Create test user ────────────────────────────────────────────────────

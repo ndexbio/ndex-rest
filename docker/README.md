@@ -142,6 +142,41 @@ Refer to [RUNBOOK.md](./RUNBOOK.md) for how to run the deployment container in m
 
 ---
 
+## Compute Resources
+
+The container imposes **no CPU or memory limits** by default — it runs unconstrained on the host. The numbers below are idle baselines observed after first boot with all five services enabled on an 11.67 GiB host.
+
+### Per-service RSS and CPU at idle
+
+| Service | Process | RSS (idle) | %MEM | %CPU | JVM heap config |
+|---------|---------|------------|------|------|----------------|
+| Solr | java | ~697 MB | 5.8% | 5.6% | `-Xms512m -Xmx512m` (fixed) |
+| Keycloak | java | ~444 MB | 3.7% | 11.1% | `-Xms64m -Xmx512m` |
+| NDEx / Tomcat | java | ~241 MB | 2.0% | 4.6% | JVM ergonomic default (see below) |
+| PostgreSQL | postgres | ~158 MB total | ~1.2% | ~0.3% | — |
+| supervisord | supervisord | ~26 MB | 0.2% | 0.1% | — |
+| MailHog | MailHog | ~15 MB | 0.1% | 0.0% | — |
+
+**Total container (`docker stats`):** ~1.37 GiB RSS, ~2–11% CPU (higher at startup during Keycloak JVM warm-up).
+
+> CPU percentages are point-in-time snapshots. Keycloak shows elevated CPU immediately after startup (JVM/Quarkus warm-up); it settles to <1% at rest.
+
+### Tomcat heap
+
+By default, Tomcat's JVM uses ergonomic sizing — it will grow the heap up to ~25% of available host RAM with no ceiling. On a host with 16 GiB this could reach ~4 GiB under load. Use `ndex_catalina_opts` in your `config.toml` to set an explicit bound:
+
+```toml
+# Cap Tomcat heap at 60% of container RAM (recommended for single-container deployments)
+ndex_catalina_opts = "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError"
+
+# Or use explicit values (useful when the container has a hard memory limit set via --memory)
+ndex_catalina_opts = "-Xms256m -Xmx1g -XX:+ExitOnOutOfMemoryError"
+```
+
+See [Runtime Configuration](#runtime-configuration) for full `config.toml` usage.
+
+---
+
 ## Accessing Services from the Container Host
 
 Once running, services are available at:
@@ -289,6 +324,16 @@ Mount the file read-only into the container:
 #     /apps/ndex/data/     — NDEx raw network files
 #     /apps/keycloak/data/ — Keycloak realm state
 reset_data_when_corrupt = false
+```
+
+`ndex_catalina_opts` — JVM flags passed to Tomcat via `CATALINA_OPTS`. Controls heap sizing and OOM behavior. The logback configuration flag is always prepended automatically and cannot be overridden here.
+```toml
+# Default (applied when this key is absent):
+#   -XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError
+#
+# Tomcat is allowed to use up to 60% of container RAM by default. Override to
+# constrain further or replace with explicit -Xmx/-Xms values.
+ndex_catalina_opts = "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError"
 ```
 
 **Supported TOML sections:**
