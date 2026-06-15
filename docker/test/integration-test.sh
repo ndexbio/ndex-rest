@@ -31,7 +31,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=33
+TOTAL_API_CALLS=34
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -89,21 +89,32 @@ api_fail() {
 
 # ── Cleanup trap ──────────────────────────────────────────────────────────────
 
+_remove_test_containers() {
+  docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
+  docker rm -fv "ndex-pg-corrupt-test" 2>/dev/null || true
+  docker rm -fv "ndex-pg-wipe-test" 2>/dev/null || true
+}
+
 cleanup() {
   [[ -z "${REMOTE_NDEX_URL}" ]] || return 0
   echo ""
   echo -e "${CYAN}=== Cleanup ===${NC}"
-  echo -e "${CYAN}  Removing container '${CONTAINER_NAME}'...${NC}"
-  docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
-
+  _remove_test_containers
+  rm -f "${TMP_CATALINA_TOML:-}"
   if docker inspect "${CONTAINER_NAME}" &>/dev/null; then
     echo -e "  ${RED}WARNING: Container '${CONTAINER_NAME}' still present — manual cleanup may be needed${NC}"
     echo -e "    Run: docker rm -fv ${CONTAINER_NAME}"
   else
-    echo -e "  ${GREEN}✓ Container '${CONTAINER_NAME}' removed${NC}"
+    echo -e "  ${GREEN}✓ Test containers removed${NC}"
   fi
 }
 trap cleanup EXIT
+
+# ── Pre-run cleanup: remove any stale containers from a prior failed run ──────
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  _remove_test_containers
+fi
+
 
 if [[ -n "${REMOTE_NDEX_URL}" ]]; then
   # ── Remote mode: target already-running NDEx ────────────────────────────────
@@ -136,12 +147,17 @@ else
 
   step "Starting ephemeral container"
   docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
+  TMP_CATALINA_TOML=$(mktemp /tmp/ndex-catalina-opts-XXXXXX)
+  printf 'ndex_catalina_opts = "-Xms64m -Xmx256m -XX:+ExitOnOutOfMemoryError"\n' \
+    > "${TMP_CATALINA_TOML}"
   echo "  Running: docker run -d --name ${CONTAINER_NAME} -p 8080:8080 ..."
   docker run -d \
     --name "${CONTAINER_NAME}" \
     -p 8080:8080 \
+    -v "${TMP_CATALINA_TOML}:/tmp/catalina-opts.toml:ro" \
     ndexbio/ndex-rest \
-    --ndex --postgres --keycloak --solr --mailhog
+    --ndex --postgres --keycloak --solr --mailhog \
+    --config /tmp/catalina-opts.toml
   echo "  Container started (ID: $(docker inspect -f '{{.Id}}' "${CONTAINER_NAME}" | cut -c1-12))"
 
   step "Waiting for NDEx to be ready"
@@ -159,6 +175,16 @@ else
     ELAPSED=$((ELAPSED + 5))
   done
   echo "  Container is ready!"
+
+  # Assert ndex_catalina_opts from config.toml reached the Tomcat JVM
+  CAT_JVM_FLAGS=$(docker exec "${CONTAINER_NAME}" bash -c \
+    'cat /proc/$(supervisorctl pid ndex 2>/dev/null)/cmdline 2>/dev/null | tr "\0" "\n"' \
+    2>/dev/null || echo "")
+  if echo "${CAT_JVM_FLAGS}" | grep -q "Xmx256m"; then
+    echo -e "  ${GREEN}✓${NC}: Tomcat JVM contains Xmx256m (ndex_catalina_opts applied)"
+  else
+    api_fail "ndex_catalina_opts: JVM flags missing Xmx256m. Got: '${CAT_JVM_FLAGS}'"
+  fi
 fi
 
 # ── STEP: Create test user ────────────────────────────────────────────────────
@@ -764,6 +790,123 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     api_pass "POST /v2/user (auth) → 201 Created (authenticated caller can create users when AUTHENTICATED_USER_ONLY=true)"
   else
     api_fail "POST /v2/user (auth) → HTTP ${AUTH_CREATE_HTTP} (expected 201 — endpoint must work for authenticated users)"
+  fi
+fi
+
+# ── STEP: Postgres SIGKILL → crash recovery ───────────────────────────────────
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "PostgreSQL resilience: SIGKILL → crash recovery (Attempt 1)"
+
+  docker kill "${CONTAINER_NAME}"
+  echo "  Container sent SIGKILL — restarting..."
+  docker start "${CONTAINER_NAME}"
+
+  # Poll until NDEx HTTP endpoint responds
+  PG_SIGKILL_ELAPSED=0
+  until curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/user" \
+        | grep -qE '^[2-9][0-9]{2}$|^401$|^400$'; do
+    if [[ ${PG_SIGKILL_ELAPSED} -ge 180 ]]; then
+      api_fail "Container did not recover within 180s after SIGKILL"
+    fi
+    sleep 5; PG_SIGKILL_ELAPSED=$((PG_SIGKILL_ELAPSED + 5))
+    echo -e "  ${CYAN}Waiting for NDEx to respond... (${PG_SIGKILL_ELAPSED}s)${NC}"
+  done
+
+  CORRUPTION_LOG=$(docker exec "${CONTAINER_NAME}" bash -c \
+    "cat /apps/postgres/corruption.log 2>/dev/null || echo ''")
+  if [[ -n "${CORRUPTION_LOG}" ]]; then
+    echo "  WARN: unexpected corruption log entry after SIGKILL: ${CORRUPTION_LOG}" >&2
+  else
+    echo "  Corruption log is empty — crash recovery was transparent (no data corruption)"
+  fi
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /user/authenticate (after SIGKILL restart, expect 200)"
+  SIGKILL_AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+    -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/user/authenticate")
+  if [[ "${SIGKILL_AUTH_HTTP}" == "200" ]]; then
+    api_pass "GET /user/authenticate → 200 OK (postgres crash-recovered from SIGKILL, data intact)"
+  else
+    api_fail "GET /user/authenticate → HTTP ${SIGKILL_AUTH_HTTP} (expected 200 after SIGKILL crash recovery)"
+  fi
+fi
+
+# ── STEP: Corrupt PGDATA + flag=false → container exits ──────────────────────
+# Fixture: docker/test/fixtures/pg-corrupt-state/ — just .initialized sentinel,
+# no cluster files. Simulates worst-case: PGDATA claims initialized but is
+# unrecoverable. Without --config, reset_data_when_corrupt defaults to false
+# → container must exit with a diagnostic message.
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "PostgreSQL resilience: corrupt PGDATA + reset_data_when_corrupt=false → container stops"
+
+  TMP_PG_B=$(mktemp -d /tmp/pg-corrupt-XXXX)
+  cp -r "${SCRIPT_DIR}/fixtures/pg-corrupt-state/." "${TMP_PG_B}/"
+
+  docker run -d --name ndex-pg-corrupt-test \
+    -v "${TMP_PG_B}:/apps/postgres/data" \
+    ndexbio/ndex-rest --postgres
+
+  # All three recovery attempts fail fast; container should exit within 45s
+  PG_CORRUPT_ELAPSED=0
+  while [[ ${PG_CORRUPT_ELAPSED} -lt 45 ]]; do
+    PG_CORRUPT_RUNNING=$(docker inspect -f '{{.State.Running}}' ndex-pg-corrupt-test 2>/dev/null || echo false)
+    [[ "${PG_CORRUPT_RUNNING}" == "false" ]] && break
+    sleep 3; PG_CORRUPT_ELAPSED=$((PG_CORRUPT_ELAPSED + 3))
+  done
+
+  PG_CORRUPT_RUNNING=$(docker inspect -f '{{.State.Running}}' ndex-pg-corrupt-test 2>/dev/null || echo false)
+  PG_CORRUPT_LOGS=$(docker logs ndex-pg-corrupt-test 2>&1 | tail -50)
+  docker rm -fv ndex-pg-corrupt-test 2>/dev/null || true
+  rm -rf "${TMP_PG_B}"
+
+  if [[ "${PG_CORRUPT_RUNNING}" == "false" ]] && echo "${PG_CORRUPT_LOGS}" | grep -qi "reset_data_when_corrupt"; then
+    echo -e "  ${GREEN}✓ PASS${NC}: container exited with reset_data_when_corrupt guidance (flag=false confirmed)"
+  else
+    api_fail "flag=false: expected container to exit within 45s. running=${PG_CORRUPT_RUNNING}. Logs missing 'reset_data_when_corrupt'."
+  fi
+fi
+
+# ── STEP: Corrupt PGDATA + flag=true → wipe+reinit → postgres up ─────────────
+# Same fixture, but config sets reset_data_when_corrupt = true. The wipe fires,
+# init-postgres.sh reinitializes the cluster, postgres comes up.
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "PostgreSQL resilience: corrupt PGDATA + reset_data_when_corrupt=true → wipe+reinit"
+
+  TMP_PG_C=$(mktemp -d /tmp/pg-wipe-XXXX)
+  cp -r "${SCRIPT_DIR}/fixtures/pg-corrupt-state/." "${TMP_PG_C}/"
+
+  TMP_RESET_TOML=$(mktemp /tmp/ndex-pg-reset-XXXX.toml)
+  printf 'reset_data_when_corrupt = true\n' > "${TMP_RESET_TOML}"
+
+  docker run -d --name ndex-pg-wipe-test \
+    -v "${TMP_PG_C}:/apps/postgres/data" \
+    -v "${TMP_RESET_TOML}:/tmp/pg-reset-config.toml:ro" \
+    ndexbio/ndex-rest --postgres --config /tmp/pg-reset-config.toml
+
+  # Poll pg_isready inside the container (wipe+initdb takes ~10-20s)
+  PG_WIPE_ELAPSED=0; PG_WIPE_READY=false
+  until docker exec ndex-pg-wipe-test \
+        pg_isready -h 127.0.0.1 -p 5432 -U postgres -q 2>/dev/null; do
+    PG_WIPE_RUNNING=$(docker inspect -f '{{.State.Running}}' ndex-pg-wipe-test 2>/dev/null || echo false)
+    if [[ "${PG_WIPE_RUNNING}" == "false" || ${PG_WIPE_ELAPSED} -ge 120 ]]; then break; fi
+    sleep 3; PG_WIPE_ELAPSED=$((PG_WIPE_ELAPSED + 3))
+  done
+  docker exec ndex-pg-wipe-test \
+    pg_isready -h 127.0.0.1 -p 5432 -U postgres -q 2>/dev/null && PG_WIPE_READY=true
+
+  PG_WIPE_CORRUPTION=$(docker exec ndex-pg-wipe-test bash -c \
+    "cat /apps/postgres/corruption.log 2>/dev/null || echo ''" 2>/dev/null || echo "")
+  docker rm -fv ndex-pg-wipe-test 2>/dev/null || true
+  rm -rf "${TMP_PG_C}" 2>/dev/null || true  # chown in container transfers ownership; sticky /tmp prevents runner cleanup
+  rm -f "${TMP_RESET_TOML}"
+
+  if [[ "${PG_WIPE_READY}" == "true" ]] && echo "${PG_WIPE_CORRUPTION}" | grep -qi 'DATA LOSS\|wiped'; then
+    echo -e "  ${GREEN}✓ PASS${NC}: postgres up after wipe+reinit; corruption log confirms DATA LOSS"
+  else
+    api_fail "flag=true: pg_ready=${PG_WIPE_READY}, log='${PG_WIPE_CORRUPTION}'. Expected postgres up + DATA LOSS entry."
   fi
 fi
 

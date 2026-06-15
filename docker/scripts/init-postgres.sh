@@ -19,6 +19,7 @@ gosu postgres initdb \
   -D "${PGDATA}" \
   --auth-host=trust \
   --auth-local=trust \
+  --data-checksums \
   -U postgres
 
 echo "==> Starting PostgreSQL (temp — trust auth)..."
