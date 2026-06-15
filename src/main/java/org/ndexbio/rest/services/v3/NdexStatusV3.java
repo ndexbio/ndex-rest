@@ -11,7 +11,7 @@ public class NdexStatusV3 extends NdexStatus {
             "Only present when the server is configured to use OAuth authentication. " +
             "Absent from the response when OAuth is not enabled. " +
             "This URL is intended solely for account creation; after registration the identity server " +
-            "redirects the user to the NDEx server's Swagger UI (/swagger/index.html).",
+            "follows a default browser flow to redirect the user to the NDEx server's Swagger UI (/swagger/index.html).",
             nullable = true)
     @JsonProperty("oauth_register_url")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -20,8 +20,8 @@ public class NdexStatusV3 extends NdexStatus {
     @Schema(description = "Fully qualified URL to the OAuth identity server's password reset page. " +
             "Only present when the server is configured to use OAuth authentication. " +
             "Absent from the response when OAuth is not enabled. " +
-            "This URL does not include a client_id, so after the reset the identity server will " +
-            "redirect the user to its account management page by default.",
+            "This URL is intended solely for initiating browser based password reset flow; after the reset flow concludes the identity server " +
+            "follows a default browser flow to redirect the user to their account management page on the identity server.",
             nullable = true)
     @JsonProperty("oauth_reset_url")
     @JsonInclude(JsonInclude.Include.NON_NULL)
