@@ -9,29 +9,27 @@ public class TestNdexStatusV3OAuthUrls {
     private NdexStatusV3 s = new NdexStatusV3();
 
     @Test
-    public void registerUrlContainsIssuerAndClientId() {
+    public void registerUrlExactFormat() {
+        // Keycloak requires all three params for the registrations endpoint to work.
+        // redirect_uri points to the NDEx server's Swagger UI — a stable, always-published path.
         String url = s.buildRegisterUrl("https://auth.example.org/realms/ndex", "myclient", "https://ndexbio.org");
-        assertTrue(url.startsWith("https://auth.example.org/realms/ndex/protocol/openid-connect/registrations"));
-        assertTrue(url.contains("client_id=myclient"));
+        assertEquals(
+            "https://auth.example.org/realms/ndex/protocol/openid-connect/registrations" +
+            "?client_id=myclient&response_type=code&redirect_uri=https://ndexbio.org/swagger/index.html",
+            url);
     }
 
     @Test
-    public void registerUrlContainsRedirectUri() {
-        String url = s.buildRegisterUrl("https://auth.example.org/realms/ndex", "myclient", "https://ndexbio.org");
-        assertTrue(url.contains("redirect_uri=https://ndexbio.org"));
+    public void resetUrlContainsIssuerOnly() {
+        // No client_id: after reset the identity server redirects to account management by default.
+        String url = s.buildResetUrl("https://auth.example.org/realms/ndex");
+        assertEquals("https://auth.example.org/realms/ndex/login-actions/reset-credentials", url);
     }
 
     @Test
-    public void registerUrlContainsResponseType() {
-        String url = s.buildRegisterUrl("https://auth.example.org/realms/ndex", "myclient", "https://ndexbio.org");
-        assertTrue(url.contains("response_type=code"));
-    }
-
-    @Test
-    public void resetUrlContainsIssuerAndClientId() {
-        String url = s.buildResetUrl("https://auth.example.org/realms/ndex", "myclient");
-        assertTrue(url.startsWith("https://auth.example.org/realms/ndex/login-actions/reset-credentials"));
-        assertTrue(url.contains("client_id=myclient"));
+    public void resetUrlDoesNotContainClientId() {
+        String url = s.buildResetUrl("https://auth.example.org/realms/ndex");
+        assertFalse(url.contains("client_id"));
     }
 
     @Test
