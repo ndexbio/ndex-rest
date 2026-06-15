@@ -59,7 +59,7 @@ public class AdminServiceV3 extends NdexService {
 			String hostUri = config.getHostURI();
 			if (issuer != null && !issuer.isBlank() && clientId != null && !clientId.isBlank()) {
 				status.setOauthRegisterUrl(status.buildRegisterUrl(issuer, clientId, hostUri));
-				status.setOauthResetUrl(status.buildResetUrl(issuer, clientId));
+				status.setOauthResetUrl(status.buildResetUrl(issuer));
 			}
 		}
 
