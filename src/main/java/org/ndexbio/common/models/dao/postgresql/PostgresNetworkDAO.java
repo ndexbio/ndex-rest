@@ -98,7 +98,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	
 	private  static List<String> emptyStringList = new ArrayList<>(1); 
 	
-	private static Pattern uuidSearchPattern = 
+	private static Pattern uuidSearchPattern =
 			Pattern.compile("^(uuid: *)?(([0-9A-F]{8}-[0-9A-F]{4}-[1-5][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12})|(\\\"([0-9A-F]{8}-[0-9A-F]{4}-[1-5][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12})\\\"))$",
 			Pattern.CASE_INSENSITIVE);
 
@@ -1121,7 +1121,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			SolrDocumentList publicResults = networkIdx.searchForNetworks(queryStr,
 					(loggedInUser == null ? null : loggedInUser.getUserName()),
 					VisibilityType.PUBLIC, top, skipBlocks * top,
-					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission());
+					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false);
 
 			// If authenticated, also query private-nfs for the user's PRIVATE networks
 			SolrDocumentList privateResults = null;
@@ -1129,7 +1129,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 				privateResults = networkIdx.searchForNetworks(queryStr,
 						loggedInUser.getUserName(),
 						VisibilityType.PRIVATE, top, skipBlocks * top,
-						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission());
+						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false);
 			}
 
 			List<NetworkSummary> results = new ArrayList<>(publicResults.size() +

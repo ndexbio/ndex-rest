@@ -83,7 +83,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     /**
      * Public wrapper function for setupIndexDocument that doesn't expose inner SolrInputDocument
      */
-    public void prepareIndexDocument(T  inputData, VisibilityType visibilityType,
+    public void prepareIndexDocument(T inputData, VisibilityType visibilityType,
                                      Collection<String> userReads,
                                      Collection<String> userEdits){
         setupIndexDocument(inputData, visibilityType);
@@ -211,7 +211,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
 
         // Combine filters
-         String resultFilter = "(" + permissionFilter + ")" + ownerFilter;
+        String resultFilter = "(" + permissionFilter + ")" + ownerFilter;
 
         // Set up the query
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
@@ -233,6 +233,14 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     /**
      * Search with entity type filter
      */
+    /**
+     * Search with entity type filter.
+     *
+     * @param includeShortcuts when true, also returns SHORTCUT docs whose targetType
+     * matches entityType (for callers that resolve results per entity type, e.g.
+     * v3 NFSSearchProvider). When false, only docs of the exact entityType are
+     * returned (for callers that assume a single type, e.g. v2 findNetworks).
+     */
     public SolrDocumentList searchByType(
             String searchTerms,
             String userAccount,
@@ -241,14 +249,17 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             int offset,
             String ownedBy,
             Permissions permission,
-            String entityType) throws NdexException {
+            String entityType,
+            boolean includeShortcuts) throws NdexException {
 
         String typeFilter;
         if ("SHORTCUT".equalsIgnoreCase(entityType)) {
             typeFilter = " AND (" + ENTITY_TYPE + ":\"SHORTCUT\")";
-        } else {
+        } else if (includeShortcuts) {
             typeFilter = " AND ((" + ENTITY_TYPE + ":\"" + entityType + "\") OR " +
                     "(" + ENTITY_TYPE + ":\"SHORTCUT\" AND " + TARGET_TYPE + ":\"" + entityType + "\"))";
+        } else {
+            typeFilter = " AND (" + ENTITY_TYPE + ":\"" + entityType + "\")";
         }
 
         SolrQuery solrQuery = new SolrQuery();
@@ -268,6 +279,23 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         } catch (Exception e) {
             throw new NdexException("Error accessing Solr: " + e.getMessage());
         }
+    }
+
+    /**
+     * Backward-compatible overload. Defaults to includeShortcuts=true (folds shortcuts
+     * whose targetType matches entityType into the results).
+     */
+    public SolrDocumentList searchByType(
+            String searchTerms,
+            String userAccount,
+            VisibilityType visibilityType,
+            int limit,
+            int offset,
+            String ownedBy,
+            Permissions permission,
+            String entityType) throws NdexException {
+        return searchByType(searchTerms, userAccount, visibilityType, limit, offset,
+                ownedBy, permission, entityType, true);
     }
 
     /**
