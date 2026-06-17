@@ -31,7 +31,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=28
+TOTAL_API_CALLS=31
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -608,6 +608,62 @@ http.createServer((req, res) => {
   fi
 fi
 
+# ── STEP: Readability cardinality regression on batch network summary ───────
+
+step "Asserting batch summary readability returns exactly one row for anon and authenticated non-owner"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (auth as ${TEST_USER}) to ensure ${TEST_USER2} exists"
+AUTH_CREATE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"userName\":\"${TEST_USER2}\",\"password\":\"${TEST_PASS2}\",\"emailAddress\":\"${TEST_EMAIL2}\",\"firstName\":\"NDEx\",\"lastName\":\"Test2\"}" \
+  "${BASE_URL}/v2/user")
+if [[ "${AUTH_CREATE_HTTP}" == "201" || "${AUTH_CREATE_HTTP}" == "409" ]]; then
+  api_pass "POST /v2/user (auth) → ${AUTH_CREATE_HTTP} (secondary test user is available)"
+else
+  api_fail "POST /v2/user (auth) → HTTP ${AUTH_CREATE_HTTP} (expected 201 or 409)"
+fi
+
+BATCH_REQ="[\"${V2_UUIDS[0]}\",\"${V2_PRIV_UUID}\"]"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/batch/network/summary (anon, expect exactly 1 row)"
+BATCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+  -H "Content-Type: application/json" \
+  -d "${BATCH_REQ}" \
+  "${BASE_URL}/v2/batch/network/summary")
+BATCH_HTTP=$(echo "${BATCH_RESPONSE}" | tail -1)
+BATCH_BODY=$(echo "${BATCH_RESPONSE}" | head -1)
+if [[ "${BATCH_HTTP}" != "200" ]]; then
+  api_fail "POST /v2/batch/network/summary (anon) → HTTP ${BATCH_HTTP} (expected 200). Body: ${BATCH_BODY:0:300}"
+fi
+ANON_ROW_COUNT=$(echo "${BATCH_BODY}" | grep -o '"externalId"' | wc -l | tr -d ' ')
+if [[ "${ANON_ROW_COUNT}" == "1" ]] && echo "${BATCH_BODY}" | grep -q "${V2_UUIDS[0]}" && ! echo "${BATCH_BODY}" | grep -q "${V2_PRIV_UUID}"; then
+  api_pass "POST /v2/batch/network/summary (anon) → exactly 1 row (public only)"
+else
+  api_fail "POST /v2/batch/network/summary (anon) returned ${ANON_ROW_COUNT} rows or wrong UUIDs. Body: ${BATCH_BODY:0:500}"
+fi
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/batch/network/summary (auth ${TEST_USER2}, expect exactly 1 row)"
+BATCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+  -u "${TEST_USER2}:${TEST_PASS2}" \
+  -H "Content-Type: application/json" \
+  -d "${BATCH_REQ}" \
+  "${BASE_URL}/v2/batch/network/summary")
+BATCH_HTTP=$(echo "${BATCH_RESPONSE}" | tail -1)
+BATCH_BODY=$(echo "${BATCH_RESPONSE}" | head -1)
+if [[ "${BATCH_HTTP}" != "200" ]]; then
+  api_fail "POST /v2/batch/network/summary (auth ${TEST_USER2}) → HTTP ${BATCH_HTTP} (expected 200). Body: ${BATCH_BODY:0:300}"
+fi
+AUTH_ROW_COUNT=$(echo "${BATCH_BODY}" | grep -o '"externalId"' | wc -l | tr -d ' ')
+if [[ "${AUTH_ROW_COUNT}" == "1" ]] && echo "${BATCH_BODY}" | grep -q "${V2_UUIDS[0]}" && ! echo "${BATCH_BODY}" | grep -q "${V2_PRIV_UUID}"; then
+  api_pass "POST /v2/batch/network/summary (auth ${TEST_USER2}) → exactly 1 row (public only)"
+else
+  api_fail "POST /v2/batch/network/summary (auth ${TEST_USER2}) returned ${AUTH_ROW_COUNT} rows or wrong UUIDs. Body: ${BATCH_BODY:0:500}"
+fi
+
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────
 
 if [[ -z "${REMOTE_NDEX_URL}" ]]; then
@@ -644,16 +700,16 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   fi
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (auth as ${TEST_USER}, expect 201)"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (auth as ${TEST_USER}, expect 201 or 409)"
   AUTH_CREATE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" \
     -d "{\"userName\":\"${TEST_USER2}\",\"password\":\"${TEST_PASS2}\",\"emailAddress\":\"${TEST_EMAIL2}\",\"firstName\":\"NDEx\",\"lastName\":\"Test2\"}" \
     "${BASE_URL}/v2/user")
-  if [[ "${AUTH_CREATE_HTTP}" == "201" ]]; then
-    api_pass "POST /v2/user (auth) → 201 Created (authenticated caller can create users when AUTHENTICATED_USER_ONLY=true)"
+  if [[ "${AUTH_CREATE_HTTP}" == "201" || "${AUTH_CREATE_HTTP}" == "409" ]]; then
+    api_pass "POST /v2/user (auth) → ${AUTH_CREATE_HTTP} (201=new user created, 409=user already exists; authenticated caller works with AUTHENTICATED_USER_ONLY=true)"
   else
-    api_fail "POST /v2/user (auth) → HTTP ${AUTH_CREATE_HTTP} (expected 201 — endpoint must work for authenticated users)"
+    api_fail "POST /v2/user (auth) → HTTP ${AUTH_CREATE_HTTP} (expected 201 or 409 — endpoint must work for authenticated users)"
   fi
 fi
 
