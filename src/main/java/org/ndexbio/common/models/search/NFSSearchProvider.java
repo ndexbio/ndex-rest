@@ -87,7 +87,9 @@ public class NFSSearchProvider implements SearchProvider {
         }
         if (allSummaries == null) allSummaries = new ArrayList<>();
 
-        return new FileSearchResult(allSummaries.size(), (long) skipBlocks * blockSize, allSummaries);
+        long totalFound = documents != null ? documents.getNumFound() : allSummaries.size();
+
+        return new FileSearchResult(totalFound, (long) skipBlocks * blockSize, allSummaries);
     }
 
     private List<FileItemSummary> getDocumentSummariesByEntityType(FileType fileType, List<UUID> ids) throws Exception {
@@ -100,14 +102,14 @@ public class NFSSearchProvider implements SearchProvider {
             }
         } else if (fileType.equals(FileType.FOLDER)) {
             try (FolderDAO folderDAO = daoFactory.getFolderDAO()){
-                result =  folderDAO.getFoldersByIds(ids).stream()
+                result = folderDAO.getFoldersByIds(ids).stream()
                         .map(this::mapFolderToSummary)
                         .toList();
             }
         }
         else if (fileType.equals(FileType.NETWORK)){
             try (NetworkDAO networkDAO = daoFactory.getNetworkDAO()){
-                result =  networkDAO.getNetworkSummariesByIds(ids).stream()
+                result = networkDAO.getNetworkSummariesByIds(ids).stream()
                         .map(this::mapNetworkToSummary)
                         .toList();
             }
@@ -230,7 +232,7 @@ public class NFSSearchProvider implements SearchProvider {
 
     }
 
-        @Override
+    @Override
     public void close() { delegate.close(); }
 
     private static final class SearchOnlyManager extends NFSIndexManager<Void> {
@@ -246,8 +248,8 @@ public class NFSSearchProvider implements SearchProvider {
         @Override
         protected String getQueryFields() {
             return "uuid^20 name^10 description^5 labels^6 owner^2 " +
-                   "networkType^4 organism^3 disease^3 tissue^3 author^2 methods " +
-                   "nodeName represents alias rights^0.6 rightsHolder^0.6";
+                    "networkType^4 organism^3 disease^3 tissue^3 author^2 methods " +
+                    "nodeName represents alias rights^0.6 rightsHolder^0.6";
         }
 
     }
