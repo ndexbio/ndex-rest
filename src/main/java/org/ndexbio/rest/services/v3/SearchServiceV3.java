@@ -168,7 +168,12 @@ public class SearchServiceV3 extends NdexService  {
 		if ( queryParameters.getSearchDepth() <1) {
 			queryParameters.setSearchDepth(1);
 		}
-		UUID networkId = UUID.fromString(networkIdStr);
+		UUID networkId;
+		try {
+			networkId = UUID.fromString(networkIdStr);
+		} catch (IllegalArgumentException e) {
+			throw new BadRequestException("'" + networkIdStr + "' is not a valid network UUID.");
+		}
 
 		UUID userId = getLoggedInUserId();
 		if (  saveAsNetwork) {
@@ -256,8 +261,12 @@ public class SearchServiceV3 extends NdexService  {
 			queryParameters.setSearchDepth(1);
 		}
 
-		UUID networkId = UUID.fromString(networkIdStr);
-
+		UUID networkId;
+		try {
+			networkId = UUID.fromString(networkIdStr);
+		} catch (IllegalArgumentException e) {
+			throw new BadRequestException("'" + networkIdStr + "' is not a valid network UUID.");
+		}
 		UUID userId = getLoggedInUserId();
 		if (  saveAsNetwork) {
 			if (userId == null)
@@ -345,7 +354,12 @@ public class SearchServiceV3 extends NdexService  {
 		
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
-			UUID networkId = UUID.fromString(networkIdStr);
+			UUID networkId;
+			try {
+				networkId = UUID.fromString(networkIdStr);
+			} catch (IllegalArgumentException e) {
+				throw new BadRequestException("'" + networkIdStr + "' is not a valid network UUID.");
+			}
 			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
 				List<CxMetadata> md = dao.getCx2MetaDataList(networkId);
 			
