@@ -598,7 +598,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	 */
 	protected static String createIsReadableConditionStr(UUID userId) {
 		if ( userId == null)
-			return "n.visibility='PUBLIC' or n.visibility='UNLISTED'";
+			return "(n.visibility='PUBLIC' or n.visibility='UNLISTED')";
 		return "( n.visibility='PUBLIC' or n.visibility='UNLISTED' or n.owneruuid = '" + userId + "' ::uuid or " +
 			" exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = '"+ userId + "' limit 1) or " +
 		    " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
