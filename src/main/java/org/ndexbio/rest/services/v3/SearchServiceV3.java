@@ -168,12 +168,7 @@ public class SearchServiceV3 extends NdexService  {
 		if ( queryParameters.getSearchDepth() <1) {
 			queryParameters.setSearchDepth(1);
 		}
-		UUID networkId;
-		try {
-			networkId = UUID.fromString(networkIdStr);
-		} catch (IllegalArgumentException e) {
-			throw new BadRequestException("'" + networkIdStr + "' is not a valid network UUID.");
-		}
+		UUID networkId = parseUuid(networkIdStr);
 
 		UUID userId = getLoggedInUserId();
 		if (  saveAsNetwork) {
@@ -261,12 +256,7 @@ public class SearchServiceV3 extends NdexService  {
 			queryParameters.setSearchDepth(1);
 		}
 
-		UUID networkId;
-		try {
-			networkId = UUID.fromString(networkIdStr);
-		} catch (IllegalArgumentException e) {
-			throw new BadRequestException("'" + networkIdStr + "' is not a valid network UUID.");
-		}
+		UUID networkId = parseUuid(networkIdStr);
 		UUID userId = getLoggedInUserId();
 		if (  saveAsNetwork) {
 			if (userId == null)
@@ -354,12 +344,7 @@ public class SearchServiceV3 extends NdexService  {
 		
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
-			UUID networkId;
-			try {
-				networkId = UUID.fromString(networkIdStr);
-			} catch (IllegalArgumentException e) {
-				throw new BadRequestException("'" + networkIdStr + "' is not a valid network UUID.");
-			}
+			UUID networkId = parseUuid(networkIdStr);
 			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
 				List<CxMetadata> md = dao.getCx2MetaDataList(networkId);
 			
@@ -413,7 +398,17 @@ public class SearchServiceV3 extends NdexService  {
 			throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 		}
 	}
-	
+
+	private UUID parseUuid(String uuidStr) throws BadRequestException {
+		UUID networkId;
+		try {
+			networkId = UUID.fromString(uuidStr);
+		} catch (IllegalArgumentException e) {
+			throw new BadRequestException("'" + uuidStr + "' is not a valid network UUID.");
+		}
+		return networkId;
+
+	}
 	protected class NodeAttrsFilterThread extends Thread {
 		
 		private PipedOutputStream out;
