@@ -777,7 +777,7 @@ public class TestGlobalNetworkIndexManager {
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "NETWORK");
+                null, null, "NETWORK", true);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("entityType:\"NETWORK\""));
@@ -1085,7 +1085,7 @@ public class TestGlobalNetworkIndexManager {
         Thread.sleep(2000);
 
         SolrDocumentList results = manager.searchByType("cancer", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, "NETWORK");
+                100, 0, null, null, "NETWORK", true);
 
         assertNotNull(results);
         assertEquals(1, results.getNumFound());
@@ -1206,7 +1206,7 @@ public class TestGlobalNetworkIndexManager {
         Thread.sleep(2000);
 
         SolrDocumentList results = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, "NETWORK");
+                100, 0, null, null, "NETWORK", true);
 
         assertEquals(1, results.getNumFound());
 

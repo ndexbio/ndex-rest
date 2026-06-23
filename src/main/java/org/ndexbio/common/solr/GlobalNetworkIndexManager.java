@@ -110,7 +110,10 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     }
 
     /**
-     * Search specifically for networks (backward compatibility)
+     * Search specifically for networks.
+     *
+     * @param includeShortcuts when true, also folds in SHORTCUT docs whose targetType
+     * is NETWORK (v3 behavior); when false, returns only NETWORK docs (v2 behavior).
      */
     public SolrDocumentList searchForNetworks(
             String searchTerms,
@@ -124,22 +127,6 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
 
         return searchByType(searchTerms, userAccount, visibilityType, limit, offset,
                 adminedBy, permission, FileType.NETWORK.toString(), includeShortcuts);
-    }
-
-    /**
-     * Backward-compatible overload. Defaults to includeShortcuts=true.
-     */
-    public SolrDocumentList searchForNetworks(
-            String searchTerms,
-            String userAccount,
-            VisibilityType visibilityType,
-            int limit,
-            int offset,
-            String adminedBy,
-            Permissions permission) throws IOException, SolrServerException, NdexException {
-
-        return searchForNetworks(searchTerms, userAccount, visibilityType, limit, offset,
-                adminedBy, permission, true);
     }
 
     public void addCX2NodeToIndex(CxNode node, Map<String, Map.Entry<String, DeclarationEntry>> attributeNameMapping)  {

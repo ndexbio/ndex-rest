@@ -50,7 +50,7 @@ public class NFSSearchProvider implements SearchProvider {
                 documents = delegate.searchByType(query.getSearchString(), userAccessorId,
                         visibilityType,
                         blockSize, skipBlocks, ownedBy,
-                        query.getPermission(), query.getType().toString());
+                        query.getPermission(), query.getType().toString(), true);
                 allSummaries = getDocumentSummariesByEntityType(query.getType(), getUUIDsFromDocuments(documents));
 
             } else {

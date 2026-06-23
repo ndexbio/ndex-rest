@@ -606,7 +606,7 @@ public class TestShortcutIndexManager {
 
         manager = new ShortcutIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "SHORTCUT");
+                null, null, "SHORTCUT", true);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("entityType:\"SHORTCUT\""));
@@ -834,7 +834,7 @@ public class TestShortcutIndexManager {
         Thread.sleep(2000);
 
         var results = manager.searchByType("cancer", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, FileType.SHORTCUT.toString());
+                100, 0, null, null, FileType.SHORTCUT.toString(), true);
 
         assertNotNull(results);
         assertEquals(1, results.getNumFound());
@@ -853,12 +853,12 @@ public class TestShortcutIndexManager {
         Thread.sleep(2000);
 
         var page1 = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
-                5, 0, null, null, FileType.SHORTCUT.toString());
+                5, 0, null, null, FileType.SHORTCUT.toString(), true);
         assertEquals(5, page1.size());
         assertEquals(10, page1.getNumFound());
 
         var page2 = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
-                5, 5, null, null, FileType.SHORTCUT.toString());
+                5, 5, null, null, FileType.SHORTCUT.toString(), true);
         assertEquals(5, page2.size());
     }
 
@@ -883,7 +883,7 @@ public class TestShortcutIndexManager {
         Thread.sleep(2000);
 
         var results = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, FileType.SHORTCUT.toString());
+                100, 0, null, null, FileType.SHORTCUT.toString(), true);
 
         assertEquals(1, results.getNumFound());
 

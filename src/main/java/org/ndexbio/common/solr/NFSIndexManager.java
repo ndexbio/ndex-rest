@@ -231,9 +231,6 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     }
 
     /**
-     * Search with entity type filter
-     */
-    /**
      * Search with entity type filter.
      *
      * @param includeShortcuts when true, also returns SHORTCUT docs whose targetType
@@ -279,23 +276,6 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         } catch (Exception e) {
             throw new NdexException("Error accessing Solr: " + e.getMessage());
         }
-    }
-
-    /**
-     * Backward-compatible overload. Defaults to includeShortcuts=true (folds shortcuts
-     * whose targetType matches entityType into the results).
-     */
-    public SolrDocumentList searchByType(
-            String searchTerms,
-            String userAccount,
-            VisibilityType visibilityType,
-            int limit,
-            int offset,
-            String ownedBy,
-            Permissions permission,
-            String entityType) throws NdexException {
-        return searchByType(searchTerms, userAccount, visibilityType, limit, offset,
-                ownedBy, permission, entityType, true);
     }
 
     /**
