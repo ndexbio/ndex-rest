@@ -110,7 +110,10 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     }
 
     /**
-     * Search specifically for networks (backward compatibility)
+     * Search specifically for networks.
+     *
+     * @param includeShortcuts when true, also folds in SHORTCUT docs whose targetType
+     * is NETWORK (v3 behavior); when false, returns only NETWORK docs (v2 behavior).
      */
     public SolrDocumentList searchForNetworks(
             String searchTerms,
@@ -119,10 +122,11 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
             int limit,
             int offset,
             String adminedBy,
-            Permissions permission) throws IOException, SolrServerException, NdexException {
+            Permissions permission,
+            boolean includeShortcuts) throws IOException, SolrServerException, NdexException {
 
-        return searchByType(searchTerms, userAccount,visibilityType, limit, offset,
-                adminedBy, permission, FileType.NETWORK.toString());
+        return searchByType(searchTerms, userAccount, visibilityType, limit, offset,
+                adminedBy, permission, FileType.NETWORK.toString(), includeShortcuts);
     }
 
     public void addCX2NodeToIndex(CxNode node, Map<String, Map.Entry<String, DeclarationEntry>> attributeNameMapping)  {
@@ -215,7 +219,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
             for (String indexableString : getIndexableString(node.getNodeRepresents())) {
                 doc.addField(REPRESENTS, indexableString);
             }
-            //	   if( indexableString !=null)
+            //     if( indexableString !=null)
         }
 
 
@@ -223,7 +227,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     public void addCXNodeAttrToIndex(NodeAttributesElement e)  {
 
         if ( e.getName().equals(NdexClasses.Node_P_alias)) {
-            if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING 	&& !e.getValues().isEmpty()) {
+            if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING  && !e.getValues().isEmpty()) {
                 for ( String v : e.getValues()) {
                     for ( String indexableString : getIndexableString(v) ){
                         doc.addField(ALIASES, indexableString);
@@ -368,7 +372,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
         String[] termStringComponents = TermUtilities.getNdexQName(termString);
         if (termStringComponents != null && termStringComponents.length == 2) {
             // case 2: termString is of the form (NamespacePrefix:)*Identifier
-            //		if ( !termStringComponents[0].contains(" "))
+            //     if ( !termStringComponents[0].contains(" "))
             result.add(termString);
             result.add(termStringComponents[1]);
             return  result;

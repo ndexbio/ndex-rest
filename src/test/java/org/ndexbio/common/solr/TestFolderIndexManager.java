@@ -719,7 +719,7 @@ public class TestFolderIndexManager {
 
         manager = new FolderIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "FOLDER");
+                null, null, "FOLDER", true);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("entityType:\"FOLDER\""));
