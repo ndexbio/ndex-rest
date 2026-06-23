@@ -35,7 +35,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1225,19 +1224,14 @@ public class UserServiceV2 extends NdexService {
 						@DefaultValue("0") @QueryParam("limit") int limit,
 						@DefaultValue("false") @QueryParam("summary") boolean summaryOnly,
 						@DefaultValue("false") @QueryParam("showcase") boolean showcasedOnly
-						) throws SQLException, JsonParseException, JsonMappingException, IOException {
-				
+					) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException {
 			UUID userId = UUID.fromString(userIdStr);
 					
 			try (NetworkSetDAO dao = new NetworkSetDAO ()){
 					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId(), offset, limit, summaryOnly, showcasedOnly);
 					return sets;
 				}
-				
-			}   
-
-	
-	// these are just prototypes not in production, 
+	}
 
 	/**************************************************************************
 	 * Authenticates a user from Google OAuth openID Connect
