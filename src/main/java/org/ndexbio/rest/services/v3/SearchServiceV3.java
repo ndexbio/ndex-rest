@@ -332,8 +332,6 @@ public class SearchServiceV3 extends NdexService  {
 	@POST
 	@Path("/networks/{networkId}/nodes")
 	@Produces("application/json")
-
-	
 	public Response getNodeAttributes (@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
 			final CXObjectFilter filterObject) throws SQLException, IOException, NdexException {
@@ -341,10 +339,9 @@ public class SearchServiceV3 extends NdexService  {
 		if(filterObject.getAttributeNames().size()==0) {
 			throw new BadRequestException("At least one attribute name is reqired in the 'attributeNames' field.");
 		}
-		
+		UUID networkId = parseUuid(networkIdStr);
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
-			UUID networkId = parseUuid(networkIdStr);
 			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
 				List<CxMetadata> md = dao.getCx2MetaDataList(networkId);
 			
@@ -400,6 +397,9 @@ public class SearchServiceV3 extends NdexService  {
 	}
 
 	private UUID parseUuid(String uuidStr) throws BadRequestException {
+		if (uuidStr == null) {
+			throw new BadRequestException("Network UUID is required.");
+		}
 		UUID networkId;
 		try {
 			networkId = UUID.fromString(uuidStr);
@@ -407,7 +407,6 @@ public class SearchServiceV3 extends NdexService  {
 			throw new BadRequestException("'" + uuidStr + "' is not a valid network UUID.");
 		}
 		return networkId;
-
 	}
 	protected class NodeAttrsFilterThread extends Thread {
 		
