@@ -783,6 +783,64 @@ public class TestGlobalNetworkIndexManager {
         assertTrue(fq[0].contains("entityType:\"NETWORK\""));
     }
 
+    @Test
+    public void testSearchByType_IncludeShortcutsTrue_FoldsInMatchingShortcuts() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(anyString(), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
+                null, null, "NETWORK", true);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Base entityType clause is always present
+        assertTrue(fq[0].contains("entityType:\"NETWORK\""));
+        // includeShortcuts=true ORs in SHORTCUT docs whose targetType matches
+        assertTrue(fq[0].contains("entityType:\"SHORTCUT\""));
+        assertTrue(fq[0].contains("targetType:\"NETWORK\""));
+    }
+
+    @Test
+    public void testSearchByType_IncludeShortcutsFalse_OmitsShortcutClause() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(anyString(), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
+                null, null, "NETWORK", false);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Base entityType clause is still present
+        assertTrue(fq[0].contains("entityType:\"NETWORK\""));
+        // includeShortcuts=false must not fold in the SHORTCUT/targetType OR-clause
+        assertFalse(fq[0].contains("SHORTCUT"));
+        assertFalse(fq[0].contains("targetType"));
+    }
+
     // ========================================================================
     // QUERY FIELDS
     // ========================================================================
