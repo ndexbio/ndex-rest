@@ -396,7 +396,7 @@ public class SearchServiceV3 extends NdexService  {
 		}
 	}
 
-	private UUID parseUuid(String uuidStr) throws BadRequestException {
+	UUID parseUuid(String uuidStr) throws BadRequestException {
 		if (uuidStr == null) {
 			throw new BadRequestException("Network UUID is required.");
 		}
