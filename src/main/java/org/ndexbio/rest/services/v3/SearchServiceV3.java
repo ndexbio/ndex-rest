@@ -337,7 +337,7 @@ public class SearchServiceV3 extends NdexService  {
 			final CXObjectFilter filterObject) throws SQLException, IOException, NdexException {
 		
 		if(filterObject.getAttributeNames().size()==0) {
-			throw new BadRequestException("At least one attribute name is reqired in the 'attributeNames' field.");
+			throw new BadRequestException("At least one attribute name is required in the 'attributeNames' field.");
 		}
 		UUID networkId = parseUuid(networkIdStr);
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
