@@ -168,7 +168,7 @@ public class SearchServiceV3 extends NdexService  {
 		if ( queryParameters.getSearchDepth() <1) {
 			queryParameters.setSearchDepth(1);
 		}
-		UUID networkId = UUID.fromString(networkIdStr);
+		UUID networkId = parseUuid(networkIdStr);
 
 		UUID userId = getLoggedInUserId();
 		if (  saveAsNetwork) {
@@ -256,8 +256,7 @@ public class SearchServiceV3 extends NdexService  {
 			queryParameters.setSearchDepth(1);
 		}
 
-		UUID networkId = UUID.fromString(networkIdStr);
-
+		UUID networkId = parseUuid(networkIdStr);
 		UUID userId = getLoggedInUserId();
 		if (  saveAsNetwork) {
 			if (userId == null)
@@ -333,19 +332,16 @@ public class SearchServiceV3 extends NdexService  {
 	@POST
 	@Path("/networks/{networkId}/nodes")
 	@Produces("application/json")
-
-	
 	public Response getNodeAttributes (@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
 			final CXObjectFilter filterObject) throws SQLException, IOException, NdexException {
 		
 		if(filterObject.getAttributeNames().size()==0) {
-			throw new BadRequestException("At least one attribute name is reqired in the 'attributeNames' field.");
+			throw new BadRequestException("At least one attribute name is required in the 'attributeNames' field.");
 		}
-		
+		UUID networkId = parseUuid(networkIdStr);
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
-			UUID networkId = UUID.fromString(networkIdStr);
 			if ( dao.isReadable(networkId, userId) || dao.accessKeyIsValid(networkId, accessKey)) {
 				List<CxMetadata> md = dao.getCx2MetaDataList(networkId);
 			
@@ -399,7 +395,19 @@ public class SearchServiceV3 extends NdexService  {
 			throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 		}
 	}
-	
+
+	UUID parseUuid(String uuidStr) throws BadRequestException {
+		if (uuidStr == null) {
+			throw new BadRequestException("Network UUID is required.");
+		}
+		UUID networkId;
+		try {
+			networkId = UUID.fromString(uuidStr);
+		} catch (IllegalArgumentException e) {
+			throw new BadRequestException("'" + uuidStr + "' is not a valid network UUID.");
+		}
+		return networkId;
+	}
 	protected class NodeAttrsFilterThread extends Thread {
 		
 		private PipedOutputStream out;
