@@ -2,6 +2,7 @@ package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
 import java.security.SecureRandom;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -11,6 +12,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -33,9 +35,27 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class NetworkSetDAO extends NdexDBDAO {
+	@FunctionalInterface
+	public interface FolderDAOProvider {
+		FolderDAO get() throws SQLException;
+	}
+
+	private final FolderDAOProvider folderDAOProvider;
 
 	public NetworkSetDAO() throws SQLException {
 		super();
+		this.folderDAOProvider = () -> Configuration.getInstance().getDAOFactory().getFolderDAO();
+	}
+
+	public NetworkSetDAO(Connection connection, FolderDAO folderDAO) {
+		super(connection);
+		Objects.requireNonNull(folderDAO, "folderDAO");
+		this.folderDAOProvider = () -> folderDAO;
+	}
+
+	public NetworkSetDAO(Connection connection, FolderDAOProvider folderDAOProvider) {
+		super(connection);
+		this.folderDAOProvider = Objects.requireNonNull(folderDAOProvider, "folderDAOProvider");
 	}
 
 	public void createNetworkSet(UUID setId, String name, String desc, UUID ownerId, Map<String,Object> properties) throws SQLException, DuplicateObjectException, JsonProcessingException {
@@ -131,7 +151,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 	public NetworkSet getNetworkSet(UUID setId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException, NdexException {
 		
 		// All network sets are now folder-backed. Query the folder using its UUID (same as old network_set UUID).
-		try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+		try (FolderDAO folderDAO = folderDAOProvider.get()) {
 			NdexFolder folder = folderDAO.getFolder(setId, userId, accessKey);
 			
 			NetworkSet result = new NetworkSet();
@@ -205,7 +225,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 		// All network sets are now folder-backed. Query folders owned by userId.
 		List<NetworkSet> result = new ArrayList<>();
 		
-		try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+		try (FolderDAO folderDAO = folderDAOProvider.get()) {
 			// Fetch enough rows to support offset/limit semantics. In the previous implementation, limit<=0 meant "no limit".
 			final int fetchLimit = (limit > 0 ? (offset > 0 ? offset + limit : limit) : Integer.MAX_VALUE);
 			List<NdexFolder> userFolders = folderDAO.listFoldersOfUser(userId, fetchLimit);
