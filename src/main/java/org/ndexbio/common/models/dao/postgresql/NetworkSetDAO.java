@@ -206,8 +206,9 @@ public class NetworkSetDAO extends NdexDBDAO {
 		List<NetworkSet> result = new ArrayList<>();
 		
 		try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			// Get all folders owned by userId (limit is applied by listFoldersOfUser)
-			List<NdexFolder> userFolders = folderDAO.listFoldersOfUser(userId, limit);
+			// Fetch enough rows to support offset/limit semantics. In the previous implementation, limit<=0 meant "no limit".
+			final int fetchLimit = (limit > 0 ? (offset > 0 ? offset + limit : limit) : Integer.MAX_VALUE);
+			List<NdexFolder> userFolders = folderDAO.listFoldersOfUser(userId, fetchLimit);
 			
 			// Apply offset manually since FolderDAO doesn't support offset
 			int startIdx = Math.max(0, offset >= 0 ? offset : 0);
