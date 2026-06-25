@@ -2,35 +2,60 @@ package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
 import java.security.SecureRandom;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import jakarta.xml.bind.DatatypeConverter;
 
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NetworkSet;
+import org.ndexbio.model.object.NdexFolder;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class NetworkSetDAO extends NdexDBDAO {
+	@FunctionalInterface
+	public interface FolderDAOProvider {
+		FolderDAO get() throws SQLException;
+	}
+
+	private final FolderDAOProvider folderDAOProvider;
 
 	public NetworkSetDAO() throws SQLException {
 		super();
+		this.folderDAOProvider = () -> Configuration.getInstance().getDAOFactory().getFolderDAO();
+	}
+
+	public NetworkSetDAO(Connection connection, FolderDAO folderDAO) {
+		super(connection);
+		Objects.requireNonNull(folderDAO, "folderDAO");
+		this.folderDAOProvider = () -> folderDAO;
+	}
+
+	public NetworkSetDAO(Connection connection, FolderDAOProvider folderDAOProvider) {
+		super(connection);
+		this.folderDAOProvider = Objects.requireNonNull(folderDAOProvider, "folderDAOProvider");
 	}
 
 	public void createNetworkSet(UUID setId, String name, String desc, UUID ownerId, Map<String,Object> properties) throws SQLException, DuplicateObjectException, JsonProcessingException {
@@ -123,64 +148,45 @@ public class NetworkSetDAO extends NdexDBDAO {
 		
 	}
 	
-	public NetworkSet getNetworkSet(UUID setId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
+	public NetworkSet getNetworkSet(UUID setId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException, NdexException {
 		
-		NetworkSet result = new NetworkSet();
-		String sqlStr = "select creation_time, modification_time, owner_id, name, description, access_key, access_key_is_on, other_attributes,showcased, ndexdoi from network_set  where \"UUID\"=? and is_deleted=false";
-		
-		String dbAccessKey = null;
-		boolean dbKeyIsOn;
-		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-			p.setObject(1, setId);
-			try ( ResultSet rs = p.executeQuery()) {
-				if ( rs.next()) {
-					result.setCreationTime(rs.getTimestamp(1));
-					result.setModificationTime(rs.getTimestamp(2));
-					result.setExternalId(setId);
-					result.setOwnerId((UUID)rs.getObject(3));
-					result.setName(rs.getString(4));
-					result.setDescription(rs.getString(5));
-					dbAccessKey = rs.getString(6);
-					dbKeyIsOn = rs.getBoolean(7);
-					
-					String propStr = rs.getString(8);
-					
-					if ( propStr != null) {
-						ObjectMapper mapper = new ObjectMapper(); 
-						TypeReference<HashMap<String,Object>> typeRef 
-				            = new TypeReference<HashMap<String,Object>>() {/**/};
-
-				            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
-				            result.setProperties(o);
-					}
-					
-					result.setShowcased(rs.getBoolean(9));
-					result.setDoi(rs.getString(10));
-				} else
-					throw new ObjectNotFoundException("Network set" + setId + " not found in db.");
+		// All network sets are now folder-backed. Query the folder using its UUID (same as old network_set UUID).
+		try (FolderDAO folderDAO = folderDAOProvider.get()) {
+			NdexFolder folder = folderDAO.getFolder(setId, userId, accessKey);
+			
+			NetworkSet result = new NetworkSet();
+			result.setExternalId(setId);
+			result.setCreationTime(folder.getCreationTime());
+			result.setModificationTime(folder.getModificationTime());
+			result.setOwnerId(UUID.fromString(folder.getOwner_id()));
+			result.setName(folder.getName());
+			result.setDescription(folder.getDescription());
+			
+			// Folders don't have showcased flag or DOI, so these are not set.
+			// showcasedOnly is treated as no-op for migrated folder-backed sets.
+			
+			// Get folder members and normalize them according to v2 constraints:
+			// - Include direct networks (FileType.NETWORK)
+			// - Exclude folders (FileType.FOLDER)
+			// - Exclude folder-type shortcuts (FileType.SHORTCUT with target_type='FOLDER')
+			// - For network-type shortcuts: replace shortcut UUID with target network UUID (only if target is ACTIVE)
+			// - Exclude deleted/in-trash network shortcuts
+			// - Deduplicate network UUIDs, preserve first-seen order
+			List<FileItemSummary> folderItems = folderDAO.listItemsInFolder(setId, true, FileType.NETWORK);
+			
+			Set<UUID> seenNetworkIds = new LinkedHashSet<>();
+			for (FileItemSummary item : folderItems) {
+				if (item.getType() == FileType.NETWORK) {
+					// Direct network member
+					seenNetworkIds.add(item.getUuid());
+				} else if (item.getType() == FileType.SHORTCUT) {
+					includeNetworkShortcut(item.getAttributes(), seenNetworkIds);
+				}
 			}
+			
+			result.setNetworks(new ArrayList<>(seenNetworkIds));
+			return result;
 		}
-		
-		boolean keyIsValid = false;
-		if (dbKeyIsOn && accessKey!= null && dbAccessKey.equals(accessKey))
-			keyIsValid = true;
-		if (!keyIsValid && accessKey!=null)
-			throw new UnauthorizedOperationException("In valid network set access key.");
-		
-		sqlStr = "select nm.network_id from network_set_member nm, network n where nm.set_id =? and n.\"UUID\"=nm.network_id and " + 
-				( keyIsValid ? " true" : PostgresNetworkDAO.createIsReadableConditionStr(userId)) ;
-		
-		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-			p.setObject(1, setId);
-			try ( ResultSet rs = p.executeQuery()) {
-				List<UUID> networkIds = result.getNetworks();
-				while ( rs.next()) {
-					networkIds.add((UUID)rs.getObject(1));
-				} 
-			}
-		}
-		
-		return result;
 	}
 
 	public void addNetworksToNetworkSet(UUID setId, Collection<UUID> networkIds) throws SQLException {
@@ -214,70 +220,81 @@ public class NetworkSetDAO extends NdexDBDAO {
 	
 	public List<NetworkSet> getNetworkSetsByUserId(UUID userId, UUID signedInUserId, int offset, int limit,
 			boolean summaryOnly, boolean showcasedOnly
-			) throws SQLException, JsonParseException, JsonMappingException, IOException {
+			) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException {
 		
+		// All network sets are now folder-backed. Query folders owned by userId.
 		List<NetworkSet> result = new ArrayList<>();
 		
-		String sqlStr = "select creation_time, modification_time, \"UUID\", name, description, other_attributes,showcased from network_set  where owner_id=? and is_deleted=false"
-				 + (showcasedOnly? " and showcased = true" : "");
-	
-		if ( offset>=0 && limit>0) {
-			sqlStr += " limit " +limit + " offset " + offset;
-		}
-		
-		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-			p.setObject(1, userId);
-			try ( ResultSet rs = p.executeQuery()) {
-				while ( rs.next()) {
-					NetworkSet entry = new NetworkSet();
-					entry.setCreationTime(rs.getTimestamp(1));
-					entry.setModificationTime(rs.getTimestamp(2));
-					entry.setExternalId((UUID)rs.getObject(3));
-					entry.setOwnerId(userId);
-					entry.setName(rs.getString(4));
-					entry.setDescription(rs.getString(5));
-					
-					String propStr = rs.getString(6);
-					
-					if ( propStr != null) {
-						ObjectMapper mapper = new ObjectMapper(); 
-						TypeReference<HashMap<String,Object>> typeRef 
-				            = new TypeReference<HashMap<String,Object>>() {/**/};
-				            HashMap<String,Object> o = mapper.readValue(propStr, typeRef); 		
-				            entry.setProperties(o);
-					}
-					
-					entry.setShowcased(rs.getBoolean(7));
-					entry.setOwnerId(userId);
-
-					result.add(entry);
-				} 
+		try (FolderDAO folderDAO = folderDAOProvider.get()) {
+			// Fetch enough rows to support offset/limit semantics. In the previous implementation, limit<=0 meant "no limit".
+			final int fetchLimit = (limit > 0 ? (offset > 0 ? offset + limit : limit) : Integer.MAX_VALUE);
+			List<NdexFolder> userFolders = folderDAO.listFoldersOfUser(userId, fetchLimit);
+			
+			// Apply offset manually since FolderDAO doesn't support offset
+			int startIdx = Math.max(0, offset >= 0 ? offset : 0);
+			int endIdx = Math.min(userFolders.size(), offset >= 0 && limit > 0 ? offset + limit : userFolders.size());
+			if (startIdx >= userFolders.size()) {
+				return result;
 			}
-		}
-		
-		if ( summaryOnly) {
-			for (NetworkSet entry : result) {
-				entry.setNetworks(null);
-			}
-		} else {	
-			sqlStr = "select network_id from network_set_member nm, network n where nm.set_id =? and nm.network_id = n.\"UUID\" and " + PostgresNetworkDAO.createIsReadableConditionStr(signedInUserId);
-		
-			for (NetworkSet entry : result) {
-				try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-					p.setObject(1, entry.getExternalId());
-					try ( ResultSet rs = p.executeQuery()) {
-						List<UUID> networkIds = entry.getNetworks();
-						while ( rs.next()) {
-							networkIds.add((UUID)rs.getObject(1));
-						} 
+			
+			List<NdexFolder> pagedFolders = userFolders.subList(startIdx, endIdx);
+			
+			for (NdexFolder folder : pagedFolders) {
+				NetworkSet entry = new NetworkSet();
+				entry.setExternalId(folder.getExternalId());
+				entry.setCreationTime(folder.getCreationTime());
+				entry.setModificationTime(folder.getModificationTime());
+				entry.setOwnerId(userId);
+				entry.setName(folder.getName());
+				entry.setDescription(folder.getDescription());
+				
+				// Folders don't have showcased flag or DOI, so these are not set.
+				// showcasedOnly is treated as no-op for migrated folder-backed sets.
+				
+				// Populate networks unless summaryOnly is true
+				if (!summaryOnly) {
+					// Get folder members and normalize them according to v2 constraints
+					List<FileItemSummary> folderItems = folderDAO.listItemsInFolder(folder.getExternalId(), true, FileType.NETWORK);
+					
+					Set<UUID> seenNetworkIds = new LinkedHashSet<>();
+					for (FileItemSummary item : folderItems) {
+						if (item.getType() == FileType.NETWORK) {
+							// Direct network member
+							seenNetworkIds.add(item.getUuid());
+						} else if (item.getType() == FileType.SHORTCUT) {
+							includeNetworkShortcut(item.getAttributes(), seenNetworkIds);
+						}
 					}
+					entry.setNetworks(new ArrayList<>(seenNetworkIds));
 				}
+				result.add(entry);
 			}
 		}
+		
 		return result;
 	}
 
-	
+	private void includeNetworkShortcut(Map<String, Object> attrs, Set<UUID> seenNetworkIds) {
+		if (attrs == null) {
+			return;
+		}
+
+		String targetType = (String) attrs.get("target_type");
+		if (!"NETWORK".equals(targetType)) {
+			return;
+		}
+
+		String targetStatus = (String) attrs.get("target_status");
+		if (!"ACTIVE".equals(targetStatus)) {
+			return;
+		}
+
+		UUID targetId = (UUID) attrs.get("target");
+		if (targetId != null) {
+			seenNetworkIds.add(targetId);
+		}
+	}
+
 	public int getNetworkSetCountByUserId(UUID userId) throws SQLException, NdexException {
 		
 		String sqlStr = "select count(*) from network_set  where owner_id=? and is_deleted=false";

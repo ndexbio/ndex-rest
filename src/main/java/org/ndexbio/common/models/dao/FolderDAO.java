@@ -22,6 +22,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
 public interface FolderDAO extends AutoCloseable {
+
+	@Override
+	void close() throws SQLException;
 	
 	void commit() throws SQLException;
 	
