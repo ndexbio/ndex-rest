@@ -152,7 +152,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 			// - For network-type shortcuts: replace shortcut UUID with target network UUID (only if target is ACTIVE)
 			// - Exclude deleted/in-trash network shortcuts
 			// - Deduplicate network UUIDs, preserve first-seen order
-			List<FileItemSummary> folderItems = folderDAO.listItemsInFolder(setId, true, null);
+			List<FileItemSummary> folderItems = folderDAO.listItemsInFolder(setId, true, FileType.NETWORK);
 			
 			Set<UUID> seenNetworkIds = new LinkedHashSet<>();
 			for (FileItemSummary item : folderItems) {
@@ -233,7 +233,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 				// Populate networks unless summaryOnly is true
 				if (!summaryOnly) {
 					// Get folder members and normalize them according to v2 constraints
-					List<FileItemSummary> folderItems = folderDAO.listItemsInFolder(folder.getExternalId(), true, null);
+					List<FileItemSummary> folderItems = folderDAO.listItemsInFolder(folder.getExternalId(), true, FileType.NETWORK);
 					
 					Set<UUID> seenNetworkIds = new LinkedHashSet<>();
 					for (FileItemSummary item : folderItems) {
