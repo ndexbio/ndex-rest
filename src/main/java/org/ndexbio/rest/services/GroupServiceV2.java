@@ -30,659 +30,138 @@
  */
 package org.ndexbio.rest.services;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.sql.SQLException;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 
-import org.apache.solr.client.solrj.SolrServerException;
-import org.ndexbio.common.models.dao.FolderDAO;
-import org.ndexbio.common.models.dao.postgresql.GroupDAO;
-import org.ndexbio.common.models.dao.postgresql.RequestDAO;
-import org.ndexbio.common.models.dao.postgresql.UserDAO;
-import org.ndexbio.common.solr.GroupIndexManager;
-import org.ndexbio.common.util.NdexUUIDFactory;
-import org.ndexbio.model.exceptions.DuplicateObjectException;
-import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.*;
-import org.ndexbio.model.object.network.VisibilityType;
-import org.ndexbio.rest.Configuration;
-
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 
 import io.swagger.v3.oas.annotations.Operation;
 
+/**
+ * The NDEx group feature has been removed. Every endpoint on this resource returns
+ * HTTP 501 (Not Implemented). The resource stays registered so clients receive a 501
+ * (rather than a 404) for the retired group API.
+ */
 @Path("/v2/group")
 public class GroupServiceV2 extends NdexService {
 
-	// now using folders not groups. todo figure out what to do about permission requests and group network memberships..
+	private static final String GROUPS_REMOVED = "The NDEx group feature has been removed.";
 
-
-	/**************************************************************************
-	 * Injects the HTTP request into the base class to be used by
-	 * getLoggedInUser().
-	 * 
-	 * @param httpRequest
-	 *            The HTTP request injected by RESTEasy's context.
-	 **************************************************************************/
 	public GroupServiceV2(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
 	}
 
-	/**************************************************************************
-	 * Creates a group.
-	 * 
-	 * @param newGroup
-	 *            The group to create.
-
-	 * @return The newly created group's URI.
-	 * @throws Exception 
-
-	 **************************************************************************/
-	/*
-	 * refactor this method to use non-transactional database interactions
-	 * validate input data before creating a database vertex
-	 */
 	@POST
 	@Produces("text/plain")
-	@Operation(summary = "Create Group", description = "Create a group owned by the authenticated user based on the supplied group JSON object.")
-	public Response createGroup(final Group newGroup)
-			throws  Exception {
-		FolderRequest request = mapGroupRequestToFolderRequest(newGroup);
-
-		if (request == null) {
-			throw new BadRequestException("No folder request data was provided!");
-		}
-
-		if (request.getName() == null || request.getName().trim().isEmpty()) {
-			throw new BadRequestException("Folder name cannot be empty.");
-		}
-
-		UUID parentUUID = request.getParent();
-		if (parentUUID != null && !parentUUID.toString().isEmpty()) {
-			try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-				if (!dao.isFolderOwner(parentUUID, getLoggedInUser().getExternalId())) {
-					// If not owner, check if user has WRITE permission
-					Map<String, String> permissions = dao.getFolderPermissions(parentUUID);
-					String userPermission = permissions.get(getLoggedInUser().getExternalId().toString());
-					if (userPermission == null || !userPermission.equals(Permissions.WRITE.toString())) {
-						throw new UnauthorizedOperationException("User doesn't have write access to the parent folder.");
-					}
-				}
-			}
-		}
-		UUID folderUUID;
-		if (newGroup.getExternalId() != null)
-			folderUUID = newGroup.getExternalId();
-		else
-			folderUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-
-		// create entry in db.
-		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
-			dao.commit();
-			createFileIndex(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE, FileType.FOLDER, true);
-		}
-
-		URI l = new URI(Configuration.getInstance().getHostURI() + Configuration.getInstance().getRestAPIPrefix()
-				+ "/group/" + folderUUID);
-
-		return Response.created(l).entity(l).build();
-
+	@Operation(summary = "Create Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	public Response createGroup(final Group newGroup) {
+		throw notImplemented(GROUPS_REMOVED);
 	}
-
-
-	/**************************************************************************
-	 * Deletes a group.
-	 * 
-	 * @param groupId
-	 *            The ID of the group to delete.
-	 * @throws Exception 
-
-	 **************************************************************************/
-
 
 	@DELETE
 	@Path("/{groupid}")
-	@Operation(summary = "Delete Group", description = "Delete the group specified by groupId.")
+	@Operation(summary = "Delete Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
 	@Produces("application/json")
-	public void deleteGroup(@PathParam("groupid") final String groupId) throws Exception {
-
-		UUID folderId = UUID.fromString(groupId);
-		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
-				throw new UnauthorizedOperationException("Signed in user is not the owner of this group.");
-
-			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
-			dao.deleteFolder(folderId, true, false);
-			dao.commit();
-			deleteFileIndex(folderId, visibilityType);
-		}
+	public void deleteGroup(@PathParam("groupid") final String groupId) {
+		throw notImplemented(GROUPS_REMOVED);
 	}
 
-
-
-
-
-	/**************************************************************************
-	 * Gets a group by ID or name.
-	 * 
-	 * @param groupId
-	 *            The ID or name of the group.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws NdexException
-	 *             Failed to query the database.
-	 * @return The group.
-
-	 **************************************************************************/
 	@GET
 	@PermitAll
 	@Path("/{groupid}")
-	@Operation(summary = "Get a Group", description = "Returns a group JSON structure for the group specified by groupId.")
+	@Operation(summary = "Get a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
 	@Produces("application/json")
-	public Group getGroup(@PathParam("groupid") final String groupId)
-			throws ObjectNotFoundException, NdexException, SQLException {
-
-		UUID folderId = UUID.fromString(groupId);
-		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			NdexFolder folder = dao.getFolder(folderId, getLoggedInUserId(), null);
-			return mapFolderToGroup(folder);
-		} catch (Exception e) {
-			throw new NdexException("Failed to get group: " + e.getMessage(), e);
-		}
-    }
-
-
-	/**************************************************************************
-	 * Updates a group.
-	 * 
-	 * @param updatedGroup
-	 *            The updated group information.
-	 * @throws Exception 
-
-	 **************************************************************************/
-	@PUT
-	@Path("/{groupid}")
-	@Operation(summary = "Update Group", description = "Updates the group metadata corresponding to the POSTed group JSON object.")
-	@Produces("application/json")
-	
-	public void updateGroup(final Group updatedGroup, 
-							@PathParam("groupid") final String id)
-			throws Exception {
-
-
-		UUID folderId = UUID.fromString(id);
-		if (updatedGroup.getExternalId() != null && !folderId.equals(updatedGroup.getExternalId())) {
-			throw new NdexException("UUID doesn't match between URL and uploaded group object.");
-		}
-
-		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
-				throw new NdexException("Only group administrators can update a group.");
-
-			dao.updateFolder(folderId, updatedGroup.getGroupName(), null, getLoggedInUserId(), updatedGroup.getDescription());
-			dao.commit();
-			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
-			createFileIndex(folderId, getLoggedInUser(), visibilityType, FileType.FOLDER, false);
-		}
+	public Group getGroup(@PathParam("groupid") final String groupId) {
+		throw notImplemented(GROUPS_REMOVED);
 	}
 
-	/**************************************************************************
-	 * Changes a member's permissions to a group.
-	 * 
-	 * @param groupId
-	 *            The group ID.
-	 * @param groupMember
-	 
-	 **************************************************************************/
+	@PUT
+	@Path("/{groupid}")
+	@Operation(summary = "Update Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Produces("application/json")
+	public void updateGroup(final Group updatedGroup, @PathParam("groupid") final String id) {
+		throw notImplemented(GROUPS_REMOVED);
+	}
+
 	@PUT
 	@Path("/{groupid}/membership")
-	@Operation(summary = "Add or Update a Group Member", description = "Updates the membership corresponding to the GroupMembership type specified in the URL parameter.")
-
+	@Operation(summary = "Add or Update a Group Member", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
 	public void updateMember(@PathParam("groupid") final String group_id,
 			@QueryParam("userid") final String user_id,
-			@QueryParam("type")  final Permissions permission
-			) throws
-            ObjectNotFoundException, NdexException, SQLException, IOException {
+			@QueryParam("type") final Permissions permission) {
+		throw notImplemented(GROUPS_REMOVED);
+	}
 
-		UUID folderId = UUID.fromString(group_id);
-		UUID userId = UUID.fromString(user_id);
-
-		if (userId == null)
-			throw new NdexException("userid is required in URL.");
-		if (permission == null)
-			throw new NdexException("parameter 'type' is required in URL.");
-
-		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
-				throw new NdexException("Only group admin can update membership.");
-
-			// Map ADMIN permission to WRITE since folders don't have ADMIN members,
-			// only an owner. MEMBER maps to READ.
-			Permissions folderPermission;
-			if (permission == Permissions.ADMIN || permission == Permissions.WRITE) {
-				folderPermission = Permissions.WRITE;
-			} else {
-				folderPermission = Permissions.READ;
-			}
-
-			dao.setFolderPermission(folderId, userId, folderPermission);
-			dao.commit();
-
-			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
-			createFileIndex(folderId, getLoggedInUser(), visibilityType, FileType.FOLDER, false);
-		} catch (Exception e) {
-            throw new NdexException("Failed to add member");
-        }
-    }
-
-	/**************************************************************************
-	 * Remove member from group
-	 * 
-	 * @param groupId
-	 *            The group UUID.
-	 * @param memberId
-	 *            The member UUID
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws ObjectNotFoundException
-	 *             The network or member doesn't exist.
-	 * @throws NdexException
-	 *             Failed to query the database.
-	 * @throws SQLException 
-	 **************************************************************************/
-	/*
-	 * refactored to accommodate non-transactional database interactions
-	 */
 	@DELETE
 	@Path("/{groupid}/membership")
-	@Operation(summary = "Remove a Group Member", description = "Removes the member specified by userUUID from the group specified by groupUUID.")
+	@Operation(summary = "Remove a Group Member", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
 	@Produces("application/json")
-	
 	public void removeGroupMember(@PathParam("groupid") final String groupIdStr,
-			@QueryParam("userid") final String memberIdStr) throws IllegalArgumentException,
-			ObjectNotFoundException, NdexException, SQLException {
+			@QueryParam("userid") final String memberIdStr) {
+		throw notImplemented(GROUPS_REMOVED);
+	}
 
-
-		UUID memberId = UUID.fromString(memberIdStr);
-		UUID folderId = UUID.fromString(groupIdStr);
-
-		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			if (!dao.isFolderOwner(folderId, getLoggedInUserId())) {
-				if (!memberId.equals(getLoggedInUserId())) {
-					throw new UnauthorizedOperationException(
-							"Unable to delete group membership: user needs to be an admin of this group or can only make himself leave this group.");
-				}
-			}
-
-			dao.removeFolderPermission(folderId, memberId);
-			dao.commit();
-
-			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
-			createFileIndex(folderId, getLoggedInUser(), visibilityType, FileType.FOLDER, false);
-		} catch (Exception e) {
-            throw new NdexException("Failed to remove group member");
-        }
-    }
-	
-	/**************************************************************************
-	 * Retrieves array of network membership objects
-	 * DEPRECATED FOR NDEX 3
-	 * 
-	 * @param groupId
-	 *            The group ID.
-
-	 **************************************************************************/
-	
 	@GET
 	@Deprecated
 	@PermitAll
 	@Path("/{groupid}/permission")
-	@Operation(summary = "Get Network Permissions of a Group", description = "Returns network permissions for the specified group.")
+	@Operation(summary = "Get Network Permissions of a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
 	@Produces("application/json")
-	public Map<String,String> getGroupNetworkPermissions(@PathParam("groupid") final String groupIdStr,
-		    @QueryParam("networkid") String networkIdStr,
-		    @QueryParam("permission") String permissions,
+	public Map<String, String> getGroupNetworkPermissions(@PathParam("groupid") final String groupIdStr,
+			@QueryParam("networkid") String networkIdStr,
+			@QueryParam("permission") String permissions,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
-			@DefaultValue("100") @QueryParam("size") int blockSize ) 
-					throws NdexException, SQLException, IllegalArgumentException {
-
-
-		throw new UnsupportedOperationException("Group permissions are no longer supported.");
-		/*
-		UUID groupId = UUID.fromString(groupIdStr);
-
-
-		if ( networkIdStr != null) {
-			Map<String,String> result = new TreeMap<>();
-			UUID networkId = UUID.fromString(networkIdStr);
-			try (GroupDAO dao = new GroupDAO()) {
-				if ( !dao.isInGroup(groupId,getLoggedInUserId()) )
-					throw new NdexException ("Only a group member or admin can check group permission on a network");
-
-				Permissions m = dao.getMembershipToNetwork(groupId, networkId);
-				result.put(networkIdStr, m.toString());
-				return result;
-			}
-		}
-
-		boolean inclusive = true;
-		Permissions permission = Permissions.READ;
-		if ( permission !=null) {
-			 permission = Permissions.valueOf(permissions.toUpperCase());
-		}
-		try (GroupDAO dao = new GroupDAO()){
-	//		if ( !dao.isInGroup(groupId, getLoggedInUserId()))
-	//			throw new NdexException("User is not a member of this group.");
-			return dao.getGroupNetworkPermissions(groupId, permission, skipBlocks, blockSize, getLoggedInUserId(), inclusive);
-			//logger.info("[end: Getting {} networks of group {}]", permissions, groupId);
-			//return l;
-		}
-
-		 */
+			@DefaultValue("100") @QueryParam("size") int blockSize) {
+		throw notImplemented(GROUPS_REMOVED);
 	}
-	
-	/**************************************************************************
-	 * Retrieves array of user membership objects
-	 *
-	 * @param groupId
-	 *            The group ID.
-	 * @throws IllegalArgumentException
-	 *             Bad input.
-	 * @throws ObjectNotFoundException
-	 *             The group doesn't exist.
-	 * @throws NdexException
-	 *             Failed to query the database.
-	 * @throws SQLException 
-	 * @throws IOException 
-	 * @throws JsonMappingException 
-	 * @throws JsonParseException 
-	 **************************************************************************/
-	
+
 	@GET
 	@Path("/{groupid}/membership")
-	@Operation(summary = "Get Members of a Group", description = "This function returns user membership JSON objects of type membershiptype for a group. If the 'type' parameter is omitted, all membership types will be returned.")
+	@Operation(summary = "Get Members of a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
 	@Produces("application/json")
 	@PermitAll
 	public List<Membership> getGroupUserMemberships(@PathParam("groupid") final String groupIdStr,
-			  @QueryParam("type") String permissions,
-				@DefaultValue("0") @QueryParam("start") int skipBlocks,
-				@DefaultValue("100") @QueryParam("size") int blockSize
-			) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
+			@QueryParam("type") String permissions,
+			@DefaultValue("0") @QueryParam("start") int skipBlocks,
+			@DefaultValue("100") @QueryParam("size") int blockSize) {
+		throw notImplemented(GROUPS_REMOVED);
+	}
 
-		UUID folderId = UUID.fromString(groupIdStr);
+	@POST
+	@Path("/{groupid}/permissionrequest")
+	@Operation(summary = "Create User Permission Request", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Produces("text/plain")
+	@Deprecated
+	public Response createRequest(@PathParam("groupid") final String groupIdStr,
+			final PermissionRequest newRequest) {
+		throw notImplemented(GROUPS_REMOVED);
+	}
 
-		Permissions filterPermission = null;
-		if (permissions != null) {
-			filterPermission = Permissions.valueOf(permissions.toUpperCase());
-		}
-
-		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO();
-			 UserDAO userDAO = Configuration.getInstance().getDAOFactory().getUserDAO()) {
-			NdexFolder folder = dao.getFolder(folderId, getLoggedInUserId(), null);
-			Map<String, String> folderPermissions = dao.getFolderPermissions(folderId);
-
-			List<Membership> memberships = new ArrayList<>();
-
-			// Add owner as ADMIN member
-			if (folder.getOwner() != null) {
-				User owner = userDAO.getUserByAccountName(folder.getOwner(), false, false);
-				if (filterPermission == null || filterPermission == Permissions.ADMIN) {
-					Membership ownerMembership = new Membership();
-					ownerMembership.setMemberUUID(owner.getExternalId());
-					ownerMembership.setResourceUUID(folderId);
-					ownerMembership.setResourceName(folder.getName());
-					ownerMembership.setPermissions(Permissions.ADMIN);
-					ownerMembership.setMembershipType(MembershipType.GROUP);
-					ownerMembership.setMemberAccountName(folder.getOwner());
-					memberships.add(ownerMembership);
-				}
-			}
-
-			// Add users with permissions
-			for (Map.Entry<String, String> entry : folderPermissions.entrySet()) {
-				Permissions perm = Permissions.valueOf(entry.getValue());
-
-				// Map folder permissions to group-style permissions
-				Permissions groupPerm;
-				if (perm == Permissions.WRITE) {
-					groupPerm = Permissions.WRITE;
-				} else {
-					groupPerm = Permissions.READ;
-				}
-
-				// Apply filter
-				if (filterPermission != null && filterPermission != groupPerm) {
-					continue;
-				}
-
-				Membership m = new Membership();
-				UUID memberId = UUID.fromString(entry.getKey());
-				User currMember = userDAO.getUserById(memberId, false, false);
-				if (currMember != null && currMember.getUserName() != null){
-					m.setMemberAccountName(currMember.getUserName());
-				}
-				m.setMemberUUID(memberId);
-				m.setResourceUUID(folderId);
-				m.setResourceName(folder.getName());
-				m.setPermissions(groupPerm);
-				m.setMembershipType(MembershipType.GROUP);
-				memberships.add(m);
-			}
-
-			// Apply pagination
-			int start = skipBlocks;
-			int end = Math.min(start + blockSize, memberships.size());
-			if (start >= memberships.size()) {
-				return new ArrayList<>();
-			}
-			return memberships.subList(start, end);
-		} catch (Exception e) {
-            throw new NdexException("Failed to get group user memberships");
-        }
-    }
-
-
-	   @POST
-	   @Path("/{groupid}/permissionrequest")
-	   @Operation(summary = "Create User Permission Request", description = "Creates a request to ask the owner of the network for permission for access by the authenticated user.")
-	   @Produces("text/plain")
-	   @Deprecated
-	    public Response createRequest(
-	    		@PathParam("groupid") final String groupIdStr,
-	    		final PermissionRequest newRequest) 
-	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-
-		    throw new UnsupportedOperationException("Group permission requests are no longer supported.");
-		/*
-
-			if ( newRequest.getNetworkid() == null)
-					throw new NdexException("Networkid is required in the Posted object.");
-			if ( newRequest.getPermission() == null)
-				throw new NdexException("permission is required in the Posted object.");
-
-			
-			UUID groupId = UUID.fromString(groupIdStr);
-			
-			try (GroupDAO dao = new GroupDAO()) {			
-				Group g = dao.getGroupById(groupId);
-				if ( !dao.isGroupAdmin(g.getExternalId(), getLoggedInUserId()))
-					 throw new NdexException("Only admin of specified group can make a network Access request for a group.");
-			}
-
-			try (RequestDAO dao = new RequestDAO ()){	
-				
-				Request r = new Request(RequestType.GroupNetworkAccess, newRequest);
-				r.setSourceUUID(groupId);
-				Request request = dao.createRequest(r, this.getLoggedInUser());
-				dao.commit();
-				
-				URI l = new URI (Configuration.getInstance().getHostURI()  + 
-			            Configuration.getInstance().getRestAPIPrefix()+"/group/"+ groupId.toString() + "/permissionrequest/"+
-						request.getExternalId());
-
-				return Response.created(l).entity(l).build();
-			} catch (URISyntaxException e) {
-				throw new NdexException ("Failed to create location URL: " + e.getMessage(), e);
-			}
-
-		 */
-	    	
-	    }
-
-	   
-	    @GET
-		@Path("/{groupid}/permissionrequest")
-	    @Operation(summary = "Get a User’s Permission Requests", description = "Returns a JSON array of permission request objects in which the authenticated user is either the recipient or the sender.")
-		@Produces("application/json")
-		@Deprecated
-		public List<Request> getPermissionRequests(@PathParam("groupid") final String groupIdStr,
-				@QueryParam("networkid") final String networkIdStr,
-				@QueryParam("permission") final String permissionStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-
-			throw new UnsupportedOperationException("Group permission requests are no longer supported.");
-
-			/*
-			UUID groupId = UUID.fromString(groupIdStr);
-			throw new Illegal
-			try (GroupDAO dao = new GroupDAO()) {
-				if ( !dao.isInGroup(groupId,getLoggedInUserId()) )
-					throw new NdexException ("Only a group member or admin can check group permission on a network");
-			}
-			UUID networkId = null;
-			if ( networkIdStr !=null)
-				networkId = UUID.fromString(networkIdStr);
-			
-			Permissions permission = null;
-			if ( permissionStr !=null)
-				permission = Permissions.valueOf(permissionStr);
-			
-			
-			try (RequestDAO dao = new RequestDAO()) {
-				
-				List<Request> m = dao.getGroupPermissionRequest(groupId, networkId, permission);
-				return m;
-			}
-
-			 */
-		} 
-	   
-	
-	   	@GET
-		@Path("/{groupid}/permissionrequest/{requestid}")
-		@Operation(summary = "Get a User's Permission Requests by id", description = "Returns the permission request object specified by requestid.")
-		@Produces("application/json")
-		@Deprecated
-		public Request getPermissionRequestById(@PathParam("groupid") String groupIdStr,
-				@PathParam("requestid") String requestIdStr) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
-
-		//	logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
-			throw new UnsupportedOperationException("Group permission requests are no longer supported.");
-			/*
-			UUID groupId = UUID.fromString(groupIdStr);
-			UUID requestId = UUID.fromString(requestIdStr);
-			
-			try ( GroupDAO dao = new GroupDAO()) {
-				if (!dao.isInGroup(groupId, getLoggedInUserId()))
-					throw new UnauthorizedOperationException("User is not a member of this group.");			
-			}
-			
-			try (RequestDAO dao = new RequestDAO ()){
-				Request reqs= dao.getRequest(requestId, getLoggedInUser());
-		//		logger.info("[end: Returning request]");
-				return reqs;
-			}
-
-			 */
-		}
-
-
-	
-	
-/*	@GET
-	@PermitAll
-	@Path("/{groupId}/membership/{networkId}")
+	@GET
+	@Path("/{groupid}/permissionrequest")
+	@Operation(summary = "Get a User’s Permission Requests", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
 	@Produces("application/json")
-	@ApiDoc("For authenticated users, this function returns all the networks that the given group has direct access to and the authenticated user can see." + 
-			"For anonymous users, this function returns all publice networks that the specified group bas direct access to."
-			+ "")
-	private Permissions getNetworkMembership(@PathParam("groupId") final String groupIdStr,
-			@PathParam("networkId") final String networkId) throws NdexException, SQLException {
-		
-		logger.info("[start: Getting network membership for groupId {} and networkId {}]", 
-				groupIdStr, networkId);
-		
-		UUID groupId = UUID.fromString(groupIdStr);
-		try (GroupDAO dao = new GroupDAO()) {
-			if ( !dao.isInGroup(groupId,getLoggedInUserId()) )
-				throw new NdexException ("Only a group member or admin can check group permission on a network");
-			
-			Permissions m = dao.getMembershipToNetwork(groupId, UUID.fromString(networkId));
-			logger.info("[start: Getting network membership]");
-			return m;
-		} 
-	}  */
-	
-/*	@GET
-	@PermitAll
-	@Path("/{groupId}/networks")
+	@Deprecated
+	public List<Request> getPermissionRequests(@PathParam("groupid") final String groupIdStr,
+			@QueryParam("networkid") final String networkIdStr,
+			@QueryParam("permission") final String permissionStr) {
+		throw notImplemented(GROUPS_REMOVED);
+	}
+
+	@GET
+	@Path("/{groupid}/permissionrequest/{requestid}")
+	@Operation(summary = "Get a User's Permission Requests by id", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
 	@Produces("application/json")
-	@ApiDoc("Return a list of networkSummary objects on which the given group has a explicit READ or WRITE permission.")
-	public List <NetworkSummary> getNetworkSummaries(@PathParam("groupId") final String groupId) throws NdexException {
-		
-		logger.info("[start: Getting networks of group {}]", groupId);
-				
-		try (GroupDocDAO dao = new GroupDocDAO()){
-			List<NetworkSummary> l = dao.getGroupNetworks(groupId, getLoggedInUserId() );
-					
-			logger.info("[end: Getting networks of group {}]", groupId);
-			return l;
-		}
+	@Deprecated
+	public Request getPermissionRequestById(@PathParam("groupid") String groupIdStr,
+			@PathParam("requestid") String requestIdStr) {
+		throw notImplemented(GROUPS_REMOVED);
 	}
-	
-*/
-	
-	/**************************************************************************
-	 * Counter the number of administrative members in the network.
-	 **************************************************************************/
-	/*private long countAdminMembers(final ORID groupRid) throws NdexException {
-		final List<ODocument> adminCount = _ndexDatabase
-				.query(new OSQLSynchQuery<Integer>(
-						"SELECT COUNT(@RID) FROM GroupMembership WHERE in_groupMembers = "
-								+ groupRid + " AND permissions = 'ADMIN'"));
-		if (adminCount == null || adminCount.isEmpty())
-			throw new NdexException("Unable to count ADMIN members.");
 
-		return (long) adminCount.get(0).field("COUNT");
-	}*/
-
-
-	static FolderRequest mapGroupRequestToFolderRequest(Group group){
-		FolderRequest f = new FolderRequest();
-		f.setName(group.getGroupName());
-		f.setDescription(group.getDescription());
-		return f;
-	}
-	static Group mapFolderToGroup(NdexFolder folder) {
-		Group group = new Group();
-		group.setExternalId(folder.getExternalId());
-		group.setGroupName(folder.getName());
-		group.setDescription(folder.getDescription());
-		group.setCreationTime(folder.getCreationTime());
-		group.setModificationTime(folder.getModificationTime());
-		group.setIsDeleted(folder.getIsDeleted());
-		return group;
-	}
 }

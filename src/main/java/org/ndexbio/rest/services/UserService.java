@@ -432,19 +432,8 @@ public class UserService extends NdexService {
 			@PathParam("permission") final String permissions ,
 			@PathParam("start") int skipBlocks,
 			@PathParam("size") int blockSize,
-			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) 
-					throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
-
-		logger.info("[start: Getting {} groups for user {}]", permissions, getLoggedInUser().getUserName());
-
-		Permissions permission = Permissions.valueOf(permissions.toUpperCase());
-		UUID userId = UUID.fromString(userIdStr);
-		try (UserDAO dao = new UserDAO ()) {
-			List<Membership> result =
-					dao.getUserGroupMemberships(userId, permission, skipBlocks, blockSize, inclusive);
-			logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
-			return result;
-		} 
+			@DefaultValue("false") @QueryParam("inclusive") boolean inclusive) {
+		throw notImplemented("The NDEx group feature has been removed.");
 	}
 
 
@@ -706,33 +695,19 @@ public class UserService extends NdexService {
 	@Path("/membership/group/{groupid}")
 	@Produces("application/json")
 	public Permissions getGroupMembership(
-				@PathParam("groupid") final String groupId) 
-			throws IllegalArgumentException, SQLException {
-
-		logger.info("[start: Getting membership of account {}]", groupId);
-		
-		try (UserDAO dao = new UserDAO ()){
-			
-			Permissions m = dao.getUserMembershipTypeOnGroup(getLoggedInUserId(), UUID.fromString(groupId));
-			
-			if ( m==null)
-			   logger.info("[end: No membership found.]" );			
-			else 
-			   logger.info("[end: Membership {} found.]", m.toString());
-			return m;
-		} 
+				@PathParam("groupid") final String groupId) {
+		throw notImplemented("The NDEx group feature has been removed.");
 	}
 	
 	@GET
-	@Path("/membership/network/{networkid}/{directonly}")
+	@Path("/membership/network/{networkid}")
 	@Produces("application/json")
-	public Permissions getNetworkMembership(@PathParam("networkid") final String networkId, 
-				@PathParam("directonly") final boolean directOnly) 
+	public Permissions getNetworkMembership(@PathParam("networkid") final String networkId)
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
 
 		
 		try (UserDAO dao = new UserDAO ()){
-			Permissions m = dao.getLoggedInUserPermissionOnNetwork(getLoggedInUserId(), UUID.fromString(networkId), directOnly);
+			Permissions m = dao.getLoggedInUserPermissionOnNetwork(getLoggedInUserId(), UUID.fromString(networkId));
 		
 			return m;
 		} 

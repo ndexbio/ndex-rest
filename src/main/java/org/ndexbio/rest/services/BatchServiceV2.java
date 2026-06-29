@@ -42,7 +42,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
-import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -133,25 +132,8 @@ public class BatchServiceV2 extends NdexService {
 	@Path("/group")
 	@Operation(summary = "Get Groups By UUIDs", description = "Returns a JSON array of Group objects selected by the POSTed JSON array of Group UUIDs. The number of POSTed group UUIDs is limited to 2000.")
 	@Produces("application/json")
-	public static List<Group> getGroupsByUUIDs(List<String> groupIdStrs)
-			throws IllegalArgumentException,ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, SQLException, IOException {
-		
-		if ( groupIdStrs == null )
-			throw new ForbiddenOperationException("A group id list is required.");
-		
-		if (groupIdStrs.size() > 2000) 
-			throw new NdexException ("You can only send up to 2000 group ids in this function.");
-		
-		accLogger.info("[data]\t[uuidcounts:" +groupIdStrs.size() + "]" );
-
-		try (GroupDAO dao = new GroupDAO()) {
-			List<Group> groups = new LinkedList<>();
-			for ( String groupId : groupIdStrs) {
-			  final Group group = dao.getGroupById(UUID.fromString(groupId));
-			  groups.add(group);
-			}
-			return groups;
-		} 
+	public List<Group> getGroupsByUUIDs(List<String> groupIdStrs) {
+		throw notImplemented("The NDEx group feature has been removed.");
 	}
 		
 

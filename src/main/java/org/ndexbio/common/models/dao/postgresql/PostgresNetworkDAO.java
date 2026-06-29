@@ -227,12 +227,9 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		
 		
 		String[] sqlCmds = {
-				"insert into user_network_membership_arc (user_id, network_id, permission_type) " + 
+				"insert into user_network_membership_arc (user_id, network_id, permission_type) " +
 						" select user_id, network_id, permission_type from user_network_membership where network_id = ?",
 				"delete from user_network_membership where network_id = ?",
-				"insert into group_network_membership_arc (group_id, network_id, permission_type) " + 
-						" select group_id, network_id, permission_type from group_network_membership where network_id = ?",
-				"delete from group_network_membership where network_id = ?",
 				"delete from network_set_member where network_id = ?",
 				"delete from cyweb_workspace_network where network_id= ?"
 			};
@@ -241,12 +238,12 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			try (PreparedStatement st = db.prepareStatement(cmd) ) {
 				st.setObject(1, networkId);
 				st.executeUpdate();
-			}		
+			}
 		}
-		
+
 		//auto response to pending request.
 		String sql = "update request set response ='DECLINED', responsemessage = 'NDEx auto response: network has been deleted.', responsetime = localtimestamp, " +
-				" responder = ? where request_type <> 'JoinGroup' and is_deleted=false and response ='PENDING' and destinationuuid = ?"; 
+				" responder = ? where is_deleted=false and response ='PENDING' and destinationuuid = ?";
 		try (PreparedStatement st = db.prepareStatement(sql) ) {
 			st.setObject(1, userId);
 			st.setObject(2, networkId);
@@ -600,9 +597,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		if ( userId == null)
 			return "(n.visibility='PUBLIC' or n.visibility='UNLISTED')";
 		return "( n.visibility='PUBLIC' or n.visibility='UNLISTED' or n.owneruuid = '" + userId + "' ::uuid or " +
-			" exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = '"+ userId + "' limit 1) or " +
-		    " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
-		    + "and gn1.network_id = n.\"UUID\" and gu.user_id = '"+ userId + "' limit 1) )";
+			" exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = '"+ userId + "' limit 1) )";
 	}
 
 	
@@ -625,17 +620,14 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and (";
 		
 		sqlStr += " n.owneruuid = ? or "
-				+ " exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = ? and un1.permission_type = 'WRITE' limit 1) or " +
-				  " exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id "
-				  + "   and gn1.network_id = n.\"UUID\" and gu.user_id = ? and gn1.permission_type = 'WRITE' limit 1) " ;
+				+ " exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = ? and un1.permission_type = 'WRITE' limit 1) " ;
 
 		sqlStr += ")";
-			
+
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkID);
 				pst.setObject(2, userId);
 				pst.setObject(3, userId);
-				pst.setObject(4, userId);
 			
 			try ( ResultSet rs = pst.executeQuery()) {
 				return rs.next();
@@ -941,30 +933,22 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	    * @throws NdexException
 	 * @throws SQLException 
 	    */
-		public List<Map<Permissions, Collection<String>>> getAllMembershipsOnNetwork(UUID networkId) 
+		public Map<Permissions, Collection<String>> getAllMembershipsOnNetwork(UUID networkId)
 				throws ObjectNotFoundException, NdexException, SQLException {
-			Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),	
+			Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),
 					"A network UUID is required");
-			
+
 			Map<Permissions,Collection<String>> userMemberships = new HashMap<>();
-			
+
 			userMemberships.put(Permissions.ADMIN, new ArrayList<String> ());
 			userMemberships.put(Permissions.WRITE, new ArrayList<String> ());
 			userMemberships.put(Permissions.READ, new ArrayList<String> ());
-			
-			Map<Permissions, Collection<String>> grpMemberships = new HashMap<>();
-			grpMemberships.put(Permissions.READ, new ArrayList<String> ());
-			grpMemberships.put(Permissions.WRITE, new ArrayList<String> ()); 
-			
-		    ArrayList<Map<Permissions,Collection<String>>> fullMembership = new ArrayList<> (2);
-		    fullMembership.add(0, userMemberships);
-		    fullMembership.add(1,grpMemberships);
 
 		    String sqlStr = "select u.user_name, b.per from  (select a.user_id, max(a.per) as per from "+
 		    		"(select owneruuid as user_id, 'ADMIN' :: ndex_permission_type as per from network where \"UUID\" = ? "+
 		    		 " union select user_id, permission_type as per from user_network_membership where network_id = ?) a "
 		    		 + "group by a.user_id) b, ndex_user u where u.\"UUID\"= b.user_id";
-			
+
 		    try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 		    	pst.setObject(1, networkId);
 		    	pst.setObject(2, networkId);
@@ -972,25 +956,11 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		    		while ( rs.next()) {
 		    			Collection<String> userSet = userMemberships.get(Permissions.valueOf(rs.getString(2)));
 		    			userSet.add(rs.getString(1));
-		    			
 		    		}
 		    	}
 		    }
-		    
-		    sqlStr = "select group_id, permission_type from group_network_membership where network_id = ?";
-			
-		    try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-		    	pst.setObject(1, networkId);
-		    	try (ResultSet rs = pst.executeQuery()) {
-		    		while ( rs.next()) {
-		    			Collection<String> grpSet = grpMemberships.get(Permissions.valueOf(rs.getString(2)));
-		    			grpSet.add(rs.getString(1));
-		    			
-		    		}
-		    	}
-		    }
-				
-			return fullMembership;
+
+			return userMemberships;
 		}
 		
 		/**
@@ -1383,10 +1353,9 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 						"from network n where n.is_deleted=false and owneruuid = '" + userId.toString() + "' :: uuid and n.\"UUID\" in ( " + uuidListStr + ")";
 					
 			queryStr = " select a.network_id, max(a.permission_type) as permission_type from (" +  queryStr + " union "   +
-					" select un.network_id, un.permission_type " + 
+					" select un.network_id, un.permission_type " +
 					"from user_network_membership un where un.user_id = '"+ userId.toString() + "' :: uuid " +
-					" union select gn.network_id, gn.permission_type from ndex_group_user ug, group_network_membership gn " + 
-					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid " +" ) a where a.network_id in (" + 
+					" ) a where a.network_id in (" +
 					  uuidListStr + ") group by a.network_id ";
 					
 
@@ -1830,52 +1799,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		return memberships;
 	}
 	
-	public Map<String,String> getNetworkGroupPermissions(UUID networkId, Permissions permission, int skipBlocks, int blockSize) 
-			throws SQLException {
-		
-		if ( permission !=null )
-			Preconditions.checkArgument( 
-				 (permission.equals( Permissions.WRITE ))
-				|| (permission.equals( Permissions.READ )),
-				"Valid permission required");
-		Map<String,String> memberships = new TreeMap<>();
-
-		String sql = "select gn.group_id, gn.permission_type from group_network_membership gn where gn.network_id = '" + networkId.toString() + "'";
-		if (permission != null )
-			sql += " and gn.permission_type = '" + permission.toString() + "'";
-		
-		if ( skipBlocks>=0 && blockSize>0) {
-			sql += " limit " + blockSize + " offset " + skipBlocks * blockSize;
-		}
-		
-		try ( PreparedStatement p = db.prepareStatement(sql)) {
-			try ( ResultSet rs = p.executeQuery()) {
-				while ( rs.next()) {
-					memberships.put(rs.getObject(1).toString(), rs.getString(2));
-				}
-			}
-		}
-				
-	//	logger.info("Successfuly retrieved network-group permissions.");
-		return memberships;
-	}
-		
-	
-	
-	private Permissions getNetworkPermissionOnGroup(UUID networkId, UUID groupId) throws SQLException {
-		String sql = "select permission_type from group_network_membership where network_id =? and group_id = ?";
-		try ( PreparedStatement p = db.prepareStatement(sql)) {
-			p.setObject(1, networkId);
-			p.setObject(2, groupId);
-			try ( ResultSet rs = p.executeQuery()) {
-				if ( rs.next()) {
-					return Permissions.valueOf(rs.getString(1));
-				}
-				return null;
-			}
-		}
-	}
-	
 	private Permissions getNetworkNonAdminPermissionOnUser(UUID networkId, UUID userId) throws SQLException {
 		String sql = "select permission_type from user_network_membership where network_id =? and user_id = ?";
 		try ( PreparedStatement p = db.prepareStatement(sql)) {
@@ -1900,42 +1823,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			throw new  NetworkConcurrentModificationException();
 		} 
 	}
-	
-	//This function commits the current transaction, be careful when using it.
-    public int grantPrivilegeToGroup(UUID networkUUID, UUID groupUUID, Permissions permission) throws NdexException, SQLException {
-    
-    	if (permission == Permissions.ADMIN)
-    		throw new NdexException ("Groups are not allowed to administer a network, only users are allowed.");
-    		
-    	// check if the edge already exists?
-
-    	Permissions p = getNetworkPermissionOnGroup(networkUUID, groupUUID);
-
-        if ( p!=null && p == permission) {
-        	logger.info("Permission " + permission + " already exists between group " + groupUUID + 
-        			 " and network " + networkUUID + ". Igore grant request."); 
-        	return 0;
-        }
-        
-        String sql = "insert into group_network_membership (network_id, group_id, permission_type) values (?,?,'" + permission + "') "
-        		+ "ON CONFLICT (group_id,network_id) DO UPDATE set permission_type = EXCLUDED.permission_type";
-        
-        try ( PreparedStatement pst = db.prepareStatement(sql)) {
-        	pst.setObject(1, networkUUID);
-        	pst.setObject(2, groupUUID);
-        	pst.executeUpdate();
-        }
-        
-        setFlag(networkUUID, "iscomplete",false);
-        
-        commit();
-		//update solr index
-	//	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-		
-	//	networkIdx.grantNetworkPermission(networkUUID.toString(), groupUUID.toString(), permission, p, false); 
-               
-    	return 1;
-    }
 	
     // This function commits the current transaction, so be careful when using it.
     public int grantPrivilegeToUser(UUID networkUUID, UUID userUUID, Permissions permission) throws NdexException, IOException, SQLException {
@@ -2007,30 +1894,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
     	return 1;
     }
 	
-    
-    public int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws SQLException {
-    
-    	Permissions p = getNetworkPermissionOnGroup(networkUUID, groupUUID);
-
-        if ( p ==null ) {
-        	logger.info("Permission doesn't exists between group " + groupUUID + 
-        			 " and network " + networkUUID + ". Igore revoke request."); 
-        	return 0;
-        }
-        
-        setFlag(networkUUID,"iscomplete",false);
-        
-        String sql = "delete from group_network_membership where network_id = ? and group_id = ?" ;
-        try ( PreparedStatement pst = db.prepareStatement(sql)) {
-        	pst.setObject(1, networkUUID);
-        	pst.setObject(2,groupUUID);
-        	int c = pst.executeUpdate();
-        	commit();
-
-        	return c;	
-        }
-        		
-    }
     
     public int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws SQLException {
     	
@@ -2534,12 +2397,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		// First delete network memberships
 		String deleteNetMembership = "DELETE FROM user_network_membership WHERE network_id=?";
 		try (PreparedStatement pst = db.prepareStatement(deleteNetMembership)) {
-			pst.setObject(1, networkId);
-			pst.executeUpdate();
-		}
-		
-		String deleteGroupNetMembership = "DELETE FROM group_network_membership WHERE network_id=?";
-		try (PreparedStatement pst = db.prepareStatement(deleteGroupNetMembership)) {
 			pst.setObject(1, networkId);
 			pst.executeUpdate();
 		}

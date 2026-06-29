@@ -91,12 +91,8 @@ public interface NetworkDAO extends AutoCloseable {
     
     void checkPermissionOperationCondition(UUID networkId, UUID userId) throws SQLException, ObjectNotFoundException, NdexException;
     
-    int grantPrivilegeToGroup(UUID networkUUID, UUID groupUUID, Permissions permission) throws NdexException, SQLException;
-    
     int grantPrivilegeToUser(UUID networkUUID, UUID userUUID, Permissions permission) throws NdexException, IOException, SQLException;
-    
-    int revokeGroupPrivilege(UUID networkUUID, UUID groupUUID) throws SQLException;
-    
+
     int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws SQLException;
     
     void setErrorMessage(UUID networkId, String errorMessage);
@@ -152,7 +148,7 @@ public interface NetworkDAO extends AutoCloseable {
     
     void unlockNetwork (UUID networkId) throws  SQLException;
 
-    List<Map<Permissions, Collection<String>>> getAllMembershipsOnNetwork(UUID networkId)
+    Map<Permissions, Collection<String>> getAllMembershipsOnNetwork(UUID networkId)
             throws ObjectNotFoundException, NdexException, SQLException;
     List<NetworkSummary> getNetworkSummariesByIds(List<UUID> networkIds) throws SQLException, JsonParseException, JsonMappingException, IOException;
 } 
