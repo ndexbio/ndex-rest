@@ -616,7 +616,8 @@ public class UserServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{userid}/membership")
-	@Operation(summary = "Get User's Membership", description = "Returns the permission that the user specified in the URL has on the given group.")
+	@Deprecated
+	@Operation(summary = "Get User's Membership", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	public Map<String,String> getMembershipInfo(
 				@PathParam("userid") final String userIdStr,
@@ -677,7 +678,8 @@ public class UserServiceV2 extends NdexService {
 	
 	   @POST
 	   @Path("/{userid}/membershiprequest")
-	   @Operation(summary = "Create Membership Request", description = "Create a request to the group admin for the authenticated user to join the specified group.")
+	   @Deprecated
+	   @Operation(summary = "Create Membership Request", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	   @Produces("text/plain")
 	    public Response createMembershipRequest(
 	    		@PathParam("userid") final String userIdStr,
@@ -797,8 +799,9 @@ public class UserServiceV2 extends NdexService {
 	   	
 
 	   	@GET
+		@Deprecated
 		@Path("/{userid}/membershiprequest")
-		@Operation(summary = "Get a User's Permission Requests", description = "Returns a JSON array of permission request objects in which the authenticated user is either the recipient or the sender.")
+		@Operation(summary = "Get a User's Membership Requests", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 		@Produces("application/json")
 		public List<Request> getMembershipRequests (
 				 @PathParam("userid") String userIdStr,
@@ -810,7 +813,8 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@GET
 			@Path("/{userid}/membershiprequest/{requestid}")
-		@Operation(summary = "Get a User's Membership Request by id", description = "Returns the membership request object specified by requestid.")
+		@Deprecated
+		@Operation(summary = "Get a User's Membership Request by id", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 			@Produces("application/json")
 			public Request getMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
@@ -821,7 +825,8 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@PUT
 		@Path("/{userid}/membershiprequest/{requestid}")
-		@Operation(summary = "Respond to Membership Request", description = "Respond to a membership request with accept or deny action. The user must be the group admin to respond to membership requests.")
+		@Deprecated
+		@Operation(summary = "Respond to Membership Request", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 		@Produces("application/json")
 		public void respondMembershipRequest(
 				 @PathParam("userid") String userIdStr,
@@ -900,7 +905,8 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@DELETE
 		@Path("/{userid}/membershiprequest/{requestid}")
-		@Operation(summary = "Delete Membership Request", description = "Delete a membership request by its ID. The authenticated user must be the owner of the request.")
+		@Deprecated
+		@Operation(summary = "Delete Membership Request", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 		@Produces("application/json")
 		public void deleteMembershipRequestById(
 					 @PathParam("userid") String userIdStr,

@@ -80,6 +80,8 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 @Path("/user")
 public class UserService extends NdexService {
 	
@@ -425,8 +427,10 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	
 	@GET
+	@Deprecated
 	@Path("/{userid}/group/{permission}/{start}/{size}")
 	@Produces("application/json")
+	@Operation(summary = "Get a User's Group Memberships", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	public List<Membership> getUserGroupMemberships(
 			@PathParam("userid")	final String userIdStr,
 			@PathParam("permission") final String permissions ,
@@ -692,8 +696,10 @@ public class UserService extends NdexService {
 	}
 	
 	@GET
+	@Deprecated
 	@Path("/membership/group/{groupid}")
 	@Produces("application/json")
+	@Operation(summary = "Get a User's Permission on a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	public Permissions getGroupMembership(
 				@PathParam("groupid") final String groupId) {
 		throw notImplemented("The NDEx group feature has been removed.");
@@ -702,6 +708,7 @@ public class UserService extends NdexService {
 	@GET
 	@Path("/membership/network/{networkid}")
 	@Produces("application/json")
+	@Operation(summary = "Get the Authenticated User's Permission on a Network", description = "Returns the authenticated user's permission on the specified network. The former {directonly} path segment was removed in 3.0.2 (group-derived permissions no longer exist).")
 	public Permissions getNetworkMembership(@PathParam("networkid") final String networkId)
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
 

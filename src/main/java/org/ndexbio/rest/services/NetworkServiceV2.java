@@ -719,7 +719,7 @@ public class NetworkServiceV2 extends NdexService {
 
 	@GET
 	@Path("/{networkid}/permission")
-	@Operation(summary = "Get All Permissions on a Network", description = "Returns a JSON object describing the user or group permissions for the network specified by networkid.")
+	@Operation(summary = "Get All Permissions on a Network", description = "Returns a JSON object describing the user permissions for the network specified by networkid. Only type=user is supported; the NDEx group feature has been removed, so type=group returns HTTP 501.")
 	@Produces("application/json")
 
 	public Map<String, String> getNetworkUserMemberships(
@@ -755,7 +755,7 @@ public class NetworkServiceV2 extends NdexService {
 	
 	@DELETE
 	@Path("/{networkid}/permission")
-	@Operation(summary = "Delete Network Permission", description = "Removes any permission for the network specified by networkid for the user or group specified by memberid parameter.")
+	@Operation(summary = "Delete Network Permission", description = "Removes any permission for the network specified by networkid for the user specified by the userid parameter. The NDEx group feature has been removed, so passing the groupid parameter returns HTTP 501.")
 	@Produces("application/json")
 
 	public int deleteNetworkPermission(
@@ -809,7 +809,7 @@ public class NetworkServiceV2 extends NdexService {
 
 	@PUT
 	@Path("/{networkid}/permission")
-	@Operation(summary = "Update Network Permission", description = "Updates the permission of a user specified by userid or group specified by groupid for the network specified by networkid.")
+	@Operation(summary = "Update Network Permission", description = "Updates the permission of a user specified by userid for the network specified by networkid. The NDEx group feature has been removed, so passing the groupid parameter returns HTTP 501.")
 	@Produces("application/json")
 	public int updateNetworkPermission(
 			@PathParam("networkid") final String networkIdStr,

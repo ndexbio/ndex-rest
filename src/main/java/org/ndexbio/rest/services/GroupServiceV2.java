@@ -58,40 +58,45 @@ public class GroupServiceV2 extends NdexService {
 	}
 
 	@POST
+	@Deprecated
 	@Produces("text/plain")
-	@Operation(summary = "Create Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Create Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	public Response createGroup(final Group newGroup) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@DELETE
+	@Deprecated
 	@Path("/{groupid}")
-	@Operation(summary = "Delete Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Delete Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	public void deleteGroup(@PathParam("groupid") final String groupId) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@GET
+	@Deprecated
 	@PermitAll
 	@Path("/{groupid}")
-	@Operation(summary = "Get a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Get a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	public Group getGroup(@PathParam("groupid") final String groupId) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@PUT
+	@Deprecated
 	@Path("/{groupid}")
-	@Operation(summary = "Update Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Update Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	public void updateGroup(final Group updatedGroup, @PathParam("groupid") final String id) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@PUT
+	@Deprecated
 	@Path("/{groupid}/membership")
-	@Operation(summary = "Add or Update a Group Member", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Add or Update a Group Member", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	public void updateMember(@PathParam("groupid") final String group_id,
 			@QueryParam("userid") final String user_id,
 			@QueryParam("type") final Permissions permission) {
@@ -99,8 +104,9 @@ public class GroupServiceV2 extends NdexService {
 	}
 
 	@DELETE
+	@Deprecated
 	@Path("/{groupid}/membership")
-	@Operation(summary = "Remove a Group Member", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Remove a Group Member", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	public void removeGroupMember(@PathParam("groupid") final String groupIdStr,
 			@QueryParam("userid") final String memberIdStr) {
@@ -111,7 +117,7 @@ public class GroupServiceV2 extends NdexService {
 	@Deprecated
 	@PermitAll
 	@Path("/{groupid}/permission")
-	@Operation(summary = "Get Network Permissions of a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Get Network Permissions of a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	public Map<String, String> getGroupNetworkPermissions(@PathParam("groupid") final String groupIdStr,
 			@QueryParam("networkid") String networkIdStr,
@@ -122,8 +128,9 @@ public class GroupServiceV2 extends NdexService {
 	}
 
 	@GET
+	@Deprecated
 	@Path("/{groupid}/membership")
-	@Operation(summary = "Get Members of a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Get Members of a Group", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	@PermitAll
 	public List<Membership> getGroupUserMemberships(@PathParam("groupid") final String groupIdStr,
@@ -135,7 +142,7 @@ public class GroupServiceV2 extends NdexService {
 
 	@POST
 	@Path("/{groupid}/permissionrequest")
-	@Operation(summary = "Create User Permission Request", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Create User Permission Request", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("text/plain")
 	@Deprecated
 	public Response createRequest(@PathParam("groupid") final String groupIdStr,
@@ -145,7 +152,7 @@ public class GroupServiceV2 extends NdexService {
 
 	@GET
 	@Path("/{groupid}/permissionrequest")
-	@Operation(summary = "Get a User’s Permission Requests", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Get a User’s Permission Requests", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	@Deprecated
 	public List<Request> getPermissionRequests(@PathParam("groupid") final String groupIdStr,
@@ -156,7 +163,7 @@ public class GroupServiceV2 extends NdexService {
 
 	@GET
 	@Path("/{groupid}/permissionrequest/{requestid}")
-	@Operation(summary = "Get a User's Permission Requests by id", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).")
+	@Operation(summary = "Get a User's Permission Requests by id", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	@Deprecated
 	public Request getPermissionRequestById(@PathParam("groupid") String groupIdStr,

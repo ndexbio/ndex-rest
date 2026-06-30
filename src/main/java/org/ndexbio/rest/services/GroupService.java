@@ -50,6 +50,8 @@ import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.SimpleQuery;
 import org.ndexbio.model.object.SolrSearchResult;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 /**
  * The NDEx group feature has been removed. Every endpoint on this (v1) resource returns
  * HTTP 501 (Not Implemented). The resource stays registered so clients receive a 501
@@ -64,23 +66,31 @@ public class GroupService extends NdexService {
 		super(httpRequest);
 	}
 
+	private static final String GROUPS_REMOVED_DESC = "Removed: the NDEx group feature is no longer supported (HTTP 501).";
+
 	@POST
+	@Deprecated
 	@Produces("application/json")
+	@Operation(summary = "Create Group", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public Group createGroup(final Group newGroup) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@DELETE
+	@Deprecated
 	@Path("/{groupId}")
 	@Produces("application/json")
+	@Operation(summary = "Delete Group", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public void deleteGroup(@PathParam("groupId") final String groupId) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@POST
+	@Deprecated
 	@PermitAll
 	@Path("/search/{start}/{size}")
 	@Produces("application/json")
+	@Operation(summary = "Search Groups", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@PathParam("start") final int skip,
 			@PathParam("size") final int top) {
@@ -88,30 +98,38 @@ public class GroupService extends NdexService {
 	}
 
 	@GET
+	@Deprecated
 	@PermitAll
 	@Path("/{groupid}")
 	@Produces("application/json")
+	@Operation(summary = "Get a Group", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public Group getGroup(@PathParam("groupid") final String groupId) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@POST
+	@Deprecated
 	@PermitAll
 	@Path("/groups")
 	@Produces("application/json")
+	@Operation(summary = "Get Groups by UUIDs", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public List<Group> getGroupsByUUIDs(List<String> groupIdStrs) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@POST
+	@Deprecated
 	@Path("/{groupid}")
 	@Produces("application/json")
+	@Operation(summary = "Update Group", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public Group updateGroup(final Group updatedGroup, @PathParam("groupid") final String id) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@POST
+	@Deprecated
 	@Path("/{groupid}/member/{userid}")
+	@Operation(summary = "Add or Update a Group Member", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public void updateMember(@PathParam("groupid") final String group_id,
 			@PathParam("userid") final String user_id,
 			final Permissions permission) {
@@ -119,17 +137,21 @@ public class GroupService extends NdexService {
 	}
 
 	@DELETE
+	@Deprecated
 	@Path("/{groupid}/member/{memberid}")
 	@Produces("application/json")
+	@Operation(summary = "Remove a Group Member", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public void removeUserMember(@PathParam("groupid") final String groupIdStr,
 			@PathParam("memberid") final String memberId) {
 		throw notImplemented(GROUPS_REMOVED);
 	}
 
 	@GET
+	@Deprecated
 	@PermitAll
 	@Path("/{groupid}/network/{permission}/{start}/{size}")
 	@Produces("application/json")
+	@Operation(summary = "Get Network Memberships of a Group", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public List<Membership> getGroupNetworkMemberships(@PathParam("groupid") final String groupIdStr,
 			@PathParam("permission") final String permissions,
 			@PathParam("start") int skipBlocks,
@@ -139,8 +161,10 @@ public class GroupService extends NdexService {
 	}
 
 	@GET
+	@Deprecated
 	@Path("/{groupId}/user/{permission}/{skipBlocks}/{blockSize}")
 	@Produces("application/json")
+	@Operation(summary = "Get Members of a Group", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public List<Membership> getGroupUserMemberships(@PathParam("groupId") final String groupIdStr,
 			@PathParam("permission") final String permissions,
 			@PathParam("skipBlocks") int skipBlocks,
@@ -150,9 +174,11 @@ public class GroupService extends NdexService {
 	}
 
 	@GET
+	@Deprecated
 	@PermitAll
 	@Path("/{groupId}/membership/{networkId}")
 	@Produces("application/json")
+	@Operation(summary = "Get a Group's Permission on a Network", description = GROUPS_REMOVED_DESC, deprecated = true)
 	public Permissions getNetworkMembership(@PathParam("groupId") final String groupIdStr,
 			@PathParam("networkId") final String networkId) {
 		throw notImplemented(GROUPS_REMOVED);

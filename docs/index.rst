@@ -15,6 +15,7 @@ Copyright (c) 2013-2025 The Cytoscape Consortium
    :numbered: 2
 
    Introduction
+   V3-Migration-Guide
    specifications/index
   
 ..

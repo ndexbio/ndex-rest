@@ -130,7 +130,8 @@ public class BatchServiceV2 extends NdexService {
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/group")
-	@Operation(summary = "Get Groups By UUIDs", description = "Returns a JSON array of Group objects selected by the POSTed JSON array of Group UUIDs. The number of POSTed group UUIDs is limited to 2000.")
+	@Deprecated
+	@Operation(summary = "Get Groups By UUIDs", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	public List<Group> getGroupsByUUIDs(List<String> groupIdStrs) {
 		throw notImplemented("The NDEx group feature has been removed.");

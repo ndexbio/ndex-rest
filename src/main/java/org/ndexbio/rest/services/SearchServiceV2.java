@@ -177,7 +177,8 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/group")
-	@Operation(summary = "Search Groups", description = "Returns a SearchResult object which contains an array of Group objects and the total hit count of the search.")
+	@Deprecated
+	@Operation(summary = "Search Groups", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
 	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
