@@ -38,8 +38,6 @@ package org.ndexbio.common;
  */
 public interface NdexClasses {
 	
-	public static final String Group          	  = "ndex_group";
-	public static final String Membership         = "ndex_group_user";
 	public static final String Task				  = "task";
 	public static final String User				  = "ndex_user";
 	public static final String Network            = "network";

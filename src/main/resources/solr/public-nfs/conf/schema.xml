@@ -18,9 +18,6 @@
     <field name="userRead" type="string" indexed="true" stored="false"  multiValued="true"/>
     <field name="userEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
     <field name="owner" type="text_ws" indexed="true" stored="false"  multiValued="true"/>
-    <field name="grpRead" type="string" indexed="true" stored="false"  multiValued="true"/>
-    <field name="grpEdit" type="string" indexed="true" stored="false"  multiValued="true"/>
-    <field name="grpAdmin" type="string" indexed="true" stored="false"  multiValued="true"/>
     <field name="visibility" type="string" indexed="true" stored="false"  multiValued="false"/>
     <field name="labels" type="text_general" indexed="true" stored="false" multiValued="true"/>
 

@@ -653,14 +653,10 @@ public class CXNetworkLoader implements AutoCloseable {
 	private void createSolrIndex(NetworkSummary summary) throws SolrServerException, IOException, ObjectNotFoundException, NdexException, SQLException {
 
 		
-		List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkId);
-		Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
-		Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
+		Map<Permissions,Collection<String>> userMemberships = dao.getAllMembershipsOnNetwork(networkId);
 		globalIdx.createIndexDocFromSummary(summary,ownerName,
 				userMemberships.get(Permissions.READ),
-				userMemberships.get(Permissions.WRITE),
-				grpMemberships.get(Permissions.READ),
-				grpMemberships.get(Permissions.WRITE));
+				userMemberships.get(Permissions.WRITE));
 		
 		globalIdx.commit();
    	

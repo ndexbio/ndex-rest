@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING — The NDEx group feature has been removed.** All group endpoints now return **HTTP 501 Not Implemented**, and group-based network permissions no longer exist (a user reaches a network only by ownership or a direct user permission). Use folders + visibility + folder permission sharing instead — see the [V3 Migration Guide](docs/V3-Migration-Guide.md). Affected endpoints:
+  - `POST|GET|PUT|DELETE /v2/group/{id}` and its `…/membership`, `…/permission`, and `…/permissionrequest[/{requestid}]` sub-paths → 501 (the entire `/v2/group` resource is retired).
+  - The v1 `/group` resource (create/get/update/delete, `/search`, `/groups`, `/{id}/member/*`, `/{id}/network/*`, `/{id}/user/*`, `/{id}/membership/*`) → 501.
+  - `GET /v2/user/{id}/membership` and `…/membershiprequest[/{requestid}]` (POST/GET/PUT/DELETE — the JoinGroup flow) → 501.
+  - v1 `GET /user/{id}/group/{permission}/{start}/{size}` and `GET /user/membership/group/{groupid}` → 501.
+  - `POST /v2/batch/group` (get groups by UUIDs) → 501.
+  - `POST /v2/search/group` (search groups) → 501.
+  - `GET /v2/network/{id}/permission` — `type=group` now returns 501; `type=user` is unchanged.
+  - `DELETE /v2/network/{id}/permission` and `PUT /v2/network/{id}/permission` — supplying the `groupid` parameter now returns 501; the `userid` path is unchanged.
+  - The membership/permission request accept flow no longer grants group permissions; only `UserNetworkAccess` requests are actionable (group requests can no longer be created).
+- **Request parameter changes**
+  - Removed the `directOnly` query parameter from `GET /v2/user/{id}/permission` (group-derived permissions no longer exist, so it had become a no-op).
+  - v1 `GET /user/membership/network/{networkid}/{directonly}` → path shortened to `…/{networkid}` (the `{directonly}` path segment was removed).
+- **Response / content changes**
+  - `GET /v2/network/{id}/permission?type=user` no longer includes any group entries (the response schema is unchanged; group rows simply never appear).
+  - Admin status (`/admin/status`, v1 & v2) `groupCount` is now always `0`.
+- **Swagger / OpenAPI** — all removed group endpoints are marked `deprecated`; the mixed network-permission endpoints have updated descriptions noting that group access is no longer supported.
+- [#112](https://github.com/ndexbio/ndex-rest/pull/112)
+
 ## [3.0.1] - 2026-06-18
 
 ### Fixed

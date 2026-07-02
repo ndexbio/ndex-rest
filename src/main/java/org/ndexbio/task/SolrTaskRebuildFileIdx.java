@@ -180,9 +180,8 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 
             try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {
 				// build the solr document obj
-                List<Map<Permissions, Collection<String>>> permissionTable = dao
+                Map<Permissions, Collection<String>> userMemberships = dao
                         .getAllMembershipsOnNetwork(fileId);
-                Map<Permissions, Collection<String>> userMemberships = permissionTable.get(0);
                 globalIdx.prepareIndexDocument(summary, visibilityType,
                         userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
 

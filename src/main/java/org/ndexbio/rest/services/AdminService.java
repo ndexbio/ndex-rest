@@ -88,7 +88,7 @@ public class AdminService extends NdexService {
 			NdexStatus status = new NdexStatus();
 			status.setNetworkCount(AdminServiceV2.getClassCount(db,"network"));
 			status.setUserCount(AdminServiceV2.getClassCount(db,"ndex_user"));
-			status.setGroupCount(AdminServiceV2.getClassCount(db,"ndex_group")); 
+			status.setGroupCount(0); // the NDEx group feature has been removed
 
 			Map<String,Object> props = status.getProperties();
 			

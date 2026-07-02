@@ -31,7 +31,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=29
+TOTAL_API_CALLS=43
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -85,6 +85,22 @@ api_fail() {
   echo -e "  Remaining unrun: ${remaining}"
   echo -e "  Reason : ${reason}"
   exit 1
+}
+
+# Assert that a retired group endpoint returns HTTP 501. Always sends valid auth so the
+# request passes the auth filter and reaches the (501-throwing) resource method.
+# Usage: assert_group_501 <METHOD> <URL> [extra curl args...]
+assert_group_501() {
+  local method="$1"; local url="$2"; shift 2
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: ${method} ${url} (expect 501)"
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X "${method}" -u "${TEST_USER}:${TEST_PASS}" "$@" "${url}")
+  if [[ "${code}" == "501" ]]; then
+    api_pass "${method} ${url} → 501 (group feature removed)"
+  else
+    api_fail "${method} ${url} → HTTP ${code} (expected 501)"
+  fi
 }
 
 # ── Cleanup trap ──────────────────────────────────────────────────────────────
@@ -798,6 +814,46 @@ if [[ "${AUTH_ROW_COUNT}" == "1" ]] && echo "${BATCH_BODY}" | grep -q "${V2_UUID
 else
   api_fail "POST /v2/batch/network/summary (auth ${TEST_USER2}) returned ${AUTH_ROW_COUNT} rows or wrong UUIDs. Body: ${BATCH_BODY:0:500}"
 fi
+fi
+
+# ── STEP: NDEx group feature removed — every group endpoint returns HTTP 501 ──
+
+step "Group feature removed: group endpoints return 501; surviving user paths still work"
+
+GROUP_DUMMY_UUID="00000000-0000-0000-0000-000000000001"
+
+# /v2/group resource — all methods retired
+assert_group_501 POST   "${BASE_URL}/v2/group" -H "Content-Type: application/json" -d '{}'
+assert_group_501 GET    "${BASE_URL}/v2/group/${GROUP_DUMMY_UUID}"
+assert_group_501 GET    "${BASE_URL}/v2/group/${GROUP_DUMMY_UUID}/membership"
+assert_group_501 GET    "${BASE_URL}/v2/group/${GROUP_DUMMY_UUID}/permission"
+assert_group_501 POST   "${BASE_URL}/v2/group/${GROUP_DUMMY_UUID}/permissionrequest" -H "Content-Type: application/json" -d '{}'
+
+# v1 /group resource
+assert_group_501 GET    "${BASE_URL}/group/${GROUP_DUMMY_UUID}"
+
+# group search + batch
+assert_group_501 POST   "${BASE_URL}/v2/search/group" -H "Content-Type: application/json" -d '{"searchString":"x"}'
+assert_group_501 POST   "${BASE_URL}/v2/batch/group" -H "Content-Type: application/json" -d "[\"${GROUP_DUMMY_UUID}\"]"
+
+# user-side group membership / JoinGroup endpoints
+assert_group_501 GET    "${BASE_URL}/v2/user/${GROUP_DUMMY_UUID}/membership"
+assert_group_501 POST   "${BASE_URL}/v2/user/${GROUP_DUMMY_UUID}/membershiprequest" -H "Content-Type: application/json" -d '{}'
+assert_group_501 GET    "${BASE_URL}/user/${GROUP_DUMMY_UUID}/group/READ/0/100"
+
+# mixed network-permission endpoints: the group branch is retired (501), user branch survives
+assert_group_501 GET    "${BASE_URL}/v2/network/${V2_PRIV_UUID}/permission?type=group"
+assert_group_501 DELETE "${BASE_URL}/v2/network/${V2_PRIV_UUID}/permission?groupid=${GROUP_DUMMY_UUID}"
+
+# regression: the user permission branch on the same endpoint still works for the owner
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}/permission?type=user (auth owner, expect 200)"
+PERM_USER_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v2/network/${V2_PRIV_UUID}/permission?type=user")
+if [[ "${PERM_USER_HTTP}" == "200" ]]; then
+  api_pass "GET /v2/network/${V2_PRIV_UUID}/permission?type=user (owner) → 200 (user permission path intact)"
+else
+  api_fail "GET /v2/network/${V2_PRIV_UUID}/permission?type=user (owner) → HTTP ${PERM_USER_HTTP} (expected 200)"
 fi
 
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────

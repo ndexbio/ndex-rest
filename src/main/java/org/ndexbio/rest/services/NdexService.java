@@ -123,7 +123,20 @@ public abstract class NdexService
     protected void setZipFlag() {
     	_httpRequest.setAttribute(NdexZipFlag, Boolean.TRUE);
     }
-    
+
+    /**
+     * Builds an HTTP 501 (Not Implemented) response in NDEx's standard JSON error shape.
+     * Returned (not thrown) so callers can {@code throw notImplemented(...)} from methods
+     * of any return type. Used by the retired group endpoints.
+     */
+    protected jakarta.ws.rs.WebApplicationException notImplemented(String message) {
+    	NdexException e = new NdexException(message);
+    	return new jakarta.ws.rs.WebApplicationException(
+    			jakarta.ws.rs.core.Response.status(jakarta.ws.rs.core.Response.Status.NOT_IMPLEMENTED)
+    				.entity(e.getNdexExceptionInJason())
+    				.type("application/json").build());
+    }
+
     protected InputStream getInputStreamFromRequest() throws IOException {
     		return _httpRequest.getInputStream();
     }

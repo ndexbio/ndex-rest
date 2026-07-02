@@ -59,7 +59,6 @@ import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
@@ -617,43 +616,17 @@ public class UserServiceV2 extends NdexService {
 	
 	@GET
 	@Path("/{userid}/membership")
-	@Operation(summary = "Get User's Membership", description = "Returns the permission that the user specified in the URL has on the given group.")
+	@Deprecated
+	@Operation(summary = "Get User's Membership", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
-	public static Map<String,String> getMembershipInfo(
+	public Map<String,String> getMembershipInfo(
 				@PathParam("userid") final String userIdStr,
 			    @QueryParam("groupid") String groupIdStr,
 			    @QueryParam("type") String membershipType,
 				@DefaultValue("0") @QueryParam("start") int skipBlocks,
 				@DefaultValue("100") @QueryParam("size") int blockSize
-				) 
-			throws IllegalArgumentException, SQLException, NdexException {
-
-		UUID userId = UUID.fromString(userIdStr);
-		
-		if ( groupIdStr != null) {
-			UUID groupId = UUID.fromString(groupIdStr);
-
-			try (UserDAO dao = new UserDAO()) {
-				Map<String, String> result = new TreeMap<>();
-				Permissions m = dao.getUserMembershipTypeOnGroup(userId, groupId);
-
-				if (m != null )
-					result.put(groupId.toString(), m.toString());
-				return result;
-			}
-		}
-		
-		Permissions permission = null; // Permissions.MEMBER;
-		if ( membershipType != null) {
-			permission = Permissions.valueOf(membershipType.toUpperCase());
-		}
-		
-		try (UserDAO dao = new UserDAO ()) {
-			Map<String,String> result =
-					dao.getUserGroupMembershipMap(userId, permission, skipBlocks, blockSize);
-		//	logger.info("[end: Got {} group membership for user {}]", result.size(), getLoggedInUser().getUserName());
-			return result;
-		} 
+				) {
+		throw notImplemented("The NDEx group feature has been removed.");
 	}
 	
 	/* to be deleted. This is a function specific for web-app. It seems that it is no-longer needed by web-app */
@@ -667,8 +640,7 @@ public class UserServiceV2 extends NdexService {
 		    @QueryParam("networkid") String networkIdStr,
 		    @QueryParam("permission") String permissionType,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
-			@DefaultValue("100") @QueryParam("size") int blockSize,
-			@DefaultValue("false") @QueryParam("directOnly") final boolean directOnly) 
+			@DefaultValue("100") @QueryParam("size") int blockSize)
 			throws IllegalArgumentException, ObjectNotFoundException, NdexException, SQLException {
 
 		logger.info("[start: Getting membership of account {} on {}]", getLoggedInUser().getUserName(), networkIdStr);
@@ -681,7 +653,7 @@ public class UserServiceV2 extends NdexService {
 			
 			Map<String,String> result = new TreeMap<>();
 			try (UserDAO dao = new UserDAO ()){
-				Permissions m = dao.getLoggedInUserPermissionOnNetwork(userId, networkId, directOnly);
+				Permissions m = dao.getLoggedInUserPermissionOnNetwork(userId, networkId);
 				if ( m!=null)
 					result.put(networkId.toString(), m.name());			
 				return result;
@@ -694,7 +666,7 @@ public class UserServiceV2 extends NdexService {
 			permission = Permissions.valueOf(permissionType);
 		
 		try (UserDAO dao = new UserDAO ()) {
-			Map<String,String> members= dao.getUserNetworkPermissionMap(userId, permission, skipBlocks, blockSize, inclusive, directOnly);
+			Map<String,String> members= dao.getUserNetworkPermissionMap(userId, permission, skipBlocks, blockSize, inclusive);
 			return members;
 		} 	
 	}
@@ -706,37 +678,14 @@ public class UserServiceV2 extends NdexService {
 	
 	   @POST
 	   @Path("/{userid}/membershiprequest")
-	   @Operation(summary = "Create Membership Request", description = "Create a request to the group admin for the authenticated user to join the specified group.")
+	   @Deprecated
+	   @Operation(summary = "Create Membership Request", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	   @Produces("text/plain")
 	    public Response createMembershipRequest(
 	    		@PathParam("userid") final String userIdStr,
-	    		final MembershipRequest newRequest) 
-	    		throws IllegalArgumentException, DuplicateObjectException, NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
+	    		final MembershipRequest newRequest) {
+			throw notImplemented("The NDEx group feature has been removed.");
 
-			if ( newRequest.getGroupid() == null)
-					throw new NdexException("Groupid is required in the Posted object.");
-		
-	//		logger.info("[start: Creating membership request for {}]", getLoggedInUserId());
-			UUID userId = UUID.fromString(userIdStr);
-			
-			if ( !userId.equals(getLoggedInUserId()))
-				throw new NdexException ("Creating request for other users are not allowed.");
-			
-			try (RequestDAO dao = new RequestDAO ()){	
-				
-				Request r = new Request(newRequest);
-				r.setSourceUUID(userId);
-				Request request = dao.createRequest(r, this.getLoggedInUser());
-				dao.commit();
-				URI l = new URI (Configuration.getInstance().getHostURI()  + 
-			            Configuration.getInstance().getRestAPIPrefix()+"/user/"+ userId.toString() + "/membershiprequest/"+
-						request.getExternalId());
-
-				return Response.created(l).entity(l).build();
-			} catch (URISyntaxException e) {
-				throw new NdexException ("Failed to create location URL: " + e.getMessage(), e);
-			} 
-	    	
 	    }
 	   
 	   
@@ -850,132 +799,43 @@ public class UserServiceV2 extends NdexService {
 	   	
 
 	   	@GET
+		@Deprecated
 		@Path("/{userid}/membershiprequest")
-		@Operation(summary = "Get a User's Permission Requests", description = "Returns a JSON array of permission request objects in which the authenticated user is either the recipient or the sender.")
+		@Operation(summary = "Get a User's Membership Requests", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 		@Produces("application/json")
 		public List<Request> getMembershipRequests (
 				 @PathParam("userid") String userIdStr,
 				  @QueryParam("type") String queryType
-				) throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
-
-			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
-			String qT = null;
-			if ( queryType !=null) {
-				qT = queryType.toLowerCase();
-				if ( !qT.equals("sent") && !qT.equals("received"))
-					throw new NdexException ("Type parameter of this function can only be 'sent' or 'received'.");
-			}
-			
-			UUID userId = UUID.fromString(userIdStr);
-			if ( !userId.equals(getLoggedInUserId()))
-				throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
-			
-			try (RequestDAO dao = new RequestDAO ()){
-				if (qT == null) {
-					List<Request> reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(), RequestType.JoinGroup,0, -1);
-					List<Request> reqs2= dao.getPendingGroupMembershipRequestByUserId(this.getLoggedInUserId(),0, -1);
-					 reqs.addAll(reqs2);
-					 return reqs;
-
-				}
-				
-				List<Request> reqs;
-				if ( qT.equals("sent")) {
-					 reqs= dao.getSentRequestByUserId(this.getLoggedInUserId(),RequestType.JoinGroup,0, -1);
-				} else {
-					reqs= dao.getPendingGroupMembershipRequestByUserId(this.getLoggedInUserId(),0, -1);
-				}
-				
-				return reqs;
-
-			}
-		}   
+				) {
+			throw notImplemented("The NDEx group feature has been removed.");
+		}
 	   	
 	   	
 	   	@GET
 			@Path("/{userid}/membershiprequest/{requestid}")
-		@Operation(summary = "Get a User's Membership Request by id", description = "Returns the membership request object specified by requestid.")
+		@Deprecated
+		@Operation(summary = "Get a User's Membership Request by id", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 			@Produces("application/json")
 			public Request getMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
 					 @PathParam("requestid") String requestIdStr
-					) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
-
-				logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
-				
-				UUID userId = UUID.fromString(userIdStr);
-				if ( !userId.equals(getLoggedInUserId()))
-					throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
-				
-				UUID requestId = UUID.fromString(requestIdStr);
-				
-				try (RequestDAO dao = new RequestDAO ()){
-					Request reqs= dao.getRequest(requestId, getLoggedInUser());
-					logger.info("[end: Returning request]");
-					return reqs;
-				}
-				
-			}   
+					) {
+				throw notImplemented("The NDEx group feature has been removed.");
+			}
 	   	
 	   	@PUT
 		@Path("/{userid}/membershiprequest/{requestid}")
-		@Operation(summary = "Respond to Membership Request", description = "Respond to a membership request with accept or deny action. The user must be the group admin to respond to membership requests.")
+		@Deprecated
+		@Operation(summary = "Respond to Membership Request", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 		@Produces("application/json")
 		public void respondMembershipRequest(
 				 @PathParam("userid") String userIdStr,
 				 @PathParam("requestid") String requestIdStr,
 				 @QueryParam("action")  String action,
 				 @QueryParam("message") String message
-				) throws NdexException, SQLException, JsonParseException, JsonMappingException, IllegalArgumentException, IOException {
-
-			logger.info("[start: Getting requests sent by user {}]", getLoggedInUser().getUserName());
-			
-			UUID userId = UUID.fromString(userIdStr);
-			if ( !userId.equals(getLoggedInUserId()))
-				throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
-			
-			UUID requestId = UUID.fromString(requestIdStr);
-			
-			if ( action == null)
-				throw new NdexException("Action parameter is required.");
-			String act = action.toLowerCase();
-			if ( !act.equals("accept") && !act.equals("deny"))
-				throw new NdexException("Value of action parameter can only be 'accept' or 'deny'.");
-			
-			Request reqs;
-			try (RequestDAO dao = new RequestDAO ()){
-				reqs= dao.getRequest(requestId, getLoggedInUser());
-			}
-			
-			if ( reqs.getRequestType() != RequestType.JoinGroup) {
-				throw new NdexException("This request is not a membership request.");
-			}
-			
-			// check if user is the group admin
-			try ( GroupDAO gdao = new GroupDAO()) {
-				if (!gdao.isGroupAdmin(reqs.getDestinationUUID(), getLoggedInUserId()))
-					throw new UnauthorizedOperationException("Authenticated user is not an admin of the group.");			
-			}
-			
-			// act on it
-			reqs.setResponseMessage(message);
-			if ( act.equals("accept")) {
-				reqs.setResponse(ResponseType.ACCEPTED);
-				try ( GroupDAO gdao = new GroupDAO()) {
-					gdao.updateMember(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission(), getLoggedInUserId());
-					gdao.commit();
-				}
-			} else {
-				reqs.setResponse(ResponseType.DECLINED);
-			}
-				
-			try (RequestDAO dao = new RequestDAO ()){
-				dao.updateRequest(requestId,reqs, getLoggedInUser());	
-				dao.commit();
-			}
-			
-			
-		}   
+				) {
+			throw notImplemented("The NDEx group feature has been removed.");
+		}
 	   	
 	   	
 	   	@PUT
@@ -1007,26 +867,19 @@ public class UserServiceV2 extends NdexService {
 			try (RequestDAO dao = new RequestDAO ()){
 				reqs= dao.getRequest(requestId, getLoggedInUser());
 			}
-			
-			if ( reqs.getRequestType() == RequestType.JoinGroup) {
-				throw new NdexException("This request is not a permission request.");
-			}
-			
+
 			// check if user is the admin of network
 			try ( PostgresNetworkDAO ndao = new PostgresNetworkDAO()) {
 				if (!ndao.isAdmin(reqs.getDestinationUUID(), getLoggedInUserId()))
-					throw new UnauthorizedOperationException("Authenticated user is not an admin of the network.");			
+					throw new UnauthorizedOperationException("Authenticated user is not an admin of the network.");
 			}
-			
+
 			// act on it
 			reqs.setResponseMessage(message);
 			if ( act.equals("accept")) {
 				reqs.setResponse(ResponseType.ACCEPTED);
 				try ( PostgresNetworkDAO ndao = new PostgresNetworkDAO()) {
-					if( reqs.getRequestType() == RequestType.UserNetworkAccess)
-						ndao.grantPrivilegeToUser(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission());
-					else 
-						ndao.grantPrivilegeToGroup(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission());
+					ndao.grantPrivilegeToUser(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission());
 					ndao.commit();
 					
 					// update the solr Index
@@ -1052,30 +905,15 @@ public class UserServiceV2 extends NdexService {
 	   	
 	   	@DELETE
 		@Path("/{userid}/membershiprequest/{requestid}")
-		@Operation(summary = "Delete Membership Request", description = "Delete a membership request by its ID. The authenticated user must be the owner of the request.")
+		@Deprecated
+		@Operation(summary = "Delete Membership Request", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 		@Produces("application/json")
 		public void deleteMembershipRequestById(
 					 @PathParam("userid") String userIdStr,
 					 @PathParam("requestid") String requestIdStr
-					) throws NdexException, SQLException {
-
-				logger.info("[start: Deleting requests sent by user {}]", getLoggedInUser().getUserName());
-				
-				UUID userId = UUID.fromString(userIdStr);
-				if ( !userId.equals(getLoggedInUserId()))
-					throw new UnauthorizedOperationException("Accessing other user's requests is not allowed.");
-				
-				UUID requestId = UUID.fromString(requestIdStr);
-				
-				try (RequestDAO dao = new RequestDAO()) {
-					
-					dao.deleteMembershipRequest(requestId, this.getLoggedInUserId());
-					dao.commit();
-				} finally {
-					logger.info("[end: Request deleted]");
-				}
-				
-			}   
+					) {
+				throw notImplemented("The NDEx group feature has been removed.");
+			}
 
 	
 	   	@DELETE

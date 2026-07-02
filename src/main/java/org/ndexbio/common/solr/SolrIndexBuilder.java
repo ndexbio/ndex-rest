@@ -16,7 +16,6 @@ import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.cxio.core.AspectIterator;
-import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
@@ -25,7 +24,6 @@ import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
@@ -84,14 +82,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 		  
 			  if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
 				  // build the solr document obj
-				  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
-				  Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
-				  Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
+				  Map<Permissions,Collection<String>> userMemberships =  dao.getAllMembershipsOnNetwork(networkid);
 				  globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
 					userMemberships.get(Permissions.READ),
-					userMemberships.get(Permissions.WRITE),
-					grpMemberships.get(Permissions.READ),
-					grpMemberships.get(Permissions.WRITE));
+					userMemberships.get(Permissions.WRITE));
 
 				  //process node attribute aspect and add to solr doc
 				  String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
@@ -172,14 +166,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 		  
 			 if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
 				  // build the solr document obj
-				  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
-				  Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
-				  Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
+				  Map<Permissions,Collection<String>> userMemberships =  dao.getAllMembershipsOnNetwork(networkid);
 				  globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
 					userMemberships.get(Permissions.READ),
-					userMemberships.get(Permissions.WRITE),
-					grpMemberships.get(Permissions.READ),
-					grpMemberships.get(Permissions.WRITE));
+					userMemberships.get(Permissions.WRITE));
 
 				  //process node attribute aspect and add to solr doc
 				  String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
@@ -461,54 +451,6 @@ public class SolrIndexBuilder implements AutoCloseable {
 		logger.info("User index has been rebuilt.");
 	}
 	
-	private static void rebuildGroupIndex() throws Exception {
-		logger.info("Start rebuild group index.");
-		try (GroupIndexManager umgr = new GroupIndexManager()) {
-
-			umgr.createCoreIfNotExists();
-		/*	String coreName = GroupIndexManager.coreName;
-			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
-			creator.setCoreName(coreName);
-			creator.setConfigSet(coreName);
-			CoreAdminResponse foo = creator.process(umgr.client);
-
-			if (foo.getStatus() != 0) {
-				throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
-						+ foo.getResponseHeader().toString());
-			}
-			logger.info("Solr core " + coreName + " created.");*/
-
-
-			try (GroupDAO dao = new GroupDAO()) {
-				@SuppressWarnings("resource")
-				Connection db = dao.getDBConnection();
-				String sqlStr = "select \"UUID\" from ndex_group n where n.is_deleted=false";
-
-				try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-					try (ResultSet rs = pst.executeQuery()) {
-						while (rs.next()) {
-							UUID groupId = (UUID) rs.getObject(1);
-							try (GroupDAO dao2 = new GroupDAO()) {
-								Group group = dao2.getGroupById(groupId);
-								if (group == null)
-									throw new NdexException("Group " + groupId
-											+ " can't be indexed because this account is not verified.");
-								logger.info("Adding Group " + group.getGroupName() + " to index.");
-								umgr.addGroup(group.getExternalId().toString(), group.getGroupName(),
-										group.getDescription());
-
-								logger.info("Group " + group.getGroupName() + " added to index.");
-							}
-
-						}
-					}
-				}
-			}
-			
-			logger.info("Group index has been rebuilt.");
-		}
-	}
-	
 	private static void rebuildNFSIdx(){
 
 	}
@@ -658,14 +600,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 			switch ( args[0]) {
 			case "all":
 				SolrIndexBuilder.rebuildUserIndex();
-				SolrIndexBuilder.rebuildGroupIndex();
 				builder.rebuildAll();
 				break;
 			case "user":
 				SolrIndexBuilder.rebuildUserIndex();
-				break;
-			case "group":
-				SolrIndexBuilder.rebuildGroupIndex();
 				break;
 			case "all-networks-online":
 				builder.rebuildAllNetworksOnline();

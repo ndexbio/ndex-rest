@@ -54,10 +54,6 @@ public class V3Migrator implements AutoCloseable {
 
 	protected final static Logger logger = LoggerFactory.getLogger(V3Migrator.class.getSimpleName());
 
-	private static final Map<String, Integer> PERM_RANK = Map.of(
-			"READ", 1, "WRITE", 2, "ADMIN", 3
-	);
-
 	private final Connection db;
 	private final ObjectMapper mapper;
 	private final TypeReference<Map<String, Object>> mapTypeRef;
@@ -65,14 +61,10 @@ public class V3Migrator implements AutoCloseable {
 
 	// --- Migration stats ---
 	private int networkSetsProcessed = 0;
-	private int groupsProcessed = 0;
 	private int networksProcessed = 0;
 	private int usersProcessed = 0;
 	private int shortcutsCreated = 0;
-	private int permissionsFlattened = 0;
 
-
-	//todo if duplicate group admins contain preferred user, make them folder admin, if no preferred take first. all others have read/write
 	//todo v2 endpoints should correspond network sets with folders
 	//todo
 	private List<String> preferredUsers;
@@ -113,9 +105,6 @@ public class V3Migrator implements AutoCloseable {
 			logger.info("--- Phase 1: Network Sets -> Folders + Shortcuts ---");
 			processNetworkSets(dao);
 
-			logger.info("--- Phase 2: Groups -> Folders + Shortcuts + Flattened Permissions ---");
-			processGroups(dao);
-
 			logger.info("--- Phase 3: Networks -> Verify in Home Folder + Migrate Access Keys ---");
 			processNetworks(dao);
 
@@ -124,9 +113,9 @@ public class V3Migrator implements AutoCloseable {
 
 			logger.info("=== V3 Migration Complete ===");
 			logger.info(String.format(
-					"Stats: networkSets=%d, groups=%d, networks=%d, users=%d, shortcuts=%d, permsFlattened=%d",
-					networkSetsProcessed, groupsProcessed, networksProcessed,
-					usersProcessed, shortcutsCreated, permissionsFlattened));
+					"Stats: networkSets=%d, networks=%d, users=%d, shortcuts=%d",
+					networkSetsProcessed, networksProcessed,
+					usersProcessed, shortcutsCreated));
 		}
 	}
 
@@ -274,246 +263,6 @@ public class V3Migrator implements AutoCloseable {
 		}
 		dao.shortcutDAO.commit();
 
-	}
-
-	// ========================================================================
-	// Phase 2: Groups -> Folders + Shortcuts + Flattened Permissions
-	// ========================================================================
-
-	public void processGroups(DaoSet dao) throws Exception {
-		int totalGroups = 0;
-		try (PreparedStatement countPst = db.prepareStatement("SELECT COUNT(*) FROM ndex_group WHERE is_deleted = false");
-			 ResultSet countRs = countPst.executeQuery()) {
-			if (countRs.next()) totalGroups = countRs.getInt(1);
-		}
-		logger.info("Found {} groups to migrate.", totalGroups);
-
-		String sql = "SELECT \"UUID\", creation_time, modification_time, group_name, "
-				+ "description, other_attributes, image_url, website_url "
-				+ "FROM ndex_group WHERE is_deleted = false";
-
-		try (PreparedStatement pst = db.prepareStatement(sql);
-			 ResultSet rs = pst.executeQuery();
-			 FolderIndexManager fim = solrObjectFactory.getFolderIndexManager();
-			 ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager()) {
-
-			while (rs.next()) {
-				UUID groupId = (UUID) rs.getObject(1);
-				logger.info("Starting for group {}", groupId);
-				try {
-					migrateGroup(rs, groupId, dao, fim, sim);
-					groupsProcessed++;
-					logger.info("[Phase 2] {}/{} ({}%) - group {}",
-							groupsProcessed, totalGroups,
-							(groupsProcessed * 100) / totalGroups, groupId);
-				} catch (Exception e) {
-					db.rollback();
-					logger.info("Failed to migrate group " + groupId, e);
-				}
-			}
-		}
-		logger.info("Processed " + groupsProcessed + " groups.");
-	}
-
-	private void migrateGroup(ResultSet rs, UUID groupId, DaoSet dao, FolderIndexManager fim, ShortcutIndexManager sim) throws Exception {
-		// Find the group owner (admin user)
-
-		UUID ownerId = findGroupOwner(groupId);
-		if (ownerId == null) {
-			logger.info("Group " + groupId + " has no admin user, skipping.");
-			return;
-		}
-		User owner = dao.userDAO.getUserById(ownerId, false, false);
-
-		// Create folder from group
-		NdexFolder folder = new NdexFolder();
-		//UUID folderId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-		folder.setExternalId(groupId);
-		String groupName = rs.getString(4);
-		if (groupName == null || groupName.isBlank()) {
-			groupName = "(unnamed group)";
-		}
-		folder.setName(groupName);
-		folder.setDescription(rs.getString(5));  // description
-		folder.setCreationTime(rs.getTimestamp(2));
-		folder.setModificationTime(rs.getTimestamp(3));
-		if (owner != null) folder.setOwner(owner.getUserName());
-
-		dao.folderDAO.createFolder(groupId, ownerId, null, groupName, folder.getDescription());
-		dao.folderDAO.commit();
-		logger.info("[{}] Created group's folder db entry", groupId);
-		// Load group members
-		List<GroupMember> members = loadGroupMembers(groupId);
-
-		// Grant READ on the folder to all group members (except owner, who has ADMIN implicitly)
-		List<String> folderUserReads = new ArrayList<>();
-		logger.info("[{}] Adding member permissions", groupId);
-
-		for (GroupMember member : members) {
-			if (!member.userId.equals(ownerId)) {
-				addFolderPermission(groupId, member.userId, "READ");
-				String username = getUsernameById(member.userId, dao);
-				if (username != null) folderUserReads.add(username);
-			}
-		}
-
-
-		logger.info("[{}] Indexing folder", groupId);
-		// Index folder with member read permissions
-		fim.createIndex(folder, VisibilityType.PRIVATE, folderUserReads, null);
-		// Get networks this group has access to
-		List<GroupNetworkEntry> groupNetworks = loadGroupNetworks(groupId);
-
-		logger.info("[{}] Creating {} network shortcuts.", groupId, groupNetworks.size());
-		// Create shortcuts in the folder for each network
-		for (GroupNetworkEntry entry : groupNetworks) {
-			createNetworkShortcut(entry.networkId, groupId, ownerId, owner, dao, sim, folderUserReads, VisibilityType.PRIVATE);
-		}
-
-
-
-		logger.info("[{}] Flattening permissions.", groupId);
-		// Flatten group permissions onto individual member users
-		for (GroupNetworkEntry entry : groupNetworks) {
-			for (GroupMember member : members) {
-				flattenPermission(member.userId, entry.networkId, entry.permission);
-			}
-		}
-
-		db.commit();
-	}
-	private UUID findGroupOwner(UUID groupId) throws SQLException {
-		String sql = "SELECT user_id FROM ndex_group_user "
-				+ "WHERE group_id = ? AND is_admin = true";
-		List<UUID> admins = new ArrayList<>();
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			pst.setObject(1, groupId);
-			try (ResultSet rs = pst.executeQuery()) {
-				while (rs.next()) {
-					admins.add((UUID) rs.getObject(1));
-				}
-			}
-		}
-		if (admins.isEmpty()) return null;
-		if (admins.size() == 1) return admins.get(0);
-		return selectGroupOwnerFromList(admins);
-	}
-
-	private UUID selectGroupOwnerFromList(List<UUID> adminIds) {
-		Set<UUID> adminSet = new HashSet<>(adminIds);
-		UUID prefOwner = null;
-		for (UUID pref: preferredUserIds){
-			if (adminSet.contains(pref)){
-				return pref;
-
-			}
-		}
-        return adminIds.get(0);
-    }
-	private List<GroupNetworkEntry> loadGroupNetworks(UUID groupId) throws SQLException {
-		List<GroupNetworkEntry> entries = new ArrayList<>();
-		String sql = "SELECT gnm.network_id, gnm.permission_type "
-				+ "FROM group_network_membership gnm "
-				+ "JOIN network n ON n.\"UUID\" = gnm.network_id "
-				+ "WHERE gnm.group_id = ? AND n.is_deleted = false";
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			pst.setObject(1, groupId);
-			try (ResultSet rs = pst.executeQuery()) {
-				while (rs.next()) {
-					entries.add(new GroupNetworkEntry(
-							(UUID) rs.getObject(1),
-							rs.getString(2)
-					));
-				}
-			}
-		}
-		return entries;
-	}
-
-	private List<GroupMember> loadGroupMembers(UUID groupId) throws SQLException {
-		List<GroupMember> members = new ArrayList<>();
-		String sql = "SELECT user_id, is_admin FROM ndex_group_user WHERE group_id = ?";
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			pst.setObject(1, groupId);
-			try (ResultSet rs = pst.executeQuery()) {
-				while (rs.next()) {
-					members.add(new GroupMember(
-							(UUID) rs.getObject(1),
-							rs.getBoolean(2)
-					));
-				}
-			}
-		}
-		return members;
-	}
-
-	/**
-	 * Flatten a group permission onto an individual user.
-	 * Only upgrades — never downgrades an existing permission.
-	 * ADMIN from group maps to WRITE on the individual level.
-	 */
-	private void flattenPermission(UUID userId, UUID networkId, String groupPerm) throws SQLException {
-		// Map ADMIN -> WRITE for individual permissions
-		String effectivePerm = "ADMIN".equals(groupPerm) ? "WRITE" : groupPerm;
-
-		// Check existing individual permission
-		String existing = getUserNetworkPermission(userId, networkId);
-
-		if (existing != null && permRank(existing) >= permRank(effectivePerm)) {
-			return; // existing is same or higher, skip
-		}
-
-		if (existing != null) {
-			// Upgrade existing permission
-			String sql = "UPDATE user_network_membership SET permission_type = ?::ndex_permission_type "
-					+ "WHERE user_id = ? AND network_id = ?";
-			try (PreparedStatement pst = db.prepareStatement(sql)) {
-				pst.setString(1, effectivePerm);
-				pst.setObject(2, userId);
-				pst.setObject(3, networkId);
-				pst.executeUpdate();
-			}
-		} else {
-			// Insert new permission
-			String sql = "INSERT INTO user_network_membership (user_id, network_id, permission_type) "
-					+ "VALUES (?, ?, ?::ndex_permission_type)";
-			try (PreparedStatement pst = db.prepareStatement(sql)) {
-				pst.setObject(1, userId);
-				pst.setObject(2, networkId);
-				pst.setString(3, effectivePerm);
-				pst.executeUpdate();
-			}
-		}
-		permissionsFlattened++;
-	}
-
-	private String getUserNetworkPermission(UUID userId, UUID networkId) throws SQLException {
-		String sql = "SELECT permission_type FROM user_network_membership "
-				+ "WHERE user_id = ? AND network_id = ?";
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			pst.setObject(1, userId);
-			pst.setObject(2, networkId);
-			try (ResultSet rs = pst.executeQuery()) {
-				return rs.next() ? rs.getString(1) : null;
-			}
-		}
-	}
-
-	private int permRank(String perm) {
-		return PERM_RANK.getOrDefault(perm, 0);
-	}
-
-	private void addFolderPermission(UUID folderId, UUID userId, String permission) throws SQLException {
-		String sql = "INSERT INTO folder_permission (folder_id, user_id, permission) VALUES (?, ?, ?) "
-				+ "ON CONFLICT (folder_id, user_id) DO UPDATE SET permission = "
-				+ "CASE WHEN EXCLUDED.permission > folder_permission.permission "
-				+ "THEN EXCLUDED.permission ELSE folder_permission.permission END";
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			pst.setObject(1, folderId);
-			pst.setObject(2, userId);
-			pst.setString(3, permission);
-			pst.executeUpdate();
-		}
 	}
 
 	// ========================================================================
@@ -738,9 +487,8 @@ public class V3Migrator implements AutoCloseable {
 			}
 
 			// build the solr document obj
-			List<Map<Permissions, Collection<String>>> permissionTable = dao
+			Map<Permissions, Collection<String>> userMemberships = dao
 					.getAllMembershipsOnNetwork(fileId);
-			Map<Permissions, Collection<String>> userMemberships = permissionTable.get(0);
 			globalNetworkIndexManager.prepareIndexDocument(summary, visibilityType,
 					userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
 
@@ -924,23 +672,4 @@ public class V3Migrator implements AutoCloseable {
 		}
 	}
 
-	static class GroupNetworkEntry {
-		final UUID networkId;
-		final String permission;
-
-		GroupNetworkEntry(UUID networkId, String permission) {
-			this.networkId = networkId;
-			this.permission = permission;
-		}
-	}
-
-	static class GroupMember {
-		final UUID userId;
-		final boolean isAdmin;
-
-		GroupMember(UUID userId, boolean isAdmin) {
-			this.userId = userId;
-			this.isAdmin = isAdmin;
-		}
-	}
 }

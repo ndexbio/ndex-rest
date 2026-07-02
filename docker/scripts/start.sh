@@ -469,7 +469,7 @@ if [[ "${ENABLE_SOLR}" == "true" ]]; then
 
     # Copy configsets (extracted from WAR at image build time)
     mkdir -p /apps/solr/data/configsets
-    for cs in ndex-networks ndex-groups ndex-nodes ndex-users public-nfs private-nfs; do
+    for cs in ndex-networks ndex-nodes ndex-users public-nfs private-nfs; do
       cp -r "/opt/ndex-install/solr-configsets/${cs}" /apps/solr/data/configsets/
     done
     # ndex-nodes-template = copy of ndex-nodes (template for per-network node indices)
