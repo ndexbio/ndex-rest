@@ -932,6 +932,55 @@ public class TestGlobalNetworkIndexManager {
     }
 
     // ========================================================================
+    // EDGELESS NETWORK DEMOTION (edgeCount boost) - issue #116
+    // ========================================================================
+
+    @Test
+    public void testGetBoostFunction_ReturnsEdgePenalty() {
+        manager = createManagerWithMock();
+        assertEquals("map(def(edgeCount,1),0,0,0.01,1)", manager.getBoostFunction());
+    }
+
+    @Test
+    public void testConfigureQuery_SetsEdgelessBoost() {
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "cancer", "filter", 10, 0);
+        // edgeCount==0 maps to 0.01 (heavy demotion); everything else stays at 1.
+        assertEquals("map(def(edgeCount,1),0,0,0.01,1)", q.get("boost"));
+    }
+
+    @Test
+    public void testConfigureQuery_BoostAppliedWithEdismax() {
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "cancer", "filter", 10, 0);
+        // edismax must be the parser for the multiplicative boost param to apply.
+        assertEquals("edismax", q.get("defType"));
+        assertNotNull(q.get("boost"));
+    }
+
+    @Test
+    public void testEdgelessPenaltyValue() {
+        assertEquals(0.01, GlobalNetworkIndexManager.EDGELESS_PENALTY, 0.0);
+    }
+
+    @Test
+    public void testEdgePenaltyBoost_BuildsFunction() {
+        manager = createManagerWithMock();
+        // The helper encodes any penalty into the same map/def shape.
+        assertEquals("map(def(edgeCount,1),0,0,0.1,1)", manager.edgePenaltyBoost(0.1));
+    }
+
+    @Test
+    public void testEdgePenaltyBoost_GuardsMissingEdgeCount() {
+        manager = createManagerWithMock();
+        // def(edgeCount,1) means a doc lacking edgeCount defaults to 1 (no penalty),
+        // never the 0->penalty bucket.
+        assertTrue(manager.edgePenaltyBoost(0.01).contains("def(edgeCount,1)"));
+    }
+
+    // ========================================================================
     // PREPROCESS SEARCH TERMS - NETWORK SPECIFIC (ndexScore boost)
     // ========================================================================
 

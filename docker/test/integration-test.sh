@@ -31,7 +31,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=43
+TOTAL_API_CALLS=46
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -575,6 +575,95 @@ while true; do
   echo "  Waiting for public-nfs Solr index... (${ELAPSED}s)"
 done
 api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
+
+# ── STEP: Edgeless network search ranking (issue #116) ───────────────────────
+# Upload two networks that share the unique token "EdgelessRankProbe" — one WITH
+# edges, one edgeless (0 edges, but a deliberately STRONGER text match). Without
+# the edgeCount demotion boost the edgeless network would rank first on text
+# relevance; the boost must push the edged network above it.
+
+step "Verifying edgeless networks are demoted in search ranking (issue #116)"
+
+RANK_DIR="${FIXTURES_DIR}/ranking"
+RANK_EDGED_UUID=""
+RANK_EDGELESS_UUID=""
+
+for RANK_FILE in "${RANK_DIR}/edged-rank-probe.cx2" "${RANK_DIR}/edgeless-rank-probe.cx2"; do
+  RANK_LABEL="$(basename "${RANK_FILE}")"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks?visibility=PUBLIC  [${RANK_LABEL}]"
+
+  RANK_UPLOAD=$(curl -s -w "\n%{http_code}" -X POST \
+    -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    --data-binary "@${RANK_FILE}" \
+    "${BASE_URL}/v3/networks?visibility=PUBLIC")
+  RANK_HTTP=$(echo "${RANK_UPLOAD}" | tail -1)
+  RANK_BODY=$(echo "${RANK_UPLOAD}" | head -1)
+
+  if [[ "${RANK_HTTP}" != "201" ]]; then
+    api_fail "POST /v3/networks → HTTP ${RANK_HTTP} for '${RANK_LABEL}'. Body: ${RANK_BODY:0:300}"
+  fi
+  RANK_UUID=$(echo "${RANK_BODY}" | grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+  if [[ "${RANK_LABEL}" == "edged-rank-probe.cx2" ]]; then
+    RANK_EDGED_UUID="${RANK_UUID}"
+  else
+    RANK_EDGELESS_UUID="${RANK_UUID}"
+  fi
+  api_pass "POST /v3/networks → 201 Created (UUID: ${RANK_UUID}, ${RANK_LABEL})"
+done
+
+# Wait until both rank-probe networks finish processing.
+for UUID in "${RANK_EDGED_UUID}" "${RANK_EDGELESS_UUID}"; do
+  ELAPSED=0
+  while true; do
+    SUMMARY_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${UUID}/summary")
+    if echo "${SUMMARY_BODY}" | grep -q '"completed":true'; then
+      break
+    fi
+    if [[ ${ELAPSED} -ge ${LOAD_TIMEOUT} ]]; then
+      api_fail "rank-probe network ${UUID} did not complete within ${LOAD_TIMEOUT}s. Last: ${SUMMARY_BODY:0:300}"
+    fi
+    sleep 5; (( ELAPSED += 5 )) || true
+    echo "  Waiting for rank-probe network ${UUID}... (${ELAPSED}s)"
+  done
+done
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (searchString=EdgelessRankProbe)"
+
+# Poll until both networks are indexed, then assert the edged network ranks first.
+ELAPSED=0
+while true; do
+  RANK_SEARCH=$(curl -s -w "\n%{http_code}" -X POST \
+    -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d '{"searchString":"EdgelessRankProbe"}' \
+    "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=10")
+  RANK_SEARCH_HTTP=$(echo "${RANK_SEARCH}" | tail -1)
+  RANK_SEARCH_BODY=$(echo "${RANK_SEARCH}" | head -1)
+  if [[ "${RANK_SEARCH_HTTP}" != "200" ]]; then
+    api_fail "POST /v3/search/files (EdgelessRankProbe) → HTTP ${RANK_SEARCH_HTTP}. Body: ${RANK_SEARCH_BODY:0:300}"
+  fi
+  # Ordered list of result UUIDs (rank order is preserved by the search provider).
+  RANK_ORDER=$(echo "${RANK_SEARCH_BODY}" | grep -oE '"uuid":"[^"]*"' | cut -d'"' -f4)
+  EDGED_POS=$(echo "${RANK_ORDER}" | grep -n "^${RANK_EDGED_UUID}$" | head -1 | cut -d: -f1)
+  EDGELESS_POS=$(echo "${RANK_ORDER}" | grep -n "^${RANK_EDGELESS_UUID}$" | head -1 | cut -d: -f1)
+  if [[ -n "${EDGED_POS}" && -n "${EDGELESS_POS}" ]]; then
+    break
+  fi
+  if [[ ${ELAPSED} -ge ${LOAD_TIMEOUT} ]]; then
+    api_fail "Both rank-probe networks not found in search within ${LOAD_TIMEOUT}s. Body: ${RANK_SEARCH_BODY:0:500}"
+  fi
+  sleep 3; (( ELAPSED += 3 )) || true
+  echo "  Waiting for rank-probe networks to index... (${ELAPSED}s)"
+done
+
+if [[ ${EDGED_POS} -lt ${EDGELESS_POS} ]]; then
+  api_pass "Edged network (pos ${EDGED_POS}) ranks above edgeless network (pos ${EDGELESS_POS}) — edgeless demotion confirmed"
+else
+  api_fail "Edgeless network (pos ${EDGELESS_POS}) ranked at/above edged network (pos ${EDGED_POS}) — edgeCount boost not applied"
+fi
 
 # ── STEP: Neighborhood query — SSL context fix (local container only) ─────────
 

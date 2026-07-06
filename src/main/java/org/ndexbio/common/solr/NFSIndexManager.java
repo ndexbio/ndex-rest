@@ -366,6 +366,12 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         solrQuery.set("defType", "edismax");
         solrQuery.set("qf", getQueryFields());
 
+        // Optional multiplicative boost (e.g. to demote edgeless networks)
+        String boostFunction = getBoostFunction();
+        if (boostFunction != null) {
+            solrQuery.set("boost", boostFunction);
+        }
+
         // Pagination
         if (offset >= 0) {
             solrQuery.setStart(offset);
@@ -378,6 +384,27 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
         // Apply filters
         solrQuery.setFilterQueries(resultFilter);
+    }
+
+    /**
+     * Optional edismax multiplicative boost function applied to the query score.
+     * Returns null by default (no boost). Subclasses override to demote or promote
+     * documents (e.g. GlobalNetworkIndexManager demotes edgeless networks).
+     */
+    protected String getBoostFunction() {
+        return null;
+    }
+
+    /**
+     * Builds a multiplicative boost function that demotes edgeless documents
+     * (edgeCount == 0) by the given penalty while leaving all other documents
+     * unchanged. Documents lacking an edgeCount field default to 1 (no penalty),
+     * so non-network types are never affected.
+     *
+     * @param penalty the multiplier applied to edgeless documents (e.g. 0.01)
+     */
+    protected String edgePenaltyBoost(double penalty) {
+        return "map(def(" + EDGE_COUNT + ",1),0,0," + penalty + ",1)";
     }
 
     /**
