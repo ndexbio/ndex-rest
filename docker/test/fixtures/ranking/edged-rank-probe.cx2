@@ -1,0 +1,7 @@
+[{"CXVersion":"2.0","hasFragments":false},
+{"metaData":[{"name":"attributeDeclarations","elementCount":1},{"name":"networkAttributes","elementCount":1},{"name":"nodes","elementCount":3},{"name":"edges","elementCount":2}]},
+{"attributeDeclarations":[{"nodes":{"name":{"a":"n","d":"string"}},"networkAttributes":{"name":{"d":"string"},"description":{"d":"string"}},"edges":{"interaction":{"a":"i","d":"string"}}}]},
+{"networkAttributes":[{"name":"EdgelessRankProbe Edged Network","description":"EdgelessRankProbe ranking fixture that contains edges."}]},
+{"nodes":[{"id":0,"v":{"n":"EdgelessRankProbe geneA"}},{"id":1,"v":{"n":"EdgelessRankProbe geneB"}},{"id":2,"v":{"n":"EdgelessRankProbe geneC"}}]},
+{"edges":[{"id":0,"s":0,"t":1,"v":{"i":"interacts with"}},{"id":1,"s":1,"t":2,"v":{"i":"interacts with"}}]},
+{"status":[{"error":"","success":true}]}]

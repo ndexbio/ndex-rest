@@ -1040,6 +1040,25 @@ public class TestFolderIndexManager {
     }
 
     // ========================================================================
+    // BOOST FUNCTION - NON-NETWORK MANAGERS ARE NOT PENALIZED (issue #116)
+    // ========================================================================
+
+    @Test
+    public void testGetBoostFunction_DefaultsToNull() {
+        manager = createManagerWithMock();
+        // Folders (and other non-network types) inherit the base no-op boost.
+        assertNull(manager.getBoostFunction());
+    }
+
+    @Test
+    public void testConfigureQuery_NoBoostForFolders() {
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "test", "filter", 10, 0);
+        assertNull(q.get("boost"));
+    }
+
+    // ========================================================================
     // INTEGRATION TESTS (Require local Solr - @Ignore by default)
     // Single manager instance since visibility is now per-operation
     // ========================================================================

@@ -29,6 +29,13 @@ import java.util.*;
 public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(GlobalNetworkIndexManager.class);
 
+    /**
+     * Score multiplier applied to edgeless networks (edgeCount == 0) so they rank
+     * below networks with edges. 0.01 = ~100x demotion; raise toward 0.1 for a
+     * softer penalty.
+     */
+    public static final double EDGELESS_PENALTY = 0.01;
+
     // user required indexing fields. hardcoded for now. Will turn them into configurable list in 1.4.
     public static final Set<String> otherAttributes =
             new HashSet<>(Arrays.asList("objectCategory", "organism",
@@ -107,6 +114,12 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
         // Networks use scoring boost
         return "( " + super.preprocessSearchTerms(searchTerms) +
                 " ) AND _val_:\"div(" + NDEX_SCORE + ",10)\"";
+    }
+
+    @Override
+    protected String getBoostFunction() {
+        // Demote edgeless networks to the bottom of the ranking.
+        return edgePenaltyBoost(EDGELESS_PENALTY);
     }
 
     /**

@@ -7,6 +7,7 @@ import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
+import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.NFSIndexManager;
 import org.ndexbio.common.solr.SolrClientWrapper;
 import org.ndexbio.model.exceptions.NdexException;
@@ -248,6 +249,13 @@ public class NFSSearchProvider implements SearchProvider {
             return "uuid^20 name^10 description^5 labels^6 owner^2 " +
                    "networkType^4 organism^3 disease^3 tissue^3 author^2 methods " +
                    "nodeName represents alias rights^0.6 rightsHolder^0.6";
+        }
+
+        @Override
+        protected String getBoostFunction() {
+            // Demote edgeless networks; non-network file types have no edgeCount
+            // field and are left unaffected by the def() guard.
+            return edgePenaltyBoost(GlobalNetworkIndexManager.EDGELESS_PENALTY);
         }
 
     }

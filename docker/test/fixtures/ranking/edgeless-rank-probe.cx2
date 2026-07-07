@@ -1,0 +1,6 @@
+[{"CXVersion":"2.0","hasFragments":false},
+{"metaData":[{"name":"attributeDeclarations","elementCount":1},{"name":"networkAttributes","elementCount":1},{"name":"nodes","elementCount":3}]},
+{"attributeDeclarations":[{"nodes":{"name":{"a":"n","d":"string"}},"networkAttributes":{"name":{"d":"string"},"description":{"d":"string"}}}]},
+{"networkAttributes":[{"name":"EdgelessRankProbe EdgelessRankProbe Edgeless Network","description":"EdgelessRankProbe EdgelessRankProbe EdgelessRankProbe ranking fixture with no edges and a deliberately stronger text match so that only the edge penalty can demote it."}]},
+{"nodes":[{"id":0,"v":{"n":"EdgelessRankProbe EdgelessRankProbe geneA"}},{"id":1,"v":{"n":"EdgelessRankProbe EdgelessRankProbe geneB"}},{"id":2,"v":{"n":"EdgelessRankProbe EdgelessRankProbe geneC"}}]},
+{"status":[{"error":"","success":true}]}]
