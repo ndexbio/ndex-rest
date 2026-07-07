@@ -13,7 +13,7 @@
 #   v3 CX2 retrieve → private network access control → public anonymous access →
 #   v2 Solr search → v3 Solr search → v2 neighborhood query (SSL context)
 #
-# Exits 0 if all 29 API calls pass, exits 1 on the first failure.
+# Exits 0 if all API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
 
 set -euo pipefail
