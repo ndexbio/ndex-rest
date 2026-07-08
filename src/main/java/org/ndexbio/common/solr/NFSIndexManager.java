@@ -207,7 +207,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         // Build the owner filter
         String ownerFilter = "";
         if (ownedBy != null) {
-            ownerFilter = " AND (" + USER_ADMIN + ":\"" + ownedBy + "\")";
+            ownerFilter = " AND (" + USER_ADMIN + ":\"" + escapeForFilter(ownedBy) + "\")";
         }
 
         // Combine filters
@@ -261,7 +261,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
 
         SolrQuery solrQuery = new SolrQuery();
         String permissionFilter = buildPermissionFilter(userAccount, visibilityType, permission);
-        String ownerFilter = ownedBy != null ? " AND (" + USER_ADMIN + ":\"" + ownedBy + "\")" : "";
+        String ownerFilter = ownedBy != null ? " AND (" + USER_ADMIN + ":\"" + escapeForFilter(ownedBy) + "\")" : "";
         String resultFilter = "(" + permissionFilter + ")" + ownerFilter + typeFilter;
 
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
@@ -306,7 +306,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             return excludeUnlisted;
         }
 
-        String userAccountStr = "\"" + userAccount + "\"";
+        String userAccountStr = "\"" + escapeForFilter(userAccount) + "\"";
 
         if (permission == null || permission == Permissions.READ) {
             return excludeUnlisted + " OR (" + USER_ADMIN + ":" + userAccountStr + ")";
@@ -329,7 +329,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             return "(*:* AND NOT *:*)"; // Match nothing
         }
 
-        String userAccountStr = "\"" + userAccount + "\"";
+        String userAccountStr = "\"" + escapeForFilter(userAccount) + "\"";
 
         if (permission == null || permission == Permissions.READ) {
             // Items they can access
@@ -440,6 +440,29 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
                 doc.addField(field, value);
             }
         }
+    }
+
+    /**
+     * Escapes a value for safe interpolation inside a double-quoted Solr/Lucene
+     * phrase (e.g. {@code owner:"<value>"} in a filter query). Only the backslash
+     * and double-quote characters can terminate or alter a quoted phrase, so those
+     * are the only characters escaped. This prevents a value such as
+     * {@code zzz") OR (*:*) OR (owner:"zzz} from breaking out of the phrase and
+     * injecting boolean clauses into an access-control filter query. The backslash
+     * is escaped first so a value's own backslashes are not confused with the
+     * escaping added for the double-quotes.
+     *
+     * <p>For values that contain none of these characters (typical account names
+     * and UUIDs) the input is returned unchanged, so existing queries are unaffected.
+     *
+     * @param value the raw value to place inside a quoted phrase (may be null)
+     * @return the escaped value, or null if the input was null
+     */
+    protected static String escapeForFilter(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     @Override

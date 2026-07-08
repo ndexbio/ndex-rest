@@ -1,9 +1,13 @@
 package org.ndexbio.rest.filters;
 
 import io.swagger.v3.core.model.ApiDescription;
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.ObjectSchema;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.StringSchema;
 import org.easymock.EasyMock;
 import org.easymock.EasyMockSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -12,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.ndexbio.rest.Configuration;
 
 import java.time.Year;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -131,5 +136,74 @@ class TestSwaggerFilter extends EasyMockSupport {
         assertFalse(result.isPresent());
 
         EasyMock.verify(apiDescription);
+    }
+
+    @Test
+    void testDescribeRequestSchemas_setsFieldDescriptions() {
+        ObjectSchema fileQuery = new ObjectSchema();
+        fileQuery.addProperty("searchString", new StringSchema());
+        fileQuery.addProperty("type", new StringSchema());
+        fileQuery.addProperty("accountName", new StringSchema());
+        fileQuery.addProperty("permission", new StringSchema());
+
+        Components components = new Components();
+        components.addSchemas("SimpleFileQuery", fileQuery);
+        openAPI.setComponents(components);
+
+        SwaggerFilter.describeRequestSchemas(openAPI);
+
+        Map<String, Schema> props = openAPI.getComponents().getSchemas().get("SimpleFileQuery").getProperties();
+        assertHasDescription(props.get("searchString"), "*:*");
+        assertHasDescription(props.get("type"), "NETWORK");
+        assertHasDescription(props.get("accountName"), "owned");
+        assertHasDescription(props.get("permission"), "READ");
+    }
+
+    @Test
+    void testDescribeRequestSchemas_setsInheritedSearchStringOnSimpleQuery() {
+        ObjectSchema simpleQuery = new ObjectSchema();
+        simpleQuery.addProperty("searchString", new StringSchema());
+
+        Components components = new Components();
+        components.addSchemas("SimpleQuery", simpleQuery);
+        openAPI.setComponents(components);
+
+        SwaggerFilter.describeRequestSchemas(openAPI);
+
+        Map<String, Schema> props = openAPI.getComponents().getSchemas().get("SimpleQuery").getProperties();
+        assertHasDescription(props.get("searchString"), "*:*");
+    }
+
+    @Test
+    void testDescribeRequestSchemas_isNullSafe() {
+        // No components at all.
+        assertDoesNotThrow(() -> SwaggerFilter.describeRequestSchemas(new OpenAPI()));
+
+        // Components present but no schemas.
+        OpenAPI noSchemas = new OpenAPI();
+        noSchemas.setComponents(new Components());
+        assertDoesNotThrow(() -> SwaggerFilter.describeRequestSchemas(noSchemas));
+
+        // Schema present but missing some target properties — only present ones get described.
+        ObjectSchema partial = new ObjectSchema();
+        partial.addProperty("type", new StringSchema());
+        Components components = new Components();
+        components.addSchemas("SimpleFileQuery", partial);
+        OpenAPI partialApi = new OpenAPI();
+        partialApi.setComponents(components);
+
+        assertDoesNotThrow(() -> SwaggerFilter.describeRequestSchemas(partialApi));
+        Map<String, Schema> partialProps =
+                partialApi.getComponents().getSchemas().get("SimpleFileQuery").getProperties();
+        assertHasDescription(partialProps.get("type"), "NETWORK");
+    }
+
+    private static void assertHasDescription(Schema<?> property, String expectedSubstring) {
+        assertNotNull(property, "property should exist");
+        String d = property.getDescription();
+        assertNotNull(d, "property description should be set");
+        assertFalse(d.isBlank(), "property description should not be blank");
+        assertTrue(d.contains(expectedSubstring),
+                "description should contain '" + expectedSubstring + "' but was: " + d);
     }
 }

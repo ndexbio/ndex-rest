@@ -88,7 +88,7 @@ public class NFSSearchProvider implements SearchProvider {
         }
         if (allSummaries == null) allSummaries = new ArrayList<>();
 
-        return new FileSearchResult(allSummaries.size(), (long) skipBlocks * blockSize, allSummaries);
+        return new FileSearchResult(documents.getNumFound(), (long) skipBlocks * blockSize, allSummaries);
     }
 
     private List<FileItemSummary> getDocumentSummariesByEntityType(FileType fileType, List<UUID> ids) throws Exception {

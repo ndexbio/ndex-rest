@@ -1321,6 +1321,105 @@ public class TestGlobalNetworkIndexManager {
     }
 
     // ========================================================================
+    // F4: FILTER-VALUE INJECTION ESCAPING (security regression)
+    // ========================================================================
+
+    @Test
+    public void testSearch_OwnerFilterInjection_IsEscaped() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("public-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        // Classic injection: try to OR-in a match-all clause via the ownedBy value.
+        String injection = "zzz\") OR (*:*) OR (owner:\"zzz";
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, injection, null);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // The payload's double-quotes are backslash-escaped, so the whole value stays
+        // inside the owner phrase and cannot inject a bare (*:*) boolean clause.
+        assertEquals(
+                "((*:* NOT visibility:UNLISTED)) AND (owner:\"zzz\\\") OR (*:*) OR (owner:\\\"zzz\")",
+                fq[0]);
+    }
+
+    @Test
+    public void testSearch_PrivateCore_UserAccountInjection_IsEscaped() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("private-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        // Try to break out of the phrase and OR-in another owner via userAccount.
+        String injection = "me\" OR owner:\"admin";
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.search("*:*", injection, VisibilityType.PRIVATE, 10, 0, null, Permissions.READ);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Quotes escaped -> value stays a single literal owner term; no breakout.
+        assertTrue(fq[0].contains("owner:\"me\\\" OR owner:\\\"admin\""));
+        // The unescaped breakout form must NOT be present.
+        assertFalse(fq[0].contains("owner:\"me\" OR owner:\"admin\""));
+    }
+
+    @Test
+    public void testSearchByType_OwnerFilterInjection_IsEscaped() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("public-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        String injection = "x\") OR (*:*) OR (owner:\"x";
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.searchByType("*:*", null, VisibilityType.PUBLIC, 10, 0, injection, null, "NETWORK", true);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Escaped owner clause present; entityType filter still intact (no regression).
+        assertTrue(fq[0].contains("owner:\"x\\\") OR (*:*) OR (owner:\\\"x\""));
+        assertTrue(fq[0].contains("entityType:\"NETWORK\""));
+    }
+
+    @Test
+    public void testEscapeForFilter_EscapesQuotesAndBackslashes_NoopOnBenign() {
+        // double-quote -> \" ; backslash -> \\
+        assertEquals("a\\\"b", NFSIndexManager.escapeForFilter("a\"b"));
+        assertEquals("a\\\\b", NFSIndexManager.escapeForFilter("a\\b"));
+        // typical account names / UUIDs are unchanged, so existing queries are unaffected
+        assertEquals("john.doe", NFSIndexManager.escapeForFilter("john.doe"));
+        assertEquals("550e8400-e29b-41d4-a716-446655440000",
+                NFSIndexManager.escapeForFilter("550e8400-e29b-41d4-a716-446655440000"));
+        assertNull(NFSIndexManager.escapeForFilter(null));
+    }
+
+    // ========================================================================
     // HELPERS
     // ========================================================================
 

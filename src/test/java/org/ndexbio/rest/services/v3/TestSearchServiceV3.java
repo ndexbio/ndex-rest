@@ -103,6 +103,67 @@ public class TestSearchServiceV3 {
         }
     }
 
+    // ---------- Swagger @Operation doc (F6/F3) ----------
+
+    @Test
+    public void searchFilesOperationDocReflectsMultiTypeAndAuthRules() throws Exception {
+        java.lang.reflect.Method m = SearchServiceV3.class.getMethod(
+                "searchFiles",
+                org.ndexbio.model.object.SimpleFileQuery.class,
+                org.ndexbio.model.object.network.VisibilityType.class,
+                PagingParameters.class);
+        io.swagger.v3.oas.annotations.Operation op =
+                m.getAnnotation(io.swagger.v3.oas.annotations.Operation.class);
+        Assert.assertNotNull("searchFiles must carry an @Operation doc", op);
+        String desc = op.description();
+
+        // Multi-type search is documented; the stale "networks only" text is gone.
+        Assert.assertTrue("doc should mention folders", desc.toLowerCase().contains("folder"));
+        Assert.assertTrue("doc should mention shortcuts", desc.toLowerCase().contains("shortcut"));
+        Assert.assertFalse("stale 'only supports searching networks' text should be gone",
+                desc.toLowerCase().contains("only supports searching networks"));
+
+        // visibility semantics + the PRIVATE/UNLISTED auth requirement live on the @Parameter
+        // (rendered in the Parameters table), not in the operation description.
+        // Parameter order: (0) query, (1) visibility, (2) paging.
+        io.swagger.v3.oas.annotations.Parameter visibilityParam = findParameterAnnotation(m, 1);
+        Assert.assertNotNull("visibility must carry an @Parameter doc", visibilityParam);
+        String vdesc = visibilityParam.description();
+        Assert.assertTrue("visibility doc should mention PRIVATE", vdesc.contains("PRIVATE"));
+        Assert.assertTrue("visibility doc should state the auth requirement",
+                vdesc.toLowerCase().contains("authentic") || vdesc.toLowerCase().contains("credential"));
+    }
+
+    private static io.swagger.v3.oas.annotations.Parameter findParameterAnnotation(
+            java.lang.reflect.Method m, int paramIndex) {
+        for (java.lang.annotation.Annotation a : m.getParameterAnnotations()[paramIndex]) {
+            if (a instanceof io.swagger.v3.oas.annotations.Parameter) {
+                return (io.swagger.v3.oas.annotations.Parameter) a;
+            }
+        }
+        return null;
+    }
+
+    // ---------- PagingParameters (reusable @BeanParam model) ----------
+
+    @Test
+    public void pagingParametersDefaults() {
+        PagingParameters p = new PagingParameters();
+        Assert.assertEquals(0, p.getStart());
+        Assert.assertEquals(100, p.getSize());
+    }
+
+    @Test
+    public void pagingParametersRoundTrip() {
+        PagingParameters p = new PagingParameters(50, 25);
+        Assert.assertEquals(50, p.getStart());
+        Assert.assertEquals(25, p.getSize());
+        p.setStart(5);
+        p.setSize(10);
+        Assert.assertEquals(5, p.getStart());
+        Assert.assertEquals(10, p.getSize());
+    }
+
     // ---------- helpers ----------
 
     private static CXSimplePathQuery validPathQuery() {

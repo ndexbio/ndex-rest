@@ -75,7 +75,7 @@ public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
         String parentFilter = "";
 
         if (parentFolderId != null) {
-            parentFilter = " AND (" + PARENT_UUID + ":\"" + parentFolderId + "\")";
+            parentFilter = " AND (" + PARENT_UUID + ":\"" + escapeForFilter(parentFolderId) + "\")";
         }
 
         String resultFilter = "(" + permissionFilter + ")" + typeFilter + parentFilter;

@@ -48,9 +48,6 @@ public interface SolrObjectFactory {
 	 */
 	public CoreAdminResponse getCoreAdminRequestUnloadCore(String coreName, boolean deleteIndex, boolean deleteInstanceDir) throws IOException, SolrServerException;
 	
-	public PublicNFSIndexManager getPublicNFSIndexManager();
-	
-	public PrivateNFSIndexManager getPrivateNFSIndexManager();
 	public GlobalNetworkIndexManager getGlobalNetworkIndexManager();
 	public FolderIndexManager getFolderIndexManager();
 	public ShortcutIndexManager getShortcutIndexManager();

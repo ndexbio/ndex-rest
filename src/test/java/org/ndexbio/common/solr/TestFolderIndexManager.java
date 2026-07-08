@@ -759,6 +759,33 @@ public class TestFolderIndexManager {
     }
 
     @Test
+    public void testSearchInFolder_ParentIdInjection_IsEscaped() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("public-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        // parentFolderId must be escaped so it cannot break out of the phrase.
+        String injection = "x\") OR (*:*) OR (parentUuid:\"x";
+        manager = new FolderIndexManager(mockWrapper);
+        manager.searchInFolder("*:*", "user", 10, 0, injection, null, VisibilityType.PUBLIC);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Escaped quotes keep the value inside the parentUuid phrase; no injected (*:*) clause.
+        assertTrue(fq[0].contains("parentUuid:\"x\\\") OR (*:*) OR (parentUuid:\\\"x\""));
+    }
+
+    @Test
     public void testSearchInFolder_NullParent_NoParentFilter() throws Exception {
         SolrDocumentList mockResults = new SolrDocumentList();
         mockResults.setNumFound(0);

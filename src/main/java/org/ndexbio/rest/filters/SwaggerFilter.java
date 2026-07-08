@@ -6,6 +6,7 @@ import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.servers.ServerVariable;
 import io.swagger.v3.oas.models.servers.ServerVariables;
 import java.io.IOException;
@@ -82,7 +83,55 @@ public class SwaggerFilter extends AbstractSpecFilter {
 		openAPI.setServers(Arrays.asList(ndexServer, customServer));
         
         openAPI.setInfo(info);
+
+        describeRequestSchemas(openAPI);
+
         return Optional.of(openAPI);
+    }
+
+    /**
+     * Attaches human-readable descriptions to request-payload schema properties whose DTOs live in
+     * the separately-versioned ndex-object-model artifact and are intentionally left un-annotated.
+     * Documenting them here (rather than on the DTO) keeps the OpenAPI text in ndex-rest.
+     */
+    protected static void describeRequestSchemas(OpenAPI openAPI) {
+        if (openAPI.getComponents() == null || openAPI.getComponents().getSchemas() == null) {
+            return;
+        }
+        Map<String, Schema> schemas = openAPI.getComponents().getSchemas();
+
+        String searchStringDesc = "Search text. Matches name, description, owner and other indexed "
+                + "metadata (not just name). Use \"*:*\" to match everything.";
+
+        setPropertyDescription(schemas, "SimpleFileQuery", "searchString", searchStringDesc);
+        setPropertyDescription(schemas, "SimpleFileQuery", "type",
+                "Optional file-type filter: NETWORK, FOLDER, or SHORTCUT. When omitted, all types are "
+                + "returned; when set, shortcuts pointing at that type are also included.");
+        setPropertyDescription(schemas, "SimpleFileQuery", "accountName",
+                "Optional. Restrict results to files owned by this account.");
+        setPropertyDescription(schemas, "SimpleFileQuery", "permission",
+                "Optional. Filter to files the caller has at least this access level on: READ, WRITE, or ADMIN.");
+
+        // searchString is inherited from SimpleQuery; swagger-core may keep it on a separate schema
+        // rather than flattening it into SimpleFileQuery.
+        setPropertyDescription(schemas, "SimpleQuery", "searchString", searchStringDesc);
+    }
+
+    /**
+     * Null-safe: sets the description on {@code schemas[schemaName].properties[propertyName]} if that
+     * schema and property exist; otherwise leaves the spec unchanged.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected static void setPropertyDescription(Map<String, Schema> schemas, String schemaName,
+            String propertyName, String description) {
+        Schema schema = schemas.get(schemaName);
+        if (schema == null || schema.getProperties() == null) {
+            return;
+        }
+        Object property = schema.getProperties().get(propertyName);
+        if (property instanceof Schema) {
+            ((Schema) property).setDescription(description);
+        }
     }
 
     protected String getServerUrl(){
