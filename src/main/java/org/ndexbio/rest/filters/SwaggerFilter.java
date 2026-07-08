@@ -5,12 +5,15 @@ import io.swagger.v3.core.model.ApiDescription;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.servers.ServerVariable;
 import io.swagger.v3.oas.models.servers.ServerVariables;
 import java.io.IOException;
 import java.time.Year;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 import java.util.List;
@@ -85,8 +88,38 @@ public class SwaggerFilter extends AbstractSpecFilter {
         openAPI.setInfo(info);
 
         describeRequestSchemas(openAPI);
+        restrictSearchFilesVisibilityValues(openAPI);
 
         return Optional.of(openAPI);
+    }
+
+    /**
+     * Narrows the {@code visibility} query parameter of the POST /…/search/files operation to the
+     * two values it actually accepts (PUBLIC, PRIVATE). The parameter is typed as the shared
+     * VisibilityType enum, which also carries UNLISTED; UNLISTED is not a valid search mode there and
+     * is rejected with 400 by the handler, so it is removed from this operation's enum only. Other
+     * endpoints that legitimately accept UNLISTED are left untouched.
+     */
+    protected static void restrictSearchFilesVisibilityValues(OpenAPI openAPI) {
+        if (openAPI.getPaths() == null) {
+            return;
+        }
+        for (Map.Entry<String, PathItem> entry : openAPI.getPaths().entrySet()) {
+            if (!entry.getKey().endsWith("/search/files") || entry.getValue().getPost() == null) {
+                continue;
+            }
+            List<Parameter> parameters = entry.getValue().getPost().getParameters();
+            if (parameters == null) {
+                continue;
+            }
+            for (Parameter parameter : parameters) {
+                if ("visibility".equals(parameter.getName())
+                        && parameter.getSchema() != null
+                        && parameter.getSchema().getEnum() != null) {
+                    parameter.getSchema().setEnum(new ArrayList<>(List.of("PUBLIC", "PRIVATE")));
+                }
+            }
+        }
     }
 
     /**

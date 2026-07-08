@@ -5,6 +5,8 @@ import org.junit.Test;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.network.query.CXObjectFilter;
 import org.ndexbio.model.object.CXSimplePathQuery;
+import org.ndexbio.model.object.SimpleFileQuery;
+import org.ndexbio.model.object.network.VisibilityType;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -132,6 +134,14 @@ public class TestSearchServiceV3 {
         Assert.assertTrue("visibility doc should mention PRIVATE", vdesc.contains("PRIVATE"));
         Assert.assertTrue("visibility doc should state the auth requirement",
                 vdesc.toLowerCase().contains("authentic") || vdesc.toLowerCase().contains("credential"));
+        Assert.assertTrue("visibility doc should note UNLISTED is not a valid search mode",
+                vdesc.contains("UNLISTED"));
+    }
+
+    @Test(expected = BadRequestException.class)
+    public void searchFilesRejectsUnlistedVisibility() throws Exception {
+        // UNLISTED is not a valid search mode; rejected before the auth lookup.
+        _searchService.searchFiles(new SimpleFileQuery(), VisibilityType.UNLISTED, new PagingParameters());
     }
 
     private static io.swagger.v3.oas.annotations.Parameter findParameterAnnotation(

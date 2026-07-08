@@ -566,18 +566,22 @@ public class SearchServiceV3 extends NdexService  {
 	@Consumes("application/json")
 	public FileSearchResult searchFiles(
 			final SimpleFileQuery query,
-			@Parameter(description = "Data set to search: PUBLIC or PRIVATE. Unset defaults to PUBLIC. "
-					+ "PRIVATE and UNLISTED require authentication with user credentials; an anonymous "
-					+ "request to a non-public visibility returns no results.")
+			@Parameter(description = "Data set to search: PUBLIC or PRIVATE (defaults to PUBLIC when "
+					+ "unset). PRIVATE requires authentication with user credentials; an anonymous "
+					+ "PRIVATE request is rejected. UNLISTED is not a valid search mode and is rejected "
+					+ "with 400.")
 			@QueryParam("visibility") VisibilityType visibilityType,
 			@BeanParam PagingParameters paging)
 		throws SQLException, Exception {
 
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
-		User user = getLoggedInUser();
 		if (visibilityType == null){
 			visibilityType = VisibilityType.PUBLIC;
 		}
+		if (visibilityType == VisibilityType.UNLISTED) {
+			throw new BadRequestException("Invalid 'visibility' value: UNLISTED. Use PUBLIC or PRIVATE.");
+		}
+		User user = getLoggedInUser();
 		//todo allow non logged in user?
 		if (user == null && visibilityType.equals(VisibilityType.PRIVATE)) {
 			throw new UnauthorizedOperationException("You must be logged in to search private files.");

@@ -4,10 +4,13 @@ import io.swagger.v3.core.model.ApiDescription;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.parameters.Parameter;
 import org.easymock.EasyMock;
 import org.easymock.EasyMockSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.ndexbio.rest.Configuration;
 
 import java.time.Year;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -196,6 +201,43 @@ class TestSwaggerFilter extends EasyMockSupport {
         Map<String, Schema> partialProps =
                 partialApi.getComponents().getSchemas().get("SimpleFileQuery").getProperties();
         assertHasDescription(partialProps.get("type"), "NETWORK");
+    }
+
+    @Test
+    void testRestrictSearchFilesVisibilityValues_dropsUnlisted() {
+        StringSchema visibilitySchema = new StringSchema();
+        visibilitySchema.setEnum(new ArrayList<>(List.of("PUBLIC", "PRIVATE", "UNLISTED")));
+        Parameter visibility = new Parameter().name("visibility").in("query").schema(visibilitySchema);
+        Operation post = new Operation().addParametersItem(visibility);
+
+        Paths paths = new Paths();
+        paths.addPathItem("/v3/search/files", new PathItem().post(post));
+        openAPI.setPaths(paths);
+
+        SwaggerFilter.restrictSearchFilesVisibilityValues(openAPI);
+
+        List<?> values = openAPI.getPaths().get("/v3/search/files").getPost()
+                .getParameters().get(0).getSchema().getEnum();
+        assertEquals(List.of("PUBLIC", "PRIVATE"), values);
+    }
+
+    @Test
+    void testRestrictSearchFilesVisibilityValues_isNullSafe() {
+        assertDoesNotThrow(() -> SwaggerFilter.restrictSearchFilesVisibilityValues(new OpenAPI()));
+
+        // Unrelated path is left untouched.
+        StringSchema other = new StringSchema();
+        other.setEnum(new ArrayList<>(List.of("PUBLIC", "PRIVATE", "UNLISTED")));
+        Operation post = new Operation().addParametersItem(
+                new Parameter().name("visibility").in("query").schema(other));
+        Paths paths = new Paths();
+        paths.addPathItem("/v3/networks", new PathItem().post(post));
+        openAPI.setPaths(paths);
+
+        SwaggerFilter.restrictSearchFilesVisibilityValues(openAPI);
+
+        assertEquals(List.of("PUBLIC", "PRIVATE", "UNLISTED"),
+                openAPI.getPaths().get("/v3/networks").getPost().getParameters().get(0).getSchema().getEnum());
     }
 
     private static void assertHasDescription(Schema<?> property, String expectedSubstring) {
