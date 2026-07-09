@@ -459,12 +459,55 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    return fc;
 	}
+
+	@Override
+	public FileCount getReadableFolderChildCounts(UUID folderId, UUID viewerUserId) throws SQLException {
+	    FileCount fc = new FileCount();
+	    fc.setFolder(countReadableChildren("folder", "f", folderId,
+	            createIsReadableConditionStr(viewerUserId)));
+	    fc.setNetwork(countReadableChildren("network", "n", folderId,
+	            PostgresNetworkDAO.createIsReadableConditionStr(viewerUserId)));
+	    fc.setShortcut(countReadableChildren("shortcut", "s", folderId,
+	            PostgresShortcutDAO.createIsReadableConditionStr(viewerUserId)));
+	    return fc;
+	}
+
+	private long countReadableChildren(String table, String alias, UUID folderId, String readableClause)
+	        throws SQLException {
+	    String sql = "SELECT COUNT(*) FROM " + table + " " + alias
+	        + " WHERE " + alias + ".parent=? AND " + alias + ".is_deleted=false"
+	        + " AND (" + readableClause + ")";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, folderId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            if (rs.next()) {
+	                return rs.getLong(1);
+	            }
+	        }
+	    }
+	    return 0L;
+	}
+
+	/** Per-entity-type readable SQL predicates (aliases f/n/s) for a given viewer. */
+	private record ChildReadClauses(String folder, String network, String shortcut) {}
+
+	private static ChildReadClauses readClausesFor(UUID viewerUserId) {
+	    return new ChildReadClauses(
+	        createIsReadableConditionStr(viewerUserId),
+	        PostgresNetworkDAO.createIsReadableConditionStr(viewerUserId),
+	        PostgresShortcutDAO.createIsReadableConditionStr(viewerUserId));
+	}
 	
 	@Override
 	public List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type) throws SQLException {
 	    return listItemsInFolderOrHome(folderId, compact, false, type);
 	}
-	
+
+	@Override
+	public List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type, UUID viewerUserId) throws SQLException {
+	    return listItemsInFolderOrHome(folderId, compact, false, type, readClausesFor(viewerUserId));
+	}
+
 	@Override
 	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException {
 	    return listItemsInFolderOrHome(ownerId, compact, true, type);
@@ -483,6 +526,15 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	 * @throws SQLException if database access fails
 	 */
 	private List<FileItemSummary> listItemsInFolderOrHome(UUID contextId, boolean compact, boolean home, FileType type) throws SQLException {
+	    return listItemsInFolderOrHome(contextId, compact, home, type, null);
+	}
+
+	/**
+	 * @param childReadClauses when non-null, its per-type readable predicate is AND-appended to each
+	 *        child query so only children the caller may read are returned; when null, no per-child
+	 *        filtering is applied (internal/home callers).
+	 */
+	private List<FileItemSummary> listItemsInFolderOrHome(UUID contextId, boolean compact, boolean home, FileType type, ChildReadClauses childReadClauses) throws SQLException {
 	    List<FileItemSummary> results = new ArrayList<>();
 	    /* ────────────── 1) Folders ─────────────── */
 	    if (type == null || type == FileType.FOLDER) {
@@ -496,6 +548,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
         folderSql.append("FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" WHERE ");
 	        folderSql.append(home ? "f.owneruuid=? AND f.parent IS NULL" : "f.parent=?");
 	        folderSql.append(" AND f.is_deleted=false");
+	        if (childReadClauses != null) {
+	            folderSql.append(" AND (").append(childReadClauses.folder()).append(")");
+	        }
 	        try (PreparedStatement pst = db.prepareStatement(folderSql.toString())) {
 	            pst.setObject(1, contextId);
 	            try (ResultSet rs = pst.executeQuery()) {
@@ -534,6 +589,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
         networkSql.append("FROM network n JOIN ndex_user u ON n.owneruuid = u.\"UUID\" WHERE ");
 	        networkSql.append(home ? "n.owneruuid=? AND n.parent IS NULL" : "n.parent=?");
 	        networkSql.append(" AND n.is_deleted=false");
+	        if (childReadClauses != null) {
+	            networkSql.append(" AND (").append(childReadClauses.network()).append(")");
+	        }
 	        try (PreparedStatement pst = db.prepareStatement(networkSql.toString())) {
 	            pst.setObject(1, contextId);
 	            try (ResultSet rs = pst.executeQuery()) {
@@ -605,6 +663,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        + " AND s.is_deleted=false";
 	    if (type != null) {
 	        sql += " AND s.target_type=?";
+	    }
+	    if (childReadClauses != null) {
+	        sql += " AND (" + childReadClauses.shortcut() + ")";
 	    }
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, contextId);
