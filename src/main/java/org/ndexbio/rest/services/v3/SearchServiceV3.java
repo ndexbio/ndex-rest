@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.POST;
@@ -75,6 +76,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import org.ndexbio.common.models.search.SearchProvider;
 
 @Path("/v3/search")
@@ -549,34 +551,37 @@ public class SearchServiceV3 extends NdexService  {
 	@Operation(
 		summary = "Search Files",
 		description = """
-			Returns a FileSearchResult object which contains an array of FileItemSummary objects and total hit count of the search.
-			Currently only supports searching networks, but the response format is designed to support folders and shortcuts in the future.
-			
-			Query Parameters:
-			- query: SimpleFileQuery object in the request body. See its documentation for details.
-            - visibility: Optional. Searches on only public or private data. (PUBLIC, PRIVATE) (default: unset denotes PUBLIC)
-			- start: Optional. Starting index for pagination (default: 0)
-			- size: Optional. Number of results per page (default: 100)
-			
-			Response:
-			- 200 OK: FileSearchResult with matching files
-			- 400 Bad Request: Invalid query parameters
+			Searches NDEx files — networks, folders, and shortcuts — and returns the matching files
+			along with the total hit count of the search. Every result is filtered by the requesting
+			caller's access rights.
+
+			Provide the query in the request body (see the request payload schema and example below).
+
+			Visibility, start and size are query parameters, documented below.
+
+			Returns 200 on success, or 400 for invalid parameters.
 			"""
 	)
 	@Produces("application/json")
 	@Consumes("application/json")
 	public FileSearchResult searchFiles(
 			final SimpleFileQuery query,
+			@Parameter(description = "Data set to search: PUBLIC or PRIVATE (defaults to PUBLIC when "
+					+ "unset). PRIVATE requires authentication with user credentials; an anonymous "
+					+ "PRIVATE request is rejected. UNLISTED is not a valid search mode and is rejected "
+					+ "with 400.")
 			@QueryParam("visibility") VisibilityType visibilityType,
-			@DefaultValue("0") @QueryParam("start") int skipBlocks,
-			@DefaultValue("100") @QueryParam("size") int blockSize)
+			@BeanParam PagingParameters paging)
 		throws SQLException, Exception {
 
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
-		User user = getLoggedInUser();
 		if (visibilityType == null){
 			visibilityType = VisibilityType.PUBLIC;
 		}
+		if (visibilityType == VisibilityType.UNLISTED) {
+			throw new BadRequestException("Invalid 'visibility' value: UNLISTED. Use PUBLIC or PRIVATE.");
+		}
+		User user = getLoggedInUser();
 		//todo allow non logged in user?
 		if (user == null && visibilityType.equals(VisibilityType.PRIVATE)) {
 			throw new UnauthorizedOperationException("You must be logged in to search private files.");
@@ -585,7 +590,7 @@ public class SearchServiceV3 extends NdexService  {
     		query.setAccountName(	query.getAccountName().toLowerCase());
 
 		try (SearchProvider search = Configuration.getInstance().getSearchProvider()){
-			return search.searchFiles(query, visibilityType, user, skipBlocks, blockSize);
+			return search.searchFiles(query, visibilityType, user, paging.getStart(), paging.getSize());
 		}
 	}
 }

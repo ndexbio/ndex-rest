@@ -5,6 +5,8 @@ import org.junit.Test;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.network.query.CXObjectFilter;
 import org.ndexbio.model.object.CXSimplePathQuery;
+import org.ndexbio.model.object.SimpleFileQuery;
+import org.ndexbio.model.object.network.VisibilityType;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -101,6 +103,95 @@ public class TestSearchServiceV3 {
         } catch (Exception expectedDownstream) {
             // expected
         }
+    }
+
+    // ---------- Swagger @Operation doc (F6/F3) ----------
+
+    @Test
+    public void searchFilesOperationDocReflectsMultiTypeAndAuthRules() throws Exception {
+        java.lang.reflect.Method m = SearchServiceV3.class.getMethod(
+                "searchFiles",
+                org.ndexbio.model.object.SimpleFileQuery.class,
+                org.ndexbio.model.object.network.VisibilityType.class,
+                PagingParameters.class);
+        io.swagger.v3.oas.annotations.Operation op =
+                m.getAnnotation(io.swagger.v3.oas.annotations.Operation.class);
+        Assert.assertNotNull("searchFiles must carry an @Operation doc", op);
+        String desc = op.description();
+
+        // Multi-type search is documented; the stale "networks only" text is gone.
+        Assert.assertTrue("doc should mention folders", desc.toLowerCase().contains("folder"));
+        Assert.assertTrue("doc should mention shortcuts", desc.toLowerCase().contains("shortcut"));
+        Assert.assertFalse("stale 'only supports searching networks' text should be gone",
+                desc.toLowerCase().contains("only supports searching networks"));
+
+        // visibility semantics + the PRIVATE/UNLISTED auth requirement live on the @Parameter
+        // (rendered in the Parameters table), not in the operation description.
+        // Parameter order: (0) query, (1) visibility, (2) paging.
+        io.swagger.v3.oas.annotations.Parameter visibilityParam = findParameterAnnotation(m, 1);
+        Assert.assertNotNull("visibility must carry an @Parameter doc", visibilityParam);
+        String vdesc = visibilityParam.description();
+        Assert.assertTrue("visibility doc should mention PRIVATE", vdesc.contains("PRIVATE"));
+        Assert.assertTrue("visibility doc should state the auth requirement",
+                vdesc.toLowerCase().contains("authentic") || vdesc.toLowerCase().contains("credential"));
+        Assert.assertTrue("visibility doc should note UNLISTED is not a valid search mode",
+                vdesc.contains("UNLISTED"));
+    }
+
+    @Test(expected = BadRequestException.class)
+    public void searchFilesRejectsUnlistedVisibility() throws Exception {
+        // UNLISTED is not a valid search mode; rejected before the auth lookup.
+        _searchService.searchFiles(new SimpleFileQuery(), VisibilityType.UNLISTED, new PagingParameters());
+    }
+
+    private static io.swagger.v3.oas.annotations.Parameter findParameterAnnotation(
+            java.lang.reflect.Method m, int paramIndex) {
+        for (java.lang.annotation.Annotation a : m.getParameterAnnotations()[paramIndex]) {
+            if (a instanceof io.swagger.v3.oas.annotations.Parameter) {
+                return (io.swagger.v3.oas.annotations.Parameter) a;
+            }
+        }
+        return null;
+    }
+
+    // ---------- PagingParameters (reusable @BeanParam model) ----------
+
+    @Test
+    public void pagingParametersDefaults() {
+        PagingParameters p = new PagingParameters();
+        Assert.assertEquals(0, p.getStart());
+        Assert.assertEquals(100, p.getSize());
+    }
+
+    @Test
+    public void pagingParametersRoundTrip() {
+        PagingParameters p = new PagingParameters(50, 25);
+        Assert.assertEquals(50, p.getStart());
+        Assert.assertEquals(25, p.getSize());
+        p.setStart(5);
+        p.setSize(10);
+        Assert.assertEquals(5, p.getStart());
+        Assert.assertEquals(10, p.getSize());
+    }
+
+    @Test
+    public void pagingParametersSizeSchemaDocumentsMinimumOne() throws Exception {
+        java.lang.reflect.Field sizeField = PagingParameters.class.getDeclaredField("size");
+        io.swagger.v3.oas.annotations.Parameter sizeParam =
+                sizeField.getAnnotation(io.swagger.v3.oas.annotations.Parameter.class);
+        Assert.assertNotNull("size must carry an @Parameter doc", sizeParam);
+        // size=0 has special server-side meaning, so the schema must not advertise minimum 0.
+        Assert.assertEquals("1", sizeParam.schema().minimum());
+        Assert.assertTrue("size description should mention the default (100)",
+                sizeParam.description().contains("100")
+                        || sizeParam.description().toLowerCase().contains("default"));
+
+        // start's minimum stays 0 (a zero offset is valid).
+        java.lang.reflect.Field startField = PagingParameters.class.getDeclaredField("start");
+        io.swagger.v3.oas.annotations.Parameter startParam =
+                startField.getAnnotation(io.swagger.v3.oas.annotations.Parameter.class);
+        Assert.assertNotNull("start must carry an @Parameter doc", startParam);
+        Assert.assertEquals("0", startParam.schema().minimum());
     }
 
     // ---------- helpers ----------

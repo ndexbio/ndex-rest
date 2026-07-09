@@ -5,11 +5,15 @@ import io.swagger.v3.core.model.ApiDescription;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.servers.ServerVariable;
 import io.swagger.v3.oas.models.servers.ServerVariables;
 import java.io.IOException;
 import java.time.Year;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 import java.util.List;
@@ -82,7 +86,85 @@ public class SwaggerFilter extends AbstractSpecFilter {
 		openAPI.setServers(Arrays.asList(ndexServer, customServer));
         
         openAPI.setInfo(info);
+
+        describeRequestSchemas(openAPI);
+        restrictSearchFilesVisibilityValues(openAPI);
+
         return Optional.of(openAPI);
+    }
+
+    /**
+     * Narrows the {@code visibility} query parameter of the POST /…/search/files operation to the
+     * two values it actually accepts (PUBLIC, PRIVATE). The parameter is typed as the shared
+     * VisibilityType enum, which also carries UNLISTED; UNLISTED is not a valid search mode there and
+     * is rejected with 400 by the handler, so it is removed from this operation's enum only. Other
+     * endpoints that legitimately accept UNLISTED are left untouched.
+     */
+    protected static void restrictSearchFilesVisibilityValues(OpenAPI openAPI) {
+        if (openAPI.getPaths() == null) {
+            return;
+        }
+        for (Map.Entry<String, PathItem> entry : openAPI.getPaths().entrySet()) {
+            if (!entry.getKey().endsWith("/search/files") || entry.getValue().getPost() == null) {
+                continue;
+            }
+            List<Parameter> parameters = entry.getValue().getPost().getParameters();
+            if (parameters == null) {
+                continue;
+            }
+            for (Parameter parameter : parameters) {
+                if ("visibility".equals(parameter.getName())
+                        && parameter.getSchema() != null
+                        && parameter.getSchema().getEnum() != null) {
+                    parameter.getSchema().setEnum(new ArrayList<>(List.of("PUBLIC", "PRIVATE")));
+                }
+            }
+        }
+    }
+
+    /**
+     * Attaches human-readable descriptions to request-payload schema properties whose DTOs live in
+     * the separately-versioned ndex-object-model artifact and are intentionally left un-annotated.
+     * Documenting them here (rather than on the DTO) keeps the OpenAPI text in ndex-rest.
+     */
+    protected static void describeRequestSchemas(OpenAPI openAPI) {
+        if (openAPI.getComponents() == null || openAPI.getComponents().getSchemas() == null) {
+            return;
+        }
+        Map<String, Schema> schemas = openAPI.getComponents().getSchemas();
+
+        String searchStringDesc = "Search text. Matches name, description, owner and other indexed "
+                + "metadata (not just name). Use \"*:*\" to match everything.";
+
+        setPropertyDescription(schemas, "SimpleFileQuery", "searchString", searchStringDesc);
+        setPropertyDescription(schemas, "SimpleFileQuery", "type",
+                "Optional file-type filter: NETWORK, FOLDER, or SHORTCUT. When omitted, all types are "
+                + "returned; when set, shortcuts pointing at that type are also included.");
+        setPropertyDescription(schemas, "SimpleFileQuery", "accountName",
+                "Optional. Restrict results to files owned by this account.");
+        setPropertyDescription(schemas, "SimpleFileQuery", "permission",
+                "Optional. Filter to files the caller has at least this access level on: READ, WRITE, or ADMIN.");
+
+        // searchString is inherited from SimpleQuery; swagger-core may keep it on a separate schema
+        // rather than flattening it into SimpleFileQuery.
+        setPropertyDescription(schemas, "SimpleQuery", "searchString", searchStringDesc);
+    }
+
+    /**
+     * Null-safe: sets the description on {@code schemas[schemaName].properties[propertyName]} if that
+     * schema and property exist; otherwise leaves the spec unchanged.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected static void setPropertyDescription(Map<String, Schema> schemas, String schemaName,
+            String propertyName, String description) {
+        Schema schema = schemas.get(schemaName);
+        if (schema == null || schema.getProperties() == null) {
+            return;
+        }
+        Object property = schema.getProperties().get(propertyName);
+        if (property instanceof Schema) {
+            ((Schema) property).setDescription(description);
+        }
     }
 
     protected String getServerUrl(){

@@ -11,7 +11,8 @@
 #   user creation → v2 CX1 upload (2 public + 1 private) → v2 summary poll →
 #   v3 CX2 retrieve → v3 CX2 upload (2 public + 1 private) → v3 summary poll →
 #   v3 CX2 retrieve → private network access control → public anonymous access →
-#   v2 Solr search → v3 Solr search → v2 neighborhood query (SSL context)
+#   v2 Solr search → v3 Solr search → v3 search fq-injection guard →
+#   v2 neighborhood query (SSL context)
 #
 # Exits 0 if all API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
@@ -31,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=46
+TOTAL_API_CALLS=48
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -575,6 +576,49 @@ while true; do
   echo "  Waiting for public-nfs Solr index... (${ELAPSED}s)"
 done
 api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
+
+# ── STEP: v3 /search/files neutralizes Solr filter injection (F4) ────────────
+# A crafted accountName that tries to OR-in a match-all clause must be escaped so it
+# cannot widen results past the owner filter. BindingDB (public, confirmed indexed by
+# the previous step) must NOT appear: the escaped accountName is a single literal,
+# non-existent owner. A regression (unescaped value) would collapse the filter to *:*
+# and leak BindingDB. The escaped query must also stay valid Solr syntax (HTTP 200).
+step "Verifying v3 /search/files neutralizes Solr filter injection (accountName)"
+
+INJECT_BODY='{"searchString":"*:*","accountName":"zzz\") OR (*:*) OR (owner:\"zzz"}'
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files (auth, accountName injection, expect 200 + BindingDB absent)"
+INJ_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "${INJECT_BODY}" \
+  "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=10")
+INJ_HTTP=$(echo "${INJ_RESP}" | tail -1)
+INJ_BODY=$(echo "${INJ_RESP}" | head -1)
+if [[ "${INJ_HTTP}" != "200" ]]; then
+  api_fail "POST /v3/search/files (accountName injection, auth) → HTTP ${INJ_HTTP} (expected 200; escaped value must remain valid Solr syntax). Body: ${INJ_BODY:0:300}"
+fi
+if echo "${INJ_BODY}" | grep -q "${V3_UUIDS[0]}"; then
+  api_fail "POST /v3/search/files (accountName injection, auth) → 200 but BindingDB UUID ${V3_UUIDS[0]} leaked — injection widened results to *:* (fq not escaped). Body: ${INJ_BODY:0:400}"
+fi
+api_pass "POST /v3/search/files (accountName injection, auth) → 200 OK, no result widening (fq injection neutralized)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files (anon, accountName injection, expect 200 + BindingDB absent)"
+INJ_ANON_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+  -H "Content-Type: application/json" \
+  -d "${INJECT_BODY}" \
+  "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=10")
+INJ_ANON_HTTP=$(echo "${INJ_ANON_RESP}" | tail -1)
+INJ_ANON_BODY=$(echo "${INJ_ANON_RESP}" | head -1)
+if [[ "${INJ_ANON_HTTP}" != "200" ]]; then
+  api_fail "POST /v3/search/files (accountName injection, anon) → HTTP ${INJ_ANON_HTTP} (expected 200). Body: ${INJ_ANON_BODY:0:300}"
+fi
+if echo "${INJ_ANON_BODY}" | grep -q "${V3_UUIDS[0]}"; then
+  api_fail "POST /v3/search/files (accountName injection, anon) → 200 but BindingDB leaked — injection widened results. Body: ${INJ_ANON_BODY:0:400}"
+fi
+api_pass "POST /v3/search/files (accountName injection, anon) → 200 OK, no result widening"
 
 # ── STEP: Edgeless network search ranking (issue #116) ───────────────────────
 # Upload two networks that share the unique token "EdgelessRankProbe" — one WITH

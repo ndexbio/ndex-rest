@@ -8,6 +8,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.ndexbio.common.solr.SolrClientWrapper;
+import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.SimpleFileQuery;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -67,5 +68,56 @@ public class TestNFSSearchProvider {
 
         verify(mockWrapper);
         assertEquals("map(def(edgeCount,1),0,0,0.01,1)", queryCapture.getValue().get("boost"));
+    }
+
+    @Test
+    public void testSearchFiles_ReportsSolrNumFoundNotPageSize() throws Exception {
+        // Solr reports a large total but returns no docs on this page (empty page),
+        // so no DAO hydration is needed. The result total must reflect Solr's
+        // numFound, not the number of summaries on this page.
+        SolrDocumentList results = new SolrDocumentList();
+        results.setNumFound(4269);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(results);
+        replay(mockResponse);
+
+        SolrClientWrapper mockWrapper = createMock(SolrClientWrapper.class);
+        expect(mockWrapper.query(anyString(), anyObject(SolrQuery.class))).andReturn(mockResponse);
+        replay(mockWrapper);
+
+        NFSSearchProvider provider = new NFSSearchProvider(mockWrapper, 100);
+        SimpleFileQuery query = new SimpleFileQuery();
+        query.setSearchString("cancer");
+
+        FileSearchResult result = provider.searchFiles(query, VisibilityType.PUBLIC, null, 0, 10);
+
+        verify(mockWrapper);
+        assertEquals(4269L, result.getNumFound());
+    }
+
+    @Test
+    public void testSearchFiles_ReportsRequestedStartOffset() throws Exception {
+        // The reported start must be the absolute offset actually applied to Solr (skipBlocks),
+        // NOT skipBlocks * blockSize. Empty page so no DAO hydration is needed.
+        SolrDocumentList results = new SolrDocumentList();
+        results.setNumFound(4269);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(results);
+        replay(mockResponse);
+
+        SolrClientWrapper mockWrapper = createMock(SolrClientWrapper.class);
+        expect(mockWrapper.query(anyString(), anyObject(SolrQuery.class))).andReturn(mockResponse);
+        replay(mockWrapper);
+
+        NFSSearchProvider provider = new NFSSearchProvider(mockWrapper, 100);
+        SimpleFileQuery query = new SimpleFileQuery();
+        query.setSearchString("cancer");
+
+        FileSearchResult result = provider.searchFiles(query, VisibilityType.PUBLIC, null, 50, 25);
+
+        verify(mockWrapper);
+        assertEquals(50L, result.getStart());
     }
 }
