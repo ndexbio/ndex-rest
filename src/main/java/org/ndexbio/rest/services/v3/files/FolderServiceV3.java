@@ -341,7 +341,7 @@ public class FolderServiceV3 extends NdexService {
     @Operation(
             summary = "Get Item Counts Within a Folder",
             description = """
-                          Returns counts of how many networks, subfolders, and shortcuts exist directly under the specified folder.
+                          Returns counts of the networks, subfolders, and shortcuts directly under the specified folder that the caller is allowed to see (matches the /list result for the same caller). A valid folder access key counts all children.
                           
                           Path Parameters:
                           - folderid: UUID of the folder to count items in
@@ -366,15 +366,16 @@ public class FolderServiceV3 extends NdexService {
 	    UUID userId = getLoggedInUserId();
 
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
+	        boolean readable = dao.isReadable(folderUUID, userId);
+	        if (!readable && !dao.accessKeyIsValid(folderUUID, accessKey)) {
 	            throw new UnauthorizedOperationException(
 	                "User doesn't have read access to this folder."
 	            );
 	        }
-	        FileCount result;
-	        result = dao.getFolderChildCounts(folderUUID);
-	        
-		    return result;
+	        // Count only children the caller may read (matches /list); a valid access key counts all.
+	        return readable
+	                ? dao.getReadableFolderChildCounts(folderUUID, userId)
+	                : dao.getFolderChildCounts(folderUUID);
 	    }
 
 	}
@@ -386,9 +387,9 @@ public class FolderServiceV3 extends NdexService {
 	@Operation(
 	    summary = "List items in a folder",
 	    description = """
-					Lists all items (folders, networks, shortcuts) in the specified folder.
+					Lists items (folders, networks, shortcuts) in the specified folder.
 					If *folderid* is a UUID, returns the immediate children of that folder  
-					(folders/networks/shortcuts) provided the caller is an owner or has read access or a valid accesskey.  
+					that the caller is allowed to read (PUBLIC/UNLISTED, plus items they own or are shared on); a valid folder access key returns all children.
 					If *folderid* is the literal string **"home"**, returns all top level items owned by the signed in user (parent = NULL).
 
 					Path Parameters:
@@ -444,13 +445,15 @@ public class FolderServiceV3 extends NdexService {
 	    UUID folderUUID = UUID.fromString(folderIdStr);
 
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
+	        boolean readable = dao.isReadable(folderUUID, userId);
+	        if (!readable && !dao.accessKeyIsValid(folderUUID, accessKey)) {
 	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
 	        }
-	        
-	        List<FileItemSummary> items;
-	        items = dao.listItemsInFolder(folderUUID, compact, fileType);
-	        return items;
+
+	        // Filter children to what the caller may read; a valid folder access key returns all contents.
+	        return readable
+	                ? dao.listReadableItemsInFolder(folderUUID, compact, fileType, userId)
+	                : dao.listItemsInFolder(folderUUID, compact, fileType);
 	    }
 	}
 	

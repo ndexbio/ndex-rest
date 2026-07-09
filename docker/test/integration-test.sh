@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=48
+TOTAL_API_CALLS=67
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -991,7 +991,132 @@ else
   api_fail "GET /v2/network/${V2_PRIV_UUID}/permission?type=user (owner) → HTTP ${PERM_USER_HTTP} (expected 200)"
 fi
 
+# ── STEP: Folder list/count per-child visibility (F10) ───────────────────────
+# A folder's visibility is independent of its children's. A folder the caller can
+# read must NOT leak the metadata of PRIVATE children they cannot see, and /count
+# must match /list. A valid folder access key grants the folder's full contents.
+step "Folder list/count enforces per-child visibility (F10, anonymous)"
+
+# Create a folder owned by TEST_USER; put one PUBLIC and one PRIVATE network in it.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (create test folder)"
+F10_FOLDER_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"F10 visibility test"}' \
+  "${BASE_URL}/v3/files/folders/")
+F10_FOLDER_HTTP=$(echo "${F10_FOLDER_RESP}" | tail -1)
+F10_FOLDER_BODY=$(echo "${F10_FOLDER_RESP}" | head -1)
+if [[ "${F10_FOLDER_HTTP}" != "201" ]]; then
+  api_fail "POST /v3/files/folders/ → HTTP ${F10_FOLDER_HTTP} (expected 201). Body: ${F10_FOLDER_BODY:0:300}"
+fi
+F10_FOLDER_ID=$(echo "${F10_FOLDER_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+if [[ -z "${F10_FOLDER_ID}" ]]; then
+  api_fail "Could not parse folder UUID from create response. Body: ${F10_FOLDER_BODY:0:300}"
+fi
+api_pass "POST /v3/files/folders/ → 201 Created (folder ${F10_FOLDER_ID})"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/setvisibility (folder → PUBLIC)"
+F10_VIS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"visibility\":\"PUBLIC\",\"files\":{\"${F10_FOLDER_ID}\":\"FOLDER\"}}" \
+  "${BASE_URL}/v3/batch/files/setvisibility")
+[[ "${F10_VIS_HTTP}" == "200" || "${F10_VIS_HTTP}" == "204" ]] \
+  || api_fail "POST /v3/files/setvisibility (PUBLIC) → HTTP ${F10_VIS_HTTP}"
+api_pass "Folder set PUBLIC"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks/move (public + private into folder)"
+F10_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"targetFolder\":\"${F10_FOLDER_ID}\",\"networks\":[\"${V3_PUB_UUID}\",\"${V3_PRIV_UUID}\"]}" \
+  "${BASE_URL}/v3/batch/networks/move")
+[[ "${F10_MOVE_HTTP}" == "200" || "${F10_MOVE_HTTP}" == "204" ]] \
+  || api_fail "POST /v3/networks/move → HTTP ${F10_MOVE_HTTP}"
+api_pass "Moved PUBLIC (${V3_PUB_UUID}) + PRIVATE (${V3_PRIV_UUID}) networks into folder"
+
+# ---- Phase A: PUBLIC folder — an ANONYMOUS caller sees only the public child ----
+# This step runs BEFORE the AUTHENTICATED_USER_ONLY=true step below, so the server still permits
+# anonymous access to @PermitAll endpoints — exercising the real public-server leak scenario.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (anon) — PRIVATE child absent, network=1"
+F10_ANON_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+F10_ANON_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+echo "${F10_ANON_LIST}" | grep -q "${V3_PRIV_UUID}" \
+  && api_fail "anon /list LEAKED private child ${V3_PRIV_UUID}. Body: ${F10_ANON_LIST:0:400}"
+{ echo "${F10_ANON_LIST}" | grep -q "${V3_PUB_UUID}" && [[ "${F10_ANON_NET}" == "1" ]]; } \
+  || api_fail "anon view wrong: net=${F10_ANON_NET}, list=${F10_ANON_LIST:0:400}"
+api_pass "anon → /list PUBLIC child only (PRIVATE absent); /count network=1"
+
+# An AUTHENTICATED non-owner must also see only the public child (created anonymously here — the
+# server is still in default mode; the AUTHENTICATED_USER_ONLY step runs later).
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (create non-owner ${TEST_USER2})"
+U2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/v2/user" \
+  -H "Content-Type: application/json" \
+  -d "{\"userName\":\"${TEST_USER2}\",\"password\":\"${TEST_PASS2}\",\"emailAddress\":\"${TEST_EMAIL2}\",\"firstName\":\"NDEx\",\"lastName\":\"Test2\"}")
+[[ "${U2_HTTP}" == "201" || "${U2_HTTP}" == "409" ]] || api_fail "POST /v2/user (${TEST_USER2}) → HTTP ${U2_HTTP}"
+api_pass "non-owner user ${TEST_USER2} ready"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (authenticated non-owner) — PRIVATE child absent, network=1"
+F10_U2_LIST=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+F10_U2_NET=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+echo "${F10_U2_LIST}" | grep -q "${V3_PRIV_UUID}" \
+  && api_fail "authenticated non-owner /list LEAKED private child ${V3_PRIV_UUID}. Body: ${F10_U2_LIST:0:400}"
+{ echo "${F10_U2_LIST}" | grep -q "${V3_PUB_UUID}" && [[ "${F10_U2_NET}" == "1" ]]; } \
+  || api_fail "authenticated non-owner view wrong: net=${F10_U2_NET}, list=${F10_U2_LIST:0:400}"
+api_pass "authenticated non-owner → /list PUBLIC child only (PRIVATE absent); /count network=1"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (owner) — both children, network=2"
+F10_OWNER_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+F10_OWNER_NET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+{ echo "${F10_OWNER_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_OWNER_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_OWNER_NET}" == "2" ]]; } \
+  || api_fail "owner view wrong: net=${F10_OWNER_NET}, list=${F10_OWNER_LIST:0:400}"
+api_pass "owner → /list both children; /count network=2"
+
+# ---- Phase B: PRIVATE folder + access key — key grants ALL contents ----
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/setvisibility (folder → PRIVATE)"
+F10_VIS2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"visibility\":\"PRIVATE\",\"files\":{\"${F10_FOLDER_ID}\":\"FOLDER\"}}" \
+  "${BASE_URL}/v3/batch/files/setvisibility")
+[[ "${F10_VIS2_HTTP}" == "200" || "${F10_VIS2_HTTP}" == "204" ]] \
+  || api_fail "POST /v3/files/setvisibility (PRIVATE) → HTTP ${F10_VIS2_HTTP}"
+api_pass "Folder set PRIVATE"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (anon, no key) — PRIVATE folder must be 401"
+F10_NOKEY_LIST_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+F10_NOKEY_COUNT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count")
+{ [[ "${F10_NOKEY_LIST_HTTP}" == "401" ]] && [[ "${F10_NOKEY_COUNT_HTTP}" == "401" ]]; } \
+  || api_fail "anon on PRIVATE folder (no key) → list=${F10_NOKEY_LIST_HTTP}, count=${F10_NOKEY_COUNT_HTTP} (expected 401/401)"
+api_pass "anon /list + /count on PRIVATE folder (no key) → 401"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/sharing/share (enable folder access key)"
+F10_SHARE_BODY=$(curl -s -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"files\":{\"${F10_FOLDER_ID}\":\"FOLDER\"}}" \
+  "${BASE_URL}/v3/files/sharing/share")
+F10_KEY=$(echo "${F10_SHARE_BODY}" | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/')
+[[ -n "${F10_KEY}" && "${F10_KEY}" != "${F10_SHARE_BODY}" ]] || api_fail "Could not parse access key. Body: ${F10_SHARE_BODY:0:300}"
+api_pass "Folder access key enabled"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — ALL children, network=2"
+F10_KEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
+F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+{ echo "${F10_KEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_KEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_KEY_NET}" == "2" ]]; } \
+  || api_fail "access-key view wrong: net=${F10_KEY_NET}, list=${F10_KEY_LIST:0:400}"
+api_pass "anon + access key → /list all children (incl. PRIVATE); /count network=2"
+
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────
+# NOTE: this permanently flips the server to AUTHENTICATED_USER_ONLY=true (appends to
+# ndex.properties + restarts Tomcat), so it must run AFTER any step that needs anonymous
+# access (e.g. the F10 folder-visibility step above).
 
 if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   step "Verifying AUTHENTICATED_USER_ONLY=true blocks anonymous POST /v2/user"

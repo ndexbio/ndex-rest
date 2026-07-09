@@ -371,8 +371,8 @@ public class TestFolderServiceV3 {
 
         FolderDAO folderDAO = createMock(FolderDAO.class);
         expect(folderDAO.isReadable(folderId, userId)).andReturn(true);
-        expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
-        expect(folderDAO.getFolderChildCounts(folderId)).andReturn(count);
+        // readable by the authenticated caller -> counts filtered to what they may see
+        expect(folderDAO.getReadableFolderChildCounts(folderId, userId)).andReturn(count);
         folderDAO.close();
         expectLastCall();
         replay(folderDAO);
@@ -432,8 +432,8 @@ public class TestFolderServiceV3 {
 
         FolderDAO folderDAO = createMock(FolderDAO.class);
         expect(folderDAO.isReadable(folderId, userId)).andReturn(true);
-        expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
-        expect(folderDAO.listItemsInFolder(folderId, false, null)).andReturn(items);
+        // readable by the authenticated caller -> children filtered to what they may read
+        expect(folderDAO.listReadableItemsInFolder(folderId, false, null, userId)).andReturn(items);
         folderDAO.close();
         expectLastCall();
         replay(folderDAO);
@@ -453,6 +453,93 @@ public class TestFolderServiceV3 {
         assertEquals(1, result.length);
         assertEquals(FileType.NETWORK, result[0].getType());
     }
+
+    @Test
+    public void testListItemsInFolderViaAccessKeyUsesUnfiltered() throws Exception {
+        UUID folderId = UUID.randomUUID();
+
+        // Anonymous caller with a valid folder access key.
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        List<FileItemSummary> items = new ArrayList<>();
+        items.add(new FileItemSummary(UUID.randomUUID(), FileType.NETWORK, "Net 1"));
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.isReadable(folderId, null)).andReturn(false).anyTimes();
+        expect(folderDAO.accessKeyIsValid(folderId, "k")).andReturn(true).anyTimes();
+        // access key grants the folder's full contents -> unfiltered listing
+        expect(folderDAO.listItemsInFolder(folderId, false, null)).andReturn(items);
+        folderDAO.close();
+        expectLastCall().anyTimes();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO).anyTimes();
+        replay(daoFactory);
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId + "/list?accesskey=k");
+        dispatcher.invoke(request, response);
+        assertEquals(Status.OK.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void testGetFolderChildCountViaAccessKeyUsesUnfiltered() throws Exception {
+        UUID folderId = UUID.randomUUID();
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        FileCount count = new FileCount();
+        count.setNetwork(2);
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.isReadable(folderId, null)).andReturn(false).anyTimes();
+        expect(folderDAO.accessKeyIsValid(folderId, "k")).andReturn(true).anyTimes();
+        expect(folderDAO.getFolderChildCounts(folderId)).andReturn(count);
+        folderDAO.close();
+        expectLastCall().anyTimes();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO).anyTimes();
+        replay(daoFactory);
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId + "/count?accesskey=k");
+        dispatcher.invoke(request, response);
+        assertEquals(Status.OK.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void testListItemsInHomeUsesListRootItems() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).anyTimes();
+        replay(mockHttpServletRequest);
+
+        List<FileItemSummary> items = new ArrayList<>();
+        items.add(new FileItemSummary(UUID.randomUUID(), FileType.FOLDER, "Sub"));
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.listRootItemsOfUser(userId, false, null)).andReturn(items);
+        folderDAO.close();
+        expectLastCall().anyTimes();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO).anyTimes();
+        replay(daoFactory);
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/home/list");
+        dispatcher.invoke(request, response);
+        assertEquals(Status.OK.getStatusCode(), response.getStatus());
+    }
+
     private static class TestFolderServiceV3NoIndex extends FolderServiceV3 {
         public TestFolderServiceV3NoIndex(HttpServletRequest request) {
             super(request);

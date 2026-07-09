@@ -43,9 +43,22 @@ public interface FolderDAO extends AutoCloseable {
 	void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId, String description) throws SQLException, JsonProcessingException, NdexException;
 	
 	FileCount getFolderChildCounts(UUID folderId) throws SQLException;
-	
+
+	/**
+	 * Like {@link #getFolderChildCounts(UUID)} but counts only children the given viewer may read.
+	 * @param viewerUserId the accessing user, or {@code null} for an anonymous caller
+	 */
+	FileCount getReadableFolderChildCounts(UUID folderId, UUID viewerUserId) throws SQLException;
+
 	List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type) throws SQLException;
-	
+
+	/**
+	 * Like {@link #listItemsInFolder(UUID, boolean, FileType)} but returns only the immediate children
+	 * the given viewer may read (PUBLIC/UNLISTED, plus items they own or are shared on).
+	 * @param viewerUserId the accessing user, or {@code null} for an anonymous caller
+	 */
+	List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type, UUID viewerUserId) throws SQLException;
+
 	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException;
 	
 	List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException;
