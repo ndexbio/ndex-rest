@@ -95,4 +95,29 @@ public class TestNFSSearchProvider {
         verify(mockWrapper);
         assertEquals(4269L, result.getNumFound());
     }
+
+    @Test
+    public void testSearchFiles_ReportsRequestedStartOffset() throws Exception {
+        // The reported start must be the absolute offset actually applied to Solr (skipBlocks),
+        // NOT skipBlocks * blockSize. Empty page so no DAO hydration is needed.
+        SolrDocumentList results = new SolrDocumentList();
+        results.setNumFound(4269);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(results);
+        replay(mockResponse);
+
+        SolrClientWrapper mockWrapper = createMock(SolrClientWrapper.class);
+        expect(mockWrapper.query(anyString(), anyObject(SolrQuery.class))).andReturn(mockResponse);
+        replay(mockWrapper);
+
+        NFSSearchProvider provider = new NFSSearchProvider(mockWrapper, 100);
+        SimpleFileQuery query = new SimpleFileQuery();
+        query.setSearchString("cancer");
+
+        FileSearchResult result = provider.searchFiles(query, VisibilityType.PUBLIC, null, 50, 25);
+
+        verify(mockWrapper);
+        assertEquals(50L, result.getStart());
+    }
 }

@@ -28,8 +28,9 @@ public class PagingParameters {
 
 	@QueryParam("size")
 	@DefaultValue("100")
-	@Parameter(description = "Maximum number of results to return per page.",
-			schema = @Schema(type = "integer", defaultValue = "100", minimum = "0"))
+	@Parameter(description = "Maximum number of results to return per page (default 100). "
+			+ "A non-positive value requests the server's maximum page size.",
+			schema = @Schema(type = "integer", defaultValue = "100", minimum = "1"))
 	private int size = 100;
 
 	public PagingParameters() {

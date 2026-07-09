@@ -174,6 +174,26 @@ public class TestSearchServiceV3 {
         Assert.assertEquals(10, p.getSize());
     }
 
+    @Test
+    public void pagingParametersSizeSchemaDocumentsMinimumOne() throws Exception {
+        java.lang.reflect.Field sizeField = PagingParameters.class.getDeclaredField("size");
+        io.swagger.v3.oas.annotations.Parameter sizeParam =
+                sizeField.getAnnotation(io.swagger.v3.oas.annotations.Parameter.class);
+        Assert.assertNotNull("size must carry an @Parameter doc", sizeParam);
+        // size=0 has special server-side meaning, so the schema must not advertise minimum 0.
+        Assert.assertEquals("1", sizeParam.schema().minimum());
+        Assert.assertTrue("size description should mention the default (100)",
+                sizeParam.description().contains("100")
+                        || sizeParam.description().toLowerCase().contains("default"));
+
+        // start's minimum stays 0 (a zero offset is valid).
+        java.lang.reflect.Field startField = PagingParameters.class.getDeclaredField("start");
+        io.swagger.v3.oas.annotations.Parameter startParam =
+                startField.getAnnotation(io.swagger.v3.oas.annotations.Parameter.class);
+        Assert.assertNotNull("start must carry an @Parameter doc", startParam);
+        Assert.assertEquals("0", startParam.schema().minimum());
+    }
+
     // ---------- helpers ----------
 
     private static CXSimplePathQuery validPathQuery() {
