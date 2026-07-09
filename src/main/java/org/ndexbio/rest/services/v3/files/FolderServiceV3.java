@@ -366,16 +366,17 @@ public class FolderServiceV3 extends NdexService {
 	    UUID userId = getLoggedInUserId();
 
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        boolean readable = dao.isReadable(folderUUID, userId);
-	        if (!readable && !dao.accessKeyIsValid(folderUUID, accessKey)) {
+	        // A valid access key grants the folder's full contents; otherwise the caller must be able
+	        // to read the folder and gets only the children they may see (matches /list).
+	        if (dao.accessKeyIsValid(folderUUID, accessKey)) {
+	            return dao.getFolderChildCounts(folderUUID);
+	        }
+	        if (!dao.isReadable(folderUUID, userId)) {
 	            throw new UnauthorizedOperationException(
 	                "User doesn't have read access to this folder."
 	            );
 	        }
-	        // Count only children the caller may read (matches /list); a valid access key counts all.
-	        return readable
-	                ? dao.getReadableFolderChildCounts(folderUUID, userId)
-	                : dao.getFolderChildCounts(folderUUID);
+	        return dao.getReadableFolderChildCounts(folderUUID, userId);
 	    }
 
 	}
@@ -445,15 +446,15 @@ public class FolderServiceV3 extends NdexService {
 	    UUID folderUUID = UUID.fromString(folderIdStr);
 
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        boolean readable = dao.isReadable(folderUUID, userId);
-	        if (!readable && !dao.accessKeyIsValid(folderUUID, accessKey)) {
+	        // A valid folder access key returns all contents; otherwise the caller must be able to read
+	        // the folder and gets only the children they may see.
+	        if (dao.accessKeyIsValid(folderUUID, accessKey)) {
+	            return dao.listItemsInFolder(folderUUID, compact, fileType);
+	        }
+	        if (!dao.isReadable(folderUUID, userId)) {
 	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
 	        }
-
-	        // Filter children to what the caller may read; a valid folder access key returns all contents.
-	        return readable
-	                ? dao.listReadableItemsInFolder(folderUUID, compact, fileType, userId)
-	                : dao.listItemsInFolder(folderUUID, compact, fileType);
+	        return dao.listReadableItemsInFolder(folderUUID, compact, fileType, userId);
 	    }
 	}
 	
