@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=68
+TOTAL_API_CALLS=79
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -1124,6 +1124,101 @@ F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?acces
 { echo "${F10_KEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_KEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_KEY_NET}" == "2" ]]; } \
   || api_fail "access-key view wrong: net=${F10_KEY_NET}, list=${F10_KEY_LIST:0:400}"
 api_pass "anon + access key → /list all children (incl. PRIVATE); /count network=2"
+
+# ── STEP: Folder/Shortcut visibility — write path accepts it, read path reports it ──
+# Runs while anonymous access is still allowed (all calls here are authenticated as
+# TEST_USER, so they also work after the AUTHENTICATED_USER_ONLY flip below).
+step "Folder/Shortcut visibility: create/update accept it, reads report it"
+
+# --- Folder: write path accepts visibility on create ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (create with visibility=PUBLIC)"
+VIS_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"vis-folder","visibility":"PUBLIC"}' \
+  "${BASE_URL}/v3/files/folders/")
+VIS_F_HTTP=$(echo "${VIS_F_RESP}" | tail -1); VIS_F_BODY=$(echo "${VIS_F_RESP}" | head -1)
+[[ "${VIS_F_HTTP}" == "201" ]] || api_fail "create folder (visibility=PUBLIC) → HTTP ${VIS_F_HTTP}. Body: ${VIS_F_BODY:0:300}"
+VIS_F_ID=$(echo "${VIS_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${VIS_F_ID}" ]] || api_fail "no uuid in create-folder response. Body: ${VIS_F_BODY:0:300}"
+api_pass "POST folder with visibility=PUBLIC → 201 (folder ${VIS_F_ID})"
+
+# --- Folder: read path populates visibility (GET {id} + list-mine) ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (visibility populated)"
+VIS_F_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_F_ID}")
+echo "${VIS_F_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PUBLIC"' \
+  || api_fail "GET folder did not report visibility=PUBLIC. Body: ${VIS_F_GET:0:300}"
+api_pass "GET folder reports visibility=PUBLIC"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/ (list-mine reports visibility)"
+VIS_F_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/")
+echo "${VIS_F_LIST}" | grep -q '"visibility"' \
+  || api_fail "list-mine folders did not report a visibility field. Body: ${VIS_F_LIST:0:400}"
+api_pass "GET list-mine folders reports visibility"
+
+# --- Folder: omitted visibility defaults to PRIVATE ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (no visibility → default PRIVATE)"
+VIS_FD_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"name":"vis-folder-default"}' \
+  "${BASE_URL}/v3/files/folders/")
+VIS_FD_HTTP=$(echo "${VIS_FD_RESP}" | tail -1); VIS_FD_BODY=$(echo "${VIS_FD_RESP}" | head -1)
+[[ "${VIS_FD_HTTP}" == "201" ]] || api_fail "create folder (no visibility) → HTTP ${VIS_FD_HTTP}"
+VIS_FD_ID=$(echo "${VIS_FD_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (default visibility=PRIVATE)"
+VIS_FD_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_FD_ID}")
+echo "${VIS_FD_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"' \
+  || api_fail "folder created without visibility did not default to PRIVATE. Body: ${VIS_FD_GET:0:300}"
+api_pass "folder without visibility defaults to PRIVATE"
+
+# --- Folder: update accepts visibility ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/folders/{id} (visibility=UNLISTED)"
+VIS_F_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"visibility":"UNLISTED"}' \
+  "${BASE_URL}/v3/files/folders/${VIS_F_ID}")
+[[ "${VIS_F_PUT}" == "204" || "${VIS_F_PUT}" == "200" ]] || api_fail "PUT folder visibility → HTTP ${VIS_F_PUT}"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (visibility now UNLISTED)"
+VIS_F_GET2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_F_ID}")
+echo "${VIS_F_GET2}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"UNLISTED"' \
+  || api_fail "folder update did not change visibility to UNLISTED. Body: ${VIS_F_GET2:0:300}"
+api_pass "PUT folder visibility=UNLISTED applied; GET reports UNLISTED"
+
+# --- Shortcut: write path accepts visibility on create (target the vis-folder) ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (visibility=PUBLIC)"
+VIS_S_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"vis-shortcut\",\"target\":\"${VIS_F_ID}\",\"targetType\":\"FOLDER\",\"visibility\":\"PUBLIC\"}" \
+  "${BASE_URL}/v3/files/shortcuts/")
+VIS_S_HTTP=$(echo "${VIS_S_RESP}" | tail -1); VIS_S_BODY=$(echo "${VIS_S_RESP}" | head -1)
+[[ "${VIS_S_HTTP}" == "201" ]] || api_fail "create shortcut (visibility=PUBLIC) → HTTP ${VIS_S_HTTP}. Body: ${VIS_S_BODY:0:300}"
+VIS_S_ID=$(echo "${VIS_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${VIS_S_ID}" ]] || api_fail "no uuid in create-shortcut response. Body: ${VIS_S_BODY:0:300}"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/shortcuts/{id} (visibility populated)"
+VIS_S_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/shortcuts/${VIS_S_ID}")
+echo "${VIS_S_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PUBLIC"' \
+  || api_fail "GET shortcut did not report visibility=PUBLIC. Body: ${VIS_S_GET:0:300}"
+api_pass "POST shortcut visibility=PUBLIC → 201; GET reports PUBLIC (shortcut ${VIS_S_ID})"
+
+# --- Shortcut: update accepts visibility ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/shortcuts/{id} (visibility=PRIVATE)"
+VIS_S_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"visibility":"PRIVATE"}' \
+  "${BASE_URL}/v3/files/shortcuts/${VIS_S_ID}")
+[[ "${VIS_S_PUT}" == "204" || "${VIS_S_PUT}" == "200" ]] || api_fail "PUT shortcut visibility → HTTP ${VIS_S_PUT}"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/shortcuts/{id} (visibility now PRIVATE)"
+VIS_S_GET2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/shortcuts/${VIS_S_ID}")
+echo "${VIS_S_GET2}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"' \
+  || api_fail "shortcut update did not change visibility to PRIVATE. Body: ${VIS_S_GET2:0:300}"
+api_pass "PUT shortcut visibility=PRIVATE applied; GET reports PRIVATE"
 
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────
 # NOTE: this permanently flips the server to AUTHENTICATED_USER_ONLY=true (appends to

@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Folder/shortcut `visibility`** — `visibility` (`PUBLIC`/`PRIVATE`/`UNLISTED`) can now be set on folder and shortcut create/update requests (`POST`/`PUT /v3/files/folders` and `…/shortcuts`, and the MCP `manage_folder` tool), defaulting to `PRIVATE` when omitted, and is reported on folder/shortcut read responses. Requires `ndex-object-model` 3.0.2-SNAPSHOT.
+
 ### Changed
 
 - **BREAKING — The NDEx group feature has been removed.** All group endpoints now return **HTTP 501 Not Implemented**, and group-based network permissions no longer exist (a user reaches a network only by ownership or a direct user permission). Use folders + visibility + folder permission sharing instead — see the [V3 Migration Guide](docs/V3-Migration-Guide.md). Affected endpoints:

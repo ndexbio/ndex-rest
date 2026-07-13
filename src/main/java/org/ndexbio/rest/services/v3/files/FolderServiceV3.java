@@ -106,13 +106,17 @@ public class FolderServiceV3 extends NdexService {
 		}
 		
 		UUID folderUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-		
-		// create entry in db. 
+		VisibilityType visibility = request.getVisibility() != null ? request.getVisibility() : VisibilityType.PRIVATE;
+
+		// create entry in db.
 		NdexObjectUpdateStatus status;
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
+			if (visibility != VisibilityType.PRIVATE) {
+				dao.setFolderVisibility(folderUUID, visibility);
+			}
 			dao.commit();
-			createFileIndex(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE, FileType.FOLDER, true);
+			createFileIndex(folderUUID, getLoggedInUser(), visibility, FileType.FOLDER, true);
 		}
 
 		String urlStr = Configuration.getInstance().getHostURI() +"/v3/files/folders/"+ folderUUID.toString();
@@ -327,6 +331,9 @@ public class FolderServiceV3 extends NdexService {
 			}
 			
 			dao.updateFolder(folderId, request.getName(), parentUUID, userId, request.getDescription());
+			if (request.getVisibility() != null) {
+				dao.setFolderVisibility(folderId, request.getVisibility());
+			}
 			dao.commit();
 			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
 			createFileIndex(folderId, getLoggedInUser(), visibilityType,  FileType.FOLDER, false);
