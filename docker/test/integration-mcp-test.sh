@@ -26,7 +26,7 @@ TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
 
-TOTAL_API_CALLS=46
+TOTAL_API_CALLS=47
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -701,13 +701,24 @@ step "MCP folder management: manage_folder create/delete, get_folder list"
 MCP_FOLDER_ID=""
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: manage_folder mode=create (auth)"
-mcp_call '{"jsonrpc":"2.0","id":"mcp-28","method":"tools/call","params":{"name":"manage_folder","arguments":{"mode":"create","name":{"waived":false,"parameter":"mcp-integration-test-folder"}}}}' \
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: manage_folder mode=create with visibility=PUBLIC (auth)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-28","method":"tools/call","params":{"name":"manage_folder","arguments":{"mode":"create","name":{"waived":false,"parameter":"mcp-integration-test-folder"},"visibility":"PUBLIC"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
-mcp_pass "manage_folder mode=create (auth)"
+mcp_pass "manage_folder mode=create with visibility=PUBLIC (auth)"
 MCP_FOLDER_ID=$(echo "${MCP_JSON}" | grep -o '"folderId":"[^"]*"' | head -1 | cut -d'"' -f4)
 [[ -n "${MCP_FOLDER_ID}" ]] \
   || api_fail "manage_folder create → no folderId in response: ${MCP_JSON:0:300}"
+
+# get_folder mode=get must report the visibility set at create time (write-accept + read-report)
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_folder mode=get (visibility populated)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-28b","method":"tools/call","params":{"name":"get_folder","arguments":{"mode":"get","folderId":{"waived":false,"parameter":"'"${MCP_FOLDER_ID}"'"}}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+# get_folder embeds the folder JSON as an escaped string inside the MCP text content,
+# so match visibility→PUBLIC tolerating the intervening escape/punctuation characters.
+echo "${MCP_JSON}" | grep -qE 'visibility[^A-Za-z]+PUBLIC' \
+  || api_fail "get_folder did not report visibility=PUBLIC for MCP-created folder: ${MCP_JSON:0:400}"
+mcp_pass "get_folder mode=get reports visibility=PUBLIC (MCP write-accept + read-report)"
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_folder mode=list (auth)"

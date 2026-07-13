@@ -89,6 +89,9 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 		s.setTarget((UUID) rs.getObject("target"));
 		s.setParent((UUID) rs.getObject("parent"));
 		s.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
+		String visibility = rs.getString("visibility");
+		if (visibility != null)
+			s.setVisibility(VisibilityType.valueOf(visibility));
 		s.setOwner_id(rs.getString("owner_id"));
 		s.setOwner(rs.getString("owner_name"));
 		return s;
@@ -96,7 +99,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 
 	@Override
 	public NdexShortcut getShortcut(UUID shortcutId, UUID userId) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
-		String sqlStr = "SELECT s.\"UUID\", s.name, s.creation_time, s.modification_time, s.target, s.parent, s.is_deleted, s.target_type, " +
+		String sqlStr = "SELECT s.\"UUID\", s.name, s.creation_time, s.modification_time, s.target, s.parent, s.is_deleted, s.target_type, s.visibility, " +
 				"s.owneruuid AS owner_id, u.user_name AS owner_name " +
 				"FROM shortcut s JOIN ndex_user u ON s.owneruuid = u.\"UUID\" " +
 				"WHERE s.\"UUID\"=?";
@@ -193,7 +196,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 			return new ArrayList<>();
 
 		String placeholders = String.join(",", Collections.nCopies(shortcutIds.size(), "?"));
-		String sql = "SELECT s.\"UUID\", s.name, s.creation_time, s.modification_time, s.is_deleted, s.target, s.parent, s.target_type, " +
+		String sql = "SELECT s.\"UUID\", s.name, s.creation_time, s.modification_time, s.is_deleted, s.target, s.parent, s.target_type, s.visibility, " +
 				"s.owneruuid AS owner_id, u.user_name AS owner_name " +
 				"FROM shortcut s JOIN ndex_user u ON s.owneruuid = u.\"UUID\" " +
 				"WHERE s.\"UUID\" IN (" + placeholders + ")";
@@ -290,7 +293,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	public List<NdexShortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException {
 	    List<NdexShortcut> result = new ArrayList<>();
 
-	    String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type " +
+	    String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type, visibility " +
 	                 " FROM shortcut " +
 	                 " WHERE owneruuid=? AND is_deleted=false " +
 	                 " ORDER BY name " +
@@ -311,6 +314,9 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	                s.setTarget((UUID) rs.getObject("target"));
 	                s.setParent((UUID) rs.getObject("parent"));
 	                s.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
+	                String visibility = rs.getString("visibility");
+	                if (visibility != null)
+	                    s.setVisibility(VisibilityType.valueOf(visibility));
 
 	                result.add(s);
 	            }
@@ -350,7 +356,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
      */
     public List<NdexShortcut> listRootShortcutsOfUser(UUID ownerId) throws SQLException {
         List<NdexShortcut> result = new ArrayList<>();
-        String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type " +
+        String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type, visibility " +
                      " FROM shortcut " +
                      " WHERE owneruuid=? AND parent IS NULL AND is_deleted=false " +
                      " ORDER BY name";
@@ -367,6 +373,9 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
                     s.setTarget((UUID) rs.getObject("target"));
                     s.setParent((UUID) rs.getObject("parent"));
                     s.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
+                    String visibility = rs.getString("visibility");
+                    if (visibility != null)
+                        s.setVisibility(VisibilityType.valueOf(visibility));
                     result.add(s);
                 }
             }

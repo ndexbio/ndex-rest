@@ -127,7 +127,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	public NdexFolder getFolder(UUID folderId, UUID userId, String accessKey) throws SQLException, ObjectNotFoundException, UnauthorizedOperationException, JsonParseException, JsonMappingException, IOException {
 
 		NdexFolder result;
-		String sqlStr = "SELECT f.\"UUID\", f.name, f.parent, f.creation_time, f.modification_time, f.is_deleted, f.description, f.owneruuid as owner_id, " +
+		String sqlStr = "SELECT f.\"UUID\", f.name, f.parent, f.creation_time, f.modification_time, f.is_deleted, f.description, f.visibility, f.owneruuid as owner_id, " +
 				"u.user_name AS owner_name " +
 				"FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" " +
 				"WHERE f.\"UUID\"=?";
@@ -152,6 +152,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		f.setModificationTime(rs.getTimestamp("modification_time"));
 		f.setIsDeleted(rs.getBoolean("is_deleted"));
 		f.setDescription(rs.getString("description"));
+		String visibility = rs.getString("visibility");
+		if (visibility != null)
+			f.setVisibility(VisibilityType.valueOf(visibility));
 		f.setOwner_id(rs.getString("owner_id"));
 		f.setOwner(rs.getString("owner_name"));
 		return f;
@@ -162,7 +165,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 			return new ArrayList<>();
 
 		String placeholders = String.join(",", Collections.nCopies(folderIds.size(), "?"));
-		String sql = "SELECT f.\"UUID\", f.name, f.parent, f.creation_time, f.modification_time, f.is_deleted, f.description, f.owneruuid AS owner_id, " +
+		String sql = "SELECT f.\"UUID\", f.name, f.parent, f.creation_time, f.modification_time, f.is_deleted, f.description, f.visibility, f.owneruuid AS owner_id, " +
 				"u.user_name AS owner_name " +
 				"FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" " +
 				"WHERE f.\"UUID\" IN (" + placeholders + ")";
@@ -722,7 +725,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	public List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException {
 	    List<NdexFolder> result = new ArrayList<>();
 
-	    String sql = "SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description " +
+	    String sql = "SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description, visibility " +
 	                 " FROM folder " +
 	                 " WHERE owneruuid=? AND is_deleted=false " +
 	                 " ORDER BY name " +
@@ -742,6 +745,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                f.setModificationTime(rs.getTimestamp("modification_time"));
 	                f.setIsDeleted(rs.getBoolean("is_deleted"));
 					f.setDescription(rs.getString("description"));
+					String visibility = rs.getString("visibility");
+					if (visibility != null)
+						f.setVisibility(VisibilityType.valueOf(visibility));
 
 	                result.add(f);
 	            }
