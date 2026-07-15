@@ -777,10 +777,68 @@ public class TestGlobalNetworkIndexManager {
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "NETWORK");
+                null, null, "NETWORK", true);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("entityType:\"NETWORK\""));
+    }
+
+    @Test
+    public void testSearchByType_IncludeShortcutsTrue_FoldsInMatchingShortcuts() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(anyString(), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
+                null, null, "NETWORK", true);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Base entityType clause is always present
+        assertTrue(fq[0].contains("entityType:\"NETWORK\""));
+        // includeShortcuts=true ORs in SHORTCUT docs whose targetType matches
+        assertTrue(fq[0].contains("entityType:\"SHORTCUT\""));
+        assertTrue(fq[0].contains("targetType:\"NETWORK\""));
+    }
+
+    @Test
+    public void testSearchByType_IncludeShortcutsFalse_OmitsShortcutClause() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(anyString(), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
+                null, null, "NETWORK", false);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Base entityType clause is still present
+        assertTrue(fq[0].contains("entityType:\"NETWORK\""));
+        // includeShortcuts=false must not fold in the SHORTCUT/targetType OR-clause
+        assertFalse(fq[0].contains("SHORTCUT"));
+        assertFalse(fq[0].contains("targetType"));
     }
 
     // ========================================================================
@@ -871,6 +929,55 @@ public class TestGlobalNetworkIndexManager {
         SolrQuery q = new SolrQuery();
         manager.configureQuery(q, "test", "filter", 10, -1);
         assertNull(q.getStart());
+    }
+
+    // ========================================================================
+    // EDGELESS NETWORK DEMOTION (edgeCount boost) - issue #116
+    // ========================================================================
+
+    @Test
+    public void testGetBoostFunction_ReturnsEdgePenalty() {
+        manager = createManagerWithMock();
+        assertEquals("map(def(edgeCount,1),0,0,0.01,1)", manager.getBoostFunction());
+    }
+
+    @Test
+    public void testConfigureQuery_SetsEdgelessBoost() {
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "cancer", "filter", 10, 0);
+        // edgeCount==0 maps to 0.01 (heavy demotion); everything else stays at 1.
+        assertEquals("map(def(edgeCount,1),0,0,0.01,1)", q.get("boost"));
+    }
+
+    @Test
+    public void testConfigureQuery_BoostAppliedWithEdismax() {
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "cancer", "filter", 10, 0);
+        // edismax must be the parser for the multiplicative boost param to apply.
+        assertEquals("edismax", q.get("defType"));
+        assertNotNull(q.get("boost"));
+    }
+
+    @Test
+    public void testEdgelessPenaltyValue() {
+        assertEquals(0.01, GlobalNetworkIndexManager.EDGELESS_PENALTY, 0.0);
+    }
+
+    @Test
+    public void testEdgePenaltyBoost_BuildsFunction() {
+        manager = createManagerWithMock();
+        // The helper encodes any penalty into the same map/def shape.
+        assertEquals("map(def(edgeCount,1),0,0,0.1,1)", manager.edgePenaltyBoost(0.1));
+    }
+
+    @Test
+    public void testEdgePenaltyBoost_GuardsMissingEdgeCount() {
+        manager = createManagerWithMock();
+        // def(edgeCount,1) means a doc lacking edgeCount defaults to 1 (no penalty),
+        // never the 0->penalty bucket.
+        assertTrue(manager.edgePenaltyBoost(0.01).contains("def(edgeCount,1)"));
     }
 
     // ========================================================================
@@ -1085,7 +1192,7 @@ public class TestGlobalNetworkIndexManager {
         Thread.sleep(2000);
 
         SolrDocumentList results = manager.searchByType("cancer", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, "NETWORK");
+                100, 0, null, null, "NETWORK", true);
 
         assertNotNull(results);
         assertEquals(1, results.getNumFound());
@@ -1206,11 +1313,110 @@ public class TestGlobalNetworkIndexManager {
         Thread.sleep(2000);
 
         SolrDocumentList results = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, "NETWORK");
+                100, 0, null, null, "NETWORK", true);
 
         assertEquals(1, results.getNumFound());
 
         folderMgr.close();
+    }
+
+    // ========================================================================
+    // F4: FILTER-VALUE INJECTION ESCAPING (security regression)
+    // ========================================================================
+
+    @Test
+    public void testSearch_OwnerFilterInjection_IsEscaped() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("public-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        // Classic injection: try to OR-in a match-all clause via the ownedBy value.
+        String injection = "zzz\") OR (*:*) OR (owner:\"zzz";
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, injection, null);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // The payload's double-quotes are backslash-escaped, so the whole value stays
+        // inside the owner phrase and cannot inject a bare (*:*) boolean clause.
+        assertEquals(
+                "((*:* NOT visibility:UNLISTED)) AND (owner:\"zzz\\\") OR (*:*) OR (owner:\\\"zzz\")",
+                fq[0]);
+    }
+
+    @Test
+    public void testSearch_PrivateCore_UserAccountInjection_IsEscaped() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("private-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        // Try to break out of the phrase and OR-in another owner via userAccount.
+        String injection = "me\" OR owner:\"admin";
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.search("*:*", injection, VisibilityType.PRIVATE, 10, 0, null, Permissions.READ);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Quotes escaped -> value stays a single literal owner term; no breakout.
+        assertTrue(fq[0].contains("owner:\"me\\\" OR owner:\\\"admin\""));
+        // The unescaped breakout form must NOT be present.
+        assertFalse(fq[0].contains("owner:\"me\" OR owner:\"admin\""));
+    }
+
+    @Test
+    public void testSearchByType_OwnerFilterInjection_IsEscaped() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("public-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        String injection = "x\") OR (*:*) OR (owner:\"x";
+        manager = new GlobalNetworkIndexManager(mockWrapper);
+        manager.searchByType("*:*", null, VisibilityType.PUBLIC, 10, 0, injection, null, "NETWORK", true);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Escaped owner clause present; entityType filter still intact (no regression).
+        assertTrue(fq[0].contains("owner:\"x\\\") OR (*:*) OR (owner:\\\"x\""));
+        assertTrue(fq[0].contains("entityType:\"NETWORK\""));
+    }
+
+    @Test
+    public void testEscapeForFilter_EscapesQuotesAndBackslashes_NoopOnBenign() {
+        // double-quote -> \" ; backslash -> \\
+        assertEquals("a\\\"b", NFSIndexManager.escapeForFilter("a\"b"));
+        assertEquals("a\\\\b", NFSIndexManager.escapeForFilter("a\\b"));
+        // typical account names / UUIDs are unchanged, so existing queries are unaffected
+        assertEquals("john.doe", NFSIndexManager.escapeForFilter("john.doe"));
+        assertEquals("550e8400-e29b-41d4-a716-446655440000",
+                NFSIndexManager.escapeForFilter("550e8400-e29b-41d4-a716-446655440000"));
+        assertNull(NFSIndexManager.escapeForFilter(null));
     }
 
     // ========================================================================

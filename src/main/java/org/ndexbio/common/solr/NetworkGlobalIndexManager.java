@@ -98,9 +98,6 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 	private static final String USER_READ= "userRead";
 	private static final String USER_EDIT = "userEdit";
 	private static final String USER_ADMIN = "owner";
-	private static final String GRP_READ = "grpRead";
-	private static final String GRP_EDIT = "grpEdit";
-//	private static final String GRP_ADMIN = "grpAdmin";
 	
 	private static final String VISIBILITY = "visibility";
 	
@@ -185,88 +182,6 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		
 	}
 	
-	public SolrDocumentList searchForNetworks (String searchTerms, String userAccount, int limit, int offset, String adminedBy, Permissions permission,
-			   List<UUID> groupUUIDs) 
-			throws  IOException, SolrServerException, NdexException {
-		client.setBaseURL(solrUrl+ "/" + coreName);
-
-		SolrQuery solrQuery = new SolrQuery();
-		
-		//create the result filter
-		
-		String adminFilter = "";		
-		if ( adminedBy !=null) {
-			adminFilter = " AND (" + USER_ADMIN + ":\"" + adminedBy +  "\")";
-		}
-		
-		String resultFilter = "";
-		if ( userAccount !=null) {     // has a signed in user.
-			String userAccountStr = "\"" + userAccount +"\"";
-			if ( permission == null) {
-				resultFilter =  VISIBILITY + ":PRIVATE";
-				resultFilter += " AND -(" + USER_ADMIN + ":" + userAccountStr + ") AND -(" +
-						USER_EDIT + ":" + userAccountStr + ") AND -("+ USER_READ + ":" + userAccountStr + ")";
-				if ( groupUUIDs!=null) {
-					for (UUID groupUUID : groupUUIDs) {
-					  resultFilter +=  " AND -(" + GRP_EDIT + ":\"" + groupUUID.toString() + "\") AND -("+ GRP_READ + ":\"" + groupUUID.toString() + "\")";
-					}
-				}
-				resultFilter = "-("+ resultFilter + ")";
-			} 
-			else if ( permission == Permissions.READ) {
-				resultFilter = "(" + USER_ADMIN + ":" + userAccountStr + ") OR (" +
-						USER_EDIT + ":" + userAccountStr + ") OR ("+ USER_READ + ":" + userAccountStr + ")";
-				if ( groupUUIDs!=null) {
-					for (UUID groupUUID : groupUUIDs) {
-						  resultFilter +=  " OR (" +
-							  GRP_EDIT + ":\"" + groupUUID.toString() + "\") OR ("+ GRP_READ + ":\"" + groupUUID.toString() + "\")";
-					}
-				}
-			} else if ( permission == Permissions.WRITE) {
-				resultFilter = "(" + USER_ADMIN + ":" + userAccountStr + ") OR (" +
-						USER_EDIT + ":" + userAccountStr + ")";
-				if ( groupUUIDs !=null) {
-					for ( UUID groupUUID : groupUUIDs )  {
-						  String groupUUIDStr = "\"" + groupUUID.toString() + "\"";	
-						  resultFilter += " OR (" +
-							GRP_EDIT + ":" + groupUUIDStr + ")" ;
-					}
-				} 
-			}
-		}  else {
-			resultFilter = VISIBILITY + ":PUBLIC";
-		}
-			
-		resultFilter = resultFilter + adminFilter;
-		
-			
-		if ( searchTerms.equalsIgnoreCase("*:*"))
-			solrQuery.setSort(MODIFICATION_TIME, ORDER.desc);
-
-//		solrQuery.setQuery( searchTerms ).setFields(UUID);
-		solrQuery.setQuery("( " + SearchUtilities.preprocessSearchTerm(searchTerms) + " ) AND _val_:\"div(" + NDEX_SCORE+ ",10)\"" ).setFields(UUID);
-    	solrQuery.set("defType", "edismax");
-		solrQuery.set("qf","uuid^20 name^10 description^5 labels^6 owner^2 networkType^4 organism^3 disease^3 tissue^3 author^2 methods nodeName represents alias rights^0.6 rightsHolder^0.6");
-		if ( offset >=0)
-		  solrQuery.setStart(offset);
-		if ( limit >0 )
-			solrQuery.setRows(limit);
-		else 
-			solrQuery.setRows(100000);
-		
-		solrQuery.setFilterQueries(resultFilter) ;
-		
-		try {
-			QueryResponse rsp = client.query(solrQuery, METHOD.POST);		
-			
-			SolrDocumentList  dds = rsp.getResults();
-			return dds;
-		} catch (BaseHttpSolrClient.RemoteSolrException e) {
-			throw convertException(e, "ndex-networks");
-		}
-		
-	}
-	
 	protected static NdexException convertException(BaseHttpSolrClient.RemoteSolrException e, String core_name) {
 		if (e.code() == 400) {
 			String err = e.getMessage();
@@ -280,30 +195,7 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		return new NdexException("Error from NDEx Solr server: " + e.getMessage());
 	}
 	
-/*	public void createIndexDocFromSummary(NetworkSummary summary) throws SolrServerException, IOException, NdexException, SQLException {
-		client.setBaseURL(solrUrl + "/" + coreName);
-	
-		doc.addField(UUID,  summary.getExternalId().toString() );
-		doc.addField(EDGE_COUNT, summary.getEdgeCount());
-		doc.addField(NODE_COUNT, summary.getNodeCount());
-		doc.addField(VISIBILITY, summary.getVisibility().toString());
-		
-		doc.addField(CREATION_TIME, summary.getCreationTime());
-		doc.addField(MODIFICATION_TIME, summary.getModificationTime());
-		
-		try (NetworkDocDAO dao = new NetworkDocDAO()) {
-			List<Map<Permissions, Collection<String>>> members = dao.getAllMembershipsOnNetwork(summary.getExternalId());
-			doc.addField(USER_READ, members.get(0).get(Permissions.READ));
-			doc.addField(USER_EDIT, members.get(0).get(Permissions.WRITE));
-			doc.addField(USER_ADMIN, members.get(0).get(Permissions.ADMIN));
-			doc.addField(GRP_READ, members.get(1).get(Permissions.READ));
-			doc.addField(GRP_EDIT, members.get(1).get(Permissions.WRITE));
-		}
-
-	} */
-	
-	public void createIndexDocFromSummary(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits,
-			Collection<String> grpReads, Collection<String> grpEdits) {
+	public void createIndexDocFromSummary(NetworkSummary summary, String ownerUserName, Collection<String> userReads,Collection<String> userEdits) {
 		client.setBaseURL(solrUrl + "/" + coreName);
 		
 	  //  doc = new SolrInputDocument();
@@ -340,16 +232,6 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 		if ( userEdits !=null) {
 			for ( String userName: userEdits) {
 				doc.addField(USER_EDIT, userName);
-			}
-		}
-		if ( grpReads !=null) {
-			for ( String grpName : grpReads) {
-				doc.addField(GRP_READ, grpName);
-			}
-		}
-		if(grpEdits !=null) {
-			for ( String grpName : grpEdits) {
-				doc.addField(GRP_EDIT, grpName);
 			}
 		}
 
@@ -679,95 +561,6 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 	} */
 	
 		
-	
-/*	public void revokeNetworkPermission(String networkId, String accountName, Permissions p, boolean isUser) 
-			throws NdexException, SolrServerException, IOException {
-		client.setBaseURL(solrUrl + "/" + coreName);
-		SolrInputDocument tmpdoc = new SolrInputDocument();
-		tmpdoc.addField(UUID, networkId);
-		 
-		Map<String,String> cmd = new HashMap<>();
-		cmd.put("remove", accountName);
-
-		switch ( p) {
-		case ADMIN : 
-			if ( !isUser)
-				throw new NdexException("Can't pass isUser=false for ADMIN permission when deleting Solr index.");
-			tmpdoc.addField( USER_ADMIN, cmd);
-			break;
-		case WRITE:
-			tmpdoc.addField( isUser? USER_EDIT: GRP_EDIT, cmd);
-			break;
-		case READ:
-			tmpdoc.addField( isUser? USER_READ: GRP_READ, cmd);
-			break;
-			
-		default: 
-			throw new NdexException ("Invalid permission type " + p + " received in network previlege revoke.");
-		}
-		
-		Collection<SolrInputDocument> docs = new ArrayList<>(1);
-		docs.add(tmpdoc);
-		client.add(docs);
-	//	client.commit(false,true,true);
-
-	} */
-	
-/*	public void grantNetworkPermission(String networkId, String accountName, Permissions newPermission, 
-			 Permissions oldPermission, boolean isUser) 
-			throws NdexException, SolrServerException, IOException {
-		client.setBaseURL(solrUrl + "/" + coreName);
-		SolrInputDocument tmpdoc = new SolrInputDocument();
-		tmpdoc.addField(UUID, networkId);
-		 
-		Map<String,String> cmd = new HashMap<>();
-		cmd.put("add", accountName);
-
-		switch ( newPermission) {
-		case ADMIN : 
-			if ( !isUser)
-				throw new NdexException("Can't pass isUser=false for ADMIN permission when creating Solr index.");
-			tmpdoc.addField(  USER_ADMIN, cmd);
-			break;
-		case WRITE:
-			tmpdoc.addField( isUser? USER_EDIT: GRP_EDIT, cmd);
-			break;
-		case READ:
-			tmpdoc.addField( isUser? USER_READ: GRP_READ, cmd);
-			break;		
-		default: 
-			throw new NdexException ("Invalid permission type " + newPermission
-					+ " received in network previlege revoke.");
-		}
-		
-		if ( oldPermission !=null ) {
-			Map<String,String> rmCmd = new HashMap<>();
-			rmCmd.put("remove", accountName);
-
-			switch ( oldPermission) {
-			case ADMIN : 
-			
-				tmpdoc.addField(  USER_ADMIN, rmCmd);
-				break;
-			case WRITE:
-				tmpdoc.addField( isUser? USER_EDIT: GRP_EDIT, rmCmd);
-				break;
-			case READ:
-				tmpdoc.addField( isUser? USER_READ: GRP_READ, rmCmd);
-				break;
-				
-			default: 
-				throw new NdexException ("Invalid permission type " + oldPermission + " received in network previlege revoke.");
-			}
-		}
-		
-		Collection<SolrInputDocument> docs = new ArrayList<>(1);
-		docs.add(tmpdoc);
-		client.add(docs);
-	//	client.commit(false,true,true);
-
-	}
-	*/
 	
 	protected static List<String> getIndexableString(String termString) {
 		

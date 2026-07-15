@@ -77,16 +77,6 @@ public class SolrObjectFactoryImpl implements SolrObjectFactory {
 	}
 
 	@Override
-	public PublicNFSIndexManager getPublicNFSIndexManager() {
-		return new PublicNFSIndexManager(new SolrClientWrapperImpl(this));
-	}
-
-	@Override
-	public PrivateNFSIndexManager getPrivateNFSIndexManager() {
-		return new PrivateNFSIndexManager(new SolrClientWrapperImpl(this));
-	}
-
-	@Override
 	public GlobalNetworkIndexManager getGlobalNetworkIndexManager() {
 		return new GlobalNetworkIndexManager(new SolrClientWrapperImpl(this));
 	}

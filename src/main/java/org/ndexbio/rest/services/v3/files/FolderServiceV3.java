@@ -106,13 +106,17 @@ public class FolderServiceV3 extends NdexService {
 		}
 		
 		UUID folderUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-		
-		// create entry in db. 
+		VisibilityType visibility = request.getVisibility() != null ? request.getVisibility() : VisibilityType.PRIVATE;
+
+		// create entry in db.
 		NdexObjectUpdateStatus status;
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 			status = dao.createFolder(folderUUID, getLoggedInUser().getExternalId(), parentUUID, request.getName(), request.getDescription());
+			if (visibility != VisibilityType.PRIVATE) {
+				dao.setFolderVisibility(folderUUID, visibility);
+			}
 			dao.commit();
-			createFileIndex(folderUUID, getLoggedInUser(), VisibilityType.PRIVATE, FileType.FOLDER, true);
+			createFileIndex(folderUUID, getLoggedInUser(), visibility, FileType.FOLDER, true);
 		}
 
 		String urlStr = Configuration.getInstance().getHostURI() +"/v3/files/folders/"+ folderUUID.toString();
@@ -327,6 +331,9 @@ public class FolderServiceV3 extends NdexService {
 			}
 			
 			dao.updateFolder(folderId, request.getName(), parentUUID, userId, request.getDescription());
+			if (request.getVisibility() != null) {
+				dao.setFolderVisibility(folderId, request.getVisibility());
+			}
 			dao.commit();
 			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
 			createFileIndex(folderId, getLoggedInUser(), visibilityType,  FileType.FOLDER, false);
@@ -341,7 +348,7 @@ public class FolderServiceV3 extends NdexService {
     @Operation(
             summary = "Get Item Counts Within a Folder",
             description = """
-                          Returns counts of how many networks, subfolders, and shortcuts exist directly under the specified folder.
+                          Returns counts of the networks, subfolders, and shortcuts directly under the specified folder that the caller is allowed to see (matches the /list result for the same caller). A valid folder access key counts all children.
                           
                           Path Parameters:
                           - folderid: UUID of the folder to count items in
@@ -366,15 +373,17 @@ public class FolderServiceV3 extends NdexService {
 	    UUID userId = getLoggedInUserId();
 
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
+	        // A valid access key grants the folder's full contents; otherwise the caller must be able
+	        // to read the folder and gets only the children they may see (matches /list).
+	        if (dao.accessKeyIsValid(folderUUID, accessKey)) {
+	            return dao.getFolderChildCounts(folderUUID);
+	        }
+	        if (!dao.isReadable(folderUUID, userId)) {
 	            throw new UnauthorizedOperationException(
 	                "User doesn't have read access to this folder."
 	            );
 	        }
-	        FileCount result;
-	        result = dao.getFolderChildCounts(folderUUID);
-	        
-		    return result;
+	        return dao.getReadableFolderChildCounts(folderUUID, userId);
 	    }
 
 	}
@@ -386,9 +395,9 @@ public class FolderServiceV3 extends NdexService {
 	@Operation(
 	    summary = "List items in a folder",
 	    description = """
-					Lists all items (folders, networks, shortcuts) in the specified folder.
+					Lists items (folders, networks, shortcuts) in the specified folder.
 					If *folderid* is a UUID, returns the immediate children of that folder  
-					(folders/networks/shortcuts) provided the caller is an owner or has read access or a valid accesskey.  
+					that the caller is allowed to read (PUBLIC/UNLISTED, plus items they own or are shared on); a valid folder access key returns all children.
 					If *folderid* is the literal string **"home"**, returns all top level items owned by the signed in user (parent = NULL).
 
 					Path Parameters:
@@ -444,13 +453,15 @@ public class FolderServiceV3 extends NdexService {
 	    UUID folderUUID = UUID.fromString(folderIdStr);
 
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        if (!dao.isReadable(folderUUID, userId) && !dao.accessKeyIsValid(folderUUID, accessKey)) {
+	        // A valid folder access key returns all contents; otherwise the caller must be able to read
+	        // the folder and gets only the children they may see.
+	        if (dao.accessKeyIsValid(folderUUID, accessKey)) {
+	            return dao.listItemsInFolder(folderUUID, compact, fileType);
+	        }
+	        if (!dao.isReadable(folderUUID, userId)) {
 	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
 	        }
-	        
-	        List<FileItemSummary> items;
-	        items = dao.listItemsInFolder(folderUUID, compact, fileType);
-	        return items;
+	        return dao.listReadableItemsInFolder(folderUUID, compact, fileType, userId);
 	    }
 	}
 	

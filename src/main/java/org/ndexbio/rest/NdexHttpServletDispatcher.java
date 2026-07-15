@@ -44,7 +44,6 @@ import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.solr.GlobalNetworkIndexManager;
-import org.ndexbio.common.solr.GroupIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.model.exceptions.NdexException;
@@ -124,10 +123,7 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 			try (UserIndexManager umgr = new UserIndexManager()) {
 				umgr.createCoreIfNotExists();
 			}
-			try (GroupIndexManager gmgr = new GroupIndexManager()) {
-				gmgr.createCoreIfNotExists();
-			}
-    	
+
 		/*	try (UserDocDAO dao = new UserDocDAO(db.getAConnection())) {
     	
 				String sysUserEmail = configuration.getProperty("NdexSystemUserEmail");

@@ -44,7 +44,6 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 import org.ndexbio.common.access.NdexDatabase;
-import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.util.Util;
@@ -193,40 +192,21 @@ public class EmailNotificationTask extends TimerTask {
 	  							String requestType = rs.getString(2);
   								UUID destUUID = (UUID)rs.getObject(1);
   								ResponseType responseType = ResponseType.valueOf(rs.getString(3));
-  								if ( responseType.equals(ResponseType.PENDING)) {  // notify the recipient.
-  									if ( requestType.equals("JoinGroup")) {
-	  								try (GroupDAO dao = new GroupDAO()) {
-	  									for (UUID userid :  dao.getGroupAdminIds(destUUID)) {
-	  										Map<ResponseType, Integer> notifications = result.get(userid);
-	  			  							if ( notifications == null) {
-	  			  								notifications = new HashMap<>();
-	  			  								result.put(userid, notifications);
-	  			  							}  
-	  			  							Integer cnt = notifications.get(ResponseType.PENDING);
-	  			  							if ( cnt == null)
-	  			  								cnt = 1;
-	  			  							else 
-	  			  								cnt = cnt + 1;
-	  			  							notifications.put(ResponseType.PENDING, cnt);
-	  									}
-	  								}
-	  								
-  									} else {    // network permission request, notify network admin
+  								if ( responseType.equals(ResponseType.PENDING)) {  // notify the recipient: network permission request, notify network admin
 	  								try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 	  									UUID userid = dao.getNetworkOwner(destUUID);
 	  									Map<ResponseType, Integer> notifications = result.get(userid);
   			  							if ( notifications == null) {
   			  								notifications = new HashMap<>();
   			  								result.put(userid, notifications);
-  			  							}  
+  			  							}
   			  							Integer cnt = notifications.get(ResponseType.PENDING);
   			  							if ( cnt == null)
   			  								cnt = 1;
-  			  							else 
+  			  							else
   			  								cnt = cnt + 1;
   			  							notifications.put(ResponseType.PENDING, cnt);
 	  								}
-  									}
   								} else { //notify the requester
   									UUID ownerId = (UUID) rs.getObject(4);
   									Map<ResponseType, Integer> notifications = result.get(ownerId);

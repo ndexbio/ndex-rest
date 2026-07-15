@@ -11,9 +11,10 @@
 #   user creation → v2 CX1 upload (2 public + 1 private) → v2 summary poll →
 #   v3 CX2 retrieve → v3 CX2 upload (2 public + 1 private) → v3 summary poll →
 #   v3 CX2 retrieve → private network access control → public anonymous access →
-#   v2 Solr search → v3 Solr search → v2 neighborhood query (SSL context)
+#   v2 Solr search → v3 Solr search → v3 search fq-injection guard →
+#   v2 neighborhood query (SSL context)
 #
-# Exits 0 if all 28 API calls pass, exits 1 on the first failure.
+# Exits 0 if all API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
 
 set -euo pipefail
@@ -31,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=31
+TOTAL_API_CALLS=89
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -87,23 +88,84 @@ api_fail() {
   exit 1
 }
 
+# Poll POST /v3/search/files (as TEST_USER) until the given uuid IS present in the results
+# for the given visibility core, or api_fail after LOAD_TIMEOUT. Args: visibility searchString uuid label
+poll_files_until_present() {
+  local vis="$1" q="$2" uuid="$3" label="$4" elapsed=0 resp http body
+  while true; do
+    resp=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+      -H "Content-Type: application/json" -d "{\"searchString\":\"${q}\"}" \
+      "${BASE_URL}/v3/search/files?visibility=${vis}&start=0&size=25")
+    http=$(echo "${resp}" | tail -1); body=$(echo "${resp}" | head -1)
+    [[ "${http}" == "200" ]] || api_fail "${label}: search visibility=${vis} → HTTP ${http}. Body: ${body:0:300}"
+    echo "${body}" | grep -q "${uuid}" && break
+    [[ ${elapsed} -ge ${LOAD_TIMEOUT} ]] && api_fail "${label}: uuid ${uuid} not found in visibility=${vis} within ${LOAD_TIMEOUT}s. Body: ${body:0:400}"
+    sleep 3; (( elapsed += 3 )) || true
+    echo "  Waiting for ${vis}-nfs Solr index... (${elapsed}s)"
+  done
+}
+
+# Poll until the given uuid is ABSENT from the given visibility core (converges after the
+# old-core soft commit), or api_fail after LOAD_TIMEOUT. Args: visibility searchString uuid label
+poll_files_until_absent() {
+  local vis="$1" q="$2" uuid="$3" label="$4" elapsed=0 resp http body
+  while true; do
+    resp=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+      -H "Content-Type: application/json" -d "{\"searchString\":\"${q}\"}" \
+      "${BASE_URL}/v3/search/files?visibility=${vis}&start=0&size=25")
+    http=$(echo "${resp}" | tail -1); body=$(echo "${resp}" | head -1)
+    [[ "${http}" == "200" ]] || api_fail "${label}: search visibility=${vis} → HTTP ${http}. Body: ${body:0:300}"
+    echo "${body}" | grep -q "${uuid}" || break
+    [[ ${elapsed} -ge ${LOAD_TIMEOUT} ]] && api_fail "${label}: uuid ${uuid} still present in visibility=${vis} after ${LOAD_TIMEOUT}s (stale/orphaned index entry in old core). Body: ${body:0:400}"
+    sleep 3; (( elapsed += 3 )) || true
+    echo "  Waiting for ${vis}-nfs Solr drop to converge... (${elapsed}s)"
+  done
+}
+
+# Assert that a retired group endpoint returns HTTP 501. Always sends valid auth so the
+# request passes the auth filter and reaches the (501-throwing) resource method.
+# Usage: assert_group_501 <METHOD> <URL> [extra curl args...]
+assert_group_501() {
+  local method="$1"; local url="$2"; shift 2
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: ${method} ${url} (expect 501)"
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X "${method}" -u "${TEST_USER}:${TEST_PASS}" "$@" "${url}")
+  if [[ "${code}" == "501" ]]; then
+    api_pass "${method} ${url} → 501 (group feature removed)"
+  else
+    api_fail "${method} ${url} → HTTP ${code} (expected 501)"
+  fi
+}
+
 # ── Cleanup trap ──────────────────────────────────────────────────────────────
+
+_remove_test_containers() {
+  docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
+  docker rm -fv "ndex-pg-corrupt-test" 2>/dev/null || true
+  docker rm -fv "ndex-pg-wipe-test" 2>/dev/null || true
+}
 
 cleanup() {
   [[ -z "${REMOTE_NDEX_URL}" ]] || return 0
   echo ""
   echo -e "${CYAN}=== Cleanup ===${NC}"
-  echo -e "${CYAN}  Removing container '${CONTAINER_NAME}'...${NC}"
-  docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
-
+  _remove_test_containers
+  rm -f "${TMP_CATALINA_TOML:-}"
   if docker inspect "${CONTAINER_NAME}" &>/dev/null; then
     echo -e "  ${RED}WARNING: Container '${CONTAINER_NAME}' still present — manual cleanup may be needed${NC}"
     echo -e "    Run: docker rm -fv ${CONTAINER_NAME}"
   else
-    echo -e "  ${GREEN}✓ Container '${CONTAINER_NAME}' removed${NC}"
+    echo -e "  ${GREEN}✓ Test containers removed${NC}"
   fi
 }
 trap cleanup EXIT
+
+# ── Pre-run cleanup: remove any stale containers from a prior failed run ──────
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  _remove_test_containers
+fi
+
 
 if [[ -n "${REMOTE_NDEX_URL}" ]]; then
   # ── Remote mode: target already-running NDEx ────────────────────────────────
@@ -136,12 +198,17 @@ else
 
   step "Starting ephemeral container"
   docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
+  TMP_CATALINA_TOML=$(mktemp /tmp/ndex-catalina-opts-XXXXXX)
+  printf 'ndex_catalina_opts = "-Xms64m -Xmx256m -XX:+ExitOnOutOfMemoryError"\n' \
+    > "${TMP_CATALINA_TOML}"
   echo "  Running: docker run -d --name ${CONTAINER_NAME} -p 8080:8080 ..."
   docker run -d \
     --name "${CONTAINER_NAME}" \
     -p 8080:8080 \
+    -v "${TMP_CATALINA_TOML}:/tmp/catalina-opts.toml:ro" \
     ndexbio/ndex-rest \
-    --ndex --postgres --keycloak --solr --mailhog
+    --ndex --postgres --keycloak --solr --mailhog \
+    --config /tmp/catalina-opts.toml
   echo "  Container started (ID: $(docker inspect -f '{{.Id}}' "${CONTAINER_NAME}" | cut -c1-12))"
 
   step "Waiting for NDEx to be ready"
@@ -159,6 +226,16 @@ else
     ELAPSED=$((ELAPSED + 5))
   done
   echo "  Container is ready!"
+
+  # Assert ndex_catalina_opts from config.toml reached the Tomcat JVM
+  CAT_JVM_FLAGS=$(docker exec "${CONTAINER_NAME}" bash -c \
+    'cat /proc/$(supervisorctl pid ndex 2>/dev/null)/cmdline 2>/dev/null | tr "\0" "\n"' \
+    2>/dev/null || echo "")
+  if echo "${CAT_JVM_FLAGS}" | grep -q "Xmx256m"; then
+    echo -e "  ${GREEN}✓${NC}: Tomcat JVM contains Xmx256m (ndex_catalina_opts applied)"
+  else
+    api_fail "ndex_catalina_opts: JVM flags missing Xmx256m. Got: '${CAT_JVM_FLAGS}'"
+  fi
 fi
 
 # ── STEP: Create test user ────────────────────────────────────────────────────
@@ -534,6 +611,140 @@ while true; do
 done
 api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
 
+# ── STEP: v3 /search/files neutralizes Solr filter injection (F4) ────────────
+# A crafted accountName that tries to OR-in a match-all clause must be escaped so it
+# cannot widen results past the owner filter. BindingDB (public, confirmed indexed by
+# the previous step) must NOT appear: the escaped accountName is a single literal,
+# non-existent owner. A regression (unescaped value) would collapse the filter to *:*
+# and leak BindingDB. The escaped query must also stay valid Solr syntax (HTTP 200).
+step "Verifying v3 /search/files neutralizes Solr filter injection (accountName)"
+
+INJECT_BODY='{"searchString":"*:*","accountName":"zzz\") OR (*:*) OR (owner:\"zzz"}'
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files (auth, accountName injection, expect 200 + BindingDB absent)"
+INJ_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "${INJECT_BODY}" \
+  "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=10")
+INJ_HTTP=$(echo "${INJ_RESP}" | tail -1)
+INJ_BODY=$(echo "${INJ_RESP}" | head -1)
+if [[ "${INJ_HTTP}" != "200" ]]; then
+  api_fail "POST /v3/search/files (accountName injection, auth) → HTTP ${INJ_HTTP} (expected 200; escaped value must remain valid Solr syntax). Body: ${INJ_BODY:0:300}"
+fi
+if echo "${INJ_BODY}" | grep -q "${V3_UUIDS[0]}"; then
+  api_fail "POST /v3/search/files (accountName injection, auth) → 200 but BindingDB UUID ${V3_UUIDS[0]} leaked — injection widened results to *:* (fq not escaped). Body: ${INJ_BODY:0:400}"
+fi
+api_pass "POST /v3/search/files (accountName injection, auth) → 200 OK, no result widening (fq injection neutralized)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files (anon, accountName injection, expect 200 + BindingDB absent)"
+INJ_ANON_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+  -H "Content-Type: application/json" \
+  -d "${INJECT_BODY}" \
+  "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=10")
+INJ_ANON_HTTP=$(echo "${INJ_ANON_RESP}" | tail -1)
+INJ_ANON_BODY=$(echo "${INJ_ANON_RESP}" | head -1)
+if [[ "${INJ_ANON_HTTP}" != "200" ]]; then
+  api_fail "POST /v3/search/files (accountName injection, anon) → HTTP ${INJ_ANON_HTTP} (expected 200). Body: ${INJ_ANON_BODY:0:300}"
+fi
+if echo "${INJ_ANON_BODY}" | grep -q "${V3_UUIDS[0]}"; then
+  api_fail "POST /v3/search/files (accountName injection, anon) → 200 but BindingDB leaked — injection widened results. Body: ${INJ_ANON_BODY:0:400}"
+fi
+api_pass "POST /v3/search/files (accountName injection, anon) → 200 OK, no result widening"
+
+# ── STEP: Edgeless network search ranking (issue #116) ───────────────────────
+# Upload two networks that share the unique token "EdgelessRankProbe" — one WITH
+# edges, one edgeless (0 edges, but a deliberately STRONGER text match). Without
+# the edgeCount demotion boost the edgeless network would rank first on text
+# relevance; the boost must push the edged network above it.
+
+step "Verifying edgeless networks are demoted in search ranking (issue #116)"
+
+RANK_DIR="${FIXTURES_DIR}/ranking"
+RANK_EDGED_UUID=""
+RANK_EDGELESS_UUID=""
+
+for RANK_FILE in "${RANK_DIR}/edged-rank-probe.cx2" "${RANK_DIR}/edgeless-rank-probe.cx2"; do
+  RANK_LABEL="$(basename "${RANK_FILE}")"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks?visibility=PUBLIC  [${RANK_LABEL}]"
+
+  RANK_UPLOAD=$(curl -s -w "\n%{http_code}" -X POST \
+    -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    --data-binary "@${RANK_FILE}" \
+    "${BASE_URL}/v3/networks?visibility=PUBLIC")
+  RANK_HTTP=$(echo "${RANK_UPLOAD}" | tail -1)
+  RANK_BODY=$(echo "${RANK_UPLOAD}" | head -1)
+
+  if [[ "${RANK_HTTP}" != "201" ]]; then
+    api_fail "POST /v3/networks → HTTP ${RANK_HTTP} for '${RANK_LABEL}'. Body: ${RANK_BODY:0:300}"
+  fi
+  RANK_UUID=$(echo "${RANK_BODY}" | grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+  if [[ "${RANK_LABEL}" == "edged-rank-probe.cx2" ]]; then
+    RANK_EDGED_UUID="${RANK_UUID}"
+  else
+    RANK_EDGELESS_UUID="${RANK_UUID}"
+  fi
+  api_pass "POST /v3/networks → 201 Created (UUID: ${RANK_UUID}, ${RANK_LABEL})"
+done
+
+# Wait until both rank-probe networks finish processing.
+for UUID in "${RANK_EDGED_UUID}" "${RANK_EDGELESS_UUID}"; do
+  ELAPSED=0
+  while true; do
+    SUMMARY_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${UUID}/summary")
+    if echo "${SUMMARY_BODY}" | grep -q '"completed":true'; then
+      break
+    fi
+    if [[ ${ELAPSED} -ge ${LOAD_TIMEOUT} ]]; then
+      api_fail "rank-probe network ${UUID} did not complete within ${LOAD_TIMEOUT}s. Last: ${SUMMARY_BODY:0:300}"
+    fi
+    sleep 5; (( ELAPSED += 5 )) || true
+    echo "  Waiting for rank-probe network ${UUID}... (${ELAPSED}s)"
+  done
+done
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (searchString=EdgelessRankProbe)"
+
+# Poll until both networks are indexed, then assert the edged network ranks first.
+ELAPSED=0
+while true; do
+  RANK_SEARCH=$(curl -s -w "\n%{http_code}" -X POST \
+    -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d '{"searchString":"EdgelessRankProbe"}' \
+    "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=10")
+  RANK_SEARCH_HTTP=$(echo "${RANK_SEARCH}" | tail -1)
+  RANK_SEARCH_BODY=$(echo "${RANK_SEARCH}" | head -1)
+  if [[ "${RANK_SEARCH_HTTP}" != "200" ]]; then
+    api_fail "POST /v3/search/files (EdgelessRankProbe) → HTTP ${RANK_SEARCH_HTTP}. Body: ${RANK_SEARCH_BODY:0:300}"
+  fi
+  # Ordered list of result UUIDs (rank order is preserved by the search provider).
+  # `|| true` keeps a "no match yet" grep (exit 1) from tripping `set -e`/pipefail
+  # while the just-uploaded networks are still being indexed.
+  RANK_ORDER=$(echo "${RANK_SEARCH_BODY}" | grep -oE '"uuid":"[^"]*"' | cut -d'"' -f4 || true)
+  EDGED_POS=$(echo "${RANK_ORDER}" | grep -n "^${RANK_EDGED_UUID}$" | head -1 | cut -d: -f1 || true)
+  EDGELESS_POS=$(echo "${RANK_ORDER}" | grep -n "^${RANK_EDGELESS_UUID}$" | head -1 | cut -d: -f1 || true)
+  if [[ -n "${EDGED_POS}" && -n "${EDGELESS_POS}" ]]; then
+    break
+  fi
+  if [[ ${ELAPSED} -ge ${LOAD_TIMEOUT} ]]; then
+    api_fail "Both rank-probe networks not found in search within ${LOAD_TIMEOUT}s. Body: ${RANK_SEARCH_BODY:0:500}"
+  fi
+  sleep 3; (( ELAPSED += 3 )) || true
+  echo "  Waiting for rank-probe networks to index... (${ELAPSED}s)"
+done
+
+if [[ ${EDGED_POS} -lt ${EDGELESS_POS} ]]; then
+  api_pass "Edged network (pos ${EDGED_POS}) ranks above edgeless network (pos ${EDGELESS_POS}) — edgeless demotion confirmed"
+else
+  api_fail "Edgeless network (pos ${EDGELESS_POS}) ranked at/above edged network (pos ${EDGED_POS}) — edgeCount boost not applied"
+fi
+
 # ── STEP: Neighborhood query — SSL context fix (local container only) ─────────
 
 if [[ -z "${REMOTE_NDEX_URL}" ]]; then
@@ -556,7 +767,7 @@ http.createServer((req, res) => {
 }).listen(8284);
 "
 
-  docker exec "${CONTAINER_NAME}" supervisorctl -c /tmp/supervisord.conf restart ndex
+  docker exec "${CONTAINER_NAME}" supervisorctl restart ndex
 
   echo "  Tomcat restart issued — waiting for NDEx to become responsive..."
   MAX_WAIT=90
@@ -607,6 +818,115 @@ http.createServer((req, res) => {
     api_fail "POST /v3/search/networks/${QUERY_UUID_V3}/query → HTTP ${QUERY_V3_HTTP}. Body: ${QUERY_V3_BODY:0:400}"
   fi
 fi
+
+# ── STEP: Reindex endpoint clears prior index error ───────────────────────────
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "Reindex endpoint clears prior index error from network"
+
+  # Inject an index-failure error directly into the DB (simulates a prior failed reindex)
+  docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
+      -c \"UPDATE network SET error = 'Failed to create Index on network. Cause: test' WHERE \\\"UUID\\\" = '${V3_UUIDS[0]}'\"
+  "
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_UUIDS[0]}/summary (expect errorMessage set)"
+  PRE_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/networks/${V3_UUIDS[0]}/summary")
+  PRE_HTTP=$(echo "${PRE_RESP}" | tail -1)
+  PRE_BODY=$(echo "${PRE_RESP}" | head -1)
+  if [[ "${PRE_HTTP}" == "200" ]] && echo "${PRE_BODY}" | grep -q "Failed to create Index"; then
+    api_pass "GET /v3/networks/${V3_UUIDS[0]}/summary → 200 OK, errorMessage contains index failure text"
+  else
+    api_fail "GET /v3/networks/${V3_UUIDS[0]}/summary → HTTP ${PRE_HTTP}. Expected errorMessage with index failure. Body: ${PRE_BODY:0:400}"
+  fi
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/admin/reindex-v3?password=changeme (expect 200)"
+  REINDEX_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+    "${BASE_URL}/v3/admin/reindex-v3?password=changeme")
+  if [[ "${REINDEX_HTTP}" == "200" ]]; then
+    api_pass "GET /v3/admin/reindex-v3 → 200 OK"
+  else
+    api_fail "GET /v3/admin/reindex-v3 → HTTP ${REINDEX_HTTP} (expected 200)"
+  fi
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_UUIDS[0]}/summary (expect errorMessage cleared)"
+  POST_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/networks/${V3_UUIDS[0]}/summary")
+  POST_HTTP=$(echo "${POST_RESP}" | tail -1)
+  POST_BODY=$(echo "${POST_RESP}" | head -1)
+  if [[ "${POST_HTTP}" == "200" ]] && ! echo "${POST_BODY}" | grep -q "Failed to create Index"; then
+    api_pass "GET /v3/networks/${V3_UUIDS[0]}/summary → 200 OK, errorMessage cleared after successful reindex"
+  else
+    api_fail "GET /v3/networks/${V3_UUIDS[0]}/summary → HTTP ${POST_HTTP}. errorMessage was not cleared. Body: ${POST_BODY:0:400}"
+  fi
+fi
+
+# ── STEP: unlist-public-none converts PUBLIC/NONE networks to UNLISTED ────────
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "SolrIndexBuilder unlist-public-none converts PUBLIC+NONE networks to UNLISTED"
+
+  # Force the BindingDB network to solr_idx_lvl='NONE' so it is a candidate.
+  docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
+      -c \"UPDATE network SET solr_idx_lvl = 'NONE' WHERE \\\"UUID\\\" = '${V3_PUB_UUID}'\"
+  "
+
+  docker exec "${CONTAINER_NAME}" bash -c "
+    ndexConfigurationPath=/apps/ndex/config/ndex.properties \
+    java -cp '/usr/local/tomcat/webapps/ROOT/WEB-INF/lib/*:/usr/local/tomcat/webapps/ROOT/WEB-INF/classes' \
+      org.ndexbio.common.solr.SolrIndexBuilder unlist-public-none
+  "
+
+  # Assert DB row was flipped to UNLISTED.
+  DB_VISIBILITY=$(docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex -tA \
+      -c \"SELECT visibility FROM network WHERE \\\"UUID\\\" = '${V3_PUB_UUID}'\"
+  ")
+  if [[ "${DB_VISIBILITY}" == "UNLISTED" ]]; then
+    echo "  DB check passed: visibility='UNLISTED' for network ${V3_PUB_UUID}"
+  else
+    api_fail "DB check failed: expected visibility='UNLISTED' but got '${DB_VISIBILITY}' for network ${V3_PUB_UUID}"
+  fi
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PUB_UUID}/summary (auth, expect UNLISTED)"
+  SUMM_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/networks/${V3_PUB_UUID}/summary")
+  SUMM_HTTP=$(echo "${SUMM_RESP}" | tail -1)
+  SUMM_BODY=$(echo "${SUMM_RESP}" | head -1)
+  if [[ "${SUMM_HTTP}" == "200" ]] && echo "${SUMM_BODY}" | grep -q '"UNLISTED"'; then
+    api_pass "GET /v3/networks/${V3_PUB_UUID}/summary (auth) → 200 OK, visibility=UNLISTED"
+  else
+    api_fail "GET /v3/networks/${V3_PUB_UUID}/summary (auth) → HTTP ${SUMM_HTTP}. Expected visibility=UNLISTED. Body: ${SUMM_BODY:0:400}"
+  fi
+
+  # Verify Solr was re-indexed: an anonymous PUBLIC search must no longer find this UUID.
+  # Authenticated owners still see their own UNLISTED networks (userAdmin filter), so
+  # anonymous is the right caller — it uses the pure "exclude UNLISTED" Solr filter.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (anon, expect UUID absent — Solr doc updated to UNLISTED)"
+  SEARCH_RESP=$(curl -s -w "\n%{http_code}" \
+    -X POST -H "Content-Type: application/json" \
+    -d "{\"searchString\":\"BindingDB\"}" \
+    "${BASE_URL}/v3/search/files?visibility=PUBLIC")
+  SEARCH_HTTP=$(echo "${SEARCH_RESP}" | tail -1)
+  SEARCH_BODY=$(echo "${SEARCH_RESP}" | head -1)
+  if [[ "${SEARCH_HTTP}" == "200" ]] && ! echo "${SEARCH_BODY}" | grep -q "${V3_PUB_UUID}"; then
+    api_pass "POST /v3/search/files?visibility=PUBLIC (anon) → 200 OK, UUID absent (Solr doc updated to UNLISTED)"
+  else
+    api_fail "POST /v3/search/files?visibility=PUBLIC (anon) → HTTP ${SEARCH_HTTP}, UUID still present (Solr re-index did not run or visibility field not updated). Body: ${SEARCH_BODY:0:400}"
+  fi
 
 # ── STEP: Readability cardinality regression on batch network summary ───────
 
@@ -663,8 +983,355 @@ if [[ "${AUTH_ROW_COUNT}" == "1" ]] && echo "${BATCH_BODY}" | grep -q "${V2_UUID
 else
   api_fail "POST /v2/batch/network/summary (auth ${TEST_USER2}) returned ${AUTH_ROW_COUNT} rows or wrong UUIDs. Body: ${BATCH_BODY:0:500}"
 fi
+fi
+
+# ── STEP: NDEx group feature removed — every group endpoint returns HTTP 501 ──
+
+step "Group feature removed: group endpoints return 501; surviving user paths still work"
+
+GROUP_DUMMY_UUID="00000000-0000-0000-0000-000000000001"
+
+# /v2/group resource — all methods retired
+assert_group_501 POST   "${BASE_URL}/v2/group" -H "Content-Type: application/json" -d '{}'
+assert_group_501 GET    "${BASE_URL}/v2/group/${GROUP_DUMMY_UUID}"
+assert_group_501 GET    "${BASE_URL}/v2/group/${GROUP_DUMMY_UUID}/membership"
+assert_group_501 GET    "${BASE_URL}/v2/group/${GROUP_DUMMY_UUID}/permission"
+assert_group_501 POST   "${BASE_URL}/v2/group/${GROUP_DUMMY_UUID}/permissionrequest" -H "Content-Type: application/json" -d '{}'
+
+# v1 /group resource
+assert_group_501 GET    "${BASE_URL}/group/${GROUP_DUMMY_UUID}"
+
+# group search + batch
+assert_group_501 POST   "${BASE_URL}/v2/search/group" -H "Content-Type: application/json" -d '{"searchString":"x"}'
+assert_group_501 POST   "${BASE_URL}/v2/batch/group" -H "Content-Type: application/json" -d "[\"${GROUP_DUMMY_UUID}\"]"
+
+# user-side group membership / JoinGroup endpoints
+assert_group_501 GET    "${BASE_URL}/v2/user/${GROUP_DUMMY_UUID}/membership"
+assert_group_501 POST   "${BASE_URL}/v2/user/${GROUP_DUMMY_UUID}/membershiprequest" -H "Content-Type: application/json" -d '{}'
+assert_group_501 GET    "${BASE_URL}/user/${GROUP_DUMMY_UUID}/group/READ/0/100"
+
+# mixed network-permission endpoints: the group branch is retired (501), user branch survives
+assert_group_501 GET    "${BASE_URL}/v2/network/${V2_PRIV_UUID}/permission?type=group"
+assert_group_501 DELETE "${BASE_URL}/v2/network/${V2_PRIV_UUID}/permission?groupid=${GROUP_DUMMY_UUID}"
+
+# regression: the user permission branch on the same endpoint still works for the owner
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}/permission?type=user (auth owner, expect 200)"
+PERM_USER_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v2/network/${V2_PRIV_UUID}/permission?type=user")
+if [[ "${PERM_USER_HTTP}" == "200" ]]; then
+  api_pass "GET /v2/network/${V2_PRIV_UUID}/permission?type=user (owner) → 200 (user permission path intact)"
+else
+  api_fail "GET /v2/network/${V2_PRIV_UUID}/permission?type=user (owner) → HTTP ${PERM_USER_HTTP} (expected 200)"
+fi
+
+# ── STEP: Folder list/count per-child visibility (F10) ───────────────────────
+# A folder's visibility is independent of its children's. A folder the caller can
+# read must NOT leak the metadata of PRIVATE children they cannot see, and /count
+# must match /list. A valid folder access key grants the folder's full contents.
+step "Folder list/count enforces per-child visibility (F10, anonymous)"
+
+# Create a folder owned by TEST_USER; put one PUBLIC and one PRIVATE network in it.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (create test folder)"
+F10_FOLDER_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"F10 visibility test"}' \
+  "${BASE_URL}/v3/files/folders/")
+F10_FOLDER_HTTP=$(echo "${F10_FOLDER_RESP}" | tail -1)
+F10_FOLDER_BODY=$(echo "${F10_FOLDER_RESP}" | head -1)
+if [[ "${F10_FOLDER_HTTP}" != "201" ]]; then
+  api_fail "POST /v3/files/folders/ → HTTP ${F10_FOLDER_HTTP} (expected 201). Body: ${F10_FOLDER_BODY:0:300}"
+fi
+F10_FOLDER_ID=$(echo "${F10_FOLDER_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+if [[ -z "${F10_FOLDER_ID}" ]]; then
+  api_fail "Could not parse folder UUID from create response. Body: ${F10_FOLDER_BODY:0:300}"
+fi
+api_pass "POST /v3/files/folders/ → 201 Created (folder ${F10_FOLDER_ID})"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/setvisibility (folder → PUBLIC)"
+F10_VIS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"visibility\":\"PUBLIC\",\"files\":{\"${F10_FOLDER_ID}\":\"FOLDER\"}}" \
+  "${BASE_URL}/v3/batch/files/setvisibility")
+[[ "${F10_VIS_HTTP}" == "200" || "${F10_VIS_HTTP}" == "204" ]] \
+  || api_fail "POST /v3/files/setvisibility (PUBLIC) → HTTP ${F10_VIS_HTTP}"
+api_pass "Folder set PUBLIC"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks/move (public + private into folder)"
+F10_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"targetFolder\":\"${F10_FOLDER_ID}\",\"networks\":[\"${V3_PUB_UUID}\",\"${V3_PRIV_UUID}\"]}" \
+  "${BASE_URL}/v3/batch/networks/move")
+[[ "${F10_MOVE_HTTP}" == "200" || "${F10_MOVE_HTTP}" == "204" ]] \
+  || api_fail "POST /v3/networks/move → HTTP ${F10_MOVE_HTTP}"
+api_pass "Moved PUBLIC (${V3_PUB_UUID}) + PRIVATE (${V3_PRIV_UUID}) networks into folder"
+
+# ---- Phase A: PUBLIC folder — an ANONYMOUS caller sees only the public child ----
+# This step runs BEFORE the AUTHENTICATED_USER_ONLY=true step below, so the server still permits
+# anonymous access to @PermitAll endpoints — exercising the real public-server leak scenario.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (anon) — PRIVATE child absent, network=1"
+F10_ANON_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+F10_ANON_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+echo "${F10_ANON_LIST}" | grep -q "${V3_PRIV_UUID}" \
+  && api_fail "anon /list LEAKED private child ${V3_PRIV_UUID}. Body: ${F10_ANON_LIST:0:400}"
+{ echo "${F10_ANON_LIST}" | grep -q "${V3_PUB_UUID}" && [[ "${F10_ANON_NET}" == "1" ]]; } \
+  || api_fail "anon view wrong: net=${F10_ANON_NET}, list=${F10_ANON_LIST:0:400}"
+api_pass "anon → /list PUBLIC child only (PRIVATE absent); /count network=1"
+
+# An AUTHENTICATED non-owner must also see only the public child (created anonymously here — the
+# server is still in default mode; the AUTHENTICATED_USER_ONLY step runs later).
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (create non-owner ${TEST_USER2})"
+U2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/v2/user" \
+  -H "Content-Type: application/json" \
+  -d "{\"userName\":\"${TEST_USER2}\",\"password\":\"${TEST_PASS2}\",\"emailAddress\":\"${TEST_EMAIL2}\",\"firstName\":\"NDEx\",\"lastName\":\"Test2\"}")
+[[ "${U2_HTTP}" == "201" || "${U2_HTTP}" == "409" ]] || api_fail "POST /v2/user (${TEST_USER2}) → HTTP ${U2_HTTP}"
+api_pass "non-owner user ${TEST_USER2} ready"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (authenticated non-owner) — PRIVATE child absent, network=1"
+F10_U2_LIST=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+F10_U2_NET=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+echo "${F10_U2_LIST}" | grep -q "${V3_PRIV_UUID}" \
+  && api_fail "authenticated non-owner /list LEAKED private child ${V3_PRIV_UUID}. Body: ${F10_U2_LIST:0:400}"
+{ echo "${F10_U2_LIST}" | grep -q "${V3_PUB_UUID}" && [[ "${F10_U2_NET}" == "1" ]]; } \
+  || api_fail "authenticated non-owner view wrong: net=${F10_U2_NET}, list=${F10_U2_LIST:0:400}"
+api_pass "authenticated non-owner → /list PUBLIC child only (PRIVATE absent); /count network=1"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (owner) — both children, network=2"
+F10_OWNER_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+F10_OWNER_NET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+{ echo "${F10_OWNER_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_OWNER_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_OWNER_NET}" == "2" ]]; } \
+  || api_fail "owner view wrong: net=${F10_OWNER_NET}, list=${F10_OWNER_LIST:0:400}"
+api_pass "owner → /list both children; /count network=2"
+
+# A valid access key must return ALL children even when the folder is independently readable
+# (PUBLIC) — the key takes precedence over per-child filtering.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/sharing/share (enable folder access key)"
+F10_SHARE_BODY=$(curl -s -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"files\":{\"${F10_FOLDER_ID}\":\"FOLDER\"}}" \
+  "${BASE_URL}/v3/files/sharing/share")
+F10_KEY=$(echo "${F10_SHARE_BODY}" | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/')
+[[ -n "${F10_KEY}" && "${F10_KEY}" != "${F10_SHARE_BODY}" ]] || api_fail "Could not parse access key. Body: ${F10_SHARE_BODY:0:300}"
+api_pass "Folder access key enabled"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey on PUBLIC (readable) folder (anon) — ALL children, network=2"
+F10_PUBKEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
+F10_PUBKEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+{ echo "${F10_PUBKEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_PUBKEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_PUBKEY_NET}" == "2" ]]; } \
+  || api_fail "access-key precedence on readable folder wrong: net=${F10_PUBKEY_NET}, list=${F10_PUBKEY_LIST:0:400}"
+api_pass "anon + access key on PUBLIC folder → /list all children (incl. PRIVATE); /count network=2 (key precedence)"
+
+# ---- Phase B: PRIVATE folder + access key — key grants ALL contents ----
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/setvisibility (folder → PRIVATE)"
+F10_VIS2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"visibility\":\"PRIVATE\",\"files\":{\"${F10_FOLDER_ID}\":\"FOLDER\"}}" \
+  "${BASE_URL}/v3/batch/files/setvisibility")
+[[ "${F10_VIS2_HTTP}" == "200" || "${F10_VIS2_HTTP}" == "204" ]] \
+  || api_fail "POST /v3/files/setvisibility (PRIVATE) → HTTP ${F10_VIS2_HTTP}"
+api_pass "Folder set PRIVATE"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (anon, no key) — PRIVATE folder must be 401"
+F10_NOKEY_LIST_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+F10_NOKEY_COUNT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count")
+{ [[ "${F10_NOKEY_LIST_HTTP}" == "401" ]] && [[ "${F10_NOKEY_COUNT_HTTP}" == "401" ]]; } \
+  || api_fail "anon on PRIVATE folder (no key) → list=${F10_NOKEY_LIST_HTTP}, count=${F10_NOKEY_COUNT_HTTP} (expected 401/401)"
+api_pass "anon /list + /count on PRIVATE folder (no key) → 401"
+
+# The access key was enabled in Phase A (while PUBLIC); it still grants full contents now that the
+# folder is PRIVATE.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — ALL children, network=2"
+F10_KEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
+F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+{ echo "${F10_KEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_KEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_KEY_NET}" == "2" ]]; } \
+  || api_fail "access-key view wrong: net=${F10_KEY_NET}, list=${F10_KEY_LIST:0:400}"
+api_pass "anon + access key → /list all children (incl. PRIVATE); /count network=2"
+
+# ── STEP: Folder/Shortcut visibility — write path accepts it, read path reports it ──
+# Runs while anonymous access is still allowed (all calls here are authenticated as
+# TEST_USER, so they also work after the AUTHENTICATED_USER_ONLY flip below).
+step "Folder/Shortcut visibility: create/update accept it, reads report it"
+
+# --- Folder: write path accepts visibility on create ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (create with visibility=PUBLIC)"
+VIS_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"vis-folder","visibility":"PUBLIC"}' \
+  "${BASE_URL}/v3/files/folders/")
+VIS_F_HTTP=$(echo "${VIS_F_RESP}" | tail -1); VIS_F_BODY=$(echo "${VIS_F_RESP}" | head -1)
+[[ "${VIS_F_HTTP}" == "201" ]] || api_fail "create folder (visibility=PUBLIC) → HTTP ${VIS_F_HTTP}. Body: ${VIS_F_BODY:0:300}"
+VIS_F_ID=$(echo "${VIS_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${VIS_F_ID}" ]] || api_fail "no uuid in create-folder response. Body: ${VIS_F_BODY:0:300}"
+api_pass "POST folder with visibility=PUBLIC → 201 (folder ${VIS_F_ID})"
+
+# --- Folder: read path populates visibility (GET {id} + list-mine) ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (visibility populated)"
+VIS_F_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_F_ID}")
+echo "${VIS_F_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PUBLIC"' \
+  || api_fail "GET folder did not report visibility=PUBLIC. Body: ${VIS_F_GET:0:300}"
+api_pass "GET folder reports visibility=PUBLIC"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/ (list-mine reports visibility)"
+VIS_F_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/")
+echo "${VIS_F_LIST}" | grep -q '"visibility"' \
+  || api_fail "list-mine folders did not report a visibility field. Body: ${VIS_F_LIST:0:400}"
+api_pass "GET list-mine folders reports visibility"
+
+# --- Folder: omitted visibility defaults to PRIVATE ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (no visibility → default PRIVATE)"
+VIS_FD_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"name":"vis-folder-default"}' \
+  "${BASE_URL}/v3/files/folders/")
+VIS_FD_HTTP=$(echo "${VIS_FD_RESP}" | tail -1); VIS_FD_BODY=$(echo "${VIS_FD_RESP}" | head -1)
+[[ "${VIS_FD_HTTP}" == "201" ]] || api_fail "create folder (no visibility) → HTTP ${VIS_FD_HTTP}"
+VIS_FD_ID=$(echo "${VIS_FD_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (default visibility=PRIVATE)"
+VIS_FD_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_FD_ID}")
+echo "${VIS_FD_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"' \
+  || api_fail "folder created without visibility did not default to PRIVATE. Body: ${VIS_FD_GET:0:300}"
+api_pass "folder without visibility defaults to PRIVATE"
+
+# --- Folder: update accepts visibility ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/folders/{id} (visibility=UNLISTED)"
+VIS_F_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"visibility":"UNLISTED"}' \
+  "${BASE_URL}/v3/files/folders/${VIS_F_ID}")
+[[ "${VIS_F_PUT}" == "204" || "${VIS_F_PUT}" == "200" ]] || api_fail "PUT folder visibility → HTTP ${VIS_F_PUT}"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (visibility now UNLISTED)"
+VIS_F_GET2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_F_ID}")
+echo "${VIS_F_GET2}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"UNLISTED"' \
+  || api_fail "folder update did not change visibility to UNLISTED. Body: ${VIS_F_GET2:0:300}"
+api_pass "PUT folder visibility=UNLISTED applied; GET reports UNLISTED"
+
+# --- Shortcut: write path accepts visibility on create (target the vis-folder) ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (visibility=PUBLIC)"
+VIS_S_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"vis-shortcut\",\"target\":\"${VIS_F_ID}\",\"targetType\":\"FOLDER\",\"visibility\":\"PUBLIC\"}" \
+  "${BASE_URL}/v3/files/shortcuts/")
+VIS_S_HTTP=$(echo "${VIS_S_RESP}" | tail -1); VIS_S_BODY=$(echo "${VIS_S_RESP}" | head -1)
+[[ "${VIS_S_HTTP}" == "201" ]] || api_fail "create shortcut (visibility=PUBLIC) → HTTP ${VIS_S_HTTP}. Body: ${VIS_S_BODY:0:300}"
+VIS_S_ID=$(echo "${VIS_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${VIS_S_ID}" ]] || api_fail "no uuid in create-shortcut response. Body: ${VIS_S_BODY:0:300}"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/shortcuts/{id} (visibility populated)"
+VIS_S_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/shortcuts/${VIS_S_ID}")
+echo "${VIS_S_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PUBLIC"' \
+  || api_fail "GET shortcut did not report visibility=PUBLIC. Body: ${VIS_S_GET:0:300}"
+api_pass "POST shortcut visibility=PUBLIC → 201; GET reports PUBLIC (shortcut ${VIS_S_ID})"
+
+# --- Shortcut: update accepts visibility ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/shortcuts/{id} (visibility=PRIVATE)"
+VIS_S_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"visibility":"PRIVATE"}' \
+  "${BASE_URL}/v3/files/shortcuts/${VIS_S_ID}")
+[[ "${VIS_S_PUT}" == "204" || "${VIS_S_PUT}" == "200" ]] || api_fail "PUT shortcut visibility → HTTP ${VIS_S_PUT}"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/shortcuts/{id} (visibility now PRIVATE)"
+VIS_S_GET2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/shortcuts/${VIS_S_ID}")
+echo "${VIS_S_GET2}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"' \
+  || api_fail "shortcut update did not change visibility to PRIVATE. Body: ${VIS_S_GET2:0:300}"
+api_pass "PUT shortcut visibility=PRIVATE applied; GET reports PRIVATE"
+
+# ── STEP: Visibility change fully reindexes in Solr (drop from old core, add to new) ──
+# Proves the reviewer's concern on PR #129: a PRIVATE→PUBLIC update moves the entry between
+# the private-nfs and public-nfs cores with no orphaned copy left in the old core. Search is
+# async (soft commit ≤5s), so each assertion polls until convergence.
+step "Visibility change reindexes folder/shortcut across Solr cores (no orphan)"
+
+VM_FOLDER_NAME="vismovefolder${RANDOM}${RANDOM}"
+VM_SHORTCUT_NAME="vismoveshortcut${RANDOM}${RANDOM}"
+
+# --- Folder: create PRIVATE, confirm indexed in private-nfs ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (create PRIVATE for reindex-move test)"
+VM_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d "{\"name\":\"${VM_FOLDER_NAME}\"}" \
+  "${BASE_URL}/v3/files/folders/")
+VM_F_HTTP=$(echo "${VM_F_RESP}" | tail -1); VM_F_BODY=$(echo "${VM_F_RESP}" | head -1)
+[[ "${VM_F_HTTP}" == "201" ]] || api_fail "create move-test folder → HTTP ${VM_F_HTTP}. Body: ${VM_F_BODY:0:300}"
+VM_F_ID=$(echo "${VM_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${VM_F_ID}" ]] || api_fail "no uuid in move-test folder create body. Body: ${VM_F_BODY:0:300}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (folder indexed in private-nfs)"
+poll_files_until_present "PRIVATE" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder pre-move"
+api_pass "folder ${VM_F_ID} indexed under PRIVATE (private-nfs)"
+
+# --- Folder: flip to PUBLIC, confirm moved to public-nfs and dropped from private-nfs ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/folders/{id} visibility=PUBLIC"
+VM_F_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"visibility":"PUBLIC"}' \
+  "${BASE_URL}/v3/files/folders/${VM_F_ID}")
+[[ "${VM_F_PUT}" == "204" || "${VM_F_PUT}" == "200" ]] || api_fail "PUT move-test folder visibility → HTTP ${VM_F_PUT}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PUBLIC (folder now in public-nfs)"
+poll_files_until_present "PUBLIC" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder post-move (new core)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (folder dropped from private-nfs)"
+poll_files_until_absent "PRIVATE" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder post-move (old core)"
+api_pass "folder visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
+
+# --- Shortcut: create PRIVATE (target the move-test folder), confirm indexed in private-nfs ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (create PRIVATE for reindex-move test)"
+VM_S_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"${VM_SHORTCUT_NAME}\",\"target\":\"${VM_F_ID}\",\"targetType\":\"FOLDER\"}" \
+  "${BASE_URL}/v3/files/shortcuts/")
+VM_S_HTTP=$(echo "${VM_S_RESP}" | tail -1); VM_S_BODY=$(echo "${VM_S_RESP}" | head -1)
+[[ "${VM_S_HTTP}" == "201" ]] || api_fail "create move-test shortcut → HTTP ${VM_S_HTTP}. Body: ${VM_S_BODY:0:300}"
+VM_S_ID=$(echo "${VM_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${VM_S_ID}" ]] || api_fail "no uuid in move-test shortcut create body. Body: ${VM_S_BODY:0:300}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (shortcut indexed in private-nfs)"
+poll_files_until_present "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut pre-move"
+api_pass "shortcut ${VM_S_ID} indexed under PRIVATE (private-nfs)"
+
+# --- Shortcut: flip to PUBLIC, confirm moved to public-nfs and dropped from private-nfs ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/shortcuts/{id} visibility=PUBLIC"
+VM_S_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"visibility":"PUBLIC"}' \
+  "${BASE_URL}/v3/files/shortcuts/${VM_S_ID}")
+[[ "${VM_S_PUT}" == "204" || "${VM_S_PUT}" == "200" ]] || api_fail "PUT move-test shortcut visibility → HTTP ${VM_S_PUT}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PUBLIC (shortcut now in public-nfs)"
+poll_files_until_present "PUBLIC" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (new core)"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (shortcut dropped from private-nfs)"
+poll_files_until_absent "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (old core)"
+api_pass "shortcut visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
 
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────
+# NOTE: this permanently flips the server to AUTHENTICATED_USER_ONLY=true (appends to
+# ndex.properties + restarts Tomcat), so it must run AFTER any step that needs anonymous
+# access (e.g. the F10 folder-visibility step above).
 
 if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   step "Verifying AUTHENTICATED_USER_ONLY=true blocks anonymous POST /v2/user"
@@ -672,7 +1339,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   echo "  Injecting AUTHENTICATED_USER_ONLY=true into ndex.properties and restarting Tomcat..."
   docker exec "${CONTAINER_NAME}" bash -c \
     "echo 'AUTHENTICATED_USER_ONLY=true' >> /apps/ndex/config/ndex.properties"
-  docker exec "${CONTAINER_NAME}" supervisorctl -c /tmp/supervisord.conf restart ndex
+  docker exec "${CONTAINER_NAME}" supervisorctl restart ndex
 
   echo "  Tomcat restart issued — waiting for NDEx to become responsive..."
   MAX_WAIT=90
@@ -710,6 +1377,123 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     api_pass "POST /v2/user (auth) → ${AUTH_CREATE_HTTP} (201=new user created, 409=user already exists; authenticated caller works with AUTHENTICATED_USER_ONLY=true)"
   else
     api_fail "POST /v2/user (auth) → HTTP ${AUTH_CREATE_HTTP} (expected 201 or 409 — endpoint must work for authenticated users)"
+  fi
+fi
+
+# ── STEP: Postgres SIGKILL → crash recovery ───────────────────────────────────
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "PostgreSQL resilience: SIGKILL → crash recovery (Attempt 1)"
+
+  docker kill "${CONTAINER_NAME}"
+  echo "  Container sent SIGKILL — restarting..."
+  docker start "${CONTAINER_NAME}"
+
+  # Poll until NDEx HTTP endpoint responds
+  PG_SIGKILL_ELAPSED=0
+  until curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/user" \
+        | grep -qE '^[2-9][0-9]{2}$|^401$|^400$'; do
+    if [[ ${PG_SIGKILL_ELAPSED} -ge 180 ]]; then
+      api_fail "Container did not recover within 180s after SIGKILL"
+    fi
+    sleep 5; PG_SIGKILL_ELAPSED=$((PG_SIGKILL_ELAPSED + 5))
+    echo -e "  ${CYAN}Waiting for NDEx to respond... (${PG_SIGKILL_ELAPSED}s)${NC}"
+  done
+
+  CORRUPTION_LOG=$(docker exec "${CONTAINER_NAME}" bash -c \
+    "cat /apps/postgres/corruption.log 2>/dev/null || echo ''")
+  if [[ -n "${CORRUPTION_LOG}" ]]; then
+    echo "  WARN: unexpected corruption log entry after SIGKILL: ${CORRUPTION_LOG}" >&2
+  else
+    echo "  Corruption log is empty — crash recovery was transparent (no data corruption)"
+  fi
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /user/authenticate (after SIGKILL restart, expect 200)"
+  SIGKILL_AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+    -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/user/authenticate")
+  if [[ "${SIGKILL_AUTH_HTTP}" == "200" ]]; then
+    api_pass "GET /user/authenticate → 200 OK (postgres crash-recovered from SIGKILL, data intact)"
+  else
+    api_fail "GET /user/authenticate → HTTP ${SIGKILL_AUTH_HTTP} (expected 200 after SIGKILL crash recovery)"
+  fi
+fi
+
+# ── STEP: Corrupt PGDATA + flag=false → container exits ──────────────────────
+# Fixture: docker/test/fixtures/pg-corrupt-state/ — just .initialized sentinel,
+# no cluster files. Simulates worst-case: PGDATA claims initialized but is
+# unrecoverable. Without --config, reset_data_when_corrupt defaults to false
+# → container must exit with a diagnostic message.
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "PostgreSQL resilience: corrupt PGDATA + reset_data_when_corrupt=false → container stops"
+
+  TMP_PG_B=$(mktemp -d /tmp/pg-corrupt-XXXX)
+  cp -r "${SCRIPT_DIR}/fixtures/pg-corrupt-state/." "${TMP_PG_B}/"
+
+  docker run -d --name ndex-pg-corrupt-test \
+    -v "${TMP_PG_B}:/apps/postgres/data" \
+    ndexbio/ndex-rest --postgres
+
+  # All three recovery attempts fail fast; container should exit within 45s
+  PG_CORRUPT_ELAPSED=0
+  while [[ ${PG_CORRUPT_ELAPSED} -lt 45 ]]; do
+    PG_CORRUPT_RUNNING=$(docker inspect -f '{{.State.Running}}' ndex-pg-corrupt-test 2>/dev/null || echo false)
+    [[ "${PG_CORRUPT_RUNNING}" == "false" ]] && break
+    sleep 3; PG_CORRUPT_ELAPSED=$((PG_CORRUPT_ELAPSED + 3))
+  done
+
+  PG_CORRUPT_RUNNING=$(docker inspect -f '{{.State.Running}}' ndex-pg-corrupt-test 2>/dev/null || echo false)
+  PG_CORRUPT_LOGS=$(docker logs ndex-pg-corrupt-test 2>&1 | tail -50)
+  docker rm -fv ndex-pg-corrupt-test 2>/dev/null || true
+  rm -rf "${TMP_PG_B}"
+
+  if [[ "${PG_CORRUPT_RUNNING}" == "false" ]] && echo "${PG_CORRUPT_LOGS}" | grep -qi "reset_data_when_corrupt"; then
+    echo -e "  ${GREEN}✓ PASS${NC}: container exited with reset_data_when_corrupt guidance (flag=false confirmed)"
+  else
+    api_fail "flag=false: expected container to exit within 45s. running=${PG_CORRUPT_RUNNING}. Logs missing 'reset_data_when_corrupt'."
+  fi
+fi
+
+# ── STEP: Corrupt PGDATA + flag=true → wipe+reinit → postgres up ─────────────
+# Same fixture, but config sets reset_data_when_corrupt = true. The wipe fires,
+# init-postgres.sh reinitializes the cluster, postgres comes up.
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "PostgreSQL resilience: corrupt PGDATA + reset_data_when_corrupt=true → wipe+reinit"
+
+  TMP_PG_C=$(mktemp -d /tmp/pg-wipe-XXXX)
+  cp -r "${SCRIPT_DIR}/fixtures/pg-corrupt-state/." "${TMP_PG_C}/"
+
+  TMP_RESET_TOML=$(mktemp /tmp/ndex-pg-reset-XXXX.toml)
+  printf 'reset_data_when_corrupt = true\n' > "${TMP_RESET_TOML}"
+
+  docker run -d --name ndex-pg-wipe-test \
+    -v "${TMP_PG_C}:/apps/postgres/data" \
+    -v "${TMP_RESET_TOML}:/tmp/pg-reset-config.toml:ro" \
+    ndexbio/ndex-rest --postgres --config /tmp/pg-reset-config.toml
+
+  # Poll pg_isready inside the container (wipe+initdb takes ~10-20s)
+  PG_WIPE_ELAPSED=0; PG_WIPE_READY=false
+  until docker exec ndex-pg-wipe-test \
+        pg_isready -h 127.0.0.1 -p 5432 -U postgres -q 2>/dev/null; do
+    PG_WIPE_RUNNING=$(docker inspect -f '{{.State.Running}}' ndex-pg-wipe-test 2>/dev/null || echo false)
+    if [[ "${PG_WIPE_RUNNING}" == "false" || ${PG_WIPE_ELAPSED} -ge 120 ]]; then break; fi
+    sleep 3; PG_WIPE_ELAPSED=$((PG_WIPE_ELAPSED + 3))
+  done
+  docker exec ndex-pg-wipe-test \
+    pg_isready -h 127.0.0.1 -p 5432 -U postgres -q 2>/dev/null && PG_WIPE_READY=true
+
+  PG_WIPE_CORRUPTION=$(docker exec ndex-pg-wipe-test bash -c \
+    "cat /apps/postgres/corruption.log 2>/dev/null || echo ''" 2>/dev/null || echo "")
+  docker rm -fv ndex-pg-wipe-test 2>/dev/null || true
+  rm -rf "${TMP_PG_C}" 2>/dev/null || true  # chown in container transfers ownership; sticky /tmp prevents runner cleanup
+  rm -f "${TMP_RESET_TOML}"
+
+  if [[ "${PG_WIPE_READY}" == "true" ]] && echo "${PG_WIPE_CORRUPTION}" | grep -qi 'DATA LOSS\|wiped'; then
+    echo -e "  ${GREEN}✓ PASS${NC}: postgres up after wipe+reinit; corruption log confirms DATA LOSS"
+  else
+    api_fail "flag=true: pg_ready=${PG_WIPE_READY}, log='${PG_WIPE_CORRUPTION}'. Expected postgres up + DATA LOSS entry."
   fi
 fi
 

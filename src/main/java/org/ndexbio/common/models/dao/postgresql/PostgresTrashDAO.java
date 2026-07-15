@@ -310,23 +310,13 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
     
     public void permanentlyDeleteAllTrashedItemsOfUser(UUID ownerId) throws SQLException {
     	
-        // 1) Remove membership for networks (remove group_network_membership?)
-        String deleteNetMembership = 
+        // 1) Remove membership for networks
+        String deleteNetMembership =
             "DELETE FROM user_network_membership " +
             " WHERE network_id IN ( " +
             "   SELECT \"UUID\" FROM network WHERE owneruuid=? AND is_deleted=true " +
             " )";
         try (PreparedStatement pst = db.prepareStatement(deleteNetMembership)) {
-            pst.setObject(1, ownerId);
-            pst.executeUpdate();
-        }
-
-        String deleteGroupNetMembership =
-            "DELETE FROM group_network_membership " +
-            " WHERE network_id IN ( " +
-            "   SELECT \"UUID\" FROM network WHERE owneruuid=? AND is_deleted=true " +
-            " )";
-        try (PreparedStatement pst = db.prepareStatement(deleteGroupNetMembership)) {
             pst.setObject(1, ownerId);
             pst.executeUpdate();
         }
@@ -451,12 +441,6 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                 // First delete network memberships
                 String deleteNetMembership = "DELETE FROM user_network_membership WHERE network_id=?";
                 try (PreparedStatement pst = db.prepareStatement(deleteNetMembership)) {
-                    pst.setObject(1, itemId);
-                    pst.executeUpdate();
-                }
-                
-                String deleteGroupNetMembership = "DELETE FROM group_network_membership WHERE network_id=?";
-                try (PreparedStatement pst = db.prepareStatement(deleteGroupNetMembership)) {
                     pst.setObject(1, itemId);
                     pst.executeUpdate();
                 }

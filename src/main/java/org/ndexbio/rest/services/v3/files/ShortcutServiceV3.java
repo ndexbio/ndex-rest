@@ -91,13 +91,16 @@ public class ShortcutServiceV3 extends NdexService {
 		handler.validateShortcutTarget(request.getTarget(), userId);
 		
 		UUID shortcutUUID = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-		
+		VisibilityType visibility = request.getVisibility() != null ? request.getVisibility() : VisibilityType.PRIVATE;
+
 		NdexObjectUpdateStatus status;
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
 			status = dao.createShortcut(shortcutUUID, userId, request.getParent(), request.getName(), request.getTarget(), request.getTargetType());
+			if (visibility != VisibilityType.PRIVATE) {
+				dao.setShortcutVisibility(shortcutUUID, visibility);
+			}
 			dao.commit();
-			VisibilityType visibilityType = dao.getShortcutVisibility(shortcutUUID);
-			createFileIndex(shortcutUUID, getLoggedInUser(), visibilityType,FileType.SHORTCUT,  true);
+			createFileIndex(shortcutUUID, getLoggedInUser(), visibility, FileType.SHORTCUT, true);
 		}
 		
 		String urlStr = Configuration.getInstance().getHostURI() +"/v3/files/shortcuts/"+ shortcutUUID.toString();
@@ -215,6 +218,9 @@ public class ShortcutServiceV3 extends NdexService {
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this shortcut.");
 			
 			dao.updateShortcut(shortcutId, request.getName(), request.getParent());
+			if (request.getVisibility() != null) {
+				dao.setShortcutVisibility(shortcutId, request.getVisibility());
+			}
 			dao.commit();
 			VisibilityType visibilityType = dao.getShortcutVisibility(shortcutId);
 			createFileIndex(shortcutId, getLoggedInUser(), visibilityType, FileType.SHORTCUT, false);

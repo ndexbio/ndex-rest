@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
@@ -179,9 +180,8 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 
             try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {
 				// build the solr document obj
-                List<Map<Permissions, Collection<String>>> permissionTable = dao
+                Map<Permissions, Collection<String>> userMemberships = dao
                         .getAllMembershipsOnNetwork(fileId);
-                Map<Permissions, Collection<String>> userMemberships = permissionTable.get(0);
                 globalIdx.prepareIndexDocument(summary, visibilityType,
                         userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
 
@@ -277,7 +277,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 		} catch (SQLException | IOException | NdexException | SolrServerException e1) {
 			e1.printStackTrace();
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-				dao.setErrorMessage(fileId, "Failed to create Index on network."
+				dao.setErrorMessage(fileId, NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX
 						+ " Cause: " + e1.getMessage());
 				dao.commit();
 			}

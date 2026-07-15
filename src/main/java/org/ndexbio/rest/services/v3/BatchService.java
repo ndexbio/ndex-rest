@@ -54,7 +54,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
-import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -63,7 +62,6 @@ import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.Group;
 import org.ndexbio.model.object.MoveNetworksRequest;
 import org.ndexbio.model.object.NetworkExportRequestV2;
 import org.ndexbio.model.object.FileVisibilityRequest;

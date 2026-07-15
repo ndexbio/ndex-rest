@@ -99,12 +99,6 @@ public class RequestDAO extends NdexDBDAO  {
 			throws IllegalArgumentException, DuplicateObjectException,
 			NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		
-		if( newRequest.getRequestType() == RequestType.JoinGroup) {
-			try (GroupDAO dao = new GroupDAO()) {				
-				 dao.getGroupById(newRequest.getDestinationUUID());
-			}
-		} 
-		
 		//TODO: check if the same request exists.
 			
 		String insertStr = "insert into request (\"UUID\", creation_time, modification_time, is_deleted, sourceuuid,"
@@ -168,28 +162,6 @@ public class RequestDAO extends NdexDBDAO  {
 		
 	}
 	
-	public void deleteMembershipRequest(UUID requestId, UUID ownerId)
-			throws IllegalArgumentException, ObjectNotFoundException,
-			NdexException, SQLException {
-		Preconditions.checkArgument( requestId != null,
-				"A request id is required");
-		Preconditions.checkArgument( ownerId != null,
-				"A user must be logged in");
-		
-		String updateStr = "update request set is_deleted = true where \"UUID\" = ? and owner_id = ? and request_type='" +
-					RequestType.JoinGroup.name() + "'";
-		try ( PreparedStatement pst = db.prepareStatement(updateStr)) {
-			pst.setObject(1, requestId);
-			pst.setObject(2, ownerId);
-			
-			int cnt = pst.executeUpdate();
-			if ( cnt != 1 ) {
-				throw new ObjectNotFoundException ("Request " + requestId + " not found for this user.");
-			}
-		}
-		
-	}
-	
 	public void deletePermissionRequest(UUID requestId, UUID ownerId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			NdexException, SQLException {
@@ -197,9 +169,8 @@ public class RequestDAO extends NdexDBDAO  {
 				"A request id is required");
 		Preconditions.checkArgument( ownerId != null,
 				"A user must be logged in");
-		
-		String updateStr = "update request set is_deleted = true where \"UUID\" = ? and owner_id = ? and is_deleted= false"
-			+ " and request_type <> '" + RequestType.JoinGroup.name() + "'";
+
+		String updateStr = "update request set is_deleted = true where \"UUID\" = ? and owner_id = ? and is_deleted= false";
 		
 		try ( PreparedStatement pst = db.prepareStatement(updateStr)) {
 			pst.setObject(1, requestId);
@@ -244,15 +215,8 @@ public class RequestDAO extends NdexDBDAO  {
 	
 	private Request getRequestById (UUID requestId) throws SQLException, ObjectNotFoundException, JsonParseException, JsonMappingException, IOException {
 		String sqlStr = "select r.*, " +
-				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
-				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
-				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) " +
-				" end as destination_name, " +
-				" case when r.request_type ='JoinGroup' or r.request_type ='UserNetworkAccess' " +
-				" then (select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) " +
-				" when r.request_type = 'GroupNetworkAccess' then " +
-				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
-				" end as source_name "		
+				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) as destination_name, " +
+				"(select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) as source_name "
 				+ "from request r where r.\"UUID\" = ? and r.is_deleted=false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, requestId);
@@ -314,29 +278,18 @@ public class RequestDAO extends NdexDBDAO  {
 		final List<Request> requests = new ArrayList<>();
 
 		String queryStr = "select a.*, " +
-				"case when a.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = a.destinationuuid) " +
-				 "when  a.request_type ='UserNetworkAccess' or a.request_type = 'GroupNetworkAccess' then " +
-				"(select n.name from network n where n.\"UUID\"= a.destinationuuid) " +
-				" end as destination_name, " +
-				" case when a.request_type ='JoinGroup' or a.request_type ='UserNetworkAccess' " +
-				" then (select u.user_name from ndex_user u where u.\"UUID\" = a.sourceuuid) " +
-				" when a.request_type = 'GroupNetworkAccess' then " +
-				" (select g.group_name from ndex_group g where g.\"UUID\"= a.sourceuuid) " +
-				" end as source_name "		
+				"(select n.name from network n where n.\"UUID\"= a.destinationuuid) as destination_name, " +
+				"(select u.user_name from ndex_user u where u.\"UUID\" = a.sourceuuid) as source_name "
 				+ "from ( select r.* from request r, network n "
 				+ "where n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and "
-				+ "(r.response is null or r.response = '"+ ResponseType.PENDING.name()+ "') and r.is_deleted =false "
-				+ "union select r2.* from request r2, ndex_group_user gu "
-				+ "where gu.group_id = r2.destinationuuid and gu.user_id = ? and gu.is_admin and "
-				+ "( r2.response is null or r2.response = '"+ ResponseType.PENDING.name()+ "') and r2.is_deleted=false) a ";
-						
+				+ "(r.response is null or r.response = '"+ ResponseType.PENDING.name()+ "') and r.is_deleted =false ) a ";
+
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
 		}
-		
+
 		try ( PreparedStatement pst = db.prepareStatement(queryStr)) {
 			pst.setObject(1, userId);
-			pst.setObject(2, userId);
 			try ( ResultSet rs = pst.executeQuery()) {
 				while ( rs.next()) {
 					Request r = getRequestFromResultSet(rs);
@@ -355,56 +308,11 @@ public class RequestDAO extends NdexDBDAO  {
 		final List<Request> requests = new ArrayList<>();
 
 		String queryStr = " select r.*, " +
-				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
-				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
-				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) " +
-				" end as destination_name, " +
-				" case when r.request_type ='JoinGroup' or r.request_type ='UserNetworkAccess' " +
-				" then (select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) " +
-				" when r.request_type = 'GroupNetworkAccess' then " +
-				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
-				" end as source_name "		
+				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) as destination_name, " +
+				"(select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) as source_name "
 				+ "from request r, network n "
-				+ "where r.request_type <> 'JoinGroup' and n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and "
+				+ "where n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and "
 				+ "(r.response is null or r.response = '"+ ResponseType.PENDING.name()+ "') and r.is_deleted =false ";
-						
-		if ( skipBlocks>=0 && blockSize>0) {
-			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
-		}
-		
-		try ( PreparedStatement pst = db.prepareStatement(queryStr)) {
-			pst.setObject(1, userId);
-			try ( ResultSet rs = pst.executeQuery()) {
-				while ( rs.next()) {
-					Request r = getRequestFromResultSet(rs);
-					requests.add(r);
-				}
-			}
-		}
-		
-		return requests;
-	
-	}
-	
-	
-	public List<Request> getPendingGroupMembershipRequestByUserId(UUID userId, int skipBlocks,
-			int blockSize) throws SQLException, JsonParseException, JsonMappingException, IOException {
-
-		final List<Request> requests = new ArrayList<>();
-
-		String queryStr = "select r.*, " +
-				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
-				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
-				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) " +
-				" end as destination_name, " +
-				" case when r.request_type ='JoinGroup' or r.request_type ='UserNetworkAccess' " +
-				" then (select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) " +
-				" when r.request_type = 'GroupNetworkAccess' then " +
-				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
-				" end as source_name "		
-				+ "from request r, ndex_group_user gu "
-				+ "where gu.group_id = r.destinationuuid and gu.user_id = ? and gu.is_admin and "
-				+ "( r.response is null or r.response = '"+ ResponseType.PENDING.name()+ "') and r.is_deleted=false";
 						
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
@@ -448,21 +356,11 @@ public class RequestDAO extends NdexDBDAO  {
 		final List<Request> requests = new ArrayList<>();
 
 		String queryStr = "select r.*, " +
-				"case when r.request_type ='JoinGroup' then (select g.group_name from ndex_group g where g.\"UUID\" = r.destinationuuid) " +
-				"when  r.request_type ='UserNetworkAccess' or r.request_type = 'GroupNetworkAccess' then " +
-				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) " +
-				" end as destination_name, " +
-				" case when r.request_type ='JoinGroup' or r.request_type ='UserNetworkAccess' " +
-				" then (select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) " +
-				" when r.request_type = 'GroupNetworkAccess' then " +
-				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) " +
-				" end as source_name "		
+				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) as destination_name, " +
+				"(select u.user_name from ndex_user u where u.\"UUID\" = r.sourceuuid) as source_name "
 				+ " from request r where r.owner_id = ? and r.is_deleted = false ";
-		if ( requestType !=null) {
-			if (requestType == RequestType.AllNetworkAccess) {
-				queryStr += " and request_type <> '" + RequestType.JoinGroup.name() + "'";
-			} else 
-				queryStr += " and request_type = '" + requestType.name() + "'";
+		if ( requestType !=null && requestType != RequestType.AllNetworkAccess) {
+			queryStr += " and request_type = '" + requestType.name() + "'";
 		}
 		queryStr += " order by creation_time desc";
 		
@@ -485,33 +383,6 @@ public class RequestDAO extends NdexDBDAO  {
 	}
 	
 	
-	public List<Request> getGroupPermissionRequest(UUID groupId, UUID networkId, Permissions permission)
-			throws SQLException, JsonParseException, JsonMappingException, IOException {
-
-		final List<Request> requests = new ArrayList<>();
-		
-		String queryStr = "select r.*, " +
-				"(select n.name from network n where n.\"UUID\"= r.destinationuuid) as destination_name, " +
-				" (select g.group_name from ndex_group g where g.\"UUID\"= r.sourceuuid) as source_name "		
-				+ "from request r where r.is_deleted = false and r.request_type = 'GroupNetworkAccess' and r.sourceuuid = '"
-				   + groupId.toString() + "' ";
-		if ( networkId != null)
-			queryStr += " and destinationuuid = '" + networkId.toString() + "' ";
-		if ( permission != null)
-			queryStr += " and requestpermission = '" + permission.name() + "'";
-		
-		try ( PreparedStatement pst = db.prepareStatement(queryStr)) {
-			try ( ResultSet rs = pst.executeQuery()) {
-				while ( rs.next()) {
-					Request r = getRequestFromResultSet(rs);
-					requests.add(r);
-				}
-			}
-		}
-		
-		return requests;		
-		
-	}
 	
 
 	/**************************************************************************
@@ -575,14 +446,10 @@ public class RequestDAO extends NdexDBDAO  {
 	
 	private boolean userIsRequestDestination (UUID requestId, UUID userId) throws SQLException {
 		String sql = "select 1 from request r, network n where r.\"UUID\" = ? and "
-				+ "n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and r.is_deleted =false "
-				+ "union select 1 from request r2, ndex_group_user gu "
-				+ "where r2.\"UUID\" = ? and gu.group_id = r2.destinationuuid and gu.user_id = ? and gu.is_admin and r2.is_deleted=false";
+				+ "n.\"UUID\" = r.destinationuuid and n.owneruuid = ? and r.is_deleted =false";
 		try (PreparedStatement p = db.prepareStatement(sql)) {
 			p.setObject(1, requestId);
 			p.setObject(2, userId);
-			p.setObject(3, requestId);
-			p.setObject(4, userId);
 			try ( ResultSet rs = p.executeQuery()) {
 					return rs.next();
 			}

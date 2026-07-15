@@ -11,6 +11,7 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.User;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.mcp.McpSchema;
 import org.ndexbio.rest.mcp.NdexObjectUpdateStatusMixIn;
 import org.ndexbio.rest.mcp.ToolsService;
@@ -114,6 +115,13 @@ public class ManageFolderTool {
                 "Applicable when mode='create' or 'update'. " +
                 "Ignored for mode='delete' and 'get_access_key'.\n\n" +
                 "Examples: \"Networks related to the Wnt signaling pathway\""))
+            .property("visibility", new McpSchema.InputProperty("string",
+                "Optional. Visibility of the folder. " +
+                "Applicable when mode='create' or 'update'. " +
+                "Defaults to PRIVATE on create when omitted. " +
+                "Ignored for mode='delete' and 'get_access_key'.\n\n" +
+                "Examples: \"PUBLIC\", \"PRIVATE\", \"UNLISTED\"",
+                List.of("PUBLIC", "PRIVATE", "UNLISTED")))
             .property("force", new McpSchema.InputProperty("boolean",
                 "Optional. When true, deletes the folder and all its contents recursively. " +
                 "When false or omitted, deletion is rejected if the folder is non-empty. " +
@@ -185,10 +193,12 @@ public class ManageFolderTool {
                             args.get("name"), String.class);
                     String parent = MAPPER.convertValue(args.get("parent"), String.class);
                     String description = MAPPER.convertValue(args.get("description"), String.class);
+                    String visibility = MAPPER.convertValue(args.get("visibility"), String.class);
                     FolderRequest request = new FolderRequest();
                     request.setName(name);
                     if (parent != null) request.setParent(UUID.fromString(parent));
                     if (description != null) request.setDescription(description);
+                    if (visibility != null) request.setVisibility(VisibilityType.valueOf(visibility));
                     Response response = new FolderServiceV3(httpReq).createFolder(request);
                     NdexObjectUpdateStatus status = MAPPER.readValue(
                             (String) response.getEntity(), NdexObjectUpdateStatus.class);
@@ -214,10 +224,12 @@ public class ManageFolderTool {
                             args.get("name"), String.class);
                     String parent = MAPPER.convertValue(args.get("parent"), String.class);
                     String description = MAPPER.convertValue(args.get("description"), String.class);
+                    String visibility = MAPPER.convertValue(args.get("visibility"), String.class);
                     FolderRequest request = new FolderRequest();
                     if (name != null) request.setName(name);
                     if (parent != null) request.setParent(UUID.fromString(parent));
                     if (description != null) request.setDescription(description);
+                    if (visibility != null) request.setVisibility(VisibilityType.valueOf(visibility));
                     new FolderServiceV3(httpReq).updateFolder(request, folderId);
                     return CallToolResult.builder()
                             .structuredContent(new ManageFolderResponse(

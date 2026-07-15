@@ -16,7 +16,6 @@ import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.cxio.core.AspectIterator;
-import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
@@ -24,12 +23,15 @@ import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
 import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.Group;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
+import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
+import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,14 +82,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 		  
 			  if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
 				  // build the solr document obj
-				  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
-				  Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
-				  Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
+				  Map<Permissions,Collection<String>> userMemberships =  dao.getAllMembershipsOnNetwork(networkid);
 				  globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
 					userMemberships.get(Permissions.READ),
-					userMemberships.get(Permissions.WRITE),
-					grpMemberships.get(Permissions.READ),
-					grpMemberships.get(Permissions.WRITE));
+					userMemberships.get(Permissions.WRITE));
 
 				  //process node attribute aspect and add to solr doc
 				  String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
@@ -168,14 +166,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 		  
 			 if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
 				  // build the solr document obj
-				  List<Map<Permissions, Collection<String>>> permissionTable =  dao.getAllMembershipsOnNetwork(networkid);
-				  Map<Permissions,Collection<String>> userMemberships = permissionTable.get(0);
-				  Map<Permissions,Collection<String>> grpMemberships = permissionTable.get(1);
+				  Map<Permissions,Collection<String>> userMemberships =  dao.getAllMembershipsOnNetwork(networkid);
 				  globalIdx.createIndexDocFromSummary(summary,summary.getOwner(),
 					userMemberships.get(Permissions.READ),
-					userMemberships.get(Permissions.WRITE),
-					grpMemberships.get(Permissions.READ),
-					grpMemberships.get(Permissions.WRITE));
+					userMemberships.get(Permissions.WRITE));
 
 				  //process node attribute aspect and add to solr doc
 				  String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" ; 
@@ -457,58 +451,143 @@ public class SolrIndexBuilder implements AutoCloseable {
 		logger.info("User index has been rebuilt.");
 	}
 	
-	private static void rebuildGroupIndex() throws Exception {
-		logger.info("Start rebuild group index.");
-		try (GroupIndexManager umgr = new GroupIndexManager()) {
+	private static void rebuildNFSIdx(){
 
-			umgr.createCoreIfNotExists();
-		/*	String coreName = GroupIndexManager.coreName;
-			CoreAdminRequest.Create creator = new CoreAdminRequest.Create();
-			creator.setCoreName(coreName);
-			creator.setConfigSet(coreName);
-			CoreAdminResponse foo = creator.process(umgr.client);
+	}
 
-			if (foo.getStatus() != 0) {
-				throw new NdexException("Failed to create solrIndex for " + coreName + ". Error: "
-						+ foo.getResponseHeader().toString());
+	/** Executes the Solr delete+rebuild tasks for one network during unlist. */
+	@FunctionalInterface
+	interface SolrProcessor {
+		void process(UUID networkId, UUID ownerId, String ownerName) throws Exception;
+	}
+
+	/**
+	 * Find all networks where visibility='PUBLIC' and solr_idx_lvl='NONE',
+	 * flip them to UNLISTED in Postgres, then synchronously run Solr delete+rebuild
+	 * tasks so the file index is updated in public-nfs (both PUBLIC and UNLISTED
+	 * networks use the public-nfs core; visibility controls query-time filtering).
+	 *
+	 * Per-network: (1) acquire lock, UPDATE visibility, commit, release lock;
+	 * (2) run Solr tasks with no lock held. On any failure, attempts a compensating
+	 * UPDATE back to PUBLIC (also under lock) then rethrows immediately — already-
+	 * processed networks remain UNLISTED.
+	 */
+	private static void unlistPublicNoneNetworks() throws Exception {
+		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
+			unlistPublicNoneNetworks(dao, (networkId, ownerId, ownerName) -> {
+				// ignoreCxFiles=true: skips CX2 aspect reads (these networks may have no CX2
+				// files on disk). The CX1 AspectIterator fallback still runs but returns nothing
+				// for NONE-indexed networks, so only metadata is indexed.
+				new SolrTaskDeleteFile(networkId, VisibilityType.PUBLIC).run();
+				new SolrTaskRebuildFileIdx(networkId, ownerId, ownerName,
+						VisibilityType.UNLISTED, FileType.NETWORK, false, true).run();
+			});
+		}
+	}
+
+	static void unlistPublicNoneNetworks(PostgresNetworkDAO dao, SolrProcessor solrProcessor) throws Exception {
+		logger.info("Finding PUBLIC networks with solr_idx_lvl='NONE'...");
+
+		@SuppressWarnings("resource")
+		Connection db = dao.getDBConnection();
+		db.setAutoCommit(false);
+
+		int total = 0;
+		int processed = 0;
+
+		// Collect targets up front so the ResultSet isn't held open across writes/commits.
+		List<Object[]> targets = new java.util.ArrayList<>();
+		String selectSql = "SELECT \"UUID\", owneruuid, \"owner\" FROM network "
+				+ "WHERE visibility = 'PUBLIC' AND solr_idx_lvl = 'NONE' AND is_deleted = false";
+		try (PreparedStatement pst = db.prepareStatement(selectSql);
+			 ResultSet rs = pst.executeQuery()) {
+			while (rs.next()) {
+				targets.add(new Object[] {
+						(UUID) rs.getObject(1),
+						(UUID) rs.getObject(2),
+						rs.getString(3)
+				});
 			}
-			logger.info("Solr core " + coreName + " created.");*/
+		}
+		total = targets.size();
+		logger.info("Found {} networks to convert from PUBLIC to UNLISTED.", total);
 
+		String updateSql = "UPDATE network SET visibility = 'UNLISTED' WHERE \"UUID\" = ?";
+		String revertSql = "UPDATE network SET visibility = 'PUBLIC'   WHERE \"UUID\" = ?";
+		try (PreparedStatement updatePst = db.prepareStatement(updateSql);
+			 PreparedStatement revertPst = db.prepareStatement(revertSql)) {
+			for (Object[] row : targets) {
+				UUID networkId = (UUID) row[0];
+				UUID ownerId   = (UUID) row[1];
+				String ownerName = (String) row[2];
 
-			try (GroupDAO dao = new GroupDAO()) {
-				@SuppressWarnings("resource")
-				Connection db = dao.getDBConnection();
-				String sqlStr = "select \"UUID\" from ndex_group n where n.is_deleted=false";
-
-				try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-					try (ResultSet rs = pst.executeQuery()) {
-						while (rs.next()) {
-							UUID groupId = (UUID) rs.getObject(1);
-							try (GroupDAO dao2 = new GroupDAO()) {
-								Group group = dao2.getGroupById(groupId);
-								if (group == null)
-									throw new NdexException("Group " + groupId
-											+ " can't be indexed because this account is not verified.");
-								logger.info("Adding Group " + group.getGroupName() + " to index.");
-								umgr.addGroup(group.getExternalId().toString(), group.getGroupName(),
-										group.getDescription());
-
-								logger.info("Group " + group.getGroupName() + " added to index.");
-							}
-
+				// Phase 1: DB update under lock.
+				boolean locked = false;
+				try {
+					dao.lockNetwork(networkId);
+					locked = true;
+					updatePst.setObject(1, networkId);
+					int rows = updatePst.executeUpdate();
+					if (rows != 1) {
+						throw new NdexException("Expected 1 row updated for " + networkId
+								+ " but got " + rows);
+					}
+					db.commit();
+				} finally {
+					if (locked) {
+						try { db.rollback(); } catch (SQLException rbe) { /* best-effort: clear aborted txn before unlock */ }
+						try { dao.unlockNetwork(networkId); }
+						catch (SQLException unlockEx) {
+							logger.error("CRITICAL: Network {} is stuck locked — manual intervention required: {}",
+									networkId, unlockEx.getMessage(), unlockEx);
 						}
 					}
 				}
+
+				// Phase 2: Solr work — no lock held.
+				try {
+					solrProcessor.process(networkId, ownerId, ownerName);
+					processed++;
+					if (processed % 500 == 0) {
+						logger.info("Processed {}/{} ({}%)",
+								processed, total, (processed * 100) / total);
+					}
+				} catch (Exception e) {
+					logger.error("Failed Solr tasks for network {}: {}", networkId, e.getMessage(), e);
+					// Visibility was committed; compensate back to PUBLIC under a fresh lock.
+					try {
+						boolean revertLocked = false;
+						try {
+							dao.lockNetwork(networkId);
+							revertLocked = true;
+							revertPst.setObject(1, networkId);
+							int revertRows = revertPst.executeUpdate();
+							if (revertRows != 1) {
+								throw new NdexException("Expected 1 row reverted for " + networkId + " but got " + revertRows);
+							}
+							db.commit();
+							logger.info("Reverted visibility to PUBLIC for network {}", networkId);
+						} finally {
+							if (revertLocked) {
+								try { db.rollback(); } catch (SQLException rbe) { /* best-effort: clear aborted txn before unlock */ }
+								try { dao.unlockNetwork(networkId); }
+								catch (SQLException unlockEx) {
+									logger.error("CRITICAL: Network {} is stuck locked — manual intervention required: {}",
+											networkId, unlockEx.getMessage(), unlockEx);
+								}
+							}
+						}
+					} catch (Exception revertEx) {
+						logger.error("CRITICAL: Failed to revert visibility to PUBLIC for network {}: {}",
+								networkId, revertEx.getMessage(), revertEx);
+					}
+					throw e;
+				}
 			}
-			
-			logger.info("Group index has been rebuilt.");
 		}
+		logger.info("Done. processed={}, total={}", processed, total);
 	}
-	
-	private static void rebuildNFSIdx(){
-		
-	}
-	
+
 	public static void main(String[] args) throws Exception {
 	//	SolrIndexBuilder i = new SolrIndexBuider();
 		Configuration configuration = Configuration.createInstance();
@@ -521,14 +600,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 			switch ( args[0]) {
 			case "all":
 				SolrIndexBuilder.rebuildUserIndex();
-				SolrIndexBuilder.rebuildGroupIndex();
 				builder.rebuildAll();
 				break;
 			case "user":
 				SolrIndexBuilder.rebuildUserIndex();
-				break;
-			case "group":
-				SolrIndexBuilder.rebuildGroupIndex();
 				break;
 			case "all-networks-online":
 				builder.rebuildAllNetworksOnline();
@@ -542,14 +617,17 @@ public class SolrIndexBuilder implements AutoCloseable {
 			case "nfs":
 				SolrIndexBuilder.rebuildNFSIdx();
 				break;
-			default:	
+			case "unlist-public-none":
+				SolrIndexBuilder.unlistPublicNoneNetworks();
+				break;
+			default:
 				builder.rebuildSingleNetworkIndex(UUID.fromString(args[0]));
 				builder.globalIdx.commit();
 				
 			}
 			logger.info("Index rebuild process finished.");
 		} else {
-			System.err.println("Supported argument: all/nfs/user/group/all-networks-online/global-networks/all-local/<networkUUID>");
+			System.err.println("Supported argument: all/nfs/user/group/all-networks-online/global-networks/all-local/unlist-public-none/<networkUUID>");
 			//System.out.println("For the boolean argument after network ID, true means rebuild the Single Network index.");
 		}
 		

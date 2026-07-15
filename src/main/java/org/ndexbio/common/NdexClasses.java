@@ -38,8 +38,6 @@ package org.ndexbio.common;
  */
 public interface NdexClasses {
 	
-	public static final String Group          	  = "ndex_group";
-	public static final String Membership         = "ndex_group_user";
 	public static final String Task				  = "task";
 	public static final String User				  = "ndex_user";
 	public static final String Network            = "network";
@@ -116,6 +114,8 @@ public interface NdexClasses {
     public static final String Task_P_message   = "message";
     public static final String Task_P_attributes = "other_attributes";
     
-    public static final String Task_E_owner   = "ownedBy";    
+    public static final String Task_E_owner   = "ownedBy";
+
+    String NETWORK_INDEX_FAILED_MSG_PREFIX = "Failed to create Index on network.";
 }
 

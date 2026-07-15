@@ -33,7 +33,6 @@ import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NetworkSet;
 import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.FileType;
-import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.rest.Configuration;
 
@@ -178,34 +177,11 @@ public class NetworkSetServiceV2 extends NdexService {
 		
 		UUID setId = UUID.fromString(networkSetIdStr);
 		
-		// Check if id exists in networkset table first
+		// All network sets are now folder-backed. NetworkSetDAO.getNetworkSet() queries folders exclusively.
 		try (NetworkSetDAO networkSetDAO = new NetworkSetDAO()) {
 			NetworkSet networkSet = networkSetDAO.getNetworkSet(setId, getLoggedInUserId(), accessKey);
 			return networkSet;
-		} catch (SQLException | ObjectNotFoundException e) {
-			// NetworkSet not found, continue to check folder
 		}
-		
-		// Check if id exists in folder table
-		try (FolderDAO folderDAO = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			if (folderDAO.isReadable(setId, getLoggedInUserId()) || folderDAO.accessKeyIsValid(setId, accessKey)) {
-				NdexFolder folder = folderDAO.getFolder(setId, getLoggedInUserId(), accessKey);
-				
-				// Convert folder to NetworkSet format
-				NetworkSet networkSet = new NetworkSet();
-				networkSet.setExternalId(folder.getExternalId());
-				networkSet.setName(folder.getName());
-				networkSet.setCreationTime(folder.getCreationTime());
-				networkSet.setModificationTime(folder.getModificationTime());
-				networkSet.setOwnerId(getLoggedInUserId());
-				
-				return networkSet;
-			}
-		} catch (SQLException | ObjectNotFoundException e) {
-			// Folder not found
-		}
-		
-		throw new ObjectNotFoundException("Network set or folder " + setId + " not found.");
 	}
 
 	@POST

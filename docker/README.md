@@ -142,6 +142,40 @@ Refer to [RUNBOOK.md](./RUNBOOK.md) for how to run the deployment container in m
 
 ---
 
+## Compute Resources
+
+Each service inside the container enforces its own memory cap. No external `--memory` limit is set on the container itself — the per-service caps below are the operative bounds.
+
+### Per-service RAM caps and idle baselines
+
+| Service | RAM cap | How it is set | RSS at idle |
+|---------|---------|---------------|-------------|
+| NDEx / Tomcat | 25–60% of container RAM (default) | `ndex_catalina_opts` in `config.toml` → `CATALINA_OPTS` | ~241 MB |
+| Solr | 512 MB fixed | Solr's built-in default (`SOLR_HEAP=512m` in `/opt/solr/bin/solr`) | ~697 MB |
+| Keycloak | 512 MB max heap | Hardcoded in Keycloak's launch args (`-Xms64m -Xmx512m`) | ~444 MB |
+| PostgreSQL | No explicit cap (shared_buffers=128MB default) | `postgresql.conf` | ~158 MB |
+| MailHog | No cap | — | ~15 MB |
+
+**Total at idle (~all five services):** ~1.4 GiB RSS.
+
+> CPU is not capped per-service. Keycloak shows elevated CPU immediately after startup (JVM/Quarkus warm-up) and settles to <1% at rest.
+
+### Tuning Tomcat heap
+
+The default `ndex_catalina_opts` allows Tomcat to use between 25% and 60% of available container RAM. Override it in your `config.toml` to tighten or widen that range:
+
+```toml
+# Percentage-based (scales with container --memory limit)
+ndex_catalina_opts = "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError"
+
+# Or explicit values
+ndex_catalina_opts = "-Xms256m -Xmx1g -XX:+ExitOnOutOfMemoryError"
+```
+
+See [Runtime Configuration](#runtime-configuration) for full `config.toml` usage.
+
+---
+
 ## Accessing Services from the Container Host
 
 Once running, services are available at:
@@ -277,6 +311,30 @@ Mount the file read-only into the container:
 -v /host/path/config.toml:/etc/ndex-config.toml:ro
 ```
 
+**Top-level keys (not inside any section):**
+
+`reset_data_when_corrupt` — Controls what happens when PostgreSQL data corruption is unrecoverable (crash recovery and `pg_resetwal` both fail):
+```toml
+# false (default): container stops and prints a diagnostic error. Operator must
+#   restore from backup or set this flag to true and restart.
+# true: all service data is wiped and re-initialized from scratch. The container
+#   always comes up, but DATA IS PERMANENTLY LOST:
+#     /apps/postgres/data/ — postgres cluster
+#     /apps/ndex/data/     — NDEx raw network files
+#     /apps/keycloak/data/ — Keycloak realm state
+reset_data_when_corrupt = false
+```
+
+`ndex_catalina_opts` — JVM flags passed to Tomcat via `CATALINA_OPTS`. Controls heap sizing and OOM behavior. The logback configuration flag is always prepended automatically and cannot be overridden here.
+```toml
+# Default (applied when this key is absent):
+#   -XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError
+#
+# Tomcat is allowed to use up to 60% of container RAM by default. Override to
+# constrain further or replace with explicit -Xmx/-Xms values.
+ndex_catalina_opts = "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError"
+```
+
 **Supported TOML sections:**
 
 `[ndexDb]` — External PostgreSQL for the NDEx application:
@@ -313,6 +371,7 @@ solrUrl           = "http://solr.example.com:8983/solr"
 hostUri           = "http://ndex.example.com:8080"
 keycloakIssuer    = "http://keycloak.example.com:8085/realms/ndex"
 keycloakPublicKey = "<base64-DER-encoded public key>"
+keycloakClientId  = ""               # optional: enables oauth_register_url / oauth_reset_url in /v3/admin/status
 ```
 
 Include only the sections relevant to your deployment. For full microservices topology examples with complete `config.toml` samples, see [RUNBOOK.md](./RUNBOOK.md).

@@ -628,27 +628,17 @@ public class UserDAO extends NdexDBDAO {
 			
 			String permissionClause =  (inclusive? " >= '" : " = '" ) + permission + "' ";
 			queryStr = " select a.network_id, max(a.permission_type) as permission_type from (" + (inclusive ? (queryStr + " union ") : "" ) +
-					" select un.network_id, un.permission_type " + 
+					" select un.network_id, un.permission_type " +
 					"from user_network_membership un where un.user_id = '"+ userId.toString() + "' :: uuid and un.permission_type " + permissionClause +
-					" union select gn.network_id, gn.permission_type from ndex_group_user ug, group_network_membership gn " + 
-					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid and gn.permission_type " + permissionClause +" ) a group by a.network_id ";
-					
+					" ) a group by a.network_id ";
+
 		}  else if ( permission == null || permission !=Permissions.ADMIN) {
 			throw new IllegalArgumentException("Valid permissions required.");
 		}
-		
+
 		queryStr = "select b.network_id, b.permission_type, n2.name from (" + queryStr + ") b, network n2 where n2.\"UUID\"= b.network_id and n2.is_deleted =false";
-		
-	/*	if ( loggedInUserId == null) {
-			queryStr =  queryStr + " and n2.visibility='PUBLIC'";
-		} else if ( !loggedInUserId.equals(userId)) {
-			queryStr = " and (n2.visibility='PUBLIC' or " +
-					" exists ( select 1 from network n1 where n1.owneruuid = '" + loggedInUserId + "' :: uuid limit 1)	or " + 
-					" exists ( select 1 from user_network_membership un1 where un1.network_id = n2.\"UUID\" and un1.user_id = '" + loggedInUserId + "' ::uuid limit 1) or " +
-					" exists ( select 1 from group_network_membership gn1, ndex_group_user gu where gn1.group_id = gu.group_id and gn1.network_id = n2.\"UUID\" and gu.user_id = '" +
-					loggedInUserId + "' ::uuid limit 1) )" ;
-		} */
-		
+
+
 		if ( skipBlocks>=0 && blockSize>0) {
 			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
 		}
@@ -681,22 +671,20 @@ public class UserDAO extends NdexDBDAO {
 	
 	
 	public Map<String,String> getUserNetworkPermissionMap(UUID userId,
-			Permissions permission, int skipBlocks, int blockSize, boolean inclusive, boolean directOnly)
+			Permissions permission, int skipBlocks, int blockSize, boolean inclusive)
 			throws SQLException {
-	
-		String queryStr = "select \"UUID\" as network_id, 'ADMIN' :: ndex_permission_type as permission_type " + 
+
+		String queryStr = "select \"UUID\" as network_id, 'ADMIN' :: ndex_permission_type as permission_type " +
 						"from network n where n.is_deleted =false and owneruuid = '" + userId.toString() + "' :: uuid ";
-		
+
 		if ( permission == Permissions.READ || permission == Permissions.WRITE) {
-			
+
 			String permissionClause =  (inclusive? " >= '" : " = '" ) + permission + "' ";
 			queryStr = " select a.network_id, max(a.permission_type) as permission_type from (" + (inclusive ? (queryStr + " union ") : "" ) +
-					" select un.network_id, un.permission_type " + 
+					" select un.network_id, un.permission_type " +
 					"from user_network_membership un where un.user_id = '"+ userId.toString() + "' :: uuid and un.permission_type " + permissionClause +
-					( directOnly ? "" :
-					(" union select gn.network_id, gn.permission_type from ndex_group_user ug, group_network_membership gn " + 
-					" where ug.group_id = gn.group_id and ug.user_id = '" + userId + "' :: uuid and gn.permission_type " + permissionClause) ) +" ) a group by a.network_id ";
-					
+					" ) a group by a.network_id ";
+
 		}  else if ( permission == null || permission !=Permissions.ADMIN) {
 			throw new IllegalArgumentException("Valid permissions required.");
 		}
@@ -743,89 +731,6 @@ public class UserDAO extends NdexDBDAO {
 	 * @throws JsonParseException 
 	 **************************************************************************/
 
-	public List<Membership> getUserGroupMemberships(UUID userId,
-			Permissions permission, int skipBlocks, int blockSize, boolean inclusive)
-			throws ObjectNotFoundException, NdexException, JsonParseException, JsonMappingException, IllegalArgumentException, SQLException, IOException {
-
-		String queryStr = "select gu.group_id, g.group_name, gu.is_admin from  ndex_group_user gu, ndex_group g " + 
-		     " where gu.group_id = g.\"UUID\" and gu.user_id = ? ";
-		
-		if ( permission == Permissions.GROUPADMIN) {
-			queryStr += " and gu.is_admin";
-		} else if ( permission == null || permission != Permissions.MEMBER) 
-			throw new NdexException ("Valid permissions required in getUserGroupMembership function.");
-		else {
-			if ( !inclusive)
-				queryStr += " and gu.is_admin = false";
-		}
-			
-		if ( skipBlocks>=0 && blockSize>0) {
-			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
-		}
-		
-		User user = getUserById(userId, true,false);
-		List<Membership> memberships = new ArrayList<>();
-
-		try (PreparedStatement st = db.prepareStatement(queryStr))  {
-			st.setObject(1, userId);
-		
-			try (ResultSet rs = st.executeQuery() ) {
-				while (rs.next()) {
-					Membership membership = new Membership();
-					membership.setMembershipType(MembershipType.GROUP);
-					membership.setMemberAccountName( user.getUserName());
-					membership.setMemberUUID(userId);
-					membership.setPermissions(rs.getBoolean(3)? Permissions.GROUPADMIN : Permissions.MEMBER);
-					membership.setResourceName(rs.getString(2));
-					membership.setResourceUUID((java.util.UUID)rs.getObject(1));
-
-					memberships.add(membership);
-					
-				} 
-			}
-		}
-
-		return memberships;
-	}
-
-
-	public Map<String,String> getUserGroupMembershipMap(UUID userId,
-			Permissions permission, int skipBlocks, int blockSize)
-			throws ObjectNotFoundException, NdexException, IllegalArgumentException, SQLException {
-
-		Map <String,String> result = new TreeMap<>();
-		String queryStr = "select gu.group_id, gu.is_admin from ndex_group_user gu where gu.user_id = ? ";
-		
-		if ( permission !=null) {
-			if ( permission == Permissions.GROUPADMIN) {
-				queryStr += " and gu.is_admin";
-			} else if ( permission != Permissions.MEMBER) 
-				throw new NdexException ("Valid permissions required in getUserGroupMembership function.");
-			else {
-				queryStr += " and not gu.is_admin ";
-			}
-		}
-			
-		if ( skipBlocks>=0 && blockSize>0) {
-			queryStr += " limit " + blockSize + " offset " + skipBlocks * blockSize;
-		}
-		
-		try (PreparedStatement st = db.prepareStatement(queryStr))  {
-			st.setObject(1, userId);
-		
-			try (ResultSet rs = st.executeQuery() ) {
-				while (rs.next()) {
-					result.put(rs.getObject(1).toString(), 
-							(rs.getBoolean(2)? Permissions.GROUPADMIN.toString() : Permissions.MEMBER.toString()));					
-				} 
-			}
-		}
-
-		return result;
-	}
-	
-	
-	
 	/**************************************************************************
 	 * getMembership
 	 * 
@@ -841,7 +746,7 @@ public class UserDAO extends NdexDBDAO {
 	 * @throws SQLException 
 	 **************************************************************************/
 
-	public Permissions getLoggedInUserPermissionOnNetwork(UUID userId, UUID networkId, boolean directOnly)
+	public Permissions getLoggedInUserPermissionOnNetwork(UUID userId, UUID networkId)
 			throws IllegalArgumentException, ObjectNotFoundException,
 			NdexException, SQLException {
 
@@ -849,46 +754,26 @@ public class UserDAO extends NdexDBDAO {
 		Preconditions.checkArgument(networkId != null, "Network UUID required");
 
 		String queryStr = "select 1 from network where owneruuid = ? and \"UUID\" = ?";
-			
+
 		try (PreparedStatement st = db.prepareStatement(queryStr))  {
 			st.setObject(1, userId);
 			st.setObject(2, networkId);
 			try (ResultSet rs = st.executeQuery() ) {
 				if (rs.next()) {
-					return Permissions.ADMIN;				
-				} 
+					return Permissions.ADMIN;
+				}
 			}
 		}
 
 		queryStr = "select permission_type from  user_network_membership where user_id = ? and network_id = ?";
 		Permissions result = null;
-		
+
 		try (PreparedStatement st = db.prepareStatement(queryStr))  {
 			st.setObject(1, userId);
 			st.setObject(2, networkId);
 			try (ResultSet rs = st.executeQuery() ) {
 				while (rs.next()) {
-					result = Permissions.valueOf(rs.getString(1))	;			
-				} 
-			}
-		}
-		
-		if ( result == Permissions.WRITE)
-			return result;
-		
-		if ( !directOnly) {
-			queryStr = "select gn.permission_type from ndex_group_user gu, group_network_membership gn where "+
-		     " gu.group_id = gn.group_id and gu.user_id = ? and gn.network_id = ?";
-			try (PreparedStatement st = db.prepareStatement(queryStr))  {
-				st.setObject(1, userId);
-				st.setObject(2, networkId);
-				try (ResultSet rs = st.executeQuery() ) {
-					while (rs.next()) {
-						Permissions p = Permissions.valueOf(rs.getString(1));
-						if ( p == Permissions.WRITE)
-							return p;					
-						result = p	;			
-					} 
+					result = Permissions.valueOf(rs.getString(1))	;
 				}
 			}
 		}
@@ -896,32 +781,7 @@ public class UserDAO extends NdexDBDAO {
 		return result;
 	}
 
-	public Permissions getUserMembershipTypeOnGroup(UUID userId, UUID groupId)
-			throws IllegalArgumentException, SQLException {
 
-		Preconditions.checkArgument(userId != null, "User UUID required");
-		Preconditions.checkArgument(groupId != null, "Group UUID required");
-
-		String queryStr = "select is_admin from ndex_group_user where user_id = ? and group_id = ?";
-		
-		try (PreparedStatement st = db.prepareStatement(queryStr))  {
-			st.setObject(1, userId);
-			st.setObject(2, groupId);
-			try (ResultSet rs = st.executeQuery() ) {
-				if (rs.next()) {
-					if ( rs.getBoolean(1)) 
-						return Permissions.GROUPADMIN;		
-					
-					return Permissions.MEMBER;
-				} 
-			}
-		}
-		
-		return null;
-		
-	}
-
-	
 	public void deleteUserById(UUID id) throws NdexException, ObjectNotFoundException, SQLException {
 		Preconditions.checkArgument(null != id, "UUID required");
 
@@ -934,22 +794,10 @@ public class UserDAO extends NdexDBDAO {
 			}
 		}	
 		
-		try (PreparedStatement st = db.prepareStatement("select 1 from ndex_group_user where user_id = ? and is_admin limit 1")) {
-			st.setObject(1, id);
-			try (ResultSet rs = st.executeQuery()) {
-				if ( rs.next()) {
-					throw new NdexException("This user is still an admin of group.");
-				}	
-			}
-		}	
-	    
 		String[] sqlCmds = {
-				"insert into user_network_membership_arc (user_id, network_id, permission_type) " + 
+				"insert into user_network_membership_arc (user_id, network_id, permission_type) " +
 						" select user_id, network_id, permission_type from user_network_membership where user_id = ?",
 				"delete from user_network_membership where user_id = ?",
-				"insert into ndex_group_user_arc (user_id, group_id, is_admin) " + 
-						" select user_id, group_id, is_admin from ndex_group_user where user_id = ?",
-				"delete from ndex_group_user where user_id = ?",
 				"update task set is_deleted = true where owneruuid = ?",
 				"update request set is_deleted = true where owner_id =? ",
 				"update ndex_user set is_deleted = true where \"UUID\" = ? and not is_deleted",

@@ -719,7 +719,7 @@ public class NetworkServiceV2 extends NdexService {
 
 	@GET
 	@Path("/{networkid}/permission")
-	@Operation(summary = "Get All Permissions on a Network", description = "Returns a JSON object describing the user or group permissions for the network specified by networkid.")
+	@Operation(summary = "Get All Permissions on a Network", description = "Returns a JSON object describing the user permissions for the network specified by networkid. Only type=user is supported; the NDEx group feature has been removed, so type=group returns HTTP 501.")
 	@Produces("application/json")
 
 	public Map<String, String> getNetworkUserMemberships(
@@ -737,31 +737,25 @@ public class NetworkServiceV2 extends NdexService {
 		UUID networkUUID = UUID.fromString(networkId);
 		
 		
-		boolean returnUsers = true;
-		if ( sourceType != null ) {
-			if ( sourceType.toLowerCase().equals("group")) 
-				returnUsers = false;
-			else if ( !sourceType.toLowerCase().equals("user"))
-				throw new NdexException("Invalid parameter 'type' " + sourceType + " received, it can only be 'user' or 'group'.");
-		} else 
+		if ( sourceType == null )
 			throw new NdexException("Parameter 'type' is required in this function.");
-		
+		if ( sourceType.toLowerCase().equals("group"))
+			throw notImplemented("The NDEx group feature has been removed.");
+		if ( !sourceType.toLowerCase().equals("user"))
+			throw new NdexException("Invalid parameter 'type' " + sourceType + " received, it can only be 'user'.");
+
 		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
-			if ( !networkDao.isAdmin(networkUUID, getLoggedInUserId()) ) 
+			if ( !networkDao.isAdmin(networkUUID, getLoggedInUserId()) )
 				throw new UnauthorizedOperationException("Authenticate user is not the admin of this network.");
-			
-			Map<String,String> result = returnUsers?
-					networkDao.getNetworkUserPermissions(networkUUID, permission, skipBlocks, blockSize):
-					networkDao.getNetworkGroupPermissions(networkUUID,permission,skipBlocks,blockSize);
-					
-			return result;
-		} 
+
+			return networkDao.getNetworkUserPermissions(networkUUID, permission, skipBlocks, blockSize);
+		}
 	}
 
 	
 	@DELETE
 	@Path("/{networkid}/permission")
-	@Operation(summary = "Delete Network Permission", description = "Removes any permission for the network specified by networkid for the user or group specified by memberid parameter.")
+	@Operation(summary = "Delete Network Permission", description = "Removes any permission for the network specified by networkid for the user specified by the userid parameter. The NDEx group feature has been removed, so passing the groupid parameter returns HTTP 501.")
 	@Produces("application/json")
 
 	public int deleteNetworkPermission(
@@ -776,37 +770,24 @@ public class NetworkServiceV2 extends NdexService {
 		UUID userId = null;
 		if ( userIdStr != null)
 			userId = UUID.fromString(userIdStr);
-		UUID groupId = null;
 		if ( groupIdStr != null)
-			groupId = UUID.fromString(groupIdStr);
-		
-		if ( userId == null && groupId == null)
-			throw new NdexException ("Either userid or groupid parameter need to be set for this function.");
-		if ( userId !=null && groupId != null)
-			throw new NdexException ("userid and gorupid can't both be set for this function.");
-		
-		
-		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){  
-		//	User user = getLoggedInUser();
-		//	networkDao.checkPermissionOperationCondition(networkId, user.getExternalId());
-			
+			throw notImplemented("The NDEx group feature has been removed.");
+
+		if ( userId == null )
+			throw new NdexException ("The userid parameter needs to be set for this function.");
+
+		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){
+
 			if (!networkDao.isAdmin(networkId,getLoggedInUserId())) {
-				if ( userId != null && !userId.equals(getLoggedInUserId())) {
+				if ( !userId.equals(getLoggedInUserId())) {
 					throw new UnauthorizedOperationException("Unable to delete network permisison: user need to be admin of this network or grantee of this permission.");
-				}
-				if ( groupId!=null ) {	
-					throw new UnauthorizedOperationException("Unable to delete network permission: user is not an admin of this network.");
 				}
 			}
 
 			if( !networkDao.networkIsValid(networkId))
 				throw new InvalidNetworkException();
-		
-			int count;
-			if ( userId !=null)
-				count = networkDao.revokeUserPrivilege(networkId, userId);
-			else 
-				count = networkDao.revokeGroupPrivilege(networkId, groupId);
+
+			int count = networkDao.revokeUserPrivilege(networkId, userId);
 
 			// update the solr Index
 			NetworkIndexLevel lvl = networkDao.getIndexLevel(networkId);
@@ -828,7 +809,7 @@ public class NetworkServiceV2 extends NdexService {
 
 	@PUT
 	@Path("/{networkid}/permission")
-	@Operation(summary = "Update Network Permission", description = "Updates the permission of a user specified by userid or group specified by groupid for the network specified by networkid.")
+	@Operation(summary = "Update Network Permission", description = "Updates the permission of a user specified by userid for the network specified by networkid. The NDEx group feature has been removed, so passing the groupid parameter returns HTTP 501.")
 	@Produces("application/json")
 	public int updateNetworkPermission(
 			@PathParam("networkid") final String networkIdStr,
@@ -841,39 +822,32 @@ public class NetworkServiceV2 extends NdexService {
 		logger.info("[start: Updating membership for network {}]", networkIdStr);
 		UUID networkId = UUID.fromString(networkIdStr);
 		
+		if ( groupIdStr != null)
+			throw notImplemented("The NDEx group feature has been removed.");
+
 		UUID userId = null;
 		if ( userIdStr != null)
 			userId = UUID.fromString(userIdStr);
-		UUID groupId = null;
-		if ( groupIdStr != null)
-			groupId = UUID.fromString(groupIdStr);
-		
-		if ( userId == null && groupId == null)
-			throw new NdexException ("Either userid or groupid parameter need to be set for this function.");
-		if ( userId !=null && groupId != null)
-			throw new NdexException ("userid and gorupid can't both be set for this function.");
-		
+
+		if ( userId == null )
+			throw new NdexException ("The userid parameter needs to be set for this function.");
+
 		if ( permissions == null)
 			throw new NdexException ("permission parameter is required in this function.");
 		Permissions p = Permissions.valueOf(permissions.toUpperCase());
-		
+
 		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){
-			
+
 			User user = getLoggedInUser();
-			
+
 			if (!networkDao.isAdmin(networkId,user.getExternalId())) {
 				throw new UnauthorizedOperationException("Unable to update network permission: user is not an admin of this network.");
 			}
-			
+
 			if ( !networkDao.networkIsValid(networkId))
     			throw new InvalidNetworkException();
-			
-			
-			int count;
-			if ( userId!=null)  {
-				count = networkDao.grantPrivilegeToUser(networkId, userId, p);
-			} else 
-				count = networkDao.grantPrivilegeToGroup(networkId, groupId, p);
+
+			int count = networkDao.grantPrivilegeToUser(networkId, userId, p);
 			//networkDao.commit();
 			
 			// update the solr Index

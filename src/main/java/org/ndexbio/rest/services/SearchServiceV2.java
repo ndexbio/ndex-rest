@@ -75,7 +75,6 @@ import jakarta.ws.rs.core.Response;
 import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocumentList;
-import org.ndexbio.common.models.dao.postgresql.GroupDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
@@ -178,20 +177,13 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@AuthenticationNotRequired
 	@Path("/group")
-	@Operation(summary = "Search Groups", description = "Returns a SearchResult object which contains an array of Group objects and the total hit count of the search.")
+	@Deprecated
+	@Operation(summary = "Search Groups", description = "Removed: the NDEx group feature is no longer supported (HTTP 501).", deprecated = true)
 	@Produces("application/json")
-	public static SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
+	public SolrSearchResult<Group> findGroups(SimpleQuery simpleQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
-			@DefaultValue("100") @QueryParam("size") int blockSize) throws SQLException, IOException, SolrServerException, NdexException  {
-
-	//	logger.info("[start: Search group \"{}\"]", simpleQuery.getSearchString());
-		accLogger.info("[data]\t[query:" +simpleQuery.getSearchString() + "]" );
-
-		try (GroupDAO dao = new GroupDAO()) {
-			final SolrSearchResult<Group> groups = dao.findGroups(simpleQuery, skipBlocks, blockSize);
-	//		logger.info("[end: Search group \"{}\"]", simpleQuery.getSearchString());
-			return groups;
-		} 
+			@DefaultValue("100") @QueryParam("size") int blockSize) {
+		throw notImplemented("The NDEx group feature has been removed.");
 	}
 	
 	

@@ -719,7 +719,7 @@ public class TestFolderIndexManager {
 
         manager = new FolderIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "FOLDER");
+                null, null, "FOLDER", true);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("entityType:\"FOLDER\""));
@@ -756,6 +756,33 @@ public class TestFolderIndexManager {
         assertTrue("Should contain entity type filter", fq[0].contains("entityType:FOLDER"));
         assertTrue("Should contain parent filter",
                 fq[0].contains("parentUuid:\"" + parentId + "\""));
+    }
+
+    @Test
+    public void testSearchInFolder_ParentIdInjection_IsEscaped() throws Exception {
+        SolrDocumentList mockResults = new SolrDocumentList();
+        mockResults.setNumFound(0);
+
+        QueryResponse mockResponse = createMock(QueryResponse.class);
+        expect(mockResponse.getResults()).andReturn(mockResults);
+        replay(mockResponse);
+
+        mockWrapper = createMock(SolrClientWrapper.class);
+        Capture<SolrQuery> queryCapture = Capture.newInstance();
+        expect(mockWrapper.query(eq("public-nfs"), capture(queryCapture)))
+                .andReturn(mockResponse);
+        mockWrapper.close();
+        expectLastCall().anyTimes();
+        replay(mockWrapper);
+
+        // parentFolderId must be escaped so it cannot break out of the phrase.
+        String injection = "x\") OR (*:*) OR (parentUuid:\"x";
+        manager = new FolderIndexManager(mockWrapper);
+        manager.searchInFolder("*:*", "user", 10, 0, injection, null, VisibilityType.PUBLIC);
+
+        String[] fq = queryCapture.getValue().getFilterQueries();
+        // Escaped quotes keep the value inside the parentUuid phrase; no injected (*:*) clause.
+        assertTrue(fq[0].contains("parentUuid:\"x\\\") OR (*:*) OR (parentUuid:\\\"x\""));
     }
 
     @Test
@@ -1037,6 +1064,25 @@ public class TestFolderIndexManager {
         assertEquals("private-nfs", NFSIndexManager.getCoreNameFromVisibility(VisibilityType.PRIVATE));
         assertEquals("public-nfs", NFSIndexManager.getCoreNameFromVisibility(VisibilityType.PUBLIC));
         assertEquals("public-nfs", NFSIndexManager.getCoreNameFromVisibility(VisibilityType.UNLISTED));
+    }
+
+    // ========================================================================
+    // BOOST FUNCTION - NON-NETWORK MANAGERS ARE NOT PENALIZED (issue #116)
+    // ========================================================================
+
+    @Test
+    public void testGetBoostFunction_DefaultsToNull() {
+        manager = createManagerWithMock();
+        // Folders (and other non-network types) inherit the base no-op boost.
+        assertNull(manager.getBoostFunction());
+    }
+
+    @Test
+    public void testConfigureQuery_NoBoostForFolders() {
+        manager = createManagerWithMock();
+        SolrQuery q = new SolrQuery();
+        manager.configureQuery(q, "test", "filter", 10, 0);
+        assertNull(q.get("boost"));
     }
 
     // ========================================================================
