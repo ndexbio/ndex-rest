@@ -6,15 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unreleased]
+## [3.0.2] - 2026-07-07
 
 ### Added
 
-- **Folder/shortcut `visibility`** — `visibility` (`PUBLIC`/`PRIVATE`/`UNLISTED`) can now be set on folder and shortcut create/update requests (`POST`/`PUT /v3/files/folders` and `…/shortcuts`, and the MCP `manage_folder` tool), defaulting to `PRIVATE` when omitted, and is reported on folder/shortcut read responses. Requires `ndex-object-model` 3.0.2-SNAPSHOT.
+- **OAuth register & reset URLs in admin status** — `/admin/status` (v1 & v2) now returns the OAuth register URL, reset URL, and client id so client apps (e.g. cy-ndex-2) can surface real register/reset links to users. Swagger docs added for the new fields; the register redirect points at `/swagger/index.html`. See [#97](https://github.com/ndexbio/ndex-rest/pull/97), [#99](https://github.com/ndexbio/ndex-rest/pull/99).
+- **`unlist_none` reindex option** — New option to unlist public networks whose Solr index level is `NONE`. Network locking is scoped to the DB-update window (not held across the reindex op) with rollback on error. See [#96](https://github.com/ndexbio/ndex-rest/pull/96).
+- **Folder/shortcut `visibility`** — `visibility` (`PUBLIC`/`PRIVATE`/`UNLISTED`) can now be set on folder and shortcut create/update requests (`POST`/`PUT /v3/files/folders` and `…/shortcuts`, and the MCP `manage_folder` tool), defaulting to `PRIVATE` when omitted, and is reported on folder/shortcut read responses. Requires `ndex-object-model` 3.0.2-SNAPSHOT. See [#129](https://github.com/ndexbio/ndex-rest/pull/129) (closes #127).
 
-### Changed
+### Breaking Changes
 
-- **BREAKING — The NDEx group feature has been removed.** All group endpoints now return **HTTP 501 Not Implemented**, and group-based network permissions no longer exist (a user reaches a network only by ownership or a direct user permission). Use folders + visibility + folder permission sharing instead — see the [V3 Migration Guide](docs/V3-Migration-Guide.md). Affected endpoints:
+- **The NDEx group feature has been removed.** All group endpoints now return **HTTP 501 Not Implemented**, and group-based network permissions no longer exist (a user reaches a network only by ownership or a direct user permission). Use folders + visibility + folder permission sharing instead — see the [V3 Migration Guide](docs/V3-Migration-Guide.md). Affected endpoints:
   - `POST|GET|PUT|DELETE /v2/group/{id}` and its `…/membership`, `…/permission`, and `…/permissionrequest[/{requestid}]` sub-paths → 501 (the entire `/v2/group` resource is retired).
   - The v1 `/group` resource (create/get/update/delete, `/search`, `/groups`, `/{id}/member/*`, `/{id}/network/*`, `/{id}/user/*`, `/{id}/membership/*`) → 501.
   - `GET /v2/user/{id}/membership` and `…/membershiprequest[/{requestid}]` (POST/GET/PUT/DELETE — the JoinGroup flow) → 501.
@@ -32,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Admin status (`/admin/status`, v1 & v2) `groupCount` is now always `0`.
 - **Swagger / OpenAPI** — all removed group endpoints are marked `deprecated`; the mixed network-permission endpoints have updated descriptions noting that group access is no longer supported.
 - [#112](https://github.com/ndexbio/ndex-rest/pull/112)
+
+### Fixed
+
+- **Edgeless-network search ranking** — Networks with zero edges are now pushed to the bottom of Solr search results instead of ranking equally with content-bearing networks. See [#123](https://github.com/ndexbio/ndex-rest/pull/123) (closes #116/#114).
+- **Invalid UUID handling on v3 search** — v3 search endpoints that take a UUID path parameter now return **400 Bad Request** for a malformed UUID instead of a generic 500. See [#106](https://github.com/ndexbio/ndex-rest/pull/106).
+- **Shortcuts in network search** — Added an explicit `includeShortcuts` flag and removed redundant logging and network lookups that treated shortcuts as networks. See [#105](https://github.com/ndexbio/ndex-rest/pull/105) (relates to #101).
+- **Reindex healing of networks stuck in error state** — `SolrIndexBuilder` now clears a network's `error` flag after a successful reindex, so batch reindex can heal networks that were stamped with an error while Solr was unreachable. See [#93](https://github.com/ndexbio/ndex-rest/pull/93).
 
 ## [3.0.1] - 2026-06-18
 
