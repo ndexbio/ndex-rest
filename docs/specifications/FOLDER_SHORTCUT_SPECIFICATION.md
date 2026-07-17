@@ -90,6 +90,34 @@ Folder-depth limit: A folder can’t contain more than `20` levels of nested fol
     * For example, if a Network exists in a Folder and that Folder is then moved within another Folder, the permissions on the moved Folder propagate to the Network. If the moved Folder grants the user the Network a new permission, such as `write`, it overrides their old permission.   
     * Conversely, if a Network inherits `write` from a Folder, and is moved to another Folder that provides a read permission, the Network now inherits `read permission`.
 
+### Access key propagation through folders
+
+Access keys are a separate mechanism from per-user `read`/`write` permissions: an access key is an
+anonymous, **binary READ grant** (there is no write-granting access key), issued via
+`POST /v3/sharing/share`. Access keys follow the **same downward propagation as folder permissions**:
+
+* A folder's access key grants anonymous `read` to **every Network and Folder nested beneath it**,
+  through the entire subtree.
+* Validity accrues over the whole ancestor chain (**OR semantics**): a key is valid for a Network or
+  Folder if it matches the enabled key of that item's own record (for a Network, its own access key)
+  or of **any** ancestor Folder, walking `parent` up to the root. There is no "nearest parent
+  overrides" rule — because a key is only ever `read`, there is nothing to override.
+* **Shortcut carve-out:** an access key does **not** propagate through a Shortcut to the Shortcut's
+  target. A key on a Folder that *contains* a Shortcut does not grant access to the Shortcut's target
+  Network/Folder (which lives elsewhere with its own access controls). This matches how permissions
+  treat Shortcuts (a Shortcut inherits its *target's* permission, not its container's) and the Google
+  Drive model, where folder sharing does not flow through a shortcut to a file elsewhere. Shortcuts
+  are therefore never traversed during access-key validation.
+* Consistent with the above, `GET /v3/files/folders/{folderid}/list` and `/count`, when a request
+  **presents a valid access key**, return only the key-accessible children — folders and networks;
+  **Shortcut children are excluded**. When a request provides a valid access key, this key-accessible
+  result is returned regardless of the caller's identity; when no valid key is provided, the caller
+  gets their identity-based view (owners and users with direct `read`/`write` see the full listing,
+  including Shortcuts).
+
+This behavior is implemented once in `AccessKeyResolver`
+(`org.ndexbio.common.models.dao.AccessKeyResolver`), shared by the network and folder DAOs.
+
 ### Migration rules
 
 * **Network Sets**  

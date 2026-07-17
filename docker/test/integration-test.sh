@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=89
+TOTAL_API_CALLS=96
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -1158,6 +1158,81 @@ F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?acces
 { echo "${F10_KEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_KEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_KEY_NET}" == "2" ]]; } \
   || api_fail "access-key view wrong: net=${F10_KEY_NET}, list=${F10_KEY_LIST:0:400}"
 api_pass "anon + access key → /list all children (incl. PRIVATE); /count network=2"
+
+# ── STEP: Access key follows the folder hierarchy + shortcut carve-out (G11, #133) ──
+# A network is reachable by an ANCESTOR folder's access key (accrual up the folder chain), and a
+# key-authorized /list|/count EXCLUDES shortcut children (access keys don't traverse shortcuts).
+step "Access key: ancestor-folder accrual for networks + shortcut exclusion (G11)"
+
+# Nest the PRIVATE network one level deeper: a subfolder under the (keyed) F10 folder. The network's
+# key access must now be resolved via the GRANDPARENT folder's key.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (subfolder under keyed folder)"
+G11_SUB_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"G11 subfolder\",\"parent\":\"${F10_FOLDER_ID}\"}" \
+  "${BASE_URL}/v3/files/folders/")
+G11_SUB_HTTP=$(echo "${G11_SUB_RESP}" | tail -1); G11_SUB_BODY=$(echo "${G11_SUB_RESP}" | head -1)
+[[ "${G11_SUB_HTTP}" == "201" ]] || api_fail "create subfolder → HTTP ${G11_SUB_HTTP}. Body: ${G11_SUB_BODY:0:300}"
+G11_SUB_ID=$(echo "${G11_SUB_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${G11_SUB_ID}" ]] || api_fail "no uuid in subfolder create. Body: ${G11_SUB_BODY:0:300}"
+api_pass "subfolder ${G11_SUB_ID} created under keyed folder ${F10_FOLDER_ID}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/move (private net into subfolder)"
+G11_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"targetFolder\":\"${G11_SUB_ID}\",\"networks\":[\"${V3_PRIV_UUID}\"]}" \
+  "${BASE_URL}/v3/batch/networks/move")
+[[ "${G11_MOVE_HTTP}" == "200" || "${G11_MOVE_HTTP}" == "204" ]] \
+  || api_fail "move private net into subfolder → HTTP ${G11_MOVE_HTTP}"
+api_pass "PRIVATE network ${V3_PRIV_UUID} moved into subfolder (grandparent holds the key)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{priv}/summary?accesskey=<ancestor key> (anon, expect 200)"
+G11_SUMM_RESP=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}/summary?accesskey=${F10_KEY}")
+G11_SUMM_HTTP=$(echo "${G11_SUMM_RESP}" | tail -1); G11_SUMM_BODY=$(echo "${G11_SUMM_RESP}" | head -1)
+{ [[ "${G11_SUMM_HTTP}" == "200" ]] && echo "${G11_SUMM_BODY}" | grep -q "${V3_PRIV_UUID}"; } \
+  || api_fail "ancestor-key network access wrong: HTTP ${G11_SUMM_HTTP}, body ${G11_SUMM_BODY:0:300}"
+api_pass "anon + ANCESTOR folder key → GET private network summary 200 (accrual up the folder chain)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{priv}/summary (anon, no key, expect 401)"
+G11_NOKEY_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}/summary")
+[[ "${G11_NOKEY_HTTP}" == "401" ]] \
+  || api_fail "anon no-key on PRIVATE network summary → HTTP ${G11_NOKEY_HTTP} (expected 401)"
+api_pass "anon + no key → GET private network summary 401 (negative control)"
+
+# Shortcut exclusion: put a shortcut in the keyed folder; the key view (/list, /count) must omit it,
+# while the owner (no key) still sees it.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (shortcut in keyed folder → public network)"
+G11_SC_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"G11 shortcut\",\"parent\":\"${F10_FOLDER_ID}\",\"target\":\"${V3_PUB_UUID}\",\"targetType\":\"NETWORK\"}" \
+  "${BASE_URL}/v3/files/shortcuts/")
+G11_SC_HTTP=$(echo "${G11_SC_RESP}" | tail -1); G11_SC_BODY=$(echo "${G11_SC_RESP}" | head -1)
+[[ "${G11_SC_HTTP}" == "201" ]] || api_fail "create shortcut → HTTP ${G11_SC_HTTP}. Body: ${G11_SC_BODY:0:300}"
+G11_SC_ID=$(echo "${G11_SC_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${G11_SC_ID}" ]] || api_fail "no uuid in create-shortcut response. Body: ${G11_SC_BODY:0:300}"
+api_pass "shortcut ${G11_SC_ID} created in keyed folder"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — shortcut EXCLUDED, shortcut count 0"
+G11_KEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
+G11_KEY_SC=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"shortcut"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+echo "${G11_KEY_LIST}" | grep -q "${G11_SC_ID}" \
+  && api_fail "key /list LEAKED shortcut ${G11_SC_ID}. Body: ${G11_KEY_LIST:0:400}"
+[[ "${G11_KEY_SC}" == "0" ]] \
+  || api_fail "key /count shortcut expected 0, got ${G11_KEY_SC}"
+api_pass "anon + key → /list omits shortcut; /count shortcut=0 (access keys don't traverse shortcuts)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list (owner, no key) — shortcut PRESENT (no-key path unchanged)"
+G11_OWNER_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+echo "${G11_OWNER_LIST}" | grep -q "${G11_SC_ID}" \
+  || api_fail "owner /list (no key) should include shortcut ${G11_SC_ID}. Body: ${G11_OWNER_LIST:0:400}"
+api_pass "owner (no key) → /list includes the shortcut (identity-based view unchanged)"
 
 # ── STEP: Folder/Shortcut visibility — write path accepts it, read path reports it ──
 # Runs while anonymous access is still allowed (all calls here are authenticated as

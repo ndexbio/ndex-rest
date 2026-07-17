@@ -8,8 +8,41 @@ import java.util.UUID;
 
 import org.junit.Test;
 import static org.easymock.EasyMock.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import org.ndexbio.common.models.dao.AccessKeyResolver;
 
 public class TestPostgresNetworkDAO {
+
+    @Test
+    public void testAccessKeyIsValidDelegatesToResolver() throws SQLException {
+        Connection mockConn = createMock(Connection.class);
+        AccessKeyResolver resolver = createMock(AccessKeyResolver.class);
+        UUID net = UUID.randomUUID();
+        expect(resolver.isNetworkKeyValid(net, "k")).andReturn(true);
+        replay(mockConn, resolver);
+
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(mockConn);
+        dao.setAccessKeyResolver(resolver);
+        assertTrue(dao.accessKeyIsValid(net, "k"));
+
+        verify(resolver);
+    }
+
+    @Test
+    public void testAccessKeyIsValidEmptyKeySkipsResolver() throws SQLException {
+        Connection mockConn = createMock(Connection.class);
+        AccessKeyResolver resolver = createMock(AccessKeyResolver.class);
+        replay(mockConn, resolver); // resolver must NOT be consulted for an empty key
+
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(mockConn);
+        dao.setAccessKeyResolver(resolver);
+        assertFalse(dao.accessKeyIsValid(UUID.randomUUID(), ""));
+        assertFalse(dao.accessKeyIsValid(UUID.randomUUID(), null));
+
+        verify(resolver);
+    }
 
     @Test
     public void testSetErrorMessageNull_usesJdbcNull() throws SQLException {

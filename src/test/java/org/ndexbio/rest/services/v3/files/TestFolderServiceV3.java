@@ -457,10 +457,10 @@ public class TestFolderServiceV3 {
     }
 
     @Test
-    public void testListItemsInFolderViaAccessKeyUsesUnfiltered() throws Exception {
+    public void testListItemsInFolderViaAccessKeyUsesKeyFiltered() throws Exception {
         UUID folderId = UUID.randomUUID();
 
-        // Anonymous caller with a valid folder access key.
+        // Anonymous caller presenting a valid folder access key.
         expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
         replay(mockHttpServletRequest);
 
@@ -468,12 +468,9 @@ public class TestFolderServiceV3 {
         items.add(new FileItemSummary(UUID.randomUUID(), FileType.NETWORK, "Net 1"));
 
         FolderDAO folderDAO = createMock(FolderDAO.class);
-        // Folder is independently readable (e.g. PUBLIC) AND a valid access key is supplied:
-        // the key must take precedence and return the unfiltered contents.
-        expect(folderDAO.isReadable(folderId, null)).andReturn(true).anyTimes();
+        // A valid access key -> key-filtered listing (folder/network children; shortcuts excluded).
         expect(folderDAO.accessKeyIsValid(folderId, "k")).andReturn(true).anyTimes();
-        // access key grants the folder's full contents -> unfiltered listing
-        expect(folderDAO.listItemsInFolder(folderId, false, null)).andReturn(items);
+        expect(folderDAO.listItemsInFolderKeyFiltered(folderId, false, null)).andReturn(items);
         folderDAO.close();
         expectLastCall().anyTimes();
         replay(folderDAO);
@@ -489,7 +486,7 @@ public class TestFolderServiceV3 {
     }
 
     @Test
-    public void testGetFolderChildCountViaAccessKeyUsesUnfiltered() throws Exception {
+    public void testGetFolderChildCountViaAccessKeyUsesKeyFiltered() throws Exception {
         UUID folderId = UUID.randomUUID();
 
         expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
@@ -499,11 +496,9 @@ public class TestFolderServiceV3 {
         count.setNetwork(2);
 
         FolderDAO folderDAO = createMock(FolderDAO.class);
-        // Folder is independently readable (e.g. PUBLIC) AND a valid access key is supplied:
-        // the key must take precedence and return the unfiltered contents.
-        expect(folderDAO.isReadable(folderId, null)).andReturn(true).anyTimes();
+        // A valid access key -> key-filtered counts (shortcut count excluded).
         expect(folderDAO.accessKeyIsValid(folderId, "k")).andReturn(true).anyTimes();
-        expect(folderDAO.getFolderChildCounts(folderId)).andReturn(count);
+        expect(folderDAO.getFolderChildCountsKeyFiltered(folderId)).andReturn(count);
         folderDAO.close();
         expectLastCall().anyTimes();
         replay(folderDAO);

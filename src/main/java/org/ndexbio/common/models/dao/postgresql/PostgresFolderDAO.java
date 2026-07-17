@@ -3,6 +3,7 @@ package org.ndexbio.common.models.dao.postgresql;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.sql.Array;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -17,6 +18,7 @@ import java.util.UUID;
 import java.util.logging.Logger;
 import java.util.Arrays;
 
+import org.ndexbio.common.models.dao.AccessKeyResolver;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -40,8 +42,22 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	
 	private static Logger logger = Logger.getLogger(PostgresFolderDAO.class.getName());
 
+	/* Shared access-key validation logic (folder-hierarchy accrual). Injectable for tests. */
+	private AccessKeyResolver accessKeyResolver;
+
 	public PostgresFolderDAO() throws SQLException {
 		super();
+		this.accessKeyResolver = new PostgresAccessKeyResolver(db);
+	}
+
+	PostgresFolderDAO(Connection conn) throws SQLException {
+		super(conn);
+		this.accessKeyResolver = new PostgresAccessKeyResolver(db);
+	}
+
+	/** Package-private injection seam so unit tests can supply a mock resolver. */
+	void setAccessKeyResolver(AccessKeyResolver resolver) {
+		this.accessKeyResolver = resolver;
 	}
 	
 	@Override
@@ -107,20 +123,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	
 	@Override
 	public boolean accessKeyIsValid(UUID folderId, String accessKey) throws SQLException {
-		if ( accessKey == null || accessKey.isEmpty())
-			return false;
-		
-		String sqlStr = "select 1 from folder f where (\"UUID\"=? and access_key_is_on and access_key = ?)" ;
-		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-			p.setObject(1, folderId);
-			p.setString(2, accessKey);
-			try ( ResultSet rs = p.executeQuery()) {
-				 if (rs.next())
-					 return true;
-			}		
-		}
-	    return false;
-
+		// A key is valid when it matches an enabled key on this folder or any ancestor folder
+		// (full-chain accrual, mirroring folder-permission propagation). See AccessKeyResolver.
+		return accessKeyResolver.isFolderKeyValid(folderId, accessKey);
 	}
 
 	@Override
@@ -509,6 +514,26 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	@Override
 	public List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type, UUID viewerUserId) throws SQLException {
 	    return listItemsInFolderOrHome(folderId, compact, false, type, readClausesFor(viewerUserId));
+	}
+
+	@Override
+	public List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type) throws SQLException {
+	    // The key-accessible children of a folder whose access key validated. A validated folder key
+	    // is valid for every folder/network descendant but never for a shortcut, so per-child validity
+	    // reduces to: keep folders + networks, drop shortcuts. Expressed as constant per-type clauses
+	    // (no key inlined into SQL). Keeps results consistent with a direct network/folder key fetch.
+	    return listItemsInFolderOrHome(folderId, compact, false, type,
+	            new ChildReadClauses("true", "true", "false"));
+	}
+
+	@Override
+	public FileCount getFolderChildCountsKeyFiltered(UUID folderId) throws SQLException {
+	    // Same reduction as listItemsInFolderKeyFiltered: folders/networks counted, shortcuts excluded.
+	    FileCount fc = new FileCount();
+	    fc.setFolder(countReadableChildren("folder", "f", folderId, "true"));
+	    fc.setNetwork(countReadableChildren("network", "n", folderId, "true"));
+	    fc.setShortcut(0L);
+	    return fc;
 	}
 
 	@Override

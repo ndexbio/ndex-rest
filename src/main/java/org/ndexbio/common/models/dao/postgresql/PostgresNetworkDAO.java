@@ -87,6 +87,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import org.ndexbio.common.models.dao.AccessKeyResolver;
 import org.ndexbio.common.models.dao.NetworkDAO;
 
 
@@ -111,13 +112,23 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			+ "n.subnetworkids,n.solr_idx_lvl, n.iscomplete, n.ndexdoi, n.certified, n.has_layout, n.has_sample, n.cxformat, n.cx_file_size, n.cx2_file_size, n.parent, n.show_in_trash "; 
 	
 	public static final String PENDING = "Pending";
-	
+
+	/* Shared access-key validation logic (folder-hierarchy accrual). Injectable for tests. */
+	private AccessKeyResolver accessKeyResolver;
+
 	public PostgresNetworkDAO () throws  SQLException {
 	    super();
+	    this.accessKeyResolver = new PostgresAccessKeyResolver(db);
 	}
 
 	PostgresNetworkDAO(Connection conn) throws SQLException {
 		super(conn);
+		this.accessKeyResolver = new PostgresAccessKeyResolver(db);
+	}
+
+	/** Package-private injection seam so unit tests can supply a mock resolver. */
+	void setAccessKeyResolver(AccessKeyResolver resolver) {
+		this.accessKeyResolver = resolver;
 	}
 
 	public NetworkSummary CreateCloneNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize, UUID srcUUID) throws SQLException {
@@ -1372,6 +1383,34 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	
 	
 	
+	/*
+	 * Builds the access-key OR term for the batch summary queries. Delegates to the shared
+	 * AccessKeyResolver (network own key or ancestor-folder chain) and returns the subset of the
+	 * requested networks the key grants as an inlined SQL fragment, e.g. ` or n."UUID" in ('..','..')`.
+	 * Returns "" when no key is supplied or no network is granted. Replaces the legacy network_set
+	 * subquery (issue #133).
+	 */
+	private String networkAccessKeyInClause(List<String> networkIdstrList, String accessKey) throws SQLException {
+		if (accessKey == null || accessKey.isEmpty())
+			return "";
+		List<UUID> ids = new ArrayList<>(networkIdstrList.size());
+		for (String s : networkIdstrList)
+			ids.add(UUID.fromString(s));
+		Set<UUID> granted = accessKeyResolver.filterNetworksByKey(ids, accessKey);
+		if (granted.isEmpty())
+			return "";
+		StringBuilder sb = new StringBuilder(" or n.\"UUID\" in (");
+		boolean first = true;
+		for (UUID id : granted) {
+			if (!first)
+				sb.append(',');
+			sb.append('\'').append(id.toString()).append('\'');
+			first = false;
+		}
+		sb.append(')');
+		return sb.toString();
+	}
+
 	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId, String accessKey) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause because populateNetworkSummaryFromResultSet function depends on the order.
 		
@@ -1388,14 +1427,12 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			cnd.append('\'');			
 		}
 		
-		String sqlStr = accessKey == null ? (networkSummarySelectClause 
+		String sqlStr = accessKey == null ? (networkSummarySelectClause
 				+ " from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
-				  : ( networkSummarySelectClause 
+				  : ( networkSummarySelectClause
 							+ "from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
-				            +  ") or ( n.access_key_is_on and n.access_key = '" + accessKey + "') or " + 
-					                 " exists (select 1 from network_set s, network_set_member sm where s.\"UUID\" = sm.set_id "
-							                 + "and sm.network_id = n.\"UUID\" and s.access_key_is_on and s.access_key = '"+ accessKey + "' and s.is_deleted=false))" );
-		
+				            +  ")" + networkAccessKeyInClause(networkIdstrList, accessKey) + ")" );
+
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			try ( ResultSet rs = p.executeQuery()) {
 				while ( rs.next()) {
@@ -1428,11 +1465,9 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		
 		String sqlStr = accessKey == null ? (selectClause
 				+ " from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
-				  : (  selectClause //networkSummarySelectClause 
+				  : (  selectClause //networkSummarySelectClause
 							+ "from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
-				            +  ") or ( n.access_key_is_on and n.access_key = '" + accessKey + "') or " + 
-					                 " exists (select 1 from network_set s, network_set_member sm where s.\"UUID\" = sm.set_id "
-							                 + "and sm.network_id = n.\"UUID\" and s.access_key_is_on and s.access_key = '"+ accessKey + "' and s.is_deleted=false))" );
+				            +  ")" + networkAccessKeyInClause(networkIdstrList, accessKey) + ")" );
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			try ( ResultSet rs = p.executeQuery()) {
@@ -2222,27 +2257,11 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	public boolean accessKeyIsValid(UUID networkId, String accessKey) throws SQLException {
 		if ( accessKey ==null || accessKey.length() == 0)
 			return false;
-		
-		String sqlStr = "select 1 from network where (\"UUID\"=? and access_key_is_on and access_key = ?)" ;
-		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-			p.setObject(1, networkId);
-			p.setString(2, accessKey);
-			try ( ResultSet rs = p.executeQuery()) {
-				 if (rs.next())
-					 return true;
-			}		
-		}
-		
-		sqlStr = "select 1 from network_set s, network_set_member sm where s.\"UUID\" = sm.set_id "
-                + "and sm.network_id = ? and s.access_key_is_on and s.access_key = ? and s.is_deleted=false";
-		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
-			p.setObject(1, networkId);
-			p.setString(2, accessKey);
-			try ( ResultSet rs = p.executeQuery()) {
-				 return rs.next();
-			}		
-		}
 
+		// A key is valid when it matches the network's own enabled key, or an enabled key on any
+		// ancestor folder of the network (full-chain accrual). Legacy network_set validation removed
+		// (issue #133). Shortcuts are intentionally not traversed.
+		return accessKeyResolver.isNetworkKeyValid(networkId, accessKey);
 	}
 
 	/**
