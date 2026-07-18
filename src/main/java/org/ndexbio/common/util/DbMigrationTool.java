@@ -5,9 +5,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.ndexbio.common.access.NdexDatabase;
@@ -22,11 +24,12 @@ import org.ndexbio.server.migration.v3.NFSReIndexer;
  * <p>Two orthogonal entrypoints, each runnable independently in any order:</p>
  * <ul>
  *   <li>{@code transform-accesskey-shortcuts} — realigns DB state for the access-key-via-folders
- *       change (issue #133): for every folder that has an access key (directly or by inheritance),
- *       reparents single-referrer, owner-owned shortcut targets into the folder as real children and
- *       deletes the shortcut, so the folder key reaches them again. Shortcuts that can't be safely
- *       transformed (multi-referrer / dangling / cross-owner / would-create-cycle) are skipped and
- *       reported.</li>
+ *       change (issue #133). Groups shortcuts that live in a folder with an effective access key by
+ *       their target. When a target's keyed-folder shortcuts all sit in exactly ONE keyed folder, the
+ *       target is reparented into that folder as a real child and those shortcuts are deleted, so the
+ *       folder key reaches it again. A target is skipped when its keyed-folder shortcuts span more than
+ *       one keyed folder (can't parent it under all of them), or the target is dangling, cross-owner, or
+ *       (folder targets) would create a cycle. Skips are reported.</li>
  *   <li>{@code privatize-folders} — patches any PUBLIC folder whose (direct) children are all private
  *       to {@code visibility=PRIVATE}.</li>
  * </ul>
@@ -117,58 +120,96 @@ public class DbMigrationTool implements AutoCloseable {
 	// ------------------------------------------------------------------ transform-accesskey-shortcuts
 
 	public void transformAccessKeyShortcuts(boolean apply) throws SQLException {
-		report("Scanning folders that have an access key (directly or by inheritance)...");
-		Map<UUID, UUID> keyedFolders = foldersWithEffectiveAccessKey(); // folderId -> ownerId
+		report("Scanning shortcuts in folders that have an access key (directly or by inheritance)...");
+		Map<UUID, UUID> keyedFolderOwners = foldersWithEffectiveAccessKey(); // folderId -> ownerId
+		Map<UUID, TargetGroup> byTarget = groupKeyedShortcutsByTarget();
 
-		int converted = 0;
+		int targetsConverted = 0;
+		int shortcutsDeleted = 0;
 		List<String> skipped = new ArrayList<>();
 
-		for (Map.Entry<UUID, UUID> e : keyedFolders.entrySet()) {
-			UUID folderId = e.getKey();
-			UUID folderOwner = e.getValue();
+		for (Map.Entry<UUID, TargetGroup> e : byTarget.entrySet()) {
+			UUID target = e.getKey();
+			TargetGroup g = e.getValue();
 
-			for (ShortcutChild sc : shortcutChildren(folderId)) {
-				// (1) multi-referrer: reparenting would strand the other referrers.
-				if (referrerCount(sc.target) > 1) {
-					skipped.add(sc.shortcutId + " (target " + sc.target + "): multi-referrer");
-					continue;
-				}
-				// (2) dangling / (3) cross-owner: resolve the live target and its owner.
-				UUID targetOwner = targetOwnerIfLive(sc.target, sc.targetType);
-				if (targetOwner == null) {
-					skipped.add(sc.shortcutId + " (target " + sc.target + "): dangling");
-					continue;
-				}
-				if (!targetOwner.equals(folderOwner)) {
-					skipped.add(sc.shortcutId + " (target " + sc.target + "): cross-owner");
-					continue;
-				}
-				// (4) folder targets only: guard against creating a cycle.
-				if ("FOLDER".equalsIgnoreCase(sc.targetType) && wouldCreateCycle(sc.target, folderId)) {
-					skipped.add(sc.shortcutId + " (target " + sc.target + "): would-create-cycle");
-					continue;
-				}
-
-				if (apply) {
-					reparentTarget(sc.target, sc.targetType, folderId);
-					deleteShortcut(sc.shortcutId);
-					db.commit();
-					report("Converted shortcut " + sc.shortcutId + " -> reparented " + sc.targetType
-							+ " " + sc.target + " into folder " + folderId);
-				} else {
-					report("Would convert shortcut " + sc.shortcutId + " -> reparent " + sc.targetType
-							+ " " + sc.target + " into folder " + folderId);
-				}
-				converted++;
+			// Gate: the target's keyed-folder shortcuts must all sit in exactly ONE keyed folder. If they
+			// span more than one, the target can't be parented under all of them at once -> skip.
+			if (g.folderIds.size() > 1) {
+				skipped.add(target + " (" + g.targetType + "): in " + g.folderIds.size() + " keyed folders");
+				continue;
 			}
+			UUID folderId = g.folderIds.iterator().next();
+			UUID folderOwner = keyedFolderOwners.get(folderId);
+
+			// dangling: the target must be a live network/folder.
+			UUID targetOwner = targetOwnerIfLive(target, g.targetType);
+			if (targetOwner == null) {
+				skipped.add(target + " (" + g.targetType + "): dangling");
+				continue;
+			}
+			// cross-owner: never relocate another user's item into this folder.
+			if (folderOwner == null || !targetOwner.equals(folderOwner)) {
+				skipped.add(target + " (" + g.targetType + "): cross-owner");
+				continue;
+			}
+			// folder targets only: guard against creating a cycle.
+			if ("FOLDER".equalsIgnoreCase(g.targetType) && wouldCreateCycle(target, folderId)) {
+				skipped.add(target + " (" + g.targetType + "): would-create-cycle");
+				continue;
+			}
+
+			if (apply) {
+				reparentTarget(target, g.targetType, folderId);
+				for (UUID shortcutId : g.shortcutIds)
+					deleteShortcut(shortcutId); // remove all (now-redundant) shortcuts to this target in the folder
+				db.commit();
+				report("Converted " + g.targetType + " " + target + " -> reparented into folder " + folderId
+						+ "; deleted " + g.shortcutIds.size() + " shortcut(s)");
+			} else {
+				report("Would convert " + g.targetType + " " + target + " -> reparent into folder " + folderId
+						+ "; delete " + g.shortcutIds.size() + " shortcut(s)");
+			}
+			targetsConverted++;
+			shortcutsDeleted += g.shortcutIds.size();
 		}
 
 		report("");
 		report("==== " + CMD_TRANSFORM + " summary (" + (apply ? "applied" : "dry-run") + ") ====");
-		report((apply ? "Shortcuts converted to targets: " : "Shortcuts that would be converted: ") + converted);
-		report("Shortcuts skipped (not transformable): " + skipped.size());
+		report((apply ? "Targets converted to real children: " : "Targets that would be converted: ") + targetsConverted);
+		report((apply ? "Shortcuts deleted: " : "Shortcuts that would be deleted: ") + shortcutsDeleted);
+		report("Targets skipped (not transformable): " + skipped.size());
 		for (String s : skipped)
 			report("  - " + s);
+	}
+
+	/**
+	 * All live shortcuts that sit in a folder with an effective access key, grouped by their target.
+	 * For each target we track the distinct keyed parent folders holding a shortcut to it (the gate) and
+	 * every such shortcut's id (so a transform can delete them all).
+	 */
+	private Map<UUID, TargetGroup> groupKeyedShortcutsByTarget() throws SQLException {
+		String sql = "WITH RECURSIVE keyed_folders AS ("
+				+ "  SELECT \"UUID\" FROM folder WHERE access_key_is_on = true AND is_deleted = false"
+				+ "  UNION"
+				+ "  SELECT f.\"UUID\" FROM folder f JOIN keyed_folders k ON f.parent = k.\"UUID\""
+				+ "   WHERE f.is_deleted = false"
+				+ ") "
+				+ "SELECT s.\"UUID\" AS shortcut_id, s.target, s.target_type, s.parent AS folder_id"
+				+ "  FROM shortcut s JOIN keyed_folders kf ON kf.\"UUID\" = s.parent"
+				+ " WHERE s.is_deleted = false";
+		Map<UUID, TargetGroup> byTarget = new LinkedHashMap<>();
+		try (PreparedStatement p = db.prepareStatement(sql); ResultSet rs = p.executeQuery()) {
+			while (rs.next()) {
+				UUID shortcutId = (UUID) rs.getObject(1);
+				UUID target = (UUID) rs.getObject(2);
+				String targetType = rs.getString(3);
+				UUID folderId = (UUID) rs.getObject(4);
+				TargetGroup g = byTarget.computeIfAbsent(target, k -> new TargetGroup(targetType));
+				g.shortcutIds.add(shortcutId);
+				g.folderIds.add(folderId);
+			}
+		}
+		return byTarget;
 	}
 
 	private Map<UUID, UUID> foldersWithEffectiveAccessKey() throws SQLException {
@@ -200,16 +241,6 @@ public class DbMigrationTool implements AutoCloseable {
 			}
 		}
 		return result;
-	}
-
-	private long referrerCount(UUID target) throws SQLException {
-		String sql = "SELECT COUNT(*) FROM shortcut WHERE target = ? AND is_deleted = false";
-		try (PreparedStatement p = db.prepareStatement(sql)) {
-			p.setObject(1, target);
-			try (ResultSet rs = p.executeQuery()) {
-				return rs.next() ? rs.getLong(1) : 0L;
-			}
-		}
 	}
 
 	/** @return the live target's owner uuid, or null if the target is missing/deleted (dangling). */
@@ -366,5 +397,16 @@ public class DbMigrationTool implements AutoCloseable {
 	private static final class ChildVisibilitySummary {
 		boolean hasChild = false;
 		boolean anyNonPrivate = false;
+	}
+
+	/** Keyed-folder shortcuts for a single target: which distinct keyed folders hold them, and their ids. */
+	private static final class TargetGroup {
+		final String targetType;
+		final List<UUID> shortcutIds = new ArrayList<>();
+		final Set<UUID> folderIds = new HashSet<>();
+
+		TargetGroup(String targetType) {
+			this.targetType = targetType;
+		}
 	}
 }

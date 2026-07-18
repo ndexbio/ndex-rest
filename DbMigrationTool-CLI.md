@@ -79,20 +79,23 @@ Background: access-key validation now follows the folder hierarchy and **ignores
 so those networks would no longer be reachable by a folder's access key. This command realigns that
 state.
 
-For each folder with an effective access key, for each shortcut child, the tool either **converts**
-it (reparents the real target into the folder and deletes the shortcut) or **skips** it with a
-reason:
+The tool groups the shortcuts that live in keyed folders **by their target**. For each target it
+either **converts** it (reparents the real target into the keyed folder as a real child and deletes
+that folder's shortcuts to it) or **skips** it with a reason:
 
-- **multi-referrer** — the target has more than one non-deleted shortcut pointing at it; reparenting
-  would strand the other referrers.
+- **spans multiple keyed folders** — the target's keyed-folder shortcuts sit in more than one distinct
+  keyed folder; a target can have only one parent, so it can't be placed under all of them at once.
+  (Shortcuts to the same target that live in *non-keyed* folders don't count here and are left intact —
+  they still resolve to the target after it moves.)
 - **dangling** — the target is missing or deleted.
 - **cross-owner** — the target is owned by a different user than the folder owner; the tool never
   relocates another user's item into someone else's folder.
 - **would-create-cycle** — (folder targets only) reparenting would make the folder an ancestor of
   itself.
 
-At the end it reports the total converted (or "would convert" in dry-run) and the full list of
-skipped shortcuts with reasons.
+On a conversion the tool deletes **all** of that keyed folder's shortcuts to the target (there may be
+more than one). At the end it reports the number of targets converted and shortcuts deleted (or the
+"would" counts in dry-run), plus the full list of skipped targets with reasons.
 
 ### `privatize-folders`
 

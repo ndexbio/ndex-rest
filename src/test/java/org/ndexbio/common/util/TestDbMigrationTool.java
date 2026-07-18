@@ -12,13 +12,17 @@ import org.junit.Test;
 
 /**
  * Unit tests for {@link DbMigrationTool} with a fully mocked JDBC connection. These assert the
- * decision logic and, importantly, that a dry-run performs NO writes (no executeUpdate / commit).
+ * distinct-keyed-parent-folder gate and, importantly, that a dry-run performs NO writes
+ * (no executeUpdate / commit).
+ *
+ * <p>Query order in {@code transformAccessKeyShortcuts}: (1) folders with an effective key,
+ * (2) keyed-folder shortcuts grouped by target, then per eligible target (3) the target-owner lookup.</p>
  */
 public class TestDbMigrationTool {
 
     /**
-     * One access-key folder with a single-referrer, owner-owned NETWORK shortcut, in DRY-RUN:
-     * the tool reads the state but must NOT reparent, delete, or commit anything.
+     * One eligible target: its single keyed-folder shortcut sits in one keyed folder, owner matches.
+     * In DRY-RUN the tool must read the state but NOT reparent, delete, or commit anything.
      */
     @Test
     public void testTransformDryRunPerformsNoWrites() throws SQLException {
@@ -28,117 +32,101 @@ public class TestDbMigrationTool {
         UUID target = UUID.randomUUID();
 
         Connection conn = createMock(Connection.class);
-        PreparedStatement pstKeyed = createMock(PreparedStatement.class);
-        PreparedStatement pstShortcuts = createMock(PreparedStatement.class);
-        PreparedStatement pstReferrer = createMock(PreparedStatement.class);
+        PreparedStatement pstFolders = createMock(PreparedStatement.class);
+        PreparedStatement pstGroup = createMock(PreparedStatement.class);
         PreparedStatement pstOwner = createMock(PreparedStatement.class);
-        ResultSet rsKeyed = createMock(ResultSet.class);
-        ResultSet rsShortcuts = createMock(ResultSet.class);
-        ResultSet rsReferrer = createMock(ResultSet.class);
+        ResultSet rsFolders = createMock(ResultSet.class);
+        ResultSet rsGroup = createMock(ResultSet.class);
         ResultSet rsOwner = createMock(ResultSet.class);
 
-        // Order of prepareStatement calls: keyed folders, shortcut children, referrer count, target owner.
+        // Order: keyed folders, keyed-folder shortcuts, target owner.
         expect(conn.prepareStatement(anyString()))
-                .andReturn(pstKeyed).andReturn(pstShortcuts).andReturn(pstReferrer).andReturn(pstOwner);
-
-        anyPst(pstKeyed);
-        anyPst(pstShortcuts);
-        anyPst(pstReferrer);
+                .andReturn(pstFolders).andReturn(pstGroup).andReturn(pstOwner);
+        anyPst(pstFolders);
+        anyPst(pstGroup);
         anyPst(pstOwner);
 
-        expect(pstKeyed.executeQuery()).andReturn(rsKeyed);
-        expect(rsKeyed.next()).andReturn(true).andReturn(false);
-        expect(rsKeyed.getObject(1)).andReturn(folderId);
-        expect(rsKeyed.getObject(2)).andReturn(ownerId);
-        rsKeyed.close();
+        // foldersWithEffectiveAccessKey(): one keyed folder owned by ownerId
+        expect(pstFolders.executeQuery()).andReturn(rsFolders);
+        expect(rsFolders.next()).andReturn(true).andReturn(false);
+        expect(rsFolders.getObject(1)).andReturn(folderId);
+        expect(rsFolders.getObject(2)).andReturn(ownerId);
+        rsFolders.close();
         expectLastCall();
 
-        expect(pstShortcuts.executeQuery()).andReturn(rsShortcuts);
-        expect(rsShortcuts.next()).andReturn(true).andReturn(false);
-        expect(rsShortcuts.getObject(1)).andReturn(shortcutId);
-        expect(rsShortcuts.getObject(2)).andReturn(target);
-        expect(rsShortcuts.getString(3)).andReturn("NETWORK");
-        rsShortcuts.close();
+        // groupKeyedShortcutsByTarget(): one shortcut to target, in that one folder
+        expect(pstGroup.executeQuery()).andReturn(rsGroup);
+        expect(rsGroup.next()).andReturn(true).andReturn(false);
+        expect(rsGroup.getObject(1)).andReturn(shortcutId);
+        expect(rsGroup.getObject(2)).andReturn(target);
+        expect(rsGroup.getString(3)).andReturn("NETWORK");
+        expect(rsGroup.getObject(4)).andReturn(folderId);
+        rsGroup.close();
         expectLastCall();
 
-        expect(pstReferrer.executeQuery()).andReturn(rsReferrer);
-        expect(rsReferrer.next()).andReturn(true);
-        expect(rsReferrer.getLong(1)).andReturn(1L); // single referrer
-        rsReferrer.close();
-        expectLastCall();
-
+        // targetOwnerIfLive(): live, owned by ownerId (matches folder owner -> eligible)
         expect(pstOwner.executeQuery()).andReturn(rsOwner);
         expect(rsOwner.next()).andReturn(true);
-        expect(rsOwner.getObject(1)).andReturn(ownerId); // same owner as folder -> eligible
+        expect(rsOwner.getObject(1)).andReturn(ownerId);
         rsOwner.close();
         expectLastCall();
 
-        replay(conn, pstKeyed, pstShortcuts, pstReferrer, pstOwner,
-                rsKeyed, rsShortcuts, rsReferrer, rsOwner);
+        replay(conn, pstFolders, pstGroup, pstOwner, rsFolders, rsGroup, rsOwner);
 
         DbMigrationTool tool = new DbMigrationTool(conn);
         tool.transformAccessKeyShortcuts(false); // dry-run
 
-        // No executeUpdate / commit were expected on the mocks; if the tool wrote anything the default
-        // mock would have failed. verify() confirms the reads happened.
-        verify(conn, pstKeyed, pstShortcuts, pstReferrer, pstOwner,
-                rsKeyed, rsShortcuts, rsReferrer, rsOwner);
+        // No executeUpdate / commit expected; the default mock would fail if the tool wrote anything.
+        verify(conn, pstFolders, pstGroup, pstOwner, rsFolders, rsGroup, rsOwner);
     }
 
     /**
-     * A target referenced by more than one shortcut is skipped (multi-referrer) — the tool must not
-     * look up the target owner or write anything, in either mode.
+     * A target whose keyed-folder shortcuts span TWO distinct keyed folders is skipped — even in apply
+     * mode the tool must not resolve the owner or write anything.
      */
     @Test
-    public void testTransformSkipsMultiReferrerTarget() throws SQLException {
-        UUID folderId = UUID.randomUUID();
+    public void testTransformSkipsTargetSpanningMultipleFolders() throws SQLException {
+        UUID folder1 = UUID.randomUUID();
+        UUID folder2 = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
-        UUID shortcutId = UUID.randomUUID();
         UUID target = UUID.randomUUID();
+        UUID sc1 = UUID.randomUUID();
+        UUID sc2 = UUID.randomUUID();
 
         Connection conn = createMock(Connection.class);
-        PreparedStatement pstKeyed = createMock(PreparedStatement.class);
-        PreparedStatement pstShortcuts = createMock(PreparedStatement.class);
-        PreparedStatement pstReferrer = createMock(PreparedStatement.class);
-        ResultSet rsKeyed = createMock(ResultSet.class);
-        ResultSet rsShortcuts = createMock(ResultSet.class);
-        ResultSet rsReferrer = createMock(ResultSet.class);
+        PreparedStatement pstFolders = createMock(PreparedStatement.class);
+        PreparedStatement pstGroup = createMock(PreparedStatement.class);
+        ResultSet rsFolders = createMock(ResultSet.class);
+        ResultSet rsGroup = createMock(ResultSet.class);
 
-        // Only three queries run: the target-owner lookup is never reached because of the skip.
-        expect(conn.prepareStatement(anyString()))
-                .andReturn(pstKeyed).andReturn(pstShortcuts).andReturn(pstReferrer);
+        // Only two queries run: the gate skips before any target-owner lookup or write.
+        expect(conn.prepareStatement(anyString())).andReturn(pstFolders).andReturn(pstGroup);
+        anyPst(pstFolders);
+        anyPst(pstGroup);
 
-        anyPst(pstKeyed);
-        anyPst(pstShortcuts);
-        anyPst(pstReferrer);
-
-        expect(pstKeyed.executeQuery()).andReturn(rsKeyed);
-        expect(rsKeyed.next()).andReturn(true).andReturn(false);
-        expect(rsKeyed.getObject(1)).andReturn(folderId);
-        expect(rsKeyed.getObject(2)).andReturn(ownerId);
-        rsKeyed.close();
+        expect(pstFolders.executeQuery()).andReturn(rsFolders);
+        expect(rsFolders.next()).andReturn(true).andReturn(true).andReturn(false);
+        expect(rsFolders.getObject(1)).andReturn(folder1).andReturn(folder2);
+        expect(rsFolders.getObject(2)).andReturn(ownerId).andReturn(ownerId);
+        rsFolders.close();
         expectLastCall();
 
-        expect(pstShortcuts.executeQuery()).andReturn(rsShortcuts);
-        expect(rsShortcuts.next()).andReturn(true).andReturn(false);
-        expect(rsShortcuts.getObject(1)).andReturn(shortcutId);
-        expect(rsShortcuts.getObject(2)).andReturn(target);
-        expect(rsShortcuts.getString(3)).andReturn("NETWORK");
-        rsShortcuts.close();
+        // Same target referenced from two different keyed folders -> spans >1 folder -> skip
+        expect(pstGroup.executeQuery()).andReturn(rsGroup);
+        expect(rsGroup.next()).andReturn(true).andReturn(true).andReturn(false);
+        expect(rsGroup.getObject(1)).andReturn(sc1).andReturn(sc2);
+        expect(rsGroup.getObject(2)).andReturn(target).andReturn(target);
+        expect(rsGroup.getString(3)).andReturn("NETWORK").andReturn("NETWORK");
+        expect(rsGroup.getObject(4)).andReturn(folder1).andReturn(folder2);
+        rsGroup.close();
         expectLastCall();
 
-        expect(pstReferrer.executeQuery()).andReturn(rsReferrer);
-        expect(rsReferrer.next()).andReturn(true);
-        expect(rsReferrer.getLong(1)).andReturn(2L); // multi-referrer -> skip
-        rsReferrer.close();
-        expectLastCall();
-
-        replay(conn, pstKeyed, pstShortcuts, pstReferrer, rsKeyed, rsShortcuts, rsReferrer);
+        replay(conn, pstFolders, pstGroup, rsFolders, rsGroup);
 
         DbMigrationTool tool = new DbMigrationTool(conn);
-        tool.transformAccessKeyShortcuts(true); // even in apply mode, a multi-referrer target is skipped
+        tool.transformAccessKeyShortcuts(true); // even in apply mode, a multi-folder target is skipped
 
-        verify(conn, pstKeyed, pstShortcuts, pstReferrer, rsKeyed, rsShortcuts, rsReferrer);
+        verify(conn, pstFolders, pstGroup, rsFolders, rsGroup);
     }
 
     private static void anyPst(PreparedStatement pst) throws SQLException {
