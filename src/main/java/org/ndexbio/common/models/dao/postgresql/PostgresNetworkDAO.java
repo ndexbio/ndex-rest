@@ -241,7 +241,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 				"insert into user_network_membership_arc (user_id, network_id, permission_type) " +
 						" select user_id, network_id, permission_type from user_network_membership where network_id = ?",
 				"delete from user_network_membership where network_id = ?",
-				"delete from network_set_member where network_id = ?",
 				"delete from cyweb_workspace_network where network_id= ?"
 			};
 
@@ -1387,8 +1386,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	 * Builds the access-key OR term for the batch summary queries. Delegates to the shared
 	 * AccessKeyResolver (network own key or ancestor-folder chain) and returns the subset of the
 	 * requested networks the key grants as an inlined SQL fragment, e.g. ` or n."UUID" in ('..','..')`.
-	 * Returns "" when no key is supplied or no network is granted. Replaces the legacy network_set
-	 * subquery (issue #133).
+	 * Returns "" when no key is supplied or no network is granted (issue #133).
 	 */
 	private String networkAccessKeyInClause(List<String> networkIdstrList, String accessKey) throws SQLException {
 		if (accessKey == null || accessKey.isEmpty())
@@ -2259,8 +2257,8 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			return false;
 
 		// A key is valid when it matches the network's own enabled key, or an enabled key on any
-		// ancestor folder of the network (full-chain accrual). Legacy network_set validation removed
-		// (issue #133). Shortcuts are intentionally not traversed.
+		// ancestor folder of the network (full-chain accrual, issue #133). Shortcuts are intentionally
+		// not traversed.
 		return accessKeyResolver.isNetworkKeyValid(networkId, accessKey);
 	}
 

@@ -96,7 +96,7 @@ public class SearchServiceV3 extends NdexService  {
 	@POST
 	@Path("/networks/{networkId}/edges")
 	//@Produces("application/json")
-	
+	@Operation(summary = "Get Network Edges (CX2)", description = "Returns a filtered set of edges from the network specified by networkId in CX2 format. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	public Response getEdges(	@PathParam("networkId") final String networkId,
 				@DefaultValue("-1") @QueryParam("size") int limit,
 				@DefaultValue("desc") @QueryParam("order") String order,
@@ -156,7 +156,7 @@ public class SearchServiceV3 extends NdexService  {
 	@POST
 	@Path("/networks/{networkId}/query")
 	@Produces("application/json")
-
+	@Operation(summary = "Query Network (CX2)", description = "Returns a CX2 'neighborhood' subnetwork of the network specified by networkId. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	public Response queryNetworkAsCX(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
@@ -240,7 +240,7 @@ public class SearchServiceV3 extends NdexService  {
 	@POST
 	@Path("/networks/{networkId}/interconnectquery")
 	@Produces("application/json")
-
+	@Operation(summary = "Interconnect Query (CX2)", description = "Returns a CX2 'neighborhood' subnetwork where all paths start and end at one of the query nodes in the network specified by networkId. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	public Response interconnectQuery(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
@@ -334,6 +334,7 @@ public class SearchServiceV3 extends NdexService  {
 	@POST
 	@Path("/networks/{networkId}/nodes")
 	@Produces("application/json")
+	@Operation(summary = "Get Node Attributes", description = "Returns node attributes for matching nodes in the network specified by networkId. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	public Response getNodeAttributes (@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
 			final CXObjectFilter filterObject) throws SQLException, IOException, NdexException {

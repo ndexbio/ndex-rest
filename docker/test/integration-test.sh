@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=96
+TOTAL_API_CALLS=106
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -133,6 +133,22 @@ assert_group_501() {
   code=$(curl -s -o /dev/null -w "%{http_code}" -X "${method}" -u "${TEST_USER}:${TEST_PASS}" "$@" "${url}")
   if [[ "${code}" == "501" ]]; then
     api_pass "${method} ${url} → 501 (group feature removed)"
+  else
+    api_fail "${method} ${url} → HTTP ${code} (expected 501)"
+  fi
+}
+
+# Assert that a retired network-set endpoint returns HTTP 501. Sends valid auth so the request
+# passes the auth filter and reaches the (501-throwing) resource method.
+# Usage: assert_networkset_501 <METHOD> <URL> [extra curl args...]
+assert_networkset_501() {
+  local method="$1"; local url="$2"; shift 2
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: ${method} ${url} (expect 501)"
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X "${method}" -u "${TEST_USER}:${TEST_PASS}" "$@" "${url}")
+  if [[ "${code}" == "501" ]]; then
+    api_pass "${method} ${url} → 501 (network set feature removed)"
   else
     api_fail "${method} ${url} → HTTP ${code} (expected 501)"
   fi
@@ -1024,6 +1040,25 @@ if [[ "${PERM_USER_HTTP}" == "200" ]]; then
 else
   api_fail "GET /v2/network/${V2_PRIV_UUID}/permission?type=user (owner) → HTTP ${PERM_USER_HTTP} (expected 200)"
 fi
+
+# ── STEP: NDEx network set feature removed — every /v2/networkset endpoint returns HTTP 501 ──
+step "Network set feature removed: /v2/networkset endpoints return 501"
+
+NS_DUMMY_UUID="00000000-0000-0000-0000-000000000001"
+
+# /v2/networkset resource — all methods retired
+assert_networkset_501 POST   "${BASE_URL}/v2/networkset" -H "Content-Type: application/json" -d '{}'
+assert_networkset_501 GET    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}"
+assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}" -H "Content-Type: application/json" -d '{}'
+assert_networkset_501 DELETE "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}"
+assert_networkset_501 POST   "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members" -H "Content-Type: application/json" -d '[]'
+assert_networkset_501 DELETE "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members" -H "Content-Type: application/json" -d '[]'
+assert_networkset_501 GET    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/accesskey"
+assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/accesskey?action=enable"
+assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/systemproperty" -H "Content-Type: application/json" -d '{}'
+
+# user-side network-set listing
+assert_networkset_501 GET    "${BASE_URL}/v2/user/${NS_DUMMY_UUID}/networksets"
 
 # ── STEP: Folder list/count per-child visibility (F10) ───────────────────────
 # A folder's visibility is independent of its children's. A folder the caller can

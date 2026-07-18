@@ -17,8 +17,7 @@ import java.util.UUID;
  * intentionally not traversed (issue #133; edge case tracked as #137).</p>
  *
  * <p>This is the single source of truth for access-key validation, shared by
- * {@code PostgresNetworkDAO} and {@code PostgresFolderDAO}. It replaces the legacy {@code network_set}
- * based logic.</p>
+ * {@code PostgresNetworkDAO} and {@code PostgresFolderDAO}.</p>
  */
 public interface AccessKeyResolver {
 

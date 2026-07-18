@@ -222,7 +222,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/nodes")
-	@Operation(summary = "Query Network Nodes", description = "Search for nodes within a specific network using a query string. Returns a list of matching nodes with their properties.")
+	@Operation(summary = "Query Network Nodes", description = "Search for nodes within a specific network using a query string. Returns a list of matching nodes with their properties. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	@Produces("application/json")
    
 	public SolrDocumentList queryNetworkNodes(
@@ -279,7 +279,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/query")
-	@Operation(summary = "Query Network", description = "Returns a CX network that is a 'neighborhood' subnetwork of the network specified by networkid.")
+	@Operation(summary = "Query Network", description = "Returns a CX network that is a 'neighborhood' subnetwork of the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	@Produces("application/json")
 
 	public Response queryNetworkAsCX(
@@ -480,7 +480,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/interconnectquery")
-	@Operation(summary = "Interconnect Query", description = "Returns a CX network that is a 'neighborhood' subnetwork where all the paths must start and end at one of the query nodes in the network specified by networkid.")
+	@Operation(summary = "Interconnect Query", description = "Returns a CX network that is a 'neighborhood' subnetwork where all the paths must start and end at one of the query nodes in the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	@Produces("application/json")
 
 	public Response interconnectQuery(
@@ -563,7 +563,7 @@ public class SearchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/{networkId}/advancedquery")
-	@Operation(summary = "Advanced Query", description = "This method retrieves a filtered subnetwork of the network specified by ‘networkId’ based on a POSTed JSON query object.")
+	@Operation(summary = "Advanced Query", description = "This method retrieves a filtered subnetwork of the network specified by ‘networkId’ based on a POSTed JSON query object. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	@Produces("application/json")
    
 	public Response advancedQuery(

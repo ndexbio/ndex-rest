@@ -61,7 +61,6 @@ import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.UserIndexManager;
@@ -99,6 +98,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.ws.rs.Consumes;
 
 @Path("/v2/user")
@@ -1028,7 +1028,7 @@ public class UserServiceV2 extends NdexService {
 
 	  	@GET
 		@Path("/{userid}/networkcount")
-		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary and networkSet objects for this page.")
+		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary objects for this page.")
 		@Produces("application/json")
 		public Map<String,Integer> getNumNetworksForMyAccountPage(
 						 @PathParam("userid") String userIdStr
@@ -1038,13 +1038,10 @@ public class UserServiceV2 extends NdexService {
 			if ( !userId.equals(getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
 			
-			Map<String, Integer> result = new HashMap<>(2);
+			Map<String, Integer> result = new HashMap<>(1);
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				result.put("networkCount",  dao.getNumNetworksForMyAccountPage(userId));
-				try (NetworkSetDAO dao2 = new NetworkSetDAO()) {
-					result.put("networkSetCount", dao2.getNetworkSetCountByUserId(userId));
-				}
-			} 
+			}
 
 			return result;
 		}      	
@@ -1052,23 +1049,19 @@ public class UserServiceV2 extends NdexService {
 	  	
 	   	@GET
 		@Path("/{userid}/networksets")
-		@Operation(summary = "Get All Network Sets owned by a user", description = "Get a list of network sets that are owned by a user.")
+		@Deprecated
+		@Operation(summary = "Get All Network Sets owned by a user (REMOVED)", description = "Removed: the NDEx network set feature is no longer supported. This endpoint always returns HTTP 501 Not Implemented.", deprecated = true)
+		@ApiResponse(responseCode = "501", description = "Not Implemented — the network set feature has been removed")
 		@Produces("application/json")
 		@PermitAll
-
 		public  List<NetworkSet> getNetworksetsByUserId(
 					 @PathParam("userid") String userIdStr,
 						@DefaultValue("0") @QueryParam("offset") int offset,
 						@DefaultValue("0") @QueryParam("limit") int limit,
 						@DefaultValue("false") @QueryParam("summary") boolean summaryOnly,
 						@DefaultValue("false") @QueryParam("showcase") boolean showcasedOnly
-					) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException {
-			UUID userId = UUID.fromString(userIdStr);
-					
-			try (NetworkSetDAO dao = new NetworkSetDAO ()){
-					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId(), offset, limit, summaryOnly, showcasedOnly);
-					return sets;
-				}
+					) {
+			throw notImplemented("The NDEx network set feature has been removed.");
 	}
 
 	/**************************************************************************
