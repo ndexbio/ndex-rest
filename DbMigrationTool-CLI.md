@@ -21,8 +21,15 @@ java -cp "WEB-INF/classes:WEB-INF/lib/*" \
   org.ndexbio.common.util.DbMigrationTool <command> [--apply]
 ```
 
-`WEB-INF/classes` must be on the classpath (not just `WEB-INF/lib`) — it holds both `DbMigrationTool`
-itself and resources like `logback.xml`.
+`WEB-INF/classes` must be on the classpath (not just `WEB-INF/lib`) — it holds resources the tool needs,
+including the console-only logging config `logback-cli.xml` (see below).
+
+### Logging
+
+The tool forces **console-only logging**: its first action in `main()` sets
+`logback.configurationFile=logback-cli.xml` (a console-only config bundled at `WEB-INF/classes/`), so the
+WAR's server `logback.xml` — whose `RollingFileAppender` writes to `../logs/ndex.log` — is never loaded
+and **no `../logs/*` files are written**, in both dry-run and `--apply`. All output goes to the console.
 
 ### Configuration
 

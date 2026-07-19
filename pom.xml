@@ -595,6 +595,7 @@
 					</includes>
 					<excludes>
 						<exclude>**/logback.xml</exclude>
+						<exclude>**/logback-cli.xml</exclude>
 						<exclude>**/logback-test.xml</exclude>
 						<exclude>**/src/test/resources/**</exclude>
 					</excludes>

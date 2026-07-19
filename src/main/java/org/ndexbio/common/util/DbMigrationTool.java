@@ -58,6 +58,11 @@ public class DbMigrationTool implements AutoCloseable {
 	}
 
 	public static void main(String[] args) throws Exception {
+		// Console-only logging for this CLI: point logback at the bundled console-only config BEFORE any
+		// class touches logback, so the WAR's logback.xml (RollingFileAppender -> ../logs/ndex.log) is
+		// never loaded and no log files are written. Must stay the first statement in main().
+		System.setProperty("logback.configurationFile", "logback-cli.xml");
+
 		Configuration configuration = Configuration.createInstance();
 		NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
 				configuration.getDBPasswd(), 5);
