@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /v2/user/{userid}/networksets` → 501, and the `networkSetCount` field is removed from `GET /v2/user/{userid}/networkcount`.
   - The legacy `network_set` / `network_set_member` tables are retained as frozen/read-only; the `network_set_member → network` foreign key is dropped so the tables no longer couple to network deletion.
 - **Swagger / OpenAPI** — every removed network-set endpoint is marked `deprecated` with a documented `501` response.
+- **`GET /v3/networks/{networkid}/DOI` removed.** The v3 DOI-mint endpoint is deleted; it duplicated the v2 admin DOI flow (`POST /v2/admin/request` with `type=DOI`), which remains the single DOI mechanism.
+- **DOI requests now validate private-network access keys.** `POST /v2/admin/request` with `type=DOI` for a **private** network now returns **400 Bad Request** when no access key can be resolved on the network or any ancestor folder (previously it would mint a DOI whose viewer URL contained the literal `accesskey=null`). The minted URL now sources the **nearest inherited folder access key** (issue #133 folder-hierarchy access-key model). Public networks are unaffected — access keys are not checked for them.
 
 ### Changed
 

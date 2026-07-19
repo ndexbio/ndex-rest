@@ -132,4 +132,25 @@ public class PostgresAccessKeyResolver implements AccessKeyResolver {
 		}
 		return granted;
 	}
+
+	@Override
+	public String resolveNetworkAccessKey(UUID networkId) throws SQLException {
+		// Depth-ordered upward walk (network at depth 0, then network.parent -> folder.parent ...); the
+		// nearest enabled key wins. Returns null when neither the network nor any ancestor folder has one.
+		String sql = "WITH RECURSIVE chain AS ("
+				+ "  SELECT n.parent AS next_folder, n.access_key_is_on AS is_on, n.access_key AS akey, 0 AS depth"
+				+ "    FROM network n WHERE n.\"UUID\" = ? AND n.is_deleted = false"
+				+ "  UNION ALL"
+				+ "  SELECT f.parent, f.access_key_is_on, f.access_key, c.depth + 1"
+				+ "    FROM folder f JOIN chain c ON f.\"UUID\" = c.next_folder"
+				+ "   WHERE f.is_deleted = false"
+				+ ") SELECT akey FROM chain WHERE is_on = true AND akey IS NOT NULL ORDER BY depth LIMIT 1";
+
+		try (PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, networkId);
+			try (ResultSet rs = p.executeQuery()) {
+				return rs.next() ? rs.getString(1) : null;
+			}
+		}
+	}
 }

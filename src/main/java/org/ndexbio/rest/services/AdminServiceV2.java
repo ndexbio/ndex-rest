@@ -77,6 +77,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
 
 @Path("/v2/admin")
@@ -161,7 +162,8 @@ public class AdminServiceV2 extends NdexService {
 	
 	@POST
 	@Path("/request")
-	@Operation(summary = "Create a request for admins", description = "General function for creating admin related requests. The posted object has a 'type' attribute which tells the type of a request.")
+	@Operation(summary = "Create a request for admins", description = "General function for creating admin related requests. The posted object has a 'type' attribute which tells the type of a request. For a `type=DOI` request on a PRIVATE network, the minted DOI viewer URL embeds an access key so the DOI resolves for anonymous readers; the key is sourced from the network's own enabled access key, or if it has none, the nearest ancestor folder's enabled access key (folder-hierarchy inheritance, issue #133). A `type=DOI` request on a PRIVATE network that has no enabled access key on itself or any ancestor folder returns 400 Bad Request. PUBLIC networks need no access key (access keys are not checked for public networks).")
+	@ApiResponse(responseCode = "400", description = "A type=DOI request was made for a PRIVATE network that has no access key on itself or any ancestor folder.")
 	@Produces("application/json")
 	public void addRequest(
 			 Map<String,Object> request) throws Exception	{
@@ -202,9 +204,18 @@ public class AdminServiceV2 extends NdexService {
 				Map<String,Object> objMap =  (Map<String,Object>)request.get("properties");
 
 				String submitterEmail = (String)objMap.get("contactEmail");
-				if ( submitterEmail == null) 
+				if ( submitterEmail == null)
 					throw new BadRequestException("contactEmail is missing in the request.");
-				
+
+				// A private network's DOI viewer URL must carry a valid access key. Fail before any DOI
+				// state is written (no stuck 'Pending') when the network has neither its own key nor an
+				// enabled ancestor-folder key (folder-hierarchy access keys, issue #133).
+				if ( dao.getNetworkVisibility(networkId) == VisibilityType.PRIVATE
+						&& dao.getEffectiveNetworkAccessKey(networkId) == null ) {
+					throw new BadRequestException("Invalid private network without an access key was passed. "
+							+ "A private network must have an access key on itself or an ancestor folder to mint a DOI.");
+				}
+
 				dao.requestDOI(networkId, isCertified);
 				
 				dao.setFlag(networkId, "iscomplete", false);
@@ -384,7 +395,8 @@ public class AdminServiceV2 extends NdexService {
 			String url = Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkUUID.toString();
 			
 			if ( dao.getNetworkVisibility(networkUUID) == VisibilityType.PRIVATE) {
-				url += "?accesskey=" + dao.getNetworkAccessKey(networkUUID);
+				// Nearest inherited key (own, else ancestor folder); addRequest already validated non-null.
+				url += "?accesskey=" + dao.getEffectiveNetworkAccessKey(networkUUID);
 			}
 
 			String id;

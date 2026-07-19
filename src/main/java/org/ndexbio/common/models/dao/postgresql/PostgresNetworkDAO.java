@@ -2154,9 +2154,14 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		if ( keyIsOn) {
 			return oldKey;
 		}
-		
+
 		return null;
 
+	}
+
+	@Override
+	public String getEffectiveNetworkAccessKey(UUID networkId) throws SQLException {
+		return accessKeyResolver.resolveNetworkAccessKey(networkId);
 	}
 
 	public String enableNetworkAccessKey( UUID networkId) throws SQLException, ObjectNotFoundException {

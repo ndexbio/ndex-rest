@@ -52,11 +52,8 @@ child on a second run; a folder already `PRIVATE` is skipped.
 
 ### Reindex after `--apply`
 
-After a successful `--apply` run, the tool logs completion and then runs the same reindex routine as
-`GET /v3/admin/reindex-v3` — `org.ndexbio.server.migration.v3.NFSReIndexer.run()` — which reindexes
-**networks, folders, and shortcuts** and resets the NFS Solr cores. (Note: `SolrIndexBuilder all`
-would **not** suffice — it reindexes only users + networks and skips folders/shortcuts.) Dry-run does
-not reindex.
+After a successful `--apply` run, the tool logs completion and then runs a full reindex routine which reindexes
+**networks, folders, and shortcuts** and resets the NFS Solr cores. Dry-run doe nnot reindex.
 
 ## Commands
 
@@ -69,9 +66,7 @@ not reindex.
 
 ```bash
 java -cp "WEB-INF/classes:WEB-INF/lib/*" \
-  org.ndexbio.common.util.DbMigrationTool transform-accesskey-shortcuts            # dry-run
-java -cp "WEB-INF/classes:WEB-INF/lib/*" \
-  org.ndexbio.common.util.DbMigrationTool transform-accesskey-shortcuts --apply
+  org.ndexbio.common.util.DbMigrationTool transform-accesskey-shortcuts           
 ```
 
 Background: access-key validation now follows the folder hierarchy and **ignores shortcuts**
@@ -94,22 +89,23 @@ that folder's shortcuts to it) or **skips** it with a reason:
   itself.
 
 On a conversion the tool deletes **all** of that keyed folder's shortcuts to the target (there may be
-more than one). At the end it reports the number of targets converted and shortcuts deleted (or the
-"would" counts in dry-run), plus the full list of skipped targets with reasons.
+more than one). The report prints the full list of skipped targets with reasons first, then ends with a
+count summary — targets converted and shortcuts deleted (or the "would" counts in dry-run) plus the
+skipped total — so the tally is always the last thing printed, in both dry-run and `--apply`.
 
 ### `privatize-folders`
 
 ```bash
 java -cp "WEB-INF/classes:WEB-INF/lib/*" \
-  org.ndexbio.common.util.DbMigrationTool privatize-folders            # dry-run
-java -cp "WEB-INF/classes:WEB-INF/lib/*" \
-  org.ndexbio.common.util.DbMigrationTool privatize-folders --apply
+  org.ndexbio.common.util.DbMigrationTool privatize-folders           
 ```
 
 For each `PUBLIC` folder with at least one direct child, if **all** direct children are private, the
 folder is set to `PRIVATE`. Children considered: direct network and subfolder children, plus the
 visibility of each shortcut child's target (a dangling target counts as private). Empty folders are
-left unchanged. Reports the count and list of folders patched (or "would patch").
+left unchanged. The report lists the folders patched (or "would patch") first, then ends with a count
+summary — folders patched, folders left PUBLIC because they expose a non-private child, and empty
+PUBLIC folders skipped — so the tally is the last thing printed, in both dry-run and `--apply`.
 
 ## Pre-run checklist
 

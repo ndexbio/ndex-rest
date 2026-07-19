@@ -173,13 +173,18 @@ public class DbMigrationTool implements AutoCloseable {
 			shortcutsDeleted += g.shortcutIds.size();
 		}
 
+		// Detail list first, so the count tally below is always the last thing this command prints.
 		report("");
+		if (!skipped.isEmpty()) {
+			report("Skipped targets (not transformable):");
+			for (String s : skipped)
+				report("  - " + s);
+			report("");
+		}
 		report("==== " + CMD_TRANSFORM + " summary (" + (apply ? "applied" : "dry-run") + ") ====");
 		report((apply ? "Targets converted to real children: " : "Targets that would be converted: ") + targetsConverted);
 		report((apply ? "Shortcuts deleted: " : "Shortcuts that would be deleted: ") + shortcutsDeleted);
 		report("Targets skipped (not transformable): " + skipped.size());
-		for (String s : skipped)
-			report("  - " + s);
 	}
 
 	/**
@@ -302,10 +307,18 @@ public class DbMigrationTool implements AutoCloseable {
 		}
 
 		List<UUID> patched = new ArrayList<>();
+		int leftPublicExposed = 0; // has children but at least one is non-private -> genuine blocker
+		int emptyPublicSkipped = 0; // no children -> not a candidate
 		for (UUID folderId : publicFolders) {
 			ChildVisibilitySummary vis = childVisibility(folderId);
-			if (!vis.hasChild || vis.anyNonPrivate)
-				continue; // empty folder, or exposes a non-private child -> leave it PUBLIC
+			if (!vis.hasChild) {
+				emptyPublicSkipped++;
+				continue; // empty folder -> leave it PUBLIC
+			}
+			if (vis.anyNonPrivate) {
+				leftPublicExposed++;
+				continue; // exposes a non-private child -> leave it PUBLIC
+			}
 			if (apply) {
 				try (PreparedStatement p = db.prepareStatement(
 						"UPDATE folder SET visibility = 'PRIVATE', modification_time = current_timestamp WHERE \"UUID\" = ?")) {
@@ -320,12 +333,21 @@ public class DbMigrationTool implements AutoCloseable {
 			patched.add(folderId);
 		}
 
+		// Detail list first, so the count tally below is always the last thing this command prints.
 		report("");
+		if (!patched.isEmpty()) {
+			report(apply ? "Folders patched to PRIVATE:" : "Folders that would be patched to PRIVATE:");
+			for (UUID id : patched)
+				report("  - " + id);
+			report("");
+		}
+		// Invariant: patched.size() + leftPublicExposed + emptyPublicSkipped == publicFolders.size()
 		report("==== " + CMD_PRIVATIZE + " summary (" + (apply ? "applied" : "dry-run") + ") ====");
 		report((apply ? "Folders patched to PRIVATE: " : "Folders that would be patched to PRIVATE: ")
 				+ patched.size());
-		for (UUID id : patched)
-			report("  - " + id);
+		report((apply ? "Folders left PUBLIC (exposes a non-private child): "
+				: "Folders that would be left PUBLIC (exposes a non-private child): ") + leftPublicExposed);
+		report("Empty PUBLIC folders skipped (no children): " + emptyPublicSkipped);
 	}
 
 	/** Examines a folder's direct children (networks, subfolders, and shortcut targets). */
