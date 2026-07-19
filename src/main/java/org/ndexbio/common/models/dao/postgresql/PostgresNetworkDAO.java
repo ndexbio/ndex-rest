@@ -2159,11 +2159,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 
 	}
 
-	@Override
-	public String getEffectiveNetworkAccessKey(UUID networkId) throws SQLException {
-		return accessKeyResolver.resolveNetworkAccessKey(networkId);
-	}
-
 	public String enableNetworkAccessKey( UUID networkId) throws SQLException, ObjectNotFoundException {
 		String sqlStr = "select access_key, access_key_is_on from network where \"UUID\" = ? and is_deleted=false";
 		
@@ -2225,15 +2220,21 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	}
 	
 	public String requestDOI(UUID networkId, boolean isCertified) throws SQLException, NdexException {
-		String accessKey = enableNetworkAccessKey(networkId);
-		setFlag(networkId,"readonly",true); 
+		setFlag(networkId,"readonly",true);
 		setDOI (networkId, PENDING);
 		setFlag(networkId, "certified", isCertified);
 		if ( isCertified) {
+			// Certified DOIs are made PUBLIC; a public network needs no access key, so none is enabled.
 			updateNetworkVisibility(networkId, VisibilityType.PUBLIC, true);
 			setIndexLevel(networkId, NetworkIndexLevel.ALL);
-		}	
-		return accessKey;
+			return null;
+		}
+		// Non-certified: visibility unchanged. Enable a network-scoped key only when PRIVATE, so the DOI
+		// viewer URL can carry it (mirrors mintDOI, which appends a key only for PRIVATE networks). An
+		// access key already on the network is reused/enabled; otherwise one is generated.
+		if ( getNetworkVisibility(networkId) == VisibilityType.PRIVATE )
+			return enableNetworkAccessKey(networkId);
+		return null;
 	}
 	
 	

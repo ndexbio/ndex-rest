@@ -40,16 +40,4 @@ public interface AccessKeyResolver {
 	 * query. Returns an empty set for a null/empty key or empty input.
 	 */
 	Set<UUID> filterNetworksByKey(Collection<UUID> networkIds, String accessKey) throws SQLException;
-
-	/**
-	 * Sources an access key that grants anonymous READ of a network, walking the folder hierarchy: the
-	 * network's own enabled access key if present, otherwise the <em>nearest</em> ancestor folder's
-	 * enabled access key (closest first, walking {@code network.parent} to the root), or {@code null} if
-	 * neither the network nor any ancestor folder has an enabled key.
-	 *
-	 * <p>Because the returned key is an enabled key on the network's own parent chain, it is guaranteed to
-	 * satisfy {@link #isNetworkKeyValid} when forwarded back as an {@code accesskey}. Used to embed a
-	 * working key in the DOI viewer URL of a private network.</p>
-	 */
-	String resolveNetworkAccessKey(UUID networkId) throws SQLException;
 }

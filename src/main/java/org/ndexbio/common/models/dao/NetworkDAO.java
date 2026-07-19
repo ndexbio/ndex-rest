@@ -104,13 +104,6 @@ public interface NetworkDAO extends AutoCloseable {
     void setShowcaseFlag(UUID networkId, UUID userId, boolean bv) throws SQLException, UnauthorizedOperationException;
     
     String getNetworkAccessKey(UUID networkId) throws SQLException, ObjectNotFoundException;
-
-    /**
-     * The effective access key for anonymous READ of the network: its own enabled key, else the nearest
-     * enabled ancestor-folder key (folder-hierarchy inheritance, issue #133), else null. Unlike
-     * {@link #getNetworkAccessKey} (own key only), this walks the folder chain.
-     */
-    String getEffectiveNetworkAccessKey(UUID networkId) throws SQLException;
     
     String enableNetworkAccessKey(UUID networkId) throws SQLException, ObjectNotFoundException;
     

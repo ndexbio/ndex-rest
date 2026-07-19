@@ -2,16 +2,21 @@ package org.ndexbio.common.models.dao.postgresql;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.UUID;
 
 import org.junit.Test;
 import static org.easymock.EasyMock.*;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.ndexbio.common.models.dao.AccessKeyResolver;
+import org.ndexbio.model.object.network.NetworkIndexLevel;
+import org.ndexbio.model.object.network.VisibilityType;
 
 public class TestPostgresNetworkDAO {
 
@@ -114,5 +119,124 @@ public class TestPostgresNetworkDAO {
         dao.setErrorMessage(UUID.randomUUID(), longMsg);
 
         verify(mockConn, mockPst);
+    }
+
+    // ---- requestDOI: final-visibility -> access-key-provisioning behavior --------------------------
+    // Partial mock of PostgresNetworkDAO so the real requestDOI orchestration runs against mocked
+    // collaborators; whether enableNetworkAccessKey / updateNetworkVisibility are invoked is the assertion
+    // (an unexpected call to a mocked-but-not-expected method fails the mock).
+
+    private static PostgresNetworkDAO requestDoiPartialMock(Connection conn) {
+        return createMockBuilder(PostgresNetworkDAO.class)
+                .withConstructor(Connection.class).withArgs(conn)
+                .addMockedMethod("setFlag")
+                .addMockedMethod("setDOI")
+                .addMockedMethod("getNetworkVisibility")
+                .addMockedMethod("updateNetworkVisibility")
+                .addMockedMethod("setIndexLevel")
+                .addMockedMethod("enableNetworkAccessKey")
+                .createMock();
+    }
+
+    /** Certified -> network made PUBLIC, NO access key provisioned (returns null). */
+    @Test
+    public void testRequestDOICertifiedMakesPublicNoKey() throws Exception {
+        Connection conn = createMock(Connection.class);
+        PostgresNetworkDAO dao = requestDoiPartialMock(conn);
+        UUID net = UUID.randomUUID();
+
+        dao.setFlag(net, "readonly", true); expectLastCall();
+        dao.setDOI(net, PostgresNetworkDAO.PENDING); expectLastCall();
+        dao.setFlag(net, "certified", true); expectLastCall();
+        dao.updateNetworkVisibility(net, VisibilityType.PUBLIC, true); expectLastCall();
+        dao.setIndexLevel(net, NetworkIndexLevel.ALL); expectLastCall();
+        // enableNetworkAccessKey / getNetworkVisibility must NOT be called.
+        replay(dao);
+
+        assertNull(dao.requestDOI(net, true));
+        verify(dao);
+    }
+
+    /** Non-certified PRIVATE -> a network-scoped access key is provisioned (returned). */
+    @Test
+    public void testRequestDOIPrivateProvisionsOwnKey() throws Exception {
+        Connection conn = createMock(Connection.class);
+        PostgresNetworkDAO dao = requestDoiPartialMock(conn);
+        UUID net = UUID.randomUUID();
+
+        dao.setFlag(net, "readonly", true); expectLastCall();
+        dao.setDOI(net, PostgresNetworkDAO.PENDING); expectLastCall();
+        dao.setFlag(net, "certified", false); expectLastCall();
+        expect(dao.getNetworkVisibility(net)).andReturn(VisibilityType.PRIVATE);
+        expect(dao.enableNetworkAccessKey(net)).andReturn("thekey");
+        // updateNetworkVisibility / setIndexLevel must NOT be called.
+        replay(dao);
+
+        assertEquals("thekey", dao.requestDOI(net, false));
+        verify(dao);
+    }
+
+    /** Non-certified PUBLIC -> no access key provisioned (returns null). */
+    @Test
+    public void testRequestDOIPublicNoKey() throws Exception {
+        Connection conn = createMock(Connection.class);
+        PostgresNetworkDAO dao = requestDoiPartialMock(conn);
+        UUID net = UUID.randomUUID();
+
+        dao.setFlag(net, "readonly", true); expectLastCall();
+        dao.setDOI(net, PostgresNetworkDAO.PENDING); expectLastCall();
+        dao.setFlag(net, "certified", false); expectLastCall();
+        expect(dao.getNetworkVisibility(net)).andReturn(VisibilityType.PUBLIC);
+        // enableNetworkAccessKey must NOT be called.
+        replay(dao);
+
+        assertNull(dao.requestDOI(net, false));
+        verify(dao);
+    }
+
+    // ---- getNetworkAccessKey: null edge case (the condition that trips the mint-time 400 guard) -----
+
+    /** access_key_is_on = false -> returns null even though a key string is stored. */
+    @Test
+    public void testGetNetworkAccessKeyNullWhenKeyOff() throws Exception {
+        Connection conn = createMock(Connection.class);
+        PreparedStatement pst = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        expect(conn.prepareStatement(anyString())).andReturn(pst);
+        pst.setObject(anyInt(), anyObject()); expectLastCall();
+        expect(pst.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(true);
+        expect(rs.getString(1)).andReturn("somekey");
+        expect(rs.getBoolean(2)).andReturn(false);
+        rs.close(); expectLastCall();
+        pst.close(); expectLastCall();
+        replay(conn, pst, rs);
+
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
+        assertNull(dao.getNetworkAccessKey(UUID.randomUUID()));
+        verify(conn, pst, rs);
+    }
+
+    /** Positive control: access_key_is_on = true -> returns the stored key. */
+    @Test
+    public void testGetNetworkAccessKeyReturnsKeyWhenOn() throws Exception {
+        Connection conn = createMock(Connection.class);
+        PreparedStatement pst = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        expect(conn.prepareStatement(anyString())).andReturn(pst);
+        pst.setObject(anyInt(), anyObject()); expectLastCall();
+        expect(pst.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(true);
+        expect(rs.getString(1)).andReturn("somekey");
+        expect(rs.getBoolean(2)).andReturn(true);
+        rs.close(); expectLastCall();
+        pst.close(); expectLastCall();
+        replay(conn, pst, rs);
+
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
+        assertEquals("somekey", dao.getNetworkAccessKey(UUID.randomUUID()));
+        verify(conn, pst, rs);
     }
 }
