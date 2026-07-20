@@ -60,7 +60,7 @@ child on a second run; a folder already `PRIVATE` is skipped.
 ### Reindex after `--apply`
 
 After a successful `--apply` run, the tool logs completion and then runs a full reindex routine which reindexes
-**networks, folders, and shortcuts** and resets the NFS Solr cores. Dry-run doe nnot reindex.
+**networks, folders, and shortcuts** and resets the NFS Solr cores. Dry-run does not reindex.
 
 ## Commands
 
