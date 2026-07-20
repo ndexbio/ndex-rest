@@ -58,6 +58,7 @@ import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
 import org.ndexbio.cx2.converter.ConverterUtilities;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.metadata.MetaDataCollection;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.NetworkConcurrentModificationException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -1339,16 +1340,32 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	
 	private static String cvtUUIDListToStr (List<UUID> uuids) {
 		if (uuids == null) return null;
-		
+
 		StringBuffer cnd = new StringBuffer() ;
 		for ( UUID id : uuids ) {
 			if (cnd.length()>1)
 				cnd.append(',');
 			cnd.append('\'');
 			cnd.append(id);
-			cnd.append('\'');			
+			cnd.append('\'');
 		}
 		return cnd.toString();
+	}
+
+	/**
+	 * Parse each id string to a UUID, rejecting malformed input with a 400 so raw strings are never
+	 * inlined into SQL (see PR #139). Mirrors {@code SearchServiceV3.parseUuid}.
+	 */
+	private static List<UUID> parseNetworkUuids(List<String> idStrList) throws BadRequestException {
+		List<UUID> ids = new ArrayList<>(idStrList.size());
+		for (String s : idStrList) {
+			try {
+				ids.add(UUID.fromString(s));
+			} catch (IllegalArgumentException e) {
+				throw new BadRequestException("'" + s + "' is not a valid network UUID.");
+			}
+		}
+		return ids;
 	}
 	
 	public Map<String,String> getNetworkPermissionMapByNetworkIds(UUID userId, List<UUID> networkIds)
@@ -1388,13 +1405,10 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	 * requested networks the key grants as an inlined SQL fragment, e.g. ` or n."UUID" in ('..','..')`.
 	 * Returns "" when no key is supplied or no network is granted (issue #133).
 	 */
-	private String networkAccessKeyInClause(List<String> networkIdstrList, String accessKey) throws SQLException {
+	private String networkAccessKeyInClause(List<UUID> networkIds, String accessKey) throws SQLException {
 		if (accessKey == null || accessKey.isEmpty())
 			return "";
-		List<UUID> ids = new ArrayList<>(networkIdstrList.size());
-		for (String s : networkIdstrList)
-			ids.add(UUID.fromString(s));
-		Set<UUID> granted = accessKeyResolver.filterNetworksByKey(ids, accessKey);
+		Set<UUID> granted = accessKeyResolver.filterNetworksByKey(networkIds, accessKey);
 		if (granted.isEmpty())
 			return "";
 		StringBuilder sb = new StringBuilder(" or n.\"UUID\" in (");
@@ -1409,27 +1423,23 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		return sb.toString();
 	}
 
-	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId, String accessKey) throws SQLException, JsonParseException, JsonMappingException, IOException {
+	public List<NetworkSummary> getNetworkSummariesByIdStrList (List<String> networkIdstrList, UUID userId, String accessKey) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException {
 		// be careful when modify the order or the select clause because populateNetworkSummaryFromResultSet function depends on the order.
-		
+
 		List<NetworkSummary> result = new ArrayList<>(networkIdstrList.size());
-		
+
 		if ( networkIdstrList.isEmpty()) return result;
-		
-		StringBuffer cnd = new StringBuffer() ;
-		for ( String idstr : networkIdstrList ) {
-			if (cnd.length()>1)
-				cnd.append(',');
-			cnd.append('\'');
-			cnd.append(idstr);
-			cnd.append('\'');			
-		}
-		
+
+		// Validate + canonicalize the ids so only well-formed UUIDs are inlined into the IN(...) clause
+		// (never raw request strings) — see PR #139.
+		List<UUID> ids = parseNetworkUuids(networkIdstrList);
+		String cnd = cvtUUIDListToStr(ids);
+
 		String sqlStr = accessKey == null ? (networkSummarySelectClause
-				+ " from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
+				+ " from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
 				  : ( networkSummarySelectClause
-							+ "from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
-				            +  ")" + networkAccessKeyInClause(networkIdstrList, accessKey) + ")" );
+							+ "from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
+				            +  ")" + networkAccessKeyInClause(ids, accessKey) + ")" );
 
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			try ( ResultSet rs = p.executeQuery()) {
@@ -1447,25 +1457,21 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		// be careful when modify the order or the select clause because populateNetworkSummaryFromResultSet function depends on the order.
 		
 		List<NetworkSummaryV3> result = new ArrayList<>(networkIdstrList.size());
-		
+
 		if ( networkIdstrList.isEmpty()) return result;
-		
-		StringBuffer cnd = new StringBuffer() ;
-		for ( String idstr : networkIdstrList ) {
-			if (cnd.length()>1)
-				cnd.append(',');
-			cnd.append('\'');
-			cnd.append(idstr);
-			cnd.append('\'');			
-		}
-		
+
+		// Validate + canonicalize the ids so only well-formed UUIDs are inlined into the IN(...) clause
+		// (never raw request strings) — see PR #139.
+		List<UUID> ids = parseNetworkUuids(networkIdstrList);
+		String cnd = cvtUUIDListToStr(ids);
+
 		String selectClause = generateMetadataQueryStr(fmt);
-		
+
 		String sqlStr = accessKey == null ? (selectClause
-				+ " from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
+				+ " from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
 				  : (  selectClause //networkSummarySelectClause
-							+ "from network n where n.\"UUID\" in("+ cnd.toString() + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
-				            +  ")" + networkAccessKeyInClause(networkIdstrList, accessKey) + ")" );
+							+ "from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
+				            +  ")" + networkAccessKeyInClause(ids, accessKey) + ")" );
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
 			try ( ResultSet rs = p.executeQuery()) {

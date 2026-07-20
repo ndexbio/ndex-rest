@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.Test;
@@ -15,6 +16,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.ndexbio.common.models.dao.AccessKeyResolver;
+import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.VisibilityType;
 
@@ -238,5 +240,25 @@ public class TestPostgresNetworkDAO {
         PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
         assertEquals("somekey", dao.getNetworkAccessKey(UUID.randomUUID()));
         verify(conn, pst, rs);
+    }
+
+    // ---- PR #139: batch-summary id lists must be validated before any SQL is built (no injection) ----
+    // The Connection mock is put in replay mode with NO prepareStatement expectation, so if a malformed
+    // id string ever reached SQL construction the call would fail; instead it must be rejected with 400.
+
+    @Test(expected = BadRequestException.class)
+    public void testGetNetworkSummariesRejectsMalformedIdBeforeSql() throws Exception {
+        Connection conn = createMock(Connection.class);
+        replay(conn); // no SQL expected
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
+        dao.getNetworkSummariesByIdStrList(List.of("x') OR 1=1 --"), UUID.randomUUID(), null);
+    }
+
+    @Test(expected = BadRequestException.class)
+    public void testGetNetworkV3SummariesRejectsMalformedIdBeforeSql() throws Exception {
+        Connection conn = createMock(Connection.class);
+        replay(conn); // no SQL expected
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
+        dao.getNetworkV3SummariesByIdStrList(List.of("not-a-uuid"), UUID.randomUUID(), null, null);
     }
 }
