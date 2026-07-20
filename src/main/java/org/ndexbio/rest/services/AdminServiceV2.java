@@ -77,6 +77,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
 
 @Path("/v2/admin")
@@ -161,7 +162,9 @@ public class AdminServiceV2 extends NdexService {
 	
 	@POST
 	@Path("/request")
-	@Operation(summary = "Create a request for admins", description = "General function for creating admin related requests. The posted object has a 'type' attribute which tells the type of a request.")
+	@Operation(summary = "Create a request for admins", description = "General function for creating admin related requests. The posted object has a 'type' attribute which tells the type of a request. A `type=DOI` request auto-manages anonymous access to the network — the caller does not need to allocate an access key. If the network stays PRIVATE, the flow ensures a network-scoped access key that the minted DOI viewer URL carries: it reuses an access key already present on the network (enabling it if it was disabled), or generates one if the network has none. If the request is certified, the network is made PUBLIC and no access key is applied (a public network needs none). Edge case: if a PRIVATE network somehow has no enabled access key at mint time, the request returns 400 Bad Request; recover by issuing a `type=Cancel_DOI` request and retrying. "
+			+ "DOI state handling (`type=DOI`): the request attempts the full DOI mint synchronously in one call. It first marks the network read-only and sets its DOI state to `Pending`, then mints via the external DOI (EZID) service, advancing the state to the assigned DOI identifier on success. If minting fails — for example the network is missing the required `author` property, or the DOI service is unreachable — the network is left in the `Pending` state (and read-only); it is NOT rolled back to having no DOI. Because a network in `Pending` is treated as already having a DOI, a subsequent `type=DOI` request for that network is rejected. To retry a failed DOI, the caller must first clear the stuck request by submitting a `type=Cancel_DOI` request to this same endpoint (which resets the DOI state to none and clears the read-only flag), then submit a new `type=DOI` request.")
+	@ApiResponse(responseCode = "400", description = "A type=DOI request could not mint a resolvable DOI because the PRIVATE network has no enabled access key at mint time; cancel the request (type=Cancel_DOI) and retry.")
 	@Produces("application/json")
 	public void addRequest(
 			 Map<String,Object> request) throws Exception	{
@@ -202,9 +205,9 @@ public class AdminServiceV2 extends NdexService {
 				Map<String,Object> objMap =  (Map<String,Object>)request.get("properties");
 
 				String submitterEmail = (String)objMap.get("contactEmail");
-				if ( submitterEmail == null) 
+				if ( submitterEmail == null)
 					throw new BadRequestException("contactEmail is missing in the request.");
-				
+
 				dao.requestDOI(networkId, isCertified);
 				
 				dao.setFlag(networkId, "iscomplete", false);
@@ -384,7 +387,16 @@ public class AdminServiceV2 extends NdexService {
 			String url = Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkUUID.toString();
 			
 			if ( dao.getNetworkVisibility(networkUUID) == VisibilityType.PRIVATE) {
-				url += "?accesskey=" + dao.getNetworkAccessKey(networkUUID);
+				// requestDOI enabled a network-own key for PRIVATE networks; guard the should-not-happen
+				// null case rather than emit "accesskey=null". Reset to Pending so Cancel_DOI can recover.
+				String accessKey = dao.getNetworkAccessKey(networkUUID);
+				if ( accessKey == null) {
+					dao.setDOI(networkUUID, PostgresNetworkDAO.PENDING);
+					dao.commit();
+					throw new BadRequestException("Private network " + networkUUID + " has no enabled access key; "
+							+ "cannot mint a resolvable DOI URL. Cancel the DOI request (type=Cancel_DOI) and retry.");
+				}
+				url += "?accesskey=" + accessKey;
 			}
 
 			String id;

@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
-import java.util.regex.Matcher;
 
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
@@ -49,7 +48,6 @@ import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.util.NdexUUIDFactory;
@@ -62,12 +60,10 @@ import org.ndexbio.cx2.aspect.element.core.CxNode;
 import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.model.exceptions.BadRequestException;
-import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
-import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.network.NetworkSummaryV3;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.NetworkSummaryFormat;
@@ -75,9 +71,6 @@ import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
-import org.ndexbio.rest.helpers.AmazonSESMailSender;
-import org.ndexbio.rest.helpers.EZIDClient;
-import org.ndexbio.rest.helpers.Security;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.task.CX2NetworkLoadingTask;
 import org.ndexbio.task.NdexServerQueue;
@@ -112,7 +105,7 @@ public class NetworkServiceV3  extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}")
-	@Operation(summary = "Get Network in CX2 format", description = "Returns the specified network in CX2 format. This is performed as a monolithic operation, so it is typically advisable for applications to first use the getNetworkSummary method to check the node and edge counts for a network before retrieving the network.")
+	@Operation(summary = "Get Network in CX2 format", description = "Returns the specified network in CX2 format. This is performed as a monolithic operation, so it is typically advisable for applications to first use the getNetworkSummary method to check the node and edge counts for a network before retrieving the network. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 
 	public Response getCX2Network(	@PathParam("networkid") final String networkId,
 			@QueryParam("download") boolean isDownload,
@@ -172,7 +165,7 @@ public class NetworkServiceV3  extends NdexService {
 	@GET
 	@Path("/{networkid}/aspects")
 	@Produces("application/json")
-
+	@Operation(summary = "Get Network CX2 Aspect Metadata", description = "Returns the CX2 aspect metadata for the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	public List<CxMetadata>  getCX2Metadata(	@PathParam("networkid") final String networkId,
 			@QueryParam("accesskey") String accessKey)
 			throws Exception {
@@ -190,7 +183,8 @@ public class NetworkServiceV3  extends NdexService {
 	
 	@PermitAll
 	@GET
-	@Path("/{networkid}/aspects/edges") 
+	@Path("/{networkid}/aspects/edges")
+	@Operation(summary = "Get Network Edges (CX2)", description = "Returns the edge aspect of the network specified by networkid in CX2 format. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	public Response getEdges (
 			@PathParam("networkid") final String networkId,
 			@DefaultValue("first") @QueryParam("method") String method,
@@ -251,6 +245,7 @@ public class NetworkServiceV3  extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/aspects/{aspectname}")
+	@Operation(summary = "Get a Network Aspect (CX2)", description = "Returns the elements of the specified aspect from the network specified by networkid in CX2 format. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 	public Response getAspectElements(	@PathParam("networkid") final String networkId,
 			@PathParam("aspectname") final String aspectName,
 			@DefaultValue("-1") @QueryParam("size") int limit,
@@ -670,7 +665,7 @@ public class NetworkServiceV3  extends NdexService {
 		@PermitAll
 		@GET
 		@Path("/{networkid}/export")
-		@Operation(summary = "Export nodes or edges in TSV format", description = "Returns the nodes or edges of this network specified by networkid in TSV format. Content type of the response is text/tab-separated-values.")
+		@Operation(summary = "Export nodes or edges in TSV format", description = "Returns the nodes or edges of this network specified by networkid in TSV format. Content type of the response is text/tab-separated-values. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 
 		public Response exportTSVText( 
 				@PathParam("networkid") final String networkId,
@@ -762,103 +757,8 @@ public class NetworkServiceV3  extends NdexService {
 		
 		@PermitAll
 		@GET
-		@Path("/{networkid}/DOI")
-		@Produces("text/plain")
-
-		public String mintDOI( 
-				@PathParam("networkid") final String networkId,
-				@QueryParam("key") String key,
-				@QueryParam("email") String submitter
-				) throws Exception {
-
-			String uuidFromKey = Security.decrypt(key,Configuration.getInstance().getSecretKeySpec());
-			String submitterEmail = submitter;
-			
-			if( !networkId.equals(uuidFromKey)) 
-				throw new BadRequestException("Invalid key in the URL.");
-			
-			UUID networkUUID = UUID.fromString(networkId);
-			
-			try (NetworkDAO dao = Configuration.getInstance().getDAOFactory().getNetworkDAO() ) {
-				String currentDOI = dao.getNetworkDOI(networkUUID);
-				if ( currentDOI ==null || !currentDOI.equals(PostgresNetworkDAO.PENDING)) {
-					throw new ForbiddenOperationException("This operation only works when a DOI is pending. The current value of DOI is: " + currentDOI );
-				}
-				dao.setDOI(networkUUID, "CREATING");
-				dao.commit();
-				
-				NetworkSummary s = dao.getNetworkSummaryById(networkUUID);
-				
-				String author = null;
-				for (NdexPropertyValuePair p : s.getProperties() ) {
-					if ( p.getPredicateString().equals("author"))
-						author = p.getValue();
-					
-				}
-				if ( author == null)  {
-					dao.setDOI(networkUUID, PostgresNetworkDAO.PENDING);
-					dao.commit();
-					throw new NdexException("Property author is missing in the network.");
-				}
-				
-				String url = Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkId;
-				
-				if ( dao.getNetworkVisibility(networkUUID) == VisibilityType.PRIVATE) {
-					url += "?accesskey=" + dao.getNetworkAccessKey(networkUUID);
-				}
-
-				String id;
-				try {
-					id = EZIDClient.createDOI(
-							url ,
-							author, s.getName(),
-							Configuration.getInstance().getDOIPrefix(),
-							Configuration.getInstance().getDOIUser(),
-							Configuration.getInstance().getDOIPswd());
-				} catch (Exception e) {
-					dao.setDOI(networkUUID, PostgresNetworkDAO.PENDING);
-					dao.commit();
-					e.printStackTrace();
-					throw new NdexException("Failed to create DOI in EZID site. Cause: " + e.getMessage());
-					
-				}
-				
-				dao.setDOI(networkUUID, id);
-				dao.commit();
-				
-				//Send confirmation to submitter and admin
-				
-				//Reading in the email template
-				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
-				String adminEmailAddress = Configuration.getInstance().getAdminUserEmail();
-
-				String messageBody = "Dear NDEx user " + s.getOwner() + ",<p>"
-						+ "Your DOI request for the network<br>"
-						+ s.getName() + "(" + networkId + ")<br>"
-						+ "has been processed.<p>"
-						+ "You digital Object Identifier (DOI) is:<br>"
-						+ id + "<p>"
-						+ "Your identifier's URL form is:<br>"
-						+ "https://doi.org/" + id + "<p>"
-						+ "Please be advised that it can take several hours before your new DOI becomes resolvable.";
-						
-				
-		        String htmlEmail = emailTemplate.replaceFirst("%%____%%", 
-		        		Matcher.quoteReplacement(messageBody)) ;
-
-		        AmazonSESMailSender.getInstance().sendEmail(submitterEmail, 
-		        		  htmlEmail, "A DOI has been created for your NDEx Network", "html",adminEmailAddress);
-
-				
-				return "DOI " + id +" has been created on this network. Confirmation emails have been sent."; 
-			}
-			
-		}
-		
-		@PermitAll
-		@GET
 		@Path("/{networkid}/summary")
-		@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId. A NetworkSummary object is a subset of a network object. It is used to convey basic information about a network in this API. NOTE: If value of 'completed' is False this result may not contain all attributes below (name, description, version might be missing, nodeCount and edgeCount will be zero, properties will be empty, etc…)")
+		@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId. A NetworkSummary object is a subset of a network object. It is used to convey basic information about a network in this API. NOTE: If value of 'completed' is False this result may not contain all attributes below (name, description, version might be missing, nodeCount and edgeCount will be zero, properties will be empty, etc…) If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
 		@Produces("application/json")
 		
 		public NetworkSummaryV3 getNetworkSummaryV3(
