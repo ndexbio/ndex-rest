@@ -10,8 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
-- **The NDEx network set feature has been removed.** All `/v2/networkset` endpoints now return **HTTP 501 Not Implemented**, and `GET /v2/user/{userid}/networksets` is retired. Use folders + shortcuts + folder access keys instead — see the [V3 Migration Guide](docs/V3-Migration-Guide.md). Affected endpoints:
-  - `POST /v2/networkset`, `GET|PUT|DELETE /v2/networkset/{id}`, `POST|DELETE /v2/networkset/{id}/members`, `GET|PUT /v2/networkset/{id}/accesskey`, `PUT /v2/networkset/{id}/systemproperty` → 501 (the entire `/v2/networkset` resource is retired).
+- **The NDEx network set feature has been removed**, except for two read-only endpoints re-enabled for backward-compatible reads of legacy data. All `/v2/networkset` *write* endpoints return **HTTP 501 Not Implemented**, and `GET /v2/user/{userid}/networksets` is retired. New network sets can no longer be created; use folders + shortcuts + folder access keys instead — see the [V3 Migration Guide](docs/V3-Migration-Guide.md). Endpoint status:
+  - **Re-enabled (read-only):** `GET /v2/networkset/{id}` and `GET /v2/networkset/{id}/accesskey` now serve the frozen, archived `network_set` / `network_set_member` tables directly — no v3 folder polyfill. `GET /v2/networkset/{id}` returns the archived set (members filtered to networks the caller can read, a valid access key returning all); `GET /v2/networkset/{id}/accesskey` returns the archived key to the set owner. Both are marked deprecated/archived in Swagger.
+  - **Retired → 501:** `POST /v2/networkset`, `PUT|DELETE /v2/networkset/{id}`, `POST|DELETE /v2/networkset/{id}/members`, `PUT /v2/networkset/{id}/accesskey`, `PUT /v2/networkset/{id}/systemproperty`.
   - `GET /v2/user/{userid}/networksets` → 501, and the `networkSetCount` field is removed from `GET /v2/user/{userid}/networkcount`.
   - The legacy `network_set` / `network_set_member` tables are retained as frozen/read-only; the `network_set_member → network` foreign key is dropped so the tables no longer couple to network deletion.
 - **Swagger / OpenAPI** — every removed network-set endpoint is marked `deprecated` with a documented `501` response.
