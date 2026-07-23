@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=106
+TOTAL_API_CALLS=111
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -1041,19 +1041,20 @@ else
   api_fail "GET /v2/network/${V2_PRIV_UUID}/permission?type=user (owner) → HTTP ${PERM_USER_HTTP} (expected 200)"
 fi
 
-# ── STEP: NDEx network set feature removed — every /v2/networkset endpoint returns HTTP 501 ──
-step "Network set feature removed: /v2/networkset endpoints return 501"
+# ── STEP: NDEx network set WRITES retired — /v2/networkset write endpoints return HTTP 501 ──
+# The two read endpoints (GET /v2/networkset/{id} and GET /v2/networkset/{id}/accesskey) are
+# re-enabled to serve the frozen archive and are exercised in the dedicated read step below;
+# only the write endpoints remain retired to 501 here.
+step "Network set writes retired: /v2/networkset write endpoints return 501"
 
 NS_DUMMY_UUID="00000000-0000-0000-0000-000000000001"
 
-# /v2/networkset resource — all methods retired
+# /v2/networkset resource — all write methods retired
 assert_networkset_501 POST   "${BASE_URL}/v2/networkset" -H "Content-Type: application/json" -d '{}'
-assert_networkset_501 GET    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}"
 assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}" -H "Content-Type: application/json" -d '{}'
 assert_networkset_501 DELETE "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}"
 assert_networkset_501 POST   "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members" -H "Content-Type: application/json" -d '[]'
 assert_networkset_501 DELETE "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members" -H "Content-Type: application/json" -d '[]'
-assert_networkset_501 GET    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/accesskey"
 assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/accesskey?action=enable"
 assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/systemproperty" -H "Content-Type: application/json" -d '{}'
 
@@ -1437,6 +1438,103 @@ CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (shortcut dropped from private-nfs)"
 poll_files_until_absent "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (old core)"
 api_pass "shortcut visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
+
+# ── STEP: Re-enabled read-only /v2/networkset endpoints serve frozen archive data ──
+# The network set feature is removed (writes → 501), but two READ endpoints are re-enabled to
+# serve the frozen, archived network_set / network_set_member tables. Since no endpoint can
+# create a network set anymore, we seed one directly via psql (owned by TEST_USER, key enabled,
+# with one PUBLIC and one PRIVATE member network), then read it back. Runs BEFORE the
+# AUTHENTICATED_USER_ONLY flip below so the anonymous read path is still exercised.
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "Re-enabled read-only /v2/networkset endpoints (archived network_set data)"
+
+  NS_SET_ID="11111111-2222-3333-4444-555555555555"
+  NS_KEY="ns-archive-test-key"
+
+  echo "  Seeding frozen network_set '${NS_SET_ID}' (owner=${TEST_USER}, members: 1 public + 1 private)..."
+  docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
+      -c \"DELETE FROM network_set_member WHERE set_id = '${NS_SET_ID}'; \
+           DELETE FROM network_set WHERE \\\"UUID\\\" = '${NS_SET_ID}'; \
+           INSERT INTO network_set (\\\"UUID\\\", name, description, owner_id, creation_time, modification_time, is_deleted, access_key, access_key_is_on, showcased) \
+             VALUES ('${NS_SET_ID}', 'NDEx Archived Test Set', 'frozen archive read test', (SELECT \\\"UUID\\\" FROM ndex_user WHERE user_name = '${TEST_USER}' AND is_deleted = false), now(), now(), false, '${NS_KEY}', true, false); \
+           INSERT INTO network_set_member (set_id, network_id) VALUES ('${NS_SET_ID}', '${V2_PUB_UUID}'), ('${NS_SET_ID}', '${V2_PRIV_UUID}');\"
+  "
+
+  # 1) GET /v2/networkset/{id} (anon, no key): metadata + only the readable (public) member.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID} (anon) — public member only"
+  NS_ANON=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_SET_ID}")
+  NS_ANON_HTTP=$(echo "${NS_ANON}" | tail -1); NS_ANON_BODY=$(echo "${NS_ANON}" | head -1)
+  [[ "${NS_ANON_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (anon) → HTTP ${NS_ANON_HTTP}. Body: ${NS_ANON_BODY:0:400}"
+  echo "${NS_ANON_BODY}" | grep -q "NDEx Archived Test Set" || api_fail "anon read missing archived set name. Body: ${NS_ANON_BODY:0:400}"
+  echo "${NS_ANON_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "anon read missing PUBLIC member ${V2_PUB_UUID}. Body: ${NS_ANON_BODY:0:400}"
+  echo "${NS_ANON_BODY}" | grep -q "${V2_PRIV_UUID}" && api_fail "anon read LEAKED PRIVATE member ${V2_PRIV_UUID}. Body: ${NS_ANON_BODY:0:400}"
+  api_pass "GET /v2/networkset (anon) → 200, archived metadata + PUBLIC member only (PRIVATE filtered)"
+
+  # 2) GET /v2/networkset/{id}?accesskey=<key> (anon): a valid archived key bypasses the filter.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID}?accesskey (anon) — all members"
+  NS_KEYED=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_SET_ID}?accesskey=${NS_KEY}")
+  NS_KEYED_HTTP=$(echo "${NS_KEYED}" | tail -1); NS_KEYED_BODY=$(echo "${NS_KEYED}" | head -1)
+  [[ "${NS_KEYED_HTTP}" == "200" ]] || api_fail "GET /v2/networkset?accesskey (anon) → HTTP ${NS_KEYED_HTTP}. Body: ${NS_KEYED_BODY:0:400}"
+  echo "${NS_KEYED_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "keyed read missing PUBLIC member. Body: ${NS_KEYED_BODY:0:400}"
+  echo "${NS_KEYED_BODY}" | grep -q "${V2_PRIV_UUID}" || api_fail "keyed read missing PRIVATE member (key should bypass filter). Body: ${NS_KEYED_BODY:0:400}"
+  api_pass "GET /v2/networkset?accesskey (anon) → 200, valid archived key returns ALL members"
+
+  # 3) GET /v2/networkset/{id} (owner): sees both members via own readability.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID} (owner) — both members"
+  NS_OWNER=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_SET_ID}")
+  NS_OWNER_HTTP=$(echo "${NS_OWNER}" | tail -1); NS_OWNER_BODY=$(echo "${NS_OWNER}" | head -1)
+  [[ "${NS_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (owner) → HTTP ${NS_OWNER_HTTP}. Body: ${NS_OWNER_BODY:0:400}"
+  echo "${NS_OWNER_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "owner read missing PUBLIC member. Body: ${NS_OWNER_BODY:0:400}"
+  echo "${NS_OWNER_BODY}" | grep -q "${V2_PRIV_UUID}" || api_fail "owner read missing own PRIVATE member. Body: ${NS_OWNER_BODY:0:400}"
+  api_pass "GET /v2/networkset (owner) → 200, both members (own PRIVATE network is readable)"
+
+  # 4) GET /v2/networkset/{id}/accesskey (owner): returns the archived key.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID}/accesskey (owner) — key returned"
+  NS_AK=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_SET_ID}/accesskey")
+  NS_AK_HTTP=$(echo "${NS_AK}" | tail -1); NS_AK_BODY=$(echo "${NS_AK}" | head -1)
+  [[ "${NS_AK_HTTP}" == "200" ]] || api_fail "GET /v2/networkset/accesskey (owner) → HTTP ${NS_AK_HTTP}. Body: ${NS_AK_BODY:0:400}"
+  echo "${NS_AK_BODY}" | grep -q "${NS_KEY}" || api_fail "accesskey read missing key '${NS_KEY}'. Body: ${NS_AK_BODY:0:400}"
+  api_pass "GET /v2/networkset/accesskey (owner) → 200, archived access key returned"
+
+  # 5) GET /v2/networkset/{id}/accesskey (non-owner): 401 (ownership required for the key).
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID}/accesskey (non-owner ${TEST_USER2}) — 401"
+  NS_AK2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v2/networkset/${NS_SET_ID}/accesskey")
+  [[ "${NS_AK2_HTTP}" == "401" ]] || api_fail "GET /v2/networkset/accesskey (non-owner) → HTTP ${NS_AK2_HTTP} (expected 401)"
+  api_pass "GET /v2/networkset/accesskey (non-owner) → 401 (only the owner may read the key)"
+
+  # 5b) GET /v2/networkset/{missing}/accesskey (owner): existence resolved first → 404, not 401.
+  CALL_NUM=$((CALL_NUM+1))
+  NS_MISSING_ID="99999999-9999-9999-9999-999999999999"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_MISSING_ID}/accesskey (owner, missing set) — 404"
+  NS_AK_MISS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_MISSING_ID}/accesskey")
+  [[ "${NS_AK_MISS_HTTP}" == "404" ]] || api_fail "GET /v2/networkset/accesskey (missing set) → HTTP ${NS_AK_MISS_HTTP} (expected 404)"
+  api_pass "GET /v2/networkset/accesskey (missing set) → 404 (existence resolved before ownership)"
+
+  # 6) Writes remain retired: POST /v2/networkset still returns 501.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset (auth) — still 501 (writes retired)"
+  NS_POST_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" -d '{"name":"nope"}' "${BASE_URL}/v2/networkset")
+  [[ "${NS_POST_HTTP}" == "501" ]] || api_fail "POST /v2/networkset → HTTP ${NS_POST_HTTP} (expected 501 — writes remain removed)"
+  api_pass "POST /v2/networkset → 501 (network-set writes remain retired; only reads re-enabled)"
+
+  echo "  Cleaning up seeded network_set '${NS_SET_ID}'..."
+  docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
+      -c \"DELETE FROM network_set_member WHERE set_id = '${NS_SET_ID}'; DELETE FROM network_set WHERE \\\"UUID\\\" = '${NS_SET_ID}';\"
+  "
+fi
 
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────
 # NOTE: this permanently flips the server to AUTHENTICATED_USER_ONLY=true (appends to
