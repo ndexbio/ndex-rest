@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=110
+TOTAL_API_CALLS=111
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -1510,6 +1510,14 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   NS_AK2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v2/networkset/${NS_SET_ID}/accesskey")
   [[ "${NS_AK2_HTTP}" == "401" ]] || api_fail "GET /v2/networkset/accesskey (non-owner) → HTTP ${NS_AK2_HTTP} (expected 401)"
   api_pass "GET /v2/networkset/accesskey (non-owner) → 401 (only the owner may read the key)"
+
+  # 5b) GET /v2/networkset/{missing}/accesskey (owner): existence resolved first → 404, not 401.
+  CALL_NUM=$((CALL_NUM+1))
+  NS_MISSING_ID="99999999-9999-9999-9999-999999999999"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_MISSING_ID}/accesskey (owner, missing set) — 404"
+  NS_AK_MISS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_MISSING_ID}/accesskey")
+  [[ "${NS_AK_MISS_HTTP}" == "404" ]] || api_fail "GET /v2/networkset/accesskey (missing set) → HTTP ${NS_AK_MISS_HTTP} (expected 404)"
+  api_pass "GET /v2/networkset/accesskey (missing set) → 404 (existence resolved before ownership)"
 
   # 6) Writes remain retired: POST /v2/networkset still returns 501.
   CALL_NUM=$((CALL_NUM+1))

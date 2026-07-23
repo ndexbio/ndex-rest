@@ -168,4 +168,28 @@ public class TestNetworkSetDAO {
 		NetworkSetDAO dao = new NetworkSetDAO(conn);
 		dao.getNetworkSet(UUID.randomUUID(), UUID.randomUUID(), "wrong-key");
 	}
+
+	@Test(expected = UnauthorizedOperationException.class)
+	public void testGetNetworkSetNullStoredKeyDoesNotNPE() throws Exception {
+		Connection conn = createMock(Connection.class);
+		PreparedStatement pst = createMock(PreparedStatement.class);
+		ResultSet rs = createNiceMock(ResultSet.class);
+
+		// access_key column is nullable: key flagged on but stored key is NULL. A supplied non-null
+		// key must NOT NullPointerException on the compare — it is simply invalid, so the method
+		// throws UnauthorizedOperationException (guards the #2 regression).
+		expect(conn.prepareStatement(anyString())).andReturn(pst);
+		pst.setObject(anyInt(), anyObject());
+		expectLastCall().anyTimes();
+		expect(pst.executeQuery()).andReturn(rs);
+		expect(rs.next()).andReturn(true);
+		expect(rs.getString(6)).andReturn(null); // access_key IS NULL
+		expect(rs.getBoolean(7)).andReturn(true); // access_key_is_on = true
+		pst.close();
+		expectLastCall();
+		replay(conn, pst, rs);
+
+		NetworkSetDAO dao = new NetworkSetDAO(conn);
+		dao.getNetworkSet(UUID.randomUUID(), UUID.randomUUID(), "any-key");
+	}
 }

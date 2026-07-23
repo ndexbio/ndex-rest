@@ -26,9 +26,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
 /**
- * The NDEx network set feature has been removed. Every endpoint on this resource now returns
- * HTTP 501 (Not Implemented). The resource stays registered so clients get a 501 rather than a 404.
- * Use folders + shortcuts + folder access keys instead (see the V3 Migration Guide).
+ * The NDEx network set feature has been removed. Two read-only endpoints —
+ * {@code GET /v2/networkset/{id}} and {@code GET /v2/networkset/{id}/accesskey} — remain enabled to
+ * serve the frozen, archived {@code network_set} tables for backward-compatible reads of legacy
+ * network sets. Every other (write) endpoint on this resource returns HTTP 501 (Not Implemented).
+ * No new network sets can be created; use folders + shortcuts + folder access keys instead (see the
+ * V3 Migration Guide).
  */
 @Path("/v2/networkset")
 @Deprecated
@@ -79,6 +82,9 @@ public class NetworkSetServiceV2 extends NdexService {
 	@Path("/{networksetid}")
 	@Deprecated
 	@Operation(summary = "Get a Network Set (ARCHIVED)", description = ARCHIVED_DESC, deprecated = true)
+	@ApiResponse(responseCode = "200", description = "The archived network set")
+	@ApiResponse(responseCode = "401", description = "Unauthorized — an access key was supplied but is not valid for this network set")
+	@ApiResponse(responseCode = "404", description = "No such network set")
 	@Produces("application/json")
 	public NetworkSet getNetworkSet(@PathParam("networksetid") final String networkSetIdStr,
 			@QueryParam("accesskey") String accessKey) throws Exception {
@@ -115,21 +121,25 @@ public class NetworkSetServiceV2 extends NdexService {
 	@Path("/{networksetid}/accesskey")
 	@Deprecated
 	@Operation(summary = "Get Access key of Network Set (ARCHIVED)", description = ARCHIVED_DESC, deprecated = true)
+	@ApiResponse(responseCode = "200", description = "The access key of the archived network set")
+	@ApiResponse(responseCode = "401", description = "Unauthorized — the caller is not the owner of this network set")
+	@ApiResponse(responseCode = "404", description = "No such network set")
 	@Produces("application/json")
 	public Map<String, String> getNetworkSetAccessKey(@PathParam("networksetid") final String networkSetIdStr) throws Exception {
 		UUID networkSetId = UUID.fromString(networkSetIdStr);
 		// Archived network_set data only: the access key of a legacy network set the caller owns.
 		try (NetworkSetDAO dao = new NetworkSetDAO()) {
-			if (dao.isNetworkSetOwner(networkSetId, getLoggedInUserId())) {
-				String key = dao.getNetworkSetAccessKey(networkSetId);
-				if (key == null || key.isEmpty())
-					return null;
-				Map<String, String> result = new HashMap<>(1);
-				result.put("accessKey", key);
-				return result;
-			}
+			// Resolve existence first so a missing set surfaces as 404 (matching GET /v2/networkset/{id}),
+			// not 401. A missing row makes getNetworkSetAccessKey throw ObjectNotFoundException.
+			String key = dao.getNetworkSetAccessKey(networkSetId);
+			if (!dao.isNetworkSetOwner(networkSetId, getLoggedInUserId()))
+				throw new UnauthorizedOperationException("User is not the owner of this network set.");
+			if (key == null || key.isEmpty())
+				return null;
+			Map<String, String> result = new HashMap<>(1);
+			result.put("accessKey", key);
+			return result;
 		}
-		throw new UnauthorizedOperationException("User is not the owner of this network set.");
 	}
 
 	@PUT

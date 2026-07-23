@@ -82,15 +82,17 @@ public class NetworkSetDAO extends NdexDBDAO {
 					result.setShowcased(rs.getBoolean(9));
 					result.setDoi(rs.getString(10));
 				} else
-					throw new ObjectNotFoundException("Network set" + setId + " not found in db.");
+					throw new ObjectNotFoundException("Network set", setId);
 			}
 		}
 
 		boolean keyIsValid = false;
-		if (dbKeyIsOn && accessKey != null && dbAccessKey.equals(accessKey))
+		// accessKey is proven non-null here, so call equals() on it — the stored access_key column
+		// is nullable, so dbAccessKey.equals(...) could NPE.
+		if (dbKeyIsOn && accessKey != null && accessKey.equals(dbAccessKey))
 			keyIsValid = true;
 		if (!keyIsValid && accessKey != null)
-			throw new UnauthorizedOperationException("In valid network set access key.");
+			throw new UnauthorizedOperationException("Invalid network set access key.");
 
 		sqlStr = "select nm.network_id from network_set_member nm, network n where nm.set_id =? and n.\"UUID\"=nm.network_id and " +
 				(keyIsValid ? " true" : PostgresNetworkDAO.createIsReadableConditionStr(userId));
@@ -121,7 +123,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 					oldKey = rs.getString(1);
 					keyIsOn = rs.getBoolean(2);
 				} else
-					throw new ObjectNotFoundException("Network", networkSetId);
+					throw new ObjectNotFoundException("Network set", networkSetId);
 
 			}
 		}
