@@ -107,7 +107,7 @@ anonymous, **binary READ grant** (there is no write-granting access key), issued
   Shortcut inherits its *target's* permission, not its container's) and the Google Drive model, where
   folder sharing does not flow through a shortcut to a file elsewhere. **Exception (backwards
   compatibility, issue #133/#137):** for a **Network** target, a key **is** valid when a *same-owner*
-  (Shortcut owner = target Network owner) live `NETWORK` Shortcut pointing at it lives in a Folder whose
+  (Shortcut owner = target Network owner) live `NETWORK` Shortcut pointing at it resides in a Folder whose
   ancestry carries the matching enabled key. This restores access keys stranded by the v3 networkset
   migration, which converted keyed networksets into keyed Folders full of Shortcuts to member Networks
   that stayed in their owner's Home folder. The same-owner guard prevents a keyed Folder from granting
