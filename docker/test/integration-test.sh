@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=116
+TOTAL_API_CALLS=119
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -1057,9 +1057,8 @@ assert_networkset_501 POST   "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members
 assert_networkset_501 DELETE "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members" -H "Content-Type: application/json" -d '[]'
 assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/accesskey?action=enable"
 assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/systemproperty" -H "Content-Type: application/json" -d '{}'
-
-# user-side network-set listing
-assert_networkset_501 GET    "${BASE_URL}/v2/user/${NS_DUMMY_UUID}/networksets"
+# Note: GET /v2/user/{userid}/networksets is NOT retired — it is a re-enabled archived read, exercised
+# in the dedicated read step below.
 
 # ── STEP: Folder list/count per-child visibility (F10) ───────────────────────
 # A folder's visibility is independent of its children's. A folder the caller can
@@ -1581,6 +1580,50 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     -H "Content-Type: application/json" -d '{"name":"nope"}' "${BASE_URL}/v2/networkset")
   [[ "${NS_POST_HTTP}" == "501" ]] || api_fail "POST /v2/networkset → HTTP ${NS_POST_HTTP} (expected 501 — writes remain removed)"
   api_pass "POST /v2/networkset → 501 (network-set writes remain retired; only reads re-enabled)"
+
+  # 7) GET /v2/user/{userid}/networksets — re-enabled archived list (issue #133), served strictly from
+  #    the frozen network_set tables. Resolve the owner UUID via the @PermitAll username lookup.
+  NS_OWNER_ID=$(curl -s "${BASE_URL}/v2/user?username=${TEST_USER}" \
+    | grep -oiE '"externalId"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+  [[ -n "${NS_OWNER_ID}" ]] || api_fail "could not resolve ${TEST_USER} UUID from GET /v2/user?username"
+
+  # 7a) anon → 200 (no longer 501); archived set present with only the readable (public) member.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets (anon) — public member only"
+  NSU_ANON=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets")
+  NSU_ANON_HTTP=$(echo "${NSU_ANON}" | tail -1); NSU_ANON_BODY=$(echo "${NSU_ANON}" | head -1)
+  [[ "${NSU_ANON_HTTP}" == "200" ]] || api_fail "GET /v2/user/{id}/networksets (anon) → HTTP ${NSU_ANON_HTTP} (expected 200, not 501). Body: ${NSU_ANON_BODY:0:400}"
+  echo "${NSU_ANON_BODY}" | grep -q "${NS_SET_ID}" || api_fail "anon list missing archived set ${NS_SET_ID}. Body: ${NSU_ANON_BODY:0:400}"
+  echo "${NSU_ANON_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "anon list missing PUBLIC member ${V2_PUB_UUID}. Body: ${NSU_ANON_BODY:0:400}"
+  echo "${NSU_ANON_BODY}" | grep -q "${V2_PRIV_UUID}" && api_fail "anon list LEAKED PRIVATE member ${V2_PRIV_UUID}. Body: ${NSU_ANON_BODY:0:400}"
+  api_pass "GET /v2/user/{id}/networksets (anon) → 200, archived set + PUBLIC member only (PRIVATE filtered)"
+
+  # 7b) owner → sees both members via own readability.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets (owner) — both members"
+  NSU_OWNER=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets")
+  NSU_OWNER_HTTP=$(echo "${NSU_OWNER}" | tail -1); NSU_OWNER_BODY=$(echo "${NSU_OWNER}" | head -1)
+  [[ "${NSU_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/user/{id}/networksets (owner) → HTTP ${NSU_OWNER_HTTP}. Body: ${NSU_OWNER_BODY:0:400}"
+  { echo "${NSU_OWNER_BODY}" | grep -q "${V2_PUB_UUID}" && echo "${NSU_OWNER_BODY}" | grep -q "${V2_PRIV_UUID}"; } \
+    || api_fail "owner list missing a member (expected both public + private). Body: ${NSU_OWNER_BODY:0:400}"
+  api_pass "GET /v2/user/{id}/networksets (owner) → 200, both members (own PRIVATE network readable)"
+
+  # 7c) owner + summary=true → set header present, member network ids omitted.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?summary=true (owner) — headers only"
+  NSU_SUM=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?summary=true")
+  echo "${NSU_SUM}" | grep -q "${NS_SET_ID}" || api_fail "summary list missing archived set ${NS_SET_ID}. Body: ${NSU_SUM:0:400}"
+  { echo "${NSU_SUM}" | grep -q "${V2_PUB_UUID}" || echo "${NSU_SUM}" | grep -q "${V2_PRIV_UUID}"; } \
+    && api_fail "summary=true should omit member network ids. Body: ${NSU_SUM:0:400}"
+  api_pass "GET /v2/user/{id}/networksets?summary=true → set header present, members omitted"
+
+  # 7d) owner + showcase=true → seeded set has showcased=false, so it is filtered out.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?showcase=true (owner) — non-showcased set absent"
+  NSU_SHOW=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?showcase=true")
+  echo "${NSU_SHOW}" | grep -q "${NS_SET_ID}" \
+    && api_fail "showcase=true must exclude the non-showcased set ${NS_SET_ID}. Body: ${NSU_SHOW:0:400}"
+  api_pass "GET /v2/user/{id}/networksets?showcase=true → non-showcased set excluded (showcase filter)"
 
   echo "  Cleaning up seeded network_set '${NS_SET_ID}'..."
   docker exec "${CONTAINER_NAME}" bash -c "

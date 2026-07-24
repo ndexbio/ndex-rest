@@ -10,11 +10,14 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.UUID;
 
+import org.easymock.Capture;
 import org.junit.Test;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
+import org.ndexbio.model.object.NetworkSet;
 
 /**
  * Unit tests for the archive-only {@link NetworkSetDAO}. These verify the DAO reads exclusively from
@@ -191,5 +194,110 @@ public class TestNetworkSetDAO {
 
 		NetworkSetDAO dao = new NetworkSetDAO(conn);
 		dao.getNetworkSet(UUID.randomUUID(), UUID.randomUUID(), "any-key");
+	}
+
+	// ---- getNetworkSetsByUserId (owner-scoped archive list) ----
+
+	@Test
+	public void testGetNetworkSetsByUserIdEmptyWhenNoRows() throws Exception {
+		Connection conn = createMock(Connection.class);
+		PreparedStatement pst = createMock(PreparedStatement.class);
+		ResultSet rs = createNiceMock(ResultSet.class);
+
+		// Exactly ONE prepareStatement: header query only (no rows -> no per-set member query).
+		Capture<String> sqlCap = newCapture();
+		expect(conn.prepareStatement(capture(sqlCap))).andReturn(pst);
+		pst.setObject(anyInt(), anyObject());
+		expectLastCall().anyTimes();
+		expect(pst.executeQuery()).andReturn(rs);
+		expect(rs.next()).andReturn(false);
+		pst.close();
+		expectLastCall();
+		replay(conn, pst, rs);
+
+		NetworkSetDAO dao = new NetworkSetDAO(conn);
+		List<NetworkSet> sets = dao.getNetworkSetsByUserId(UUID.randomUUID(), UUID.randomUUID(), 0, 0, false, false);
+		verify(conn, pst);
+
+		assertTrue(sets.isEmpty());
+		String sql = sqlCap.getValue();
+		assertTrue("owner-scoped header query", sql.contains("owner_id=?"));
+		assertTrue("frozen non-deleted rows only", sql.contains("is_deleted=false"));
+		assertTrue("reads the frozen network_set table", sql.contains("from network_set"));
+		assertFalse("no showcase filter by default", sql.contains("showcased=true"));
+	}
+
+	@Test
+	public void testGetNetworkSetsByUserIdShowcasedOnlyAddsFilter() throws Exception {
+		Connection conn = createMock(Connection.class);
+		PreparedStatement pst = createMock(PreparedStatement.class);
+		ResultSet rs = createNiceMock(ResultSet.class);
+
+		Capture<String> sqlCap = newCapture();
+		expect(conn.prepareStatement(capture(sqlCap))).andReturn(pst);
+		pst.setObject(anyInt(), anyObject());
+		expectLastCall().anyTimes();
+		expect(pst.executeQuery()).andReturn(rs);
+		expect(rs.next()).andReturn(false);
+		pst.close();
+		expectLastCall();
+		replay(conn, pst, rs);
+
+		NetworkSetDAO dao = new NetworkSetDAO(conn);
+		dao.getNetworkSetsByUserId(UUID.randomUUID(), UUID.randomUUID(), 0, 0, false, true);
+		verify(conn, pst);
+
+		assertTrue("showcasedOnly adds the showcased filter", sqlCap.getValue().contains("showcased=true"));
+	}
+
+	@Test
+	public void testGetNetworkSetsByUserIdSummaryOnlySkipsMemberQuery() throws Exception {
+		Connection conn = createMock(Connection.class);
+		PreparedStatement pst = createMock(PreparedStatement.class);
+		ResultSet rs = createNiceMock(ResultSet.class);
+
+		// One header row present. With summaryOnly=true the member query must NOT run, so the strict
+		// conn mock expects prepareStatement exactly once — a second call (member read) fails verify().
+		expect(conn.prepareStatement(anyString())).andReturn(pst);
+		pst.setObject(anyInt(), anyObject());
+		expectLastCall().anyTimes();
+		expect(pst.executeQuery()).andReturn(rs);
+		expect(rs.next()).andReturn(true).andReturn(false);
+		pst.close();
+		expectLastCall();
+		replay(conn, pst, rs);
+
+		NetworkSetDAO dao = new NetworkSetDAO(conn);
+		List<NetworkSet> sets = dao.getNetworkSetsByUserId(UUID.randomUUID(), UUID.randomUUID(), 0, 0, true, false);
+		verify(conn, pst);
+
+		assertEquals(1, sets.size());
+	}
+
+	@Test
+	public void testMemberQueryExcludesDeletedNetworks() throws Exception {
+		Connection conn = createMock(Connection.class);
+		PreparedStatement pst = createNiceMock(PreparedStatement.class);
+		ResultSet rs = createNiceMock(ResultSet.class);
+
+		// One header row, summaryOnly=false -> the member query runs. Capture every SQL statement so we
+		// can assert the member read filters out soft-deleted networks (dangling members guard, #145).
+		Capture<String> sqlCap = newCapture(org.easymock.CaptureType.ALL);
+		expect(conn.prepareStatement(capture(sqlCap))).andReturn(pst).anyTimes();
+		expect(pst.executeQuery()).andReturn(rs).anyTimes();
+		// header query: one row then done; member query: no rows.
+		expect(rs.next()).andReturn(true).andReturn(false).andReturn(false);
+		replay(conn, pst, rs);
+
+		NetworkSetDAO dao = new NetworkSetDAO(conn);
+		dao.getNetworkSetsByUserId(UUID.randomUUID(), UUID.randomUUID(), 0, 0, false, false);
+		verify(conn);
+
+		String memberSql = sqlCap.getValues().stream()
+				.filter(s -> s.contains("network_set_member"))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError("member query was not issued"));
+		assertTrue("member query must exclude soft-deleted networks: " + memberSql,
+				memberSql.contains("n.is_deleted=false"));
 	}
 }

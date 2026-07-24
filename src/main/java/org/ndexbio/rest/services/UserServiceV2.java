@@ -59,6 +59,7 @@ import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
@@ -103,7 +104,12 @@ import jakarta.ws.rs.Consumes;
 
 @Path("/v2/user")
 public class UserServiceV2 extends NdexService {
-	
+
+	private static final String ARCHIVED_DESC =
+			"Read-only access to archived, historical network-set data from the frozen network_set tables. "
+			+ "The network set feature is retired: no new network sets can be created and this data is not "
+			+ "backed by the v3 folder model. Provided only for backward-compatible reads of legacy network sets.";
+
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -1050,8 +1056,8 @@ public class UserServiceV2 extends NdexService {
 	   	@GET
 		@Path("/{userid}/networksets")
 		@Deprecated
-		@Operation(summary = "Get All Network Sets owned by a user (REMOVED)", description = "Removed: the NDEx network set feature is no longer supported. This endpoint always returns HTTP 501 Not Implemented.", deprecated = true)
-		@ApiResponse(responseCode = "501", description = "Not Implemented — the network set feature has been removed")
+		@Operation(summary = "Get All Network Sets owned by a user (ARCHIVED)", description = ARCHIVED_DESC, deprecated = true)
+		@ApiResponse(responseCode = "200", description = "The archived network sets owned by the user")
 		@Produces("application/json")
 		@PermitAll
 		public  List<NetworkSet> getNetworksetsByUserId(
@@ -1060,8 +1066,12 @@ public class UserServiceV2 extends NdexService {
 						@DefaultValue("0") @QueryParam("limit") int limit,
 						@DefaultValue("false") @QueryParam("summary") boolean summaryOnly,
 						@DefaultValue("false") @QueryParam("showcase") boolean showcasedOnly
-					) {
-			throw notImplemented("The NDEx network set feature has been removed.");
+					) throws Exception {
+			UUID ownerId = UUID.fromString(userIdStr);
+			// Serve only the archived network_set / network_set_member data; no v3 folder polyfill.
+			try (NetworkSetDAO dao = new NetworkSetDAO()) {
+				return dao.getNetworkSetsByUserId(ownerId, getLoggedInUserId(), offset, limit, summaryOnly, showcasedOnly);
+			}
 	}
 
 	/**************************************************************************
