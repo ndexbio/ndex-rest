@@ -273,4 +273,31 @@ public class TestNetworkSetDAO {
 
 		assertEquals(1, sets.size());
 	}
+
+	@Test
+	public void testMemberQueryExcludesDeletedNetworks() throws Exception {
+		Connection conn = createMock(Connection.class);
+		PreparedStatement pst = createNiceMock(PreparedStatement.class);
+		ResultSet rs = createNiceMock(ResultSet.class);
+
+		// One header row, summaryOnly=false -> the member query runs. Capture every SQL statement so we
+		// can assert the member read filters out soft-deleted networks (dangling members guard, #145).
+		Capture<String> sqlCap = newCapture(org.easymock.CaptureType.ALL);
+		expect(conn.prepareStatement(capture(sqlCap))).andReturn(pst).anyTimes();
+		expect(pst.executeQuery()).andReturn(rs).anyTimes();
+		// header query: one row then done; member query: no rows.
+		expect(rs.next()).andReturn(true).andReturn(false).andReturn(false);
+		replay(conn, pst, rs);
+
+		NetworkSetDAO dao = new NetworkSetDAO(conn);
+		dao.getNetworkSetsByUserId(UUID.randomUUID(), UUID.randomUUID(), 0, 0, false, false);
+		verify(conn);
+
+		String memberSql = sqlCap.getValues().stream()
+				.filter(s -> s.contains("network_set_member"))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError("member query was not issued"));
+		assertTrue("member query must exclude soft-deleted networks: " + memberSql,
+				memberSql.contains("n.is_deleted=false"));
+	}
 }

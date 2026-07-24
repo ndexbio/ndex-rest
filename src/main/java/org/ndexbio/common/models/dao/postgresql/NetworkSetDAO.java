@@ -169,7 +169,7 @@ public class NetworkSetDAO extends NdexDBDAO {
 	 */
 	private void loadReadableMembers(NetworkSet set, UUID setId, UUID signedInUserId, boolean keyIsValid)
 			throws SQLException {
-		String sqlStr = "select nm.network_id from network_set_member nm, network n where nm.set_id =? and n.\"UUID\"=nm.network_id and " +
+		String sqlStr = "select nm.network_id from network_set_member nm, network n where nm.set_id =? and n.\"UUID\"=nm.network_id and n.is_deleted=false and " +
 				(keyIsValid ? " true" : PostgresNetworkDAO.createIsReadableConditionStr(signedInUserId));
 
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
