@@ -102,18 +102,23 @@ anonymous, **binary READ grant** (there is no write-granting access key), issued
   Folder if it matches the enabled key of that item's own record (for a Network, its own access key)
   or of **any** ancestor Folder, walking `parent` up to the root. There is no "nearest parent
   overrides" rule — because a key is only ever `read`, there is nothing to override.
-* **Shortcut carve-out:** an access key does **not** propagate through a Shortcut to the Shortcut's
-  target. A key on a Folder that *contains* a Shortcut does not grant access to the Shortcut's target
-  Network/Folder (which lives elsewhere with its own access controls). This matches how permissions
-  treat Shortcuts (a Shortcut inherits its *target's* permission, not its container's) and the Google
-  Drive model, where folder sharing does not flow through a shortcut to a file elsewhere. Shortcuts
-  are therefore never traversed during access-key validation.
+* **Shortcut traversal (same-owner NETWORK carve-out):** in general an access key does **not**
+  propagate through a Shortcut to the Shortcut's target — matching how permissions treat Shortcuts (a
+  Shortcut inherits its *target's* permission, not its container's) and the Google Drive model, where
+  folder sharing does not flow through a shortcut to a file elsewhere. **Exception (backwards
+  compatibility, issue #133/#137):** for a **Network** target, a key **is** valid when a *same-owner*
+  (Shortcut owner = target Network owner) live `NETWORK` Shortcut pointing at it resides in a Folder whose
+  ancestry carries the matching enabled key. This restores access keys stranded by the v3 networkset
+  migration, which converted keyed networksets into keyed Folders full of Shortcuts to member Networks
+  that stayed in their owner's Home folder. The same-owner guard prevents a keyed Folder from granting
+  anonymous read to a Network its owner does not own. `FOLDER`-target Shortcuts are still not traversed.
 * Consistent with the above, `GET /v3/files/folders/{folderid}/list` and `/count`, when a request
-  **presents a valid access key**, return only the key-accessible children — folders and networks;
-  **Shortcut children are excluded**. When a request provides a valid access key, this key-accessible
-  result is returned regardless of the caller's identity; when no valid key is provided, the caller
-  gets their identity-based view (owners and users with direct `read`/`write` see the full listing,
-  including Shortcuts).
+  **presents a valid access key**, return the key-accessible children — folders, networks, and
+  **same-owner `NETWORK` Shortcuts** whose target networks the key now unlocks (other Shortcut children
+  are excluded). When a request provides a valid access key, this key-accessible result is returned
+  regardless of the caller's identity; when no valid key is provided, the caller gets their
+  identity-based view (owners and users with direct `read`/`write` see the full listing, including all
+  Shortcuts).
 
 This behavior is implemented once in `AccessKeyResolver`
 (`org.ndexbio.common.models.dao.AccessKeyResolver`), shared by the network and folder DAOs.

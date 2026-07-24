@@ -141,7 +141,7 @@ public class BatchServiceV2 extends NdexService {
 	@PermitAll
 	@POST
 	@Path("/network/summary")
-	@Operation(summary = "Get Network Summaries By UUIDs", description = "Return a JSON array of network summary objects selected by the POSTed JSON array of Network UUIDs. When `accesskey` is provided, networks it unlocks (via the network's own key or an ancestor folder's key) are returned in addition to those the caller can already read.")
+	@Operation(summary = "Get Network Summaries By UUIDs", description = "Return a JSON array of network summary objects selected by the POSTed JSON array of Network UUIDs. When `accesskey` is provided, networks it unlocks (via the network's own key, an ancestor folder's key, or a same-owner shortcut to the network in a keyed folder) are returned in addition to those the caller can already read.")
 	@Produces("application/json")
 	@Consumes("application/json")
 	public List<NetworkSummary> getNetworkSummaries(

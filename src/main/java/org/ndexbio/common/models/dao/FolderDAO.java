@@ -52,8 +52,8 @@ public interface FolderDAO extends AutoCloseable {
 
 	/**
 	 * Like {@link #getFolderChildCounts(UUID)} but for a request that provided a valid access key for
-	 * this folder: counts the children the key validates (folders + networks; shortcuts excluded,
-	 * since access keys do not traverse shortcuts).
+	 * this folder: counts the children the key validates (folders + networks, plus same-owner NETWORK
+	 * shortcuts whose target networks the key now unlocks — issue #133/#137).
 	 */
 	FileCount getFolderChildCountsKeyFiltered(UUID folderId) throws SQLException;
 
@@ -68,8 +68,8 @@ public interface FolderDAO extends AutoCloseable {
 
 	/**
 	 * Like {@link #listItemsInFolder(UUID, boolean, FileType)} but for a request that provided a valid
-	 * access key for this folder: returns the immediate children the key validates (folders +
-	 * networks; shortcuts excluded, since access keys do not traverse shortcuts).
+	 * access key for this folder: returns the immediate children the key validates (folders + networks,
+	 * plus same-owner NETWORK shortcuts whose target networks the key now unlocks — issue #133/#137).
 	 */
 	List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type) throws SQLException;
 
