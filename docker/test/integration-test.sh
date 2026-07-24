@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=111
+TOTAL_API_CALLS=116
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -1195,10 +1195,12 @@ F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?acces
   || api_fail "access-key view wrong: net=${F10_KEY_NET}, list=${F10_KEY_LIST:0:400}"
 api_pass "anon + access key → /list all children (incl. PRIVATE); /count network=2"
 
-# ── STEP: Access key follows the folder hierarchy + shortcut carve-out (G11, #133) ──
-# A network is reachable by an ANCESTOR folder's access key (accrual up the folder chain), and a
-# key-authorized /list|/count EXCLUDES shortcut children (access keys don't traverse shortcuts).
-step "Access key: ancestor-folder accrual for networks + shortcut exclusion (G11)"
+# ── STEP: Access key follows the folder hierarchy + same-owner shortcut resolution (G11, #133/#137) ──
+# A network is reachable by an ANCESTOR folder's access key (accrual up the folder chain), AND — for
+# backwards compatibility with the v3 networkset migration — by a SAME-OWNER NETWORK shortcut that lives
+# in a keyed folder even though the target network sits elsewhere (e.g. Home). Such shortcuts are also
+# surfaced in the key-authorized /list and /count views.
+step "Access key: ancestor-folder accrual + same-owner shortcut resolution (G11, #133/#137)"
 
 # Nest the PRIVATE network one level deeper: a subfolder under the (keyed) F10 folder. The network's
 # key access must now be resolved via the GRANDPARENT folder's key.
@@ -1239,30 +1241,83 @@ G11_NOKEY_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks
   || api_fail "anon no-key on PRIVATE network summary → HTTP ${G11_NOKEY_HTTP} (expected 401)"
 api_pass "anon + no key → GET private network summary 401 (negative control)"
 
-# Shortcut exclusion: put a shortcut in the keyed folder; the key view (/list, /count) must omit it,
-# while the owner (no key) still sees it.
+# Same-owner NETWORK shortcut resolution (#133/#137): put a shortcut in the keyed folder pointing at a
+# PRIVATE network that lives in Home — reachable by this key ONLY through the shortcut. The target is
+# owned by TEST_USER (same owner as the folder), satisfying the same-owner guard. The key must now
+# (Change 3) surface the shortcut in the key /list + /count, and (Changes 1 & 2) grant anonymous read to
+# the target network via GET, search, and batch summary.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (shortcut in keyed folder → public network)"
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (shortcut in keyed folder → private Home network)"
 G11_SC_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
-  -d "{\"name\":\"G11 shortcut\",\"parent\":\"${F10_FOLDER_ID}\",\"target\":\"${V3_PUB_UUID}\",\"targetType\":\"NETWORK\"}" \
+  -d "{\"name\":\"G11 shortcut\",\"parent\":\"${F10_FOLDER_ID}\",\"target\":\"${V2_PRIV_UUID}\",\"targetType\":\"NETWORK\"}" \
   "${BASE_URL}/v3/files/shortcuts/")
 G11_SC_HTTP=$(echo "${G11_SC_RESP}" | tail -1); G11_SC_BODY=$(echo "${G11_SC_RESP}" | head -1)
 [[ "${G11_SC_HTTP}" == "201" ]] || api_fail "create shortcut → HTTP ${G11_SC_HTTP}. Body: ${G11_SC_BODY:0:300}"
 G11_SC_ID=$(echo "${G11_SC_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
 [[ -n "${G11_SC_ID}" ]] || api_fail "no uuid in create-shortcut response. Body: ${G11_SC_BODY:0:300}"
-api_pass "shortcut ${G11_SC_ID} created in keyed folder"
+api_pass "shortcut ${G11_SC_ID} created in keyed folder → private network ${V2_PRIV_UUID}"
 
+# Change 3: key-authorized /list + /count now INCLUDE the same-owner NETWORK shortcut.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — shortcut EXCLUDED, shortcut count 0"
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — shortcut INCLUDED, shortcut count >=1"
 G11_KEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
 G11_KEY_SC=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"shortcut"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
 echo "${G11_KEY_LIST}" | grep -q "${G11_SC_ID}" \
-  && api_fail "key /list LEAKED shortcut ${G11_SC_ID}. Body: ${G11_KEY_LIST:0:400}"
-[[ "${G11_KEY_SC}" == "0" ]] \
-  || api_fail "key /count shortcut expected 0, got ${G11_KEY_SC}"
-api_pass "anon + key → /list omits shortcut; /count shortcut=0 (access keys don't traverse shortcuts)"
+  || api_fail "key /list should include same-owner shortcut ${G11_SC_ID}. Body: ${G11_KEY_LIST:0:400}"
+[[ "${G11_KEY_SC:-0}" -ge 1 ]] \
+  || api_fail "key /count shortcut expected >=1, got ${G11_KEY_SC}"
+api_pass "anon + key → /list includes same-owner NETWORK shortcut; /count shortcut>=1 (Change 3, #133/#137)"
 
+# Change 1 (GET): the key grants anonymous read to the shortcut's target network (was 401 before the fix).
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{shortcut-target}?accesskey (anon, expect 200)"
+G11_SCGET_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}?accesskey=${F10_KEY}")
+[[ "${G11_SCGET_HTTP}" == "200" ]] \
+  || api_fail "anon + key via shortcut → GET network HTTP ${G11_SCGET_HTTP} (expected 200)"
+api_pass "anon + key → GET private network via same-owner shortcut 200 (Change 1, #133/#137)"
+
+# Negative controls: no key and a wrong key must stay 401 (the shortcut alone grants nothing).
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{shortcut-target} (anon no-key / wrong-key, expect 401)"
+G11_SCNO_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")
+G11_SCWRONG_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}?accesskey=not-a-real-key")
+{ [[ "${G11_SCNO_HTTP}" == "401" ]] && [[ "${G11_SCWRONG_HTTP}" == "401" ]]; } \
+  || api_fail "shortcut-target negative controls wrong: no-key=${G11_SCNO_HTTP}, wrong-key=${G11_SCWRONG_HTTP} (expected 401/401)"
+api_pass "anon no-key / wrong-key → GET shortcut-target network 401 (negative controls)"
+
+# Change 1 (search): the same accessKeyIsValid path backs the per-network search endpoints (stub proxied).
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/networks/{shortcut-target}/query?accesskey (anon, expect 200)"
+G11_SCQ_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -H "Content-Type: application/json" -d '{"searchString":"EGFR","searchDepth":1}' \
+  "${BASE_URL}/v3/search/networks/${V2_PRIV_UUID}/query?accesskey=${F10_KEY}")
+[[ "${G11_SCQ_HTTP}" == "200" ]] \
+  || api_fail "anon + key via shortcut → search query HTTP ${G11_SCQ_HTTP} (expected 200)"
+api_pass "anon + key → POST search query on shortcut-target network 200 (Change 1, #133/#137)"
+
+# Change 2 (batch summary): one call spanning a REAL network (V3_PRIV, reached via the ancestor folder
+# key) and a SHORTCUT network (V2_PRIV, reached via the same-owner shortcut) — both must be returned.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/summary?accesskey (anon) — real + shortcut network both present"
+G11_BATCH=$(curl -s -X POST -H "Content-Type: application/json" \
+  -d "[\"${V3_PRIV_UUID}\",\"${V2_PRIV_UUID}\"]" \
+  "${BASE_URL}/v3/batch/networks/summary?accesskey=${F10_KEY}")
+{ echo "${G11_BATCH}" | grep -q "${V3_PRIV_UUID}" && echo "${G11_BATCH}" | grep -q "${V2_PRIV_UUID}"; } \
+  || api_fail "batch summary + key should include real (${V3_PRIV_UUID}) and shortcut (${V2_PRIV_UUID}) networks. Body: ${G11_BATCH:0:400}"
+api_pass "anon + key → batch summary returns both the ancestor-key network and the shortcut-key network (Change 2)"
+
+# Negative: batch summary WITHOUT a key returns neither private network to an anonymous caller.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/summary (anon, no key) — neither private network present"
+G11_BATCH_NOKEY=$(curl -s -X POST -H "Content-Type: application/json" \
+  -d "[\"${V3_PRIV_UUID}\",\"${V2_PRIV_UUID}\"]" \
+  "${BASE_URL}/v3/batch/networks/summary")
+{ echo "${G11_BATCH_NOKEY}" | grep -q "${V3_PRIV_UUID}" || echo "${G11_BATCH_NOKEY}" | grep -q "${V2_PRIV_UUID}"; } \
+  && api_fail "batch summary without key LEAKED a private network. Body: ${G11_BATCH_NOKEY:0:400}"
+api_pass "anon + no key → batch summary omits both private networks (negative control)"
+
+# The owner (no key) still sees the shortcut in the identity-based view (no-key path unchanged).
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list (owner, no key) — shortcut PRESENT (no-key path unchanged)"
 G11_OWNER_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")

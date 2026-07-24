@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
 
+import org.easymock.Capture;
 import org.junit.Test;
 
 public class TestPostgresAccessKeyResolver {
@@ -121,6 +122,79 @@ public class TestPostgresAccessKeyResolver {
         assertTrue(granted.contains(b));
         assertFalse(granted.contains(c));
         verify(conn, pst, rs);
+    }
+
+    /**
+     * The isNetworkKeyValid query must seed the folder chain from same-owner NETWORK shortcuts pointing
+     * at the network (issue #133/#137), so a key stranded on a migrated networkset folder still resolves.
+     * The mock can't exercise real rows, so assert the emitted SQL carries the shortcut seed and the
+     * same-owner guard, and that all four UUID binds are set (index shifted from 2 to 4).
+     */
+    @Test
+    public void testNetworkKeyQuerySeedsFromSameOwnerShortcut() throws SQLException {
+        Connection conn = createMock(Connection.class);
+        PreparedStatement pst = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        Capture<String> sqlCap = newCapture();
+        expect(conn.prepareStatement(capture(sqlCap))).andReturn(pst);
+        Capture<Integer> objIdx = newCapture(org.easymock.CaptureType.ALL);
+        pst.setObject(captureInt(objIdx), anyObject());
+        expectLastCall().anyTimes();
+        pst.setString(anyInt(), anyString());
+        expectLastCall().anyTimes();
+        expect(pst.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(false);
+        rs.close();
+        expectLastCall();
+        pst.close();
+        expectLastCall();
+        replay(conn, pst, rs);
+
+        PostgresAccessKeyResolver r = new PostgresAccessKeyResolver(conn);
+        r.isNetworkKeyValid(UUID.randomUUID(), "k");
+        verify(conn, pst, rs);
+
+        String sql = sqlCap.getValue();
+        assertTrue("query must join shortcut table", sql.contains("shortcut s"));
+        assertTrue("query must restrict to NETWORK shortcuts", sql.contains("s.target_type = 'NETWORK'"));
+        assertTrue("query must apply the same-owner guard",
+                sql.contains("s.owneruuid = (SELECT owneruuid FROM network"));
+        assertEquals("four UUID binds expected (network parent, shortcut target, owner, own-key)",
+                4, objIdx.getValues().size());
+    }
+
+    /**
+     * filterNetworksByKey is the batch twin: its seed_folders CTE must union each network's own parent
+     * folder with the parent folders of its same-owner NETWORK shortcuts.
+     */
+    @Test
+    public void testFilterNetworksByKeyQuerySeedsFromSameOwnerShortcut() throws SQLException {
+        Connection conn = createMock(Connection.class);
+        PreparedStatement pst = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        Capture<String> sqlCap = newCapture();
+        expect(conn.prepareStatement(capture(sqlCap))).andReturn(pst);
+        pst.setString(anyInt(), anyString());
+        expectLastCall().anyTimes();
+        expect(pst.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(false);
+        rs.close();
+        expectLastCall();
+        pst.close();
+        expectLastCall();
+        replay(conn, pst, rs);
+
+        PostgresAccessKeyResolver r = new PostgresAccessKeyResolver(conn);
+        r.filterNetworksByKey(Arrays.asList(UUID.randomUUID()), "k");
+        verify(conn, pst, rs);
+
+        String sql = sqlCap.getValue();
+        assertTrue("query must define seed_folders CTE", sql.contains("seed_folders"));
+        assertTrue("query must join shortcut table", sql.contains("shortcut sc"));
+        assertTrue("query must restrict to NETWORK shortcuts", sql.contains("sc.target_type = 'NETWORK'"));
+        assertTrue("query must apply the same-owner guard", sql.contains("sc.owneruuid = sd.net_owner"));
     }
 
     @Test

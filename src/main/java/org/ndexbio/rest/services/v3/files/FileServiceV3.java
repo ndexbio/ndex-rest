@@ -299,7 +299,7 @@ public class FileServiceV3 extends NdexService {
             description = """
                           Makes a copy of the supplied object.
 
-                          When copying a network source you don't otherwise have read access to, an optional `accesskey` query parameter authorizes the read when it matches an enabled access key on that network or any ancestor folder in its folder hierarchy. Access keys do not authorize copying a shortcut source.
+                          When copying a network source you don't otherwise have read access to, an optional `accesskey` query parameter authorizes the read when it matches an enabled access key on that network, any ancestor folder in its folder hierarchy, or a folder holding a same-owner shortcut to it. Access keys do not authorize copying a shortcut source.
 
                           Copying folders is not supported – suggest creating a shortcut instead.
 

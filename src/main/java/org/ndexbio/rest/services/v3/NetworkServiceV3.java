@@ -105,7 +105,7 @@ public class NetworkServiceV3  extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}")
-	@Operation(summary = "Get Network in CX2 format", description = "Returns the specified network in CX2 format. This is performed as a monolithic operation, so it is typically advisable for applications to first use the getNetworkSummary method to check the node and edge counts for a network before retrieving the network. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
+	@Operation(summary = "Get Network in CX2 format", description = "Returns the specified network in CX2 format. This is performed as a monolithic operation, so it is typically advisable for applications to first use the getNetworkSummary method to check the node and edge counts for a network before retrieving the network. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 
 	public Response getCX2Network(	@PathParam("networkid") final String networkId,
 			@QueryParam("download") boolean isDownload,
@@ -165,7 +165,7 @@ public class NetworkServiceV3  extends NdexService {
 	@GET
 	@Path("/{networkid}/aspects")
 	@Produces("application/json")
-	@Operation(summary = "Get Network CX2 Aspect Metadata", description = "Returns the CX2 aspect metadata for the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
+	@Operation(summary = "Get Network CX2 Aspect Metadata", description = "Returns the CX2 aspect metadata for the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 	public List<CxMetadata>  getCX2Metadata(	@PathParam("networkid") final String networkId,
 			@QueryParam("accesskey") String accessKey)
 			throws Exception {
@@ -184,7 +184,7 @@ public class NetworkServiceV3  extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/aspects/edges")
-	@Operation(summary = "Get Network Edges (CX2)", description = "Returns the edge aspect of the network specified by networkid in CX2 format. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
+	@Operation(summary = "Get Network Edges (CX2)", description = "Returns the edge aspect of the network specified by networkid in CX2 format. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 	public Response getEdges (
 			@PathParam("networkid") final String networkId,
 			@DefaultValue("first") @QueryParam("method") String method,
@@ -245,7 +245,7 @@ public class NetworkServiceV3  extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/aspects/{aspectname}")
-	@Operation(summary = "Get a Network Aspect (CX2)", description = "Returns the elements of the specified aspect from the network specified by networkid in CX2 format. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
+	@Operation(summary = "Get a Network Aspect (CX2)", description = "Returns the elements of the specified aspect from the network specified by networkid in CX2 format. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 	public Response getAspectElements(	@PathParam("networkid") final String networkId,
 			@PathParam("aspectname") final String aspectName,
 			@DefaultValue("-1") @QueryParam("size") int limit,
@@ -665,7 +665,7 @@ public class NetworkServiceV3  extends NdexService {
 		@PermitAll
 		@GET
 		@Path("/{networkid}/export")
-		@Operation(summary = "Export nodes or edges in TSV format", description = "Returns the nodes or edges of this network specified by networkid in TSV format. Content type of the response is text/tab-separated-values. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
+		@Operation(summary = "Export nodes or edges in TSV format", description = "Returns the nodes or edges of this network specified by networkid in TSV format. Content type of the response is text/tab-separated-values. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 
 		public Response exportTSVText( 
 				@PathParam("networkid") final String networkId,
@@ -758,7 +758,7 @@ public class NetworkServiceV3  extends NdexService {
 		@PermitAll
 		@GET
 		@Path("/{networkid}/summary")
-		@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId. A NetworkSummary object is a subset of a network object. It is used to convey basic information about a network in this API. NOTE: If value of 'completed' is False this result may not contain all attributes below (name, description, version might be missing, nodeCount and edgeCount will be zero, properties will be empty, etc…) If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself or on any ancestor folder in its folder hierarchy.")
+		@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId. A NetworkSummary object is a subset of a network object. It is used to convey basic information about a network in this API. NOTE: If value of 'completed' is False this result may not contain all attributes below (name, description, version might be missing, nodeCount and edgeCount will be zero, properties will be empty, etc…) If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 		@Produces("application/json")
 		
 		public NetworkSummaryV3 getNetworkSummaryV3(

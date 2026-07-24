@@ -516,23 +516,37 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return listItemsInFolderOrHome(folderId, compact, false, type, readClausesFor(viewerUserId));
 	}
 
+	/**
+	 * Shortcut read predicate (alias {@code s}) for the key-accessible view: keep same-owner NETWORK
+	 * shortcuts, so a validated folder key surfaces the shortcuts whose target networks it now unlocks
+	 * (issue #133/#137). Must be self-contained: this same string is injected both into the listing
+	 * query (which LEFT JOINs {@code network n}) and into countReadableChildren (a bare
+	 * {@code SELECT COUNT(*) FROM shortcut s} with no network join), so it uses its own EXISTS subquery
+	 * alias {@code tn} rather than relying on the listing's {@code n}. The same-owner guard mirrors the
+	 * resolver's shortcut resolution.
+	 */
+	private static final String KEY_ACCESSIBLE_SHORTCUT_CLAUSE =
+	        "s.target_type = 'NETWORK' AND EXISTS (SELECT 1 FROM network tn"
+	        + " WHERE tn.\"UUID\" = s.target AND tn.owneruuid = s.owneruuid AND tn.is_deleted = false)";
+
 	@Override
 	public List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type) throws SQLException {
-	    // The key-accessible children of a folder whose access key validated. A validated folder key
-	    // is valid for every folder/network descendant but never for a shortcut, so per-child validity
-	    // reduces to: keep folders + networks, drop shortcuts. Expressed as constant per-type clauses
-	    // (no key inlined into SQL). Keeps results consistent with a direct network/folder key fetch.
+	    // The key-accessible children of a folder whose access key validated. A validated folder key is
+	    // valid for every folder/network descendant, and for same-owner NETWORK shortcuts whose target
+	    // networks it now unlocks (issue #133/#137). Expressed as constant per-type clauses (no key
+	    // inlined into SQL). Keeps results consistent with a direct network key fetch.
 	    return listItemsInFolderOrHome(folderId, compact, false, type,
-	            new ChildReadClauses("true", "true", "false"));
+	            new ChildReadClauses("true", "true", KEY_ACCESSIBLE_SHORTCUT_CLAUSE));
 	}
 
 	@Override
 	public FileCount getFolderChildCountsKeyFiltered(UUID folderId) throws SQLException {
-	    // Same reduction as listItemsInFolderKeyFiltered: folders/networks counted, shortcuts excluded.
+	    // Same reduction as listItemsInFolderKeyFiltered: folders/networks counted, plus same-owner
+	    // NETWORK shortcuts.
 	    FileCount fc = new FileCount();
 	    fc.setFolder(countReadableChildren("folder", "f", folderId, "true"));
 	    fc.setNetwork(countReadableChildren("network", "n", folderId, "true"));
-	    fc.setShortcut(0L);
+	    fc.setShortcut(countReadableChildren("shortcut", "s", folderId, KEY_ACCESSIBLE_SHORTCUT_CLAUSE));
 	    return fc;
 	}
 
