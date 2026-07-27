@@ -59,9 +59,9 @@ import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
+import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.solr.UserIndexManager;
@@ -99,11 +99,17 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.ws.rs.Consumes;
 
 @Path("/v2/user")
 public class UserServiceV2 extends NdexService {
-	
+
+	private static final String ARCHIVED_DESC =
+			"Read-only access to archived, historical network-set data from the frozen network_set tables. "
+			+ "The network set feature is retired: no new network sets can be created and this data is not "
+			+ "backed by the v3 folder model. Provided only for backward-compatible reads of legacy network sets.";
+
 
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
@@ -1028,7 +1034,7 @@ public class UserServiceV2 extends NdexService {
 
 	  	@GET
 		@Path("/{userid}/networkcount")
-		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary and networkSet objects for this page.")
+		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary objects for this page.")
 		@Produces("application/json")
 		public Map<String,Integer> getNumNetworksForMyAccountPage(
 						 @PathParam("userid") String userIdStr
@@ -1038,13 +1044,10 @@ public class UserServiceV2 extends NdexService {
 			if ( !userId.equals(getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
 			
-			Map<String, Integer> result = new HashMap<>(2);
+			Map<String, Integer> result = new HashMap<>(1);
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				result.put("networkCount",  dao.getNumNetworksForMyAccountPage(userId));
-				try (NetworkSetDAO dao2 = new NetworkSetDAO()) {
-					result.put("networkSetCount", dao2.getNetworkSetCountByUserId(userId));
-				}
-			} 
+			}
 
 			return result;
 		}      	
@@ -1052,23 +1055,23 @@ public class UserServiceV2 extends NdexService {
 	  	
 	   	@GET
 		@Path("/{userid}/networksets")
-		@Operation(summary = "Get All Network Sets owned by a user", description = "Get a list of network sets that are owned by a user.")
+		@Deprecated
+		@Operation(summary = "Get All Network Sets owned by a user (ARCHIVED)", description = ARCHIVED_DESC, deprecated = true)
+		@ApiResponse(responseCode = "200", description = "The archived network sets owned by the user")
 		@Produces("application/json")
 		@PermitAll
-
 		public  List<NetworkSet> getNetworksetsByUserId(
 					 @PathParam("userid") String userIdStr,
 						@DefaultValue("0") @QueryParam("offset") int offset,
 						@DefaultValue("0") @QueryParam("limit") int limit,
 						@DefaultValue("false") @QueryParam("summary") boolean summaryOnly,
 						@DefaultValue("false") @QueryParam("showcase") boolean showcasedOnly
-					) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException {
-			UUID userId = UUID.fromString(userIdStr);
-					
-			try (NetworkSetDAO dao = new NetworkSetDAO ()){
-					List<NetworkSet> sets= dao.getNetworkSetsByUserId(userId, getLoggedInUserId(), offset, limit, summaryOnly, showcasedOnly);
-					return sets;
-				}
+					) throws Exception {
+			UUID ownerId = UUID.fromString(userIdStr);
+			// Serve only the archived network_set / network_set_member data; no v3 folder polyfill.
+			try (NetworkSetDAO dao = new NetworkSetDAO()) {
+				return dao.getNetworkSetsByUserId(ownerId, getLoggedInUserId(), offset, limit, summaryOnly, showcasedOnly);
+			}
 	}
 
 	/**************************************************************************

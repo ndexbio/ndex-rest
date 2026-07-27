@@ -50,6 +50,13 @@ public interface FolderDAO extends AutoCloseable {
 	 */
 	FileCount getReadableFolderChildCounts(UUID folderId, UUID viewerUserId) throws SQLException;
 
+	/**
+	 * Like {@link #getFolderChildCounts(UUID)} but for a request that provided a valid access key for
+	 * this folder: counts the children the key validates (folders + networks, plus same-owner NETWORK
+	 * shortcuts whose target networks the key now unlocks — issue #133/#137).
+	 */
+	FileCount getFolderChildCountsKeyFiltered(UUID folderId) throws SQLException;
+
 	List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type) throws SQLException;
 
 	/**
@@ -58,6 +65,13 @@ public interface FolderDAO extends AutoCloseable {
 	 * @param viewerUserId the accessing user, or {@code null} for an anonymous caller
 	 */
 	List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type, UUID viewerUserId) throws SQLException;
+
+	/**
+	 * Like {@link #listItemsInFolder(UUID, boolean, FileType)} but for a request that provided a valid
+	 * access key for this folder: returns the immediate children the key validates (folders + networks,
+	 * plus same-owner NETWORK shortcuts whose target networks the key now unlocks — issue #133/#137).
+	 */
+	List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type) throws SQLException;
 
 	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException;
 	

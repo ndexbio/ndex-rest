@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=89
+TOTAL_API_CALLS=119
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -133,6 +133,22 @@ assert_group_501() {
   code=$(curl -s -o /dev/null -w "%{http_code}" -X "${method}" -u "${TEST_USER}:${TEST_PASS}" "$@" "${url}")
   if [[ "${code}" == "501" ]]; then
     api_pass "${method} ${url} → 501 (group feature removed)"
+  else
+    api_fail "${method} ${url} → HTTP ${code} (expected 501)"
+  fi
+}
+
+# Assert that a retired network-set endpoint returns HTTP 501. Sends valid auth so the request
+# passes the auth filter and reaches the (501-throwing) resource method.
+# Usage: assert_networkset_501 <METHOD> <URL> [extra curl args...]
+assert_networkset_501() {
+  local method="$1"; local url="$2"; shift 2
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: ${method} ${url} (expect 501)"
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X "${method}" -u "${TEST_USER}:${TEST_PASS}" "$@" "${url}")
+  if [[ "${code}" == "501" ]]; then
+    api_pass "${method} ${url} → 501 (network set feature removed)"
   else
     api_fail "${method} ${url} → HTTP ${code} (expected 501)"
   fi
@@ -1025,6 +1041,25 @@ else
   api_fail "GET /v2/network/${V2_PRIV_UUID}/permission?type=user (owner) → HTTP ${PERM_USER_HTTP} (expected 200)"
 fi
 
+# ── STEP: NDEx network set WRITES retired — /v2/networkset write endpoints return HTTP 501 ──
+# The two read endpoints (GET /v2/networkset/{id} and GET /v2/networkset/{id}/accesskey) are
+# re-enabled to serve the frozen archive and are exercised in the dedicated read step below;
+# only the write endpoints remain retired to 501 here.
+step "Network set writes retired: /v2/networkset write endpoints return 501"
+
+NS_DUMMY_UUID="00000000-0000-0000-0000-000000000001"
+
+# /v2/networkset resource — all write methods retired
+assert_networkset_501 POST   "${BASE_URL}/v2/networkset" -H "Content-Type: application/json" -d '{}'
+assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}" -H "Content-Type: application/json" -d '{}'
+assert_networkset_501 DELETE "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}"
+assert_networkset_501 POST   "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members" -H "Content-Type: application/json" -d '[]'
+assert_networkset_501 DELETE "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members" -H "Content-Type: application/json" -d '[]'
+assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/accesskey?action=enable"
+assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/systemproperty" -H "Content-Type: application/json" -d '{}'
+# Note: GET /v2/user/{userid}/networksets is NOT retired — it is a re-enabled archived read, exercised
+# in the dedicated read step below.
+
 # ── STEP: Folder list/count per-child visibility (F10) ───────────────────────
 # A folder's visibility is independent of its children's. A folder the caller can
 # read must NOT leak the metadata of PRIVATE children they cannot see, and /count
@@ -1158,6 +1193,136 @@ F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?acces
 { echo "${F10_KEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_KEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_KEY_NET}" == "2" ]]; } \
   || api_fail "access-key view wrong: net=${F10_KEY_NET}, list=${F10_KEY_LIST:0:400}"
 api_pass "anon + access key → /list all children (incl. PRIVATE); /count network=2"
+
+# ── STEP: Access key follows the folder hierarchy + same-owner shortcut resolution (G11, #133/#137) ──
+# A network is reachable by an ANCESTOR folder's access key (accrual up the folder chain), AND — for
+# backwards compatibility with the v3 networkset migration — by a SAME-OWNER NETWORK shortcut that lives
+# in a keyed folder even though the target network sits elsewhere (e.g. Home). Such shortcuts are also
+# surfaced in the key-authorized /list and /count views.
+step "Access key: ancestor-folder accrual + same-owner shortcut resolution (G11, #133/#137)"
+
+# Nest the PRIVATE network one level deeper: a subfolder under the (keyed) F10 folder. The network's
+# key access must now be resolved via the GRANDPARENT folder's key.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (subfolder under keyed folder)"
+G11_SUB_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"G11 subfolder\",\"parent\":\"${F10_FOLDER_ID}\"}" \
+  "${BASE_URL}/v3/files/folders/")
+G11_SUB_HTTP=$(echo "${G11_SUB_RESP}" | tail -1); G11_SUB_BODY=$(echo "${G11_SUB_RESP}" | head -1)
+[[ "${G11_SUB_HTTP}" == "201" ]] || api_fail "create subfolder → HTTP ${G11_SUB_HTTP}. Body: ${G11_SUB_BODY:0:300}"
+G11_SUB_ID=$(echo "${G11_SUB_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${G11_SUB_ID}" ]] || api_fail "no uuid in subfolder create. Body: ${G11_SUB_BODY:0:300}"
+api_pass "subfolder ${G11_SUB_ID} created under keyed folder ${F10_FOLDER_ID}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/move (private net into subfolder)"
+G11_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"targetFolder\":\"${G11_SUB_ID}\",\"networks\":[\"${V3_PRIV_UUID}\"]}" \
+  "${BASE_URL}/v3/batch/networks/move")
+[[ "${G11_MOVE_HTTP}" == "200" || "${G11_MOVE_HTTP}" == "204" ]] \
+  || api_fail "move private net into subfolder → HTTP ${G11_MOVE_HTTP}"
+api_pass "PRIVATE network ${V3_PRIV_UUID} moved into subfolder (grandparent holds the key)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{priv}/summary?accesskey=<ancestor key> (anon, expect 200)"
+G11_SUMM_RESP=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}/summary?accesskey=${F10_KEY}")
+G11_SUMM_HTTP=$(echo "${G11_SUMM_RESP}" | tail -1); G11_SUMM_BODY=$(echo "${G11_SUMM_RESP}" | head -1)
+{ [[ "${G11_SUMM_HTTP}" == "200" ]] && echo "${G11_SUMM_BODY}" | grep -q "${V3_PRIV_UUID}"; } \
+  || api_fail "ancestor-key network access wrong: HTTP ${G11_SUMM_HTTP}, body ${G11_SUMM_BODY:0:300}"
+api_pass "anon + ANCESTOR folder key → GET private network summary 200 (accrual up the folder chain)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{priv}/summary (anon, no key, expect 401)"
+G11_NOKEY_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}/summary")
+[[ "${G11_NOKEY_HTTP}" == "401" ]] \
+  || api_fail "anon no-key on PRIVATE network summary → HTTP ${G11_NOKEY_HTTP} (expected 401)"
+api_pass "anon + no key → GET private network summary 401 (negative control)"
+
+# Same-owner NETWORK shortcut resolution (#133/#137): put a shortcut in the keyed folder pointing at a
+# PRIVATE network that lives in Home — reachable by this key ONLY through the shortcut. The target is
+# owned by TEST_USER (same owner as the folder), satisfying the same-owner guard. The key must now
+# (Change 3) surface the shortcut in the key /list + /count, and (Changes 1 & 2) grant anonymous read to
+# the target network via GET, search, and batch summary.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (shortcut in keyed folder → private Home network)"
+G11_SC_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"G11 shortcut\",\"parent\":\"${F10_FOLDER_ID}\",\"target\":\"${V2_PRIV_UUID}\",\"targetType\":\"NETWORK\"}" \
+  "${BASE_URL}/v3/files/shortcuts/")
+G11_SC_HTTP=$(echo "${G11_SC_RESP}" | tail -1); G11_SC_BODY=$(echo "${G11_SC_RESP}" | head -1)
+[[ "${G11_SC_HTTP}" == "201" ]] || api_fail "create shortcut → HTTP ${G11_SC_HTTP}. Body: ${G11_SC_BODY:0:300}"
+G11_SC_ID=$(echo "${G11_SC_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${G11_SC_ID}" ]] || api_fail "no uuid in create-shortcut response. Body: ${G11_SC_BODY:0:300}"
+api_pass "shortcut ${G11_SC_ID} created in keyed folder → private network ${V2_PRIV_UUID}"
+
+# Change 3: key-authorized /list + /count now INCLUDE the same-owner NETWORK shortcut.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — shortcut INCLUDED, shortcut count >=1"
+G11_KEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
+G11_KEY_SC=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"shortcut"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+echo "${G11_KEY_LIST}" | grep -q "${G11_SC_ID}" \
+  || api_fail "key /list should include same-owner shortcut ${G11_SC_ID}. Body: ${G11_KEY_LIST:0:400}"
+[[ "${G11_KEY_SC:-0}" -ge 1 ]] \
+  || api_fail "key /count shortcut expected >=1, got ${G11_KEY_SC}"
+api_pass "anon + key → /list includes same-owner NETWORK shortcut; /count shortcut>=1 (Change 3, #133/#137)"
+
+# Change 1 (GET): the key grants anonymous read to the shortcut's target network (was 401 before the fix).
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{shortcut-target}?accesskey (anon, expect 200)"
+G11_SCGET_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}?accesskey=${F10_KEY}")
+[[ "${G11_SCGET_HTTP}" == "200" ]] \
+  || api_fail "anon + key via shortcut → GET network HTTP ${G11_SCGET_HTTP} (expected 200)"
+api_pass "anon + key → GET private network via same-owner shortcut 200 (Change 1, #133/#137)"
+
+# Negative controls: no key and a wrong key must stay 401 (the shortcut alone grants nothing).
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{shortcut-target} (anon no-key / wrong-key, expect 401)"
+G11_SCNO_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")
+G11_SCWRONG_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}?accesskey=not-a-real-key")
+{ [[ "${G11_SCNO_HTTP}" == "401" ]] && [[ "${G11_SCWRONG_HTTP}" == "401" ]]; } \
+  || api_fail "shortcut-target negative controls wrong: no-key=${G11_SCNO_HTTP}, wrong-key=${G11_SCWRONG_HTTP} (expected 401/401)"
+api_pass "anon no-key / wrong-key → GET shortcut-target network 401 (negative controls)"
+
+# Change 1 (search): the same accessKeyIsValid path backs the per-network search endpoints (stub proxied).
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/networks/{shortcut-target}/query?accesskey (anon, expect 200)"
+G11_SCQ_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -H "Content-Type: application/json" -d '{"searchString":"EGFR","searchDepth":1}' \
+  "${BASE_URL}/v3/search/networks/${V2_PRIV_UUID}/query?accesskey=${F10_KEY}")
+[[ "${G11_SCQ_HTTP}" == "200" ]] \
+  || api_fail "anon + key via shortcut → search query HTTP ${G11_SCQ_HTTP} (expected 200)"
+api_pass "anon + key → POST search query on shortcut-target network 200 (Change 1, #133/#137)"
+
+# Change 2 (batch summary): one call spanning a REAL network (V3_PRIV, reached via the ancestor folder
+# key) and a SHORTCUT network (V2_PRIV, reached via the same-owner shortcut) — both must be returned.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/summary?accesskey (anon) — real + shortcut network both present"
+G11_BATCH=$(curl -s -X POST -H "Content-Type: application/json" \
+  -d "[\"${V3_PRIV_UUID}\",\"${V2_PRIV_UUID}\"]" \
+  "${BASE_URL}/v3/batch/networks/summary?accesskey=${F10_KEY}")
+{ echo "${G11_BATCH}" | grep -q "${V3_PRIV_UUID}" && echo "${G11_BATCH}" | grep -q "${V2_PRIV_UUID}"; } \
+  || api_fail "batch summary + key should include real (${V3_PRIV_UUID}) and shortcut (${V2_PRIV_UUID}) networks. Body: ${G11_BATCH:0:400}"
+api_pass "anon + key → batch summary returns both the ancestor-key network and the shortcut-key network (Change 2)"
+
+# Negative: batch summary WITHOUT a key returns neither private network to an anonymous caller.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/summary (anon, no key) — neither private network present"
+G11_BATCH_NOKEY=$(curl -s -X POST -H "Content-Type: application/json" \
+  -d "[\"${V3_PRIV_UUID}\",\"${V2_PRIV_UUID}\"]" \
+  "${BASE_URL}/v3/batch/networks/summary")
+{ echo "${G11_BATCH_NOKEY}" | grep -q "${V3_PRIV_UUID}" || echo "${G11_BATCH_NOKEY}" | grep -q "${V2_PRIV_UUID}"; } \
+  && api_fail "batch summary without key LEAKED a private network. Body: ${G11_BATCH_NOKEY:0:400}"
+api_pass "anon + no key → batch summary omits both private networks (negative control)"
+
+# The owner (no key) still sees the shortcut in the identity-based view (no-key path unchanged).
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list (owner, no key) — shortcut PRESENT (no-key path unchanged)"
+G11_OWNER_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+echo "${G11_OWNER_LIST}" | grep -q "${G11_SC_ID}" \
+  || api_fail "owner /list (no key) should include shortcut ${G11_SC_ID}. Body: ${G11_OWNER_LIST:0:400}"
+api_pass "owner (no key) → /list includes the shortcut (identity-based view unchanged)"
 
 # ── STEP: Folder/Shortcut visibility — write path accepts it, read path reports it ──
 # Runs while anonymous access is still allowed (all calls here are authenticated as
@@ -1327,6 +1492,147 @@ CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (shortcut dropped from private-nfs)"
 poll_files_until_absent "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (old core)"
 api_pass "shortcut visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
+
+# ── STEP: Re-enabled read-only /v2/networkset endpoints serve frozen archive data ──
+# The network set feature is removed (writes → 501), but two READ endpoints are re-enabled to
+# serve the frozen, archived network_set / network_set_member tables. Since no endpoint can
+# create a network set anymore, we seed one directly via psql (owned by TEST_USER, key enabled,
+# with one PUBLIC and one PRIVATE member network), then read it back. Runs BEFORE the
+# AUTHENTICATED_USER_ONLY flip below so the anonymous read path is still exercised.
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "Re-enabled read-only /v2/networkset endpoints (archived network_set data)"
+
+  NS_SET_ID="11111111-2222-3333-4444-555555555555"
+  NS_KEY="ns-archive-test-key"
+
+  echo "  Seeding frozen network_set '${NS_SET_ID}' (owner=${TEST_USER}, members: 1 public + 1 private)..."
+  docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
+      -c \"DELETE FROM network_set_member WHERE set_id = '${NS_SET_ID}'; \
+           DELETE FROM network_set WHERE \\\"UUID\\\" = '${NS_SET_ID}'; \
+           INSERT INTO network_set (\\\"UUID\\\", name, description, owner_id, creation_time, modification_time, is_deleted, access_key, access_key_is_on, showcased) \
+             VALUES ('${NS_SET_ID}', 'NDEx Archived Test Set', 'frozen archive read test', (SELECT \\\"UUID\\\" FROM ndex_user WHERE user_name = '${TEST_USER}' AND is_deleted = false), now(), now(), false, '${NS_KEY}', true, false); \
+           INSERT INTO network_set_member (set_id, network_id) VALUES ('${NS_SET_ID}', '${V2_PUB_UUID}'), ('${NS_SET_ID}', '${V2_PRIV_UUID}');\"
+  "
+
+  # 1) GET /v2/networkset/{id} (anon, no key): metadata + only the readable (public) member.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID} (anon) — public member only"
+  NS_ANON=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_SET_ID}")
+  NS_ANON_HTTP=$(echo "${NS_ANON}" | tail -1); NS_ANON_BODY=$(echo "${NS_ANON}" | head -1)
+  [[ "${NS_ANON_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (anon) → HTTP ${NS_ANON_HTTP}. Body: ${NS_ANON_BODY:0:400}"
+  echo "${NS_ANON_BODY}" | grep -q "NDEx Archived Test Set" || api_fail "anon read missing archived set name. Body: ${NS_ANON_BODY:0:400}"
+  echo "${NS_ANON_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "anon read missing PUBLIC member ${V2_PUB_UUID}. Body: ${NS_ANON_BODY:0:400}"
+  echo "${NS_ANON_BODY}" | grep -q "${V2_PRIV_UUID}" && api_fail "anon read LEAKED PRIVATE member ${V2_PRIV_UUID}. Body: ${NS_ANON_BODY:0:400}"
+  api_pass "GET /v2/networkset (anon) → 200, archived metadata + PUBLIC member only (PRIVATE filtered)"
+
+  # 2) GET /v2/networkset/{id}?accesskey=<key> (anon): a valid archived key bypasses the filter.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID}?accesskey (anon) — all members"
+  NS_KEYED=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_SET_ID}?accesskey=${NS_KEY}")
+  NS_KEYED_HTTP=$(echo "${NS_KEYED}" | tail -1); NS_KEYED_BODY=$(echo "${NS_KEYED}" | head -1)
+  [[ "${NS_KEYED_HTTP}" == "200" ]] || api_fail "GET /v2/networkset?accesskey (anon) → HTTP ${NS_KEYED_HTTP}. Body: ${NS_KEYED_BODY:0:400}"
+  echo "${NS_KEYED_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "keyed read missing PUBLIC member. Body: ${NS_KEYED_BODY:0:400}"
+  echo "${NS_KEYED_BODY}" | grep -q "${V2_PRIV_UUID}" || api_fail "keyed read missing PRIVATE member (key should bypass filter). Body: ${NS_KEYED_BODY:0:400}"
+  api_pass "GET /v2/networkset?accesskey (anon) → 200, valid archived key returns ALL members"
+
+  # 3) GET /v2/networkset/{id} (owner): sees both members via own readability.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID} (owner) — both members"
+  NS_OWNER=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_SET_ID}")
+  NS_OWNER_HTTP=$(echo "${NS_OWNER}" | tail -1); NS_OWNER_BODY=$(echo "${NS_OWNER}" | head -1)
+  [[ "${NS_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (owner) → HTTP ${NS_OWNER_HTTP}. Body: ${NS_OWNER_BODY:0:400}"
+  echo "${NS_OWNER_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "owner read missing PUBLIC member. Body: ${NS_OWNER_BODY:0:400}"
+  echo "${NS_OWNER_BODY}" | grep -q "${V2_PRIV_UUID}" || api_fail "owner read missing own PRIVATE member. Body: ${NS_OWNER_BODY:0:400}"
+  api_pass "GET /v2/networkset (owner) → 200, both members (own PRIVATE network is readable)"
+
+  # 4) GET /v2/networkset/{id}/accesskey (owner): returns the archived key.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID}/accesskey (owner) — key returned"
+  NS_AK=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_SET_ID}/accesskey")
+  NS_AK_HTTP=$(echo "${NS_AK}" | tail -1); NS_AK_BODY=$(echo "${NS_AK}" | head -1)
+  [[ "${NS_AK_HTTP}" == "200" ]] || api_fail "GET /v2/networkset/accesskey (owner) → HTTP ${NS_AK_HTTP}. Body: ${NS_AK_BODY:0:400}"
+  echo "${NS_AK_BODY}" | grep -q "${NS_KEY}" || api_fail "accesskey read missing key '${NS_KEY}'. Body: ${NS_AK_BODY:0:400}"
+  api_pass "GET /v2/networkset/accesskey (owner) → 200, archived access key returned"
+
+  # 5) GET /v2/networkset/{id}/accesskey (non-owner): 401 (ownership required for the key).
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID}/accesskey (non-owner ${TEST_USER2}) — 401"
+  NS_AK2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v2/networkset/${NS_SET_ID}/accesskey")
+  [[ "${NS_AK2_HTTP}" == "401" ]] || api_fail "GET /v2/networkset/accesskey (non-owner) → HTTP ${NS_AK2_HTTP} (expected 401)"
+  api_pass "GET /v2/networkset/accesskey (non-owner) → 401 (only the owner may read the key)"
+
+  # 5b) GET /v2/networkset/{missing}/accesskey (owner): existence resolved first → 404, not 401.
+  CALL_NUM=$((CALL_NUM+1))
+  NS_MISSING_ID="99999999-9999-9999-9999-999999999999"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_MISSING_ID}/accesskey (owner, missing set) — 404"
+  NS_AK_MISS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_MISSING_ID}/accesskey")
+  [[ "${NS_AK_MISS_HTTP}" == "404" ]] || api_fail "GET /v2/networkset/accesskey (missing set) → HTTP ${NS_AK_MISS_HTTP} (expected 404)"
+  api_pass "GET /v2/networkset/accesskey (missing set) → 404 (existence resolved before ownership)"
+
+  # 6) Writes remain retired: POST /v2/networkset still returns 501.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset (auth) — still 501 (writes retired)"
+  NS_POST_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" -d '{"name":"nope"}' "${BASE_URL}/v2/networkset")
+  [[ "${NS_POST_HTTP}" == "501" ]] || api_fail "POST /v2/networkset → HTTP ${NS_POST_HTTP} (expected 501 — writes remain removed)"
+  api_pass "POST /v2/networkset → 501 (network-set writes remain retired; only reads re-enabled)"
+
+  # 7) GET /v2/user/{userid}/networksets — re-enabled archived list (issue #133), served strictly from
+  #    the frozen network_set tables. Resolve the owner UUID via the @PermitAll username lookup.
+  NS_OWNER_ID=$(curl -s "${BASE_URL}/v2/user?username=${TEST_USER}" \
+    | grep -oiE '"externalId"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+  [[ -n "${NS_OWNER_ID}" ]] || api_fail "could not resolve ${TEST_USER} UUID from GET /v2/user?username"
+
+  # 7a) anon → 200 (no longer 501); archived set present with only the readable (public) member.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets (anon) — public member only"
+  NSU_ANON=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets")
+  NSU_ANON_HTTP=$(echo "${NSU_ANON}" | tail -1); NSU_ANON_BODY=$(echo "${NSU_ANON}" | head -1)
+  [[ "${NSU_ANON_HTTP}" == "200" ]] || api_fail "GET /v2/user/{id}/networksets (anon) → HTTP ${NSU_ANON_HTTP} (expected 200, not 501). Body: ${NSU_ANON_BODY:0:400}"
+  echo "${NSU_ANON_BODY}" | grep -q "${NS_SET_ID}" || api_fail "anon list missing archived set ${NS_SET_ID}. Body: ${NSU_ANON_BODY:0:400}"
+  echo "${NSU_ANON_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "anon list missing PUBLIC member ${V2_PUB_UUID}. Body: ${NSU_ANON_BODY:0:400}"
+  echo "${NSU_ANON_BODY}" | grep -q "${V2_PRIV_UUID}" && api_fail "anon list LEAKED PRIVATE member ${V2_PRIV_UUID}. Body: ${NSU_ANON_BODY:0:400}"
+  api_pass "GET /v2/user/{id}/networksets (anon) → 200, archived set + PUBLIC member only (PRIVATE filtered)"
+
+  # 7b) owner → sees both members via own readability.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets (owner) — both members"
+  NSU_OWNER=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets")
+  NSU_OWNER_HTTP=$(echo "${NSU_OWNER}" | tail -1); NSU_OWNER_BODY=$(echo "${NSU_OWNER}" | head -1)
+  [[ "${NSU_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/user/{id}/networksets (owner) → HTTP ${NSU_OWNER_HTTP}. Body: ${NSU_OWNER_BODY:0:400}"
+  { echo "${NSU_OWNER_BODY}" | grep -q "${V2_PUB_UUID}" && echo "${NSU_OWNER_BODY}" | grep -q "${V2_PRIV_UUID}"; } \
+    || api_fail "owner list missing a member (expected both public + private). Body: ${NSU_OWNER_BODY:0:400}"
+  api_pass "GET /v2/user/{id}/networksets (owner) → 200, both members (own PRIVATE network readable)"
+
+  # 7c) owner + summary=true → set header present, member network ids omitted.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?summary=true (owner) — headers only"
+  NSU_SUM=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?summary=true")
+  echo "${NSU_SUM}" | grep -q "${NS_SET_ID}" || api_fail "summary list missing archived set ${NS_SET_ID}. Body: ${NSU_SUM:0:400}"
+  { echo "${NSU_SUM}" | grep -q "${V2_PUB_UUID}" || echo "${NSU_SUM}" | grep -q "${V2_PRIV_UUID}"; } \
+    && api_fail "summary=true should omit member network ids. Body: ${NSU_SUM:0:400}"
+  api_pass "GET /v2/user/{id}/networksets?summary=true → set header present, members omitted"
+
+  # 7d) owner + showcase=true → seeded set has showcased=false, so it is filtered out.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?showcase=true (owner) — non-showcased set absent"
+  NSU_SHOW=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?showcase=true")
+  echo "${NSU_SHOW}" | grep -q "${NS_SET_ID}" \
+    && api_fail "showcase=true must exclude the non-showcased set ${NS_SET_ID}. Body: ${NSU_SHOW:0:400}"
+  api_pass "GET /v2/user/{id}/networksets?showcase=true → non-showcased set excluded (showcase filter)"
+
+  echo "  Cleaning up seeded network_set '${NS_SET_ID}'..."
+  docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
+      -c \"DELETE FROM network_set_member WHERE set_id = '${NS_SET_ID}'; DELETE FROM network_set WHERE \\\"UUID\\\" = '${NS_SET_ID}';\"
+  "
+fi
 
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────
 # NOTE: this permanently flips the server to AUTHENTICATED_USER_ONLY=true (appends to

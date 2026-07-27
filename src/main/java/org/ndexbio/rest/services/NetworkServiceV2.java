@@ -163,7 +163,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/provenance")
-	@Operation(summary = "Get Network Provenance", description = "Returns the Provenance aspect of the network specified by networkid.")
+	@Operation(summary = "Get Network Provenance", description = "Returns the Provenance aspect of the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 	@Produces("application/json")
 
 	public ProvenanceEntity getProvenance(
@@ -337,7 +337,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/summary")
-	@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId.")
+	@Operation(summary = "Get a Network Summary", description = "Retrieves a NetworkSummary JSON object based on the network specified by networkId. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 	@Produces("application/json")
 	
 	public NetworkSummary getNetworkSummary(
@@ -366,7 +366,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/aspect")
-	@Operation(summary = "Get Network CX Metadata Collection", description = "Returns the CX metadata collection of the network specified by networkid.")
+	@Operation(summary = "Get Network CX Metadata Collection", description = "Returns the CX metadata collection of the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 
 	public Response getNetworkCXMetadataCollection(	@PathParam("networkid") final String networkId,
 			@QueryParam("accesskey") String accessKey)
@@ -491,7 +491,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}")
-	@Operation(summary = "Get Complete Network in CX format", description = "Returns the specified network as CX.")
+	@Operation(summary = "Get Complete Network in CX format", description = "Returns the specified network as CX. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 	public Response getCompleteNetworkAsCX(	@PathParam("networkid") final String networkId,
 			@QueryParam("download") boolean isDownload,
 			@QueryParam("accesskey") String accessKey,
@@ -548,7 +548,7 @@ public class NetworkServiceV2 extends NdexService {
 	@PermitAll
 	@GET
 	@Path("/{networkid}/sample")
-	@Operation(summary = "Get Network Sample", description = "Returns a sample subnetwork of the network specified by networkid.")
+	@Operation(summary = "Get Network Sample", description = "Returns a sample subnetwork of the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 
 	public Response getSampleNetworkAsCX(	@PathParam("networkid") final String networkIdStr ,
 			@QueryParam("accesskey") String accessKey)

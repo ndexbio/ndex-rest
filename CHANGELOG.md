@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [3.0.3] - 2026-07-25
+
+### Breaking Changes
+
+- **The NDEx network set feature has been removed**, except for read-only endpoints re-enabled for backward-compatible reads of legacy data. All `/v2/networkset` *write* endpoints return **HTTP 501 Not Implemented**. New network sets can no longer be created; use folders + shortcuts + folder access keys instead — see the [V3 Migration Guide](docs/V3-Migration-Guide.md). Endpoint status:
+  - **Re-enabled (read-only):** `GET /v2/networkset/{id}`, `GET /v2/networkset/{id}/accesskey`, and `GET /v2/user/{userid}/networksets` now serve the frozen, archived `network_set` / `network_set_member` tables directly — `GET /v2/networkset/{id}` returns the archived set (members filtered to networks the caller can read, a valid access key returning all); `GET /v2/networkset/{id}/accesskey` returns the archived key to the set owner; `GET /v2/user/{userid}/networksets` returns the archived sets owned by the user (members filtered to the networks the caller can read; honors `offset`/`limit`/`summary`/`showcase`). All are marked deprecated/archived in Swagger.
+  - **Retired → 501:** `POST /v2/networkset`, `PUT|DELETE /v2/networkset/{id}`, `POST|DELETE /v2/networkset/{id}/members`, `PUT /v2/networkset/{id}/accesskey`, `PUT /v2/networkset/{id}/systemproperty`.
+  - The `networkSetCount` field is removed from `GET /v2/user/{userid}/networkcount` response model.
+  - The legacy `network_set` / `network_set_member` tables are retained as frozen/read-only; the `network_set_member → network` foreign key is dropped so the tables no longer couple to network deletion.
+- **Swagger / OpenAPI** — every removed network-set endpoint is marked `deprecated` with a documented `501` response.
+- **`GET /v3/networks/{networkid}/DOI` removed.** The v3 DOI-mint endpoint is deleted; it duplicated the v2 admin DOI flow (`POST /v2/admin/request` with `type=DOI`), which remains the single DOI mechanism. The endpoint existed only to serve a two-step, asynchronous DOI workflow (a DOI request emailed an admin a link — `…/DOI?key=<encrypted-network-id>&email=…` — which the admin clicked to mint). That workflow was retired in Feb 2024 ("Mint DOI immediately when user requests", UD-2788): the request handler was changed to mint synchronously in-process, and the email/link generation was commented out. Since then nothing has generated that link and nothing consumed the endpoint's `key` parameter, so the endpoint had been dead code — its removal breaks no live flow.
+
+### Changed
+
+- **DOI requests auto-manage network access.** `POST /v2/admin/request` with `type=DOI` no longer requires the caller to allocate an access key. A network that stays **PRIVATE** gets a network-scoped access key embedded in the minted DOI viewer URL — an access key already on the network is **reused** (enabled if it was off), otherwise one is **generated**. A **certified** request makes the network **PUBLIC** with **no** access key (and no longer leaves a stray access key enabled on it). Edge case: a PRIVATE network with no enabled access key at mint time is rejected with **400 Bad Request** (a data-integrity guard, to avoid minting an `accesskey=null` URL) — recover by issuing a `type=Cancel_DOI` request, then retry.
+- **Access-key validation now follows the v3 folder hierarchy (issue #133).** A key is valid for a network when it matches the network's own access key or an enabled key on any ancestor folder (full-chain accrual); the legacy `network_set`-based validation path was removed. Access-key-authorized `GET /v3/files/folders/{id}/list` and `…/count` now return only the key-accessible children (folders + networks + shortcuts). 
+- Created one-off CLI migration (`DbMigrationTool`) of shortucts, replaces by reparenting any single-folder shortcut target into the access-keyed parent folder. 
+
+
 ## [3.0.2] - 2026-07-07
 
 ### Added

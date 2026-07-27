@@ -23,7 +23,6 @@ import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.*;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.solr.*;
-import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
 import org.ndexbio.cx2.aspect.element.core.CxNode;
@@ -60,10 +59,8 @@ public class V3Migrator implements AutoCloseable {
 	private final SolrObjectFactory solrObjectFactory;
 
 	// --- Migration stats ---
-	private int networkSetsProcessed = 0;
 	private int networksProcessed = 0;
 	private int usersProcessed = 0;
-	private int shortcutsCreated = 0;
 
 	//todo v2 endpoints should correspond network sets with folders
 	//todo
@@ -102,9 +99,6 @@ public class V3Migrator implements AutoCloseable {
 			logger.info("--- Setup: Loading preferred Owners");
 			setupCoresAndPreferredUsers(userDAO);
 
-			logger.info("--- Phase 1: Network Sets -> Folders + Shortcuts ---");
-			processNetworkSets(dao);
-
 			logger.info("--- Phase 3: Networks -> Verify in Home Folder + Migrate Access Keys ---");
 			processNetworks(dao);
 
@@ -113,9 +107,8 @@ public class V3Migrator implements AutoCloseable {
 
 			logger.info("=== V3 Migration Complete ===");
 			logger.info(String.format(
-					"Stats: networkSets=%d, networks=%d, users=%d, shortcuts=%d",
-					networkSetsProcessed, networksProcessed,
-					usersProcessed, shortcutsCreated));
+					"Stats: networks=%d, users=%d",
+					networksProcessed, usersProcessed));
 		}
 	}
 
@@ -142,128 +135,6 @@ public class V3Migrator implements AutoCloseable {
 
     }
 
-
-	// ========================================================================
-	// Phase 1: Network Sets -> Folders + Shortcuts
-	// ========================================================================
-
-	public void processNetworkSets(DaoSet dao) throws Exception {
-		int totalSets = 0;
-		try (PreparedStatement countPst = db.prepareStatement("SELECT COUNT(*) FROM network_set WHERE is_deleted = false");
-			 ResultSet countRs = countPst.executeQuery()) {
-			if (countRs.next()) totalSets = countRs.getInt(1);
-		}
-		logger.info("Found {} network sets to migrate.", totalSets);
-
-		String sql = "SELECT creation_time, modification_time, \"UUID\", owner_id, name, description, "
-				+ "other_attributes, access_key, access_key_is_on, showcased, ndexdoi "
-				+ "FROM network_set WHERE is_deleted = false";
-
-		try (PreparedStatement pst = db.prepareStatement(sql);
-			 ResultSet rs = pst.executeQuery();
-			 FolderIndexManager fim = solrObjectFactory.getFolderIndexManager();
-			 ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager()) {
-
-			while (rs.next()) {
-				UUID setId = (UUID) rs.getObject(3);
-				try {
-					NetworkSet set = readNetworkSet(rs, setId);
-					logger.info("Starting for network set {}", setId);
-					set.setNetworks(loadNetworkSetMembers(setId));
-
-					User owner = set.getOwnerId() != null
-							? dao.userDAO.getUserById(set.getOwnerId(), false, false) : null;
-
-					NdexFolder folder = mapNetworkSetToFolder(set, owner);
-					String accessKey = rs.getString(8);
-					boolean accessKeyIsOn = rs.getBoolean(9) && !rs.wasNull();
-
-					migrateNetworkSetToFolder(set, folder, accessKey, accessKeyIsOn, dao, owner, fim, sim);
-					networkSetsProcessed++;
-					logger.info("[Phase 1] {}/{} ({}%) - set {}",
-							networkSetsProcessed, totalSets,
-							(networkSetsProcessed * 100) / totalSets, setId);
-				} catch (Exception e) {
-					db.rollback();
-					logger.info("Failed to migrate network set " + setId, e);
-					throw new RuntimeException(e);
-				}
-			}
-		}
-		logger.info("Processed " + networkSetsProcessed + " network sets.");
-	}
-
-	private NetworkSet readNetworkSet(ResultSet rs, UUID setId) throws SQLException, IOException {
-		NetworkSet set = new NetworkSet();
-		set.setCreationTime(rs.getTimestamp(1));
-		set.setModificationTime(rs.getTimestamp(2));
-		set.setExternalId(setId);
-		set.setOwnerId((UUID) rs.getObject(4));
-		set.setName(rs.getString(5));
-		set.setDescription(rs.getString(6));
-
-		String propStr = rs.getString(7);
-		if (propStr != null) {
-			set.setProperties(mapper.readValue(propStr, mapTypeRef));
-		}
-
-		boolean showcased = rs.getBoolean(10);
-		if (!rs.wasNull()) set.setShowcased(showcased);
-
-		String doi = rs.getString(11);
-		if (doi != null) set.setDoi(doi);
-
-		return set;
-	}
-
-	private List<UUID> loadNetworkSetMembers(UUID setId) throws SQLException {
-		List<UUID> networks = new ArrayList<>();
-		String sql = "SELECT nm.network_id FROM network_set_member nm "
-				+ "JOIN network n ON n.\"UUID\" = nm.network_id "
-				+ "WHERE nm.set_id = ? AND n.is_deleted = false";
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			pst.setObject(1, setId);
-			try (ResultSet rs = pst.executeQuery()) {
-				while (rs.next()) {
-					networks.add((UUID) rs.getObject(1));
-				}
-			}
-		}
-		return networks;
-	}
-
-	private void migrateNetworkSetToFolder(NetworkSet set, NdexFolder folder, String accessKey,
-										   boolean accessKeyIsOn, DaoSet dao, User owner, FolderIndexManager fim,
-										   ShortcutIndexManager sim) throws Exception {
-		UUID ownerId = set.getOwnerId();
-
-		// Create the folder
-		logger.info("[{}] Creating db entry", set.getExternalId());
-		dao.folderDAO.createFolder(folder.getExternalId(), ownerId, null,
-				folder.getName(), folder.getDescription());
-		dao.folderDAO.commit();
-
-		//logger.info("[{}] Folder created", set.getExternalId());
-
-		// Set access key
-		setAccessKey("folder", folder.getExternalId(), accessKey, accessKeyIsOn);
-		VisibilityType vis = determineFolderVisibility(set);
-
-		logger.info("[{}] Creating index", set.getExternalId());
-		// Index folder in Solr
-		fim.createIndex(folder, vis, null, null);
-		logger.info("[{}] Creating shortcuts for {} networks", set.getExternalId(), set.getNetworks().size());
-		for (UUID networkId : set.getNetworks()) {
-			try {
-				createNetworkShortcut(networkId, folder.getExternalId(), ownerId, owner, dao, sim, null, vis);
-			} catch (Exception e){
-				logger.info("Failed to create shortcut for network {} in set {}", networkId, set.getExternalId());
-				throw new RuntimeException(e);
-			}
-		}
-		dao.shortcutDAO.commit();
-
-	}
 
 	// ========================================================================
 	// Phase 3: Networks -> Home Folder + Access Keys
@@ -365,65 +236,6 @@ public class V3Migrator implements AutoCloseable {
 	// Shared helpers
 	// ============================================loadNetworkUserPermissions============================
 
-	/**
-	 * Create a shortcut pointing to a network inside a folder, and index it in Solr.
-	 */
-	private void createNetworkShortcut(UUID networkId, UUID parentFolderId, UUID ownerId,
-									   User owner, DaoSet dao, ShortcutIndexManager sim,
-									   List<String> userReads,
-									   VisibilityType folderVisibility) throws Exception {
-		String[] nameAndVis = getNetworkNameAndVisibility(networkId);
-		if (nameAndVis == null) {
-			logger.info("Network " + networkId + " not found, skipping shortcut.");
-			return;
-		}
-		String netName = nameAndVis[0] != null ? nameAndVis[0] : "(unnamed network)";
-
-		UUID shortcutId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
-
-		dao.shortcutDAO.createShortcut(shortcutId, ownerId, parentFolderId,
-				netName, networkId, FileType.NETWORK);
-
-		NdexShortcut shortcut = new NdexShortcut();
-		shortcut.setExternalId(shortcutId);
-		shortcut.setOwner(owner != null ? owner.getUserName() : null);
-		shortcut.setName(netName);
-		shortcut.setParent(parentFolderId);
-		shortcut.setTarget(networkId);
-		shortcut.setTargetType(FileType.NETWORK);
-		shortcut.setIsDeleted(false);
-
-		sim.createIndex(shortcut, folderVisibility, userReads, null);
-		shortcutsCreated++;
-	}
-	private String[] getNetworkNameAndVisibility(UUID networkId) throws SQLException {
-		String sql = "SELECT name, visibility FROM network WHERE \"UUID\" = ? AND is_deleted = false";
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			pst.setObject(1, networkId);
-			try (ResultSet rs = pst.executeQuery()) {
-				if (rs.next()) {
-					return new String[]{rs.getString(1), rs.getString(2)};
-				}
-				return null;
-			}
-		}
-	}
-	/**
-	 * Set access key on a folder or network via direct SQL.
-	 */
-	private void setAccessKey(String table, UUID entityId, String accessKey, boolean accessKeyIsOn)
-			throws SQLException {
-		if (accessKey == null || accessKey.isBlank()) return;
-
-		String sql = "UPDATE " + table + " SET access_key = ?, access_key_is_on = ? WHERE \"UUID\" = ?";
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			pst.setString(1, accessKey);
-			pst.setBoolean(2, accessKeyIsOn);
-			pst.setObject(3, entityId);
-			pst.executeUpdate();
-		}
-	}
-
 	private List<String> readPriorityUsers(Path priorityUsersPath) throws NdexException {
 		if (!Files.exists(priorityUsersPath)){
 			logger.info("Priority user file not found at {}!", priorityUsersPath);
@@ -438,27 +250,6 @@ public class V3Migrator implements AutoCloseable {
 			logger.info("Could not read priority users file: {}", priorityUsersPath, e);
 			throw new NdexException("Could not read priority user file");
 		}
-	}
-
-	public NdexFolder mapNetworkSetToFolder(NetworkSet set, User owner) {
-		NdexFolder folder = new NdexFolder();
-		folder.setExternalId(set.getExternalId());
-		folder.setName(set.getName());
-		folder.setDescription(set.getDescription());
-		folder.setCreationTime(set.getCreationTime());
-		folder.setModificationTime(set.getModificationTime());
-		if (owner != null) folder.setOwner(owner.getUserName());
-		return folder;
-	}
-
-	/**
-	 * Determine folder visibility based on the original network set.
-	 * TODO: adjust logic based on whether network_set had a visibility column.
-	 * For now defaults to PRIVATE.
-	 */
-	private VisibilityType determineFolderVisibility(NetworkSet set) {
-		// network_set table doesn't have a visibility column, so default to PRIVATE
-		return VisibilityType.PRIVATE;
 	}
 
 	@Override

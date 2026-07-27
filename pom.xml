@@ -7,7 +7,7 @@
 	<groupId>org.ndexbio</groupId>
 	<artifactId>ndexbio-rest</artifactId>
 	<packaging>war</packaging>
-	<version>3.0.2</version>
+	<version>3.0.3</version>
 	<name>ndexbio-rest</name>
 	<url>http://maven.apache.org</url>
 	<inceptionYear>2013</inceptionYear>
@@ -595,6 +595,7 @@
 					</includes>
 					<excludes>
 						<exclude>**/logback.xml</exclude>
+						<exclude>**/logback-cli.xml</exclude>
 						<exclude>**/logback-test.xml</exclude>
 						<exclude>**/src/test/resources/**</exclude>
 					</excludes>
