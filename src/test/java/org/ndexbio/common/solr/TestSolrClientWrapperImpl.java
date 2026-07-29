@@ -183,7 +183,7 @@ public class TestSolrClientWrapperImpl {
 	 */
 	@Ignore
 	public void testCreateCoreAndPerformSomeIndexes() throws Exception {
-		SolrObjectFactoryImpl factory = new SolrObjectFactoryImpl("http://localhost:8983/solr");
+		SolrObjectFactoryImpl factory = new SolrObjectFactoryImpl("http://localhost:8983/solr", "/opt/ndex");
 		
 		SolrClientWrapperImpl client = new SolrClientWrapperImpl(factory);
 		

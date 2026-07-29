@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -47,11 +48,19 @@ public class SolrIndexBuilder implements AutoCloseable {
 	public SolrIndexBuilder () throws NdexException, SolrServerException, IOException {
 		  globalIdx = new NetworkGlobalIndexManager();
 	      globalIdx.createCoreIfNotExists();
-		
+
+	}
+
+	/**
+	 * Test constructor. The public constructor reaches Solr while building its global index
+	 * manager, so tests supply one instead of having it created for them.
+	 */
+	SolrIndexBuilder (NetworkGlobalIndexManager globalIdx) {
+		this.globalIdx = globalIdx;
 	}
 	
 	
-	private  void rebuildNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	void rebuildNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 		  logger.info("Rebuild solr index of network " + networkid);
 		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
@@ -59,7 +68,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 			  throw new NdexException ("Network "+ networkid + " not found in the server." );
 		  
 		  dao.lockNetwork(networkid);
-		  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkid.toString())) {
+		  try (SingleNetworkSolrIdxManager idx2 = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(networkid.toString())) {
 		  
 			  if (!ignoreDeletion) {
 				try {
@@ -74,10 +83,11 @@ public class SolrIndexBuilder implements AutoCloseable {
 			  }		
 			  if (summary.getNodeCount() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ) {
 					
-					idx2.createIndex(null);
+					int committed = idx2.createIndex(null, summary.getNodeCount());
 					idx2.close();
-				
-				    logger.info("Solr index for query created.");
+
+				    logger.info("Solr index for query created for network {} with {} documents.",
+				    		networkid, committed);
 			  } 
 		  
 			  if ( summary.getIndexLevel() != NetworkIndexLevel.NONE) {
@@ -225,15 +235,14 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 	
 	
-	private static  void rebuildLocalNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	void rebuildLocalNetworkIndex (UUID networkid, boolean ignoreDeletion ) throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 		  logger.info("Rebuild local index of " + networkid);
 		  NetworkSummary summary = dao.getNetworkSummaryById(networkid);
 		  if (summary == null)
 			  throw new NdexException ("Network "+ networkid + " not found in the server." );
 		  
-		  //dao.lockNetwork(networkid);
-		  try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkid.toString())) {
+		  try (SingleNetworkSolrIdxManager idx2 = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(networkid.toString())) {
 		  
 			  if (!ignoreDeletion) {
 				try {
@@ -246,10 +255,11 @@ public class SolrIndexBuilder implements AutoCloseable {
 			  }		
 			  if (summary.getNodeCount() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ) {
 					
-					idx2.createIndex(null);
+					int committed = idx2.createIndex(null, summary.getNodeCount());
 					idx2.close();
-				
-				    logger.info("Solr index for query created.");
+
+				    logger.info("Solr index for query created for network {} with {} documents.",
+				    		networkid, committed);
 			  }   			 	
 			
 		  }	 
@@ -302,12 +312,10 @@ public class SolrIndexBuilder implements AutoCloseable {
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
 					while (rs.next()) {
-				       //int nodeCount = rs.getInt(2);
 						rebuildNetworkIndexInGlobalIdx((UUID)rs.getObject(1), true);
 					   i ++;
 					   if ( i % 1000 == 0 ) {
 						   System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-						//   globalIdx.commit();
 						   try {
 							  Thread.sleep(2000);
 						   } catch (InterruptedException e) {
@@ -319,12 +327,11 @@ public class SolrIndexBuilder implements AutoCloseable {
 				}
 			}
 		}
-	//	globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
 	}
 	
 
-	private static  void rebuildAllLocalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
+	private  void rebuildAllLocalIdx() throws SQLException, JsonParseException, JsonMappingException, IOException, NdexException, SolrServerException {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO ()) {
 			@SuppressWarnings("resource")
 			Connection db = dao.getDBConnection();
@@ -332,27 +339,18 @@ public class SolrIndexBuilder implements AutoCloseable {
 					+ SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD ;
 			
 			int i = 0;
-			int j = 0; 
+			int j = 0;
+			List<String> failedNetworks = new ArrayList<>();
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
 					while (rs.next()) {
-				       //int nodeCount = rs.getInt(2);
 						UUID netid = (UUID)rs.getObject(1);
-						try {
-							rebuildLocalNetworkIndex(netid, true);
+						if (runLocalIndexStep(netid, failedNetworks)) {
 							j++;
-						} catch (HttpSolrClient.RemoteSolrException e4) {
-							if ( e4.getMessage().indexOf("Core with name '"+
-						             netid.toString() +  "' already exists") == -1) {
-								e4.printStackTrace();
-								throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
-							}	
-							logger.info("index exists. Ignore creating it.");
-						} 
+						}
 					   i ++;
 					   if ( i % 500 == 0 ) {
 						   System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-						//   globalIdx.commit();
 						   try {
 							  Thread.sleep(2000);
 						   } catch (InterruptedException e) {
@@ -364,8 +362,8 @@ public class SolrIndexBuilder implements AutoCloseable {
 				}
 			}
 			logger.info("Local index of " + i + " networks have been checked. " + j + " are created." );
+			logSweepSummary("all-local", j, failedNetworks);
 		}
-	//	globalIdx.commit();
 	}
 
 	
@@ -376,34 +374,96 @@ public class SolrIndexBuilder implements AutoCloseable {
 			String sqlStr = "select \"UUID\" from network n where n.iscomplete and n.is_deleted=false and n.is_validated and n.error is null";
 			
 			int i = 0;
+			int succeeded = 0;
+			List<String> failedNetworks = new ArrayList<>();
 			try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 				try ( ResultSet rs = pst.executeQuery()) {
 					while (rs.next()) {
-				       //int nodeCount = rs.getInt(2);
 					   UUID networkId = (UUID)rs.getObject(1);
-					   try {
-						   
-						   rebuildNetworkIndex(networkId, false);
-					   } catch(Exception ex){
-						   logger.error("Failed to rebuild index for network: " + networkId.toString());
+					   if (runNetworkIndexStep(networkId, failedNetworks)) {
+						   succeeded++;
 					   }
 					   i ++;
 					   if ( i % 500 == 0 ) {
 						   System.err.println("Loaded " + i + " records to solr. sleep 2 seconds");
-						//   globalIdx.commit();
 						   try {
 							  Thread.sleep(2000);
 						   } catch (InterruptedException e) {
 							  // TODO Auto-generated catch block
 							  e.printStackTrace();
 						   }
-					   }	   
+					   }
 					}
 				}
 			}
+			logSweepSummary("all-networks-online", succeeded, failedNetworks);
 		}
-	//	globalIdx.commit();
 		logger.info("Indexes of all networks have been rebuilt.");
+	}
+
+	/**
+	 * Rebuilds one network's index as part of a sweep.
+	 *
+	 * <p>A failure here concerns only this network: it is logged once at WARN with the reason
+	 * carried by the exception, recorded in {@code failedNetworks}, and never rethrown, so the
+	 * caller's loop continues to the next network.
+	 *
+	 * @return true when the network was indexed
+	 */
+	boolean runNetworkIndexStep(UUID networkId, List<String> failedNetworks) {
+		try {
+			rebuildNetworkIndex(networkId, false);
+			return true;
+		} catch (Exception ex) {
+			failedNetworks.add(networkId.toString());
+			logger.warn("Failed to rebuild index for network {}: {}", networkId, ex.getMessage(), ex);
+			return false;
+		}
+	}
+
+	/**
+	 * Creates one network's local query index as part of a sweep.
+	 *
+	 * <p>A core that already exists is not a failure - this command only fills in missing ones.
+	 * Anything else is this network's problem alone: logged once at WARN and never rethrown.
+	 * This previously rethrew, which aborted the whole sweep on the first bad network.
+	 *
+	 * @return true when an index was created
+	 */
+	boolean runLocalIndexStep(UUID networkId, List<String> failedNetworks) {
+		try {
+			rebuildLocalNetworkIndex(networkId, true);
+			return true;
+		} catch (HttpSolrClient.RemoteSolrException e4) {
+			if (e4.getMessage() != null && e4.getMessage().indexOf("Core with name '"
+					+ networkId.toString() + "' already exists") != -1) {
+				logger.info("index exists. Ignore creating it.");
+				return false;
+			}
+			failedNetworks.add(networkId.toString());
+			logger.warn("Failed to create local index for network {}: {}",
+					networkId, e4.getMessage(), e4);
+			return false;
+		} catch (Exception e) {
+			failedNetworks.add(networkId.toString());
+			logger.warn("Failed to create local index for network {}: {}",
+					networkId, e.getMessage(), e);
+			return false;
+		}
+	}
+
+	/**
+	 * Reports the outcome of a sweep so a run that quietly failed on every network is visible
+	 * without grepping the whole log. Never changes the process exit status - the loops are
+	 * designed to always run to completion.
+	 */
+	private static void logSweepSummary(String command, int succeeded, List<String> failed) {
+		if (failed.isEmpty()) {
+			logger.info("{}: {} networks indexed, 0 failed.", command, succeeded);
+			return;
+		}
+		logger.warn("{}: {} networks indexed, {} failed. Failed network ids: {}",
+				command, succeeded, failed.size(), String.join(", ", failed));
 	}
 
 	
@@ -612,7 +672,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 				builder.rebuildGlobalIdx();
 				break;
 			case "all-local":
-				SolrIndexBuilder.rebuildAllLocalIdx();
+				builder.rebuildAllLocalIdx();
 				break;
 			case "nfs":
 				SolrIndexBuilder.rebuildNFSIdx();

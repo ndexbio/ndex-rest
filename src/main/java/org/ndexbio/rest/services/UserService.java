@@ -179,8 +179,9 @@ public class UserService extends NdexService {
 			User user = userdao.createNewUser(newUser, verificationCode);
 			
 			if ( verificationCode == null) {
-				UserIndexManager mgr = new UserIndexManager();
-				mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
+				try (UserIndexManager mgr = new UserIndexManager()) {
+					mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
+				}
 			}
 			
 			userdao.commit();

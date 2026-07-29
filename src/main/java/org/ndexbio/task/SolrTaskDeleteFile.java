@@ -42,7 +42,7 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 		try(FolderIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getFolderIndexManager()) {
 			globalIdx.delete(id, visibilityType);
 			if (!globalIdxOnly) {
-				try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
+				try (SingleNetworkSolrIdxManager idxManager = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(id)) {
 					idxManager.dropIndex();
 				}
 			}

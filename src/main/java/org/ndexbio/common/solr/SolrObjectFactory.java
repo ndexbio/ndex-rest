@@ -3,6 +3,7 @@ package org.ndexbio.common.solr;
 import java.io.IOException;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.request.ConfigSetAdminRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 
@@ -32,10 +33,17 @@ public interface SolrObjectFactory {
 	
 	/**
 	 * Creates CoreAdminRequest.Create object
-	 * @return 
+	 * @return
 	 */
 	public CoreAdminRequest.Create getCoreAdminRequestCreate();
-	
+
+	/**
+	 * Creates ConfigSetAdminRequest.Create object, used when a core needs its own
+	 * configSet cloned from a template rather than sharing a static one.
+	 * @return
+	 */
+	public ConfigSetAdminRequest.Create getConfigSetAdminRequestCreate();
+
 	
 	/**
 	 * Removes core from Solr
@@ -51,6 +59,14 @@ public interface SolrObjectFactory {
 	public GlobalNetworkIndexManager getGlobalNetworkIndexManager();
 	public FolderIndexManager getFolderIndexManager();
 	public ShortcutIndexManager getShortcutIndexManager();
+
+	/**
+	 * Gets a manager for one network's node query index, wired with its own Solr client
+	 * and CX2 aspect reader.
+	 *
+	 * @param networkId network UUID, which is also its Solr core name
+	 */
+	public SingleNetworkSolrIdxManager getSingleNetworkSolrIdxManager(final String networkId);
 
 
 }

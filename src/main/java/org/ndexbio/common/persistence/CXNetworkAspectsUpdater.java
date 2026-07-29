@@ -107,7 +107,7 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				throw new NdexException("DB error when setting unlock flag: " + e.getMessage(), e);
 			}
 
-			try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(getNetworkId().toString())) {
+			try (SingleNetworkSolrIdxManager idx2 = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(getNetworkId().toString())) {
 				idx2.dropIndex();
 			}
 			NetworkIndexLevel indexLevel = dao.getIndexLevel(networkUUID);
