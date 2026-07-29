@@ -266,21 +266,21 @@ public class NetworkGlobalIndexManager implements AutoCloseable{
 			}
 		}
 	
-		if ( attributeNameMapping.get(SingleNetworkSolrIdxManager.ALIAS)!=null) {
+		if ( attributeNameMapping.get(NodeIndexFields.ALIAS)!=null) {
 			
-			for (String v : SingleNetworkSolrIdxManager.getSplitableTerms(SingleNetworkSolrIdxManager.ALIAS, node,
+			for (String v : NodeIndexFields.getSplitableTerms(NodeIndexFields.ALIAS, node,
 					attributeNameMapping) ){
 				doc.addField(ALIASES, v);
 			}
 			
 		} 
 		
-		String nodeType = SingleNetworkSolrIdxManager.getSingleIndexableTermFromNode(SingleNetworkSolrIdxManager.TYPE,
+		String nodeType = NodeIndexFields.getSingleIndexableTermFromNode(NodeIndexFields.TYPE,
 				node, attributeNameMapping);
 		
-		if ( nodeType != null && (nodeType.equalsIgnoreCase(SingleNetworkSolrIdxManager.PROTEINFAMILY) || 
-    			nodeType.equalsIgnoreCase(SingleNetworkSolrIdxManager.COMPLEX) )) {
-    		List<String> memberGenes = SingleNetworkSolrIdxManager.getSplitableTerms (SingleNetworkSolrIdxManager.MEMBER,
+		if ( nodeType != null && (nodeType.equalsIgnoreCase(NodeIndexFields.PROTEINFAMILY) || 
+    			nodeType.equalsIgnoreCase(NodeIndexFields.COMPLEX) )) {
+    		List<String> memberGenes = NodeIndexFields.getSplitableTerms (NodeIndexFields.MEMBER,
     				node, attributeNameMapping);
     		for ( String memberIdStr : memberGenes) {
 				for ( String indexableString : getIndexableString(memberIdStr) ){

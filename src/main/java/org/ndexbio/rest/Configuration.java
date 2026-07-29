@@ -209,14 +209,18 @@ public class Configuration
             	solrURL = defaultSolrURL;
 			
 			defaultMaxSearchResultRows = getDefaultMaxSearchResultRowsFromConfiguration();
-            solrObjectFactory = new SolrObjectFactoryImpl(solrURL);
+
+            // read before the Solr factory is built: the factory hands the data root to the
+            // CX2 aspect reader that node indexes are built from.
+            this.ndexRoot = getRequiredProperty("NdexRoot");
+
+            solrObjectFactory = new SolrObjectFactoryImpl(solrURL, this.ndexRoot);
 			this.searchFactory = new SearchProviderFactoryImpl(solrObjectFactory, defaultMaxSearchResultRows);
-			
+
             this.ndexSystemUser = getRequiredProperty("NdexSystemUser");
             this.ndexSystemUserPassword = getRequiredProperty("NdexSystemUserPassword");
 			this.migrationPassword = getRequiredProperty("MigrationPassword");
 
-            this.ndexRoot = getRequiredProperty("NdexRoot");
             hostURI = getRequiredProperty("HostURI");
 
             this.networkStorePath = this.ndexRoot + "/data/";

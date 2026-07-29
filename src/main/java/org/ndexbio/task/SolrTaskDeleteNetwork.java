@@ -42,7 +42,7 @@ public class SolrTaskDeleteNetwork extends NdexSystemTask {
 		try(GlobalNetworkIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
 			globalIdx.delete(id, visibilityType);
 			if (!globalIdxOnly) {
-				try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
+				try (SingleNetworkSolrIdxManager idxManager = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(id)) {
 					idxManager.dropIndex();
 				}		
 			}

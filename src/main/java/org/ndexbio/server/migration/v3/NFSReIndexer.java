@@ -101,14 +101,16 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
 
     public void resetIndexes() throws Exception {
         logger.info("Resetting NFS Solr indexes...");
-        try (FolderIndexManager fim = solrObjectFactory.getFolderIndexManager()) {
+        // Each getSolrClient call builds a new client owning non-daemon Jetty threads, so these
+        // must be closed or a CLI run never exits after main() returns.
+        try (FolderIndexManager fim = solrObjectFactory.getFolderIndexManager();
+             SolrClient publicClient = solrObjectFactory.getSolrClient(NFSIndexManager.publicCoreName);
+             SolrClient privateClient = solrObjectFactory.getSolrClient(NFSIndexManager.privateCoreName)) {
             fim.createCoreIfNeeded();
 
-            SolrClient publicClient = solrObjectFactory.getSolrClient(NFSIndexManager.publicCoreName);
             publicClient.deleteByQuery("*:*");
             publicClient.commit();
 
-            SolrClient privateClient = solrObjectFactory.getSolrClient(NFSIndexManager.privateCoreName);
             privateClient.deleteByQuery("*:*");
             privateClient.commit();
         }
@@ -162,7 +164,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                                 (foldersProcessed * 100) / totalFolders);
                     }
                 } catch (Exception e) {
-                    logger.info("Failed to reindex folder " + folderId, e);
+                    logger.warn("Failed to reindex folder {}: {}", folderId, e.getMessage(), e);
                 }
             }
         }
@@ -216,7 +218,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                                 (shortcutsProcessed * 100) / totalShortcuts);
                     }
                 } catch (Exception e) {
-                    logger.info("Failed to reindex shortcut " + shortcutId, e);
+                    logger.warn("Failed to reindex shortcut {}: {}", shortcutId, e.getMessage(), e);
                 }
             }
         }
@@ -293,7 +295,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                                 (networksProcessed * 100) / totalNetworks);
                     }
                 } catch (Exception e) {
-                    logger.info("Failed to reindex network " + networkId, e);
+                    logger.warn("Failed to reindex network {}: {}", networkId, e.getMessage(), e);
                 }
             }
         }
@@ -338,7 +340,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                     globalNetworkIndexManager.delete(id, visibilityType);
 
                     if ( idxScope == SolrIndexScope.both)
-                        try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(fileId.toString())) {
+                        try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(fileId.toString())) {
                             idx2.dropIndex();
                         }
                 }
@@ -346,11 +348,13 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                 //build the individual index for queries
                 if (idxScope == SolrIndexScope.both) {
                     long t1 = Calendar.getInstance().getTimeInMillis();
-                    try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(fileId.toString())) {
-                        idx2.createIndexFromCx2(null);
+                    int committedDocs;
+                    try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(fileId.toString())) {
+                        committedDocs = idx2.createIndexFromCx2(null, summary.getNodeCount());
                     }
                     long t = Calendar.getInstance().getTimeInMillis() - t1;
-                    logger.info("Takes {} secs to create index for network {}", t / 1000, fileId);
+                    logger.info("Takes {} secs to create index for network {} with {} documents",
+                            t / 1000, fileId, committedDocs);
                 }
 
 
@@ -498,18 +502,18 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                 if ( entry.getValue().getDataType() == null ||
                         entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
                     attributeNameMapping.put (CxNode.REPRESENTS, entry);
-            } else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.ALIAS) ) {
+            } else if ( attrName.equalsIgnoreCase(NodeIndexFields.ALIAS) ) {
                 if ( entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
-                    attributeNameMapping.put (SingleNetworkSolrIdxManager.ALIAS, entry);
+                    attributeNameMapping.put (NodeIndexFields.ALIAS, entry);
                 }
-            } else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.TYPE)) {
+            } else if ( attrName.equalsIgnoreCase(NodeIndexFields.TYPE)) {
                 if ( entry.getValue().getDataType() == null ||
                         entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-                    attributeNameMapping.put (SingleNetworkSolrIdxManager.TYPE, entry);
-            } else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.MEMBER)) {
+                    attributeNameMapping.put (NodeIndexFields.TYPE, entry);
+            } else if ( attrName.equalsIgnoreCase(NodeIndexFields.MEMBER)) {
                 if ( entry.getValue().getDataType() == null ||
                         entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-                    attributeNameMapping.put (SingleNetworkSolrIdxManager.MEMBER, entry);
+                    attributeNameMapping.put (NodeIndexFields.MEMBER, entry);
             }
 
         }

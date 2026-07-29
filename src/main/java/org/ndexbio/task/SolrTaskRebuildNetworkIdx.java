@@ -20,6 +20,8 @@ import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.common.solr.NodeIndexFields;
+import org.ndexbio.common.solr.SolrObjectFactory;
 import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
 import org.ndexbio.cx2.aspect.element.core.CxNode;
@@ -59,6 +61,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
     public static final String FORMCX2FILE = "fromCX2";
     private Set<String> indexedFields;
     private NetworkIndexLevel indexLevel;
+    private final SolrObjectFactory solrObjectFactory;
     
 	
 	public SolrTaskRebuildNetworkIdx (UUID networkUUID, SolrIndexScope scope, boolean createOnly, 
@@ -70,6 +73,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		this.indexedFields =indexedFields;
 		this.indexLevel = NetworkIndexLevel.ALL;
 		this.fromCX2File = fromCX2File;
+		this.solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();
 	}
 	
 	@Override
@@ -91,22 +95,24 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 					}
 				}
 				if (idxScope != SolrIndexScope.global)
-					try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+					try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString())) {
 						idx2.dropIndex();
 					}
 			}
 
 			if (this.idxScope != SolrIndexScope.global) {
 				long t1 = Calendar.getInstance().getTimeInMillis();
-				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+				int committedDocs;
+				try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString())) {
 					if (this.fromCX2File)
-						idx2.createIndexFromCx2(indexedFields);
+						committedDocs = idx2.createIndexFromCx2(indexedFields, summary.getNodeCount());
 					else
-						idx2.createIndex(indexedFields);
+						committedDocs = idx2.createIndex(indexedFields, summary.getNodeCount());
 					idx2.close();
 				}
 				long t = Calendar.getInstance().getTimeInMillis() - t1;
-				System.out.println("Takes " + t / 1000 + " secs to create index");
+				System.out.println("Takes " + t / 1000 + " secs to create index with "
+						+ committedDocs + " documents");
 			}
 
 			if (this.idxScope != SolrIndexScope.individual) {
@@ -254,18 +260,18 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
 					attributeNameMapping.put (CxNode.REPRESENTS, entry);
-			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.ALIAS) ) {
+			} else if ( attrName.equalsIgnoreCase(NodeIndexFields.ALIAS) ) {
 				if ( entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
-					attributeNameMapping.put (SingleNetworkSolrIdxManager.ALIAS, entry);					
+					attributeNameMapping.put (NodeIndexFields.ALIAS, entry);					
 				}
-			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.TYPE)) {
+			} else if ( attrName.equalsIgnoreCase(NodeIndexFields.TYPE)) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (SingleNetworkSolrIdxManager.TYPE, entry);
-			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.MEMBER)) {
+					attributeNameMapping.put (NodeIndexFields.TYPE, entry);
+			} else if ( attrName.equalsIgnoreCase(NodeIndexFields.MEMBER)) {
 				if ( entry.getValue().getDataType() == null || 
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (SingleNetworkSolrIdxManager.MEMBER, entry);
+					attributeNameMapping.put (NodeIndexFields.MEMBER, entry);
 			}
 				
 		}

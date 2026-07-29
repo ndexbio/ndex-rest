@@ -349,7 +349,7 @@ public class CXNetworkLoader implements AutoCloseable {
 				boolean needIndividualIndex = this.nodeIdTracker.getDefinedElementSize() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD;
 				
 				//clear the individual index 
-				try (SingleNetworkSolrIdxManager idx2 = new SingleNetworkSolrIdxManager(networkId.toString())) {
+				try (SingleNetworkSolrIdxManager idx2 = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(networkId.toString())) {
 					idx2.dropIndex();
 				}
 

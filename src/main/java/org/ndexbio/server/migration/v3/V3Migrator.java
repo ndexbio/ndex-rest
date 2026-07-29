@@ -412,18 +412,18 @@ public class V3Migrator implements AutoCloseable {
 				if ( entry.getValue().getDataType() == null ||
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
 					attributeNameMapping.put (CxNode.REPRESENTS, entry);
-			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.ALIAS) ) {
+			} else if ( attrName.equalsIgnoreCase(NodeIndexFields.ALIAS) ) {
 				if ( entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
-					attributeNameMapping.put (SingleNetworkSolrIdxManager.ALIAS, entry);
+					attributeNameMapping.put (NodeIndexFields.ALIAS, entry);
 				}
-			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.TYPE)) {
+			} else if ( attrName.equalsIgnoreCase(NodeIndexFields.TYPE)) {
 				if ( entry.getValue().getDataType() == null ||
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (SingleNetworkSolrIdxManager.TYPE, entry);
-			} else if ( attrName.equalsIgnoreCase(SingleNetworkSolrIdxManager.MEMBER)) {
+					attributeNameMapping.put (NodeIndexFields.TYPE, entry);
+			} else if ( attrName.equalsIgnoreCase(NodeIndexFields.MEMBER)) {
 				if ( entry.getValue().getDataType() == null ||
 						entry.getValue().getDataType() == ATTRIBUTE_DATA_TYPE.STRING)
-					attributeNameMapping.put (SingleNetworkSolrIdxManager.MEMBER, entry);
+					attributeNameMapping.put (NodeIndexFields.MEMBER, entry);
 			}
 
 		}

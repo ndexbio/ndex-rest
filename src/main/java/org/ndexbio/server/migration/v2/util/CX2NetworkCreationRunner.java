@@ -18,6 +18,7 @@ import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.persistence.CXToCX2ServerSideConverter;
 import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cxio.core.writers.NiceCXCX2Writer;
@@ -122,7 +123,7 @@ public class CX2NetworkCreationRunner implements Callable {
 					_sb.append(" has error. Error message is: ");
 					_sb.append(e.getMessage());
 					_globalIdx.deleteNetwork(_networkUUID.toString());
-					try (SingleNetworkSolrIdxManager networkIdx = new SingleNetworkSolrIdxManager(_networkUUID.toString())) {
+					try (SingleNetworkSolrIdxManager networkIdx = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(_networkUUID.toString())) {
 						networkIdx.dropIndex();
 					}
 				}
