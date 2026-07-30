@@ -90,12 +90,11 @@ public class TestSolrTaskDeleteFiles {
 	}
 
 	@Test
-	public void emptyIdListsAreTolerated() {
-		SolrTaskDeleteFiles task = new SolrTaskDeleteFiles(ROOT, null);
+	public void anEmptyBatchRoundTripsAsEmpty() {
+		// Callers skip enqueuing an empty batch, so this is only about the attribute encoding surviving a
+		// list with nothing in it rather than writing something a reconstruction would misread.
+		Task t = new SolrTaskDeleteFiles(ROOT, DeletedFileIds.empty()).createTask();
 
-		// A null id set degrades to empty rather than throwing; callers additionally skip enqueuing an
-		// empty batch so no pointless task row is persisted.
-		Task t = task.createTask();
 		assertEquals(ROOT.toString(), t.getResource());
 		assertTrue(SolrTaskDeleteFiles.idsFromAttribute(t.getAttribute(SolrTaskDeleteFiles.folderIdsAttr))
 				.isEmpty());
@@ -108,7 +107,6 @@ public class TestSolrTaskDeleteFiles {
 		assertEquals(4, ids.size());
 		assertEquals(List.of(ROOT, SUBFOLDER, NETWORK, SHORTCUT), ids.all());
 		assertTrue(DeletedFileIds.empty().isEmpty());
-		assertEquals(List.of(ROOT), DeletedFileIds.ofFolder(ROOT).folders());
 
 		// Defensive copies, so a caller cannot mutate what the DAO reported.
 		assertSame(ids.folders(), ids.folders());

@@ -67,7 +67,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     filtering on the shortcut would have returned an empty member list for every non-owner, including on a
     PUBLIC set of PUBLIC networks.
   - A soft-deleted (trashed) set returns **404** even to a holder of its access key.
-  - `PUT /v2/networkset/{id}` cannot **clear** a description: omitting it leaves the existing value.
+  - `PUT /v2/networkset/{id}` treats an omitted (null) `description` as "leave unchanged", whereas the
+    legacy endpoint **cleared** it in that case. Send an empty string to clear it.
+  - `PUT /v2/networkset/{id}` distinguishes the states of the target id: it updates a set you own, creates
+    one if the id is unused (the legacy upsert), returns **401** if the set exists and belongs to someone
+    else, and **404** if it is in the trash.
 
 ### Fixed
 

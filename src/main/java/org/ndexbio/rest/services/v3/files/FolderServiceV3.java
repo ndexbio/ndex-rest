@@ -277,7 +277,7 @@ public class FolderServiceV3 extends NdexService {
 			// longer readable once it is deleted.
 			DeletedFileIds deleted = dao.deleteFolder(folderId, force, permanent);
 			dao.commit();
-			if (deleted != null && !deleted.isEmpty()) {
+			if (!deleted.isEmpty()) {
 				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFiles(folderId, deleted));
 			}
 

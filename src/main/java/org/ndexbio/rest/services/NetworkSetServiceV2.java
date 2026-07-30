@@ -23,6 +23,7 @@ import jakarta.ws.rs.core.Response;
 import org.ndexbio.common.models.dao.DeletedFileIds;
 import org.ndexbio.common.networkset.NetworkSetFolderService;
 import org.ndexbio.common.networkset.NetworkSetFolderService.RemovedMembers;
+import org.ndexbio.common.networkset.NetworkSetFolderService.UpsertOutcome;
 import org.ndexbio.common.networkset.NetworkSetFolderServiceImpl;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.BadRequestException;
@@ -114,13 +115,16 @@ public class NetworkSetServiceV2 extends NdexService {
 	@Deprecated
 	@Operation(summary = "Update a Network Set (DEPRECATED)",
 			description = FOLDER_BACKED_DESC
-			+ " Updates the **folder**'s name and description, preserving its current parent. A "
-			+ "description that is omitted or null leaves the existing description unchanged — it cannot "
-			+ "be cleared through this endpoint. If no set exists at this id, one is created at it, "
-			+ "preserving the legacy upsert behavior." + NETWORKSET_LIMITS_DESC,
+			+ " Updates the **folder**'s name and description, preserving its current parent. Omitting "
+			+ "'description' (or sending null) leaves the existing value unchanged — note the legacy "
+			+ "endpoint cleared it in that case; send an empty string to clear it. If no set exists at "
+			+ "this id, one is created at it, preserving the legacy upsert behavior."
+			+ NETWORKSET_LIMITS_DESC,
 			deprecated = true)
-	@ApiResponse(responseCode = "204", description = "The network set was updated")
-	@ApiResponse(responseCode = "401", description = "Unauthorized — the caller is not the owner of this network set")
+	@ApiResponse(responseCode = "204", description = "The network set was updated, or created at this id")
+	@ApiResponse(responseCode = "400", description = "A network set name is required")
+	@ApiResponse(responseCode = "401", description = "Unauthorized — the network set exists and belongs to another user")
+	@ApiResponse(responseCode = "404", description = "The network set is in the trash")
 	public void updateNetworkSet(final NetworkSet newNetworkSet, @PathParam("networksetid") final String id)
 			throws Exception {
 
@@ -128,20 +132,17 @@ public class NetworkSetServiceV2 extends NdexService {
 			throw new BadRequestException("Network set name is required.");
 
 		UUID setId = UUID.fromString(id);
-		NetworkSetFolderService service = networkSetService();
 
-		if (service.isSetOwner(setId, getLoggedInUserId())) {
-			VisibilityType visibility = service.updateSet(setId, newNetworkSet.getName(),
-					newNetworkSet.getDescription());
-			// createOnly=false so the stale doc is dropped from both cores before re-indexing; otherwise
-			// the old name keeps matching in search.
-			createFileIndex(setId, getLoggedInUser(), visibility, FileType.FOLDER, false);
-			return;
-		}
+		// upsertSet resolves the id itself: it updates when the caller owns a live set, creates when the id
+		// is unused, and refuses the two states that already occupy the id — another user's live set (401)
+		// and a trashed set (404). Branching on ownership here instead would send both of those into a
+		// create and fail on the primary key as a 500.
+		UpsertOutcome outcome = networkSetService().upsertSet(setId, getLoggedInUserId(),
+				newNetworkSet.getName(), newNetworkSet.getDescription());
 
-		// Legacy upsert: a PUT to an id that holds no set creates one there.
-		service.createSet(setId, getLoggedInUserId(), newNetworkSet.getName(), newNetworkSet.getDescription());
-		createFileIndex(setId, getLoggedInUser(), VisibilityType.PRIVATE, FileType.FOLDER, true);
+		// On an update, createOnly=false drops the stale doc from both cores first, or the old name keeps
+		// matching in search. On a create there is nothing to drop.
+		createFileIndex(setId, getLoggedInUser(), outcome.visibility(), FileType.FOLDER, outcome.created());
 	}
 
 	@DELETE
@@ -167,7 +168,7 @@ public class NetworkSetServiceV2 extends NdexService {
 		// The delete cascades over the subtree, so clear the Solr docs of everything it touched, not just
 		// the folder itself.
 		DeletedFileIds deleted = service.deleteSet(setId);
-		if (deleted != null && !deleted.isEmpty()) {
+		if (!deleted.isEmpty()) {
 			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFiles(setId, deleted));
 		}
 	}
@@ -277,9 +278,9 @@ public class NetworkSetServiceV2 extends NdexService {
 	@Operation(summary = "Get Access key of Network Set (DEPRECATED)",
 			description = FOLDER_BACKED_DESC
 			+ " Returns the **folder**'s access key — the same key surfaced by "
-			+ "GET /v3/files/folders/{folderid}/accesskey. This is a read: unlike earlier releases it will "
-			+ "never create or enable a key as a side effect. Owner only; a missing set is reported as 404 "
-			+ "before ownership is considered.",
+			+ "GET /v3/files/folders/{folderid}/accesskey. This is strictly a read: it never creates or "
+			+ "enables a key as a side effect — use PUT on this path to enable one. Owner only; a missing "
+			+ "set is reported as 404 before ownership is considered.",
 			deprecated = true)
 	@ApiResponse(responseCode = "200", description = "The access key of the network set")
 	@ApiResponse(responseCode = "401", description = "Unauthorized — the caller is not the owner of this network set")

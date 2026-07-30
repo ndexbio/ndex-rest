@@ -243,7 +243,7 @@ public class FileServiceV3 extends NdexService {
 	        dao.commit();
 	        // Purging rows does not touch Solr, so clear the docs of everything removed or they linger
 	        // as unreachable hits forever (nothing will ever re-index over a deleted UUID).
-	        if (purged != null && !purged.isEmpty()) {
+	        if (!purged.isEmpty()) {
 	            NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFiles(userId, purged));
 	        }
 	    }
@@ -296,7 +296,7 @@ public class FileServiceV3 extends NdexService {
             dao.commit();
             // For a folder this cascades to the children trashed alongside it, so clear the Solr docs
             // of everything purged rather than just the named item.
-            if (purged != null && !purged.isEmpty()) {
+            if (!purged.isEmpty()) {
                 NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFiles(itemId, purged));
             }
         }

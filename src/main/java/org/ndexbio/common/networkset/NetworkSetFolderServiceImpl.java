@@ -132,9 +132,6 @@ public class NetworkSetFolderServiceImpl implements NetworkSetFolderService {
 
 	@Override
 	public boolean isSetOwner(UUID folderId, UUID userId) throws SQLException, NdexException {
-		if (userId == null) {
-			return false;
-		}
 		try (FolderDAO dao = daoFactory.getFolderDAO()) {
 			return dao.isFolderOwner(folderId, userId);
 		}
@@ -152,20 +149,53 @@ public class NetworkSetFolderServiceImpl implements NetworkSetFolderService {
 	}
 
 	@Override
-	public VisibilityType updateSet(UUID folderId, String name, String description)
+	public UpsertOutcome upsertSet(UUID folderId, UUID ownerId, String name, String description)
 			throws SQLException, NdexException {
 		try (FolderDAO dao = daoFactory.getFolderDAO()) {
-			// updateFolder always writes parent, so read the current one back and pass it through;
-			// otherwise a set nested inside another folder would silently move to the root.
-			NdexFolder existing = readLiveFolder(dao, folderId);
-			dao.updateFolder(folderId, name, existing.getParent(), existing.getOwner_id() == null
-					? null : UUID.fromString(existing.getOwner_id()), description);
-			dao.commit();
-			return dao.getFolderVisibility(folderId);
-		} catch (SQLException | NdexException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new NdexException("Failed to update network set " + folderId + ": " + e.getMessage(), e);
+			// Resolve the id once, with no is_deleted filter, so a trashed folder counts as "in use".
+			// Branching on ownership alone would let two occupied-key states — someone else's live set,
+			// and the caller's own trashed set — fall through to a create and fail on the primary key.
+			NdexFolder existing;
+			try {
+				existing = dao.getFolder(folderId, null, null);
+			} catch (ObjectNotFoundException e) {
+				existing = null;
+			} catch (SQLException | NdexException e) {
+				throw e;
+			} catch (Exception e) {
+				throw new NdexException("Failed to resolve network set " + folderId + ": " + e.getMessage(), e);
+			}
+
+			if (existing == null) {
+				// Legacy upsert: a PUT to an id that holds no set creates one there.
+				dao.createFolder(folderId, ownerId, null, name, description);
+				dao.commit();
+				// createFolder always inserts PRIVATE.
+				return new UpsertOutcome(VisibilityType.PRIVATE, true);
+			}
+
+			if (existing.getIsDeleted()) {
+				// Report it the same way getSet does, rather than as an ownership failure.
+				throw new ObjectNotFoundException("Network set", folderId);
+			}
+
+			// folder.owneruuid is NOT NULL, and this endpoint is not @PermitAll so the auth filter has
+			// already rejected an anonymous caller — both sides of this comparison are non-null.
+			if (!existing.getOwner_id().equals(ownerId.toString())) {
+				throw new UnauthorizedOperationException("Signed in user is not the owner of this network set.");
+			}
+
+			// updateFolder always writes parent, so pass the current value through; otherwise a set
+			// nested inside another folder would silently move to the root.
+			try {
+				dao.updateFolder(folderId, name, existing.getParent(), ownerId, description);
+				dao.commit();
+				return new UpsertOutcome(dao.getFolderVisibility(folderId), false);
+			} catch (SQLException | NdexException e) {
+				throw e;
+			} catch (Exception e) {
+				throw new NdexException("Failed to update network set " + folderId + ": " + e.getMessage(), e);
+			}
 		}
 	}
 
@@ -431,13 +461,12 @@ public class NetworkSetFolderServiceImpl implements NetworkSetFolderService {
 	}
 
 	/** Names a member shortcut after its target network, as the v3 migrator did. */
-	private static String shortcutNameFor(NetworkDAO networkDao, UUID networkId) {
-		try {
-			String name = networkDao.getNetworkName(networkId);
-			return name == null || name.isBlank() ? UNNAMED_NETWORK : name;
-		} catch (Exception e) {
-			return UNNAMED_NETWORK;
-		}
+	private static String shortcutNameFor(NetworkDAO networkDao, UUID networkId)
+			throws SQLException, NdexException {
+		// network.name is nullable, hence the fallback. Errors are not swallowed: every target was already
+		// validated as readable, so a failure here is a real fault, not a missing network.
+		String name = networkDao.getNetworkName(networkId);
+		return name == null || name.isBlank() ? UNNAMED_NETWORK : name;
 	}
 
 	/** Maps a folder onto the legacy NetworkSet shape. */

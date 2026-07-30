@@ -27,18 +27,24 @@ referenced throughout is specified in
 
 1. **Leave your authentication alone.** Basic auth is accepted on `/v3` exactly as on `/v2`; adopt
    OIDC tokens when you want to, not to unblock this migration (§4).
-2. **Repoint your stored ids.** Group and network-set UUIDs are now folder UUIDs:
-   `GET /v3/files/folders/{id}` for the container, `…/list` for its contents (§2, §3).
-3. **Replace the calls that now return 501** using the mapping tables in §2 and §3. A retired
+2. **Your stored ids all still resolve.** Group and network-set UUIDs *are* folder UUIDs:
+   `GET /v3/files/folders/{id}` for the container, `…/list` for its contents. For groups this is
+   required, since their endpoints are gone (§2); for network sets it is optional, since the old
+   endpoints resolve the same id (§3).
+3. **Replace the *group* calls that now return 501** using the mapping table in §2. A retired
    endpoint answers **501** with a JSON NDEx error body whose `message` explains the removal, so
    you can detect it precisely and surface the server's own wording.
-4. **Know which grants cross a shortcut.** Folder **access keys** reach shortcut targets, so your
+4. **Leave your `/v2/networkset` calls where they are.** All of them still work, now backed by
+   folders (§3). Three legacy fields have no folder equivalent and are gone — `showcased`, `doi`,
+   `properties` — and a set now carries a *visibility*, so an anonymous read of a PRIVATE set is
+   refused where it used to be allowed. Everything else round-trips.
+5. **Know which grants cross a shortcut.** Folder **access keys** reach shortcut targets, so your
    link-shared collections keep working as-is. Folder **read/write permissions** do *not*. Either
    way, the recommended end state is the same: move networks into the folder that governs them
    with `POST /v3/batch/networks/move`, and keep shortcuts for views you are not sharing (§3).
-5. **Fix your revoke path.** Former group grants were flattened onto individual networks, so
+6. **Fix your revoke path.** Former group grants were flattened onto individual networks, so
    unsharing a folder no longer removes them (§2).
-6. **Scope your regression testing to this guide.** v2 endpoints not mentioned here — network
+7. **Scope your regression testing to this guide.** v2 endpoints not mentioned here — network
    CRUD, CX upload/download, search, batch — behave as they did before.
 
 ## Key concept: real children vs. shortcuts
@@ -186,18 +192,18 @@ Related request/response changes: the `directOnly` query parameter on
 
 ---
 
-## 3. Migrating from Network Sets to Folders
+## 3. Network Sets → Folders (the endpoints still work)
 
 The NDEx **network set** feature is removed **as storage**, but preserved **as an API**. Every
 `/v2/networkset` endpoint still works: a network set id **is** a folder id, so each endpoint performs
 folder and shortcut operations internally and maps the result back onto the legacy `NetworkSet` shape.
-Your existing v2 code keeps working, and — unlike a frozen archive — it now reads and writes the same
-live data your v3 clients see. The legacy `network_set` tables are never touched.
+Your existing v2 code keeps working, and it reads and writes the same live data your v3 clients see.
+The v2 `network_set` tables are no longer the storage behind these endpoints; folders are.
 
 | Endpoint | Status | What it actually does |
 |---|---|---|
 | `POST /v2/networkset` | **Live** | Creates a **folder** at your home root. The returned id resolves at `GET /v3/files/folders/{id}` |
-| `PUT /v2/networkset/{id}` | **Live** | Renames/redescribes the folder, preserving its parent. Cannot *clear* a description |
+| `PUT /v2/networkset/{id}` | **Live** | Renames/redescribes the folder, preserving its parent. An omitted `description` is left unchanged (the legacy endpoint cleared it) — send `""` to clear. 401 if the set belongs to someone else, 404 if it is in the trash |
 | `DELETE /v2/networkset/{id}` | **Live** | Trashes the folder **and everything in it**; recoverable via `POST /v3/files/trash/restore` |
 | `GET /v2/networkset/{id}` | **Live** | Reads the folder; `networks` is the union of its network-shortcut targets and any networks parented in it |
 | `POST /v2/networkset/{id}/members` | **Live** | Adds each network as a **shortcut**. Every id must be readable by you, or the whole request is rejected |
@@ -210,12 +216,16 @@ live data your v3 clients see. The legacy `network_set` tables are never touched
 
 ### What differs, and why
 
-These endpoints are a faithful shim, not a perfect one. Three legacy fields have no folder
-equivalent and are therefore never stored or returned — `showcased` (always `false`), `doi`
-(absent), and `properties` (empty). If you relied on any of them, that state did not survive the
-migration and there is nowhere to put it back.
+These endpoints are a faithful shim, not a perfect one. **Three legacy fields have no folder
+equivalent**, so they are neither stored nor returned. This is the whole of the data loss:
 
-Three behaviors are narrower than they were:
+| Legacy field | What happens now | If you depended on it |
+|---|---|---|
+| `showcased` | Always `false`. `PUT /{id}/systemproperty` accepts `showcase` and does nothing with it, and `?showcase=true` on `GET /v2/user/{userid}/networksets` is a **no-op filter** — it does not narrow the list | The account-page surface is `GET /v3/users/{userid}/home`. Do **not** use PUBLIC visibility as a stand-in; that changes who can read the data |
+| `doi` | Always absent from the response | DOIs are a property of a network, minted via `POST /v2/admin/request` with `type=DOI` |
+| `properties` | Always an empty object; the field is **ignored** on create and update | Folders have no properties store — keep this state in your own application |
+
+Everything else about these endpoints round-trips. Three *behaviors* are narrower than they were:
 
 - **Folder visibility governs reading a set.** This is the one change most likely to affect you. A set
   *is* a folder, and folders are **PRIVATE** by default — including every set the migration converted —
@@ -253,7 +263,9 @@ application stored is therefore a valid folder id:
 `GET /v3/files/folders/{oldNetworkSetUUID}/list` returns its contents. Switching to the folder
 endpoints is a path change, not a data-reconciliation project.
 
-### How former network-set capabilities map to v3
+### How network-set operations map onto the v3 folder endpoints
+
+The legacy calls still work; this is the v3 equivalent of each, for when you move.
 
 | Old (network sets) | New (v3 folders) |
 |---|---|
@@ -322,8 +334,9 @@ keys over the same networks, just track where they are.
 
 ## 4. Other v2 endpoint changes
 
-These are changes to **pre-existing v2 endpoints** (beyond the group and network-set removals)
-that v2 clients should be aware of when upgrading. **v2 endpoints not listed in this guide are
+These are changes to **pre-existing v2 endpoints** (beyond the group removals in §2 and the
+folder-backed network-set layer in §3) that v2 clients should be aware of when upgrading. **v2
+endpoints not listed in this guide are
 unchanged** — network CRUD, CX upload/download, search, and batch behave as they did in 2.x. New
 `/v3` endpoints are out of scope here (see §1).
 
@@ -376,10 +389,12 @@ This is the **only** DOI mechanism, and the caller **no longer allocates an acce
 
 ### Deprecations (still functional, marked deprecated in Swagger)
 
+- All `/v2/networkset` endpoints, plus `GET /v2/user/{userid}/networksets`, are deprecated but
+  **fully functional**, backed by folders — see §3.
 - `GET /v2/user/{userid}/permission` is deprecated.
 - `GET /v2/request/{requestid}` and `PUT /v2/request/{requestid}/properties` are deprecated.
 - The `showcase` system property on `PUT /v2/network/{networkid}/systemproperty` is deprecated.
 
 > **Note:** Deprecated v2 endpoints remain available for backwards compatibility but will be
-> removed in a future release; prefer the v3 equivalents. Treat a **501** as permanent — that
-> feature is gone, not paused, and no future release will restore it.
+> removed in a future release; prefer the v3 equivalents. A **501** means the feature has been
+> retired, not paused — handle it as a permanent condition.

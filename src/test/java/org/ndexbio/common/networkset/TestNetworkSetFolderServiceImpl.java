@@ -27,6 +27,7 @@ import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.networkset.NetworkSetFolderService.RemovedMembers;
+import org.ndexbio.common.networkset.NetworkSetFolderService.UpsertOutcome;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
@@ -314,10 +315,95 @@ public class TestNetworkSetFolderServiceImpl {
 		expect(folderDao.getFolderVisibility(SET_ID)).andReturn(VisibilityType.PRIVATE);
 		replay(folderDao);
 
-		VisibilityType visibility = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null))
-				.updateSet(SET_ID, "new name", "new desc");
+		UpsertOutcome outcome = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null))
+				.upsertSet(SET_ID, OWNER_ID, "new name", "new desc");
 
-		assertEquals(VisibilityType.PRIVATE, visibility);
+		assertEquals(VisibilityType.PRIVATE, outcome.visibility());
+		assertFalse("an existing set is updated, not created", outcome.created());
+		verify(folderDao);
+	}
+
+	// ── upsertSet resolves the state of the target id ─────────────────────────
+	//
+	// "Not the owner" covers two states that already occupy the primary key: someone else's live set, and
+	// the caller's own set sitting in the trash. Creating in either case raises a constraint violation that
+	// surfaces as a 500, so upsertSet has to tell all three states apart.
+
+	@Test
+	public void upsertCreatesWhenTheIdIsUnused() throws Exception {
+		FolderDAO folderDao = createMock(FolderDAO.class);
+		expect(folderDao.getFolder(SET_ID, null, null))
+				.andThrow(new ObjectNotFoundException("Folder", SET_ID));
+		expect(folderDao.createFolder(SET_ID, OWNER_ID, null, "a name", "a desc")).andReturn(null);
+		folderDao.commit();
+		expectLastCall().once();
+		folderDao.close();
+		expectLastCall().anyTimes();
+		replay(folderDao);
+
+		UpsertOutcome outcome = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null))
+				.upsertSet(SET_ID, OWNER_ID, "a name", "a desc");
+
+		assertTrue("an unused id is created at, preserving the legacy upsert", outcome.created());
+		// createFolder always inserts PRIVATE, so that is what the caller must index with.
+		assertEquals(VisibilityType.PRIVATE, outcome.visibility());
+		verify(folderDao);
+	}
+
+	@Test
+	public void upsertRefusesASetOwnedBySomeoneElse() throws Exception {
+		UUID otherOwner = UUID.randomUUID();
+		NdexFolder theirs = folder(SET_ID, null, false);
+		theirs.setOwner_id(otherOwner.toString());
+
+		// A strict mock with no create/update expectation: attempting either would fail the test, which is
+		// the point — the old code created here and got a primary-key violation surfaced as a 500.
+		FolderDAO folderDao = createMock(FolderDAO.class);
+		expect(folderDao.getFolder(SET_ID, null, null)).andReturn(theirs);
+		folderDao.close();
+		expectLastCall().anyTimes();
+		replay(folderDao);
+
+		NetworkSetFolderServiceImpl service = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null));
+
+		assertThrows(UnauthorizedOperationException.class,
+				() -> service.upsertSet(SET_ID, OWNER_ID, "a name", null));
+		verify(folderDao);
+	}
+
+	@Test
+	public void upsertReportsATrashedSetAsNotFound() throws Exception {
+		// isFolderOwner filters is_deleted=false, so a trashed set the caller owns used to look "not mine"
+		// and fall through to a create. Report it the way getSet does instead of claiming 401.
+		FolderDAO folderDao = createMock(FolderDAO.class);
+		expect(folderDao.getFolder(SET_ID, null, null)).andReturn(folder(SET_ID, null, true));
+		folderDao.close();
+		expectLastCall().anyTimes();
+		replay(folderDao);
+
+		NetworkSetFolderServiceImpl service = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null));
+
+		assertThrows(ObjectNotFoundException.class,
+				() -> service.upsertSet(SET_ID, OWNER_ID, "a name", null));
+		verify(folderDao);
+	}
+
+	@Test
+	public void upsertLeavesAnOmittedDescriptionUnchanged() throws Exception {
+		FolderDAO folderDao = createNiceMock(FolderDAO.class);
+		expect(folderDao.getFolder(SET_ID, null, null)).andReturn(folder(SET_ID, null, false));
+		// A null description is passed straight through; the DAO omits the column, so the stored value
+		// survives. An empty string would be written and would clear it — that asymmetry is documented on
+		// the endpoint because the legacy endpoint cleared on null instead.
+		folderDao.updateFolder(SET_ID, "new name", null, OWNER_ID, null);
+		expectLastCall().once();
+		expect(folderDao.getFolderVisibility(SET_ID)).andReturn(VisibilityType.PUBLIC);
+		replay(folderDao);
+
+		UpsertOutcome outcome = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null))
+				.upsertSet(SET_ID, OWNER_ID, "new name", null);
+
+		assertEquals(VisibilityType.PUBLIC, outcome.visibility());
 		verify(folderDao);
 	}
 

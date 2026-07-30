@@ -21,15 +21,11 @@ import java.util.UUID;
  */
 public record DeletedFileIds(List<UUID> folders, List<UUID> networks, List<UUID> shortcuts) {
 
+	/** Copies defensively so a caller cannot mutate what the DAO reported. Null lists are a bug: fail fast. */
 	public DeletedFileIds {
-		folders = folders == null ? List.of() : List.copyOf(folders);
-		networks = networks == null ? List.of() : List.copyOf(networks);
-		shortcuts = shortcuts == null ? List.of() : List.copyOf(shortcuts);
-	}
-
-	/** The affected folder ids only — used when nothing below the folder was touched. */
-	public static DeletedFileIds ofFolder(UUID folderId) {
-		return new DeletedFileIds(List.of(folderId), List.of(), List.of());
+		folders = List.copyOf(folders);
+		networks = List.copyOf(networks);
+		shortcuts = List.copyOf(shortcuts);
 	}
 
 	public static DeletedFileIds empty() {

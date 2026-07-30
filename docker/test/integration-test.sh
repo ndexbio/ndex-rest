@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=142
+TOTAL_API_CALLS=143
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -1611,6 +1611,20 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   poll_files_until_absent PRIVATE "${NS_NAME}" "${NS_ID}" "networkset rename stale doc"
   api_pass "rename re-indexed the set: new name matches, old name no longer does"
 
+  # PUT is an upsert, so it has to tell apart "this id is free" from "this id is taken by someone else".
+  # A non-owner must get 401 rather than a 500 from a primary-key violation on an attempted create, and
+  # the rejected request must not have written anything.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID} (non-owner ${TEST_USER2}) — 401, not 500"
+  NS_PUT_OTHER_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER2}:${TEST_PASS2}" \
+    -H "Content-Type: application/json" -d '{"name":"hijacked"}' "${BASE_URL}/v2/networkset/${NS_ID}")
+  [[ "${NS_PUT_OTHER_HTTP}" == "401" ]] \
+    || api_fail "non-owner PUT → HTTP ${NS_PUT_OTHER_HTTP} (expected 401; a 500 means it tried to create over an existing id)"
+  NS_NAME_AFTER=$(psql_ndex "SELECT name FROM folder WHERE \\\"UUID\\\"='${NS_ID}';")
+  [[ "${NS_NAME_AFTER}" == "${NS_NAME_2}" ]] \
+    || api_fail "a rejected PUT must write nothing, but the folder name is now '${NS_NAME_AFTER}'"
+  api_pass "PUT /v2/networkset/{id} (non-owner) → 401 and wrote nothing (upsert does not create over a taken id)"
+
   # ── 4) PUT /{id}/accesskey → enables/disables the FOLDER's key ──────────────────────────────────
   CALL_NUM=$((CALL_NUM+1))
   echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID}/accesskey?action=enable — expect 200 + key"
@@ -1835,7 +1849,10 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   NS_AFTER=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
   echo "${NS_AFTER}" | grep -qE '"showcased"[[:space:]]*:[[:space:]]*true' \
     && api_fail "showcase must be a no-op; the set now reports showcased=true"
-  api_pass "PUT /v2/networkset/{id}/systemproperty accepts showcase and changes nothing (documented no-op)"
+  # A no-op writes nothing, so the whole representation — modificationTime included — must be identical.
+  [[ "${NS_AFTER}" == "${NS_BEFORE}" ]] \
+    || api_fail "systemproperty is a no-op but the set changed.\n  before: ${NS_BEFORE:0:300}\n  after:  ${NS_AFTER:0:300}"
+  api_pass "PUT /v2/networkset/{id}/systemproperty accepts showcase and changes nothing (identical representation)"
 
   # ── 9) DELETE /{id}/members → shortcuts physically deleted; real children reparented ────────────
   CALL_NUM=$((CALL_NUM+1))

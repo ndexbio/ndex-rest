@@ -97,16 +97,28 @@ public interface NetworkSetFolderService {
 	void createSet(UUID folderId, UUID ownerId, String name, String description)
 			throws SQLException, NdexException;
 
+	/** What {@link #upsertSet} did, so the caller can index with the right visibility and mode. */
+	record UpsertOutcome(VisibilityType visibility, boolean created) {}
+
 	/**
-	 * Renames/redescribes a set, preserving its current parent.
+	 * Updates the set at {@code folderId}, or creates one there if the id is unused — the legacy
+	 * {@code PUT /v2/networkset/{id}} upsert.
 	 *
-	 * <p>{@code updateFolder} always writes {@code parent}, so the current value has to be read back and
-	 * passed in or a nested set would silently move to the root. A null {@code description} leaves the
-	 * existing one unchanged — the DAO omits the column when the value is null, so it cannot be cleared.
+	 * <p>Resolving the id is the whole point of this method existing rather than the caller branching on
+	 * ownership: "not the owner" covers two states that must not be treated as "free to create at". A
+	 * live set belonging to someone else, and a set of the caller's own sitting in the trash, both already
+	 * occupy the primary key, so creating would raise a constraint violation and surface as a 500.
 	 *
-	 * @return the set's current visibility, for the caller's re-index
+	 * <ul>
+	 * <li>no folder row → create, {@code created = true}</li>
+	 * <li>live folder owned by {@code ownerId} → update, {@code created = false}</li>
+	 * <li>live folder owned by someone else → {@link UnauthorizedOperationException}</li>
+	 * <li>trashed folder → {@link org.ndexbio.model.exceptions.ObjectNotFoundException}, matching what
+	 *     {@link #getSet} reports for a trashed set rather than claiming an ownership problem</li>
+	 * </ul>
 	 */
-	VisibilityType updateSet(UUID folderId, String name, String description) throws SQLException, NdexException;
+	UpsertOutcome upsertSet(UUID folderId, UUID ownerId, String name, String description)
+			throws SQLException, NdexException;
 
 	/**
 	 * Deletes a set, trashing the folder and everything in it.

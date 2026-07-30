@@ -58,7 +58,7 @@ public class SolrTaskDeleteFiles extends NdexSystemTask {
 	public SolrTaskDeleteFiles(UUID rootFileId, DeletedFileIds ids) {
 		super();
 		this.rootFileId = rootFileId;
-		this.ids = ids == null ? DeletedFileIds.empty() : ids;
+		this.ids = ids;
 	}
 
 	@Override

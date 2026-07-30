@@ -6,7 +6,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -412,7 +411,11 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                         }
                     }
                 }
-                
+                // The CTE seeds with itemId, so it comes back as a row too. Drop it here: every statement
+                // below binds itemId explicitly as parameter 1 and the descendants after it, so leaving it
+                // in the list would bind it twice and put it in the IN() list twice.
+                descendantFolders.remove(itemId);
+
                 int totalPlaceholders = 1 + descendantFolders.size(); // 1 for folderId + rest
                 String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
 
@@ -420,11 +423,9 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                 // drop their Solr docs. Same tree and same show_in_trash=false predicate as the deletes.
                 List<UUID> purgedNetworks = selectTrashedChildIdsInTree("network", itemId, descendantFolders, placeholders);
                 List<UUID> purgedShortcuts = selectTrashedChildIdsInTree("shortcut", itemId, descendantFolders, placeholders);
-                // The recursive CTE seeds with itemId, so descendantFolders already contains it.
-                List<UUID> purgedFolders = new ArrayList<>(new LinkedHashSet<>(descendantFolders));
-                if (!purgedFolders.contains(itemId)) {
-                    purgedFolders.add(itemId);
-                }
+                List<UUID> purgedFolders = new ArrayList<>(1 + descendantFolders.size());
+                purgedFolders.add(itemId);
+                purgedFolders.addAll(descendantFolders);
 
                 // Delete all networks in the folder tree that have show_in_trash=false
                 String deleteNetworksSql = "DELETE FROM network WHERE parent IN (" + placeholders + ") AND show_in_trash=false";
