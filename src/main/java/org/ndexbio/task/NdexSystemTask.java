@@ -42,6 +42,13 @@ public abstract class NdexSystemTask  {
 	public static NdexSystemTask createSystemTask(Task t) throws NdexException {
 		switch (t.getTaskType()) {
 			case SYS_SOLR_DELETE_NETWORK:
+				// SolrTaskDeleteFiles shares this task type (TaskType lives in ndex-object-model, so a
+				// new value would force a dependency bump). Its id-list attributes discriminate it;
+				// rows written before it existed lack them and fall through to the single-file path
+				// below, so this stays backward compatible.
+				if (t.getAttribute(SolrTaskDeleteFiles.folderIdsAttr) != null) {
+					return SolrTaskDeleteFiles.fromTask(t);
+				}
 				return new SolrTaskDeleteNetwork(UUID.fromString(t.getResource()),
 						(Boolean)t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr),
 						(t.getAttribute("visibility") != null ? VisibilityType.valueOf((String)t.getAttribute("visibility")): null));

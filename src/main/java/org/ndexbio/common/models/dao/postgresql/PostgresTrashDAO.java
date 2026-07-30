@@ -6,11 +6,13 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.sql.Timestamp;
 
+import org.ndexbio.common.models.dao.DeletedFileIds;
 import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
@@ -308,8 +310,35 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
      * Permanently deletes all trashed (is_deleted=true) items owned by this user.
      */
     
-    public void permanentlyDeleteAllTrashedItemsOfUser(UUID ownerId) throws SQLException {
-    	
+    /**
+     * Ids of the trashed rows in {@code table} owned by {@code ownerId}. Captured before the deletes
+     * below so the caller can clear the corresponding Solr docs; {@code table} is a literal supplied
+     * by this class, never caller input.
+     */
+    private List<UUID> selectTrashedIdsOf(String table, UUID ownerId) throws SQLException {
+        List<UUID> ids = new ArrayList<>();
+        String sql = "SELECT \"UUID\" FROM " + table + " WHERE owneruuid=? AND is_deleted=true";
+        try (PreparedStatement pst = db.prepareStatement(sql)) {
+            pst.setObject(1, ownerId);
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) {
+                    ids.add((UUID) rs.getObject(1));
+                }
+            }
+        }
+        return ids;
+    }
+
+    @Override
+    public DeletedFileIds permanentlyDeleteAllTrashedItemsOfUser(UUID ownerId) throws SQLException {
+
+        // Capture what is about to be purged, while the rows are still addressable, so the caller can
+        // drop their Solr docs — the index is not touched by the statements below.
+        DeletedFileIds purged = new DeletedFileIds(
+                selectTrashedIdsOf("folder", ownerId),
+                selectTrashedIdsOf("network", ownerId),
+                selectTrashedIdsOf("shortcut", ownerId));
+
         // 1) Remove membership for networks
         String deleteNetMembership =
             "DELETE FROM user_network_membership " +
@@ -350,17 +379,18 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
         }
 
         // 5) remove folders
-        String deleteFolders = 
+        String deleteFolders =
             "DELETE FROM folder WHERE owneruuid=? AND is_deleted=true";
         try (PreparedStatement pst = db.prepareStatement(deleteFolders)) {
             pst.setObject(1, ownerId);
             pst.executeUpdate();
         }
 
+        return purged;
     }
 
     @Override
-    public void permanentlyDeleteTrashedItem(UUID itemId, FileType type) throws SQLException {
+    public DeletedFileIds permanentlyDeleteTrashedItem(UUID itemId, FileType type) throws SQLException {
         switch (type) {
             case FOLDER:
                 // First get all descendant folders recursively that have show_in_trash=false
@@ -385,7 +415,17 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                 
                 int totalPlaceholders = 1 + descendantFolders.size(); // 1 for folderId + rest
                 String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
-                
+
+                // Capture the child ids about to be purged, before the deletes below, so the caller can
+                // drop their Solr docs. Same tree and same show_in_trash=false predicate as the deletes.
+                List<UUID> purgedNetworks = selectTrashedChildIdsInTree("network", itemId, descendantFolders, placeholders);
+                List<UUID> purgedShortcuts = selectTrashedChildIdsInTree("shortcut", itemId, descendantFolders, placeholders);
+                // The recursive CTE seeds with itemId, so descendantFolders already contains it.
+                List<UUID> purgedFolders = new ArrayList<>(new LinkedHashSet<>(descendantFolders));
+                if (!purgedFolders.contains(itemId)) {
+                    purgedFolders.add(itemId);
+                }
+
                 // Delete all networks in the folder tree that have show_in_trash=false
                 String deleteNetworksSql = "DELETE FROM network WHERE parent IN (" + placeholders + ") AND show_in_trash=false";
                 try (PreparedStatement pst = db.prepareStatement(deleteNetworksSql)) {
@@ -435,8 +475,8 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                         throw new SQLException("Folder not found in trash or not deleted.");
                     }
                 }
-                break;
-                
+                return new DeletedFileIds(purgedFolders, purgedNetworks, purgedShortcuts);
+
             case NETWORK:
                 // First delete network memberships
                 String deleteNetMembership = "DELETE FROM user_network_membership WHERE network_id=?";
@@ -454,8 +494,8 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                         throw new SQLException("Network not found in trash or not deleted.");
                     }
                 }
-                break;
-                
+                return new DeletedFileIds(List.of(), List.of(itemId), List.of());
+
             case SHORTCUT:
                 String deleteShortcut = "DELETE FROM shortcut WHERE \"UUID\"=? AND is_deleted=true";
                 try (PreparedStatement pst = db.prepareStatement(deleteShortcut)) {
@@ -465,11 +505,36 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                         throw new SQLException("Shortcut not found in trash or not deleted.");
                     }
                 }
-                break;
-                
+                return new DeletedFileIds(List.of(), List.of(), List.of(itemId));
+
             default:
                 throw new SQLException("Unsupported file type: " + type);
         }
+    }
+
+    /**
+     * Ids of the trashed {@code network} or {@code shortcut} rows parented in the folder tree that are
+     * about to be purged — i.e. those carried into the trash with their parent
+     * ({@code show_in_trash=false}) rather than trashed in their own right. Mirrors the delete
+     * statements' predicate and parameter binding exactly. {@code table} is a literal supplied by this
+     * class, never caller input.
+     */
+    private List<UUID> selectTrashedChildIdsInTree(String table, UUID itemId, List<UUID> descendantFolders,
+            String placeholders) throws SQLException {
+        List<UUID> ids = new ArrayList<>();
+        String sql = "SELECT \"UUID\" FROM " + table + " WHERE parent IN (" + placeholders + ") AND show_in_trash=false";
+        try (PreparedStatement pst = db.prepareStatement(sql)) {
+            pst.setObject(1, itemId);
+            for (int i = 0; i < descendantFolders.size(); i++) {
+                pst.setObject(i + 2, descendantFolders.get(i));
+            }
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) {
+                    ids.add((UUID) rs.getObject(1));
+                }
+            }
+        }
+        return ids;
     }
 
     @Override

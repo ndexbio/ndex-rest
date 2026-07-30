@@ -2,8 +2,9 @@
 
 This guide helps existing NDEx 2.x (v2 API) clients move to NDEx 3. It first summarizes what is
 new in v3, then covers the **migration callouts** — existing v2 endpoints and behaviors that
-changed. The two features v2 clients most often depend on, **groups** and **network sets**, are
-both gone; the v3 **folder** model replaces both.
+changed. The two features v2 clients most often depend on, **groups** and **network sets**, are both
+replaced by the v3 **folder** model — groups are gone outright (§2), while the `/v2/networkset`
+endpoints keep working as a folder-backed compatibility layer (§3).
 
 Two things worth knowing up front, because they shrink the job considerably:
 
@@ -187,39 +188,61 @@ Related request/response changes: the `directOnly` query parameter on
 
 ## 3. Migrating from Network Sets to Folders
 
-The NDEx **network set** feature is **removed**. All `/v2/networkset` **write** endpoints return
-**HTTP 501 Not Implemented**: a network set can no longer be created, renamed, deleted, or have
-its members, access key, or system properties changed. Three **read** endpoints stay up, but they
-serve the **frozen, archived** network-set tables *only* — there is no folder-backed polyfill
-behind them.
+The NDEx **network set** feature is removed **as storage**, but preserved **as an API**. Every
+`/v2/networkset` endpoint still works: a network set id **is** a folder id, so each endpoint performs
+folder and shortcut operations internally and maps the result back onto the legacy `NetworkSet` shape.
+Your existing v2 code keeps working, and — unlike a frozen archive — it now reads and writes the same
+live data your v3 clients see. The legacy `network_set` tables are never touched.
 
-| Endpoint | Status |
-|---|---|
-| `GET /v2/networkset/{id}` | **Read-only (archived)** — the archived set; members filtered to networks the caller can read (a valid access key returns all) |
-| `GET /v2/networkset/{id}/accesskey` | **Read-only (archived)** — the archived key, returned to the set owner |
-| `GET /v2/user/{userid}/networksets` | **Read-only (archived)** — the archived sets owned by the user; members filtered to readable networks; honors `offset` / `limit` / `summary` / `showcase` |
-| `POST /v2/networkset` | **501** |
-| `PUT` / `DELETE /v2/networkset/{id}` | **501** |
-| `POST` / `DELETE /v2/networkset/{id}/members` | **501** |
-| `PUT /v2/networkset/{id}/accesskey` | **501** |
-| `PUT /v2/networkset/{id}/systemproperty` | **501** |
+| Endpoint | Status | What it actually does |
+|---|---|---|
+| `POST /v2/networkset` | **Live** | Creates a **folder** at your home root. The returned id resolves at `GET /v3/files/folders/{id}` |
+| `PUT /v2/networkset/{id}` | **Live** | Renames/redescribes the folder, preserving its parent. Cannot *clear* a description |
+| `DELETE /v2/networkset/{id}` | **Live** | Trashes the folder **and everything in it**; recoverable via `POST /v3/files/trash/restore` |
+| `GET /v2/networkset/{id}` | **Live** | Reads the folder; `networks` is the union of its network-shortcut targets and any networks parented in it |
+| `POST /v2/networkset/{id}/members` | **Live** | Adds each network as a **shortcut**. Every id must be readable by you, or the whole request is rejected |
+| `DELETE /v2/networkset/{id}/members` | **Live** | Permanently deletes the member **shortcut**; a network parented *in* the folder is **moved to your home root** instead |
+| `GET /v2/networkset/{id}/accesskey` | **Live** | Returns the **folder's** key. Read-only — it will not create or enable one |
+| `PUT /v2/networkset/{id}/accesskey` | **Live** | Enables/disables the **folder's** key, the same one `POST /v3/files/sharing/share` manages |
+| `PUT /v2/networkset/{id}/systemproperty` | **Live** | Accepts `showcase` and **does nothing** with it — folders have no showcase flag |
+| `GET /v2/user/{userid}/networksets` | **Live** | Lists your **folders**. `showcase=true` is a **no-op filter** |
+| `GET /v2/user/{userid}/networkcount` | **Live** | `networkSetCount` counts your folders, so it always matches the list above |
 
-Related response change: `networkSetCount` is removed from the
-`GET /v2/user/{userid}/networkcount` response model.
+### What differs, and why
 
-### Why migrating off these endpoints matters
+These endpoints are a faithful shim, not a perfect one. Three legacy fields have no folder
+equivalent and are therefore never stored or returned — `showcased` (always `false`), `doi`
+(absent), and `properties` (empty). If you relied on any of them, that state did not survive the
+migration and there is nowhere to put it back.
 
-The surviving reads exist for one purpose: letting legacy clients still *display* network sets
-that existed before the upgrade. They are a frozen snapshot, not a working feature —
+Three behaviors are narrower than they were:
 
-- the archive **never changes**, because every write path is 501;
-- collections your users create in v3 (folders and shortcuts) are **invisible** to them, since
-  they read only the archived tables;
-- you cannot enable, rotate, or disable a share through them — `PUT /v2/networkset/{id}/accesskey`
-  is 501, so key management now happens on folders.
+- **Folder visibility governs reading a set.** This is the one change most likely to affect you. A set
+  *is* a folder, and folders are **PRIVATE** by default — including every set the migration converted —
+  so `GET /v2/networkset/{id}` now returns **401** to an anonymous or non-permitted caller. The legacy
+  endpoint returned the set header to everyone, because `network_set` had no visibility column at all.
+  The fix is one call per set: `PUT /v3/files/folders/{folderid}` with `"visibility":"PUBLIC"`, or hand
+  out the set's access key. We enforce this because a set and a folder are the same row: serving it
+  under weaker rules on `/v2` than on `/v3` would let anyone who knows a folder id read its name and
+  description without authenticating. Member filtering is unchanged — a set you *can* read still shows
+  only the member networks *you* can read.
+- **An access key reaches only member networks owned by the set's owner.** Legacy validation had no
+  such condition, so a set containing *another user's* network used to unlock it by key and no longer
+  will. That guard is deliberate — see [Access keys](#access-keys) below — because without it anyone
+  could grant anonymous read to someone else's private network just by shortcutting it into a keyed
+  folder.
+- **`POST /{id}/members` now enforces read access** on every posted network, rejecting the whole
+  request if one fails. The legacy documentation always claimed this rule; nothing enforced it.
 
-A client left on `/v2/networkset` is stuck with a pre-upgrade view of the world and cannot grow,
-share, or re-key a collection. All new grouping happens on folders.
+And one is broader than you may expect: `DELETE /v2/networkset/{id}` deletes the folder's *contents*,
+not just the set header. Networks you moved into the folder go to the trash with it.
+
+### Why still migrate to the v3 endpoints
+
+Nothing forces you off `/v2/networkset` — but it can only express what a network set could. Folders
+nest, carry per-user read/write permissions, hold real networks rather than only references, and have
+a visibility independent of sharing. None of that is reachable through the legacy shape, so new work
+belongs on `/v3/files/folders`. Use the mapping table below.
 
 ### Your existing network-set data
 

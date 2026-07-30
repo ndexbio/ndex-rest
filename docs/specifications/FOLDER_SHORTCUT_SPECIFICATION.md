@@ -494,7 +494,8 @@ List as deprecated in code and in swagger, but return same thing as **GET** `/v3
 **POST** `/v2/search/network/genes`  
 Returned json should include folderid in result and showintrash
 
-Networksets endpoints should be deprecated in code and in swagger
+Networksets endpoints should be deprecated in code and in swagger — but kept working, folder-backed. See
+[Networkset](#networkset) under Migration path for the implemented behavior.
 
 **POST** `/v2/batch/group`  
 Return information about folders posted
@@ -513,6 +514,16 @@ Each group should be turned into a folder and the owner of the folder is the own
 
 Each networkset is converted into a folder owned by the networkset owner and networks are placed as shortcuts in that folder. The networkset id should be used as the folder id.   
 The networkset endpoints should be deprecated in swagger, but if used the networksetid is equivalent to the folderid and will still continue to work.
+
+**Status: implemented.** All `/v2/networkset` endpoints (plus `GET /v2/user/{userid}/networksets` and the
+`networkSetCount` field of `GET /v2/user/{userid}/networkcount`) operate on folders and shortcuts and map
+the result back onto the legacy `NetworkSet` representation; the `network_set` tables are never read or
+written. Three legacy fields have no folder equivalent and are not round-tripped — `showcased`, `doi`
+and `properties` — so `PUT /{networksetid}/systemproperty` accepts `showcase` as a documented no-op,
+matching the ruling for `PUT /v2/network/{networkid}/systemproperty` above. See the
+[V3 Migration Guide](../V3-Migration-Guide.md) §3 for the full per-endpoint mapping and the two places
+where behavior is deliberately narrower (access keys reach only same-owner member networks; adding
+members validates read access on every posted id).
 
 # Other Changes
 

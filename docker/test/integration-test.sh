@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=119
+TOTAL_API_CALLS=142
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -138,20 +138,33 @@ assert_group_501() {
   fi
 }
 
-# Assert that a retired network-set endpoint returns HTTP 501. Sends valid auth so the request
-# passes the auth filter and reaches the (501-throwing) resource method.
-# Usage: assert_networkset_501 <METHOD> <URL> [extra curl args...]
-assert_networkset_501() {
-  local method="$1"; local url="$2"; shift 2
+# Assert a /v2/networkset endpoint executes and returns the expected success code. The network set
+# endpoints are a folder-backed compatibility layer, so every one of them is live; this replaced an
+# assert_networkset_501 helper from the releases where the writes were retired.
+# Usage: assert_networkset_ok <METHOD> <URL> <EXPECTED_CODE> [extra curl args...]
+assert_networkset_ok() {
+  local method="$1"; local url="$2"; local expected="$3"; shift 3
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: ${method} ${url} (expect 501)"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: ${method} ${url} (expect ${expected})"
   local code
   code=$(curl -s -o /dev/null -w "%{http_code}" -X "${method}" -u "${TEST_USER}:${TEST_PASS}" "$@" "${url}")
-  if [[ "${code}" == "501" ]]; then
-    api_pass "${method} ${url} → 501 (network set feature removed)"
+  if [[ "${code}" == "${expected}" ]]; then
+    api_pass "${method} ${url} → ${expected}"
   else
-    api_fail "${method} ${url} → HTTP ${code} (expected 501)"
+    api_fail "${method} ${url} → HTTP ${code} (expected ${expected})"
   fi
+}
+
+# Run a single SQL statement against the container's ndex DB and echo the tuples-only result. Used to
+# assert storage-level facts an API response cannot show — e.g. that a shortcut row is physically gone
+# rather than flagged is_deleted, or that a network's parent really is NULL.
+# Usage: psql_ndex "<sql>"
+psql_ndex() {
+  docker exec "${CONTAINER_NAME}" bash -c "
+    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
+    PGPASSWORD=\"\$DB_PASS\" psql -tA -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex -c \"$1\"
+  " 2>/dev/null | tr -d '[:space:]'
 }
 
 # ── Cleanup trap ──────────────────────────────────────────────────────────────
@@ -1041,24 +1054,10 @@ else
   api_fail "GET /v2/network/${V2_PRIV_UUID}/permission?type=user (owner) → HTTP ${PERM_USER_HTTP} (expected 200)"
 fi
 
-# ── STEP: NDEx network set WRITES retired — /v2/networkset write endpoints return HTTP 501 ──
-# The two read endpoints (GET /v2/networkset/{id} and GET /v2/networkset/{id}/accesskey) are
-# re-enabled to serve the frozen archive and are exercised in the dedicated read step below;
-# only the write endpoints remain retired to 501 here.
-step "Network set writes retired: /v2/networkset write endpoints return 501"
-
-NS_DUMMY_UUID="00000000-0000-0000-0000-000000000001"
-
-# /v2/networkset resource — all write methods retired
-assert_networkset_501 POST   "${BASE_URL}/v2/networkset" -H "Content-Type: application/json" -d '{}'
-assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}" -H "Content-Type: application/json" -d '{}'
-assert_networkset_501 DELETE "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}"
-assert_networkset_501 POST   "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members" -H "Content-Type: application/json" -d '[]'
-assert_networkset_501 DELETE "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/members" -H "Content-Type: application/json" -d '[]'
-assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/accesskey?action=enable"
-assert_networkset_501 PUT    "${BASE_URL}/v2/networkset/${NS_DUMMY_UUID}/systemproperty" -H "Content-Type: application/json" -d '{}'
-# Note: GET /v2/user/{userid}/networksets is NOT retired — it is a re-enabled archived read, exercised
-# in the dedicated read step below.
+# NOTE: the /v2/networkset endpoints are all live and folder-backed. They are exercised as one ordered
+# round-trip (create → add members → update → read → remove members → delete) in the dedicated step
+# further down, which also cross-checks each write against the v3 folder endpoints. Nothing about
+# network sets asserts HTTP 501 any more.
 
 # ── STEP: Folder list/count per-child visibility (F10) ───────────────────────
 # A folder's visibility is independent of its children's. A folder the caller can
@@ -1493,145 +1492,464 @@ echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE
 poll_files_until_absent "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (old core)"
 api_pass "shortcut visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
 
-# ── STEP: Re-enabled read-only /v2/networkset endpoints serve frozen archive data ──
-# The network set feature is removed (writes → 501), but two READ endpoints are re-enabled to
-# serve the frozen, archived network_set / network_set_member tables. Since no endpoint can
-# create a network set anymore, we seed one directly via psql (owned by TEST_USER, key enabled,
-# with one PUBLIC and one PRIVATE member network), then read it back. Runs BEFORE the
-# AUTHENTICATED_USER_ONLY flip below so the anonymous read path is still exercised.
+# ── STEP: /v2/networkset round-trip on the folder-backed compatibility layer ──
+# The network set feature is retired as storage but preserved as an API: a network set id IS a folder
+# id, and every /v2/networkset endpoint performs folder/shortcut operations internally. So this step
+# drives the whole legacy lifecycle against live endpoints — create, add members, update, read,
+# access key, remove members, delete — and after each write cross-checks the v3 folder endpoints,
+# proving both surfaces see one dataset rather than two. Nothing here needs seeded data: earlier
+# releases had to INSERT into the frozen network_set tables because no endpoint could create a set.
+# Runs BEFORE the AUTHENTICATED_USER_ONLY flip below so the anonymous read paths are still exercised.
 
 if [[ -z "${REMOTE_NDEX_URL}" ]]; then
-  step "Re-enabled read-only /v2/networkset endpoints (archived network_set data)"
+  step "/v2/networkset round-trip (folder-backed: create → members → read → key → delete)"
 
-  NS_SET_ID="11111111-2222-3333-4444-555555555555"
-  NS_KEY="ns-archive-test-key"
+  # Deliberately disjoint tokens, not "X" and "X (renamed)": the rename assertions check that the OLD
+  # name stops matching in Solr, which a name containing the old one as a substring could never show.
+  NS_NAME="NSRoundtripAlpha"
+  NS_NAME_2="NSRoundtripBeta"
+  NS_DESC="folder-backed networkset round-trip"
 
-  echo "  Seeding frozen network_set '${NS_SET_ID}' (owner=${TEST_USER}, members: 1 public + 1 private)..."
-  docker exec "${CONTAINER_NAME}" bash -c "
-    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
-    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
-    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
-      -c \"DELETE FROM network_set_member WHERE set_id = '${NS_SET_ID}'; \
-           DELETE FROM network_set WHERE \\\"UUID\\\" = '${NS_SET_ID}'; \
-           INSERT INTO network_set (\\\"UUID\\\", name, description, owner_id, creation_time, modification_time, is_deleted, access_key, access_key_is_on, showcased) \
-             VALUES ('${NS_SET_ID}', 'NDEx Archived Test Set', 'frozen archive read test', (SELECT \\\"UUID\\\" FROM ndex_user WHERE user_name = '${TEST_USER}' AND is_deleted = false), now(), now(), false, '${NS_KEY}', true, false); \
-           INSERT INTO network_set_member (set_id, network_id) VALUES ('${NS_SET_ID}', '${V2_PUB_UUID}'), ('${NS_SET_ID}', '${V2_PRIV_UUID}');\"
-  "
-
-  # 1) GET /v2/networkset/{id} (anon, no key): metadata + only the readable (public) member.
-  CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID} (anon) — public member only"
-  NS_ANON=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_SET_ID}")
-  NS_ANON_HTTP=$(echo "${NS_ANON}" | tail -1); NS_ANON_BODY=$(echo "${NS_ANON}" | head -1)
-  [[ "${NS_ANON_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (anon) → HTTP ${NS_ANON_HTTP}. Body: ${NS_ANON_BODY:0:400}"
-  echo "${NS_ANON_BODY}" | grep -q "NDEx Archived Test Set" || api_fail "anon read missing archived set name. Body: ${NS_ANON_BODY:0:400}"
-  echo "${NS_ANON_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "anon read missing PUBLIC member ${V2_PUB_UUID}. Body: ${NS_ANON_BODY:0:400}"
-  echo "${NS_ANON_BODY}" | grep -q "${V2_PRIV_UUID}" && api_fail "anon read LEAKED PRIVATE member ${V2_PRIV_UUID}. Body: ${NS_ANON_BODY:0:400}"
-  api_pass "GET /v2/networkset (anon) → 200, archived metadata + PUBLIC member only (PRIVATE filtered)"
-
-  # 2) GET /v2/networkset/{id}?accesskey=<key> (anon): a valid archived key bypasses the filter.
-  CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID}?accesskey (anon) — all members"
-  NS_KEYED=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_SET_ID}?accesskey=${NS_KEY}")
-  NS_KEYED_HTTP=$(echo "${NS_KEYED}" | tail -1); NS_KEYED_BODY=$(echo "${NS_KEYED}" | head -1)
-  [[ "${NS_KEYED_HTTP}" == "200" ]] || api_fail "GET /v2/networkset?accesskey (anon) → HTTP ${NS_KEYED_HTTP}. Body: ${NS_KEYED_BODY:0:400}"
-  echo "${NS_KEYED_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "keyed read missing PUBLIC member. Body: ${NS_KEYED_BODY:0:400}"
-  echo "${NS_KEYED_BODY}" | grep -q "${V2_PRIV_UUID}" || api_fail "keyed read missing PRIVATE member (key should bypass filter). Body: ${NS_KEYED_BODY:0:400}"
-  api_pass "GET /v2/networkset?accesskey (anon) → 200, valid archived key returns ALL members"
-
-  # 3) GET /v2/networkset/{id} (owner): sees both members via own readability.
-  CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID} (owner) — both members"
-  NS_OWNER=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_SET_ID}")
-  NS_OWNER_HTTP=$(echo "${NS_OWNER}" | tail -1); NS_OWNER_BODY=$(echo "${NS_OWNER}" | head -1)
-  [[ "${NS_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (owner) → HTTP ${NS_OWNER_HTTP}. Body: ${NS_OWNER_BODY:0:400}"
-  echo "${NS_OWNER_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "owner read missing PUBLIC member. Body: ${NS_OWNER_BODY:0:400}"
-  echo "${NS_OWNER_BODY}" | grep -q "${V2_PRIV_UUID}" || api_fail "owner read missing own PRIVATE member. Body: ${NS_OWNER_BODY:0:400}"
-  api_pass "GET /v2/networkset (owner) → 200, both members (own PRIVATE network is readable)"
-
-  # 4) GET /v2/networkset/{id}/accesskey (owner): returns the archived key.
-  CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID}/accesskey (owner) — key returned"
-  NS_AK=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_SET_ID}/accesskey")
-  NS_AK_HTTP=$(echo "${NS_AK}" | tail -1); NS_AK_BODY=$(echo "${NS_AK}" | head -1)
-  [[ "${NS_AK_HTTP}" == "200" ]] || api_fail "GET /v2/networkset/accesskey (owner) → HTTP ${NS_AK_HTTP}. Body: ${NS_AK_BODY:0:400}"
-  echo "${NS_AK_BODY}" | grep -q "${NS_KEY}" || api_fail "accesskey read missing key '${NS_KEY}'. Body: ${NS_AK_BODY:0:400}"
-  api_pass "GET /v2/networkset/accesskey (owner) → 200, archived access key returned"
-
-  # 5) GET /v2/networkset/{id}/accesskey (non-owner): 401 (ownership required for the key).
-  CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_SET_ID}/accesskey (non-owner ${TEST_USER2}) — 401"
-  NS_AK2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v2/networkset/${NS_SET_ID}/accesskey")
-  [[ "${NS_AK2_HTTP}" == "401" ]] || api_fail "GET /v2/networkset/accesskey (non-owner) → HTTP ${NS_AK2_HTTP} (expected 401)"
-  api_pass "GET /v2/networkset/accesskey (non-owner) → 401 (only the owner may read the key)"
-
-  # 5b) GET /v2/networkset/{missing}/accesskey (owner): existence resolved first → 404, not 401.
-  CALL_NUM=$((CALL_NUM+1))
-  NS_MISSING_ID="99999999-9999-9999-9999-999999999999"
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_MISSING_ID}/accesskey (owner, missing set) — 404"
-  NS_AK_MISS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_MISSING_ID}/accesskey")
-  [[ "${NS_AK_MISS_HTTP}" == "404" ]] || api_fail "GET /v2/networkset/accesskey (missing set) → HTTP ${NS_AK_MISS_HTTP} (expected 404)"
-  api_pass "GET /v2/networkset/accesskey (missing set) → 404 (existence resolved before ownership)"
-
-  # 6) Writes remain retired: POST /v2/networkset still returns 501.
-  CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset (auth) — still 501 (writes retired)"
-  NS_POST_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
-    -H "Content-Type: application/json" -d '{"name":"nope"}' "${BASE_URL}/v2/networkset")
-  [[ "${NS_POST_HTTP}" == "501" ]] || api_fail "POST /v2/networkset → HTTP ${NS_POST_HTTP} (expected 501 — writes remain removed)"
-  api_pass "POST /v2/networkset → 501 (network-set writes remain retired; only reads re-enabled)"
-
-  # 7) GET /v2/user/{userid}/networksets — re-enabled archived list (issue #133), served strictly from
-  #    the frozen network_set tables. Resolve the owner UUID via the @PermitAll username lookup.
   NS_OWNER_ID=$(curl -s "${BASE_URL}/v2/user?username=${TEST_USER}" \
     | grep -oiE '"externalId"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
   [[ -n "${NS_OWNER_ID}" ]] || api_fail "could not resolve ${TEST_USER} UUID from GET /v2/user?username"
 
-  # 7a) anon → 200 (no longer 501); archived set present with only the readable (public) member.
+  # ── 1) POST /v2/networkset → creates a FOLDER at the owner's home root ──────────────────────────
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets (anon) — public member only"
-  NSU_ANON=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets")
-  NSU_ANON_HTTP=$(echo "${NSU_ANON}" | tail -1); NSU_ANON_BODY=$(echo "${NSU_ANON}" | head -1)
-  [[ "${NSU_ANON_HTTP}" == "200" ]] || api_fail "GET /v2/user/{id}/networksets (anon) → HTTP ${NSU_ANON_HTTP} (expected 200, not 501). Body: ${NSU_ANON_BODY:0:400}"
-  echo "${NSU_ANON_BODY}" | grep -q "${NS_SET_ID}" || api_fail "anon list missing archived set ${NS_SET_ID}. Body: ${NSU_ANON_BODY:0:400}"
-  echo "${NSU_ANON_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "anon list missing PUBLIC member ${V2_PUB_UUID}. Body: ${NSU_ANON_BODY:0:400}"
-  echo "${NSU_ANON_BODY}" | grep -q "${V2_PRIV_UUID}" && api_fail "anon list LEAKED PRIVATE member ${V2_PRIV_UUID}. Body: ${NSU_ANON_BODY:0:400}"
-  api_pass "GET /v2/user/{id}/networksets (anon) → 200, archived set + PUBLIC member only (PRIVATE filtered)"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset (create) — expect 201"
+  NS_CREATE=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"${NS_NAME}\",\"description\":\"${NS_DESC}\"}" "${BASE_URL}/v2/networkset")
+  NS_CREATE_HTTP=$(echo "${NS_CREATE}" | tail -1); NS_CREATE_BODY=$(echo "${NS_CREATE}" | head -1)
+  [[ "${NS_CREATE_HTTP}" == "201" ]] \
+    || api_fail "POST /v2/networkset → HTTP ${NS_CREATE_HTTP} (expected 201). Body: ${NS_CREATE_BODY:0:400}"
+  NS_ID=$(echo "${NS_CREATE_BODY}" | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+  [[ -n "${NS_ID}" ]] || api_fail "POST /v2/networkset returned no set id. Body: ${NS_CREATE_BODY:0:400}"
+  api_pass "POST /v2/networkset → 201, set ${NS_ID} created"
 
-  # 7b) owner → sees both members via own readability.
+  # The set id must BE a folder id, with the posted name/description and no parent (home root).
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets (owner) — both members"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID} — same object via v3"
+  NS_F=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}")
+  NS_F_HTTP=$(echo "${NS_F}" | tail -1); NS_F_BODY=$(echo "${NS_F}" | head -1)
+  [[ "${NS_F_HTTP}" == "200" ]] \
+    || api_fail "GET /v3/files/folders/{setid} → HTTP ${NS_F_HTTP} (a set id must be a folder id). Body: ${NS_F_BODY:0:400}"
+  echo "${NS_F_BODY}" | grep -q "${NS_NAME}" || api_fail "v3 folder is missing the posted name. Body: ${NS_F_BODY:0:400}"
+  echo "${NS_F_BODY}" | grep -q "${NS_DESC}" || api_fail "v3 folder is missing the posted description. Body: ${NS_F_BODY:0:400}"
+  NS_PARENT=$(psql_ndex "SELECT COALESCE(parent::text,'NULL') FROM folder WHERE \\\"UUID\\\"='${NS_ID}';")
+  [[ "${NS_PARENT}" == "NULL" ]] || api_fail "a new set must sit at home root (parent IS NULL), got '${NS_PARENT}'"
+  api_pass "POST /v2/networkset created a v3 folder at home root with the posted name/description"
+
+  # Solr: v2-created sets must be searchable through v3. Indexing is async, hence the poll.
+  poll_files_until_present PRIVATE "${NS_NAME}" "${NS_ID}" "networkset create indexing"
+  api_pass "new set is indexed in private-nfs and findable via POST /v3/search/files"
+
+  # ── 2) POST /{id}/members → adds each network as a SHORTCUT ─────────────────────────────────────
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset/${NS_ID}/members (2 networks) — expect 201"
+  NS_ADD_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "[\"${V2_PUB_UUID}\",\"${V2_PRIV_UUID}\"]" "${BASE_URL}/v2/networkset/${NS_ID}/members")
+  [[ "${NS_ADD_HTTP}" == "201" ]] || api_fail "POST /v2/networkset/{id}/members → HTTP ${NS_ADD_HTTP} (expected 201)"
+  api_pass "POST /v2/networkset/{id}/members → 201, 2 networks added"
+
+  # v3 must report one NETWORK-target shortcut per posted network, named after the NETWORK (not its
+  # UUID — earlier releases named shortcuts networkId.toString()), and count them.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID}/list — shortcuts per member"
+  NS_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}/list?format=compact")
+  echo "${NS_LIST}" | grep -q "SHORTCUT" || api_fail "v3 list shows no shortcut children. Body: ${NS_LIST:0:500}"
+  echo "${NS_LIST}" | grep -q "${V2_PUB_UUID}" || api_fail "v3 list is missing a shortcut to ${V2_PUB_UUID}. Body: ${NS_LIST:0:500}"
+  echo "${NS_LIST}" | grep -q "${V2_PRIV_UUID}" || api_fail "v3 list is missing a shortcut to ${V2_PRIV_UUID}. Body: ${NS_LIST:0:500}"
+  NS_SC_PUB=$(psql_ndex "SELECT \\\"UUID\\\" FROM shortcut WHERE parent='${NS_ID}' AND target='${V2_PUB_UUID}' AND is_deleted=false;")
+  NS_SC_PRIV=$(psql_ndex "SELECT \\\"UUID\\\" FROM shortcut WHERE parent='${NS_ID}' AND target='${V2_PRIV_UUID}' AND is_deleted=false;")
+  [[ -n "${NS_SC_PUB}" && -n "${NS_SC_PRIV}" ]] || api_fail "expected a shortcut row per member (got '${NS_SC_PUB}' / '${NS_SC_PRIV}')"
+  NS_SC_NAME=$(psql_ndex "SELECT name FROM shortcut WHERE \\\"UUID\\\"='${NS_SC_PUB}';")
+  [[ "${NS_SC_NAME}" != "${V2_PUB_UUID}" ]] \
+    || api_fail "member shortcut is named after the target UUID; it must be named after the network"
+  api_pass "members are v3 shortcuts named after their target network, visible in /v3/files/folders/{id}/list"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID}/count — shortcut=2"
+  NS_COUNT=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}/count")
+  echo "${NS_COUNT}" | grep -qE '"shortcut"[[:space:]]*:[[:space:]]*2' \
+    || api_fail "expected shortcut count 2 in /count. Body: ${NS_COUNT:0:300}"
+  api_pass "GET /v3/files/folders/{id}/count reports shortcut=2"
+
+  # Each member shortcut must be indexed in its own right, not just the folder.
+  poll_files_until_present PRIVATE "${NS_SC_PUB}" "${NS_SC_PUB}" "member shortcut indexing"
+  api_pass "member shortcuts are indexed individually in private-nfs"
+
+  # Rejects the whole request when any posted id is unreadable — nothing partially created.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset/${NS_ID}/members with an unreadable id — expect 4xx"
+  NS_BAD_UUID="66666666-6666-6666-6666-666666666666"
+  NS_BAD_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "[\"${V2_PUB_UUID}\",\"${NS_BAD_UUID}\"]" "${BASE_URL}/v2/networkset/${NS_ID}/members")
+  [[ "${NS_BAD_HTTP}" =~ ^4 ]] || api_fail "POST members with an unreadable id → HTTP ${NS_BAD_HTTP} (expected 4xx)"
+  NS_SC_TOTAL=$(psql_ndex "SELECT count(*) FROM shortcut WHERE parent='${NS_ID}' AND is_deleted=false;")
+  [[ "${NS_SC_TOTAL}" == "2" ]] \
+    || api_fail "a rejected member list must create nothing; shortcut count is ${NS_SC_TOTAL} (expected 2)"
+  api_pass "POST members validates every target first: one bad id rejects the request and creates nothing"
+
+  # ── 3) PUT /{id} → renames the folder, preserving its parent ────────────────────────────────────
+  assert_networkset_ok PUT "${BASE_URL}/v2/networkset/${NS_ID}" 204 \
+    -H "Content-Type: application/json" -d "{\"name\":\"${NS_NAME_2}\"}"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID} — renamed, parent unchanged"
+  NS_F2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}")
+  echo "${NS_F2}" | grep -q "${NS_NAME_2}" || api_fail "v3 folder does not show the new name. Body: ${NS_F2:0:400}"
+  NS_PARENT2=$(psql_ndex "SELECT COALESCE(parent::text,'NULL') FROM folder WHERE \\\"UUID\\\"='${NS_ID}';")
+  [[ "${NS_PARENT2}" == "NULL" ]] \
+    || api_fail "PUT must preserve the parent; it changed to '${NS_PARENT2}' (a nested set would be moved to root)"
+  api_pass "PUT /v2/networkset/{id} renamed the folder and left its parent untouched"
+
+  # A rename must drop the stale doc from BOTH cores before re-indexing, so the old name stops matching.
+  poll_files_until_present PRIVATE "${NS_NAME_2}" "${NS_ID}" "networkset rename indexing"
+  poll_files_until_absent PRIVATE "${NS_NAME}" "${NS_ID}" "networkset rename stale doc"
+  api_pass "rename re-indexed the set: new name matches, old name no longer does"
+
+  # ── 4) PUT /{id}/accesskey → enables/disables the FOLDER's key ──────────────────────────────────
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID}/accesskey?action=enable — expect 200 + key"
+  NS_KEY_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" -X PUT "${BASE_URL}/v2/networkset/${NS_ID}/accesskey?action=enable")
+  NS_KEY=$(echo "${NS_KEY_BODY}" | grep -oE '"accessKey"[[:space:]]*:[[:space:]]*"[^"]+"' | sed 's/.*"\([^"]*\)"$/\1/')
+  [[ -n "${NS_KEY}" ]] || api_fail "enable did not return an accessKey. Body: ${NS_KEY_BODY:0:300}"
+  api_pass "PUT /v2/networkset/{id}/accesskey?action=enable → 200, key issued"
+
+  # The v2 and v3 key surfaces are the same folder row.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID}/accesskey — identical key"
+  NS_V3KEY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}/accesskey")
+  echo "${NS_V3KEY}" | grep -q "${NS_KEY}" \
+    || api_fail "v3 folder accesskey differs from the v2 network set key. Body: ${NS_V3KEY:0:300}"
+  api_pass "the v2 network set key and the v3 folder key are the same value"
+
+  # Disable preserves the key value, so re-enabling returns the same string (idempotent enable).
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID}/accesskey?action=disable — expect 204"
+  NS_DIS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" -X PUT \
+    "${BASE_URL}/v2/networkset/${NS_ID}/accesskey?action=disable")
+  [[ "${NS_DIS_HTTP}" == "204" ]] || api_fail "disable → HTTP ${NS_DIS_HTTP} (expected 204)"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID}/accesskey?action=enable — same key back"
+  NS_KEY2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" -X PUT "${BASE_URL}/v2/networkset/${NS_ID}/accesskey?action=enable" \
+    | grep -oE '"accessKey"[[:space:]]*:[[:space:]]*"[^"]+"' | sed 's/.*"\([^"]*\)"$/\1/')
+  [[ "${NS_KEY2}" == "${NS_KEY}" ]] \
+    || api_fail "re-enabling must return the same key ('${NS_KEY2}' vs '${NS_KEY}')"
+  api_pass "disable preserves the key value; re-enabling is idempotent and returns the same string"
+
+  # An invalid action is rejected rather than being treated as one of the two.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID}/accesskey?action=bogus — expect 4xx"
+  NS_ACT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" -X PUT \
+    "${BASE_URL}/v2/networkset/${NS_ID}/accesskey?action=bogus")
+  [[ "${NS_ACT_HTTP}" =~ ^4 ]] || api_fail "action=bogus → HTTP ${NS_ACT_HTTP} (expected 4xx)"
+  api_pass "PUT accesskey rejects an action other than enable/disable"
+
+  # ── 5) GET /{id} → folder read, members = shortcut targets + real children ──────────────────────
+  # A set IS a folder, so folder visibility governs the read. New sets are created PRIVATE (as were all
+  # sets the v3 migration converted), so an anonymous read is refused. This is a deliberate departure
+  # from the legacy behavior, where network_set had no visibility column and every set header was world
+  # readable: serving the same row under weaker rules on /v2 than on /v3 would let anyone who knows a
+  # folder id read its name and description without authenticating.
+  # The three requests below hit the SAME url against the SAME PRIVATE folder and differ only in who is
+  # asking. That is the assertion: access is decided by the underlying folder's visibility plus the
+  # caller's rights to it, not by anything network-set specific. Confirm the stored visibility first, so
+  # a later default change cannot make these pass for the wrong reason.
+  NS_VIS_DB=$(psql_ndex "SELECT visibility FROM folder WHERE \\\"UUID\\\"='${NS_ID}';")
+  [[ "${NS_VIS_DB}" == "PRIVATE" ]] \
+    || api_fail "expected the folder behind the set to be PRIVATE, got '${NS_VIS_DB}' — the visibility assertions below would be meaningless"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (anon, folder is PRIVATE) — 401"
+  NS_ANON_PRIV_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/networkset/${NS_ID}")
+  [[ "${NS_ANON_PRIV_HTTP}" == "401" ]] \
+    || api_fail "anon read of a PRIVATE set → HTTP ${NS_ANON_PRIV_HTTP} (expected 401; folder visibility governs)"
+
+  # A signed-in NON-OWNER with no permission on the folder is refused too. This is what proves the gate is
+  # folder read-access, not merely "reject anonymous".
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (non-owner ${TEST_USER2}, PRIVATE) — 401"
+  NS_OTHER_PRIV_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER2}:${TEST_PASS2}" \
+    "${BASE_URL}/v2/networkset/${NS_ID}")
+  [[ "${NS_OTHER_PRIV_HTTP}" == "401" ]] \
+    || api_fail "non-owner read of a PRIVATE set → HTTP ${NS_OTHER_PRIV_HTTP} (expected 401)"
+
+  # The owner reading that identical url succeeds, and gets the real content.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (owner, same PRIVATE set) — 200"
+  NS_OWNER_PRIV=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
+  NS_OWNER_PRIV_HTTP=$(echo "${NS_OWNER_PRIV}" | tail -1); NS_OWNER_PRIV_BODY=$(echo "${NS_OWNER_PRIV}" | head -1)
+  [[ "${NS_OWNER_PRIV_HTTP}" == "200" ]] \
+    || api_fail "the OWNER must be able to read their own PRIVATE set → HTTP ${NS_OWNER_PRIV_HTTP}. Body: ${NS_OWNER_PRIV_BODY:0:400}"
+  echo "${NS_OWNER_PRIV_BODY}" | grep -q "${NS_NAME_2}" \
+    || api_fail "owner read of a PRIVATE set returned no set name. Body: ${NS_OWNER_PRIV_BODY:0:400}"
+  echo "${NS_OWNER_PRIV_BODY}" | grep -q "${V2_PRIV_UUID}" \
+    || api_fail "owner read of a PRIVATE set is missing their own PRIVATE member. Body: ${NS_OWNER_PRIV_BODY:0:400}"
+  api_pass "same PRIVATE set, same url: anon → 401, non-owner → 401, owner → 200 with content (the underlying folder's visibility governs access)"
+
+  # Making the folder PUBLIC is the supported way to restore anonymous set reads. Member filtering still
+  # applies: a PUBLIC set does not expose the caller's unreadable members.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/folders/${NS_ID} visibility=PUBLIC"
+  NS_VIS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"${NS_NAME_2}\",\"visibility\":\"PUBLIC\"}" "${BASE_URL}/v3/files/folders/${NS_ID}")
+  [[ "${NS_VIS_HTTP}" =~ ^2 ]] || api_fail "PUT folder visibility=PUBLIC → HTTP ${NS_VIS_HTTP}"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (anon, set now PUBLIC) — public member only"
+  NS_ANON=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_ID}")
+  NS_ANON_HTTP=$(echo "${NS_ANON}" | tail -1); NS_ANON_BODY=$(echo "${NS_ANON}" | head -1)
+  [[ "${NS_ANON_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (anon, PUBLIC) → HTTP ${NS_ANON_HTTP}. Body: ${NS_ANON_BODY:0:400}"
+  echo "${NS_ANON_BODY}" | grep -q "${NS_NAME_2}" || api_fail "anon read missing set name. Body: ${NS_ANON_BODY:0:400}"
+  echo "${NS_ANON_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "anon read missing PUBLIC member. Body: ${NS_ANON_BODY:0:400}"
+  echo "${NS_ANON_BODY}" | grep -q "${V2_PRIV_UUID}" && api_fail "anon read LEAKED PRIVATE member. Body: ${NS_ANON_BODY:0:400}"
+  api_pass "GET /v2/networkset (anon) on a PUBLIC set → 200, PUBLIC member only (PRIVATE filtered)"
+
+  # Restore PRIVATE so the delete-path assertions below exercise the default shape.
+  curl -s -o /dev/null -X PUT -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+    -d "{\"name\":\"${NS_NAME_2}\",\"visibility\":\"PRIVATE\"}" "${BASE_URL}/v3/files/folders/${NS_ID}"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID}?accesskey (anon) — key-unlocked members"
+  NS_KEYED=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_ID}?accesskey=${NS_KEY}")
+  NS_KEYED_HTTP=$(echo "${NS_KEYED}" | tail -1); NS_KEYED_BODY=$(echo "${NS_KEYED}" | head -1)
+  [[ "${NS_KEYED_HTTP}" == "200" ]] || api_fail "GET /v2/networkset?accesskey (anon) → HTTP ${NS_KEYED_HTTP}. Body: ${NS_KEYED_BODY:0:400}"
+  # The key reaches same-owner network shortcuts, so both members unlock (both belong to TEST_USER).
+  echo "${NS_KEYED_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "keyed read missing PUBLIC member. Body: ${NS_KEYED_BODY:0:400}"
+  echo "${NS_KEYED_BODY}" | grep -q "${V2_PRIV_UUID}" || api_fail "keyed read missing PRIVATE member. Body: ${NS_KEYED_BODY:0:400}"
+  api_pass "GET /v2/networkset?accesskey (anon) → 200, the key unlocks its same-owner member networks"
+
+  # The same key must reach the member NETWORK itself, which is what keeps pre-migration set keys
+  # working: the resolver seeds the ancestor walk from same-owner NETWORK shortcuts.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}?accesskey (anon) — key reaches the member"
+  NS_NETKEY_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/network/${V2_PRIV_UUID}/summary?accesskey=${NS_KEY}")
+  [[ "${NS_NETKEY_HTTP}" == "200" ]] \
+    || api_fail "a set's key must reach its member networks through their shortcuts → HTTP ${NS_NETKEY_HTTP}"
+  api_pass "a network set access key still reaches member networks via same-owner shortcuts (#133/#137)"
+
+  CALL_NUM=$((CALL_NUM+1))
+  # The owner's 200 on a PRIVATE set is already asserted above; this checks the legacy-only fields, which
+  # have no folder equivalent and must be reported as defaults rather than invented.
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (owner) — legacy field defaults"
+  NS_OWNER=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
+  NS_OWNER_HTTP=$(echo "${NS_OWNER}" | tail -1); NS_OWNER_BODY=$(echo "${NS_OWNER}" | head -1)
+  [[ "${NS_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (owner) → HTTP ${NS_OWNER_HTTP}. Body: ${NS_OWNER_BODY:0:400}"
+  echo "${NS_OWNER_BODY}" | grep -q "${V2_PUB_UUID}" || api_fail "owner read missing PUBLIC member. Body: ${NS_OWNER_BODY:0:400}"
+  echo "${NS_OWNER_BODY}" | grep -q "${V2_PRIV_UUID}" || api_fail "owner read missing own PRIVATE member. Body: ${NS_OWNER_BODY:0:400}"
+  echo "${NS_OWNER_BODY}" | grep -qE '"showcased"[[:space:]]*:[[:space:]]*true' \
+    && api_fail "showcased must always be false on a folder-backed set. Body: ${NS_OWNER_BODY:0:400}"
+  echo "${NS_OWNER_BODY}" | grep -qE '"properties"[[:space:]]*:[[:space:]]*\{\}' \
+    || api_fail "properties should render as an empty object, not be omitted or populated. Body: ${NS_OWNER_BODY:0:400}"
+  echo "${NS_OWNER_BODY}" | grep -q '"doi"' \
+    && api_fail "doi has no folder equivalent and must be absent. Body: ${NS_OWNER_BODY:0:400}"
+  api_pass "GET /v2/networkset (owner) → showcased=false, properties={}, doi absent (legacy-only fields not fabricated)"
+
+  # ── 6) GET /{id}/accesskey → read-only, owner-only, 404 before 401 ──────────────────────────────
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID}/accesskey (owner) — key returned"
+  NS_AK=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}/accesskey")
+  NS_AK_HTTP=$(echo "${NS_AK}" | tail -1); NS_AK_BODY=$(echo "${NS_AK}" | head -1)
+  [[ "${NS_AK_HTTP}" == "200" ]] || api_fail "GET accesskey (owner) → HTTP ${NS_AK_HTTP}. Body: ${NS_AK_BODY:0:300}"
+  echo "${NS_AK_BODY}" | grep -q "${NS_KEY}" || api_fail "GET accesskey did not return the key. Body: ${NS_AK_BODY:0:300}"
+  api_pass "GET /v2/networkset/{id}/accesskey (owner) → 200, returns the folder's key"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID}/accesskey (non-owner) — 401"
+  NS_AK2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER2}:${TEST_PASS2}" \
+    "${BASE_URL}/v2/networkset/${NS_ID}/accesskey")
+  [[ "${NS_AK2_HTTP}" == "401" ]] || api_fail "GET accesskey (non-owner) → HTTP ${NS_AK2_HTTP} (expected 401)"
+  api_pass "GET /v2/networkset/{id}/accesskey (non-owner) → 401 (only the owner may read the key)"
+
+  CALL_NUM=$((CALL_NUM+1))
+  NS_MISSING_ID="99999999-9999-9999-9999-999999999999"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_MISSING_ID}/accesskey — 404 not 401"
+  NS_AK_MISS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v2/networkset/${NS_MISSING_ID}/accesskey")
+  [[ "${NS_AK_MISS_HTTP}" == "404" ]] || api_fail "GET accesskey (missing set) → HTTP ${NS_AK_MISS_HTTP} (expected 404)"
+  api_pass "GET /v2/networkset/{id}/accesskey (missing set) → 404 (existence resolved before ownership)"
+
+  # A GET must never mint a key as a side effect, which is what earlier releases did by calling
+  # enableFolderAccessKey from the read path.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset (2nd set) — GET accesskey must not create a key"
+  NS_ID2=$(curl -s -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+    -d '{"name":"NS Keyless Set"}' "${BASE_URL}/v2/networkset" \
+    | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+  [[ -n "${NS_ID2}" ]] || api_fail "could not create the second network set"
+  curl -s -o /dev/null -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID2}/accesskey"
+  NS_KEYON=$(psql_ndex "SELECT access_key_is_on FROM folder WHERE \\\"UUID\\\"='${NS_ID2}';")
+  [[ "${NS_KEYON}" == "f" ]] \
+    || api_fail "GET accesskey enabled a key as a side effect (access_key_is_on='${NS_KEYON}')"
+  api_pass "GET /v2/networkset/{id}/accesskey is read-only: it does not create or enable a key"
+
+  # ── 7) GET /v2/user/{id}/networksets + networkcount ─────────────────────────────────────────────
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets (owner) — both sets"
   NSU_OWNER=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets")
   NSU_OWNER_HTTP=$(echo "${NSU_OWNER}" | tail -1); NSU_OWNER_BODY=$(echo "${NSU_OWNER}" | head -1)
-  [[ "${NSU_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/user/{id}/networksets (owner) → HTTP ${NSU_OWNER_HTTP}. Body: ${NSU_OWNER_BODY:0:400}"
-  { echo "${NSU_OWNER_BODY}" | grep -q "${V2_PUB_UUID}" && echo "${NSU_OWNER_BODY}" | grep -q "${V2_PRIV_UUID}"; } \
-    || api_fail "owner list missing a member (expected both public + private). Body: ${NSU_OWNER_BODY:0:400}"
-  api_pass "GET /v2/user/{id}/networksets (owner) → 200, both members (own PRIVATE network readable)"
+  [[ "${NSU_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/user/{id}/networksets → HTTP ${NSU_OWNER_HTTP}. Body: ${NSU_OWNER_BODY:0:400}"
+  echo "${NSU_OWNER_BODY}" | grep -q "${NS_ID}" || api_fail "set ${NS_ID} missing from the user's list. Body: ${NSU_OWNER_BODY:0:500}"
+  echo "${NSU_OWNER_BODY}" | grep -q "${NS_ID2}" || api_fail "set ${NS_ID2} missing from the user's list. Body: ${NSU_OWNER_BODY:0:500}"
+  api_pass "GET /v2/user/{id}/networksets (owner) → 200, lists the user's folder-backed sets"
 
-  # 7c) owner + summary=true → set header present, member network ids omitted.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?summary=true (owner) — headers only"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?summary=true — members omitted as []"
   NSU_SUM=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?summary=true")
-  echo "${NSU_SUM}" | grep -q "${NS_SET_ID}" || api_fail "summary list missing archived set ${NS_SET_ID}. Body: ${NSU_SUM:0:400}"
-  { echo "${NSU_SUM}" | grep -q "${V2_PUB_UUID}" || echo "${NSU_SUM}" | grep -q "${V2_PRIV_UUID}"; } \
-    && api_fail "summary=true should omit member network ids. Body: ${NSU_SUM:0:400}"
-  api_pass "GET /v2/user/{id}/networksets?summary=true → set header present, members omitted"
+  echo "${NSU_SUM}" | grep -q "${NS_ID}" || api_fail "summary list missing set ${NS_ID}. Body: ${NSU_SUM:0:400}"
+  echo "${NSU_SUM}" | grep -q "${V2_PUB_UUID}" && api_fail "summary=true must omit member network ids. Body: ${NSU_SUM:0:400}"
+  # Present-but-empty, not absent: NetworkSet pre-allocates the collection.
+  echo "${NSU_SUM}" | grep -qE '"networks"[[:space:]]*:[[:space:]]*\[\]' \
+    || api_fail "summary=true should render \"networks\":[] rather than omitting the field. Body: ${NSU_SUM:0:400}"
+  api_pass "GET /v2/user/{id}/networksets?summary=true → set headers with \"networks\":[]"
 
-  # 7d) owner + showcase=true → seeded set has showcased=false, so it is filtered out.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?showcase=true (owner) — non-showcased set absent"
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?showcase=true — documented no-op"
   NSU_SHOW=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?showcase=true")
-  echo "${NSU_SHOW}" | grep -q "${NS_SET_ID}" \
-    && api_fail "showcase=true must exclude the non-showcased set ${NS_SET_ID}. Body: ${NSU_SHOW:0:400}"
-  api_pass "GET /v2/user/{id}/networksets?showcase=true → non-showcased set excluded (showcase filter)"
+  # Folders have no showcase flag, so the parameter cannot filter; it must not silently empty the list.
+  echo "${NSU_SHOW}" | grep -q "${NS_ID}" \
+    || api_fail "showcase=true is a documented no-op and must not filter the list. Body: ${NSU_SHOW:0:400}"
+  api_pass "GET /v2/user/{id}/networksets?showcase=true → no-op filter (folders have no showcase flag)"
 
-  echo "  Cleaning up seeded network_set '${NS_SET_ID}'..."
-  docker exec "${CONTAINER_NAME}" bash -c "
-    DB_USER=\$(grep '^NdexDBUsername=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
-    DB_PASS=\$(grep '^NdexDBDBPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-)
-    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -p 5432 -U \"\$DB_USER\" -d ndex \
-      -c \"DELETE FROM network_set_member WHERE set_id = '${NS_SET_ID}'; DELETE FROM network_set WHERE \\\"UUID\\\" = '${NS_SET_ID}';\"
-  "
+  # networkSetCount must agree with the unpaged list length, or an account page contradicts itself.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networkcount — networkSetCount agrees with the list"
+  NS_CNT_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networkcount")
+  NS_SET_COUNT=$(echo "${NS_CNT_BODY}" | grep -oE '"networkSetCount"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+  [[ -n "${NS_SET_COUNT}" ]] || api_fail "networkcount response has no networkSetCount. Body: ${NS_CNT_BODY:0:300}"
+  NS_LIST_LEN=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?summary=true" \
+    | grep -oE '"externalId"' | wc -l | tr -d '[:space:]')
+  [[ "${NS_SET_COUNT}" == "${NS_LIST_LEN}" ]] \
+    || api_fail "networkSetCount (${NS_SET_COUNT}) must equal the networksets list length (${NS_LIST_LEN})"
+  api_pass "networkSetCount (${NS_SET_COUNT}) equals the unpaged /networksets length"
+
+  # ── 8) PUT /{id}/systemproperty → showcase is a documented no-op ────────────────────────────────
+  NS_BEFORE=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
+  assert_networkset_ok PUT "${BASE_URL}/v2/networkset/${NS_ID}/systemproperty" 204 \
+    -H "Content-Type: application/json" -d '{"showcase":true}'
+  NS_AFTER=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
+  echo "${NS_AFTER}" | grep -qE '"showcased"[[:space:]]*:[[:space:]]*true' \
+    && api_fail "showcase must be a no-op; the set now reports showcased=true"
+  api_pass "PUT /v2/networkset/{id}/systemproperty accepts showcase and changes nothing (documented no-op)"
+
+  # ── 9) DELETE /{id}/members → shortcuts physically deleted; real children reparented ────────────
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: DELETE /v2/networkset/${NS_ID}/members [private] — expect 204"
+  NS_DELM_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" -d "[\"${V2_PRIV_UUID}\"]" "${BASE_URL}/v2/networkset/${NS_ID}/members")
+  [[ "${NS_DELM_HTTP}" == "204" ]] || api_fail "DELETE members → HTTP ${NS_DELM_HTTP} (expected 204)"
+
+  # The shortcut must be PHYSICALLY gone, not soft-deleted: a soft delete would leave a trash entry for
+  # every network a client removed from a set.
+  NS_SC_ROWS=$(psql_ndex "SELECT count(*) FROM shortcut WHERE \\\"UUID\\\"='${NS_SC_PRIV}';")
+  [[ "${NS_SC_ROWS}" == "0" ]] \
+    || api_fail "member shortcut row survives (count=${NS_SC_ROWS}); is_deleted=true means the soft path ran"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/shortcuts/${NS_SC_PRIV} — 404"
+  NS_SC_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/files/shortcuts/${NS_SC_PRIV}")
+  [[ "${NS_SC_HTTP}" == "404" ]] || api_fail "removed shortcut still resolves → HTTP ${NS_SC_HTTP} (expected 404)"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/trash — removed shortcut must NOT be there"
+  NS_TRASH=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/trash")
+  echo "${NS_TRASH}" | grep -q "${NS_SC_PRIV}" \
+    && api_fail "removing a member left a trash entry; the shortcut must be deleted permanently"
+  # The member NETWORK itself is untouched — only the reference was removed.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}/summary — network survives"
+  NS_NET_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v2/network/${V2_PRIV_UUID}/summary")
+  [[ "${NS_NET_HTTP}" == "200" ]] || api_fail "removing a member must not delete the network → HTTP ${NS_NET_HTTP}"
+  NS_COUNT2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}/count")
+  echo "${NS_COUNT2}" | grep -qE '"shortcut"[[:space:]]*:[[:space:]]*1' \
+    || api_fail "shortcut count should drop to 1. Body: ${NS_COUNT2:0:300}"
+  poll_files_until_absent PRIVATE "${NS_SC_PRIV}" "${NS_SC_PRIV}" "removed member shortcut de-indexing"
+  api_pass "DELETE members deletes the shortcut permanently (no trash entry), leaves the network, de-indexes it"
+
+  # A network parented directly in the set is data, not a reference: it is MOVED to home root.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/move ${V2_PRIV_UUID} into the set"
+  NS_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"networks\":[\"${V2_PRIV_UUID}\"],\"targetFolder\":\"${NS_ID}\"}" "${BASE_URL}/v3/batch/networks/move")
+  [[ "${NS_MOVE_HTTP}" =~ ^2 ]] || api_fail "batch move into the set → HTTP ${NS_MOVE_HTTP}"
+  # The union read must surface it as a member even though no shortcut points at it.
+  NS_UNION=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
+  echo "${NS_UNION}" | grep -q "${V2_PRIV_UUID}" \
+    || api_fail "a network parented in the set must appear as a member. Body: ${NS_UNION:0:400}"
+  api_pass "a network moved into the set appears in 'networks' (members = shortcut targets + real children)"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: DELETE /v2/networkset/${NS_ID}/members [real child] — reparented to null"
+  NS_DELM2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" -d "[\"${V2_PRIV_UUID}\"]" "${BASE_URL}/v2/networkset/${NS_ID}/members")
+  [[ "${NS_DELM2_HTTP}" == "204" ]] || api_fail "DELETE members (real child) → HTTP ${NS_DELM2_HTTP} (expected 204)"
+  NS_NET_PARENT=$(psql_ndex "SELECT COALESCE(parent::text,'NULL') FROM network WHERE \\\"UUID\\\"='${V2_PRIV_UUID}';")
+  [[ "${NS_NET_PARENT}" == "NULL" ]] \
+    || api_fail "a real child network must be reparented to NULL (home root), parent is '${NS_NET_PARENT}'"
+  NS_NET_ALIVE=$(psql_ndex "SELECT is_deleted FROM network WHERE \\\"UUID\\\"='${V2_PRIV_UUID}';")
+  [[ "${NS_NET_ALIVE}" == "f" ]] || api_fail "removing a real child must not delete the network (is_deleted='${NS_NET_ALIVE}')"
+  NS_UNION2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
+  echo "${NS_UNION2}" | grep -q "${V2_PRIV_UUID}" \
+    && api_fail "the moved-out network must no longer be a member. Body: ${NS_UNION2:0:400}"
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/users/${NS_OWNER_ID}/home — moved network is at home root"
+  NS_HOME=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/users/${NS_OWNER_ID}/home")
+  echo "${NS_HOME}" | grep -q "${V2_PRIV_UUID}" \
+    || api_fail "the moved network should now appear at home root. Body: ${NS_HOME:0:500}"
+  api_pass "DELETE members moves a real child network to home root instead of deleting it"
+
+  # ── 10) DELETE /{id} → trashes the folder and its remaining contents ────────────────────────────
+  NS_SC_REMAINING=$(psql_ndex "SELECT \\\"UUID\\\" FROM shortcut WHERE parent='${NS_ID}' AND is_deleted=false;")
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: DELETE /v2/networkset/${NS_ID} — expect 204"
+  NS_DEL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v2/networkset/${NS_ID}")
+  [[ "${NS_DEL_HTTP}" == "204" ]] || api_fail "DELETE /v2/networkset/{id} → HTTP ${NS_DEL_HTTP} (expected 204)"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} after delete — 404"
+  NS_GONE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
+  [[ "${NS_GONE_HTTP}" == "404" ]] || api_fail "deleted set still readable → HTTP ${NS_GONE_HTTP} (expected 404)"
+
+  # A trashed set must stay unreadable even to a valid access key: the folder read applies no
+  # is_deleted filter and neither does key validation, so existence has to be resolved first.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID}?accesskey after delete — 404 not 200"
+  NS_GONE_KEY_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/networkset/${NS_ID}?accesskey=${NS_KEY}")
+  [[ "${NS_GONE_KEY_HTTP}" == "404" ]] \
+    || api_fail "a trashed set is readable with its access key → HTTP ${NS_GONE_KEY_HTTP} (expected 404)"
+  api_pass "a deleted (trashed) set returns 404, including to a holder of its access key"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID} after delete — 404"
+  NS_FGONE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/files/folders/${NS_ID}")
+  [[ "${NS_FGONE_HTTP}" == "404" ]] || api_fail "the v2 delete did not remove the folder → HTTP ${NS_FGONE_HTTP}"
+  api_pass "DELETE /v2/networkset/{id} deleted the underlying v3 folder"
+
+  # The cascade must un-index the folder AND the descendants it took with it.
+  poll_files_until_absent PRIVATE "${NS_NAME_2}" "${NS_ID}" "deleted set de-indexing"
+  if [[ -n "${NS_SC_REMAINING}" ]]; then
+    poll_files_until_absent PRIVATE "${NS_SC_REMAINING}" "${NS_SC_REMAINING}" "cascaded shortcut de-indexing"
+    api_pass "the cascading delete un-indexed the folder and its remaining member shortcut"
+  else
+    api_pass "the cascading delete un-indexed the deleted folder"
+  fi
+
+  # Nothing in this step may have touched the frozen legacy tables.
+  NS_FROZEN=$(psql_ndex "SELECT count(*) FROM network_set;")
+  [[ "${NS_FROZEN}" == "0" ]] \
+    || api_fail "the frozen network_set table gained ${NS_FROZEN} row(s); network sets must be folder-backed only"
+  api_pass "the frozen network_set / network_set_member tables were never written"
+
+  # Clean up the second set so later steps see a tidy account page.
+  curl -s -o /dev/null -X DELETE -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID2}"
 fi
 
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────

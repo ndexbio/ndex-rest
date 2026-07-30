@@ -6,6 +6,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.ndexbio.common.models.dao.DeletedFileIds;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
@@ -18,6 +19,7 @@ import org.ndexbio.rest.filters.BasicAuthenticationFilter;
 import org.ndexbio.rest.services.NdexService;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskDeleteFiles;
 import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -268,12 +270,18 @@ public class FolderServiceV3 extends NdexService {
 			if (!dao.isFolderOwner(folderId, getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Signed in user is not the owner of this folder.");
 
-			VisibilityType visibilityType = dao.getFolderVisibility(folderId);
-			dao.deleteFolder(folderId, force, permanent);
+			// A force delete cascades over the whole subtree, so clear the Solr state of everything it
+			// touched, not just this folder. The returned ids come from the same transaction that did
+			// the deleting. No pre-delete getFolderVisibility() is needed: the batch task deletes each
+			// id from both cores, which is also the only way to reach a row whose visibility is no
+			// longer readable once it is deleted.
+			DeletedFileIds deleted = dao.deleteFolder(folderId, force, permanent);
 			dao.commit();
-			deleteFileIndex(folderId, visibilityType);
+			if (deleted != null && !deleted.isEmpty()) {
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFiles(folderId, deleted));
+			}
 
-		} 
+		}
 	}
 	
 	@PUT
