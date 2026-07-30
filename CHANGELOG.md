@@ -6,6 +6,85 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased] - 3.0.4
+
+### Changed
+
+- **The `/v2/networkset` endpoints are operational again, backed entirely by v3 folders.** This reverses
+  the 3.0.3 retirement below and restores the behavior the folder/shortcut specification always called
+  for: *"the networkset endpoints should be deprecated in swagger, but if used the networksetid is
+  equivalent to the folderid and will still continue to work."* A network set id **is** a folder id — the
+  v3 migration gave every set a folder with the same UUID — so each endpoint now performs folder and
+  shortcut operations internally and maps the result back onto the legacy `NetworkSet` representation.
+  Existing v2 clients keep working unchanged while the storage underneath is the live v3 model. The
+  frozen `network_set` / `network_set_member` tables are **never read or written**; they remain as inert
+  legacy data and `NetworkSetDAO` is deleted. Endpoint status:
+  - **Live (folder-backed):** `POST /v2/networkset` (creates a folder at the caller's home root),
+    `PUT|DELETE /v2/networkset/{id}`, `POST|DELETE /v2/networkset/{id}/members`,
+    `GET /v2/networkset/{id}`, `GET|PUT /v2/networkset/{id}/accesskey`,
+    `PUT /v2/networkset/{id}/systemproperty`, and `GET /v2/user/{userid}/networksets`. All remain marked
+    deprecated in Swagger, and every description now states which folder operation it performs and where
+    it diverges from the legacy behavior.
+  - **`networkSetCount` is restored** to `GET /v2/user/{userid}/networkcount`. It counts the user's
+    folders using the same predicate the list endpoint pages over, so the number always equals the
+    unpaged length of `GET /v2/user/{userid}/networksets`.
+- **Behavior differences to be aware of**, all documented per-endpoint in Swagger:
+  - `showcased`, `doi` and `properties` have no folder equivalent, so they are not stored or returned:
+    `showcased` is always `false`, `doi` absent, `properties` empty. `PUT /{id}/systemproperty` accepts
+    `showcase` and does nothing with it, and `?showcase=true` on the list endpoint is a **no-op filter**
+    rather than one that returns showcased sets only.
+  - `DELETE /v2/networkset/{id}` trashes the folder **and everything in it** (subfolders, shortcuts, and
+    any networks parented inside), recoverable via `POST /v3/files/trash/restore`.
+  - `POST /{id}/members` adds each network as a **shortcut** and now validates every posted id against
+    the caller's read access **before** writing anything, so one unreadable id rejects the whole request
+    and creates nothing. This makes real a rule the legacy Swagger stated but no code enforced.
+  - `DELETE /{id}/members` **permanently** deletes a member shortcut (no trash entry), leaving the target
+    network untouched. A network parented **directly** in the folder is instead **moved to the caller's
+    home root** rather than deleted; one the caller does not own is left in place.
+  - `GET /{id}/accesskey` is strictly a read — unlike releases before 3.0.3 it no longer creates or
+    enables a key as a side effect of the GET.
+  - **A set's access key reaches only member networks owned by the set's owner.** Legacy `network_set`
+    key validation had no such condition, so a set containing another user's network used to unlock it by
+    key and no longer will. This same-owner guard is deliberate (see the V3 Migration Guide): without it
+    anyone could grant anonymous read to another user's private network by shortcutting it into a keyed
+    folder.
+  - **Folder visibility now governs reading a set.** Sets are PRIVATE by default — as is every set the
+    v3 migration converted — so `GET /v2/networkset/{id}` returns **401** to an anonymous or
+    non-permitted caller, where the legacy endpoint returned the set header to everyone because
+    `network_set` had no visibility column. Supply an access key, or make the folder PUBLIC via
+    `PUT /v3/files/folders/{folderid}`, to restore anonymous reads. The same rule applies to
+    `GET /v2/user/{userid}/networksets`, which lists only the folders the caller may read. This is
+    deliberate: a network set and a folder are the same row, and serving it under weaker rules on `/v2`
+    than on `/v3` would let anyone holding a folder id read its name and description unauthenticated.
+    Member filtering is unchanged — a readable set still exposes only the member networks the caller
+    can read.
+  - **A network set now has a visibility, and it is enforced.** `network_set` had no visibility column, so
+    the retired archive reads returned a set's metadata to anyone. A folder is `PRIVATE` unless changed —
+    as are all migrated sets — so `GET /v2/networkset/{id}` returns **401** to a caller who cannot read
+    the folder. Anonymous sharing of a set is done with its access key (which bypasses visibility) or by making the folder `PUBLIC`.
+  - **Members are still filtered by each member network's readability**, matching the legacy contract —
+    *not* by the visibility of the shortcut that references it. Member shortcuts are created `PRIVATE`, so
+    filtering on the shortcut would have returned an empty member list for every non-owner, including on a
+    PUBLIC set of PUBLIC networks.
+  - A soft-deleted (trashed) set returns **404** even to a holder of its access key.
+  - `PUT /v2/networkset/{id}` treats an omitted (null) `description` as "leave unchanged", whereas the
+    legacy endpoint **cleared** it in that case. Send an empty string to clear it.
+  - `PUT /v2/networkset/{id}` distinguishes the states of the target id: it updates a set you own, creates
+    one if the id is unused (the legacy upsert), returns **401** if the set exists and belongs to someone
+    else, and **404** if it is in the trash.
+
+### Fixed
+
+- **A cascading folder delete no longer orphans its descendants' Solr documents.**
+  `DELETE /v3/files/folders/{id}?force=true` removes or trashes the whole subtree at any depth, but only
+  the named folder's index entry was being cleared — every descendant folder, network and shortcut kept a
+  document that nothing would ever re-index over, leaving permanent phantom hits in
+  `POST /v3/search/files`. `FolderDAO.deleteFolder` now reports the ids it affected and the caller clears
+  all of them in one batched task. The same gap in the trash purge paths
+  (`DELETE /v3/files/trash`, `DELETE /v3/files/trash/{uuid}`) is fixed the same way. A cascading
+  `permanent=true` delete still bypasses the network-delete preconditions and leaves CX files on disk;
+  that is tracked separately.
+
 ## [3.0.3] - 2026-07-25
 
 ### Breaking Changes

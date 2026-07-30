@@ -59,7 +59,7 @@ import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
-import org.ndexbio.common.models.dao.postgresql.NetworkSetDAO;
+import org.ndexbio.common.networkset.NetworkSetFolderServiceImpl;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
@@ -105,10 +105,12 @@ import jakarta.ws.rs.Consumes;
 @Path("/v2/user")
 public class UserServiceV2 extends NdexService {
 
-	private static final String ARCHIVED_DESC =
-			"Read-only access to archived, historical network-set data from the frozen network_set tables. "
-			+ "The network set feature is retired: no new network sets can be created and this data is not "
-			+ "backed by the v3 folder model. Provided only for backward-compatible reads of legacy network sets.";
+	/** Mirrors NetworkSetServiceV2's preamble: these reads are a folder-backed compatibility shim. */
+	private static final String FOLDER_BACKED_NETWORKSET_DESC =
+			"DEPRECATED compatibility endpoint. The NDEx network set feature is retired: a network set id "
+			+ "is a **folder** id. This endpoint lists the user's v3 folders and maps them onto the legacy "
+			+ "NetworkSet representation, so existing v2 clients keep working unchanged. New development "
+			+ "should use GET /v3/users/{userid}/home and the /v3/files/folders endpoints.";
 
 
 	/**************************************************************************
@@ -1034,7 +1036,7 @@ public class UserServiceV2 extends NdexService {
 
 	  	@GET
 		@Path("/{userid}/networkcount")
-		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary objects for this page.")
+		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary and networkSet objects for this page. Note 'networkSetCount' counts the user's v3 **folders**, since a network set id is a folder id; it always equals the unpaged length of GET /v2/user/{userid}/networksets.")
 		@Produces("application/json")
 		public Map<String,Integer> getNumNetworksForMyAccountPage(
 						 @PathParam("userid") String userIdStr
@@ -1043,21 +1045,34 @@ public class UserServiceV2 extends NdexService {
 			UUID userId = UUID.fromString(userIdStr);
 			if ( !userId.equals(getLoggedInUserId()))
 				throw new UnauthorizedOperationException("Userid has to be the same as autheticated user's");
-			
-			Map<String, Integer> result = new HashMap<>(1);
+
+			Map<String, Integer> result = new HashMap<>(2);
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				result.put("networkCount",  dao.getNumNetworksForMyAccountPage(userId));
 			}
+			// Counted with the same predicate listSetsOfUser pages over (owneruuid=? AND is_deleted=false),
+			// so this number can never disagree with the list it describes. The endpoint is self-only, so
+			// the readability filtering that applies to a non-self list caller is irrelevant here.
+			result.put("networkSetCount", new NetworkSetFolderServiceImpl(
+					Configuration.getInstance().getDAOFactory()).countSetsOfUser(userId));
 
 			return result;
-		}      	
+		}
 	  	
 	  	
 	   	@GET
 		@Path("/{userid}/networksets")
 		@Deprecated
-		@Operation(summary = "Get All Network Sets owned by a user (ARCHIVED)", description = ARCHIVED_DESC, deprecated = true)
-		@ApiResponse(responseCode = "200", description = "The archived network sets owned by the user")
+		@Operation(summary = "Get All Network Sets owned by a user (DEPRECATED)",
+				description = FOLDER_BACKED_NETWORKSET_DESC
+				+ " Lists the **folders** this user owns, at any depth. The 'showcase' parameter is a "
+				+ "**no-op**: folders have no showcase flag, so passing showcase=true does not filter the "
+				+ "result. With summary=true each set is returned without its members, as \"networks\":[] "
+				+ "rather than with the field omitted. Legacy fields without a folder equivalent are not "
+				+ "returned: 'showcased' is always false, 'doi' absent, 'properties' empty. A caller other "
+				+ "than the owner sees only the folders they may read.",
+				deprecated = true)
+		@ApiResponse(responseCode = "200", description = "The network sets owned by the user")
 		@Produces("application/json")
 		@PermitAll
 		public  List<NetworkSet> getNetworksetsByUserId(
@@ -1068,10 +1083,11 @@ public class UserServiceV2 extends NdexService {
 						@DefaultValue("false") @QueryParam("showcase") boolean showcasedOnly
 					) throws Exception {
 			UUID ownerId = UUID.fromString(userIdStr);
-			// Serve only the archived network_set / network_set_member data; no v3 folder polyfill.
-			try (NetworkSetDAO dao = new NetworkSetDAO()) {
-				return dao.getNetworkSetsByUserId(ownerId, getLoggedInUserId(), offset, limit, summaryOnly, showcasedOnly);
-			}
+			// showcasedOnly is accepted and ignored: there is no folder equivalent of the legacy
+			// network_set.showcased column. Documented as a no-op above rather than silently filtering
+			// everything out, which is what treating it as a real filter would do.
+			return new NetworkSetFolderServiceImpl(Configuration.getInstance().getDAOFactory())
+					.listSetsOfUser(ownerId, getLoggedInUserId(), offset, limit, summaryOnly);
 	}
 
 	/**************************************************************************

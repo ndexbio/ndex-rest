@@ -19,6 +19,7 @@ import java.util.logging.Logger;
 import java.util.Arrays;
 
 import org.ndexbio.common.models.dao.AccessKeyResolver;
+import org.ndexbio.common.models.dao.DeletedFileIds;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -229,10 +230,46 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 	}
 
+	/**
+	 * Binds {@code ids} to consecutive parameters starting at {@code startIdx} (1-based).
+	 *
+	 * @return the next free parameter index
+	 */
+	private static int bindIds(PreparedStatement pst, int startIdx, List<UUID> ids) throws SQLException {
+	    int idx = startIdx;
+	    for (UUID id : ids) {
+	        pst.setObject(idx++, id);
+	    }
+	    return idx;
+	}
+
+	/** {@code (?,?,…)} placeholder list sized for {@code ids}. */
+	private static String placeholdersFor(List<UUID> ids) {
+	    return String.join(",", Collections.nCopies(ids.size(), "?"));
+	}
+
+	/**
+	 * Ids of the live {@code network} or {@code shortcut} rows parented anywhere in {@code folderTree}.
+	 * {@code table} is a literal supplied by this class, never caller input.
+	 */
+	private List<UUID> selectChildIdsIn(String table, List<UUID> folderTree) throws SQLException {
+	    List<UUID> ids = new ArrayList<>();
+	    String sql = "SELECT \"UUID\" FROM " + table + " WHERE parent IN (" + placeholdersFor(folderTree) + ")";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        bindIds(pst, 1, folderTree);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                ids.add((UUID) rs.getObject(1));
+	            }
+	        }
+	    }
+	    return ids;
+	}
+
 	@Override
-	public void deleteFolder(UUID folderId, boolean force, boolean permanent) throws SQLException {
+	public DeletedFileIds deleteFolder(UUID folderId, boolean force, boolean permanent) throws SQLException {
 	    Timestamp t = new Timestamp(System.currentTimeMillis());
-	    
+
 	    if (!force) {
 	        // Check if folder is empty
 	        FileCount counts = getFolderChildCounts(folderId);
@@ -240,80 +277,56 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            throw new SQLException("Folder is not empty. Use force=true to delete non-empty folders.");
 	        }
 	    }
-	    
+
+	    // The folder tree this delete covers: the named folder, plus every descendant folder at any
+	    // depth when forcing. Resolve the affected network/shortcut ids up front, while the rows are
+	    // still addressable, and return them so the caller can clear their Solr docs — the index lives
+	    // outside this transaction and is not cleaned up by the statements below.
+	    List<UUID> folderTree = new ArrayList<>();
+	    folderTree.add(folderId);
+	    if (force) {
+	        folderTree.addAll(getDescendantFolders(folderId));
+	    }
+	    String placeholders = placeholdersFor(folderTree);
+	    List<UUID> networkIds = force ? selectChildIdsIn("network", folderTree) : List.of();
+	    List<UUID> shortcutIds = force ? selectChildIdsIn("shortcut", folderTree) : List.of();
+
 	    if (permanent) {
 	        if (force) {
-	        	
-	            // Get all descendant folders recursively
-	            List<UUID> descendantFolders = getDescendantFolders(folderId);
-	            int totalPlaceholders = 1 + descendantFolders.size(); // 1 for folderId + rest
-
-	            String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
-	            
-	            // Get all networks in the folder tree for permission cleanup
-	            List<UUID> networkIds = new ArrayList<>();
-	            String getNetworksSql = "SELECT \"UUID\" FROM network WHERE parent IN (" + placeholders + ")";
-	            try (PreparedStatement pst = db.prepareStatement(getNetworksSql)) {
-	                pst.setObject(1, folderId);
-	                for (int i = 0; i < descendantFolders.size(); i++) {
-	                    pst.setObject(i + 2, descendantFolders.get(i));
-	                }
-	                try (ResultSet rs = pst.executeQuery()) {
-	                    while (rs.next()) {
-	                        networkIds.add((UUID) rs.getObject(1));
-	                    }
-	                }
-	            }
-	            
 	            // Delete network permissions for all networks in the folder tree
 	            if (!networkIds.isEmpty()) {
-	                String networkPlaceholders = String.join(",", Collections.nCopies(networkIds.size(), "?"));
-	                String deleteNetworkPermissionsSql = "DELETE FROM user_network_membership WHERE network_id IN (" + networkPlaceholders + ")";
+	                String deleteNetworkPermissionsSql = "DELETE FROM user_network_membership WHERE network_id IN (" + placeholdersFor(networkIds) + ")";
 	                try (PreparedStatement pst = db.prepareStatement(deleteNetworkPermissionsSql)) {
-	                    for (int i = 0; i < networkIds.size(); i++) {
-	                        pst.setObject(i + 1, networkIds.get(i));
-	                    }
+	                    bindIds(pst, 1, networkIds);
 	                    pst.executeUpdate();
 	                }
 	            }
-	            
+
 	            // Delete folder permissions for all folders in the tree
 	            String deleteFolderPermissionsSql = "DELETE FROM folder_permission WHERE folder_id IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(deleteFolderPermissionsSql)) {
-	                pst.setObject(1, folderId);
-	                for (int i = 0; i < descendantFolders.size(); i++) {
-	                    pst.setObject(i + 2, descendantFolders.get(i));
-	                }
+	                bindIds(pst, 1, folderTree);
 	                pst.executeUpdate();
 	            }
-	            
+
 	            // Delete all networks in the folder tree
 	            String deleteNetworksSql = "DELETE FROM network WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(deleteNetworksSql)) {
-	                pst.setObject(1, folderId);
-	                for (int i = 0; i < descendantFolders.size(); i++) {
-	                    pst.setObject(i + 2, descendantFolders.get(i));
-	                }
+	                bindIds(pst, 1, folderTree);
 	                pst.executeUpdate();
 	            }
-	            
+
 	            // Delete all shortcuts in the folder tree
 	            String deleteShortcutsSql = "DELETE FROM shortcut WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(deleteShortcutsSql)) {
-	                pst.setObject(1, folderId);
-	                for (int i = 0; i < descendantFolders.size(); i++) {
-	                    pst.setObject(i + 2, descendantFolders.get(i));
-	                }
+	                bindIds(pst, 1, folderTree);
 	                pst.executeUpdate();
 	            }
-	            
-	            // Delete all subfolders
+
+	            // Delete the folder and all subfolders
 	            String deleteSubfoldersSql = "DELETE FROM folder WHERE \"UUID\" IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(deleteSubfoldersSql)) {
-	                pst.setObject(1, folderId);
-	                for (int i = 0; i < descendantFolders.size(); i++) {
-	                    pst.setObject(i + 2, descendantFolders.get(i));
-	                }
+	                bindIds(pst, 1, folderTree);
 	                pst.executeUpdate();
 	            }
 	        } else {
@@ -323,7 +336,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                pst.setObject(1, folderId);
 	                pst.executeUpdate();
 	            }
-	            
+
 	            // Just delete the folder itself
 	            String deleteFolderSql = "DELETE FROM folder WHERE \"UUID\"=?";
 	            try (PreparedStatement pst = db.prepareStatement(deleteFolderSql)) {
@@ -333,45 +346,30 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        }
 	    } else {
 	        if (force) {
-	            // Get all descendant folders recursively
-	            List<UUID> descendantFolders = getDescendantFolders(folderId);
-	            int totalPlaceholders = 1 + descendantFolders.size(); // 1 for folderId + rest
-
-	            String placeholders = String.join(",", Collections.nCopies(totalPlaceholders, "?"));
-	            
 	            // Mark all networks as deleted
 	            String markNetworksSql = "UPDATE network SET modification_time = ?, is_deleted = true " +
 	                "WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(markNetworksSql)) {
 	                pst.setTimestamp(1, t);
-	                pst.setObject(2, folderId);
-	                for (int i = 0; i < descendantFolders.size(); i++) {
-	                    pst.setObject(i + 3, descendantFolders.get(i));
-	                }
+	                bindIds(pst, 2, folderTree);
 	                pst.executeUpdate();
 	            }
-	            
+
 	            // Mark all shortcuts as deleted
 	            String markShortcutsSql = "UPDATE shortcut SET modification_time = ?, is_deleted = true " +
 	            	"WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(markShortcutsSql)) {
 	                pst.setTimestamp(1, t);
-	                pst.setObject(2, folderId);
-	                for (int i = 0; i < descendantFolders.size(); i++) {
-	                    pst.setObject(i + 3, descendantFolders.get(i));
-	                }
+	                bindIds(pst, 2, folderTree);
 	                pst.executeUpdate();
 	            }
-	            
+
 	            // Mark all child folders as deleted
 	            String markFoldersSql = "UPDATE folder SET modification_time = ?, is_deleted = true " +
 	            	"WHERE parent IN (" + placeholders + ")";
 	            try (PreparedStatement pst = db.prepareStatement(markFoldersSql)) {
 	                pst.setTimestamp(1, t);
-	                pst.setObject(2, folderId);
-	                for (int i = 0; i < descendantFolders.size(); i++) {
-	                    pst.setObject(i + 3, descendantFolders.get(i));
-	                }
+	                bindIds(pst, 2, folderTree);
 	                pst.executeUpdate();
 	            }
 	        }
@@ -383,6 +381,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
                 pst.executeUpdate();
 	        }
 	    }
+
+	    return new DeletedFileIds(folderTree, networkIds, shortcutIds);
 	}
 	
 	@Override
