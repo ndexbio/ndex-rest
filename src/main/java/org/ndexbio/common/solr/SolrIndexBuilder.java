@@ -416,7 +416,7 @@ public class SolrIndexBuilder implements AutoCloseable {
 			return true;
 		} catch (Exception ex) {
 			failedNetworks.add(networkId.toString());
-			logger.warn("Failed to rebuild index for network {}: {}", networkId, ex.getMessage(), ex);
+			logger.warn("Failed to rebuild index for network {}: {}", networkId, ex.getMessage());
 			return false;
 		}
 	}
@@ -442,12 +442,12 @@ public class SolrIndexBuilder implements AutoCloseable {
 			}
 			failedNetworks.add(networkId.toString());
 			logger.warn("Failed to create local index for network {}: {}",
-					networkId, e4.getMessage(), e4);
+					networkId, e4.getMessage());
 			return false;
 		} catch (Exception e) {
 			failedNetworks.add(networkId.toString());
 			logger.warn("Failed to create local index for network {}: {}",
-					networkId, e.getMessage(), e);
+					networkId, e.getMessage());
 			return false;
 		}
 	}

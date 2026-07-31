@@ -53,15 +53,15 @@ public class Cx2NodeIndexServiceImpl implements Cx2NodeIndexService {
 
 		// Create the attribute name mapping table from the attribute declarations.
 		//
-		// canRead() is false both when the file is absent and when it (or its directory) cannot
-		// be read by this process. Those are very different situations - a permission problem
-		// used to be silently indistinguishable from an empty network, which let a reindex
-		// running as the wrong user quietly produce empty indexes - so fail here and say which
-		// one it was.
-		File aspectDir = new File(pathPrefix);
+		// Not being able to read this file used to return an empty map, which was
+		// indistinguishable from a network with nothing to index - that is how a reindex running
+		// as the wrong user quietly produced empty indexes. Fail instead, naming the path and the
+		// user, which is enough to tell a permission problem from missing data.
 		File declFile = new File(pathPrefix + CxAttributeDeclaration.ASPECT_NAME);
 		if (!declFile.canRead()) {
-			throw new NdexException(describeUnreadableDecl(aspectDir, declFile, networkId));
+			throw new NdexException("Cannot index network " + networkId + ": "
+					+ declFile.getAbsolutePath() + " is not accessible to user '"
+					+ System.getProperty("user.name") + "'");
 		}
 
 		CxAttributeDeclaration[] declarations = om.readValue(declFile, CxAttributeDeclaration[].class);
@@ -106,30 +106,6 @@ public class Cx2NodeIndexServiceImpl implements Cx2NodeIndexService {
 		addFunctionTermEntries(pathPrefix, result);
 
 		return result;
-	}
-
-	/**
-	 * Explains why {@code declFile} could not be read. {@code File.canRead()} collapses
-	 * "missing" and "no permission" into a single false, so probe both the file and its
-	 * directory and name the OS user, which is what identifies a permission problem.
-	 */
-	private String describeUnreadableDecl(File aspectDir, File declFile, String networkId) {
-		String user = System.getProperty("user.name");
-
-		if (!aspectDir.exists()) {
-			return "Cannot index network " + networkId + ": CX2 aspect directory is missing - "
-					+ aspectDir.getAbsolutePath();
-		}
-		if (!aspectDir.canRead()) {
-			return "Cannot index network " + networkId + ": CX2 aspect directory is not readable by user '"
-					+ user + "' - " + aspectDir.getAbsolutePath();
-		}
-		if (declFile.exists()) {
-			return "Cannot index network " + networkId + ": " + CxAttributeDeclaration.ASPECT_NAME
-					+ " is present but not readable by user '" + user + "' - " + declFile.getAbsolutePath();
-		}
-		return "Cannot index network " + networkId + ": " + CxAttributeDeclaration.ASPECT_NAME
-				+ " is missing - " + declFile.getAbsolutePath();
 	}
 
 	private void addNodeAspectEntries(String pathPrefix, ObjectMapper om,

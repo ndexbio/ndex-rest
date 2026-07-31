@@ -164,7 +164,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                                 (foldersProcessed * 100) / totalFolders);
                     }
                 } catch (Exception e) {
-                    logger.warn("Failed to reindex folder {}: {}", folderId, e.getMessage(), e);
+                    logger.warn("Failed to reindex folder {}: {}", folderId, e.getMessage());
                 }
             }
         }
@@ -218,7 +218,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                                 (shortcutsProcessed * 100) / totalShortcuts);
                     }
                 } catch (Exception e) {
-                    logger.warn("Failed to reindex shortcut {}: {}", shortcutId, e.getMessage(), e);
+                    logger.warn("Failed to reindex shortcut {}: {}", shortcutId, e.getMessage());
                 }
             }
         }
@@ -295,7 +295,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                                 (networksProcessed * 100) / totalNetworks);
                     }
                 } catch (Exception e) {
-                    logger.warn("Failed to reindex network {}: {}", networkId, e.getMessage(), e);
+                    logger.warn("Failed to reindex network {}: {}", networkId, e.getMessage());
                 }
             }
         }
