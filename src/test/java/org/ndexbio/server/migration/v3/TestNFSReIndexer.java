@@ -206,7 +206,8 @@ public class TestNFSReIndexer {
         for (ILoggingEvent e : failures) {
             org.junit.Assert.assertEquals("reindex failures must be WARN, not INFO",
                     Level.WARN, e.getLevel());
-            org.junit.Assert.assertNotNull("the exception must be logged", e.getThrowableProxy());
+            org.junit.Assert.assertNull("message only - no stack trace in reindex failures",
+                    e.getThrowableProxy());
             if (e.getFormattedMessage().contains(failing.toString())) {
                 sawUnreadable = true;
                 org.junit.Assert.assertTrue("the reason must be in the message: "

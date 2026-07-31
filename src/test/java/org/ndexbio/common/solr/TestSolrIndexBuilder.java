@@ -109,8 +109,8 @@ public class TestSolrIndexBuilder {
 				event.getFormattedMessage().contains(NETWORK_A.toString()));
 		assertTrue("the message must carry the reason: " + event.getFormattedMessage(),
 				event.getFormattedMessage().contains("not readable by user"));
-		assertTrue("the exception itself must be logged so the stack trace survives",
-				event.getThrowableProxy() != null);
+		assertTrue("the log line must stay small - message only, no stack trace",
+				event.getThrowableProxy() == null);
 	}
 
 	@Test

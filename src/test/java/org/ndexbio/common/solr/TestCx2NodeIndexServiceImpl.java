@@ -1,6 +1,7 @@
 package org.ndexbio.common.solr;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -26,10 +27,9 @@ import org.ndexbio.model.exceptions.NdexException;
  * Unit tests for {@link Cx2NodeIndexServiceImpl}.
  *
  * <p>The reason this class exists: an unreadable aspect directory used to be indistinguishable
- * from a network with nothing to index, because {@code File.exists()} returns false on permission
- * denial rather than throwing. A reindex running as the wrong OS user therefore produced empty
- * Solr cores while reporting success. Every "cannot read" path below must now throw and say which
- * situation it hit.
+ * from a network with nothing to index, so a reindex running as the wrong OS user produced empty
+ * Solr cores while reporting success. Every "cannot read" path below must now throw rather than
+ * return an empty map, and say so in one line naming the path and the user.
  */
 @RunWith(JUnit4.class)
 public class TestCx2NodeIndexServiceImpl {
@@ -62,8 +62,12 @@ public class TestCx2NodeIndexServiceImpl {
 
 	// ------------------------------------------------------------------ helpers
 
+	private File aspectDirPath() {
+		return new File(tmpFolder.getRoot(), "data/" + NETWORK_ID + "/aspects_cx2");
+	}
+
 	private File aspectDir() throws IOException {
-		File dir = new File(tmpFolder.getRoot(), "data/" + NETWORK_ID + "/aspects_cx2");
+		File dir = aspectDirPath();
 		Files.createDirectories(dir.toPath());
 		return dir;
 	}
@@ -105,34 +109,42 @@ public class TestCx2NodeIndexServiceImpl {
 
 	// ------------------------------------------- unreadable / absent: must throw
 
-	@Test
-	public void unreadableAspectDirectoryThrowsNamingDirAndUser() throws Exception {
-		assumeNotRoot();
-		File dir = aspectDir();
-		write(dir, "attributeDeclarations", DECL_ALIAS_FORM);
-		write(dir, "nodes", "[{\"id\":0,\"v\":{\"n\":\"FBXL13\"}}]");
-		denyAccess(dir);
-
-		String msg = expectNdexException(service());
-		assertTrue("should report the directory is unreadable, got: " + msg,
-				msg.contains("not readable"));
-		assertTrue("should name the aspect directory, got: " + msg,
-				msg.contains(dir.getAbsolutePath()));
+	/**
+	 * The message deliberately states one known fact - this path could not be read, by this user -
+	 * without probing the filesystem to guess why. Introspecting to produce a nicer error is how
+	 * an error path acquires its own failure modes, and the earlier attempt at it reported a
+	 * permission problem as missing data.
+	 */
+	private void assertNotAccessible(String msg, File declFile) {
+		assertTrue("should say the path is not accessible, got: " + msg,
+				msg.contains("is not accessible"));
+		assertTrue("should name the declarations file, got: " + msg,
+				msg.contains(declFile.getAbsolutePath()));
 		assertTrue("should name the OS user, got: " + msg,
 				msg.contains(System.getProperty("user.name")));
 		assertTrue("should name the network, got: " + msg, msg.contains(NETWORK_ID));
 	}
 
 	@Test
-	public void missingAspectDirectoryThrowsMissing() throws Exception {
-		// no directory created at all
-		String msg = expectNdexException(service());
-		assertTrue("should report the directory is missing, got: " + msg, msg.contains("missing"));
-		assertTrue("should name the network, got: " + msg, msg.contains(NETWORK_ID));
+	public void unreadableAspectDirectoryThrows() throws Exception {
+		assumeNotRoot();
+		File dir = aspectDir();
+		write(dir, "attributeDeclarations", DECL_ALIAS_FORM);
+		write(dir, "nodes", "[{\"id\":0,\"v\":{\"n\":\"FBXL13\"}}]");
+		denyAccess(dir);
+
+		assertNotAccessible(expectNdexException(service()), new File(dir, "attributeDeclarations"));
 	}
 
 	@Test
-	public void unreadableDeclarationFileThrowsNotReadable() throws Exception {
+	public void missingAspectDirectoryThrows() throws Exception {
+		// no directory created at all
+		assertNotAccessible(expectNdexException(service()),
+				new File(aspectDirPath(), "attributeDeclarations"));
+	}
+
+	@Test
+	public void unreadableDeclarationFileThrows() throws Exception {
 		assumeNotRoot();
 		File dir = aspectDir();
 		write(dir, "attributeDeclarations", DECL_ALIAS_FORM);
@@ -140,25 +152,26 @@ public class TestCx2NodeIndexServiceImpl {
 		File declFile = new File(dir, "attributeDeclarations");
 		denyAccess(declFile);
 
-		String msg = expectNdexException(service());
-		assertTrue("should report the file is present but unreadable, got: " + msg,
-				msg.contains("not readable"));
-		assertTrue("should name the declarations file, got: " + msg,
-				msg.contains(declFile.getAbsolutePath()));
-		assertTrue("should name the OS user, got: " + msg,
-				msg.contains(System.getProperty("user.name")));
+		assertNotAccessible(expectNdexException(service()), declFile);
 	}
 
 	@Test
-	public void missingDeclarationFileThrowsMissing() throws Exception {
+	public void missingDeclarationFileThrows() throws Exception {
 		File dir = aspectDir();
 		write(dir, "nodes", "[{\"id\":0,\"v\":{\"n\":\"FBXL13\"}}]");
 
+		assertNotAccessible(expectNdexException(service()), new File(dir, "attributeDeclarations"));
+	}
+
+	@Test
+	public void theFailureMessageIsASingleLineWithNoIntrospection() throws Exception {
+		// no directory at all - the reporting path must not walk the filesystem to explain itself
 		String msg = expectNdexException(service());
-		assertTrue("should report the declarations file is missing, got: " + msg,
+		assertFalse("must not claim to know whether the data is missing, got: " + msg,
 				msg.contains("missing"));
-		assertTrue("should name attributeDeclarations, got: " + msg,
-				msg.contains("attributeDeclarations"));
+		assertFalse("must not guess at an ancestor directory, got: " + msg,
+				msg.contains("denied access at"));
+		assertEquals("the message must stay one line", 1, msg.split("\n").length);
 	}
 
 	@Test

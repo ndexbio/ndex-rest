@@ -200,11 +200,12 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 		try {
 			_factory.getCoreAdminRequestUnloadCore(coreName, true, true);
 		} catch (HttpSolrClient.RemoteSolrException e4) {
-			logger.error(e4.code() + " - " + e4.getMessage(), e4);
+			// A core that isn't there is the normal drop-before-rebuild case, so it is not worth
+			// reporting. Anything else is rethrown, and the caller logs it with its own context.
 			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
 				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
-			}	
-		} 
+			}
+		}
 	}
 
 	/**
