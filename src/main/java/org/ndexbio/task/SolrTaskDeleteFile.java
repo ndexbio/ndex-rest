@@ -23,15 +23,18 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
     private static final TaskType taskType = TaskType.SYS_SOLR_DELETE_NETWORK;
 	private final VisibilityType visibilityType;
 	private final boolean globalIdxOnly ;
+	private final FileType fileType;
 
 	public SolrTaskDeleteFile(UUID fileId, VisibilityType visibilityType) {
-		this(fileId, visibilityType, true);
+		this(fileId, visibilityType, true, FileType.NETWORK);
 	}
-	public SolrTaskDeleteFile(UUID fileId, VisibilityType visibilityType, boolean globalIdxOnly) {
+	public SolrTaskDeleteFile(UUID fileId, VisibilityType visibilityType, boolean globalIdxOnly,
+			FileType fileType) {
 		super();
 		this.fileId = fileId;
 		this.visibilityType = visibilityType;
 		this.globalIdxOnly = globalIdxOnly;
+		this.fileType = fileType;
 	}
 
 
@@ -41,8 +44,10 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 		
 		try(FolderIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getFolderIndexManager()) {
 			globalIdx.delete(id, visibilityType);
-			if (!globalIdxOnly) {
-				try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
+			// Only networks have a per-network query core. Asking Solr to unload one for a
+			// folder or shortcut can never succeed - it just costs a round trip and an error.
+			if (!globalIdxOnly && fileType == FileType.NETWORK) {
+				try (SingleNetworkSolrIdxManager idxManager = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(id)) {
 					idxManager.dropIndex();
 				}
 			}

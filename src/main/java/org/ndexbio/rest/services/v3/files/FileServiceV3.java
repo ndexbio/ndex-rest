@@ -31,6 +31,7 @@ import org.ndexbio.rest.services.v3.files.handlers.AbstractFileTypeHandler;
 import org.ndexbio.rest.services.v3.files.handlers.FileTypeHandlerFactory;
 import org.ndexbio.task.NdexServerQueue;
 import org.ndexbio.task.SolrTaskDeleteFile;
+import org.ndexbio.task.SolrTaskDeleteFiles;
 import org.ndexbio.task.SolrTaskRebuildFileIdx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +56,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.NotFoundException;
 import java.sql.SQLException;
 
+import org.ndexbio.common.models.dao.DeletedFileIds;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
@@ -237,8 +239,13 @@ public class FileServiceV3 extends NdexService {
 	    }
 
 	    try (TrashDAO dao = Configuration.getInstance().getDAOFactory().getTrashDAO()) {
-	        dao.permanentlyDeleteAllTrashedItemsOfUser(userId);
+	        DeletedFileIds purged = dao.permanentlyDeleteAllTrashedItemsOfUser(userId);
 	        dao.commit();
+	        // Purging rows does not touch Solr, so clear the docs of everything removed or they linger
+	        // as unreachable hits forever (nothing will ever re-index over a deleted UUID).
+	        if (!purged.isEmpty()) {
+	            NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFiles(userId, purged));
+	        }
 	    }
 
 	    return;
@@ -285,8 +292,13 @@ public class FileServiceV3 extends NdexService {
             }
 
             // Permanently delete the item
-            dao.permanentlyDeleteTrashedItem(itemId, type);
+            DeletedFileIds purged = dao.permanentlyDeleteTrashedItem(itemId, type);
             dao.commit();
+            // For a folder this cascades to the children trashed alongside it, so clear the Solr docs
+            // of everything purged rather than just the named item.
+            if (!purged.isEmpty()) {
+                NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFiles(itemId, purged));
+            }
         }
     }
 

@@ -30,634 +30,254 @@
  */
 package org.ndexbio.common.solr;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 import org.apache.solr.client.solrj.SolrQuery;
-import org.apache.solr.client.solrj.SolrRequest.METHOD;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
-import org.apache.solr.client.solrj.request.ConfigSetAdminRequest;
-import org.apache.solr.client.solrj.request.CoreAdminRequest;
-import org.apache.solr.client.solrj.response.ConfigSetAdminResponse;
-import org.apache.solr.client.solrj.response.CoreAdminResponse;
-import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.common.util.NamedList;
-import org.ndexbio.common.persistence.CX2NetworkLoader;
-import org.ndexbio.cx2.aspect.element.core.CxAttributeDeclaration;
 import org.ndexbio.cx2.aspect.element.core.CxNode;
-import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
-import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
-import org.ndexbio.cxio.aspects.datamodels.NodeAttributesElement;
-
-import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.tools.SearchUtilities;
-import org.ndexbio.rest.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+/**
+ * Manages the per-network Solr core that backs node queries on a single network.
+ *
+ * <p>Every index-creating method returns the number of documents that actually landed in
+ * Solr, verified by querying the core after the commit. Callers pass the node count the
+ * database reports so that a rebuild which produces no documents for a network that has
+ * nodes fails loudly instead of leaving an empty core behind reporting success.
+ */
+public class SingleNetworkSolrIdxManager implements AutoCloseable {
 
-public class SingleNetworkSolrIdxManager implements AutoCloseable{
+	private static final Logger logger = LoggerFactory.getLogger(SingleNetworkSolrIdxManager.class);
 
-	private String solrUrl;
-	
-	private String collectionName; 
-	private HttpSolrClient client;
-	
-	static private final  int batchSize = NodeIndexDocumentBuilder.DEFAULT_BATCH_SIZE;
-	
+	private final String collectionName;
+	private final SolrClientWrapper client;
+	private final Cx2NodeIndexService nodeIndexService;
+
+	static private final int batchSize = NodeIndexDocumentBuilder.DEFAULT_BATCH_SIZE;
+
 	//NDEx will auto create index for networks with node count larger than this value
 	// other wise it will delay the creation until the first time this network is queried.
-	static public final int AUTOCREATE_THRESHHOLD= 100;
-	
-	private int counter ; 
-	private Collection<SolrInputDocument> docs ;
-	
+	static public final int AUTOCREATE_THRESHHOLD = 100;
+
+	private static final String NODE_CONFIG_SET = "ndex-nodes";
+	private static final String NODE_CONFIG_SET_TEMPLATE = "ndex-nodes-template";
+
+	/**
+	 * Guards core creation so two concurrent queries on the same unindexed network don't both
+	 * try to create its core. Striped rather than one lock per network: bounded in size, and
+	 * unrelated networks no longer serialize behind a single global lock.
+	 */
+	private static final int CORE_CREATION_STRIPES = 64;
+	private static final Object[] CORE_CREATION_LOCKS = newLockStripes();
+
+	private int counter;
+	private Collection<SolrInputDocument> docs;
+
 	public static final String ID = "id";
-	public  static final String TYPE = "type";
-	public  static final String COMPLEX = "complex";
-	public  static final String PROTEINFAMILY = "proteinfamily";
-	public  static final String MEMBER= "member";
-	
+
 	private static final String NAME = "nodeName";
-	public static final String ALIAS= "alias";
 	public static final String TEXT = "text";
-		
-	public SingleNetworkSolrIdxManager(String networkUUID) {
-		collectionName = networkUUID;
-		solrUrl = Configuration.getInstance().getSolrURL();
-		client = new HttpSolrClient.Builder(solrUrl).build();
+
+	private static Object[] newLockStripes() {
+		Object[] stripes = new Object[CORE_CREATION_STRIPES];
+		for (int i = 0; i < stripes.length; i++) {
+			stripes[i] = new Object();
+		}
+		return stripes;
 	}
-	
-	public SolrDocumentList getNodeIdsByQuery(String query, int limit) throws SolrServerException, IOException, NdexException {
-				
-		client.setBaseURL(solrUrl+ "/" + collectionName);
+
+	public SingleNetworkSolrIdxManager(String networkId, SolrClientWrapper client,
+			Cx2NodeIndexService nodeIndexService) {
+		this.collectionName = networkId;
+		this.client = client;
+		this.nodeIndexService = nodeIndexService;
+	}
+
+	public SolrDocumentList getNodeIdsByQuery(String query, int limit)
+			throws SolrServerException, IOException, NdexException {
 
 		SolrQuery solrQuery = new SolrQuery();
-		
+
 		solrQuery.setQuery(SearchUtilities.preprocessSearchTerm(query)).setFields(ID);
-    	solrQuery.set("defType", "edismax");
-		solrQuery.set("qf", NAME + " " + CxNode.REPRESENTS + " " + ALIAS + " " + TEXT);
+		solrQuery.set("defType", "edismax");
+		solrQuery.set("qf", NAME + " " + CxNode.REPRESENTS + " " + NodeIndexFields.ALIAS + " " + TEXT);
 		solrQuery.setStart(0);
-		if (limit >0)
+		if (limit > 0)
 			solrQuery.setRows(limit);
-		else 
+		else
 			solrQuery.setRows(30000000);
-		
-		try {
-			QueryResponse rsp = client.query(solrQuery, METHOD.POST);
-			SolrDocumentList dds = rsp.getResults();
-			return dds;
-		} catch (BaseHttpSolrClient.RemoteSolrException e) {
-			throw NetworkGlobalIndexManager.convertException(e, collectionName);
+
+		return client.query(collectionName, solrQuery).getResults();
+	}
+
+	/**
+	 * Makes sure this network's query core exists, creating and populating it when the network
+	 * is small enough to index on demand.
+	 *
+	 * <p>Any failure while building the index propagates unchanged: the reason a rebuild could
+	 * not read a network's aspect files is the whole diagnostic, so it must not be replaced by
+	 * a generic message here.
+	 *
+	 * @param expectedNodeCount node count the database reports for this network
+	 * @throws NdexException when the core is absent and cannot be created now
+	 */
+	public void ensureReady(int expectedNodeCount)
+			throws SolrServerException, IOException, NdexException {
+
+		if (client.coreExists(collectionName)) {
+			return;
+		}
+
+		if (expectedNodeCount >= AUTOCREATE_THRESHHOLD) {
+			throw new NdexException(
+					"NDEx server hasn't finished creating index on this network yet. Please try again later");
+		}
+
+		synchronized (coreCreationLock()) {
+			// another thread may have created it while we waited
+			if (client.coreExists(collectionName)) {
+				return;
+			}
+			createDefaultIndex(expectedNodeCount);
 		}
 	}
-	
-	public boolean isReady (boolean autoCreate) throws SolrServerException, IOException, NdexException {
-		return coreIsReady(this, autoCreate);
+
+	private Object coreCreationLock() {
+		int stripe = Math.abs(collectionName.hashCode() % CORE_CREATION_STRIPES);
+		return CORE_CREATION_LOCKS[stripe];
 	}
-	private static synchronized boolean coreIsReady(SingleNetworkSolrIdxManager mgr, boolean autoCreate) throws SolrServerException, IOException, NdexException {
-		CoreAdminResponse rp = CoreAdminRequest.getStatus(mgr.getNetworkId(), mgr.getClient());
-		//	CoreStatus r = CoreAdminRequest.getCoreStatus(mgr.getNetworkId(), mgr.getClient());
-		//int d = rp.getStatus();
-		NamedList<NamedList<Object>> o1 = rp.getCoreStatus();
-		//System.out.println(o1);
-		NamedList<Object> o11 = o1.get(mgr.getNetworkId());
-		//System.out.println(o11);
-		
-		//NamedList<Object> o2 = rp.getResponse();
-		//System.out.println(o2);
-		if ( o11.size() !=0)
-			return true;
-		if ( autoCreate) {
-			mgr.createDefaultIndex();
-			return true;
+
+	/**
+	 * Creates this network's query core and populates it.
+	 *
+	 * @param extraIndexFields extra node attributes to index; when null the shared
+	 *                         {@value #NODE_CONFIG_SET} configSet is used
+	 * @param expectedNodeCount node count the database reports for this network
+	 * @return number of documents committed to Solr
+	 */
+	public int createIndex(Set<String> extraIndexFields, int expectedNodeCount)
+			throws SolrServerException, IOException, NdexException {
+
+		if (extraIndexFields == null) {
+			return createDefaultIndex(expectedNodeCount);
 		}
-		return false;
-	}
-	
-	
-	
-	public void createIndex(Set<String> extraIndexFields) throws SolrServerException, IOException, NdexException {
-		
-		if ( extraIndexFields == null) {
-			 createDefaultIndex();
-			 return;
-		}
-		
+
 		//create a configSet from template first.
-		ConfigSetAdminRequest.Create confSetCreator = new ConfigSetAdminRequest.Create();
-		confSetCreator.setBaseConfigSetName("ndex-nodes-template");
-		confSetCreator.setConfigSetName(collectionName);
-		
-		ConfigSetAdminResponse cr = confSetCreator.process(client);
-		
-		if ( cr.getStatus() != 0 ) {
-			throw new NdexException("Failed to create Solr ConfigSet " + collectionName);
-		}
-		
-		//CollectionAdminRequest.Create creator = CollectionAdminRequest.createCollection(collectionName,"ndex-nodes",1 , 1); 
-		CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
-		creator.setCoreName(collectionName);
-		creator.setConfigSet(
-				collectionName); 
-		creator.setIsLoadOnStartup(Boolean.FALSE);
-		creator.setIsTransient(Boolean.TRUE); 
-		
-	//	"data_driven_schema_configs");
-		CoreAdminResponse foo = creator.process(client);	
-	
-		if ( foo.getStatus() != 0 ) {
-			throw new NdexException ("Failed to create solrIndex for network " + collectionName + ". Error: " + foo.getResponseHeader().toString());
-		}
-		
-		client.setBaseURL(solrUrl + "/" + collectionName);
+		client.createConfigSet(collectionName, NODE_CONFIG_SET_TEMPLATE);
+		client.createCore(collectionName, collectionName);
 
-		//extend the schema
-	/*	if  ( extraIndexFields !=null ) {
-			for (String fieldName: extraIndexFields ) {
-				 Map<String, Object> fieldAttributes = new LinkedHashMap<>();
-				 fieldAttributes.put("name", fieldName);
-				 fieldAttributes.put("type", "text_ws");
-				 fieldAttributes.put("stored", false);
-				 fieldAttributes.put("required", false);
-				 SchemaRequest.AddField addFieldUpdateSchemaRequest = new SchemaRequest.AddField(fieldAttributes);
-				 SchemaResponse.UpdateResponse addFieldResponse = addFieldUpdateSchemaRequest.process(client);
-				 System.out.println(addFieldResponse.getStatus());
-			}
-		}
-		
-		 SchemaRequest.Fields fieldsSchemaRequest = new SchemaRequest.Fields();
-		 SchemaResponse.FieldsResponse currentFieldsResponse = fieldsSchemaRequest.process(client);
-		 List<Map<String, Object>> currentFields = currentFieldsResponse.getFields();
-		 System.out.println(currentFields);
-	*/	
-		counter = 0;
-		docs = new ArrayList<>(batchSize);
-			
-		Map<Long,NodeIndexEntry> tab = createIndexDocsFromCx2(collectionName);
-		for ( NodeIndexEntry e : tab.values()) {
-			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases(),e.getText());
-		}
-		
-		commit();
+		return populateIndex(expectedNodeCount);
 	}
-	
-	public void createIndexFromCx2 (Set<String> extraIndexFields) throws NdexException, SolrServerException, IOException {
-		if (extraIndexFields !=null) 
+
+	/**
+	 * Creates this network's query core from its CX2 aspect files and populates it.
+	 *
+	 * @param extraIndexFields must be null; extra attribute indexing is not implemented
+	 * @param expectedNodeCount node count the database reports for this network
+	 * @return number of documents committed to Solr
+	 */
+	public int createIndexFromCx2(Set<String> extraIndexFields, int expectedNodeCount)
+			throws NdexException, SolrServerException, IOException {
+
+		if (extraIndexFields != null)
 			throw new NdexException("Additional node attribute indexing is not implmented yet.");
-		
-		createDefaultIndex();
-	} 
-	
-	
-	private void createDefaultIndex() throws SolrServerException, IOException, NdexException {
 
-		createNewCore();
-		
-		Map<Long,NodeIndexEntry> tab =  createIndexDocsFromCx2(collectionName);
-		for ( NodeIndexEntry e : tab.values()) {
-			/*if ( e.isMemberIsToBeIndexed() && e.getMembers().size()>0) {
-				e.getRepresents().addAll(e.getMembers());
-			}*/
-			addNodeIndex(e.getId(), e.getName(),e.getRepresents() ,e.getAliases(),e.getText());
-		}
-		
-		commit();
+		return createDefaultIndex(expectedNodeCount);
 	}
 
-	private void createNewCore() throws SolrServerException, IOException, NdexException {
-		CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
-		creator.setCoreName(collectionName);
-		creator.setConfigSet(
-				"ndex-nodes"); 
-		creator.setIsLoadOnStartup(Boolean.FALSE);
-		creator.setIsTransient(Boolean.TRUE); 
-		
-	//	"data_driven_schema_configs");
-		CoreAdminResponse foo = creator.process(client);	
-	
-		if ( foo.getStatus() != 0 ) {
-			throw new NdexException ("Failed to create solrIndex for network " + collectionName + ". Error: " + foo.getResponseHeader().toString());
-		}
-		
-		client.setBaseURL(solrUrl + "/" + collectionName);
+	private int createDefaultIndex(int expectedNodeCount)
+			throws SolrServerException, IOException, NdexException {
+
+		client.createCore(collectionName, NODE_CONFIG_SET);
+
+		return populateIndex(expectedNodeCount);
+	}
+
+	/**
+	 * Loads the node index entries, sends them to Solr in batches, commits, then reports how
+	 * many documents Solr actually holds.
+	 */
+	private int populateIndex(int expectedNodeCount)
+			throws SolrServerException, IOException, NdexException {
 
 		counter = 0;
 		docs = new ArrayList<>(batchSize);
 
-	}
-	
+		Map<Long, NodeIndexEntry> tab = nodeIndexService.loadNodeIndexEntries(collectionName);
+		for (NodeIndexEntry e : tab.values()) {
+			addNodeIndex(e.getId(), e.getName(), e.getRepresents(), e.getAliases(), e.getText());
+		}
 
-	
+		// Commit unconditionally. The trailing batch may be empty - when the entry count is an
+		// exact multiple of batchSize every document has already been flushed - and skipping
+		// the commit in that case would leave the whole index uncommitted and unsearchable.
+		client.commit(collectionName, docs, true);
+		docs.clear();
+
+		int committed = getCommittedDocCount();
+		verifyDocCount(committed, expectedNodeCount);
+		return committed;
+	}
+
+	/**
+	 * Asks Solr how many documents are in the core, rather than trusting the count of documents
+	 * we tried to send. This catches a failed commit as well as a failed build.
+	 */
+	private int getCommittedDocCount() throws SolrServerException, IOException, NdexException {
+		SolrQuery countQuery = new SolrQuery("*:*");
+		countQuery.setRows(0);
+		return (int) client.query(collectionName, countQuery).getResults().getNumFound();
+	}
+
+	private void verifyDocCount(int committed, int expectedNodeCount) throws NdexException {
+
+		if (committed == 0 && expectedNodeCount > 0) {
+			throw new NdexException("Created Solr query index for network " + collectionName
+					+ " but it holds no documents, while the database reports " + expectedNodeCount
+					+ " nodes. Queries on this network would return no results.");
+		}
+
+		if (committed < expectedNodeCount) {
+			// Normal: nodes carrying no name, represents or alias attribute are not indexed.
+			logger.warn("Solr query index for network {} holds {} documents for {} nodes; "
+					+ "nodes without an indexable attribute are not indexed.",
+					collectionName, committed, expectedNodeCount);
+		}
+	}
+
 	public void dropIndex() throws IOException, SolrServerException, NdexException {
-		try {
-			client.setBaseURL(solrUrl);
-		//	CollectionAdminRequest.deleteCollection(collectionName).process(client);
-			
-			CoreAdminRequest.unloadCore(collectionName, true, true, client);
-		} catch (HttpSolrClient.RemoteSolrException e4) {
-			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
-				e4.printStackTrace();
-				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
-			}	
-		} 
-		
-		/**
-		 * One reference implementation to check if a core exists
-		 * CommonsHttpSolrServer adminServer = new
-			CommonsHttpSolrServer(solrRootUrl);
-			CoreAdminResponse status =
-			CoreAdminRequest.getStatus(coreName, adminServer);
-
-			return status.getCoreStatus(coreName).get("instanceDir") != null;
-		 */
+		client.dropCore(collectionName);
 	}
-	
-	private void addNodeIndex(Long id, String name, Collection<String> represents, Collection<String> alias, Collection<String> txtArray) throws SolrServerException, IOException {
-		
-		SolrInputDocument doc = NodeIndexDocumentBuilder.buildNodeDocument(id, name, represents, alias, txtArray);
+
+	private void addNodeIndex(Long id, String name, Collection<String> represents,
+			Collection<String> alias, Collection<String> txtArray)
+			throws SolrServerException, IOException {
+
+		SolrInputDocument doc = NodeIndexDocumentBuilder.buildNodeDocument(id, name, represents,
+				alias, txtArray);
 		docs.add(doc);
-		counter ++;
-		if ( counter % batchSize == 0 ) {
-			client.add(docs);
-			docs.clear();
-		}
-
-	}
-
-	
-	private void commit() throws SolrServerException, IOException {
-		if ( docs.size()>0 ) {
-			client.add(docs);
-			client.commit(true,true);
+		counter++;
+		if (counter % batchSize == 0) {
+			client.add(collectionName, docs);
 			docs.clear();
 		}
 	}
-	
-	
+
 	@Override
-	public void close () {
-		try {
-			client.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-	
-/*	private static Map<Long,NodeIndexEntry> createIndexDocs(String coreName) throws JsonProcessingException, IOException, NdexException {
-		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
-		
-		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/aspects/"; 
-	
-		//go through node aspect
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + "nodes")) {
-
-			Iterator<NodesElement> it = new ObjectMapper().readerFor(NodesElement.class).readValues(inputStream);
-
-			while (it.hasNext()) {
-	        	NodesElement node = it.next();
-	        	
-	        	List<String> represents = getIndexableTerms(node.getNodeRepresents());
-	        	if ( node.getNodeName() != null || represents.size() > 0) {
-	        		NodeIndexEntry e = new NodeIndexEntry(node.getId(), node.getNodeName());
-	        		if ( represents .size() > 0 ) 
-	        			e.setRepresents(represents);	     
-	        		result.put(node.getId(), e);
-	        	}
-			}
-		}
-		
-		// go through Function Term if it exists
-		java.nio.file.Path functionTermAspect = Paths.get(pathPrefix + FunctionTermElement.ASPECT_NAME);
-
-		if ( Files.exists(functionTermAspect)) { 
-			try (FileInputStream inputStream = new FileInputStream(pathPrefix + FunctionTermElement.ASPECT_NAME)) {
-
-				Iterator<FunctionTermElement> it = new ObjectMapper().readerFor(FunctionTermElement.class).readValues(inputStream);
-
-				while (it.hasNext()) {
-		        	FunctionTermElement functionTerm = it.next();
-		        	List<String> terms = NetworkGlobalIndexManager.getIndexableStringsFromFunctionTerm(functionTerm);
-		        	if ( terms.size() > 0 ) {
-			        	NodeIndexEntry e = result.get(functionTerm.getNodeID());
-		        		if ( e == null ) {  // need to add a new entry
-		        			e = new NodeIndexEntry(functionTerm.getNodeID(), null);
-		        			result.put(functionTerm.getNodeID(), e);
-		        		}	        	
-		        		e.setRepresents(terms);
-		        	}	
-				}
-				
-				
-			}	
-		}
-		
-		//go through node attributes to find aliases
-
-		try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(coreName,NodeAttributesElement.ASPECT_NAME, 
-				   NodeAttributesElement.class, Configuration.getInstance().getNdexRoot() + "/data/")) {
-	//	try (FileInputStream inputStream = new FileInputStream(pathPrefix + NodeAttributesElement.ASPECT_NAME)) {
-
-	//		Iterator<NodeAttributesElement> it = new ObjectMapper().readerFor(NodeAttributesElement.class).readValues(inputStream);
-
-			while (it.hasNext()) {
-	        	NodeAttributesElement attr = it.next();
-	        	String attrName = attr.getName().toLowerCase(); // doing case insensitive check
-	        	if ( attrName.equals("alias")) {
-	        		List<String>  l = getIndexableTerms(attr);
-	        		if ( l.size() > 0 ) {
-	        			NodeIndexEntry e = result.get(attr.getPropertyOf());
-	        			if ( e == null) {
-	        				e = new NodeIndexEntry(attr.getPropertyOf(), null);
-	        				result.put(attr.getPropertyOf(), e);
-	        			}
-	        			e.setAliases(l);
-	        		}
-	        	} else if ( attrName.equals("type")) {
-	        		if ( (attr.getDataType() == null || attr.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) && 
-	        				attr.getValue() != null && attr.getValue().length()>0 ) {
-	        			String typeStr = attr.getValue().trim().toLowerCase();
-	        			if ( typeStr.equals("complex") || typeStr.equals("proteinfamily")) {
-		        			NodeIndexEntry e = result.get(attr.getPropertyOf());
-		        			if ( e != null) {
-		        				e.setMemberIsToBeIndexed(true);
-		        			} else {
-		        				throw new NdexException("Node " + attr.getPropertyOf() + " is not found in node Aspect.");
-		        			}
-	        			}
-	        		}	
-	        	} else if ( attrName.equals("member")) {
-	        		NodeIndexEntry e = result.get(attr.getPropertyOf());
-        			if ( e != null) {
-    	        		List<String>  l = getIndexableTerms(attr);
-    	        		if ( l.size() > 0 ) 
-    	        			e.setMembers(l);
-        			} else {
-        				throw new NdexException("Node " + attr.getPropertyOf() + " is not found in node Aspect.");
-        			}
-	        	}
-			}
-		}
-		
-		return result;
-	}
-	*/
-	
-	private static  Map<Long,NodeIndexEntry> createIndexDocsFromCx2(String coreName) throws JsonProcessingException, IOException {
-		Map<Long,NodeIndexEntry> result = new TreeMap<> ();
-		
-		String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/" + coreName + "/" + CX2NetworkLoader.cx2AspectDirName + "/"; 
-	
-		ObjectMapper om = new ObjectMapper();
-		
-		//create the attribute name mapping table from attribute declaration
-		File declFile = new File(pathPrefix + CxAttributeDeclaration.ASPECT_NAME);
-		if (!declFile.exists())
-			return result;
-		
-		CxAttributeDeclaration[] declarations = om.readValue(declFile, 
-				CxAttributeDeclaration[].class); 
-		
-		if ( declarations.length == 0 || ! declarations[0].getDeclarations().containsKey(CxNode.ASPECT_NAME))
-			return result;
-		
-		Map<String,DeclarationEntry> nodeAttributeDecls = declarations[0].getAttributesInAspect(CxNode.ASPECT_NAME);
-		if ( nodeAttributeDecls.size() == 0 )
-			return result;
-		
-		//key is lowercased attribute name that we need to index, 
-		//value is the actual attribute name in the node. This is for doing a case-insensitive lookup of attribute value.
-		Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping = new HashMap<> ();
-		for ( Map.Entry<String,DeclarationEntry> entry: nodeAttributeDecls.entrySet()) {
-			ATTRIBUTE_DATA_TYPE dType = entry.getValue().getDataType();
-			String attrName = entry.getKey();
-			
-			if ( dType == null || dType == ATTRIBUTE_DATA_TYPE.STRING || dType == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
-				if( attrName.equalsIgnoreCase(ALIAS)) {
-                    attributeNameMapping.put (ALIAS, entry);					
-                } else if ( attrName.equalsIgnoreCase(TYPE)) {
-                    attributeNameMapping.put (TYPE, entry);
-                } else if ( attrName.equalsIgnoreCase(MEMBER)) {
-                    attributeNameMapping.put (MEMBER, entry);
-                } else 
-                    attributeNameMapping.put (attrName, entry);
-			}	 	
-		}
-		
-		//go through node aspect
-		try (FileInputStream inputStream = new FileInputStream(pathPrefix + "nodes")) {
-
-			Iterator<CxNode> it = om.readerFor(CxNode.class).readValues(inputStream);
-
-			while (it.hasNext()) {
-	        	CxNode node = it.next();
-	        	
-	        	node.extendToFullNode(nodeAttributeDecls);
-	        	
-	        	//Map<String, Object> attrs = node.getAttributes();
-	        	NodeIndexEntry e = null;
-	        	String name = getSingleIndexableTermFromNode(CxNode.NAME,node,attributeNameMapping);
-	        	if ( name !=null) {
-	        		e =  new NodeIndexEntry(node.getId(), name);
-	        	}
-	        	List<String> represents = getSplitableTerms(CxNode.REPRESENTS, node, attributeNameMapping);
-	        	if ( represents.size()>0) {
-	        		if ( e ==null)
-	        			e = new NodeIndexEntry(node.getId(),null);
-	        		e.setRepresents(represents);	     
-	        	}
-
-	        	// process alias
-	        	List<String> aliases =  getSplitableTerms(ALIAS, node, attributeNameMapping);
-	        	if ( aliases.size() > 0 ) {
-	        		if ( e==null)
-	        			e= new  NodeIndexEntry(node.getId(),null);
-	        		e.setAliases(aliases);
-	        	}
-	        	
-	        	//process members
-	        	boolean proteinMembersFound = false;
-	        	Map.Entry<String,DeclarationEntry> typeAttrName = attributeNameMapping.get(TYPE);
-	        	if (typeAttrName !=null ) {
-	        		ATTRIBUTE_DATA_TYPE t = typeAttrName.getValue().getDataType();
-	        		if ( t == null || t == ATTRIBUTE_DATA_TYPE.STRING) {
-	        			String nodeType = (String)node.getAttributes().get(typeAttrName.getKey());
-	        			if ( nodeType != null && (nodeType.equalsIgnoreCase(PROTEINFAMILY) || 
-	        					nodeType.equalsIgnoreCase(COMPLEX) )) {
-	        				List<String> memberGenes = getSplitableTerms (MEMBER, node, attributeNameMapping);
-	        				if( e==null)
-	        					e = new NodeIndexEntry ( node.getId(),null);
-	        				e.getRepresents().addAll(memberGenes);
-	        				proteinMembersFound = true;
-	        			}
-	        		}	
-	        	}
-	        	
-	        	//process the rest of the attributes
-	        	for (Map.Entry<String, Map.Entry<String,DeclarationEntry>> attrDecl:  attributeNameMapping.entrySet()) {
-	        		String attrName = attrDecl.getKey();
-	        		if ( attrName.equals(CxNode.NAME) || attrName.equals(CxNode.REPRESENTS) || 
-	        				attrName.equals(ALIAS))
-	        			continue;
-	        		if ( proteinMembersFound && attrName.equals(MEMBER)) 
-	        			continue;
-	        		
-	        		// process the value
-	        		Map.Entry<String,DeclarationEntry> decl = attrDecl.getValue();
-	        		Object  attrValue = node.getAttributes().get(decl.getKey());
-	        		ATTRIBUTE_DATA_TYPE dType = decl.getValue().getDataType();
-	        		if ( dType == null || dType == ATTRIBUTE_DATA_TYPE.STRING) {
-	        			if ( attrValue !=null ) { 
-	        				String s = (String) attrValue;
-	        				if ( s.length() > 1) {
-	        					if( e==null)
-		        					e = new NodeIndexEntry ( node.getId(),null);
-	        					e.addText(s);
-	        				}	
-	        			}	
-	        		} else {  // list of strings
- 	        			List<String> ls = (List<String>)attrValue;
- 	        			if (ls != null ) {
- 	        				for ( String str: ls) {
- 	        					if ( str!=null && str.length()>1) {
- 	        						if( e==null)
- 	   	        					   e = new NodeIndexEntry ( node.getId(),null);
- 	        						e.addText(str);
- 	        					}
- 	        				}
- 	        			}
-	        		}
-	        		
-	        	}
-	        	
-	        	if ( e!=null)
-	        		result.put(node.getId(), e);
-
-			}
-		}
-		
-		// go through Function Term if it exists
-		java.nio.file.Path functionTermAspect = Paths.get(pathPrefix + FunctionTermElement.ASPECT_NAME);
-
-		if ( Files.exists(functionTermAspect)) { 
-			try (FileInputStream inputStream = new FileInputStream(pathPrefix + FunctionTermElement.ASPECT_NAME)) {
-
-				Iterator<FunctionTermElement> it = new ObjectMapper().readerFor(FunctionTermElement.class).readValues(inputStream);
-
-				while (it.hasNext()) {
-		        	FunctionTermElement functionTerm = it.next();
-		        	List<String> terms = NetworkGlobalIndexManager.getIndexableStringsFromFunctionTerm(functionTerm);
-		        	if ( terms.size() > 0 ) {
-			        	NodeIndexEntry e = result.get(functionTerm.getNodeID());
-		        		if ( e == null ) {  // need to add a new entry
-		        			e = new NodeIndexEntry(functionTerm.getNodeID(), null);
-		        			result.put(functionTerm.getNodeID(), e);
-		        		}	        	
-		        		e.setRepresents(terms);
-		        	}	
-				}
-				
-				
-			}	
-		}
-		
-		
-		return result;
+	public void close() {
+		client.close();
 	}
 
-	protected static String getSingleIndexableTermFromNode (String attrName, CxNode node, 
-			Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping) {		
-	
-		Map.Entry<String,DeclarationEntry> entry = attributeNameMapping.get(attrName);
-	
-		if ( entry != null) {
-			String actualAttrName = entry.getKey();
-			ATTRIBUTE_DATA_TYPE t = entry.getValue().getDataType();
-			if ( t == null || t== ATTRIBUTE_DATA_TYPE.STRING)  {
-				return (String)node.getAttributes().get(actualAttrName);
-			}
-		
-		}
-	
-		return null;
+	protected String getNetworkId() {
+		return collectionName;
 	}
-	
-	protected static List<String> getSplitableTerms (String attrName, CxNode node, 
-				Map<String, Map.Entry<String,DeclarationEntry>> attributeNameMapping) {		
-	
-		List<String> result = new ArrayList<>();
-
-		Map.Entry<String,DeclarationEntry> entry = attributeNameMapping.get(attrName);
-		
-		if ( entry != null) {
-			String actualAttrName = entry.getKey();
-			ATTRIBUTE_DATA_TYPE t = entry.getValue().getDataType();
-			
-			if ( t == null || t == ATTRIBUTE_DATA_TYPE.STRING) {
-				String v = (String)node.getAttributes().get(actualAttrName);
-				if ( v!= null) {
-					for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
-						result.add( indexableString);
-					}
-				}
-			} else if (t == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING) {
-				List<String> vl = (List<String>)node.getAttributes().get(actualAttrName);
-				if(vl !=null) {
-					for ( String v : vl) {
-						for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
-							result.add( indexableString);
-						}
-					}
-				}
-			} 
-						
-		}
-		
-		return result;
-
-	}
-	
-	private static List<String> getIndexableTerms (String originalString) {		
-		if (originalString == null) return new ArrayList<>(1);
-		return NetworkGlobalIndexManager.getIndexableString(originalString);
-	}
-	
-	private static List<String> getIndexableTerms (NodeAttributesElement e) {		
-		List<String> result = new ArrayList<>();
-		
-		if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING 	&& !e.getValues().isEmpty()) {
-			for ( String v : e.getValues()) {
-				for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
-					result.add( indexableString);
-				}
-			}
-		} else if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
-			String v = e.getValue();
-			for ( String indexableString : NetworkGlobalIndexManager.getIndexableString(v) ){
-				result.add( indexableString);
-			}
-		}
-		
-		return result;
-	}
-	
-	protected String getNetworkId () {return collectionName;}
-	protected HttpSolrClient getClient() {return this.client;}
 }

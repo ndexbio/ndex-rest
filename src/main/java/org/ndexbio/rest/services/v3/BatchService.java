@@ -193,7 +193,7 @@ public class BatchService extends NdexService {
             AbstractFileTypeHandler handler = fileTypeHandlerFactory.getHandler(type);
 			VisibilityType oldVisibilityType = getVisibilityForFile(uuid, type);
             handler.setVisibility(uuid, userId, request.getVisibility());
-			deleteFileIndex(uuid, oldVisibilityType, false);
+			deleteFileIndex(uuid, oldVisibilityType, false, type);
 			createFileIndex(uuid, user, request.getVisibility(),type, true);
         }
 

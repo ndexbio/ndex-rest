@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.junit.Before;
 import org.jboss.resteasy.spi.Dispatcher;
 import org.ndexbio.common.models.dao.DAOFactory;
+import org.ndexbio.common.models.dao.DeletedFileIds;
 import org.ndexbio.common.models.dao.FileDAO;
 import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.common.models.dao.FolderDAO;
@@ -360,8 +361,10 @@ public class TestFileServiceV3 {
 	    // Mock DAO to return a valid item type and handle deletion
 	    TrashDAO mockTrashDAO = createMock(TrashDAO.class);
 	    expect(mockTrashDAO.getTrashedItemType(itemId)).andReturn(FileType.NETWORK);
-	    mockTrashDAO.permanentlyDeleteTrashedItem(itemId, FileType.NETWORK);
-	    EasyMock.expectLastCall().once();
+	    // Returns the ids purged so the caller can clear their Solr docs. Empty here, so no index task is
+	    // enqueued — a real purge of this network would report it and have its doc deleted.
+	    expect(mockTrashDAO.permanentlyDeleteTrashedItem(itemId, FileType.NETWORK))
+	        .andReturn(DeletedFileIds.empty());
 	    mockTrashDAO.commit();
 	    EasyMock.expectLastCall().once();
 	    mockTrashDAO.close();
@@ -406,8 +409,9 @@ public class TestFileServiceV3 {
 
 	    // Mock DAO to handle deletion
 	    TrashDAO mockTrashDAO = createMock(TrashDAO.class);
-	    mockTrashDAO.permanentlyDeleteAllTrashedItemsOfUser(userID);
-	    EasyMock.expectLastCall().once();
+	    // Returns the ids purged so the caller can clear their Solr docs; nothing was in the trash here,
+	    // so no index task is enqueued.
+	    expect(mockTrashDAO.permanentlyDeleteAllTrashedItemsOfUser(userID)).andReturn(DeletedFileIds.empty());
 	    mockTrashDAO.commit();
 	    EasyMock.expectLastCall().once();
 	    mockTrashDAO.close();

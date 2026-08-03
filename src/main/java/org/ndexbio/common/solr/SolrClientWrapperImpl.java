@@ -12,7 +12,9 @@ import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.request.ConfigSetAdminRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
+import org.apache.solr.client.solrj.response.ConfigSetAdminResponse;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrInputDocument;
@@ -81,32 +83,108 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	 */
 	@Override
 	public void createCoreIfNeeded(final String coreName) throws SolrServerException, IOException, NdexException {
+		createCoreIfNeeded(coreName, coreName);
+	}
+
+	/**
+	 * Creates core on Solr if needed using the given configSet. If core exists, nothing is done
+	 *
+	 * @param coreName Name of core
+	 * @param configSetName configSet the core should use
+	 * @throws SolrServerException
+	 * @throws IOException
+	 * @throws NdexException
+	 */
+	@Override
+	public void createCoreIfNeeded(final String coreName, final String configSetName) throws SolrServerException, IOException, NdexException {
+
+		if ( coreExists(coreName) ) {
+			logger.debug("Found core "+ coreName + " in Solr.");
+			return;
+		}
+
+		logger.debug("Solr core " + coreName + " doesn't exist. Creating it now ....");
+
+		CoreAdminRequest.Create creator = _factory.getCoreAdminRequestCreate();
+		creator.setCoreName(coreName);
+		creator.setConfigSet(configSetName);
+		CoreAdminResponse foo = creator.process(_baseClient);
+		if ( foo.getStatus() != 0 ) {
+			throw new NdexException ("Failed to create solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
+		}
+		logger.debug("Done.");
+	}
+
+	/**
+	 * Creates a core, letting an "already exists" error surface to the caller
+	 *
+	 * @param coreName Name of core
+	 * @param configSetName configSet the core should use
+	 * @throws SolrServerException
+	 * @throws IOException
+	 * @throws NdexException
+	 */
+	@Override
+	public void createCore(final String coreName, final String configSetName) throws SolrServerException, IOException, NdexException {
+
+		CoreAdminRequest.Create creator = _factory.getCoreAdminRequestCreate();
+		creator.setCoreName(coreName);
+		creator.setConfigSet(configSetName);
+		creator.setIsLoadOnStartup(Boolean.FALSE);
+		creator.setIsTransient(Boolean.TRUE);
+
+		CoreAdminResponse foo = creator.process(_baseClient);
+		if ( foo.getStatus() != 0 ) {
+			throw new NdexException ("Failed to create solrIndex for network " + coreName + ". Error: " + foo.getResponseHeader().toString());
+		}
+	}
+
+	/**
+	 * Creates a configSet cloned from a template configSet
+	 *
+	 * @param configSetName Name of configSet to create
+	 * @param baseConfigSetName Template to clone
+	 * @throws SolrServerException
+	 * @throws IOException
+	 * @throws NdexException
+	 */
+	@Override
+	public void createConfigSet(final String configSetName, final String baseConfigSetName) throws SolrServerException, IOException, NdexException {
+
+		ConfigSetAdminRequest.Create confSetCreator = _factory.getConfigSetAdminRequestCreate();
+		confSetCreator.setBaseConfigSetName(baseConfigSetName);
+		confSetCreator.setConfigSetName(configSetName);
+
+		ConfigSetAdminResponse cr = confSetCreator.process(_baseClient);
+		if ( cr.getStatus() != 0 ) {
+			throw new NdexException("Failed to create Solr ConfigSet " + configSetName);
+		}
+	}
+
+	/**
+	 * Reports whether Solr has a core registered under coreName
+	 *
+	 * @param coreName Name of core
+	 * @throws SolrServerException
+	 * @throws IOException
+	 * @throws NdexException
+	 */
+	@Override
+	public boolean coreExists(final String coreName) throws SolrServerException, IOException, NdexException {
 
 		CoreAdminResponse foo = _factory.getCoreAdminRequestGetStatus(coreName);
 		if (foo.getStatus() != 0 ) {
 			throw new NdexException ("Failed to get status of solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
 		}
 		NamedList<Object> bar = foo.getResponse();
-		
+
 		NamedList<Object> st = (NamedList<Object>)bar.get("status");
-		
+		if ( st == null ) {
+			return false;
+		}
+
 		NamedList<Object> core = (NamedList<Object>)st.get(coreName);
-		if ( core.size() == 0 ) {
-			logger.debug("Solr core " + coreName + " doesn't exist. Creating it now ....");
-
-			CoreAdminRequest.Create creator = _factory.getCoreAdminRequestCreate();
-			creator.setCoreName(coreName);
-			creator.setConfigSet(coreName); 
-			foo = creator.process(_baseClient);				
-			if ( foo.getStatus() != 0 ) {
-				throw new NdexException ("Failed to create solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
-			}
-			logger.debug("Done.");		
-		}
-		else {
-			logger.debug("Found core "+ coreName + " in Solr.");	
-		}
-
+		return core != null && core.size() != 0;
 	}
 
 	/**
@@ -122,11 +200,12 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 		try {
 			_factory.getCoreAdminRequestUnloadCore(coreName, true, true);
 		} catch (HttpSolrClient.RemoteSolrException e4) {
-			logger.error(e4.code() + " - " + e4.getMessage(), e4);
+			// A core that isn't there is the normal drop-before-rebuild case, so it is not worth
+			// reporting. Anything else is rethrown, and the caller logs it with its own context.
 			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
 				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
-			}	
-		} 
+			}
+		}
 	}
 
 	/**
@@ -140,18 +219,49 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	 */
 	@Override
 	public void commit(final String coreName, final Collection<SolrInputDocument> documents) throws SolrServerException, IOException {
+		commit(coreName, documents, false);
+	}
+
+	/**
+	 * Adds any documents passed in, then commits. A hard commit flushes to disk
+	 * (waitFlush=true, softCommit=false); a soft commit only makes the documents visible.
+	 *
+	 * @param coreName Core to commit
+	 * @param documents documents to add
+	 * @param hardCommit whether the commit should be durable
+	 * @throws SolrServerException
+	 * @throws IOException
+	 */
+	@Override
+	public void commit(final String coreName, final Collection<SolrInputDocument> documents, final boolean hardCommit) throws SolrServerException, IOException {
 
 		var client = getSolrClient(coreName);
-		if (documents != null && documents.isEmpty() == false){
-			var ur = client.add(documents);
-			if (ur != null && logger.isDebugEnabled()){
-				logger.debug("add: " + ur.toString());
-			}
-		}
-		
-		var ur = client.commit(false, true, true);
+		add(coreName, documents);
+
+		var ur = hardCommit ? client.commit(true, true, false) : client.commit(false, true, true);
 		if (ur != null && logger.isDebugEnabled()){
 			logger.debug("commit response: " + ur.toString());
+		}
+	}
+
+	/**
+	 * Adds documents to a core without committing
+	 *
+	 * @param coreName Core to add to
+	 * @param documents documents to add; null or empty is a no-op
+	 * @throws SolrServerException
+	 * @throws IOException
+	 */
+	@Override
+	public void add(final String coreName, final Collection<SolrInputDocument> documents) throws SolrServerException, IOException {
+
+		if (documents == null || documents.isEmpty()){
+			return;
+		}
+
+		var ur = getSolrClient(coreName).add(documents);
+		if (ur != null && logger.isDebugEnabled()){
+			logger.debug("add: " + ur.toString());
 		}
 	}
 

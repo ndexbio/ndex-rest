@@ -61,6 +61,7 @@ import org.ndexbio.cx2.aspect.element.core.DeclarationEntry;
 import org.ndexbio.cx2.io.CX2AspectWriter;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.NdexException;
+import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
@@ -833,7 +834,7 @@ public class NetworkServiceV3  extends NdexService {
 		            networkDao.deleteNetworkLogical(networkId, userId);
 		            networkDao.commit();
 		        }
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(networkId, visibilityType, false));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(networkId, visibilityType, false, FileType.NETWORK));
 
 			}
 		}

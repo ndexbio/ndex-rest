@@ -1506,13 +1506,6 @@ public class NetworkServiceV2 extends NdexService {
 			if(networkDao.isAdmin(networkId, userId) ) {
 				if (!networkDao.isReadOnly(networkId) ) {
 					if ( !networkDao.networkIsLocked(networkId)) {
-					/*
-						NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
-						globalIdx.deleteNetwork(id);
-						try (SingleNetworkSolrIdxManager idxManager = new SingleNetworkSolrIdxManager(id)) {
-							idxManager.dropIndex();
-						}	
-					*/	
 						networkDao.deleteNetwork(UUID.fromString(id), getLoggedInUser().getExternalId());
 						networkDao.commit();
 

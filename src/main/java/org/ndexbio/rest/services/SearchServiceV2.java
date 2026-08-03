@@ -246,7 +246,8 @@ public class SearchServiceV2 extends NdexService {
 
 		}   
 		
-		try (SingleNetworkSolrIdxManager solr = new SingleNetworkSolrIdxManager(networkId.toString())) {
+		try (SingleNetworkSolrIdxManager solr = Configuration.getInstance().getSolrObjectFactory()
+				.getSingleNetworkSolrIdxManager(networkId.toString())) {
 			SolrDocumentList r = solr.getNodeIdsByQuery(queryParameters.getSearchString(), limit);
 			return r;
 		}
@@ -362,14 +363,12 @@ public class SearchServiceV2 extends NdexService {
 	public static void getSolrIdxReady(UUID networkId, PostgresNetworkDAO dao)
 			throws SQLException, ObjectNotFoundException, SolrServerException, IOException, NdexException {
 		int nodeCount = dao.getNodeCount(networkId);
-		
-		try (SingleNetworkSolrIdxManager solr = new SingleNetworkSolrIdxManager(networkId.toString())) {
-			boolean ready = solr.isReady(nodeCount < SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD);
-			if ( !ready ) {
-				if (nodeCount < SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD) 
-					throw new NdexException ("Failed to create Solr Index on this network.");
-				throw new NdexException("NDEx server hasn't finished creating index on this network yet. Please try again later");
-			}
+
+		try (SingleNetworkSolrIdxManager solr = Configuration.getInstance().getSolrObjectFactory()
+				.getSingleNetworkSolrIdxManager(networkId.toString())) {
+			// Any failure carries its own reason - an unreadable aspect directory names the path
+			// and the OS user - so let it propagate rather than flattening it to a generic message.
+			solr.ensureReady(nodeCount);
 		}
 	}
 	

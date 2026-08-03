@@ -38,7 +38,19 @@ public interface FolderDAO extends AutoCloseable {
 	
 	boolean isFolderOwner(UUID folderId, UUID ownerId) throws SQLException;
 	
-	void deleteFolder(UUID folderId, boolean force, boolean permanent) throws SQLException;
+	/**
+	 * Deletes a folder, optionally cascading over its whole subtree.
+	 *
+	 * @param force     when true, delete the folder even if it has children, cascading to every
+	 *                  descendant folder, network and shortcut at any depth; when false a non-empty
+	 *                  folder is rejected with {@link SQLException}
+	 * @param permanent when true the rows are physically removed; when false they are marked
+	 *                  {@code is_deleted=true} and the named folder also gets {@code show_in_trash=true}
+	 * @return the ids actually affected, grouped by type, so the caller can clear their Solr docs.
+	 *         The named folder is always included in {@code folders()}; descendants appear only when
+	 *         {@code force} is true.
+	 */
+	DeletedFileIds deleteFolder(UUID folderId, boolean force, boolean permanent) throws SQLException;
 	
 	void updateFolder(UUID folderId, String name, UUID parentId, UUID ownerId, String description) throws SQLException, JsonProcessingException, NdexException;
 	

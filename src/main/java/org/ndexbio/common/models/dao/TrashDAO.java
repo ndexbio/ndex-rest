@@ -16,9 +16,20 @@ public interface TrashDAO extends AutoCloseable {
 	
 	void restoreTrashedItems(UUID userId, TrashRestoreRequest request) throws SQLException;
 	
-	void permanentlyDeleteAllTrashedItemsOfUser(UUID ownerId) throws SQLException;
+	/**
+	 * Physically removes everything in the user's trash.
+	 *
+	 * @return the ids removed, grouped by type, so the caller can clear their Solr docs
+	 */
+	DeletedFileIds permanentlyDeleteAllTrashedItemsOfUser(UUID ownerId) throws SQLException;
 
-	void permanentlyDeleteTrashedItem(UUID itemId, FileType type) throws SQLException;
+	/**
+	 * Physically removes one trashed item; for a folder this cascades to the descendants that were
+	 * trashed along with it.
+	 *
+	 * @return the ids removed, grouped by type, so the caller can clear their Solr docs
+	 */
+	DeletedFileIds permanentlyDeleteTrashedItem(UUID itemId, FileType type) throws SQLException;
 
 	FileType getTrashedItemType(UUID itemId) throws SQLException;
 
