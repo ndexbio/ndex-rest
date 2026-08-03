@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unreleased] - 3.0.4
+## [3.0.4] - 2026-07-31
 
 ### Changed
 
@@ -84,6 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`DELETE /v3/files/trash`, `DELETE /v3/files/trash/{uuid}`) is fixed the same way. A cascading
   `permanent=true` delete still bypasses the network-delete preconditions and leaves CX files on disk;
   that is tracked separately.
+
+- Solr Reindex Builder emits warnings in logs when unable to finalize reindex writes. Reindexing was muffling errors that occurred during solr reindexing, so was not able to detect when reindexing was actually not working, as it just reports 0 reindexed counts per network. Now it will log WARN statements per network that fails to correctly rebuild solr index for a given network.  [#153](https://github.com/ndexbio/ndex-rest/pull/153)
 
 ## [3.0.3] - 2026-07-25
 
