@@ -32,7 +32,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=143
+TOTAL_API_CALLS=144
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -1967,6 +1967,50 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # Clean up the second set so later steps see a tidy account page.
   curl -s -o /dev/null -X DELETE -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID2}"
+fi
+
+# ── STEP: a legacy queued task row does not block startup ────────────────────
+# Queued-but-unrun tasks are replayed at servlet init (populateQueuedTasksFromDB →
+# NdexSystemTask.createSystemTask). A SYS_SOLR_DELETE_NETWORK row written before the
+# globalIdxOnly/fileType attributes existed carries only its resource, and reconstruction used to
+# unbox the missing Boolean into a primitive — one such row threw an NPE and the server never came
+# up. This seeds exactly that row, restarts Tomcat, and asserts NDEx still starts.
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "A legacy queued Solr-delete task replays without blocking startup"
+
+  LEGACY_TASK_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+  echo "  Seeding a legacy QUEUED SYS_SOLR_DELETE_NETWORK row (no attributes): ${LEGACY_TASK_ID}"
+
+  # owneruuid NULL routes it to the system-task path; other_attributes NULL is the legacy shape.
+  psql_ndex "INSERT INTO task (\\\"UUID\\\", creation_time, modification_time, status, task_type, owneruuid, is_deleted, other_attributes, resource) VALUES ('${LEGACY_TASK_ID}', now(), now(), 'QUEUED', 'SYS_SOLR_DELETE_NETWORK', NULL, false, NULL, '${V3_PUB_UUID}')" >/dev/null
+
+  SEEDED=$(psql_ndex "SELECT status FROM task WHERE \\\"UUID\\\" = '${LEGACY_TASK_ID}'")
+  if [[ "${SEEDED}" != "QUEUED" ]]; then
+    api_fail "could not seed the legacy queued task row (status='${SEEDED}')"
+  fi
+  echo "  Seeded row is QUEUED"
+
+  docker exec "${CONTAINER_NAME}" supervisorctl restart ndex
+
+  echo "  Tomcat restart issued — waiting for NDEx to become responsive..."
+  MAX_WAIT=90
+  ELAPSED=0
+  until curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/user" \
+        | grep -qE '^[2-9][0-9]{2}$|^401$|^400$'; do
+    if [[ ${ELAPSED} -ge ${MAX_WAIT} ]]; then
+      api_fail "NDEx did not start within ${MAX_WAIT}s after a legacy queued task was replayed — the queue replay aborted startup"
+    fi
+    echo -e "  ${CYAN}Waiting for Tomcat restart... (${ELAPSED}s)${NC}"
+    sleep 5; (( ELAPSED += 5 )) || true
+  done
+  api_pass "NDEx started with a legacy queued Solr-delete row present (queue replay did not abort startup)"
+
+  # Deliberately not asserting the task's own outcome. A legacy row carries no visibility attribute,
+  # so the reconstructed task runs with a null visibility and fails inside the index manager — that
+  # is long-standing behaviour and separate from what this step covers, which is that one such row
+  # can no longer stop the server from starting.
+  psql_ndex "DELETE FROM task WHERE \\\"UUID\\\" = '${LEGACY_TASK_ID}'" >/dev/null
 fi
 
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────

@@ -251,19 +251,30 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
 	
 	private static void populateQueuedTasksFromDB() throws NdexException, SQLException, JsonParseException, JsonMappingException, IOException {
 		try ( TaskDAO taskDAO = new TaskDAO()) {
-			List<Task> list =taskDAO.getQueuedTasks(); 
+			List<Task> list =taskDAO.getQueuedTasks();
+			int requeued = 0;
 			for ( Task t : list) {
-				if ( t.getTaskOwnerId()!=null)
-					NdexServerQueue.INSTANCE.addUserTask(NdexTask.createUserTask(t));
-				else {
-				   NdexSystemTask sysTask = NdexSystemTask.createSystemTask(t);
-				   if (sysTask !=null) {
-					   sysTask.setTaskId(t.getExternalId());
-					   NdexServerQueue.INSTANCE.addSystemTaskToQueue(sysTask);
-				   }	   
+				// One unreconstructable row must never stop the server from starting, so each task is
+				// isolated: log the reason at WARN, skip it, and carry on with the rest.
+				try {
+					if ( t.getTaskOwnerId()!=null) {
+						NdexServerQueue.INSTANCE.addUserTask(NdexTask.createUserTask(t));
+						requeued++;
+					} else {
+					   NdexSystemTask sysTask = NdexSystemTask.createSystemTask(t);
+					   if (sysTask !=null) {
+						   sysTask.setTaskId(t.getExternalId());
+						   NdexServerQueue.INSTANCE.addSystemTaskToQueue(sysTask);
+						   requeued++;
+					   }
+					}
+				} catch (Exception e) {
+					logger.warning("Skipped queued task " + t.getExternalId() + " of type "
+							+ t.getTaskType() + ": " + e.getMessage());
 				}
 			}
-			logger.info (list.size() + " previously queued tasks were added to the queue.");
+			logger.info (requeued + " of " + list.size()
+					+ " previously queued tasks were added to the queue.");
 		}  
 	}
 
