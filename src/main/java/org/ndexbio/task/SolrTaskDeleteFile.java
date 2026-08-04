@@ -25,6 +25,14 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 	private final boolean globalIdxOnly ;
 	private final FileType fileType;
 
+	/**
+	 * Discriminates a persisted row of this task from the other classes sharing
+	 * SYS_SOLR_DELETE_NETWORK. Its presence is what routes a row back to this class on the
+	 * startup queue replay.
+	 */
+	public final static String fileTypeAttr = "fileType";
+	public final static String visibilityAttr = "visibility";
+
 	public SolrTaskDeleteFile(UUID fileId, VisibilityType visibilityType) {
 		this(fileId, visibilityType, true, FileType.NETWORK);
 	}
@@ -60,11 +68,48 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 	public Task createTask() {
 		Task t = super.createTask();
 		t.setResource(fileId.toString());
+		// Everything run() branches on has to be persisted, or a row replayed after a restart comes
+		// back as a different task with different behaviour - in particular losing the fileType
+		// guard above and dropping a per-network core for a folder.
+		t.setAttribute(fileTypeAttr, fileType.toString());
+		t.setAttribute(SolrTaskDeleteNetwork.globalIdxAttr, Boolean.valueOf(globalIdxOnly));
+		if (visibilityType != null) {
+			t.setAttribute(visibilityAttr, visibilityType.toString());
+		}
 		return t;
 	}
 
 	@Override
 	public TaskType getTaskType() {
 		return taskType;
+	}
+
+	/**
+	 * Reconstructs a single-file delete from its persisted row, for the startup queue replay.
+	 *
+	 * <p>Every attribute is read defensively: rows written before these attributes existed must
+	 * reconstruct rather than fail, because a task that cannot be rebuilt would otherwise stop the
+	 * server from starting.
+	 */
+	static SolrTaskDeleteFile fromTask(Task t) {
+		return new SolrTaskDeleteFile(UUID.fromString(t.getResource()),
+				NdexSystemTask.visibilityFromAttribute(t.getAttribute(visibilityAttr)),
+				!Boolean.FALSE.equals(t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr)),
+				fileTypeFromAttribute(t.getAttribute(fileTypeAttr)));
+	}
+
+	/**
+	 * Unknown or absent values fall back to NETWORK, which is what the two-arg constructor has
+	 * always meant, so legacy rows keep their original behaviour.
+	 */
+	static FileType fileTypeFromAttribute(Object attribute) {
+		if (attribute == null) {
+			return FileType.NETWORK;
+		}
+		try {
+			return FileType.valueOf(attribute.toString());
+		} catch (IllegalArgumentException e) {
+			return FileType.NETWORK;
+		}
 	}
 }
