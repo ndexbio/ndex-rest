@@ -1,0 +1,6 @@
+[{"CXVersion":"2.0","hasFragments":false},
+{"metaData":[{"name":"attributeDeclarations","elementCount":1},{"name":"networkAttributes","elementCount":1},{"name":"nodes","elementCount":2}]},
+{"attributeDeclarations":[{"nodes":{"name":{"a":"n","d":"string"}},"networkAttributes":{"description":{"d":"string"}}}]},
+{"networkAttributes":[{"name":"InvalidNameProbe should never be persisted","description":"ndex-rest#161 fixture: the networkAttributes aspect supplies a name that is NOT declared in attributeDeclarations, so CX2 validation fails before the network name is ever saved. The resulting network is complete but invalid, carries an errorMessage, and must have NO name key in any API response that serves it."}]},
+{"nodes":[{"id":0,"v":{"n":"geneA"}},{"id":1,"v":{"n":"geneB"}}]},
+{"status":[{"error":"","success":true}]}]
