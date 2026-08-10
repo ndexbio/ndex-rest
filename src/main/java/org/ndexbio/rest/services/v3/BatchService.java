@@ -54,6 +54,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
+import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -61,7 +62,9 @@ import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileType;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.MoveNetworksRequest;
 import org.ndexbio.model.object.NetworkExportRequestV2;
 import org.ndexbio.model.object.FileVisibilityRequest;
@@ -157,13 +160,27 @@ public class BatchService extends NdexService {
 	        throw new NdexException("User must be logged in to move networks.");
 	    }
 
+	    // Owning the network only authorizes taking it out of where it is; writing it into the
+	    // destination has to be authorized against that folder as well. Effective permission is used
+	    // so WRITE inherited from an ancestor folder counts.
+	    UUID targetFolder = request.getTargetFolder();
+	    if (targetFolder != null) {
+	        try (FolderDAO folderDao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	            if (!folderDao.isFolderOwner(targetFolder, userId)
+	                    && Permissions.WRITE != folderDao.getEffectivePermission(targetFolder, userId)) {
+	                throw new UnauthorizedOperationException(
+	                        "User doesn't have write access to the target folder.");
+	            }
+	        }
+	    }
+
 	    try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 	        for (UUID netId : request.getNetworks()) {
 	        	if (!networkDao.isAdmin(netId, userId)) {
 	                throw new NdexException("User does not own network " + netId);
 	            }
 
-	            networkDao.setNetworkFolder(netId, request.getTargetFolder());
+	            networkDao.setNetworkFolder(netId, targetFolder);
 	        }
 	        networkDao.commit();
 	    }

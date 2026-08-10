@@ -25,6 +25,8 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BASE_URL="http://localhost:8080"
 
 CONTAINER_NAME="ndex-integration-test"
+# One volume per group. Group 2 (migration) uses its own; the two never share state.
+FUNCTIONAL_VOLUME="ndex-it-functional-data"
 TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
@@ -32,7 +34,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=144
+TOTAL_API_CALLS=205
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -173,6 +175,9 @@ _remove_test_containers() {
   docker rm -fv "${CONTAINER_NAME}" 2>/dev/null || true
   docker rm -fv "ndex-pg-corrupt-test" 2>/dev/null || true
   docker rm -fv "ndex-pg-wipe-test" 2>/dev/null || true
+  # Named volumes are not removed by `docker rm -v`; they need an explicit call, and a
+  # stale one would silently turn the next run's fresh install into an upgrade.
+  docker volume rm "${FUNCTIONAL_VOLUME}" 2>/dev/null || true
 }
 
 cleanup() {
@@ -234,6 +239,7 @@ else
   docker run -d \
     --name "${CONTAINER_NAME}" \
     -p 8080:8080 \
+    -v "${FUNCTIONAL_VOLUME}:/apps" \
     -v "${TMP_CATALINA_TOML}:/tmp/catalina-opts.toml:ro" \
     ndexbio/ndex-rest \
     --ndex --postgres --keycloak --solr --mailhog \
@@ -1078,7 +1084,7 @@ F10_FOLDER_BODY=$(echo "${F10_FOLDER_RESP}" | head -1)
 if [[ "${F10_FOLDER_HTTP}" != "201" ]]; then
   api_fail "POST /v3/files/folders/ → HTTP ${F10_FOLDER_HTTP} (expected 201). Body: ${F10_FOLDER_BODY:0:300}"
 fi
-F10_FOLDER_ID=$(echo "${F10_FOLDER_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+F10_FOLDER_ID=$(echo "${F10_FOLDER_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 if [[ -z "${F10_FOLDER_ID}" ]]; then
   api_fail "Could not parse folder UUID from create response. Body: ${F10_FOLDER_BODY:0:300}"
 fi
@@ -1110,7 +1116,7 @@ api_pass "Moved PUBLIC (${V3_PUB_UUID}) + PRIVATE (${V3_PRIV_UUID}) networks int
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (anon) — PRIVATE child absent, network=1"
 F10_ANON_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
-F10_ANON_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+F10_ANON_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 echo "${F10_ANON_LIST}" | grep -q "${V3_PRIV_UUID}" \
   && api_fail "anon /list LEAKED private child ${V3_PRIV_UUID}. Body: ${F10_ANON_LIST:0:400}"
 { echo "${F10_ANON_LIST}" | grep -q "${V3_PUB_UUID}" && [[ "${F10_ANON_NET}" == "1" ]]; } \
@@ -1130,7 +1136,7 @@ api_pass "non-owner user ${TEST_USER2} ready"
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (authenticated non-owner) — PRIVATE child absent, network=1"
 F10_U2_LIST=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
-F10_U2_NET=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+F10_U2_NET=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 echo "${F10_U2_LIST}" | grep -q "${V3_PRIV_UUID}" \
   && api_fail "authenticated non-owner /list LEAKED private child ${V3_PRIV_UUID}. Body: ${F10_U2_LIST:0:400}"
 { echo "${F10_U2_LIST}" | grep -q "${V3_PUB_UUID}" && [[ "${F10_U2_NET}" == "1" ]]; } \
@@ -1140,7 +1146,7 @@ api_pass "authenticated non-owner → /list PUBLIC child only (PRIVATE absent); 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (owner) — both children, network=2"
 F10_OWNER_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
-F10_OWNER_NET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+F10_OWNER_NET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 { echo "${F10_OWNER_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_OWNER_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_OWNER_NET}" == "2" ]]; } \
   || api_fail "owner view wrong: net=${F10_OWNER_NET}, list=${F10_OWNER_LIST:0:400}"
 api_pass "owner → /list both children; /count network=2"
@@ -1159,7 +1165,7 @@ api_pass "Folder access key enabled"
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey on PUBLIC (readable) folder (anon) — ALL children, network=2"
 F10_PUBKEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
-F10_PUBKEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+F10_PUBKEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 { echo "${F10_PUBKEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_PUBKEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_PUBKEY_NET}" == "2" ]]; } \
   || api_fail "access-key precedence on readable folder wrong: net=${F10_PUBKEY_NET}, list=${F10_PUBKEY_LIST:0:400}"
 api_pass "anon + access key on PUBLIC folder → /list all children (incl. PRIVATE); /count network=2 (key precedence)"
@@ -1188,7 +1194,7 @@ api_pass "anon /list + /count on PRIVATE folder (no key) → 401"
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — ALL children, network=2"
 F10_KEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
-F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 { echo "${F10_KEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_KEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_KEY_NET}" == "2" ]]; } \
   || api_fail "access-key view wrong: net=${F10_KEY_NET}, list=${F10_KEY_LIST:0:400}"
 api_pass "anon + access key → /list all children (incl. PRIVATE); /count network=2"
@@ -1210,7 +1216,7 @@ G11_SUB_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}
   "${BASE_URL}/v3/files/folders/")
 G11_SUB_HTTP=$(echo "${G11_SUB_RESP}" | tail -1); G11_SUB_BODY=$(echo "${G11_SUB_RESP}" | head -1)
 [[ "${G11_SUB_HTTP}" == "201" ]] || api_fail "create subfolder → HTTP ${G11_SUB_HTTP}. Body: ${G11_SUB_BODY:0:300}"
-G11_SUB_ID=$(echo "${G11_SUB_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+G11_SUB_ID=$(echo "${G11_SUB_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 [[ -n "${G11_SUB_ID}" ]] || api_fail "no uuid in subfolder create. Body: ${G11_SUB_BODY:0:300}"
 api_pass "subfolder ${G11_SUB_ID} created under keyed folder ${F10_FOLDER_ID}"
 
@@ -1252,7 +1258,7 @@ G11_SC_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}"
   "${BASE_URL}/v3/files/shortcuts/")
 G11_SC_HTTP=$(echo "${G11_SC_RESP}" | tail -1); G11_SC_BODY=$(echo "${G11_SC_RESP}" | head -1)
 [[ "${G11_SC_HTTP}" == "201" ]] || api_fail "create shortcut → HTTP ${G11_SC_HTTP}. Body: ${G11_SC_BODY:0:300}"
-G11_SC_ID=$(echo "${G11_SC_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+G11_SC_ID=$(echo "${G11_SC_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 [[ -n "${G11_SC_ID}" ]] || api_fail "no uuid in create-shortcut response. Body: ${G11_SC_BODY:0:300}"
 api_pass "shortcut ${G11_SC_ID} created in keyed folder → private network ${V2_PRIV_UUID}"
 
@@ -1260,7 +1266,7 @@ api_pass "shortcut ${G11_SC_ID} created in keyed folder → private network ${V2
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — shortcut INCLUDED, shortcut count >=1"
 G11_KEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
-G11_KEY_SC=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"shortcut"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+G11_KEY_SC=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"shortcut"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 echo "${G11_KEY_LIST}" | grep -q "${G11_SC_ID}" \
   || api_fail "key /list should include same-owner shortcut ${G11_SC_ID}. Body: ${G11_KEY_LIST:0:400}"
 [[ "${G11_KEY_SC:-0}" -ge 1 ]] \
@@ -1337,7 +1343,7 @@ VIS_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" 
   "${BASE_URL}/v3/files/folders/")
 VIS_F_HTTP=$(echo "${VIS_F_RESP}" | tail -1); VIS_F_BODY=$(echo "${VIS_F_RESP}" | head -1)
 [[ "${VIS_F_HTTP}" == "201" ]] || api_fail "create folder (visibility=PUBLIC) → HTTP ${VIS_F_HTTP}. Body: ${VIS_F_BODY:0:300}"
-VIS_F_ID=$(echo "${VIS_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+VIS_F_ID=$(echo "${VIS_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 [[ -n "${VIS_F_ID}" ]] || api_fail "no uuid in create-folder response. Body: ${VIS_F_BODY:0:300}"
 api_pass "POST folder with visibility=PUBLIC → 201 (folder ${VIS_F_ID})"
 
@@ -1364,7 +1370,7 @@ VIS_FD_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}"
   "${BASE_URL}/v3/files/folders/")
 VIS_FD_HTTP=$(echo "${VIS_FD_RESP}" | tail -1); VIS_FD_BODY=$(echo "${VIS_FD_RESP}" | head -1)
 [[ "${VIS_FD_HTTP}" == "201" ]] || api_fail "create folder (no visibility) → HTTP ${VIS_FD_HTTP}"
-VIS_FD_ID=$(echo "${VIS_FD_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+VIS_FD_ID=$(echo "${VIS_FD_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (default visibility=PRIVATE)"
 VIS_FD_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_FD_ID}")
@@ -1395,7 +1401,7 @@ VIS_S_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" 
   "${BASE_URL}/v3/files/shortcuts/")
 VIS_S_HTTP=$(echo "${VIS_S_RESP}" | tail -1); VIS_S_BODY=$(echo "${VIS_S_RESP}" | head -1)
 [[ "${VIS_S_HTTP}" == "201" ]] || api_fail "create shortcut (visibility=PUBLIC) → HTTP ${VIS_S_HTTP}. Body: ${VIS_S_BODY:0:300}"
-VIS_S_ID=$(echo "${VIS_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+VIS_S_ID=$(echo "${VIS_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 [[ -n "${VIS_S_ID}" ]] || api_fail "no uuid in create-shortcut response. Body: ${VIS_S_BODY:0:300}"
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/shortcuts/{id} (visibility populated)"
@@ -1435,7 +1441,7 @@ VM_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   "${BASE_URL}/v3/files/folders/")
 VM_F_HTTP=$(echo "${VM_F_RESP}" | tail -1); VM_F_BODY=$(echo "${VM_F_RESP}" | head -1)
 [[ "${VM_F_HTTP}" == "201" ]] || api_fail "create move-test folder → HTTP ${VM_F_HTTP}. Body: ${VM_F_BODY:0:300}"
-VM_F_ID=$(echo "${VM_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+VM_F_ID=$(echo "${VM_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 [[ -n "${VM_F_ID}" ]] || api_fail "no uuid in move-test folder create body. Body: ${VM_F_BODY:0:300}"
 
 CALL_NUM=$((CALL_NUM+1))
@@ -1468,7 +1474,7 @@ VM_S_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   "${BASE_URL}/v3/files/shortcuts/")
 VM_S_HTTP=$(echo "${VM_S_RESP}" | tail -1); VM_S_BODY=$(echo "${VM_S_RESP}" | head -1)
 [[ "${VM_S_HTTP}" == "201" ]] || api_fail "create move-test shortcut → HTTP ${VM_S_HTTP}. Body: ${VM_S_BODY:0:300}"
-VM_S_ID=$(echo "${VM_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+VM_S_ID=$(echo "${VM_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 [[ -n "${VM_S_ID}" ]] || api_fail "no uuid in move-test shortcut create body. Body: ${VM_S_BODY:0:300}"
 
 CALL_NUM=$((CALL_NUM+1))
@@ -1511,7 +1517,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   NS_DESC="folder-backed networkset round-trip"
 
   NS_OWNER_ID=$(curl -s "${BASE_URL}/v2/user?username=${TEST_USER}" \
-    | grep -oiE '"externalId"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+    | grep -oiE '"externalId"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
   [[ -n "${NS_OWNER_ID}" ]] || api_fail "could not resolve ${TEST_USER} UUID from GET /v2/user?username"
 
   # ── 1) POST /v2/networkset → creates a FOLDER at the owner's home root ──────────────────────────
@@ -1834,7 +1840,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   CALL_NUM=$((CALL_NUM+1))
   echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networkcount — networkSetCount agrees with the list"
   NS_CNT_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networkcount")
-  NS_SET_COUNT=$(echo "${NS_CNT_BODY}" | grep -oE '"networkSetCount"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+  NS_SET_COUNT=$(echo "${NS_CNT_BODY}" | grep -oE '"networkSetCount"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
   [[ -n "${NS_SET_COUNT}" ]] || api_fail "networkcount response has no networkSetCount. Body: ${NS_CNT_BODY:0:300}"
   NS_LIST_LEN=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?summary=true" \
     | grep -oE '"externalId"' | wc -l | tr -d '[:space:]')
@@ -2013,6 +2019,228 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   psql_ndex "DELETE FROM task WHERE \\\"UUID\\\" = '${LEGACY_TASK_ID}'" >/dev/null
 fi
 
+# ══════════════════════════════════════════════════════════════════════════════
+# GROUP 1 (final): folder permission propagation — issue #165
+#
+# Folder READ/WRITE must resolve live up the ancestor chain. The ordering below is
+# the one that used to fail: GRANT FIRST on an empty folder, then add children.
+# Under the old copy-down implementation the grant snapshotted an empty tree and
+# nothing added afterwards was ever covered.
+#
+# Five caller classes, because they take genuinely different code paths:
+#   owner      ndextest   — owns the folder
+#   WRITE      ndextest2  — inherited write
+#   READ       ndextest3  — inherited read, must never gain write
+#   no-grant   ndextest4  — authenticated, zero rows (the EXISTS-miss branch)
+#   anonymous  no auth    — userId is null, a different SQL branch entirely
+# ══════════════════════════════════════════════════════════════════════════════
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+
+step "Folder permissions propagate to nested objects (#165)"
+
+TEST_USER3="ndextest3"; TEST_PASS3="NDExTest3!"
+TEST_USER4="ndextest4"; TEST_PASS4="NDExTest4!"
+for U in "${TEST_USER3}:${TEST_PASS3}" "${TEST_USER4}:${TEST_PASS4}"; do
+  UN="${U%%:*}"; UP="${U##*:}"
+  curl -s -o /dev/null -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+    -d "{\"userName\":\"${UN}\",\"password\":\"${UP}\",\"emailAddress\":\"${UN}@ndex-integration.local\",\"firstName\":\"NDEx\",\"lastName\":\"Test\"}" \
+    "${BASE_URL}/v2/user" || true
+done
+P_UID2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user?username=${TEST_USER2}" | grep -oE '"externalId":"[0-9a-f-]{36}"' | cut -d'"' -f4 || true)
+P_UID3=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user?username=${TEST_USER3}" | grep -oE '"externalId":"[0-9a-f-]{36}"' | cut -d'"' -f4 || true)
+[[ -n "${P_UID2}" && -n "${P_UID3}" ]] || api_fail "#165: could not resolve grantee user ids"
+
+# ── the folder, shared BEFORE it has any content ──────────────────────────────
+P_FOLDER=$(curl -s -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d '{"name":"perm-propagation-165"}' "${BASE_URL}/v3/files/folders/" \
+  | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+[[ -n "${P_FOLDER}" ]] || api_fail "#165: could not create shared folder"
+
+P_GRANT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"files\":{\"${P_FOLDER}\":\"FOLDER\"},\"members\":{\"${P_UID2}\":\"WRITE\",\"${P_UID3}\":\"READ\"}}" \
+  "${BASE_URL}/v3/files/sharing/members")
+[[ "${P_GRANT_HTTP}" =~ ^2 ]] || api_fail "#165: grant on empty folder failed with HTTP ${P_GRANT_HTTP}"
+api_pass "granted WRITE+READ on an empty folder (children added afterwards)"
+
+# ── children created AFTER the grant ──────────────────────────────────────────
+P_NET_B=$(curl -s -X POST -u "${TEST_USER2}:${TEST_PASS2}" -H "Content-Type: application/json" \
+  --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" \
+  "${BASE_URL}/v3/networks?folderId=${P_FOLDER}" \
+  | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+[[ -n "${P_NET_B}" ]] || api_fail "#165: WRITE grantee could not upload into the shared folder"
+api_pass "WRITE grantee can place a network via ?folderId= (inherited write honored)"
+
+P_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"targetFolder\":\"${P_FOLDER}\",\"networks\":[\"${V2_PRIV_UUID}\"]}" \
+  "${BASE_URL}/v3/batch/networks/move")
+[[ "${P_MOVE_HTTP}" =~ ^2 ]] || api_fail "#165: owner move into own folder returned ${P_MOVE_HTTP}"
+
+P_SUB=$(curl -s -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"name\":\"perm-sub-165\",\"parent\":\"${P_FOLDER}\"}" "${BASE_URL}/v3/files/folders/" \
+  | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+[[ -n "${P_SUB}" ]] || api_fail "#165: could not create subfolder"
+
+# Shortcut to a PRIVATE network of the folder owner that lives OUTSIDE the shared
+# subtree. It is reachable only through the same-owner shortcut seed, so this cell
+# fails if that rule is missing.
+P_SC=$(curl -s -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"name\":\"perm-sc-165\",\"parent\":\"${P_FOLDER}\",\"target\":\"${V3_PRIV_UUID}\",\"targetType\":\"NETWORK\"}" \
+  "${BASE_URL}/v3/files/shortcuts/" \
+  | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+[[ -n "${P_SC}" ]] || api_fail "#165: could not create shortcut in shared folder"
+api_pass "children created after the grant: network, subfolder, shortcut"
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+p_code() { # auth(or empty) method url
+  if [[ -z "$1" ]]; then curl -s -o /dev/null -w "%{http_code}" -X "$2" "$3"
+  else curl -s -o /dev/null -w "%{http_code}" -u "$1" -X "$2" "$3"; fi
+}
+p_listed() { # auth(or empty) uuid -> yes|no
+  local body
+  if [[ -z "$1" ]]; then body=$(curl -s "${BASE_URL}/v3/files/folders/${P_FOLDER}/list")
+  else body=$(curl -s -u "$1" "${BASE_URL}/v3/files/folders/${P_FOLDER}/list"); fi
+  if grep -q "$2" <<<"${body}"; then echo yes; else echo no; fi
+}
+p_expect() { # label actual expected
+  [[ "$2" == "$3" ]] || api_fail "#165: $1 — got '$2', expected '$3'"
+  api_pass "$1 = $3"
+}
+
+A_AUTH="${TEST_USER}:${TEST_PASS}"
+B_AUTH="${TEST_USER2}:${TEST_PASS2}"
+C_AUTH="${TEST_USER3}:${TEST_PASS3}"
+D_AUTH="${TEST_USER4}:${TEST_PASS4}"
+
+# ── the headline assertion: no re-grant anywhere ──────────────────────────────
+for PAIR in "owner:${A_AUTH}" "write:${B_AUTH}" "read:${C_AUTH}"; do
+  CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
+  p_expect "${CLS} sees the WRITE-grantee's network in /list" "$(p_listed "${AUTH}" "${P_NET_B}")" yes
+  p_expect "${CLS} sees the owner's moved network in /list"   "$(p_listed "${AUTH}" "${V2_PRIV_UUID}")" yes
+  p_expect "${CLS} sees the subfolder in /list"               "$(p_listed "${AUTH}" "${P_SUB}")" yes
+  p_expect "${CLS} sees the shortcut in /list"                "$(p_listed "${AUTH}" "${P_SC}")" yes
+  p_expect "${CLS} GET nested network"        "$(p_code "${AUTH}" GET "${BASE_URL}/v3/networks/${P_NET_B}")" 200
+  p_expect "${CLS} GET nested network summary" "$(p_code "${AUTH}" GET "${BASE_URL}/v3/networks/${P_NET_B}/summary")" 200
+  p_expect "${CLS} GET subfolder"             "$(p_code "${AUTH}" GET "${BASE_URL}/v3/files/folders/${P_SUB}")" 200
+  p_expect "${CLS} GET shortcut"              "$(p_code "${AUTH}" GET "${BASE_URL}/v3/files/shortcuts/${P_SC}")" 200
+  p_expect "${CLS} GET shortcut target via same-owner seed" \
+      "$(p_code "${AUTH}" GET "${BASE_URL}/v3/networks/${V3_PRIV_UUID}")" 200
+done
+
+# the folder owner must see the collaborator's contribution — the reciprocal case
+p_expect "owner can read the WRITE-grantee's network" "$(p_code "${A_AUTH}" GET "${BASE_URL}/v3/networks/${P_NET_B}")" 200
+
+# ── negative classes: no grant, and anonymous ─────────────────────────────────
+for PAIR in "no-grant:${D_AUTH}" "anonymous:"; do
+  CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
+  p_expect "${CLS} does NOT see the nested network in /list" "$(p_listed "${AUTH}" "${P_NET_B}")" no
+  p_expect "${CLS} does NOT see the subfolder in /list"      "$(p_listed "${AUTH}" "${P_SUB}")" no
+  p_expect "${CLS} GET nested network denied" "$(p_code "${AUTH}" GET "${BASE_URL}/v3/networks/${P_NET_B}")" 401
+  p_expect "${CLS} GET subfolder denied"      "$(p_code "${AUTH}" GET "${BASE_URL}/v3/files/folders/${P_SUB}")" 401
+done
+
+# ── /list and /count must agree ───────────────────────────────────────────────
+for PAIR in "owner:${A_AUTH}" "write:${B_AUTH}" "read:${C_AUTH}"; do
+  CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
+  CNT=$(curl -s -u "${AUTH}" "${BASE_URL}/v3/files/folders/${P_FOLDER}/count")
+  CNT_N=$(grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' <<<"${CNT}" | grep -oE '[0-9]+$' || true)
+  CNT_F=$(grep -oE '"folder"[[:space:]]*:[[:space:]]*[0-9]+' <<<"${CNT}" | grep -oE '[0-9]+$' || true)
+  CNT_S=$(grep -oE '"shortcut"[[:space:]]*:[[:space:]]*[0-9]+' <<<"${CNT}" | grep -oE '[0-9]+$' || true)
+  p_expect "${CLS} /count networks agrees with /list"  "${CNT_N}" 2
+  p_expect "${CLS} /count folders agrees with /list"   "${CNT_F}" 1
+  p_expect "${CLS} /count shortcuts agrees with /list" "${CNT_S}" 1
+done
+
+# ── writes: only owner and WRITE ──────────────────────────────────────────────
+p_expect "owner can PUT the nested network" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X PUT -u "${A_AUTH}" -H 'Content-Type: application/json' \
+     --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" "${BASE_URL}/v3/networks/${P_NET_B}")" 200
+p_expect "READ grantee CANNOT PUT (read must never confer write)" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X PUT -u "${C_AUTH}" -H 'Content-Type: application/json' \
+     --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" "${BASE_URL}/v3/networks/${P_NET_B}")" 401
+
+# ── placement authorization (the ?folderId= hole) ─────────────────────────────
+p_expect "READ grantee CANNOT place a network into the shared folder" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${C_AUTH}" -H 'Content-Type: application/json' \
+     --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" "${BASE_URL}/v3/networks?folderId=${P_FOLDER}")" 401
+p_expect "no-grant user CANNOT place a network into a stranger's folder" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${D_AUTH}" -H 'Content-Type: application/json' \
+     --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" "${BASE_URL}/v3/networks?folderId=${P_FOLDER}")" 401
+p_expect "no-grant user CANNOT move networks into a stranger's folder" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${D_AUTH}" -H 'Content-Type: application/json' \
+     -d "{\"targetFolder\":\"${P_FOLDER}\",\"networks\":[\"${V3_PUB_UUID}\"]}" \
+     "${BASE_URL}/v3/batch/networks/move")" 401
+
+# ── sharing input validation ──────────────────────────────────────────────────
+p_expect "granting an unsupported permission is rejected, not silently stored" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+     -d "{\"files\":{\"${P_FOLDER}\":\"FOLDER\"},\"members\":{\"${P_UID3}\":\"ADMIN\"}}" \
+     "${BASE_URL}/v3/files/sharing/members")" 400
+
+# ── cross-owner shortcut must grant nothing (the escalation guard) ────────────
+# The same-owner seed lets a folder grant reach a network that is only *referenced*
+# from the folder by one of its owner's shortcuts. The guard is that the shortcut's
+# owner must equal the network's owner — otherwise a folder owner could hand out
+# access to a network they do not own simply by dropping a shortcut to it.
+#
+# To exercise the guard the target must sit OUTSIDE the shared subtree and be owned
+# by someone other than the shortcut's creator, and the probing user must genuinely
+# HOLD a grant on the folder. Probing with a user who has no grant at all would
+# return 401 whether or not the guard exists, and prove nothing.
+P_FOREIGN=$(curl -s -X POST -u "${B_AUTH}" -H 'Content-Type: application/json' \
+  --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" \
+  "${BASE_URL}/v3/networks" \
+  | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+[[ -n "${P_FOREIGN}" ]] || api_fail "#165: could not create the cross-owner fixture network"
+
+# Wait out CX2 processing before probing. An in-flight upload answers 404, which would be
+# indistinguishable here from "denied" and would make the guard assertions below meaningless.
+P_WAIT=0
+until curl -s -u "${B_AUTH}" "${BASE_URL}/v3/networks/${P_FOREIGN}/summary" | grep -q '"completed":true'; do
+  P_WAIT=$((P_WAIT+2))
+  [[ ${P_WAIT} -ge ${LOAD_TIMEOUT} ]] && api_fail "#165: cross-owner fixture did not finish loading in ${LOAD_TIMEOUT}s"
+  sleep 2
+done
+
+# sanity: the READ grantee cannot reach it before any shortcut exists
+p_expect "cross-owner fixture starts unreachable to the READ grantee" \
+  "$(p_code "${C_AUTH}" GET "${BASE_URL}/v3/networks/${P_FOREIGN}")" 401
+
+# Creating a shortcut requires read access to its target (validateShortcutTarget), so the folder
+# owner must first be given read on ndextest2's network directly. That direct grant is deliberately
+# NOT transitive: it lets the owner reference the network, and the cross-owner guard below is what
+# must stop that reference from leaking it onward to the folder's grantees.
+P_UID1=$(curl -s -u "${A_AUTH}" "${BASE_URL}/v2/user?username=${TEST_USER}" | grep -oE '"externalId":"[0-9a-f-]{36}"' | cut -d'"' -f4 || true)
+[[ -n "${P_UID1}" ]] || api_fail "#165: could not resolve the folder owner's user id"
+curl -s -o /dev/null -X POST -u "${B_AUTH}" -H 'Content-Type: application/json' \
+  -d "{\"files\":{\"${P_FOREIGN}\":\"NETWORK\"},\"members\":{\"${P_UID1}\":\"READ\"}}" \
+  "${BASE_URL}/v3/files/sharing/members" || true
+p_expect "folder owner can read the foreign network after a DIRECT share" \
+  "$(p_code "${A_AUTH}" GET "${BASE_URL}/v3/networks/${P_FOREIGN}")" 200
+
+# the folder OWNER drops a shortcut to ndextest2's network into the shared folder
+P_XSC=$(curl -s -X POST -u "${A_AUTH}" -H "Content-Type: application/json" \
+  -d "{\"name\":\"perm-xowner-165\",\"parent\":\"${P_FOLDER}\",\"target\":\"${P_FOREIGN}\",\"targetType\":\"NETWORK\"}" \
+  "${BASE_URL}/v3/files/shortcuts/" \
+  | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+[[ -n "${P_XSC}" ]] || api_fail "#165: could not create the cross-owner shortcut"
+
+p_expect "cross-owner shortcut does NOT grant the READ grantee access to its target" \
+  "$(p_code "${C_AUTH}" GET "${BASE_URL}/v3/networks/${P_FOREIGN}")" 401
+# control: the network is genuinely reachable by its own owner, so the 401 above is
+# the guard doing its job rather than the fixture simply being broken
+p_expect "cross-owner fixture is still reachable by the user who owns it" \
+  "$(p_code "${B_AUTH}" GET "${BASE_URL}/v3/networks/${P_FOREIGN}")" 200
+
+# ── DB evidence: one row covers the whole subtree, no copy-down ───────────────
+P_FP_ROWS=$(psql_ndex "SELECT count(*) FROM core.folder_permission fp JOIN core.folder f ON f.\\\"UUID\\\"=fp.folder_id WHERE f.name IN ('perm-propagation-165','perm-sub-165')")
+p_expect "grant stored on the named folder only (no copy-down to the subfolder)" "${P_FP_ROWS}" 2
+P_UNM_ROWS=$(psql_ndex "SELECT count(*) FROM core.user_network_membership WHERE network_id='${P_NET_B}'")
+p_expect "no membership rows fabricated for the nested network" "${P_UNM_ROWS}" 0
+
+fi
+
 # ── STEP: AUTHENTICATED_USER_ONLY blocks anonymous POST /v2/user ─────────────
 # NOTE: this permanently flips the server to AUTHENTICATED_USER_ONLY=true (appends to
 # ndex.properties + restarts Tomcat), so it must run AFTER any step that needs anonymous
@@ -2179,6 +2407,30 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     echo -e "  ${GREEN}✓ PASS${NC}: postgres up after wipe+reinit; corruption log confirms DATA LOSS"
   else
     api_fail "flag=true: pg_ready=${PG_WIPE_READY}, log='${PG_WIPE_CORRUPTION}'. Expected postgres up + DATA LOSS entry."
+  fi
+fi
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GROUP 2 — upgrade test: current released image → this build
+#
+# Runs only after group 1 is completely torn down, on its own separate volume, so
+# neither group can contaminate the other's state or obscure its failures. Skipped
+# in remote mode along with every other container-only step.
+# ══════════════════════════════════════════════════════════════════════════════
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "Tearing down group 1 before the migration group"
+  _remove_test_containers
+  rm -f "${TMP_CATALINA_TOML:-}"
+  echo "  group 1 container and volume removed"
+
+  step "GROUP 2: upgrade test (released image → current build)"
+  # The image is already built by group 1; don't rebuild it.
+  if "${SCRIPT_DIR}/migration-test.sh" --skip-build; then
+    api_pass "upgrade from the released image preserves data and advances the schema"
+  else
+    api_fail "migration test failed — see output above"
   fi
 fi
 

@@ -6,6 +6,88 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Fixed
+
+- **Folder `read`/`write` permissions now propagate to everything nested inside the folder (#165).**
+  Granting a user access to a folder gives them that access on the networks, subfolders and shortcuts
+  it contains — including items added *after* the grant was made. Previously a grant was copied onto
+  the folder's contents at the moment it was issued, so it only ever covered what already existed:
+  anything created, uploaded or moved into the folder afterwards was invisible and unopenable to the
+  people the folder was shared with, and re-sharing the folder was the only way to pick it up. Access
+  is now resolved from the folder hierarchy at request time, so a grant covers the whole subtree
+  continuously and follows objects as they are moved between folders, exactly as the folder/shortcut
+  specification describes.
+- **A folder's owner can now see and edit what collaborators put in it.** Propagation previously wrote
+  records only for the person being granted access, never for the owner, so the person who created and
+  shared a folder could not open or update the networks their collaborators had added to it. This
+  affected every endpoint: folder listings, item counts, network and folder retrieval, and updates.
+- **Shortcuts resolve from their target.** A shortcut is readable exactly when the thing it points at is
+  readable, per the specification's rule that permissions cannot be set on a shortcut directly. A folder
+  full of shortcuts — which is what every migrated network set is — now lists and opens correctly for
+  the people it is shared with. A shortcut created by one user pointing at another user's network
+  confers nothing, so a folder owner cannot widen access to content they do not own.
+- **Revoking a folder share no longer revokes unrelated network shares.** This is a separate,
+  pre-existing defect hardened as part of this work. Removing someone's access to a folder used to
+  cascade over the entire subtree and delete their access to *every* network beneath it — including
+  networks that had been shared with them directly through the network sharing endpoints, with no
+  relationship to the folder. Un-sharing a folder therefore silently un-shared those networks too, and
+  nothing recorded which had been removed as collateral, so the loss was neither visible nor
+  recoverable. Revocation now removes only the folder grant itself; direct network grants are untouched.
+
+### Changed
+
+- **Restoring from trash now agrees with what folder listings show.** Restoring an item into a folder you
+  hold *inherited* write access on returns it to that folder. Previously the check looked only for access
+  granted directly on that folder, so a user who was fully entitled to restore the item had it silently
+  relocated to their home instead.
+- **The "shared" indicator reflects effective sharing.** An object exposed only through a grant on an
+  ancestor folder previously displayed as *not shared*, leaving an owner with no signal that it was
+  visible to others. It now displays as shared.
+- **"Shared with me" lists only folders shared with you directly.** Previously a grant created records on
+  every nested folder as well, so subfolders appeared as separate top-level entries. Nested folders are
+  now reached by opening the shared parent. This is an intentional change: the list is shorter and
+  reflects what was actually shared.
+- **`POST /v3/networks?folderId=` and `POST /v3/batch/networks/move` now authorize the target folder.**
+  Neither previously checked it at all, so a network could be placed into any folder by id — including
+  one belonging to a user the caller had no relationship with. Both now require ownership or effective
+  write access on the destination. A **read-only** grantee can no longer place or move networks into a
+  folder shared with them. Requests are rejected before the network is created, so a refused upload
+  leaves nothing behind.
+- **`POST /v3/files/sharing/members` rejects permissions other than `READ` and `WRITE`** with a 400.
+  Other values were previously accepted and stored, then ignored by every access check — the grant
+  appeared to succeed while conferring nothing.
+
+### Added
+
+- Solr access-control fields are populated with the effective audience of an object, so a network or
+  folder nested inside a shared folder is indexed with the users who can actually reach it rather than
+  an empty list.
+
+### Schema
+
+Applied automatically on startup by `schema_upgrade.sh`; the schema version advances to **3.0.5**.
+
+- `schema_update_3.0.3_to_3.0.5.sql`:
+  - adds `network_parent_idx` on `core.network (parent)`, supporting the folder-hierarchy lookups
+  - creates `core.user_network_membership_archive`, a full copy of `core.user_network_membership` taken
+    **before** any cleanup, so the deletion below is recoverable
+  - removes the per-network access records that folder propagation had previously copied down, but only
+    where the folder grant that replaces them is at least as permissive. A direct `WRITE` record sitting
+    under a folder that grants only `READ` is retained, so no one's access is reduced by the migration.
+- `schema_upgrade.sh` now repeats its sweep until no further update applies, so an upgrade needing more
+  than one step completes in a single startup rather than stopping partway depending on how the
+  migration filenames sort.
+
+### Known limitation
+
+- Search results (`/v3/search/files`) are not yet inheritance-aware for **already-indexed** content.
+  Newly written index entries carry the correct audience, but changing a permission or moving an object
+  does not yet trigger a reindex of the affected subtree, and a user whose access was revoked may still
+  find nested items until those items are reindexed. Tracked for a following change.
+
+
 ## [3.0.4] - 2026-07-31
 
 ### Changed

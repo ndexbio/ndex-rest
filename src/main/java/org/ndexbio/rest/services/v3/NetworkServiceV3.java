@@ -435,21 +435,54 @@ public class NetworkServiceV3  extends NdexService {
 		   try (UserDAO dao = new UserDAO()) {
 			   dao.checkDiskSpace(getLoggedInUserId());
 		   }
-		   
+
+		   // Authorize the destination before storing anything, so a rejected request creates no network.
+		   UUID folderId = resolveWritableTargetFolder(folderIdStr);
+
 		   try (InputStream in = this.getInputStreamFromRequest()) {
 			   UUID uuid = storeRawNetworkFromStream(in, CX2NetworkLoader.cx2NetworkFileName);
-			   UUID folderId = null;
-			   if (folderIdStr != null && !folderIdStr.isEmpty()) {
-				folderId = UUID.fromString(folderIdStr);
-			   }
 			   return processRawCX2Network(visibility, extraIndexOnNodes, uuid, folderId);
 
-		   }		   
+		   }
 
 	   	}
 	   
 	   public Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid) throws JsonProcessingException, ObjectNotFoundException, SQLException, NdexException, IOException, URISyntaxException, Exception {
 		   return processRawCX2Network(visibility, extraIndexOnNodes, uuid, null);
+	   }
+
+	   /**
+	    * Rejects placement into a folder the caller may not write to.
+	    *
+	    * <p>Previously {@code ?folderId=} was applied with no authorization at all, so a network could be
+	    * planted in any folder by UUID — including a stranger's. Ownership or effective WRITE is now
+	    * required, matching {@code POST /v3/files/folders}. "Effective" is the operative word: a user
+	    * whose write access is inherited from an ancestor folder must be allowed through.</p>
+	    *
+	    * <p>Called before the network is created so an unauthorized request leaves nothing behind.</p>
+	    *
+	    * @return the parsed folder id, or null when no placement was requested
+	    */
+	   private UUID resolveWritableTargetFolder(String folderIdStr) throws Exception {
+		   if (folderIdStr == null || folderIdStr.isEmpty())
+			   return null;
+
+		   UUID folderId;
+		   try {
+			   folderId = UUID.fromString(folderIdStr);
+		   } catch (IllegalArgumentException e) {
+			   throw new BadRequestException("Invalid folderId: " + folderIdStr);
+		   }
+
+		   UUID userId = getLoggedInUserId();
+		   try (FolderDAO folderDao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+			   if (!folderDao.isFolderOwner(folderId, userId)
+					   && Permissions.WRITE != folderDao.getEffectivePermission(folderId, userId)) {
+				   throw new UnauthorizedOperationException(
+						   "User doesn't have write access to the target folder.");
+			   }
+		   }
+		   return folderId;
 	   }
 
 	   private Response processRawCX2Network(VisibilityType visibility, Set<String> extraIndexOnNodes, UUID uuid, UUID folderId)
@@ -515,11 +548,10 @@ public class NetworkServiceV3  extends NdexService {
 				dao.checkDiskSpace(getLoggedInUserId());
 			}
 
+			// Authorize the destination before storing anything, so a rejected request creates no network.
+			UUID folderId = resolveWritableTargetFolder(folderIdStr);
+
 			UUID uuid = storeRawNetworkFromMultipart(input, CX2NetworkLoader.cx2NetworkFileName);
-		    UUID folderId = null;
-		    if (folderIdStr != null && !folderIdStr.isEmpty()) {
-		    	folderId = UUID.fromString(folderIdStr);
-		    }
 			return processRawCX2Network(visibility, extraIndexOnNodes, uuid, folderId);
 
 		}
@@ -614,6 +646,9 @@ public class NetworkServiceV3  extends NdexService {
 			dao.checkDiskSpace(getLoggedInUserId());
 		}
 
+		// Authorize the destination before storing anything, so a rejected request creates no network.
+		UUID targetFolderId = resolveWritableTargetFolder(folderIdStr);
+
 		UUID uuid = storeRawNetworkFromStream(cx2Stream, CX2NetworkLoader.cx2NetworkFileName);
 		String uuidStr = uuid.toString();
 		accLogger.info("[data]\t[uuid:" + uuidStr + "]");
@@ -629,9 +664,9 @@ public class NetworkServiceV3  extends NdexService {
 			dao.commit();
 		}
 
-		if (folderIdStr != null && !folderIdStr.isEmpty()) {
+		if (targetFolderId != null) {
 			try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
-				networkDao.setNetworkFolder(uuid, UUID.fromString(folderIdStr));
+				networkDao.setNetworkFolder(uuid, targetFolderId);
 				networkDao.commit();
 			}
 		}

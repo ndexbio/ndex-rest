@@ -89,6 +89,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import org.ndexbio.common.models.dao.AccessKeyResolver;
+import org.ndexbio.common.models.dao.FilePermissionResolver;
 import org.ndexbio.common.models.dao.NetworkDAO;
 
 
@@ -117,19 +118,40 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	/* Shared access-key validation logic (folder-hierarchy accrual). Injectable for tests. */
 	private AccessKeyResolver accessKeyResolver;
 
+	/* Effective-permission resolution over the folder hierarchy. Injectable for tests. */
+	private FilePermissionResolver permissionResolver;
+
 	public PostgresNetworkDAO () throws  SQLException {
 	    super();
 	    this.accessKeyResolver = new PostgresAccessKeyResolver(db);
+	    this.permissionResolver = new PostgresFilePermissionResolver(db);
 	}
 
 	PostgresNetworkDAO(Connection conn) throws SQLException {
 		super(conn);
 		this.accessKeyResolver = new PostgresAccessKeyResolver(db);
+		this.permissionResolver = new PostgresFilePermissionResolver(db);
 	}
 
 	/** Package-private injection seam so unit tests can supply a mock resolver. */
 	void setAccessKeyResolver(AccessKeyResolver resolver) {
 		this.accessKeyResolver = resolver;
+	}
+
+	/** Package-private injection seam so unit tests can supply a mock resolver. */
+	void setPermissionResolver(FilePermissionResolver resolver) {
+		this.permissionResolver = resolver;
+	}
+
+	/**
+	 * Readable-network SQL predicate (alias {@code n}) for a viewer, including permissions inherited
+	 * from ancestor folders. Resolves the viewer's granted folder set once, so callers that embed the
+	 * fragment more than once in a single statement must hoist it into a local rather than calling
+	 * this repeatedly.
+	 */
+	String readableNetworkCondition(UUID userId) throws SQLException {
+		return permissionResolver.readableConditionSql(FileType.NETWORK, "n", userId,
+				permissionResolver.grantedFolderIds(userId, Permissions.READ));
 	}
 
 	public NetworkSummary CreateCloneNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize, UUID srcUUID) throws SQLException {
@@ -599,22 +621,9 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	} */
 	
 	
-	/**
-	 * We assume the alias of network table is n in this function. so make sure this is true when using this function to construct your sql.
-	 * @param userId
-	 * @return
-	 */
-	protected static String createIsReadableConditionStr(UUID userId) {
-		if ( userId == null)
-			return "(n.visibility='PUBLIC' or n.visibility='UNLISTED')";
-		return "( n.visibility='PUBLIC' or n.visibility='UNLISTED' or n.owneruuid = '" + userId + "' ::uuid or " +
-			" exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = '"+ userId + "' limit 1) )";
-	}
-
-	
 	public boolean isReadable(UUID networkID, UUID userId) throws SQLException, ObjectNotFoundException {
-		String sqlStr = "select (" + createIsReadableConditionStr(userId) + ") from network n where n.\"UUID\" = ? and n.is_deleted=false ";		
-			
+		String sqlStr = "select (" + readableNetworkCondition(userId) + ") from network n where n.\"UUID\" = ? and n.is_deleted=false ";
+
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkID);
 
@@ -627,19 +636,18 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		}
 	}
 	
+	/**
+	 * Write access is the network's owner, a direct WRITE membership, or WRITE inherited from an
+	 * ancestor folder. Public visibility never confers write.
+	 */
 	public boolean isWriteable(UUID networkID, UUID userId) throws SQLException {
-		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and (";
-		
-		sqlStr += " n.owneruuid = ? or "
-				+ " exists ( select 1 from user_network_membership un1 where un1.network_id = n.\"UUID\" and un1.user_id = ? and un1.permission_type = 'WRITE' limit 1) " ;
-
-		sqlStr += ")";
+		String cond = permissionResolver.writableConditionSql(FileType.NETWORK, "n", userId,
+				permissionResolver.grantedFolderIds(userId, Permissions.WRITE));
+		String sqlStr = "select 1 from network n where n.\"UUID\" = ? and n.is_deleted=false and (" + cond + ")";
 
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, networkID);
-				pst.setObject(2, userId);
-				pst.setObject(3, userId);
-			
+
 			try ( ResultSet rs = pst.executeQuery()) {
 				return rs.next();
 			}
@@ -949,29 +957,13 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			Preconditions.checkArgument(!Strings.isNullOrEmpty(networkId.toString()),
 					"A network UUID is required");
 
-			Map<Permissions,Collection<String>> userMemberships = new HashMap<>();
-
-			userMemberships.put(Permissions.ADMIN, new ArrayList<String> ());
-			userMemberships.put(Permissions.WRITE, new ArrayList<String> ());
-			userMemberships.put(Permissions.READ, new ArrayList<String> ());
-
-		    String sqlStr = "select u.user_name, b.per from  (select a.user_id, max(a.per) as per from "+
-		    		"(select owneruuid as user_id, 'ADMIN' :: ndex_permission_type as per from network where \"UUID\" = ? "+
-		    		 " union select user_id, permission_type as per from user_network_membership where network_id = ?) a "
-		    		 + "group by a.user_id) b, ndex_user u where u.\"UUID\"= b.user_id";
-
-		    try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
-		    	pst.setObject(1, networkId);
-		    	pst.setObject(2, networkId);
-		    	try (ResultSet rs = pst.executeQuery()) {
-		    		while ( rs.next()) {
-		    			Collection<String> userSet = userMemberships.get(Permissions.valueOf(rs.getString(2)));
-		    			userSet.add(rs.getString(1));
-		    		}
-		    	}
-		    }
-
-			return userMemberships;
+			// Delegated so the returned audience includes users whose access is INHERITED from an
+			// ancestor folder, not just those with a direct membership row. Every caller of this method
+			// populates the Solr access-control fields; with direct rows alone, a network nested in a
+			// shared folder would be indexed with an empty audience and become unfindable to the very
+			// users who can open it. Buckets are unchanged — ADMIN holds the owner, WRITE and READ the
+			// granted users — so the indexers need no adjustment.
+			return permissionResolver.effectiveMembers(networkId, FileType.NETWORK);
 		}
 		
 		/**
@@ -1435,10 +1427,13 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		List<UUID> ids = parseNetworkUuids(networkIdstrList);
 		String cnd = cvtUUIDListToStr(ids);
 
+		// Hoisted: the fragment resolves the viewer's granted folder set, so build it once per statement.
+		String readableCond = readableNetworkCondition(userId);
+
 		String sqlStr = accessKey == null ? (networkSummarySelectClause
-				+ " from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
+				+ " from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and " + readableCond)
 				  : ( networkSummarySelectClause
-							+ "from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
+							+ "from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and ( (" + readableCond
 				            +  ")" + networkAccessKeyInClause(ids, accessKey) + ")" );
 
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
@@ -1467,10 +1462,13 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 
 		String selectClause = generateMetadataQueryStr(fmt);
 
+		// Hoisted: the fragment resolves the viewer's granted folder set, so build it once per statement.
+		String readableCond = readableNetworkCondition(userId);
+
 		String sqlStr = accessKey == null ? (selectClause
-				+ " from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and " + createIsReadableConditionStr(userId))
+				+ " from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and " + readableCond)
 				  : (  selectClause //networkSummarySelectClause
-							+ "from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and ( (" + createIsReadableConditionStr(userId)
+							+ "from network n where n.\"UUID\" in("+ cnd + ") and n.is_deleted= false  and ( (" + readableCond
 				            +  ")" + networkAccessKeyInClause(ids, accessKey) + ")" );
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {
@@ -2059,16 +2057,19 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
     
 	public List<NetworkSummary> getUserShowCaseNetworkSummaries (UUID userId, UUID signedInUserId) throws SQLException, JsonParseException, JsonMappingException, IOException {
 		// be careful when modify the order or the select clause becaue populateNetworkSummaryFromResultSet function depends on the order.
-		
+
 		List<NetworkSummary> result = new ArrayList<>(50);
+
+		// Hoisted: the fragment resolves the viewer's granted folder set, so build it once per statement.
+		String readableCond = readableNetworkCondition(signedInUserId);
 				
 		String sqlStr = " select * from (" + networkSummarySelectClause 
 				+ " from network n where n.owneruuid = ? and show_in_homepage = true and n.is_deleted= false and is_validated = true and " 
-				+ createIsReadableConditionStr(signedInUserId)
-				+ " union " + networkSummarySelectClause 
+				+ readableCond
+				+ " union " + networkSummarySelectClause
 				+ " from network n, user_network_membership un where un.network_id = n.\"UUID\" and un.user_id = ? and un.show_in_homepage = true "
-				+ " and n.is_validated = true and n.is_deleted=false and " + 
-				createIsReadableConditionStr(signedInUserId)
+				+ " and n.is_validated = true and n.is_deleted=false and " +
+				readableCond
 				 + ") k order by k.modification_time desc";
 		
 		try (PreparedStatement p = db.prepareStatement(sqlStr)) {

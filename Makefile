@@ -122,8 +122,11 @@ push-docker: docker-multi-platform ## push multi-platform manifest to registry v
 	    $(DOCKER_BUILD_ARGS) \
 	    -t $(DOCKER_REPO):$(DOCKER_TAG) .
 
-integration-test: ## run integration tests
+integration-test: ## run integration tests (functional group, then the 3.0.0 upgrade group)
 	docker/test/integration-test.sh
+
+migration-test: ## run only the 3.0.0 -> current upgrade test
+	docker/test/migration-test.sh
 
 integration-test-mcp: ## run MCP integration tests (standalone)
 	docker/test/integration-mcp-test.sh
