@@ -34,7 +34,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=252
+TOTAL_API_CALLS=255
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -2191,6 +2191,19 @@ p_expect "granting an unsupported permission is rejected, not silently stored" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
      -d "{\"files\":{\"${P_FOLDER}\":\"FOLDER\"},\"members\":{\"${P_UID3}\":\"ADMIN\"}}" \
      "${BASE_URL}/v3/files/sharing/members")" 400
+
+# Sibling rejections on the same services, which share the failure mode above: throwing the JAX-RS
+# BadRequestException instead of NDEx's own means the catch-all ExceptionMapper<Throwable> reports a
+# 500 "Uncaught exception" rather than the 400 the caller should see.
+p_expect "creating a folder with no body is a 400, not a 500" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+     -d '{}' "${BASE_URL}/v3/files/folders/")" 400
+p_expect "creating a folder with an empty name is a 400, not a 500" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+     -d '{"name":"  "}' "${BASE_URL}/v3/files/folders/")" 400
+p_expect "a restore request naming nothing is a 400, not a 500" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+     -d '{}' "${BASE_URL}/v3/files/trash/restore")" 400
 
 # ── cross-owner shortcut must grant nothing (the escalation guard) ────────────
 # The same-owner seed lets a folder grant reach a network that is only *referenced*

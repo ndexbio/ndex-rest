@@ -40,7 +40,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.BadRequestException;
+// NDEx's own BadRequestException, not the JAX-RS one: DefaultExceptionMapper is registered as
+// ExceptionMapper<Throwable>, so it intercepts a JAX-RS WebApplicationException and reports it as
+// a 500 "Uncaught exception" instead of the 400 the caller should see.
+import org.ndexbio.model.exceptions.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;

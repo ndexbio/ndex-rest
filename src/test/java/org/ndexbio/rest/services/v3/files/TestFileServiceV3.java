@@ -37,6 +37,7 @@ import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.TrashRestoreRequest;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.exceptions.mappers.BadRequestExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 import jakarta.ws.rs.core.MediaType;
 import org.ndexbio.model.object.CopyRequest;
@@ -73,6 +74,7 @@ public class TestFileServiceV3 {
 		//if test causes an exception to be thrown be sure to 
 		//register the mapper for that exception
 		dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(BadRequestExceptionMapper.class);
 		
 		// create mock response
 		response = new MockHttpResponse();
