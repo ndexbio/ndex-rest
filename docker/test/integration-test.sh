@@ -1634,6 +1634,95 @@ echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (shortcut dropped 
 poll_files_until_absent "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (old core)"
 api_pass "shortcut visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
 
+# ── STEP: issue #162 — searchFiles must report visibility on FOLDER results ───
+# NETWORK items in a /v3/search/files response carry "visibility"; FOLDER items omit the key
+# entirely, so clients cannot tell a public folder from a private one (ndexbio/ndex3#52). Cause:
+# NFSSearchProvider.mapFolderToSummary never calls setVisibility, and FileItemSummary is
+# @JsonInclude(NON_NULL), so the unset field is dropped rather than serialized as null. The
+# NETWORK mapper and the shortcut DAO both set it, making FOLDER the lone outlier.
+#
+# Both cores are covered (PUBLIC → public-nfs, PRIVATE → private-nfs) so the fix cannot be
+# satisfied by emitting a hardcoded constant.
+#
+# The folder names MUST stay unique and randomized. `visibility` on this endpoint selects the
+# Solr core, it is not a row filter: PUBLIC and UNLISTED both live in public-nfs, and the public
+# core's permission filter is "exclude UNLISTED OR userAdmin:<me>", so an authenticated owner
+# searching visibility=PUBLIC legitimately gets their own UNLISTED folders back — and TEST_USER
+# owns one by now (the vis-folder flipped to UNLISTED earlier). A broader searchString would
+# match those too and make the assertion below meaningless.
+step "searchFiles reports visibility on FOLDER results (issue #162)"
+
+F162_PUB_NAME="visfolder162pub${RANDOM}${RANDOM}"
+F162_PRIV_NAME="visfolder162priv${RANDOM}${RANDOM}"
+
+# --- PUBLIC folder: must report visibility=PUBLIC in search results ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (create PUBLIC folder for issue #162)"
+F162_PUB_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"${F162_PUB_NAME}\",\"visibility\":\"PUBLIC\"}" \
+  "${BASE_URL}/v3/files/folders/")
+F162_PUB_HTTP=$(echo "${F162_PUB_RESP}" | tail -1); F162_PUB_CREATE_BODY=$(echo "${F162_PUB_RESP}" | head -1)
+[[ "${F162_PUB_HTTP}" == "201" ]] || api_fail "create issue-#162 PUBLIC folder → HTTP ${F162_PUB_HTTP}. Body: ${F162_PUB_CREATE_BODY:0:300}"
+F162_PUB_ID=$(echo "${F162_PUB_CREATE_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${F162_PUB_ID}" ]] || api_fail "no uuid in issue-#162 PUBLIC folder create body. Body: ${F162_PUB_CREATE_BODY:0:300}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (folder indexed in public-nfs)"
+poll_files_until_present "PUBLIC" "${F162_PUB_NAME}" "${F162_PUB_ID}" "issue #162 public folder"
+
+# No `type` in the request body — this mirrors the anonymous curl in the ticket, which went
+# through the untyped search path.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/search/files?visibility=PUBLIC (FOLDER item must carry visibility)"
+F162_PUB_SEARCH=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d "{\"searchString\":\"${F162_PUB_NAME}\"}" \
+  "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=25")
+F162_PUB_SEARCH_HTTP=$(echo "${F162_PUB_SEARCH}" | tail -1); F162_PUB_BODY=$(echo "${F162_PUB_SEARCH}" | head -1)
+[[ "${F162_PUB_SEARCH_HTTP}" == "200" ]] || api_fail "search visibility=PUBLIC → HTTP ${F162_PUB_SEARCH_HTTP}. Body: ${F162_PUB_BODY:0:300}"
+# Sanity first, so a Solr miss or a stray network cannot masquerade as the visibility bug.
+echo "${F162_PUB_BODY}" | grep -q "${F162_PUB_ID}" \
+  || api_fail "issue #162: folder ${F162_PUB_ID} missing from its own search results. Body: ${F162_PUB_BODY:0:400}"
+echo "${F162_PUB_BODY}" | grep -qE '"type"[[:space:]]*:[[:space:]]*"FOLDER"' \
+  || api_fail "issue #162: no FOLDER item in results for ${F162_PUB_NAME}. Body: ${F162_PUB_BODY:0:400}"
+echo "${F162_PUB_BODY}" | grep -qE '"type"[[:space:]]*:[[:space:]]*"NETWORK"' \
+  && api_fail "issue #162: unexpected NETWORK item matched ${F162_PUB_NAME}; its visibility would mask the folder's. Body: ${F162_PUB_BODY:0:400}"
+echo "${F162_PUB_BODY}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PUBLIC"' \
+  || api_fail "REGRESSION (issue #162): FOLDER item in /v3/search/files results has no visibility field. Body: ${F162_PUB_BODY:0:600}"
+api_pass "search visibility=PUBLIC → FOLDER item reports visibility=PUBLIC"
+
+# --- PRIVATE folder: must report visibility=PRIVATE (not a hardcoded PUBLIC) ---
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (create folder, default visibility=PRIVATE)"
+F162_PRIV_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d "{\"name\":\"${F162_PRIV_NAME}\"}" \
+  "${BASE_URL}/v3/files/folders/")
+F162_PRIV_HTTP=$(echo "${F162_PRIV_RESP}" | tail -1); F162_PRIV_CREATE_BODY=$(echo "${F162_PRIV_RESP}" | head -1)
+[[ "${F162_PRIV_HTTP}" == "201" ]] || api_fail "create issue-#162 PRIVATE folder → HTTP ${F162_PRIV_HTTP}. Body: ${F162_PRIV_CREATE_BODY:0:300}"
+F162_PRIV_ID=$(echo "${F162_PRIV_CREATE_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${F162_PRIV_ID}" ]] || api_fail "no uuid in issue-#162 PRIVATE folder create body. Body: ${F162_PRIV_CREATE_BODY:0:300}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (folder indexed in private-nfs)"
+poll_files_until_present "PRIVATE" "${F162_PRIV_NAME}" "${F162_PRIV_ID}" "issue #162 private folder"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/search/files?visibility=PRIVATE (FOLDER item must carry visibility)"
+F162_PRIV_SEARCH=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d "{\"searchString\":\"${F162_PRIV_NAME}\"}" \
+  "${BASE_URL}/v3/search/files?visibility=PRIVATE&start=0&size=25")
+F162_PRIV_SEARCH_HTTP=$(echo "${F162_PRIV_SEARCH}" | tail -1); F162_PRIV_BODY=$(echo "${F162_PRIV_SEARCH}" | head -1)
+[[ "${F162_PRIV_SEARCH_HTTP}" == "200" ]] || api_fail "search visibility=PRIVATE → HTTP ${F162_PRIV_SEARCH_HTTP}. Body: ${F162_PRIV_BODY:0:300}"
+echo "${F162_PRIV_BODY}" | grep -q "${F162_PRIV_ID}" \
+  || api_fail "issue #162: folder ${F162_PRIV_ID} missing from its own search results. Body: ${F162_PRIV_BODY:0:400}"
+echo "${F162_PRIV_BODY}" | grep -qE '"type"[[:space:]]*:[[:space:]]*"FOLDER"' \
+  || api_fail "issue #162: no FOLDER item in results for ${F162_PRIV_NAME}. Body: ${F162_PRIV_BODY:0:400}"
+echo "${F162_PRIV_BODY}" | grep -qE '"type"[[:space:]]*:[[:space:]]*"NETWORK"' \
+  && api_fail "issue #162: unexpected NETWORK item matched ${F162_PRIV_NAME}; its visibility would mask the folder's. Body: ${F162_PRIV_BODY:0:400}"
+echo "${F162_PRIV_BODY}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"' \
+  || api_fail "REGRESSION (issue #162): PRIVATE FOLDER item in /v3/search/files results does not report visibility=PRIVATE. Body: ${F162_PRIV_BODY:0:600}"
+api_pass "search visibility=PRIVATE → FOLDER item reports visibility=PRIVATE"
+
 # ── STEP: /v2/networkset round-trip on the folder-backed compatibility layer ──
 # The network set feature is retired as storage but preserved as an API: a network set id IS a folder
 # id, and every /v2/networkset endpoint performs folder/shortcut operations internally. So this step
