@@ -91,6 +91,10 @@ start_container() { # image
 uuid_of() { grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1; }
 code()    { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 listed()  { if curl -s -u "$1" "${BASE_URL}/v3/files/folders/$2/list" | grep -q "$3"; then echo yes; else echo no; fi; }
+# Searching by UUID isolates one document (uuid is a query field), so this is a permission
+# answer rather than a relevance artifact.
+found()   { if curl -s -u "$1" -X POST -H 'Content-Type: application/json' -d "{\"searchString\":\"$2\"}" \
+                 "${BASE_URL}/v3/search/files?visibility=PRIVATE&start=0&size=50" | grep -q "$2"; then echo yes; else echo no; fi; }
 
 # ══════════════════════════════════════════════════════════════════════════════
 step "Phase A — seed on the released image (${BASE_IMAGE})"
@@ -137,6 +141,25 @@ curl -s -o /dev/null -X POST -u "${OWNER}:${OWNER_PW}" -H 'Content-Type: applica
   "${BASE_URL}/v3/files/sharing/members"
 ok "seeded: shared folder, its contents, and a direct-WRITE-under-READ fixture"
 
+# Let indexing finish on the OLD image before the container goes away. NdexServerQueue persists
+# its tasks in the database, so a task still queued here would replay under the new build and
+# write parentUuid onto the document before the backfill ran — making the pre-reindex assertion
+# below pass or fail depending on timing rather than on behaviour.
+for N in "${M_NET}" "${M_NET2}"; do
+  WAITED=0
+  until curl -s -u "${OWNER}:${OWNER_PW}" "${BASE_URL}/v3/networks/${N}/summary" | grep -q '"completed":true'; do
+    WAITED=$((WAITED+2))
+    [[ ${WAITED} -ge 180 ]] && die "network ${N} did not finish loading on the released image"
+    sleep 2
+  done
+done
+until [[ "$(psql_mig "SELECT count(*) FROM core.task WHERE status='QUEUED' OR status='PROCESSING'")" == "0" ]]; do
+  WAITED=$((WAITED+2))
+  [[ ${WAITED} -ge 240 ]] && die "index tasks were still pending on the released image"
+  sleep 2
+done
+ok "indexing drained on the released image, so nothing replays under the new build"
+
 # Record the pre-upgrade facts the post-upgrade assertions are measured against.
 PRE_SCHEMA=$(psql_mig "SELECT version FROM core.schema_version ORDER BY applied_at DESC LIMIT 1")
 PRE_UNM=$(psql_mig "SELECT count(*) FROM core.user_network_membership")
@@ -173,6 +196,27 @@ expect "grantee can open the subfolder added after the grant" \
   "$(code -u "${GRANTEE}:${GRANTEE_PW}" "${BASE_URL}/v3/files/folders/${M_SUB}")" 200
 expect "owner still sees their own network" \
   "$(code -u "${OWNER}:${OWNER_PW}" "${BASE_URL}/v3/networks/${M_NET}")" 200
+
+# ── the one operator action this release requires ─────────────────────────────
+# Documents written by the released image carry the old copied-on access list and no
+# parentUuid, so folder-propagated search cannot work until they are rewritten. Asserting
+# the "before" state keeps the upgrade note honest: it is a real requirement, not boilerplate.
+expect "before the reindex, the grantee cannot yet FIND the shared network" \
+  "$(found "${GRANTEE}:${GRANTEE_PW}" "${M_NET}")" no
+
+MIG_PW=$(docker exec "${CONTAINER}" bash -c "grep '^MigrationPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-" | tr -d '[:space:]')
+[[ -n "${MIG_PW}" ]] || die "could not read MigrationPassword for the backfill reindex"
+REIDX_HTTP=$(code "${BASE_URL}/v3/admin/reindex-v3?password=${MIG_PW}")
+expect "the documented backfill reindex succeeds" "${REIDX_HTTP}" 200
+
+expect "after the reindex, the grantee FINDS a network shared before the upgrade" \
+  "$(found "${GRANTEE}:${GRANTEE_PW}" "${M_NET}")" yes
+expect "the owner finds it too" \
+  "$(found "${OWNER}:${OWNER_PW}" "${M_NET}")" yes
+expect "the backfill wrote parentUuid onto the network document" \
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/private-nfs/select?q=uuid:${M_NET}&fq=parentUuid:${M_FOLDER}&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 1
+expect "the rebuild dropped the stale access list from the document" \
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/private-nfs/select?q=uuid:${M_NET}&fq=userRead:*&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 0
 
 echo ""
 echo -e "${GREEN}${BOLD}================================================${NC}"

@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Calendar;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -174,6 +175,8 @@ public class BatchService extends NdexService {
 	        }
 	    }
 
+	    User user = getLoggedInUser();
+	    Map<UUID, VisibilityType> moved = new LinkedHashMap<>();
 	    try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
 	        for (UUID netId : request.getNetworks()) {
 	        	if (!networkDao.isAdmin(netId, userId)) {
@@ -181,8 +184,16 @@ public class BatchService extends NdexService {
 	            }
 
 	            networkDao.setNetworkFolder(netId, targetFolder);
+	            moved.put(netId, networkDao.getNetworkVisibility(netId));
 	        }
 	        networkDao.commit();
+	    }
+
+	    // Search filters networks by the folder recorded on their index document, so a move that does
+	    // not reindex leaves the network findable under the folder it just left and unfindable under
+	    // the one it moved into. Enqueued after the commit so the task reads the new parent.
+	    for (Map.Entry<UUID, VisibilityType> e : moved.entrySet()) {
+	        createFileIndex(e.getKey(), user, e.getValue(), FileType.NETWORK, false);
 	    }
 
 	    return ;

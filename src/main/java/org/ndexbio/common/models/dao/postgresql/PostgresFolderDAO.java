@@ -10,7 +10,6 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -898,30 +897,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 	    return permissionsMap;
 	}
-	/**
-	 * Username → permission for everyone who can reach this folder, <em>including</em> users whose
-	 * access is inherited from an ancestor folder.
-	 *
-	 * <p>The sole caller populates the Solr access-control fields; restricting this to rows stored
-	 * directly on the folder meant a nested folder was indexed with an empty audience and became
-	 * unfindable to users who could open it. The owner is deliberately excluded — callers index the
-	 * owner separately from the folder record itself — so only READ and WRITE appear here, matching the
-	 * shape this method has always returned.</p>
-	 */
-	@Override
-	public Map<String, String> getFolderPermissionsWithUsernames(UUID folderId) throws SQLException {
-		Map<Permissions, Collection<String>> effective =
-				permissionResolver.effectiveMembers(folderId, FileType.FOLDER);
-
-		Map<String, String> permissionsMap = new HashMap<>();
-		for (String userName : effective.get(Permissions.READ))
-			permissionsMap.put(userName, Permissions.READ.toString());
-		// WRITE last so it wins if a user somehow appears under both.
-		for (String userName : effective.get(Permissions.WRITE))
-			permissionsMap.put(userName, Permissions.WRITE.toString());
-		return permissionsMap;
-	}
-
 
 	@Override
 	public String getFolderAccessKey(UUID folderId) throws SQLException, ObjectNotFoundException {

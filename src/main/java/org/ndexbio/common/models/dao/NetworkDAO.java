@@ -118,6 +118,15 @@ public interface NetworkDAO extends AutoCloseable {
     void setNetworkFolder(UUID networkId, UUID parentId) throws SQLException, NdexException;
     
     UUID getNetworkFolder(UUID networkId) throws SQLException;
+
+    /**
+     * Resolves what a search request may reach through folder propagation. Exposed on the DAO because it
+     * shares the DAO's connection, and because search runs outside any DAO that would otherwise own a
+     * {@link FilePermissionResolver}.
+     *
+     * @see FilePermissionResolver#searchScope
+     */
+    SearchScope resolveSearchScope(UUID userId, Permissions atLeast) throws SQLException;
     
     void deleteNetworkLogical(UUID networkId, UUID userId) throws SQLException, NdexException;
     

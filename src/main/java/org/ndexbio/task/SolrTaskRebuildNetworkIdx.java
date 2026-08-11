@@ -5,7 +5,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Calendar;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -18,7 +17,6 @@ import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.solr.GlobalNetworkIndexManager;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.common.solr.NodeIndexFields;
 import org.ndexbio.common.solr.SolrObjectFactory;
@@ -33,7 +31,6 @@ import org.ndexbio.cxio.aspects.datamodels.NodesElement;
 import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
@@ -120,10 +117,8 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 				try (GlobalNetworkIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
 
 					// build the solr document obj
-					Map<Permissions, Collection<String>> userMemberships = dao
-							.getAllMembershipsOnNetwork(networkId);
 					globalIdx.prepareIndexDocument(summary, visibilityType,
-							userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
+							dao.getNetworkFolder(networkId));
 
 					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
 

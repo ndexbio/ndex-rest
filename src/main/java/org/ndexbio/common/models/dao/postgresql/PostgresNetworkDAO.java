@@ -51,7 +51,6 @@ import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.solr.GlobalNetworkIndexManager;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.cx2.aspect.element.core.CxMetadata;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
@@ -90,6 +89,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import org.ndexbio.common.models.dao.AccessKeyResolver;
 import org.ndexbio.common.models.dao.FilePermissionResolver;
+import org.ndexbio.common.models.dao.SearchScope;
 import org.ndexbio.common.models.dao.NetworkDAO;
 
 
@@ -152,6 +152,11 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	String readableNetworkCondition(UUID userId) throws SQLException {
 		return permissionResolver.readableConditionSql(FileType.NETWORK, "n", userId,
 				permissionResolver.grantedFolderIds(userId, Permissions.READ));
+	}
+
+	@Override
+	public SearchScope resolveSearchScope(UUID userId, Permissions atLeast) throws SQLException {
+		return permissionResolver.searchScope(userId, atLeast);
 	}
 
 	public NetworkSummary CreateCloneNetworkEntry(UUID networkUUID, UUID ownerId, String ownerUserName, long fileSize, UUID srcUUID) throws SQLException {
@@ -1049,11 +1054,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		}
 
 		
-		// update the solr Index
-	/*	if (!ignoreIndex) {
-			NetworkGlobalIndexManager globalIdx = new NetworkGlobalIndexManager();
-			globalIdx.updateNetworkProperties(networkId.toString(), props, updateTime);
-		} */
 		return props.size();
 	}
 	
@@ -1087,6 +1087,11 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		if (simpleNetworkQuery.getPermission() != null && simpleNetworkQuery.getPermission() == Permissions.ADMIN)
 			throw new NdexException("Permission can only be WRITE or READ in this function.");
 
+		// Resolved once for the request: search reads no permission state from the index, so this is what
+		// folder-inherited access is decided from. Only the private core consults it.
+		SearchScope scope = resolveSearchScope(loggedInUser == null ? null : loggedInUser.getExternalId(),
+				simpleNetworkQuery.getPermission() == Permissions.WRITE ? Permissions.WRITE : Permissions.READ);
+
 		try (GlobalNetworkIndexManager networkIdx =
 				Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
 
@@ -1094,7 +1099,8 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			SolrDocumentList publicResults = networkIdx.searchForNetworks(queryStr,
 					(loggedInUser == null ? null : loggedInUser.getUserName()),
 					VisibilityType.PUBLIC, top, skipBlocks * top,
-					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false);
+					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false,
+					SearchScope.EMPTY);
 
 			// If authenticated, also query private-nfs for the user's PRIVATE networks
 			SolrDocumentList privateResults = null;
@@ -1102,7 +1108,8 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 				privateResults = networkIdx.searchForNetworks(queryStr,
 						loggedInUser.getUserName(),
 						VisibilityType.PRIVATE, top, skipBlocks * top,
-						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false);
+						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false,
+						scope);
 			}
 
 			List<NetworkSummary> results = new ArrayList<>(publicResults.size() +
@@ -1729,11 +1736,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 				 throw new NdexException ("Failed to update visibility. Network " + networkId + " might have been locked.");
 		 }
 		    	  	
-		 //update solr index
-	/*	 NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-
-		 networkIdx.updateNetworkVisibility(networkId.toString(), v.toString()); */
-		    			
 	}
 	
 
@@ -1880,7 +1882,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 
     	Permissions p = getNetworkNonAdminPermissionOnUser(networkUUID, userUUID);
     	boolean showcased = isShowCased(networkUUID);
- //   	NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
     	if ( permission == Permissions.ADMIN) {
     		// grant admin to this user.
     		String sql = "update network set owneruuid = ?, owner = ?, iscomplete=false where \"UUID\" = ? and is_deleted = false";
@@ -1950,15 +1951,6 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
         	pst.setObject(2,userUUID);
         	int c = pst.executeUpdate();
         	commit();
-        	//if ( c ==1 )  {
-        	//	try (UserDAO dao = new UserDAO()) {
-        	//		User g = dao.getUserById(userUUID, true,false);
-        			
-        	/*		//update solr index
-            		NetworkGlobalIndexManager networkIdx = new NetworkGlobalIndexManager();
-            		networkIdx.revokeNetworkPermission(networkUUID.toString(), g.getUserName(), p, true); */
-        	//	}               
-        //	} 
         	return c;	
         }
     }

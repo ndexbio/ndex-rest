@@ -59,11 +59,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Other values were previously accepted and stored, then ignored by every access check — the grant
   appeared to succeed while conferring nothing.
 
-### Added
+### Search
 
-- Solr access-control fields are populated with the effective audience of an object, so a network or
-  folder nested inside a shared folder is indexed with the users who can actually reach it rather than
-  an empty list.
+- **How search decides what you can see.** Search used to keep a copy of "who is allowed to see this"
+  stored alongside each network in the search index. That copy was written when the network was indexed,
+  so it went out of date the moment you shared a folder, moved something into it, or took access away —
+  and it stayed out of date until that item happened to be re-indexed.
+
+  Search no longer stores permissions at all. When you search, the server first works out — from the
+  live database — which folders you currently have access to, then asks the search index for matches
+  that sit in one of those folders, that you own, or that were shared with you directly. Because that
+  list is worked out fresh on every search, sharing a folder makes its contents findable immediately,
+  and removing access hides them immediately. There is no delay and nothing to re-index.
+
+  The search index now records which folder each network lives in, which is what makes this possible.
+  That is filled in automatically on upgrade, and kept current whenever a network is moved.
+
+  This closes the last gap in the folder-permission work above: `/v3/search/files`,
+  `POST /v2/search/network` and `POST /v2/search/network/genes` now agree with what the folder listings
+  and the object endpoints report, because all of them answer from the same live query.
+
+- **An unlisted file is no longer surfaced to people it was shared with.** The specification is that an
+  unlisted file is searchable by its owner alone — being unlisted removes it from *results*, it does not
+  restrict who may open it by id. A search filtered to `WRITE` previously matched unlisted files for
+  anyone holding edit access, so a file the owner had deliberately unlisted could still appear in a
+  collaborator's results. It no longer does, and no folder grant surfaces it either. Opening an unlisted
+  file by id is unaffected.
+
+- **A shortcut you cannot reach is no longer readable just because you can read its target.**
+  `GET /v3/files/shortcuts/{id}` previously succeeded for a shortcut sitting in a folder the caller could
+  not open, provided they could read whatever it pointed at — disclosing the name, target and location of
+  an entry inside a private folder to anyone holding or guessing its id. A shortcut is now readable only
+  when the shortcut *itself* is reachable **and** its target is. Folder listings and network-set member
+  listings are unaffected: a caller who got there by opening the folder has already satisfied the first
+  condition. This is a deliberate reading of the specification, which describes what a shortcut inherits
+  but is silent on containment; search made the difference visible, and one rule across fetch, list and
+  search is worth more than the literal reading.
+
+- **Moving a network between folders updates the search index.** `POST /v3/batch/networks/move` and
+  removing a network from a network set previously left the index recording the old location, so the
+  network stayed findable under the folder it had left and could not be found in the one it had joined.
+
+- **`SolrIndexBuilder nfs` now does what it says.** The command existed and did nothing. It now performs
+  the same rebuild as `GET /v3/admin/reindex-v3`.
 
 ### Schema
 
@@ -80,12 +118,23 @@ Applied automatically on startup by `schema_upgrade.sh`; the schema version adva
   than one step completes in a single startup rather than stopping partway depending on how the
   migration filenames sort.
 
-### Known limitation
+### Upgrading
 
-- Search results (`/v3/search/files`) are not yet inheritance-aware for **already-indexed** content.
-  Newly written index entries carry the correct audience, but changing a permission or moving an object
-  does not yet trigger a reindex of the affected subtree, and a user whose access was revoked may still
-  find nested items until those items are reindexed. Tracked for a following change.
+**A one-time search reindex is required.** After deploying this version, run **one** of:
+
+- `GET /v3/admin/reindex-v3?password=…`
+- `java -cp "…" org.ndexbio.common.solr.SolrIndexBuilder nfs` — the same rebuild from the command line,
+  preferred on large instances because the endpoint runs synchronously inside a single HTTP request
+
+Both clear the `public-nfs` and `private-nfs` indexes and rebuild every folder, shortcut and network
+document from the database. Search returns nothing while the rebuild runs, so use a maintenance window.
+Until it completes, search results will not reflect folder permissions.
+
+**`SolrIndexBuilder all-networks-online` is not a substitute** — it rebuilds only network documents and
+would leave folder and shortcut documents stale.
+
+No configuration or Solr schema changes are required.
+
 
 
 ## [3.0.4] - 2026-07-31

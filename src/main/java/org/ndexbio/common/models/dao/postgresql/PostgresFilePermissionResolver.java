@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.ndexbio.common.models.dao.FilePermissionResolver;
+import org.ndexbio.common.models.dao.SearchScope;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Permissions;
 
@@ -147,21 +148,37 @@ public class PostgresFilePermissionResolver implements FilePermissionResolver {
 		if (shortcutId == null)
 			return null;
 
-		// A shortcut holds no permission of its own — it is readable exactly when its target is.
+		// A shortcut holds no permission of its own. Readability is a conjunction: the shortcut must be
+		// reachable (public, owned, or sitting in a folder the caller can read) AND its target must be
+		// reachable. The containment arm keeps this in step with search, which has no traversal to gate
+		// it — without it, knowing an id would reveal an entry inside a folder the caller cannot open.
 		UUID target = null;
 		String targetType = null;
+		String visibility = null;
+		UUID owner = null;
+		UUID parent = null;
 		try (PreparedStatement p = db.prepareStatement(
-				"SELECT target, target_type FROM shortcut WHERE \"UUID\" = ? AND is_deleted = false")) {
+				"SELECT target, target_type, visibility, owneruuid, parent"
+				+ " FROM shortcut WHERE \"UUID\" = ? AND is_deleted = false")) {
 			p.setObject(1, shortcutId);
 			try (ResultSet rs = p.executeQuery()) {
 				if (rs.next()) {
 					target = (UUID) rs.getObject(1);
 					targetType = rs.getString(2);
+					visibility = rs.getString(3);
+					owner = (UUID) rs.getObject(4);
+					parent = (UUID) rs.getObject(5);
 				}
 			}
 		}
 		if (target == null || targetType == null)
 			return null; // dangling or deleted shortcut resolves to no access, never an error
+
+		boolean reachable = "PUBLIC".equalsIgnoreCase(visibility)
+				|| (userId != null && userId.equals(owner))
+				|| effectiveFolderPermission(parent, userId) != null;
+		if (!reachable)
+			return null;
 
 		if (FileType.FOLDER.toString().equalsIgnoreCase(targetType))
 			return effectiveFolderPermission(target, userId);
@@ -209,6 +226,105 @@ public class PostgresFilePermissionResolver implements FilePermissionResolver {
 			}
 		}
 		return ids;
+	}
+
+	@Override
+	public Set<UUID> reachableNetworkIds(UUID userId, Set<UUID> grantedFolderIds) throws SQLException {
+		Set<UUID> ids = new HashSet<>();
+		if (userId == null)
+			return ids;
+
+		// Two arms, both outside folder containment:
+		//   1. a direct per-network grant
+		//   2. a same-owner NETWORK shortcut sitting in a granted folder — the target lives elsewhere in
+		//      the tree, so its own parent is not in the granted set. The same-owner guard prevents a
+		//      folder owner from widening access to a network they do not own.
+		String grantedIn = folderIdSetSql(grantedFolderIds);
+
+		StringBuilder sql = new StringBuilder(
+				"SELECT m.network_id FROM user_network_membership m"
+				+ " JOIN network n ON n.\"UUID\" = m.network_id AND n.is_deleted = false"
+				+ " WHERE m.user_id = ? AND m.permission_type::text IN " + GRANT_VALUES);
+
+		if (grantedIn != null) {
+			sql.append(" UNION SELECT n.\"UUID\" FROM network n"
+					+ " JOIN shortcut sc ON sc.target = n.\"UUID\" AND sc.target_type = 'NETWORK'"
+					+ "   AND sc.is_deleted = false AND sc.owneruuid = n.owneruuid"
+					+ " WHERE n.is_deleted = false AND sc.parent IN ").append(grantedIn);
+		}
+
+		try (PreparedStatement p = db.prepareStatement(sql.toString())) {
+			p.setObject(1, userId);
+			try (ResultSet rs = p.executeQuery()) {
+				while (rs.next())
+					ids.add((UUID) rs.getObject(1));
+			}
+		}
+		return ids;
+	}
+
+	@Override
+	public Set<UUID> readableShortcutIds(UUID userId, Set<UUID> grantedFolderIds) throws SQLException {
+		Set<UUID> ids = new HashSet<>();
+		if (userId == null)
+			return ids;
+
+		// Conjunction: the shortcut itself must be reachable AND its target must be reachable. The
+		// containment arm is what stops search revealing a shortcut inside a folder the caller cannot
+		// open just because they can read what it points at.
+		String grantedIn = folderIdSetSql(grantedFolderIds);
+		String scInGranted = (grantedIn == null) ? "" : " OR s.parent IN " + grantedIn;
+		String fldInGranted = (grantedIn == null) ? "" : " OR f.\"UUID\" IN " + grantedIn;
+
+		// The target arm must recognise every way a network becomes reachable, including the same-owner
+		// shortcut seed — otherwise a shortcut is judged unreadable even though the seed makes its own
+		// target readable, and the two resolvers disagree. Keep this in step with reachableNetworkIds.
+		String netInGranted = (grantedIn == null) ? ""
+				: " OR n.parent IN " + grantedIn
+				+ " OR EXISTS ( SELECT 1 FROM shortcut sc2"
+				+ "              WHERE sc2.target = n.\"UUID\" AND sc2.target_type = 'NETWORK'"
+				+ "                AND sc2.is_deleted = false AND sc2.owneruuid = n.owneruuid"
+				+ "                AND sc2.parent IN " + grantedIn + " )";
+
+		String sql = "SELECT s.\"UUID\" FROM shortcut s"
+				+ " WHERE s.is_deleted = false"
+				+ "   AND ( s.visibility = 'PUBLIC' OR s.owneruuid = ?" + scInGranted + " )"
+				+ "   AND ( EXISTS ( SELECT 1 FROM network n"
+				+ "                   WHERE n.\"UUID\" = s.target AND s.target_type = 'NETWORK'"
+				+ "                     AND n.is_deleted = false"
+				+ "                     AND ( n.visibility IN ('PUBLIC','UNLISTED') OR n.owneruuid = ?"
+				+ netInGranted
+				+ "                           OR EXISTS ( SELECT 1 FROM user_network_membership m"
+				+ "                                        WHERE m.network_id = n.\"UUID\" AND m.user_id = ?"
+				+ "                                          AND m.permission_type::text IN " + GRANT_VALUES + " ) ) )"
+				+ "      OR EXISTS ( SELECT 1 FROM folder f"
+				+ "                   WHERE f.\"UUID\" = s.target AND s.target_type = 'FOLDER'"
+				+ "                     AND f.is_deleted = false"
+				+ "                     AND ( f.visibility IN ('PUBLIC','UNLISTED') OR f.owneruuid = ?"
+				+ fldInGranted + " ) ) )";
+
+		try (PreparedStatement p = db.prepareStatement(sql)) {
+			p.setObject(1, userId);
+			p.setObject(2, userId);
+			p.setObject(3, userId);
+			p.setObject(4, userId);
+			try (ResultSet rs = p.executeQuery()) {
+				while (rs.next())
+					ids.add((UUID) rs.getObject(1));
+			}
+		}
+		return ids;
+	}
+
+	@Override
+	public SearchScope searchScope(UUID userId, Permissions atLeast) throws SQLException {
+		if (userId == null)
+			return SearchScope.EMPTY;
+
+		// One downward expansion of the hierarchy, reused by both id queries rather than walked again.
+		Set<UUID> granted = grantedFolderIds(userId, atLeast);
+		return new SearchScope(granted, reachableNetworkIds(userId, granted),
+				readableShortcutIds(userId, granted));
 	}
 
 	@Override
@@ -275,12 +391,27 @@ public class PostgresFilePermissionResolver implements FilePermissionResolver {
 
 	/** A shortcut is readable/writable exactly when its target is; its own parent is never consulted. */
 	private String shortcutDelegation(String a, UUID userId, Set<UUID> granted, boolean write) {
+		// Conjunction: the shortcut must itself be reachable AND its target must be reachable.
+		//
+		// The containment arm tests that the shortcut's PARENT FOLDER IS READABLE — deliberately not
+		// "parent is in grantedFolderIds". The two differ for a PUBLIC folder viewed anonymously, where
+		// the granted set is empty; using the set there would hide every shortcut in a public folder from
+		// anonymous callers, since createShortcut always stores visibility PRIVATE.
+		String parentReadable = conditionSql(FileType.FOLDER, "pf", userId, granted, false);
+		StringBuilder containment = new StringBuilder("( " + a + ".visibility = 'PUBLIC'");
+		if (userId != null)
+			containment.append(" OR ").append(a).append(".owneruuid = '").append(userId).append("'::uuid");
+		containment.append(" OR EXISTS ( SELECT 1 FROM folder pf WHERE pf.\"UUID\" = ").append(a)
+				.append(".parent AND pf.is_deleted = false AND ").append(parentReadable).append(" LIMIT 1 ) )");
+
 		String netCond = conditionSql(FileType.NETWORK, "tn", userId, granted, write);
 		String fldCond = conditionSql(FileType.FOLDER, "tf", userId, granted, write);
-		return "( EXISTS ( SELECT 1 FROM network tn WHERE tn.\"UUID\" = " + a + ".target"
+		String targetReachable = "( EXISTS ( SELECT 1 FROM network tn WHERE tn.\"UUID\" = " + a + ".target"
 				+ " AND " + a + ".target_type = 'NETWORK' AND tn.is_deleted = false AND " + netCond + " LIMIT 1 )"
 				+ " OR EXISTS ( SELECT 1 FROM folder tf WHERE tf.\"UUID\" = " + a + ".target"
 				+ " AND " + a + ".target_type = 'FOLDER' AND tf.is_deleted = false AND " + fldCond + " LIMIT 1 ) )";
+
+		return "( " + containment + " AND " + targetReachable + " )";
 	}
 
 	/**

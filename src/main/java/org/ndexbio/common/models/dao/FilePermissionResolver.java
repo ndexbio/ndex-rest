@@ -28,9 +28,15 @@ import org.ndexbio.model.object.Permissions;
  *
  * <p><b>Shortcuts are aliases, never permission holders.</b> The specification states a shortcut
  * "inherits permission of what the Shortcut targets" and that "it is not possible to set permission on
- * Shortcuts". A shortcut is therefore readable exactly when its target is readable, and its own parent
- * folder is never consulted. A shortcut whose target has been removed resolves to no permission rather
- * than an error.</p>
+ * Shortcuts", so the permission a shortcut yields is always its target's — a shortcut never carries one
+ * of its own. A shortcut whose target has been removed resolves to no permission rather than an error.</p>
+ *
+ * <p><b>Reachability is a conjunction.</b> Delegating the permission is not the same as being reachable:
+ * a shortcut resolves only when the shortcut <em>itself</em> is reachable (public, owned, or sitting in a
+ * folder the user can read) <em>and</em> its target is. Target delegation alone would let anyone holding
+ * the id read an entry inside a private folder, leaking its name, target and parent. The specification is
+ * silent on containment, so this is a deliberate reading rather than a literal one — and the same rule is
+ * applied by fetch-by-id, listing and search, so all three agree.</p>
  *
  * <p><b>Same-owner shortcut seeding.</b> For networks the ancestry is additionally seeded by the parent
  * folders of live {@code NETWORK} shortcuts whose owner matches the network's owner. Without this, a
@@ -80,6 +86,46 @@ public interface FilePermissionResolver {
 	 * @param atLeast {@code READ} matches any grant; {@code WRITE} matches write grants only.
 	 */
 	Set<UUID> grantedFolderIds(UUID userId, Permissions atLeast) throws SQLException;
+
+	/**
+	 * Networks the user can read <em>without</em> the network sitting inside a granted folder — the cases
+	 * a folder-containment test cannot express.
+	 *
+	 * <p>Two sources: a direct per-network grant, and a network referenced from a granted folder by a
+	 * <strong>same-owner</strong> {@code NETWORK} shortcut. The second exists because a shortcut's target
+	 * lives elsewhere in the tree, so its own parent is not in the granted set; the same-owner guard stops
+	 * a folder owner from widening access to a network they do not own.</p>
+	 *
+	 * <p>Intended for search, where the result becomes a terms filter over the network id. Pass the set
+	 * already obtained from {@link #grantedFolderIds} so the hierarchy is walked once per request.</p>
+	 */
+	Set<UUID> reachableNetworkIds(UUID userId, Set<UUID> grantedFolderIds) throws SQLException;
+
+	/**
+	 * Shortcuts the user can read, by the same conjunction the fetch and listing paths apply: the shortcut
+	 * itself must be reachable (public, owned, or in a granted folder) <em>and</em> its target must be
+	 * reachable.
+	 *
+	 * <p>The containment arm is what stops search from revealing that a shortcut exists inside a folder
+	 * the caller cannot open, merely because they can read what it points at. Listing gets that gate for
+	 * free by traversal; search has none.</p>
+	 */
+	Set<UUID> readableShortcutIds(UUID userId, Set<UUID> grantedFolderIds) throws SQLException;
+
+	/**
+	 * Everything a search request may reach, resolved together so the folder hierarchy is walked once.
+	 *
+	 * <p>Search has no traversal gate to authorize against — it queries an index directly — so this is
+	 * where its authorization comes from. Resolving it per request is what makes a share or a revoke take
+	 * effect on the next search rather than at the next re-index.</p>
+	 *
+	 * <p>Returns {@link SearchScope#EMPTY} for an anonymous user: an anonymous caller reaches nothing on
+	 * the private core, and the public core does not consult a scope at all.</p>
+	 *
+	 * @param atLeast resolve at the level about to be searched for — a {@code WRITE} search must not be
+	 *                built from a {@code READ} granted-folder set.
+	 */
+	SearchScope searchScope(UUID userId, Permissions atLeast) throws SQLException;
 
 	/**
 	 * A SQL boolean fragment deciding whether the row aliased {@code alias} is readable by

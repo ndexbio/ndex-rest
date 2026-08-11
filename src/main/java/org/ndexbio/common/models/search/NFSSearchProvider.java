@@ -6,6 +6,7 @@ import org.apache.solr.common.SolrInputDocument;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.common.models.dao.NetworkDAO;
+import org.ndexbio.common.models.dao.SearchScope;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.NFSIndexManager;
@@ -47,17 +48,29 @@ public class NFSSearchProvider implements SearchProvider {
         List<FileItemSummary> allSummaries;
         SolrDocumentList documents;
         try {
+            // Search stores no permission state, so folder-inherited access is resolved here, once, from
+            // the live database — which is why a share or a revoke shows up on the very next search.
+            // Skipped for the public core: it must not consult a scope (an UNLISTED file stays unlisted
+            // whatever folder grants exist), so resolving one would only cost a query.
+            SearchScope scope = SearchScope.EMPTY;
+            if (visibilityType != VisibilityType.PUBLIC && accesser != null) {
+                try (NetworkDAO networkDAO = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+                    scope = networkDAO.resolveSearchScope(accesser.getExternalId(),
+                            query.getPermission() == Permissions.WRITE ? Permissions.WRITE : Permissions.READ);
+                }
+            }
+
             if (query.getType() != null) {
                 documents = delegate.searchByType(query.getSearchString(), userAccessorId,
                         visibilityType,
                         blockSize, skipBlocks, ownedBy,
-                        query.getPermission(), query.getType().toString(), true);
+                        query.getPermission(), query.getType().toString(), true, scope);
                 allSummaries = getDocumentSummariesByEntityType(query.getType(), getUUIDsFromDocuments(documents));
 
             } else {
                 documents = delegate.search(query.getSearchString(), userAccessorId,
                         visibilityType, blockSize, skipBlocks, ownedBy,
-                        query.getPermission());
+                        query.getPermission(), scope);
                 List<UUID> sortedUUIDs = new ArrayList<>();
                 Map<FileType, List<UUID>> documentsByType = new HashMap<>();
 

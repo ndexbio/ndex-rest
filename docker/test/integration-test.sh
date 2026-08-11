@@ -34,7 +34,7 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=205
+TOTAL_API_CALLS=252
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -2172,6 +2172,20 @@ p_expect "no-grant user CANNOT move networks into a stranger's folder" \
      -d "{\"targetFolder\":\"${P_FOLDER}\",\"networks\":[\"${V3_PUB_UUID}\"]}" \
      "${BASE_URL}/v3/batch/networks/move")" 401
 
+# Anonymous placement, not just under-privileged placement. The folder is authorized before
+# the upload is stored, so assert the status AND that nothing was written — a 401 returned
+# after the network row was created would still be a hole.
+P_NETS_BEFORE=$(psql_ndex "SELECT count(*) FROM core.network WHERE parent='${P_FOLDER}'")
+p_expect "ANONYMOUS caller CANNOT place a network into a folder" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+     --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" "${BASE_URL}/v3/networks?folderId=${P_FOLDER}")" 401
+p_expect "ANONYMOUS caller CANNOT move networks into a folder" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+     -d "{\"targetFolder\":\"${P_FOLDER}\",\"networks\":[\"${V3_PUB_UUID}\"]}" \
+     "${BASE_URL}/v3/batch/networks/move")" 401
+P_NETS_AFTER=$(psql_ndex "SELECT count(*) FROM core.network WHERE parent='${P_FOLDER}'")
+p_expect "the rejected anonymous placements created nothing" "${P_NETS_AFTER}" "${P_NETS_BEFORE}"
+
 # ── sharing input validation ──────────────────────────────────────────────────
 p_expect "granting an unsupported permission is rejected, not silently stored" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
@@ -2238,6 +2252,170 @@ P_FP_ROWS=$(psql_ndex "SELECT count(*) FROM core.folder_permission fp JOIN core.
 p_expect "grant stored on the named folder only (no copy-down to the subfolder)" "${P_FP_ROWS}" 2
 P_UNM_ROWS=$(psql_ndex "SELECT count(*) FROM core.user_network_membership WHERE network_id='${P_NET_B}'")
 p_expect "no membership rows fabricated for the nested network" "${P_UNM_ROWS}" 0
+
+# ── search resolves folder permissions at query time ──────────────────────────
+# Search has no traversal gate to authorize against — it queries Solr directly — so it used
+# to answer from an access list copied onto each document at index time. That copy went
+# stale the moment a folder was shared, moved into, or revoked. The index now stores no
+# permissions at all: the ids a caller can reach are resolved from the database per query.
+#
+# Searching by UUID isolates exactly one document (uuid is a query field), so a yes/no here
+# is a permission answer rather than a relevance or pagination artifact.
+p_search() { # auth(or empty) uuid [visibility] -> yes|no
+  local vis="${3:-PRIVATE}" body
+  if [[ -z "$1" ]]; then
+    body=$(curl -s -X POST -H 'Content-Type: application/json' -d "{\"searchString\":\"$2\"}" \
+      "${BASE_URL}/v3/search/files?visibility=${vis}&start=0&size=50" || true)
+  else
+    body=$(curl -s -X POST -u "$1" -H 'Content-Type: application/json' -d "{\"searchString\":\"$2\"}" \
+      "${BASE_URL}/v3/search/files?visibility=${vis}&start=0&size=50" || true)
+  fi
+  if grep -q "$2" <<<"${body}"; then echo yes; else echo no; fi
+}
+
+# Wait for indexing ONCE, as someone who can already see the document. Everything asserted
+# afterwards is a permission question rather than an indexing one: because reachability is
+# recomputed on every query, a grantee must see it on the very next request — no re-share,
+# no reindex, no convergence window.
+p_wait_indexed() { # auth uuid label [visibility]
+  local elapsed=0
+  until [[ "$(p_search "$1" "$2" "${4:-PRIVATE}")" == yes ]]; do
+    [[ ${elapsed} -ge ${LOAD_TIMEOUT} ]] && api_fail "#165 search: $3 ($2) never reached ${4:-PRIVATE}-nfs within ${LOAD_TIMEOUT}s"
+    sleep 3; (( elapsed += 3 )) || true
+    echo "  Waiting for ${4:-PRIVATE}-nfs to index $3... (${elapsed}s)"
+  done
+}
+
+# Waited for as its OWNER (ndextest2 uploaded it), whose match does not depend on parentUuid.
+# That keeps "the document is indexed" separate from "folder propagation works" — the
+# assertions immediately below are the ones that test propagation.
+p_wait_indexed "${B_AUTH}" "${P_NET_B}" "network added to the shared folder"
+api_pass "network added after the grant reached private-nfs"
+
+# A grantee finds folder-propagated content with no re-share and no reindex. The moved
+# network additionally proves reindex-on-move: /v3/batch/networks/move must rewrite that
+# document, or it stays findable under the folder it left and invisible in the new one.
+for PAIR in "owner:${A_AUTH}" "write:${B_AUTH}" "read:${C_AUTH}"; do
+  CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
+  p_expect "${CLS} FINDS the network added after the grant" "$(p_search "${AUTH}" "${P_NET_B}")" yes
+  p_expect "${CLS} FINDS the network moved into the folder" "$(p_search "${AUTH}" "${V2_PRIV_UUID}")" yes
+  p_expect "${CLS} FINDS the subfolder"                     "$(p_search "${AUTH}" "${P_SUB}")" yes
+  p_expect "${CLS} FINDS the shortcut in the shared folder" "$(p_search "${AUTH}" "${P_SC}")" yes
+done
+
+# No-grant and anonymous callers find none of it.
+for PAIR in "no-grant:${D_AUTH}" "anonymous:"; do
+  CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
+  p_expect "${CLS} does NOT find the nested network" "$(p_search "${AUTH}" "${P_NET_B}")" no
+  p_expect "${CLS} does NOT find the subfolder"      "$(p_search "${AUTH}" "${P_SUB}")" no
+  p_expect "${CLS} does NOT find the shortcut"       "$(p_search "${AUTH}" "${P_SC}")" no
+done
+
+# Search, fetch-by-id and /list must give the SAME answer for the same shortcut and caller.
+# Unifying that rule is the point of the change; asserting the three together means a
+# divergence cannot slip through as three separately-passing checks.
+for PAIR in "owner:${A_AUTH}" "write:${B_AUTH}" "read:${C_AUTH}"; do
+  CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
+  p_expect "${CLS} shortcut: search agrees with /list" \
+    "$(p_search "${AUTH}" "${P_SC}")" "$(p_listed "${AUTH}" "${P_SC}")"
+  p_expect "${CLS} shortcut: fetch-by-id agrees too" \
+    "$(p_code "${AUTH}" GET "${BASE_URL}/v3/files/shortcuts/${P_SC}")" 200
+done
+for PAIR in "no-grant:${D_AUTH}" "anonymous:"; do
+  CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
+  p_expect "${CLS} shortcut: search agrees with /list (both no)" \
+    "$(p_search "${AUTH}" "${P_SC}")" "$(p_listed "${AUTH}" "${P_SC}")"
+  p_expect "${CLS} shortcut fetch-by-id denied" \
+    "$(p_code "${AUTH}" GET "${BASE_URL}/v3/files/shortcuts/${P_SC}")" 401
+done
+
+# The same-owner shortcut seed makes a network findable that has no granted folder above
+# it — its own parent is elsewhere in the tree, so no parentUuid clause can reach it.
+p_wait_indexed "${A_AUTH}" "${V3_PRIV_UUID}" "same-owner shortcut target"
+p_expect "READ grantee FINDS a network reachable only via a same-owner shortcut" \
+  "$(p_search "${C_AUTH}" "${V3_PRIV_UUID}")" yes
+
+# The cross-owner guard, in search form. The shortcut sits in a folder the READ grantee can
+# reach, so only the same-owner guard can be keeping its target out of their results.
+p_wait_indexed "${B_AUTH}" "${P_FOREIGN}" "cross-owner fixture"
+p_expect "cross-owner shortcut does NOT make its target findable to the READ grantee" \
+  "$(p_search "${C_AUTH}" "${P_FOREIGN}")" no
+p_expect "the cross-owner target is still findable by the user who owns it" \
+  "$(p_search "${B_AUTH}" "${P_FOREIGN}")" yes
+
+# parentUuid must actually be on the document — the whole query-time scheme rests on it.
+P_PARENT_HITS=$(docker exec "${CONTAINER_NAME}" bash -c \
+  "curl -s 'http://localhost:8983/solr/private-nfs/select?q=uuid:${P_NET_B}&fq=parentUuid:${P_FOLDER}&rows=0&wt=json'" 2>/dev/null \
+  | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$' || true)
+p_expect "network document carries parentUuid for its folder" "${P_PARENT_HITS}" 1
+
+# UNLISTED is a listing rule, not an access rule: no grant of any kind may make an unlisted
+# file searchable by anyone but its owner, and it lives in a shared folder here precisely so
+# that folder propagation gets its chance to leak it.
+# The fixture is the folder owner's own network, already sitting in the shared folder, so
+# the grantees hold inherited access to it and folder propagation gets a genuine chance to
+# surface it. Only the owner may set visibility, which is why this one and not the
+# collaborator's upload.
+curl -s -o /dev/null -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+  -d "{\"visibility\":\"UNLISTED\",\"files\":{\"${V2_PRIV_UUID}\":\"NETWORK\"}}" \
+  "${BASE_URL}/v3/batch/files/setvisibility" || true
+p_wait_indexed "${A_AUTH}" "${V2_PRIV_UUID}" "UNLISTED network" "PUBLIC"
+p_expect "UNLISTED network IS searchable by its owner" \
+  "$(p_search "${A_AUTH}" "${V2_PRIV_UUID}" PUBLIC)" yes
+for PAIR in "write-grantee:${B_AUTH}" "read-grantee:${C_AUTH}" "no-grant:${D_AUTH}" "anonymous:"; do
+  CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
+  p_expect "UNLISTED stays unlisted for ${CLS}, despite the folder grant" \
+    "$(p_search "${AUTH}" "${V2_PRIV_UUID}" PUBLIC)" no
+done
+# ...and it is still openable by id — unlisted restricts listing, never access.
+p_expect "the WRITE grantee can still OPEN the unlisted network by id" \
+  "$(p_code "${B_AUTH}" GET "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")" 200
+curl -s -o /dev/null -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+  -d "{\"visibility\":\"PRIVATE\",\"files\":{\"${V2_PRIV_UUID}\":\"NETWORK\"}}" \
+  "${BASE_URL}/v3/batch/files/setvisibility" || true
+p_wait_indexed "${A_AUTH}" "${V2_PRIV_UUID}" "network restored to PRIVATE"
+
+# Direct and inherited grants are a union — most permissive wins and neither lowers the
+# other. Easy to regress into an override, so assert both directions.
+# The subject is the folder owner's network inside the shared folder: the WRITE grantee holds
+# only inherited write on it (they do not own it), so a PUT by them genuinely measures
+# inheritance rather than ownership.
+P_ADD_HTTP=$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+  -d "{\"files\":{\"${V2_PRIV_UUID}\":\"NETWORK\"},\"members\":{\"${P_UID3}\":\"READ\"}}" \
+  "${BASE_URL}/v3/files/sharing/members")
+[[ "${P_ADD_HTTP}" =~ ^2 ]] || api_fail "#165 search: direct READ grant failed with HTTP ${P_ADD_HTTP}"
+p_expect "a direct READ alongside an inherited READ still reads" \
+  "$(p_code "${C_AUTH}" GET "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")" 200
+p_expect "a direct READ for one user does NOT lower another's inherited WRITE" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X PUT -u "${B_AUTH}" -H 'Content-Type: application/json' \
+     --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")" 200
+p_expect "and the direct READ still confers no write" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X PUT -u "${C_AUTH}" -H 'Content-Type: application/json' \
+     --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")" 401
+
+# The accepted PUT above re-runs CX2 processing, and a network mid-reload answers 404. Settle
+# before the revoke assertions, or a 404 would masquerade as a permission result.
+P_SETTLE=0
+until curl -s -u "${A_AUTH}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}/summary" | grep -q '"completed":true'; do
+  P_SETTLE=$((P_SETTLE+2))
+  [[ ${P_SETTLE} -ge ${LOAD_TIMEOUT} ]] && api_fail "#165 search: network did not finish reloading after the PUT"
+  sleep 2
+done
+
+# Revoking the folder grant takes effect immediately — no reindex, no window — and leaves
+# the direct grant standing. Revoke is a null permission on the same endpoint.
+P_REVOKE_HTTP=$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+  -d "{\"files\":{\"${P_FOLDER}\":\"FOLDER\"},\"members\":{\"${P_UID3}\":null}}" \
+  "${BASE_URL}/v3/files/sharing/members")
+[[ "${P_REVOKE_HTTP}" =~ ^2 ]] || api_fail "#165 search: revoke returned HTTP ${P_REVOKE_HTTP}"
+p_expect "revoke hides the subfolder from search immediately (no reindex)" \
+  "$(p_search "${C_AUTH}" "${P_SUB}")" no
+p_expect "revoke leaves the DIRECT grant on the network standing" \
+  "$(p_code "${C_AUTH}" GET "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")" 200
+p_expect "and the directly-granted network is still findable" \
+  "$(p_search "${C_AUTH}" "${V2_PRIV_UUID}")" yes
+p_expect "but the network they only reached through the folder is gone from search" \
+  "$(p_search "${C_AUTH}" "${P_NET_B}")" no
 
 fi
 

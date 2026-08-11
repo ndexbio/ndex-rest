@@ -104,7 +104,6 @@ public interface FolderDAO extends AutoCloseable {
 	 * access" for a user whose write permission comes from a parent.</p>
 	 */
 	Permissions getEffectivePermission(UUID folderId, UUID userId) throws SQLException;
-	Map<String, String> getFolderPermissionsWithUsernames(UUID folderId) throws SQLException;
 
 	String getFolderAccessKey(UUID folderId) throws SQLException, ObjectNotFoundException;
 
