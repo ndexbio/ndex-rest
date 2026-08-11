@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - network name from /v3/files/folders/{folderid}/list is now swagger doc'd as optional, further details in [ndex-object-model/55](https://github.com/ndexbio/ndex-object-model/pull/55). Resolves - [issue/161](https://github.com/ndexbio/ndex-rest/issues/161).
+- `POST /v3/search/files` now reports `visibility` on FOLDER results. The folder mapper never set it and `FileItemSummary` is `@JsonInclude(NON_NULL)`, so the key was dropped from the response entirely while NETWORK and SHORTCUT items carried it, leaving clients unable to distinguish a public folder from a private one. Resolves - [issue/162](https://github.com/ndexbio/ndex-rest/issues/162).
 
 
 ## [3.0.4] - 2026-07-31
