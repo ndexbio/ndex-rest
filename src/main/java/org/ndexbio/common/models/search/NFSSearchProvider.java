@@ -12,8 +12,6 @@ import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.NFSIndexManager;
 import org.ndexbio.common.solr.SolrClientWrapper;
 import org.ndexbio.model.exceptions.NdexException;
-import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -21,8 +19,6 @@ import org.ndexbio.rest.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -132,25 +128,6 @@ public class NFSSearchProvider implements SearchProvider {
         return result;
     }
 
-    private FileItemSummary mapShortcutToSummary(NdexShortcut ndexShortcut) {
-        FileItemSummary fis = new FileItemSummary();
-        fis.setUuid(ndexShortcut.getExternalId());
-        fis.setType(FileType.SHORTCUT);
-        fis.setName(ndexShortcut.getName());
-        fis.setModificationTime(ndexShortcut.getModificationTime());
-
-        Map<String, Object> attr = new HashMap<>();
-        attr.put("parent", ndexShortcut.getParent());
-        attr.put("target", ndexShortcut.getTarget());
-        attr.put("target_type", ndexShortcut.getTargetType() != null ? ndexShortcut.getTargetType().toString() : null);
-        attr.put("creationTime", ndexShortcut.getCreationTime());
-        fis.setAttributes(attr);
-
-        fis.setOwner(ndexShortcut.getOwner());
-        fis.setOwnerId(UUID.fromString(ndexShortcut.getOwner_id()));
-
-        return fis;
-    }
     private FileItemSummary mapFolderToSummary(NdexFolder ndexFolder) {
         FileItemSummary fis = new FileItemSummary();
         fis.setUuid(ndexFolder.getExternalId());
@@ -166,6 +143,7 @@ public class NFSSearchProvider implements SearchProvider {
 
         fis.setOwner(ndexFolder.getOwner());
         fis.setOwnerId(UUID.fromString(ndexFolder.getOwner_id()));
+        fis.setVisibility(ndexFolder.getVisibility() != null ? ndexFolder.getVisibility().toString() : null);
 
         return fis;
     }
@@ -205,17 +183,6 @@ public class NFSSearchProvider implements SearchProvider {
 
         return fis;
     }
-    private FileItemSummary mapSolrDocumentToSummary(SolrDocument solrDocument){
-        String uuid = (String)solrDocument.get(NFSIndexManager.UUID);
-
-        String entityType = (String)solrDocument.get(NFSIndexManager.ENTITY_TYPE);
-
-        FileType fileType = FileType.valueOf(entityType);
-
-        String name = (String)solrDocument.getOrDefault(NFSIndexManager.NAME, "unknown");
-
-        return new FileItemSummary(UUID.fromString(uuid), fileType, name);
-    }
     private List<UUID> getUUIDsFromDocuments(SolrDocumentList solrDocuments){
         return solrDocuments.stream()
                 .map(this::getUUIDFromDocument)
@@ -224,24 +191,6 @@ public class NFSSearchProvider implements SearchProvider {
     private UUID getUUIDFromDocument(SolrDocument solrDocument){
         String uuid = (String)solrDocument.get(NFSIndexManager.UUID);
         return UUID.fromString(uuid);
-    }
-
-    private void addTargetTypeToShortcutSummaryItem(FileItemSummary fileItemSummary, ShortcutDAO shortcutDAO,
-                                                    User accesser){
-        NdexShortcut ndexShortcut;
-        try {
-            ndexShortcut = shortcutDAO.getShortcut(fileItemSummary.getUuid(), accesser.getExternalId());
-        } catch (SQLException | ObjectNotFoundException | UnauthorizedOperationException | IOException e) {
-            ndexShortcut = null;
-        }
-        Map<String, Object> attributes = new HashMap<>();
-        if (ndexShortcut != null){
-            attributes.put(NFSIndexManager.TARGET_TYPE, ndexShortcut.getTargetType());
-        }
-        else attributes.put(NFSIndexManager.TARGET_TYPE, "unknown");
-
-        fileItemSummary.setAttributes(attributes);
-
     }
 
         @Override
