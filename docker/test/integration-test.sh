@@ -16,6 +16,9 @@
 #
 # Exits 0 if all API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
+#
+# Adding a test: call `step "..."`, then for each API call bump CALL_NUM, echo the progress line, and
+# assert with api_pass/api_fail. There is no total to update — see the counter notes below.
 
 set -euo pipefail
 
@@ -34,7 +37,31 @@ TEST_USER2="ndextest2"
 TEST_PASS2="NDExTest2!"
 TEST_EMAIL2="ndextest2@ndex-integration.local"
 
-TOTAL_API_CALLS=255
+# ── Counters ──────────────────────────────────────────────────────────────────
+# Both counters are self-maintaining: ADDING OR REMOVING API CALLS REQUIRES NO BOOKKEEPING HERE.
+# There is deliberately no hand-maintained expected total — see the note below on why one cannot
+# exist. Just call `step`, bump CALL_NUM, and call api_pass/api_fail; the totals follow.
+#
+#   CALL_NUM — numbered progress lines emitted so far ("API call N: ..."). Incremented by hand at
+#              each call site, and internally by the assert_* helpers.
+#   PASSED   — assertions that reported success, i.e. api_pass invocations. The two postgres
+#              resilience checks near the end print a "✓ PASS" line directly instead of calling
+#              api_pass, because they are container-level checks rather than API calls; they are
+#              intentionally not counted here.
+#
+# PASSED IS LEGITIMATELY LOWER THAN CALL_NUM, so do not "fix" a mismatch between them. Some steps
+# make two numbered calls and then assert on both together under a single api_pass (e.g. the paired
+# /list + /count checks, and the visibility round-trips that set then read back). At the time of
+# writing a full local run ends at CALL_NUM=148 with PASSED=134. Both numbers are reported at the
+# end so the gap is visible rather than surprising.
+#
+# Why there is no expected-total constant: a total would have to be known before the first call, but
+# the real count is only knowable by running. Loop-driven call sites (the v2/v3 upload and retrieve
+# loops, the ranking-fixture loop) each execute their single increment several times, the assert_*
+# helpers increment once per invocation, and whole blocks are skipped under --remote-ndex-url. A
+# static count of increment sites in this file gives 126 against an actual 148, and any hardcoded
+# number silently rots the moment a call is added. A previous constant here drifted for exactly that
+# reason and was mistaken for a real defect, so progress is now reported as a plain sequence number.
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -79,13 +106,12 @@ api_pass() {
 
 api_fail() {
   local reason="$1"
-  local remaining=$(( TOTAL_API_CALLS - PASSED ))
   echo ""
   echo -e "  ${RED}✗ FAIL${NC}: ${reason}"
   echo ""
   echo -e "${RED}${BOLD}TEST FAILED${NC}"
-  echo -e "  Passed : ${PASSED} / ${TOTAL_API_CALLS}"
-  echo -e "  Remaining unrun: ${remaining}"
+  echo -e "  API calls attempted : ${CALL_NUM}"
+  echo -e "  Assertions passed   : ${PASSED}"
   echo -e "  Reason : ${reason}"
   exit 1
 }
@@ -130,7 +156,7 @@ poll_files_until_absent() {
 assert_group_501() {
   local method="$1"; local url="$2"; shift 2
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: ${method} ${url} (expect 501)"
+  echo "  API call ${CALL_NUM}: ${method} ${url} (expect 501)"
   local code
   code=$(curl -s -o /dev/null -w "%{http_code}" -X "${method}" -u "${TEST_USER}:${TEST_PASS}" "$@" "${url}")
   if [[ "${code}" == "501" ]]; then
@@ -147,7 +173,7 @@ assert_group_501() {
 assert_networkset_ok() {
   local method="$1"; local url="$2"; local expected="$3"; shift 3
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: ${method} ${url} (expect ${expected})"
+  echo "  API call ${CALL_NUM}: ${method} ${url} (expect ${expected})"
   local code
   code=$(curl -s -o /dev/null -w "%{http_code}" -X "${method}" -u "${TEST_USER}:${TEST_PASS}" "$@" "${url}")
   if [[ "${code}" == "${expected}" ]]; then
@@ -277,7 +303,7 @@ fi
 
 step "Creating test user"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user"
+echo "  API call ${CALL_NUM}: POST /v2/user"
 
 USER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/v2/user" \
   -H "Content-Type: application/json" \
@@ -303,7 +329,7 @@ fi
 
 step "Verifying Basic Auth login"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /user/authenticate"
+echo "  API call ${CALL_NUM}: GET /user/authenticate"
 
 AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
   -u "${TEST_USER}:${TEST_PASS}" \
@@ -333,7 +359,7 @@ for CX_FILE in "${FIXTURES_DIR}"/*.cx; do
   fi
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/network?visibility=${VISIBILITY}  [${NETWORK_LABEL}]"
+  echo "  API call ${CALL_NUM}: POST /v2/network?visibility=${VISIBILITY}  [${NETWORK_LABEL}]"
 
   UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -387,7 +413,7 @@ step "Retrieving v2-uploaded CX1 networks as CX2 via GET /v3/networks/{uuid}"
 for i in "${!V2_UUIDS[@]}"; do
   UUID="${V2_UUIDS[$i]}"
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${UUID}"
+  echo "  API call ${CALL_NUM}: GET /v3/networks/${UUID}"
 
   V3_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -408,8 +434,12 @@ V3_UUIDS=()
 V3_PRIV_UUID=""
 CX2_INDEX=0
 for CX2_FILE in "${FIXTURES_DIR}"/*.cx2; do
-  CX2_INDEX=$((CX2_INDEX + 1))
   NETWORK_LABEL="$(basename "${CX2_FILE}")"
+  # invalid-*.cx2 fixtures deliberately fail CX2 validation; they are uploaded on their own in the
+  # dedicated #161 step further down, not as part of this happy-path batch. Skipped before
+  # CX2_INDEX increments so the index the PRIVATE selection below depends on does not shift.
+  [[ "${NETWORK_LABEL}" == invalid-* ]] && continue
+  CX2_INDEX=$((CX2_INDEX + 1))
 
   if [[ ${CX2_INDEX} -eq 3 ]]; then
     VISIBILITY="PRIVATE"
@@ -418,7 +448,7 @@ for CX2_FILE in "${FIXTURES_DIR}"/*.cx2; do
   fi
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks?visibility=${VISIBILITY}  [${NETWORK_LABEL}]"
+  echo "  API call ${CALL_NUM}: POST /v3/networks?visibility=${VISIBILITY}  [${NETWORK_LABEL}]"
 
   UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -472,7 +502,7 @@ step "Retrieving v3 networks via GET /v3/networks/{uuid}"
 for i in "${!V3_UUIDS[@]}"; do
   UUID="${V3_UUIDS[$i]}"
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${UUID}"
+  echo "  API call ${CALL_NUM}: GET /v3/networks/${UUID}"
 
   V3_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -492,7 +522,7 @@ echo "  Private v2 network (WP5434): ${V2_PRIV_UUID}"
 echo "  Private v3 network (ChEMBL):  ${V3_PRIV_UUID}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V2_PRIV_UUID} (no auth, expect 401)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/${V2_PRIV_UUID} (no auth, expect 401)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")
 if [[ "${ANON_HTTP}" == "401" ]]; then
   api_pass "GET /v3/networks/${V2_PRIV_UUID} (anon) → 401 Unauthorized (private v2 network blocked)"
@@ -501,7 +531,7 @@ else
 fi
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PRIV_UUID} (no auth, expect 401)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/${V3_PRIV_UUID} (no auth, expect 401)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}")
 if [[ "${ANON_HTTP}" == "401" ]]; then
   api_pass "GET /v3/networks/${V3_PRIV_UUID} (anon) → 401 Unauthorized (private v3 network blocked)"
@@ -510,7 +540,7 @@ else
 fi
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}/summary (no auth, expect 401)"
+echo "  API call ${CALL_NUM}: GET /v2/network/${V2_PRIV_UUID}/summary (no auth, expect 401)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/network/${V2_PRIV_UUID}/summary")
 if [[ "${ANON_HTTP}" == "401" ]]; then
   api_pass "GET /v2/network/${V2_PRIV_UUID}/summary (anon) → 401 Unauthorized (private v2 summary blocked)"
@@ -519,7 +549,7 @@ else
 fi
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PRIV_UUID}/summary (no auth, expect 401)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/${V3_PRIV_UUID}/summary (no auth, expect 401)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}/summary")
 if [[ "${ANON_HTTP}" == "401" ]]; then
   api_pass "GET /v3/networks/${V3_PRIV_UUID}/summary (anon) → 401 Unauthorized (private v3 summary blocked)"
@@ -535,7 +565,7 @@ V2_PUB_UUID="${V2_UUIDS[0]}"
 V3_PUB_UUID="${V3_UUIDS[0]}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V2_PUB_UUID} (no auth, expect 200)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/${V2_PUB_UUID} (no auth, expect 200)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PUB_UUID}")
 if [[ "${ANON_HTTP}" == "200" ]]; then
   api_pass "GET /v3/networks/${V2_PUB_UUID} (anon) → 200 OK (public v2 network accessible)"
@@ -544,7 +574,7 @@ else
 fi
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PUB_UUID} (no auth, expect 200)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/${V3_PUB_UUID} (no auth, expect 200)"
 ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V3_PUB_UUID}")
 if [[ "${ANON_HTTP}" == "200" ]]; then
   api_pass "GET /v3/networks/${V3_PUB_UUID} (anon) → 200 OK (public v3 network accessible)"
@@ -557,7 +587,7 @@ fi
 step "Asserting authenticated owner can retrieve their private networks"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V2_PRIV_UUID} (auth, expect 200)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/${V2_PRIV_UUID} (auth, expect 200)"
 AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
   -u "${TEST_USER}:${TEST_PASS}" \
   "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")
@@ -568,7 +598,7 @@ else
 fi
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PRIV_UUID} (auth, expect 200)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/${V3_PRIV_UUID} (auth, expect 200)"
 AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
   -u "${TEST_USER}:${TEST_PASS}" \
   "${BASE_URL}/v3/networks/${V3_PRIV_UUID}")
@@ -583,7 +613,7 @@ fi
 step "Searching v2 networks via POST /v2/search/network"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/search/network?searchString=WP1984 (anon, expect 200 + UUID)"
+echo "  API call ${CALL_NUM}: POST /v2/search/network?searchString=WP1984 (anon, expect 200 + UUID)"
 
 # Poll until the UUID appears — defensive against any Solr commit latency.
 ELAPSED=0
@@ -617,7 +647,7 @@ step "Searching v3-uploaded CX2 networks via POST /v3/search/files (authenticate
 # V3_UUIDS[0] = BindingDB (first public CX2 network). Use the new v3 global search endpoint
 # which queries public-nfs directly. Requires authentication.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (auth, expect 200 + UUID)"
+echo "  API call ${CALL_NUM}: POST /v3/search/files?visibility=PUBLIC (auth, expect 200 + UUID)"
 
 # Poll until the UUID appears — public-nfs Solr commit can be async (especially
 # with bind-mounted data directories where host filesystem I/O adds latency).
@@ -657,7 +687,7 @@ step "Verifying v3 /search/files neutralizes Solr filter injection (accountName)
 INJECT_BODY='{"searchString":"*:*","accountName":"zzz\") OR (*:*) OR (owner:\"zzz"}'
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files (auth, accountName injection, expect 200 + BindingDB absent)"
+echo "  API call ${CALL_NUM}: POST /v3/search/files (auth, accountName injection, expect 200 + BindingDB absent)"
 INJ_RESP=$(curl -s -w "\n%{http_code}" -X POST \
   -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
@@ -674,7 +704,7 @@ fi
 api_pass "POST /v3/search/files (accountName injection, auth) → 200 OK, no result widening (fq injection neutralized)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files (anon, accountName injection, expect 200 + BindingDB absent)"
+echo "  API call ${CALL_NUM}: POST /v3/search/files (anon, accountName injection, expect 200 + BindingDB absent)"
 INJ_ANON_RESP=$(curl -s -w "\n%{http_code}" -X POST \
   -H "Content-Type: application/json" \
   -d "${INJECT_BODY}" \
@@ -704,7 +734,7 @@ RANK_EDGELESS_UUID=""
 for RANK_FILE in "${RANK_DIR}/edged-rank-probe.cx2" "${RANK_DIR}/edgeless-rank-probe.cx2"; do
   RANK_LABEL="$(basename "${RANK_FILE}")"
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks?visibility=PUBLIC  [${RANK_LABEL}]"
+  echo "  API call ${CALL_NUM}: POST /v3/networks?visibility=PUBLIC  [${RANK_LABEL}]"
 
   RANK_UPLOAD=$(curl -s -w "\n%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -743,7 +773,7 @@ for UUID in "${RANK_EDGED_UUID}" "${RANK_EDGELESS_UUID}"; do
 done
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (searchString=EdgelessRankProbe)"
+echo "  API call ${CALL_NUM}: POST /v3/search/files?visibility=PUBLIC (searchString=EdgelessRankProbe)"
 
 # Poll until both networks are indexed, then assert the edged network ranks first.
 ELAPSED=0
@@ -819,7 +849,7 @@ http.createServer((req, res) => {
 
   CALL_NUM=$((CALL_NUM+1))
   QUERY_UUID="${V2_UUIDS[0]}"
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/search/network/${QUERY_UUID}/query (auth, expect 200)"
+  echo "  API call ${CALL_NUM}: POST /v2/search/network/${QUERY_UUID}/query (auth, expect 200)"
 
   QUERY_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -837,7 +867,7 @@ http.createServer((req, res) => {
 
   CALL_NUM=$((CALL_NUM+1))
   QUERY_UUID_V3="${V3_UUIDS[0]}"
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/networks/${QUERY_UUID_V3}/query (auth, expect 200)"
+  echo "  API call ${CALL_NUM}: POST /v3/search/networks/${QUERY_UUID_V3}/query (auth, expect 200)"
 
   QUERY_V3_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
@@ -868,7 +898,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   "
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_UUIDS[0]}/summary (expect errorMessage set)"
+  echo "  API call ${CALL_NUM}: GET /v3/networks/${V3_UUIDS[0]}/summary (expect errorMessage set)"
   PRE_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
     "${BASE_URL}/v3/networks/${V3_UUIDS[0]}/summary")
   PRE_HTTP=$(echo "${PRE_RESP}" | tail -1)
@@ -880,7 +910,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   fi
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/admin/reindex-v3?password=changeme (expect 200)"
+  echo "  API call ${CALL_NUM}: GET /v3/admin/reindex-v3?password=changeme (expect 200)"
   REINDEX_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
     "${BASE_URL}/v3/admin/reindex-v3?password=changeme")
   if [[ "${REINDEX_HTTP}" == "200" ]]; then
@@ -890,7 +920,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   fi
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_UUIDS[0]}/summary (expect errorMessage cleared)"
+  echo "  API call ${CALL_NUM}: GET /v3/networks/${V3_UUIDS[0]}/summary (expect errorMessage cleared)"
   POST_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
     "${BASE_URL}/v3/networks/${V3_UUIDS[0]}/summary")
   POST_HTTP=$(echo "${POST_RESP}" | tail -1)
@@ -935,7 +965,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   fi
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/${V3_PUB_UUID}/summary (auth, expect UNLISTED)"
+  echo "  API call ${CALL_NUM}: GET /v3/networks/${V3_PUB_UUID}/summary (auth, expect UNLISTED)"
   SUMM_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
     "${BASE_URL}/v3/networks/${V3_PUB_UUID}/summary")
   SUMM_HTTP=$(echo "${SUMM_RESP}" | tail -1)
@@ -950,7 +980,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   # Authenticated owners still see their own UNLISTED networks (userAdmin filter), so
   # anonymous is the right caller — it uses the pure "exclude UNLISTED" Solr filter.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/files?visibility=PUBLIC (anon, expect UUID absent — Solr doc updated to UNLISTED)"
+  echo "  API call ${CALL_NUM}: POST /v3/search/files?visibility=PUBLIC (anon, expect UUID absent — Solr doc updated to UNLISTED)"
   SEARCH_RESP=$(curl -s -w "\n%{http_code}" \
     -X POST -H "Content-Type: application/json" \
     -d "{\"searchString\":\"BindingDB\"}" \
@@ -968,7 +998,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 step "Asserting batch summary readability returns exactly one row for anon and authenticated non-owner"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (auth as ${TEST_USER}) to ensure ${TEST_USER2} exists"
+echo "  API call ${CALL_NUM}: POST /v2/user (auth as ${TEST_USER}) to ensure ${TEST_USER2} exists"
 AUTH_CREATE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
@@ -983,7 +1013,7 @@ fi
 BATCH_REQ="[\"${V2_UUIDS[0]}\",\"${V2_PRIV_UUID}\"]"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/batch/network/summary (anon, expect exactly 1 row)"
+echo "  API call ${CALL_NUM}: POST /v2/batch/network/summary (anon, expect exactly 1 row)"
 BATCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   -H "Content-Type: application/json" \
   -d "${BATCH_REQ}" \
@@ -1001,7 +1031,7 @@ else
 fi
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/batch/network/summary (auth ${TEST_USER2}, expect exactly 1 row)"
+echo "  API call ${CALL_NUM}: POST /v2/batch/network/summary (auth ${TEST_USER2}, expect exactly 1 row)"
 BATCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   -u "${TEST_USER2}:${TEST_PASS2}" \
   -H "Content-Type: application/json" \
@@ -1051,7 +1081,7 @@ assert_group_501 DELETE "${BASE_URL}/v2/network/${V2_PRIV_UUID}/permission?group
 
 # regression: the user permission branch on the same endpoint still works for the owner
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}/permission?type=user (auth owner, expect 200)"
+echo "  API call ${CALL_NUM}: GET /v2/network/${V2_PRIV_UUID}/permission?type=user (auth owner, expect 200)"
 PERM_USER_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
   "${BASE_URL}/v2/network/${V2_PRIV_UUID}/permission?type=user")
 if [[ "${PERM_USER_HTTP}" == "200" ]]; then
@@ -1065,6 +1095,118 @@ fi
 # further down, which also cross-checks each write against the v3 folder endpoints. Nothing about
 # network sets asserts HTTP 501 any more.
 
+# ── STEP: Invalid network omits name in folder listing (#161) ────────────────
+# A network whose CX2 fails validation never gets a name: CX2NetworkLoader.persistCXNetwork()
+# validates before it reaches saveCX2NetworkEntry, so summary.setName() is never called and
+# network.name stays NULL. CX2NetworkLoadingTask then marks the row complete+invalid with an
+# errorMessage but never touches name. FileItemSummary is @JsonInclude(NON_NULL), so /list omits
+# the "name" key entirely rather than emitting null — the behavior reported in issue #161 and now
+# documented as optional-for-NETWORK in the FileItemSummary swagger schema.
+#
+# Two paired assertions keep each other honest: the invalid network's entry must have NO name (and
+# must carry the expected validation errorMessage, proving the fixture really failed to load), while
+# a known-valid network in the SAME response must still carry its exact name (proving the endpoint
+# did not simply stop emitting the field).
+step "Invalid network omits name in folder listing (#161)"
+
+# The listing has no nested objects — attributes is left null in the default format=update view — so
+# entries can be split on '},{' and selected by UUID without jq/python.
+name161_entry_for_uuid() {  # $1 = /list body, $2 = uuid
+  echo "$1" | sed 's/},[[:space:]]*{/}\
+{/g' | grep "$2"
+}
+
+NAME161_FIXTURE="${FIXTURES_DIR}/invalid-undeclared-network-attribute.cx2"
+# Matched as a substring so a wrapped/prefixed message still passes, while still pinning the failure
+# to the specific attributeDeclarations check the fixture is built to trip.
+NAME161_EXPECTED_ERROR="not declared in attributeDeclarations"
+NAME161_VALID_NAME="BindingDB - All compounds vs yeast targets"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/networks (invalid CX2: undeclared networkAttributes name)"
+NAME161_UP_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  --data-binary "@${NAME161_FIXTURE}" \
+  "${BASE_URL}/v3/networks?visibility=PUBLIC")
+NAME161_UP_HTTP=$(echo "${NAME161_UP_RESP}" | tail -1)
+NAME161_UP_BODY=$(echo "${NAME161_UP_RESP}" | head -1)
+[[ "${NAME161_UP_HTTP}" == "201" ]] \
+  || api_fail "POST /v3/networks (invalid fixture) → HTTP ${NAME161_UP_HTTP}. Body: ${NAME161_UP_BODY:0:300}"
+NAME161_UUID=$(echo "${NAME161_UP_BODY}" | grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+[[ -n "${NAME161_UUID}" ]] \
+  || api_fail "Could not parse uuid from invalid-network upload. Body: ${NAME161_UP_BODY:0:300}"
+api_pass "POST /v3/networks (invalid CX2) → 201 Created (UUID: ${NAME161_UUID})"
+
+# The load failure path still sets iscomplete=true, so the summary converges on completed:true.
+NAME161_ELAPSED=0
+while true; do
+  NAME161_SUMM=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${NAME161_UUID}/summary")
+  echo "${NAME161_SUMM}" | grep -q '"completed":true' && break
+  [[ ${NAME161_ELAPSED} -ge ${LOAD_TIMEOUT} ]] \
+    && api_fail "invalid network ${NAME161_UUID} did not complete within ${LOAD_TIMEOUT}s. Last: ${NAME161_SUMM:0:300}"
+  echo -e "  ${CYAN}Waiting for invalid network ${NAME161_UUID} to finish loading... (${NAME161_ELAPSED}s)${NC}"
+  sleep 5; NAME161_ELAPSED=$((NAME161_ELAPSED + 5))
+done
+echo "  invalid network ${NAME161_UUID} — completed (load failed as intended)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (create #161 listing folder)"
+NAME161_FOLDER_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"161 invalid network name listing"}' \
+  "${BASE_URL}/v3/files/folders/")
+NAME161_FOLDER_HTTP=$(echo "${NAME161_FOLDER_RESP}" | tail -1)
+NAME161_FOLDER_BODY=$(echo "${NAME161_FOLDER_RESP}" | head -1)
+[[ "${NAME161_FOLDER_HTTP}" == "201" ]] \
+  || api_fail "POST /v3/files/folders/ (#161) → HTTP ${NAME161_FOLDER_HTTP}. Body: ${NAME161_FOLDER_BODY:0:300}"
+NAME161_FOLDER_ID=$(echo "${NAME161_FOLDER_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+[[ -n "${NAME161_FOLDER_ID}" ]] \
+  || api_fail "Could not parse #161 folder UUID. Body: ${NAME161_FOLDER_BODY:0:300}"
+api_pass "POST /v3/files/folders/ → 201 Created (folder ${NAME161_FOLDER_ID})"
+
+# Park the invalid network and the known-valid BindingDB network side by side so one /list response
+# carries both. The F10 step immediately below re-moves V3_PUB_UUID into its own folder, so the
+# borrow window is a single step and no later assertion sees BindingDB displaced.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/batch/networks/move (invalid + valid network into #161 folder)"
+NAME161_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  -d "{\"targetFolder\":\"${NAME161_FOLDER_ID}\",\"networks\":[\"${NAME161_UUID}\",\"${V3_PUB_UUID}\"]}" \
+  "${BASE_URL}/v3/batch/networks/move")
+[[ "${NAME161_MOVE_HTTP}" == "200" || "${NAME161_MOVE_HTTP}" == "204" ]] \
+  || api_fail "POST /v3/batch/networks/move (#161) → HTTP ${NAME161_MOVE_HTTP}"
+api_pass "Moved invalid (${NAME161_UUID}) + valid (${V3_PUB_UUID}) networks into #161 folder"
+
+# The invalid load forces the network PRIVATE, so the listing must be read as the owner — an
+# anonymous caller would get an empty list and the "no name" assertion would pass vacuously.
+NAME161_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NAME161_FOLDER_ID}/list")
+# '|| true': a missing entry is asserted on explicitly below, and an unmatched grep inside a
+# command substitution would otherwise abort the script under 'set -e'.
+NAME161_BAD_ENTRY=$(name161_entry_for_uuid "${NAME161_LIST}" "${NAME161_UUID}" || true)
+NAME161_GOOD_ENTRY=$(name161_entry_for_uuid "${NAME161_LIST}" "${V3_PUB_UUID}" || true)
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list (owner) — invalid network entry has NO name"
+[[ -n "${NAME161_BAD_ENTRY}" ]] \
+  || api_fail "#161: no /list entry for invalid network ${NAME161_UUID}. Body: ${NAME161_LIST:0:600}"
+echo "${NAME161_BAD_ENTRY}" | grep -q '"type"[[:space:]]*:[[:space:]]*"NETWORK"' \
+  || api_fail "#161: invalid network entry is not type=NETWORK. Entry: ${NAME161_BAD_ENTRY:0:400}"
+echo "${NAME161_BAD_ENTRY}" | grep -qF "${NAME161_EXPECTED_ERROR}" \
+  || api_fail "#161: invalid network entry lacks a CX2 validation errorMessage containing '${NAME161_EXPECTED_ERROR}' — the fixture may no longer be invalid, so a missing name would prove nothing. Entry: ${NAME161_BAD_ENTRY:0:400}"
+echo "${NAME161_BAD_ENTRY}" | grep -q '"name"' \
+  && api_fail "#161 REGRESSION: invalid network entry emitted a \"name\" key; it must be omitted (FileItemSummary is @JsonInclude(NON_NULL) and name is optional for type=NETWORK). Entry: ${NAME161_BAD_ENTRY:0:400}"
+api_pass "GET .../list → invalid network entry: type=NETWORK, validation errorMessage present, NO \"name\" key (#161)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list (owner) — valid network entry still has its name"
+[[ -n "${NAME161_GOOD_ENTRY}" ]] \
+  || api_fail "#161: no /list entry for valid network ${V3_PUB_UUID}. Body: ${NAME161_LIST:0:600}"
+echo "${NAME161_GOOD_ENTRY}" | grep -qE "\"name\"[[:space:]]*:[[:space:]]*\"${NAME161_VALID_NAME}\"" \
+  || api_fail "#161: valid network entry is missing \"name\":\"${NAME161_VALID_NAME}\" — the listing stopped emitting name for ALL networks, so the assertion above proves nothing. Entry: ${NAME161_GOOD_ENTRY:0:400}"
+api_pass "GET .../list → valid network entry still carries \"name\":\"${NAME161_VALID_NAME}\" (name omission is invalid-only)"
+
 # ── STEP: Folder list/count per-child visibility (F10) ───────────────────────
 # A folder's visibility is independent of its children's. A folder the caller can
 # read must NOT leak the metadata of PRIVATE children they cannot see, and /count
@@ -1073,7 +1215,7 @@ step "Folder list/count enforces per-child visibility (F10, anonymous)"
 
 # Create a folder owned by TEST_USER; put one PUBLIC and one PRIVATE network in it.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (create test folder)"
+echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (create test folder)"
 F10_FOLDER_RESP=$(curl -s -w "\n%{http_code}" -X POST \
   -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
@@ -1091,7 +1233,7 @@ fi
 api_pass "POST /v3/files/folders/ → 201 Created (folder ${F10_FOLDER_ID})"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/setvisibility (folder → PUBLIC)"
+echo "  API call ${CALL_NUM}: POST /v3/files/setvisibility (folder → PUBLIC)"
 F10_VIS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
   -d "{\"visibility\":\"PUBLIC\",\"files\":{\"${F10_FOLDER_ID}\":\"FOLDER\"}}" \
@@ -1101,7 +1243,7 @@ F10_VIS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
 api_pass "Folder set PUBLIC"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks/move (public + private into folder)"
+echo "  API call ${CALL_NUM}: POST /v3/networks/move (public + private into folder)"
 F10_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
   -d "{\"targetFolder\":\"${F10_FOLDER_ID}\",\"networks\":[\"${V3_PUB_UUID}\",\"${V3_PRIV_UUID}\"]}" \
@@ -1114,7 +1256,7 @@ api_pass "Moved PUBLIC (${V3_PUB_UUID}) + PRIVATE (${V3_PRIV_UUID}) networks int
 # This step runs BEFORE the AUTHENTICATED_USER_ONLY=true step below, so the server still permits
 # anonymous access to @PermitAll endpoints — exercising the real public-server leak scenario.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (anon) — PRIVATE child absent, network=1"
+echo "  API call ${CALL_NUM}: GET .../list + /count (anon) — PRIVATE child absent, network=1"
 F10_ANON_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
 F10_ANON_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 echo "${F10_ANON_LIST}" | grep -q "${V3_PRIV_UUID}" \
@@ -1126,7 +1268,7 @@ api_pass "anon → /list PUBLIC child only (PRIVATE absent); /count network=1"
 # An AUTHENTICATED non-owner must also see only the public child (created anonymously here — the
 # server is still in default mode; the AUTHENTICATED_USER_ONLY step runs later).
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (create non-owner ${TEST_USER2})"
+echo "  API call ${CALL_NUM}: POST /v2/user (create non-owner ${TEST_USER2})"
 U2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/v2/user" \
   -H "Content-Type: application/json" \
   -d "{\"userName\":\"${TEST_USER2}\",\"password\":\"${TEST_PASS2}\",\"emailAddress\":\"${TEST_EMAIL2}\",\"firstName\":\"NDEx\",\"lastName\":\"Test2\"}")
@@ -1134,7 +1276,7 @@ U2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/v2/user" \
 api_pass "non-owner user ${TEST_USER2} ready"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (authenticated non-owner) — PRIVATE child absent, network=1"
+echo "  API call ${CALL_NUM}: GET .../list + /count (authenticated non-owner) — PRIVATE child absent, network=1"
 F10_U2_LIST=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
 F10_U2_NET=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 echo "${F10_U2_LIST}" | grep -q "${V3_PRIV_UUID}" \
@@ -1144,7 +1286,7 @@ echo "${F10_U2_LIST}" | grep -q "${V3_PRIV_UUID}" \
 api_pass "authenticated non-owner → /list PUBLIC child only (PRIVATE absent); /count network=1"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (owner) — both children, network=2"
+echo "  API call ${CALL_NUM}: GET .../list + /count (owner) — both children, network=2"
 F10_OWNER_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
 F10_OWNER_NET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 { echo "${F10_OWNER_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_OWNER_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_OWNER_NET}" == "2" ]]; } \
@@ -1154,7 +1296,7 @@ api_pass "owner → /list both children; /count network=2"
 # A valid access key must return ALL children even when the folder is independently readable
 # (PUBLIC) — the key takes precedence over per-child filtering.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/sharing/share (enable folder access key)"
+echo "  API call ${CALL_NUM}: POST /v3/files/sharing/share (enable folder access key)"
 F10_SHARE_BODY=$(curl -s -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
   -d "{\"files\":{\"${F10_FOLDER_ID}\":\"FOLDER\"}}" \
   "${BASE_URL}/v3/files/sharing/share")
@@ -1163,7 +1305,7 @@ F10_KEY=$(echo "${F10_SHARE_BODY}" | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/')
 api_pass "Folder access key enabled"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey on PUBLIC (readable) folder (anon) — ALL children, network=2"
+echo "  API call ${CALL_NUM}: GET .../list + /count?accesskey on PUBLIC (readable) folder (anon) — ALL children, network=2"
 F10_PUBKEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
 F10_PUBKEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 { echo "${F10_PUBKEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_PUBKEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_PUBKEY_NET}" == "2" ]]; } \
@@ -1172,7 +1314,7 @@ api_pass "anon + access key on PUBLIC folder → /list all children (incl. PRIVA
 
 # ---- Phase B: PRIVATE folder + access key — key grants ALL contents ----
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/setvisibility (folder → PRIVATE)"
+echo "  API call ${CALL_NUM}: POST /v3/files/setvisibility (folder → PRIVATE)"
 F10_VIS2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
   -d "{\"visibility\":\"PRIVATE\",\"files\":{\"${F10_FOLDER_ID}\":\"FOLDER\"}}" \
@@ -1182,7 +1324,7 @@ F10_VIS2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
 api_pass "Folder set PRIVATE"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count (anon, no key) — PRIVATE folder must be 401"
+echo "  API call ${CALL_NUM}: GET .../list + /count (anon, no key) — PRIVATE folder must be 401"
 F10_NOKEY_LIST_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
 F10_NOKEY_COUNT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count")
 { [[ "${F10_NOKEY_LIST_HTTP}" == "401" ]] && [[ "${F10_NOKEY_COUNT_HTTP}" == "401" ]]; } \
@@ -1192,7 +1334,7 @@ api_pass "anon /list + /count on PRIVATE folder (no key) → 401"
 # The access key was enabled in Phase A (while PUBLIC); it still grants full contents now that the
 # folder is PRIVATE.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — ALL children, network=2"
+echo "  API call ${CALL_NUM}: GET .../list + /count?accesskey (anon) — ALL children, network=2"
 F10_KEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
 F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"network"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 { echo "${F10_KEY_LIST}" | grep -q "${V3_PUB_UUID}" && echo "${F10_KEY_LIST}" | grep -q "${V3_PRIV_UUID}" && [[ "${F10_KEY_NET}" == "2" ]]; } \
@@ -1209,7 +1351,7 @@ step "Access key: ancestor-folder accrual + same-owner shortcut resolution (G11,
 # Nest the PRIVATE network one level deeper: a subfolder under the (keyed) F10 folder. The network's
 # key access must now be resolved via the GRANDPARENT folder's key.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (subfolder under keyed folder)"
+echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (subfolder under keyed folder)"
 G11_SUB_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
   -d "{\"name\":\"G11 subfolder\",\"parent\":\"${F10_FOLDER_ID}\"}" \
@@ -1221,7 +1363,7 @@ G11_SUB_ID=$(echo "${G11_SUB_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*
 api_pass "subfolder ${G11_SUB_ID} created under keyed folder ${F10_FOLDER_ID}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/move (private net into subfolder)"
+echo "  API call ${CALL_NUM}: POST /v3/batch/networks/move (private net into subfolder)"
 G11_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
   -d "{\"targetFolder\":\"${G11_SUB_ID}\",\"networks\":[\"${V3_PRIV_UUID}\"]}" \
@@ -1231,7 +1373,7 @@ G11_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:
 api_pass "PRIVATE network ${V3_PRIV_UUID} moved into subfolder (grandparent holds the key)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{priv}/summary?accesskey=<ancestor key> (anon, expect 200)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/{priv}/summary?accesskey=<ancestor key> (anon, expect 200)"
 G11_SUMM_RESP=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}/summary?accesskey=${F10_KEY}")
 G11_SUMM_HTTP=$(echo "${G11_SUMM_RESP}" | tail -1); G11_SUMM_BODY=$(echo "${G11_SUMM_RESP}" | head -1)
 { [[ "${G11_SUMM_HTTP}" == "200" ]] && echo "${G11_SUMM_BODY}" | grep -q "${V3_PRIV_UUID}"; } \
@@ -1239,7 +1381,7 @@ G11_SUMM_HTTP=$(echo "${G11_SUMM_RESP}" | tail -1); G11_SUMM_BODY=$(echo "${G11_
 api_pass "anon + ANCESTOR folder key → GET private network summary 200 (accrual up the folder chain)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{priv}/summary (anon, no key, expect 401)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/{priv}/summary (anon, no key, expect 401)"
 G11_NOKEY_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V3_PRIV_UUID}/summary")
 [[ "${G11_NOKEY_HTTP}" == "401" ]] \
   || api_fail "anon no-key on PRIVATE network summary → HTTP ${G11_NOKEY_HTTP} (expected 401)"
@@ -1251,7 +1393,7 @@ api_pass "anon + no key → GET private network summary 401 (negative control)"
 # (Change 3) surface the shortcut in the key /list + /count, and (Changes 1 & 2) grant anonymous read to
 # the target network via GET, search, and batch summary.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (shortcut in keyed folder → private Home network)"
+echo "  API call ${CALL_NUM}: POST /v3/files/shortcuts/ (shortcut in keyed folder → private Home network)"
 G11_SC_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
   -d "{\"name\":\"G11 shortcut\",\"parent\":\"${F10_FOLDER_ID}\",\"target\":\"${V2_PRIV_UUID}\",\"targetType\":\"NETWORK\"}" \
@@ -1264,7 +1406,7 @@ api_pass "shortcut ${G11_SC_ID} created in keyed folder → private network ${V2
 
 # Change 3: key-authorized /list + /count now INCLUDE the same-owner NETWORK shortcut.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list + /count?accesskey (anon) — shortcut INCLUDED, shortcut count >=1"
+echo "  API call ${CALL_NUM}: GET .../list + /count?accesskey (anon) — shortcut INCLUDED, shortcut count >=1"
 G11_KEY_LIST=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}")
 G11_KEY_SC=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?accesskey=${F10_KEY}" | grep -oE '"shortcut"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
 echo "${G11_KEY_LIST}" | grep -q "${G11_SC_ID}" \
@@ -1275,7 +1417,7 @@ api_pass "anon + key → /list includes same-owner NETWORK shortcut; /count shor
 
 # Change 1 (GET): the key grants anonymous read to the shortcut's target network (was 401 before the fix).
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{shortcut-target}?accesskey (anon, expect 200)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/{shortcut-target}?accesskey (anon, expect 200)"
 G11_SCGET_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}?accesskey=${F10_KEY}")
 [[ "${G11_SCGET_HTTP}" == "200" ]] \
   || api_fail "anon + key via shortcut → GET network HTTP ${G11_SCGET_HTTP} (expected 200)"
@@ -1283,7 +1425,7 @@ api_pass "anon + key → GET private network via same-owner shortcut 200 (Change
 
 # Negative controls: no key and a wrong key must stay 401 (the shortcut alone grants nothing).
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/networks/{shortcut-target} (anon no-key / wrong-key, expect 401)"
+echo "  API call ${CALL_NUM}: GET /v3/networks/{shortcut-target} (anon no-key / wrong-key, expect 401)"
 G11_SCNO_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}")
 G11_SCWRONG_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/networks/${V2_PRIV_UUID}?accesskey=not-a-real-key")
 { [[ "${G11_SCNO_HTTP}" == "401" ]] && [[ "${G11_SCWRONG_HTTP}" == "401" ]]; } \
@@ -1292,7 +1434,7 @@ api_pass "anon no-key / wrong-key → GET shortcut-target network 401 (negative 
 
 # Change 1 (search): the same accessKeyIsValid path backs the per-network search endpoints (stub proxied).
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/search/networks/{shortcut-target}/query?accesskey (anon, expect 200)"
+echo "  API call ${CALL_NUM}: POST /v3/search/networks/{shortcut-target}/query?accesskey (anon, expect 200)"
 G11_SCQ_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   -H "Content-Type: application/json" -d '{"searchString":"EGFR","searchDepth":1}' \
   "${BASE_URL}/v3/search/networks/${V2_PRIV_UUID}/query?accesskey=${F10_KEY}")
@@ -1303,7 +1445,7 @@ api_pass "anon + key → POST search query on shortcut-target network 200 (Chang
 # Change 2 (batch summary): one call spanning a REAL network (V3_PRIV, reached via the ancestor folder
 # key) and a SHORTCUT network (V2_PRIV, reached via the same-owner shortcut) — both must be returned.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/summary?accesskey (anon) — real + shortcut network both present"
+echo "  API call ${CALL_NUM}: POST /v3/batch/networks/summary?accesskey (anon) — real + shortcut network both present"
 G11_BATCH=$(curl -s -X POST -H "Content-Type: application/json" \
   -d "[\"${V3_PRIV_UUID}\",\"${V2_PRIV_UUID}\"]" \
   "${BASE_URL}/v3/batch/networks/summary?accesskey=${F10_KEY}")
@@ -1313,7 +1455,7 @@ api_pass "anon + key → batch summary returns both the ancestor-key network and
 
 # Negative: batch summary WITHOUT a key returns neither private network to an anonymous caller.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/summary (anon, no key) — neither private network present"
+echo "  API call ${CALL_NUM}: POST /v3/batch/networks/summary (anon, no key) — neither private network present"
 G11_BATCH_NOKEY=$(curl -s -X POST -H "Content-Type: application/json" \
   -d "[\"${V3_PRIV_UUID}\",\"${V2_PRIV_UUID}\"]" \
   "${BASE_URL}/v3/batch/networks/summary")
@@ -1323,7 +1465,7 @@ api_pass "anon + no key → batch summary omits both private networks (negative 
 
 # The owner (no key) still sees the shortcut in the identity-based view (no-key path unchanged).
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET .../list (owner, no key) — shortcut PRESENT (no-key path unchanged)"
+echo "  API call ${CALL_NUM}: GET .../list (owner, no key) — shortcut PRESENT (no-key path unchanged)"
 G11_OWNER_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
 echo "${G11_OWNER_LIST}" | grep -q "${G11_SC_ID}" \
   || api_fail "owner /list (no key) should include shortcut ${G11_SC_ID}. Body: ${G11_OWNER_LIST:0:400}"
@@ -1336,7 +1478,7 @@ step "Folder/Shortcut visibility: create/update accept it, reads report it"
 
 # --- Folder: write path accepts visibility on create ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (create with visibility=PUBLIC)"
+echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (create with visibility=PUBLIC)"
 VIS_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
   -d '{"name":"vis-folder","visibility":"PUBLIC"}' \
@@ -1349,14 +1491,14 @@ api_pass "POST folder with visibility=PUBLIC → 201 (folder ${VIS_F_ID})"
 
 # --- Folder: read path populates visibility (GET {id} + list-mine) ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (visibility populated)"
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/{id} (visibility populated)"
 VIS_F_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_F_ID}")
 echo "${VIS_F_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PUBLIC"' \
   || api_fail "GET folder did not report visibility=PUBLIC. Body: ${VIS_F_GET:0:300}"
 api_pass "GET folder reports visibility=PUBLIC"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/ (list-mine reports visibility)"
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/ (list-mine reports visibility)"
 VIS_F_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/")
 echo "${VIS_F_LIST}" | grep -q '"visibility"' \
   || api_fail "list-mine folders did not report a visibility field. Body: ${VIS_F_LIST:0:400}"
@@ -1364,7 +1506,7 @@ api_pass "GET list-mine folders reports visibility"
 
 # --- Folder: omitted visibility defaults to PRIVATE ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (no visibility → default PRIVATE)"
+echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (no visibility → default PRIVATE)"
 VIS_FD_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" -d '{"name":"vis-folder-default"}' \
   "${BASE_URL}/v3/files/folders/")
@@ -1372,7 +1514,7 @@ VIS_FD_HTTP=$(echo "${VIS_FD_RESP}" | tail -1); VIS_FD_BODY=$(echo "${VIS_FD_RES
 [[ "${VIS_FD_HTTP}" == "201" ]] || api_fail "create folder (no visibility) → HTTP ${VIS_FD_HTTP}"
 VIS_FD_ID=$(echo "${VIS_FD_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (default visibility=PRIVATE)"
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/{id} (default visibility=PRIVATE)"
 VIS_FD_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_FD_ID}")
 echo "${VIS_FD_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"' \
   || api_fail "folder created without visibility did not default to PRIVATE. Body: ${VIS_FD_GET:0:300}"
@@ -1380,13 +1522,13 @@ api_pass "folder without visibility defaults to PRIVATE"
 
 # --- Folder: update accepts visibility ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/folders/{id} (visibility=UNLISTED)"
+echo "  API call ${CALL_NUM}: PUT /v3/files/folders/{id} (visibility=UNLISTED)"
 VIS_F_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" -d '{"visibility":"UNLISTED"}' \
   "${BASE_URL}/v3/files/folders/${VIS_F_ID}")
 [[ "${VIS_F_PUT}" == "204" || "${VIS_F_PUT}" == "200" ]] || api_fail "PUT folder visibility → HTTP ${VIS_F_PUT}"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/{id} (visibility now UNLISTED)"
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/{id} (visibility now UNLISTED)"
 VIS_F_GET2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${VIS_F_ID}")
 echo "${VIS_F_GET2}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"UNLISTED"' \
   || api_fail "folder update did not change visibility to UNLISTED. Body: ${VIS_F_GET2:0:300}"
@@ -1394,7 +1536,7 @@ api_pass "PUT folder visibility=UNLISTED applied; GET reports UNLISTED"
 
 # --- Shortcut: write path accepts visibility on create (target the vis-folder) ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (visibility=PUBLIC)"
+echo "  API call ${CALL_NUM}: POST /v3/files/shortcuts/ (visibility=PUBLIC)"
 VIS_S_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
   -d "{\"name\":\"vis-shortcut\",\"target\":\"${VIS_F_ID}\",\"targetType\":\"FOLDER\",\"visibility\":\"PUBLIC\"}" \
@@ -1404,7 +1546,7 @@ VIS_S_HTTP=$(echo "${VIS_S_RESP}" | tail -1); VIS_S_BODY=$(echo "${VIS_S_RESP}" 
 VIS_S_ID=$(echo "${VIS_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
 [[ -n "${VIS_S_ID}" ]] || api_fail "no uuid in create-shortcut response. Body: ${VIS_S_BODY:0:300}"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/shortcuts/{id} (visibility populated)"
+echo "  API call ${CALL_NUM}: GET /v3/files/shortcuts/{id} (visibility populated)"
 VIS_S_GET=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/shortcuts/${VIS_S_ID}")
 echo "${VIS_S_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PUBLIC"' \
   || api_fail "GET shortcut did not report visibility=PUBLIC. Body: ${VIS_S_GET:0:300}"
@@ -1412,13 +1554,13 @@ api_pass "POST shortcut visibility=PUBLIC → 201; GET reports PUBLIC (shortcut 
 
 # --- Shortcut: update accepts visibility ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/shortcuts/{id} (visibility=PRIVATE)"
+echo "  API call ${CALL_NUM}: PUT /v3/files/shortcuts/{id} (visibility=PRIVATE)"
 VIS_S_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" -d '{"visibility":"PRIVATE"}' \
   "${BASE_URL}/v3/files/shortcuts/${VIS_S_ID}")
 [[ "${VIS_S_PUT}" == "204" || "${VIS_S_PUT}" == "200" ]] || api_fail "PUT shortcut visibility → HTTP ${VIS_S_PUT}"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/shortcuts/{id} (visibility now PRIVATE)"
+echo "  API call ${CALL_NUM}: GET /v3/files/shortcuts/{id} (visibility now PRIVATE)"
 VIS_S_GET2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/shortcuts/${VIS_S_ID}")
 echo "${VIS_S_GET2}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"' \
   || api_fail "shortcut update did not change visibility to PRIVATE. Body: ${VIS_S_GET2:0:300}"
@@ -1435,7 +1577,7 @@ VM_SHORTCUT_NAME="vismoveshortcut${RANDOM}${RANDOM}"
 
 # --- Folder: create PRIVATE, confirm indexed in private-nfs ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/folders/ (create PRIVATE for reindex-move test)"
+echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (create PRIVATE for reindex-move test)"
 VM_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" -d "{\"name\":\"${VM_FOLDER_NAME}\"}" \
   "${BASE_URL}/v3/files/folders/")
@@ -1445,29 +1587,29 @@ VM_F_ID=$(echo "${VM_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a
 [[ -n "${VM_F_ID}" ]] || api_fail "no uuid in move-test folder create body. Body: ${VM_F_BODY:0:300}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (folder indexed in private-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (folder indexed in private-nfs)"
 poll_files_until_present "PRIVATE" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder pre-move"
 api_pass "folder ${VM_F_ID} indexed under PRIVATE (private-nfs)"
 
 # --- Folder: flip to PUBLIC, confirm moved to public-nfs and dropped from private-nfs ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/folders/{id} visibility=PUBLIC"
+echo "  API call ${CALL_NUM}: PUT /v3/files/folders/{id} visibility=PUBLIC"
 VM_F_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" -d '{"visibility":"PUBLIC"}' \
   "${BASE_URL}/v3/files/folders/${VM_F_ID}")
 [[ "${VM_F_PUT}" == "204" || "${VM_F_PUT}" == "200" ]] || api_fail "PUT move-test folder visibility → HTTP ${VM_F_PUT}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PUBLIC (folder now in public-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (folder now in public-nfs)"
 poll_files_until_present "PUBLIC" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder post-move (new core)"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (folder dropped from private-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (folder dropped from private-nfs)"
 poll_files_until_absent "PRIVATE" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder post-move (old core)"
 api_pass "folder visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
 
 # --- Shortcut: create PRIVATE (target the move-test folder), confirm indexed in private-nfs ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/files/shortcuts/ (create PRIVATE for reindex-move test)"
+echo "  API call ${CALL_NUM}: POST /v3/files/shortcuts/ (create PRIVATE for reindex-move test)"
 VM_S_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
   -d "{\"name\":\"${VM_SHORTCUT_NAME}\",\"target\":\"${VM_F_ID}\",\"targetType\":\"FOLDER\"}" \
@@ -1478,23 +1620,23 @@ VM_S_ID=$(echo "${VM_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a
 [[ -n "${VM_S_ID}" ]] || api_fail "no uuid in move-test shortcut create body. Body: ${VM_S_BODY:0:300}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (shortcut indexed in private-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (shortcut indexed in private-nfs)"
 poll_files_until_present "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut pre-move"
 api_pass "shortcut ${VM_S_ID} indexed under PRIVATE (private-nfs)"
 
 # --- Shortcut: flip to PUBLIC, confirm moved to public-nfs and dropped from private-nfs ---
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/shortcuts/{id} visibility=PUBLIC"
+echo "  API call ${CALL_NUM}: PUT /v3/files/shortcuts/{id} visibility=PUBLIC"
 VM_S_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" -d '{"visibility":"PUBLIC"}' \
   "${BASE_URL}/v3/files/shortcuts/${VM_S_ID}")
 [[ "${VM_S_PUT}" == "204" || "${VM_S_PUT}" == "200" ]] || api_fail "PUT move-test shortcut visibility → HTTP ${VM_S_PUT}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PUBLIC (shortcut now in public-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (shortcut now in public-nfs)"
 poll_files_until_present "PUBLIC" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (new core)"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search files visibility=PRIVATE (shortcut dropped from private-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (shortcut dropped from private-nfs)"
 poll_files_until_absent "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (old core)"
 api_pass "shortcut visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
 
@@ -1522,7 +1664,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # ── 1) POST /v2/networkset → creates a FOLDER at the owner's home root ──────────────────────────
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset (create) — expect 201"
+  echo "  API call ${CALL_NUM}: POST /v2/networkset (create) — expect 201"
   NS_CREATE=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" \
     -d "{\"name\":\"${NS_NAME}\",\"description\":\"${NS_DESC}\"}" "${BASE_URL}/v2/networkset")
@@ -1535,7 +1677,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # The set id must BE a folder id, with the posted name/description and no parent (home root).
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID} — same object via v3"
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/${NS_ID} — same object via v3"
   NS_F=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}")
   NS_F_HTTP=$(echo "${NS_F}" | tail -1); NS_F_BODY=$(echo "${NS_F}" | head -1)
   [[ "${NS_F_HTTP}" == "200" ]] \
@@ -1552,7 +1694,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # ── 2) POST /{id}/members → adds each network as a SHORTCUT ─────────────────────────────────────
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset/${NS_ID}/members (2 networks) — expect 201"
+  echo "  API call ${CALL_NUM}: POST /v2/networkset/${NS_ID}/members (2 networks) — expect 201"
   NS_ADD_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" \
     -d "[\"${V2_PUB_UUID}\",\"${V2_PRIV_UUID}\"]" "${BASE_URL}/v2/networkset/${NS_ID}/members")
@@ -1562,7 +1704,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   # v3 must report one NETWORK-target shortcut per posted network, named after the NETWORK (not its
   # UUID — earlier releases named shortcuts networkId.toString()), and count them.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID}/list — shortcuts per member"
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/${NS_ID}/list — shortcuts per member"
   NS_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}/list?format=compact")
   echo "${NS_LIST}" | grep -q "SHORTCUT" || api_fail "v3 list shows no shortcut children. Body: ${NS_LIST:0:500}"
   echo "${NS_LIST}" | grep -q "${V2_PUB_UUID}" || api_fail "v3 list is missing a shortcut to ${V2_PUB_UUID}. Body: ${NS_LIST:0:500}"
@@ -1576,7 +1718,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   api_pass "members are v3 shortcuts named after their target network, visible in /v3/files/folders/{id}/list"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID}/count — shortcut=2"
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/${NS_ID}/count — shortcut=2"
   NS_COUNT=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}/count")
   echo "${NS_COUNT}" | grep -qE '"shortcut"[[:space:]]*:[[:space:]]*2' \
     || api_fail "expected shortcut count 2 in /count. Body: ${NS_COUNT:0:300}"
@@ -1588,7 +1730,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # Rejects the whole request when any posted id is unreadable — nothing partially created.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset/${NS_ID}/members with an unreadable id — expect 4xx"
+  echo "  API call ${CALL_NUM}: POST /v2/networkset/${NS_ID}/members with an unreadable id — expect 4xx"
   NS_BAD_UUID="66666666-6666-6666-6666-666666666666"
   NS_BAD_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" \
@@ -1604,7 +1746,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     -H "Content-Type: application/json" -d "{\"name\":\"${NS_NAME_2}\"}"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID} — renamed, parent unchanged"
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/${NS_ID} — renamed, parent unchanged"
   NS_F2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}")
   echo "${NS_F2}" | grep -q "${NS_NAME_2}" || api_fail "v3 folder does not show the new name. Body: ${NS_F2:0:400}"
   NS_PARENT2=$(psql_ndex "SELECT COALESCE(parent::text,'NULL') FROM folder WHERE \\\"UUID\\\"='${NS_ID}';")
@@ -1621,7 +1763,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   # A non-owner must get 401 rather than a 500 from a primary-key violation on an attempted create, and
   # the rejected request must not have written anything.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID} (non-owner ${TEST_USER2}) — 401, not 500"
+  echo "  API call ${CALL_NUM}: PUT /v2/networkset/${NS_ID} (non-owner ${TEST_USER2}) — 401, not 500"
   NS_PUT_OTHER_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER2}:${TEST_PASS2}" \
     -H "Content-Type: application/json" -d '{"name":"hijacked"}' "${BASE_URL}/v2/networkset/${NS_ID}")
   [[ "${NS_PUT_OTHER_HTTP}" == "401" ]] \
@@ -1633,7 +1775,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # ── 4) PUT /{id}/accesskey → enables/disables the FOLDER's key ──────────────────────────────────
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID}/accesskey?action=enable — expect 200 + key"
+  echo "  API call ${CALL_NUM}: PUT /v2/networkset/${NS_ID}/accesskey?action=enable — expect 200 + key"
   NS_KEY_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" -X PUT "${BASE_URL}/v2/networkset/${NS_ID}/accesskey?action=enable")
   NS_KEY=$(echo "${NS_KEY_BODY}" | grep -oE '"accessKey"[[:space:]]*:[[:space:]]*"[^"]+"' | sed 's/.*"\([^"]*\)"$/\1/')
   [[ -n "${NS_KEY}" ]] || api_fail "enable did not return an accessKey. Body: ${NS_KEY_BODY:0:300}"
@@ -1641,7 +1783,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # The v2 and v3 key surfaces are the same folder row.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID}/accesskey — identical key"
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/${NS_ID}/accesskey — identical key"
   NS_V3KEY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${NS_ID}/accesskey")
   echo "${NS_V3KEY}" | grep -q "${NS_KEY}" \
     || api_fail "v3 folder accesskey differs from the v2 network set key. Body: ${NS_V3KEY:0:300}"
@@ -1649,12 +1791,12 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # Disable preserves the key value, so re-enabling returns the same string (idempotent enable).
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID}/accesskey?action=disable — expect 204"
+  echo "  API call ${CALL_NUM}: PUT /v2/networkset/${NS_ID}/accesskey?action=disable — expect 204"
   NS_DIS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" -X PUT \
     "${BASE_URL}/v2/networkset/${NS_ID}/accesskey?action=disable")
   [[ "${NS_DIS_HTTP}" == "204" ]] || api_fail "disable → HTTP ${NS_DIS_HTTP} (expected 204)"
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID}/accesskey?action=enable — same key back"
+  echo "  API call ${CALL_NUM}: PUT /v2/networkset/${NS_ID}/accesskey?action=enable — same key back"
   NS_KEY2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" -X PUT "${BASE_URL}/v2/networkset/${NS_ID}/accesskey?action=enable" \
     | grep -oE '"accessKey"[[:space:]]*:[[:space:]]*"[^"]+"' | sed 's/.*"\([^"]*\)"$/\1/')
   [[ "${NS_KEY2}" == "${NS_KEY}" ]] \
@@ -1663,7 +1805,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # An invalid action is rejected rather than being treated as one of the two.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v2/networkset/${NS_ID}/accesskey?action=bogus — expect 4xx"
+  echo "  API call ${CALL_NUM}: PUT /v2/networkset/${NS_ID}/accesskey?action=bogus — expect 4xx"
   NS_ACT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" -X PUT \
     "${BASE_URL}/v2/networkset/${NS_ID}/accesskey?action=bogus")
   [[ "${NS_ACT_HTTP}" =~ ^4 ]] || api_fail "action=bogus → HTTP ${NS_ACT_HTTP} (expected 4xx)"
@@ -1684,7 +1826,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     || api_fail "expected the folder behind the set to be PRIVATE, got '${NS_VIS_DB}' — the visibility assertions below would be meaningless"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (anon, folder is PRIVATE) — 401"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID} (anon, folder is PRIVATE) — 401"
   NS_ANON_PRIV_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/networkset/${NS_ID}")
   [[ "${NS_ANON_PRIV_HTTP}" == "401" ]] \
     || api_fail "anon read of a PRIVATE set → HTTP ${NS_ANON_PRIV_HTTP} (expected 401; folder visibility governs)"
@@ -1692,7 +1834,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   # A signed-in NON-OWNER with no permission on the folder is refused too. This is what proves the gate is
   # folder read-access, not merely "reject anonymous".
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (non-owner ${TEST_USER2}, PRIVATE) — 401"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID} (non-owner ${TEST_USER2}, PRIVATE) — 401"
   NS_OTHER_PRIV_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER2}:${TEST_PASS2}" \
     "${BASE_URL}/v2/networkset/${NS_ID}")
   [[ "${NS_OTHER_PRIV_HTTP}" == "401" ]] \
@@ -1700,7 +1842,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # The owner reading that identical url succeeds, and gets the real content.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (owner, same PRIVATE set) — 200"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID} (owner, same PRIVATE set) — 200"
   NS_OWNER_PRIV=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
   NS_OWNER_PRIV_HTTP=$(echo "${NS_OWNER_PRIV}" | tail -1); NS_OWNER_PRIV_BODY=$(echo "${NS_OWNER_PRIV}" | head -1)
   [[ "${NS_OWNER_PRIV_HTTP}" == "200" ]] \
@@ -1714,14 +1856,14 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   # Making the folder PUBLIC is the supported way to restore anonymous set reads. Member filtering still
   # applies: a PUBLIC set does not expose the caller's unreadable members.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: PUT /v3/files/folders/${NS_ID} visibility=PUBLIC"
+  echo "  API call ${CALL_NUM}: PUT /v3/files/folders/${NS_ID} visibility=PUBLIC"
   NS_VIS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" \
     -d "{\"name\":\"${NS_NAME_2}\",\"visibility\":\"PUBLIC\"}" "${BASE_URL}/v3/files/folders/${NS_ID}")
   [[ "${NS_VIS_HTTP}" =~ ^2 ]] || api_fail "PUT folder visibility=PUBLIC → HTTP ${NS_VIS_HTTP}"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (anon, set now PUBLIC) — public member only"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID} (anon, set now PUBLIC) — public member only"
   NS_ANON=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_ID}")
   NS_ANON_HTTP=$(echo "${NS_ANON}" | tail -1); NS_ANON_BODY=$(echo "${NS_ANON}" | head -1)
   [[ "${NS_ANON_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (anon, PUBLIC) → HTTP ${NS_ANON_HTTP}. Body: ${NS_ANON_BODY:0:400}"
@@ -1735,7 +1877,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     -d "{\"name\":\"${NS_NAME_2}\",\"visibility\":\"PRIVATE\"}" "${BASE_URL}/v3/files/folders/${NS_ID}"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID}?accesskey (anon) — key-unlocked members"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID}?accesskey (anon) — key-unlocked members"
   NS_KEYED=$(curl -s -w "\n%{http_code}" "${BASE_URL}/v2/networkset/${NS_ID}?accesskey=${NS_KEY}")
   NS_KEYED_HTTP=$(echo "${NS_KEYED}" | tail -1); NS_KEYED_BODY=$(echo "${NS_KEYED}" | head -1)
   [[ "${NS_KEYED_HTTP}" == "200" ]] || api_fail "GET /v2/networkset?accesskey (anon) → HTTP ${NS_KEYED_HTTP}. Body: ${NS_KEYED_BODY:0:400}"
@@ -1747,7 +1889,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   # The same key must reach the member NETWORK itself, which is what keeps pre-migration set keys
   # working: the resolver seeds the ancestor walk from same-owner NETWORK shortcuts.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}?accesskey (anon) — key reaches the member"
+  echo "  API call ${CALL_NUM}: GET /v2/network/${V2_PRIV_UUID}?accesskey (anon) — key reaches the member"
   NS_NETKEY_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/network/${V2_PRIV_UUID}/summary?accesskey=${NS_KEY}")
   [[ "${NS_NETKEY_HTTP}" == "200" ]] \
     || api_fail "a set's key must reach its member networks through their shortcuts → HTTP ${NS_NETKEY_HTTP}"
@@ -1756,7 +1898,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   CALL_NUM=$((CALL_NUM+1))
   # The owner's 200 on a PRIVATE set is already asserted above; this checks the legacy-only fields, which
   # have no folder equivalent and must be reported as defaults rather than invented.
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} (owner) — legacy field defaults"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID} (owner) — legacy field defaults"
   NS_OWNER=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
   NS_OWNER_HTTP=$(echo "${NS_OWNER}" | tail -1); NS_OWNER_BODY=$(echo "${NS_OWNER}" | head -1)
   [[ "${NS_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/networkset (owner) → HTTP ${NS_OWNER_HTTP}. Body: ${NS_OWNER_BODY:0:400}"
@@ -1772,7 +1914,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # ── 6) GET /{id}/accesskey → read-only, owner-only, 404 before 401 ──────────────────────────────
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID}/accesskey (owner) — key returned"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID}/accesskey (owner) — key returned"
   NS_AK=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}/accesskey")
   NS_AK_HTTP=$(echo "${NS_AK}" | tail -1); NS_AK_BODY=$(echo "${NS_AK}" | head -1)
   [[ "${NS_AK_HTTP}" == "200" ]] || api_fail "GET accesskey (owner) → HTTP ${NS_AK_HTTP}. Body: ${NS_AK_BODY:0:300}"
@@ -1780,7 +1922,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   api_pass "GET /v2/networkset/{id}/accesskey (owner) → 200, returns the folder's key"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID}/accesskey (non-owner) — 401"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID}/accesskey (non-owner) — 401"
   NS_AK2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER2}:${TEST_PASS2}" \
     "${BASE_URL}/v2/networkset/${NS_ID}/accesskey")
   [[ "${NS_AK2_HTTP}" == "401" ]] || api_fail "GET accesskey (non-owner) → HTTP ${NS_AK2_HTTP} (expected 401)"
@@ -1788,7 +1930,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   CALL_NUM=$((CALL_NUM+1))
   NS_MISSING_ID="99999999-9999-9999-9999-999999999999"
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_MISSING_ID}/accesskey — 404 not 401"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_MISSING_ID}/accesskey — 404 not 401"
   NS_AK_MISS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
     "${BASE_URL}/v2/networkset/${NS_MISSING_ID}/accesskey")
   [[ "${NS_AK_MISS_HTTP}" == "404" ]] || api_fail "GET accesskey (missing set) → HTTP ${NS_AK_MISS_HTTP} (expected 404)"
@@ -1797,7 +1939,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   # A GET must never mint a key as a side effect, which is what earlier releases did by calling
   # enableFolderAccessKey from the read path.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/networkset (2nd set) — GET accesskey must not create a key"
+  echo "  API call ${CALL_NUM}: POST /v2/networkset (2nd set) — GET accesskey must not create a key"
   NS_ID2=$(curl -s -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
     -d '{"name":"NS Keyless Set"}' "${BASE_URL}/v2/networkset" \
     | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
@@ -1810,7 +1952,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # ── 7) GET /v2/user/{id}/networksets + networkcount ─────────────────────────────────────────────
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets (owner) — both sets"
+  echo "  API call ${CALL_NUM}: GET /v2/user/${NS_OWNER_ID}/networksets (owner) — both sets"
   NSU_OWNER=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets")
   NSU_OWNER_HTTP=$(echo "${NSU_OWNER}" | tail -1); NSU_OWNER_BODY=$(echo "${NSU_OWNER}" | head -1)
   [[ "${NSU_OWNER_HTTP}" == "200" ]] || api_fail "GET /v2/user/{id}/networksets → HTTP ${NSU_OWNER_HTTP}. Body: ${NSU_OWNER_BODY:0:400}"
@@ -1819,7 +1961,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   api_pass "GET /v2/user/{id}/networksets (owner) → 200, lists the user's folder-backed sets"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?summary=true — members omitted as []"
+  echo "  API call ${CALL_NUM}: GET /v2/user/${NS_OWNER_ID}/networksets?summary=true — members omitted as []"
   NSU_SUM=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?summary=true")
   echo "${NSU_SUM}" | grep -q "${NS_ID}" || api_fail "summary list missing set ${NS_ID}. Body: ${NSU_SUM:0:400}"
   echo "${NSU_SUM}" | grep -q "${V2_PUB_UUID}" && api_fail "summary=true must omit member network ids. Body: ${NSU_SUM:0:400}"
@@ -1829,7 +1971,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   api_pass "GET /v2/user/{id}/networksets?summary=true → set headers with \"networks\":[]"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networksets?showcase=true — documented no-op"
+  echo "  API call ${CALL_NUM}: GET /v2/user/${NS_OWNER_ID}/networksets?showcase=true — documented no-op"
   NSU_SHOW=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?showcase=true")
   # Folders have no showcase flag, so the parameter cannot filter; it must not silently empty the list.
   echo "${NSU_SHOW}" | grep -q "${NS_ID}" \
@@ -1838,7 +1980,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # networkSetCount must agree with the unpaged list length, or an account page contradicts itself.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/user/${NS_OWNER_ID}/networkcount — networkSetCount agrees with the list"
+  echo "  API call ${CALL_NUM}: GET /v2/user/${NS_OWNER_ID}/networkcount — networkSetCount agrees with the list"
   NS_CNT_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networkcount")
   NS_SET_COUNT=$(echo "${NS_CNT_BODY}" | grep -oE '"networkSetCount"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
   [[ -n "${NS_SET_COUNT}" ]] || api_fail "networkcount response has no networkSetCount. Body: ${NS_CNT_BODY:0:300}"
@@ -1862,7 +2004,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # ── 9) DELETE /{id}/members → shortcuts physically deleted; real children reparented ────────────
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: DELETE /v2/networkset/${NS_ID}/members [private] — expect 204"
+  echo "  API call ${CALL_NUM}: DELETE /v2/networkset/${NS_ID}/members [private] — expect 204"
   NS_DELM_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" -d "[\"${V2_PRIV_UUID}\"]" "${BASE_URL}/v2/networkset/${NS_ID}/members")
   [[ "${NS_DELM_HTTP}" == "204" ]] || api_fail "DELETE members → HTTP ${NS_DELM_HTTP} (expected 204)"
@@ -1873,18 +2015,18 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   [[ "${NS_SC_ROWS}" == "0" ]] \
     || api_fail "member shortcut row survives (count=${NS_SC_ROWS}); is_deleted=true means the soft path ran"
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/shortcuts/${NS_SC_PRIV} — 404"
+  echo "  API call ${CALL_NUM}: GET /v3/files/shortcuts/${NS_SC_PRIV} — 404"
   NS_SC_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
     "${BASE_URL}/v3/files/shortcuts/${NS_SC_PRIV}")
   [[ "${NS_SC_HTTP}" == "404" ]] || api_fail "removed shortcut still resolves → HTTP ${NS_SC_HTTP} (expected 404)"
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/trash — removed shortcut must NOT be there"
+  echo "  API call ${CALL_NUM}: GET /v3/files/trash — removed shortcut must NOT be there"
   NS_TRASH=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/trash")
   echo "${NS_TRASH}" | grep -q "${NS_SC_PRIV}" \
     && api_fail "removing a member left a trash entry; the shortcut must be deleted permanently"
   # The member NETWORK itself is untouched — only the reference was removed.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/network/${V2_PRIV_UUID}/summary — network survives"
+  echo "  API call ${CALL_NUM}: GET /v2/network/${V2_PRIV_UUID}/summary — network survives"
   NS_NET_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
     "${BASE_URL}/v2/network/${V2_PRIV_UUID}/summary")
   [[ "${NS_NET_HTTP}" == "200" ]] || api_fail "removing a member must not delete the network → HTTP ${NS_NET_HTTP}"
@@ -1896,7 +2038,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # A network parented directly in the set is data, not a reference: it is MOVED to home root.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/batch/networks/move ${V2_PRIV_UUID} into the set"
+  echo "  API call ${CALL_NUM}: POST /v3/batch/networks/move ${V2_PRIV_UUID} into the set"
   NS_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" \
     -d "{\"networks\":[\"${V2_PRIV_UUID}\"],\"targetFolder\":\"${NS_ID}\"}" "${BASE_URL}/v3/batch/networks/move")
@@ -1908,7 +2050,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   api_pass "a network moved into the set appears in 'networks' (members = shortcut targets + real children)"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: DELETE /v2/networkset/${NS_ID}/members [real child] — reparented to null"
+  echo "  API call ${CALL_NUM}: DELETE /v2/networkset/${NS_ID}/members [real child] — reparented to null"
   NS_DELM2_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" -d "[\"${V2_PRIV_UUID}\"]" "${BASE_URL}/v2/networkset/${NS_ID}/members")
   [[ "${NS_DELM2_HTTP}" == "204" ]] || api_fail "DELETE members (real child) → HTTP ${NS_DELM2_HTTP} (expected 204)"
@@ -1921,7 +2063,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   echo "${NS_UNION2}" | grep -q "${V2_PRIV_UUID}" \
     && api_fail "the moved-out network must no longer be a member. Body: ${NS_UNION2:0:400}"
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/users/${NS_OWNER_ID}/home — moved network is at home root"
+  echo "  API call ${CALL_NUM}: GET /v3/users/${NS_OWNER_ID}/home — moved network is at home root"
   NS_HOME=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/users/${NS_OWNER_ID}/home")
   echo "${NS_HOME}" | grep -q "${V2_PRIV_UUID}" \
     || api_fail "the moved network should now appear at home root. Body: ${NS_HOME:0:500}"
@@ -1930,27 +2072,27 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   # ── 10) DELETE /{id} → trashes the folder and its remaining contents ────────────────────────────
   NS_SC_REMAINING=$(psql_ndex "SELECT \\\"UUID\\\" FROM shortcut WHERE parent='${NS_ID}' AND is_deleted=false;")
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: DELETE /v2/networkset/${NS_ID} — expect 204"
+  echo "  API call ${CALL_NUM}: DELETE /v2/networkset/${NS_ID} — expect 204"
   NS_DEL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -u "${TEST_USER}:${TEST_PASS}" \
     "${BASE_URL}/v2/networkset/${NS_ID}")
   [[ "${NS_DEL_HTTP}" == "204" ]] || api_fail "DELETE /v2/networkset/{id} → HTTP ${NS_DEL_HTTP} (expected 204)"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID} after delete — 404"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID} after delete — 404"
   NS_GONE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
   [[ "${NS_GONE_HTTP}" == "404" ]] || api_fail "deleted set still readable → HTTP ${NS_GONE_HTTP} (expected 404)"
 
   # A trashed set must stay unreadable even to a valid access key: the folder read applies no
   # is_deleted filter and neither does key validation, so existence has to be resolved first.
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v2/networkset/${NS_ID}?accesskey after delete — 404 not 200"
+  echo "  API call ${CALL_NUM}: GET /v2/networkset/${NS_ID}?accesskey after delete — 404 not 200"
   NS_GONE_KEY_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v2/networkset/${NS_ID}?accesskey=${NS_KEY}")
   [[ "${NS_GONE_KEY_HTTP}" == "404" ]] \
     || api_fail "a trashed set is readable with its access key → HTTP ${NS_GONE_KEY_HTTP} (expected 404)"
   api_pass "a deleted (trashed) set returns 404, including to a holder of its access key"
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /v3/files/folders/${NS_ID} after delete — 404"
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/${NS_ID} after delete — 404"
   NS_FGONE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
     "${BASE_URL}/v3/files/folders/${NS_ID}")
   [[ "${NS_FGONE_HTTP}" == "404" ]] || api_fail "the v2 delete did not remove the folder → HTTP ${NS_FGONE_HTTP}"
@@ -2459,7 +2601,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   echo "  Tomcat is ready."
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (no auth, expect 401)"
+  echo "  API call ${CALL_NUM}: POST /v2/user (no auth, expect 401)"
   ANON_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
     -H "Content-Type: application/json" \
     -d "{\"userName\":\"${TEST_USER2}\",\"password\":\"${TEST_PASS2}\",\"emailAddress\":\"${TEST_EMAIL2}\",\"firstName\":\"NDEx\",\"lastName\":\"Test2\"}" \
@@ -2471,7 +2613,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   fi
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user (auth as ${TEST_USER}, expect 201 or 409)"
+  echo "  API call ${CALL_NUM}: POST /v2/user (auth as ${TEST_USER}, expect 201 or 409)"
   AUTH_CREATE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
     -u "${TEST_USER}:${TEST_PASS}" \
     -H "Content-Type: application/json" \
@@ -2513,7 +2655,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   fi
 
   CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /user/authenticate (after SIGKILL restart, expect 200)"
+  echo "  API call ${CALL_NUM}: GET /user/authenticate (after SIGKILL restart, expect 200)"
   SIGKILL_AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
     -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/user/authenticate")
   if [[ "${SIGKILL_AUTH_HTTP}" == "200" ]]; then
@@ -2626,9 +2768,13 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
+# Both counters are printed because they measure different things and differ by design — see the
+# counter notes at the top of this file before "correcting" either number.
 
 echo ""
 echo -e "${GREEN}${BOLD}================================================${NC}"
-echo -e "${GREEN}${BOLD}  ✓ ALL ${PASSED} API CALLS PASSED — TEST PASSED${NC}"
+echo -e "${GREEN}${BOLD}  ✓ TEST PASSED${NC}"
+echo -e "${GREEN}${BOLD}    API calls attempted : ${CALL_NUM}${NC}"
+echo -e "${GREEN}${BOLD}    Assertions passed   : ${PASSED}${NC}"
 echo -e "${GREEN}${BOLD}================================================${NC}"
 exit 0
