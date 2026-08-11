@@ -88,7 +88,7 @@ public interface FilePermissionResolver {
 	Set<UUID> grantedFolderIds(UUID userId, Permissions atLeast) throws SQLException;
 
 	/**
-	 * Networks the user can read <em>without</em> the network sitting inside a granted folder — the cases
+	 * Networks the user can reach <em>without</em> the network sitting inside a granted folder — the cases
 	 * a folder-containment test cannot express.
 	 *
 	 * <p>Two sources: a direct per-network grant, and a network referenced from a granted folder by a
@@ -98,8 +98,14 @@ public interface FilePermissionResolver {
 	 *
 	 * <p>Intended for search, where the result becomes a terms filter over the network id. Pass the set
 	 * already obtained from {@link #grantedFolderIds} so the hierarchy is walked once per request.</p>
+	 *
+	 * @param atLeast the level being searched for. {@code WRITE} narrows the direct-grant arm to write
+	 *                grants, matching {@link #writableConditionSql}; without it a {@code WRITE}-filtered
+	 *                search would return networks the caller can only read, because the folder half of
+	 *                the filter narrows and this half would not.
 	 */
-	Set<UUID> reachableNetworkIds(UUID userId, Set<UUID> grantedFolderIds) throws SQLException;
+	Set<UUID> reachableNetworkIds(UUID userId, Set<UUID> grantedFolderIds, Permissions atLeast)
+			throws SQLException;
 
 	/**
 	 * Shortcuts the user can read, by the same conjunction the fetch and listing paths apply: the shortcut

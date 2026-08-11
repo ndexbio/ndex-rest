@@ -459,13 +459,63 @@ public class TestPostgresFilePermissionResolver {
 		Set<UUID> granted = new HashSet<>();
 		granted.add(FOLDER);
 
-		new PostgresFilePermissionResolver(connYieldingNoRows(sql)).reachableNetworkIds(USER, granted);
+		new PostgresFilePermissionResolver(connYieldingNoRows(sql)).reachableNetworkIds(USER, granted, Permissions.READ);
 
 		String q = sql.getValue();
 		assertTrue("direct per-network grants must be one arm", q.contains("user_network_membership"));
 		assertTrue("the same-owner shortcut seed must be the other arm", q.contains("shortcut"));
 		assertTrue("the seed must not let a folder owner widen access to a network they do not own",
 				q.contains("owneruuid"));
+	}
+
+	/**
+	 * A WRITE search must narrow the direct-grant arm too. The folder arm is already narrowed, so
+	 * leaving this one open returned networks the caller could only read — the filter claimed WRITE and
+	 * delivered READ.
+	 */
+	@Test
+	public void testReachableNetworkIdsNarrowsToWriteGrantsForAWriteSearch() throws SQLException {
+		Capture<String> sql = newCapture();
+		Set<UUID> granted = new HashSet<>();
+		granted.add(FOLDER);
+
+		new PostgresFilePermissionResolver(connYieldingNoRows(sql))
+				.reachableNetworkIds(USER, granted, Permissions.WRITE);
+
+		String q = sql.getValue();
+		assertTrue("a WRITE search must match write grants only",
+				q.contains("m.permission_type::text = 'WRITE'"));
+		assertFalse("a WRITE search must not admit read grants",
+				q.contains("m.permission_type::text IN ('READ','WRITE')"));
+	}
+
+	/** ...and a READ search still admits both, since WRITE implies READ. */
+	@Test
+	public void testReachableNetworkIdsAdmitsBothLevelsForAReadSearch() throws SQLException {
+		Capture<String> sql = newCapture();
+
+		new PostgresFilePermissionResolver(connYieldingNoRows(sql))
+				.reachableNetworkIds(USER, Collections.<UUID>emptySet(), Permissions.READ);
+
+		assertTrue("a READ search admits read and write grants alike",
+				sql.getValue().contains("m.permission_type::text IN ('READ','WRITE')"));
+	}
+
+	/** The whole scope must be resolved at one level — the two arms cannot disagree. */
+	@Test
+	public void testSearchScopeNarrowsBothArmsTogetherForWrite() throws SQLException {
+		Capture<String> sql = Capture.newInstance(CaptureType.ALL);
+
+		new PostgresFilePermissionResolver(connYieldingNoRows(sql))
+				.searchScope(USER, Permissions.WRITE);
+
+		String folderArm = sql.getValues().stream()
+				.filter(q -> q.contains("WITH RECURSIVE sub")).findFirst().orElseThrow();
+		String networkArm = sql.getValues().stream()
+				.filter(q -> q.contains("user_network_membership m")).findFirst().orElseThrow();
+
+		assertTrue("folder arm narrowed", folderArm.contains("upper(fp.permission) = 'WRITE'"));
+		assertTrue("direct-grant arm narrowed", networkArm.contains("m.permission_type::text = 'WRITE'"));
 	}
 
 	/** Anonymous callers reach nothing on the private core, so no query should be issued at all. */
@@ -475,7 +525,7 @@ public class TestPostgresFilePermissionResolver {
 		replay(conn); // no query expected
 
 		PostgresFilePermissionResolver r = new PostgresFilePermissionResolver(conn);
-		assertTrue(r.reachableNetworkIds(null, Collections.<UUID>emptySet()).isEmpty());
+		assertTrue(r.reachableNetworkIds(null, Collections.<UUID>emptySet(), Permissions.READ).isEmpty());
 		assertTrue(r.readableShortcutIds(null, Collections.<UUID>emptySet()).isEmpty());
 		assertEquals(SearchScope.EMPTY, r.searchScope(null, Permissions.READ));
 		verify(conn);

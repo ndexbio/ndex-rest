@@ -1148,7 +1148,24 @@ while true; do
   echo -e "  ${CYAN}Waiting for invalid network ${NAME161_UUID} to finish loading... (${NAME161_ELAPSED}s)${NC}"
   sleep 5; NAME161_ELAPSED=$((NAME161_ELAPSED + 5))
 done
-echo "  invalid network ${NAME161_UUID} — completed (load failed as intended)"
+
+# completed:true is not the end of the story. It is set by the load-failure path, but a Solr index
+# task for this network can still be queued, and its failure handler calls setErrorMessage — which
+# OVERWRITES the validation message this step asserts on with "Failed to create Index on network...".
+# Waiting only on completed therefore samples a row that is still moving, and the assertion below
+# passes or fails on machine speed. Drain the async queue so the row has stopped changing.
+#
+# Deliberately NOT a poll for "the message looks right": that would also hide a genuine regression in
+# which the index error legitimately wins and the validation message is lost. This waits for the
+# settled state and then asserts on whatever it actually is.
+NAME161_ELAPSED=0
+until [[ "$(psql_ndex "SELECT count(*) FROM core.task WHERE status IN ('QUEUED','PROCESSING')")" == "0" ]]; do
+  [[ ${NAME161_ELAPSED} -ge ${LOAD_TIMEOUT} ]] \
+    && api_fail "background tasks still pending ${LOAD_TIMEOUT}s after the invalid network completed; the errorMessage assertion below would be racing them"
+  echo -e "  ${CYAN}Waiting for background tasks to drain before asserting... (${NAME161_ELAPSED}s)${NC}"
+  sleep 2; NAME161_ELAPSED=$((NAME161_ELAPSED + 2))
+done
+echo "  invalid network ${NAME161_UUID} — completed (load failed as intended), queue drained"
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (create #161 listing folder)"
@@ -2571,6 +2588,101 @@ p_expect "and the directly-granted network is still findable" \
   "$(p_search "${C_AUTH}" "${V2_PRIV_UUID}")" yes
 p_expect "but the network they only reached through the folder is gone from search" \
   "$(p_search "${C_AUTH}" "${P_NET_B}")" no
+
+# ── a grant on the NETWORK itself, with no folder grant anywhere above it ─────
+# The regression guard for removing the indexed access lists. A direct grant is the one reachability
+# path that owes nothing to the folder hierarchy: the folder above this network is PRIVATE and shared
+# with nobody, so if fetch, shared-with-me or search ever start requiring a folder grant, the network
+# silently vanishes for the person it was actually shared with.
+D_FOLDER=$(curl -s -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+  -d '{"name":"direct-grant-only-165"}' "${BASE_URL}/v3/files/folders/" \
+  | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+[[ -n "${D_FOLDER}" ]] || api_fail "#165 direct-grant: could not create the unshared private folder"
+
+D_NET=$(curl -s -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+  --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" \
+  "${BASE_URL}/v3/networks?folderId=${D_FOLDER}" \
+  | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+[[ -n "${D_NET}" ]] || api_fail "#165 direct-grant: could not upload the network"
+D_WAIT=0
+until curl -s -u "${A_AUTH}" "${BASE_URL}/v3/networks/${D_NET}/summary" | grep -q '"completed":true'; do
+  D_WAIT=$((D_WAIT+2))
+  [[ ${D_WAIT} -ge ${LOAD_TIMEOUT} ]] && api_fail "#165 direct-grant: network did not finish loading"
+  sleep 2
+done
+
+# The ONLY grants are on the network: READ to userc, WRITE to userb. Nothing on D_FOLDER.
+D_SHARE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+  -d "{\"files\":{\"${D_NET}\":\"NETWORK\"},\"members\":{\"${P_UID3}\":\"READ\",\"${P_UID2}\":\"WRITE\"}}" \
+  "${BASE_URL}/v3/files/sharing/members")
+[[ "${D_SHARE}" =~ ^2 ]] || api_fail "#165 direct-grant: direct network share failed with HTTP ${D_SHARE}"
+p_expect "the folder above it is shared with nobody" \
+  "$(psql_ndex "SELECT count(*) FROM core.folder_permission WHERE folder_id='${D_FOLDER}'")" 0
+
+p_shared() { # auth -> yes|no : is D_NET in this caller's shared-with-me list?
+  if curl -s -u "$1" "${BASE_URL}/v3/files/sharing/list" | grep -q "${D_NET}"; then echo yes; else echo no; fi
+}
+p_search_write() { # auth uuid -> yes|no : search filtered to WRITE
+  local body
+  body=$(curl -s -u "$1" -X POST -H 'Content-Type: application/json' \
+    -d "{\"searchString\":\"$2\",\"permission\":\"WRITE\"}" \
+    "${BASE_URL}/v3/search/files?visibility=PRIVATE&start=0&size=50" || true)
+  if grep -q "$2" <<<"${body}"; then echo yes; else echo no; fi
+}
+
+p_wait_indexed "${A_AUTH}" "${D_NET}" "directly-granted network"
+
+# owner — reaches it by ownership on all three surfaces
+p_expect "owner GETs the directly-granted network"   "$(p_code "${A_AUTH}" GET "${BASE_URL}/v3/networks/${D_NET}")" 200
+p_expect "owner FINDS it in search"                  "$(p_search "${A_AUTH}" "${D_NET}")" yes
+p_expect "owner can browse the private folder"       "$(p_code "${A_AUTH}" GET "${BASE_URL}/v3/files/folders/${D_FOLDER}/list")" 200
+
+# READ grantee — reaches it by the network grant alone
+p_expect "READ grantee GETs the network"             "$(p_code "${C_AUTH}" GET "${BASE_URL}/v3/networks/${D_NET}")" 200
+p_expect "READ grantee FINDS it in search"           "$(p_search "${C_AUTH}" "${D_NET}")" yes
+p_expect "READ grantee sees it in shared-with-me"    "$(p_shared "${C_AUTH}")" yes
+# ...but a grant on a network is not a grant on its folder: the folder stays closed to them.
+p_expect "READ grantee still CANNOT browse the folder" \
+  "$(p_code "${C_AUTH}" GET "${BASE_URL}/v3/files/folders/${D_FOLDER}/list")" 401
+
+# authenticated with no grant of any kind
+p_expect "no-grant user GET denied"                  "$(p_code "${D_AUTH}" GET "${BASE_URL}/v3/networks/${D_NET}")" 401
+p_expect "no-grant user does NOT find it in search"  "$(p_search "${D_AUTH}" "${D_NET}")" no
+p_expect "no-grant user does not see it in shared-with-me" "$(p_shared "${D_AUTH}")" no
+p_expect "no-grant user CANNOT browse the folder"    "$(p_code "${D_AUTH}" GET "${BASE_URL}/v3/files/folders/${D_FOLDER}/list")" 401
+
+# anonymous
+p_expect "anonymous GET denied"                      "$(p_code "" GET "${BASE_URL}/v3/networks/${D_NET}")" 401
+p_expect "anonymous does NOT find it in search"      "$(p_search "" "${D_NET}")" no
+p_expect "shared-with-me requires authentication"    "$(p_code "" GET "${BASE_URL}/v3/files/sharing/list")" 401
+p_expect "anonymous CANNOT browse the folder"        "$(p_code "" GET "${BASE_URL}/v3/files/folders/${D_FOLDER}/list")" 401
+
+# A WRITE-filtered search must narrow the direct-grant arm too, not just the folder arm. Before this
+# was fixed the arm matched any grant, so a read-only grantee's networks came back from a search that
+# asked for WRITE — the filter claimed write access and returned things they could only read.
+p_expect "READ grantee is EXCLUDED from a WRITE-filtered search" \
+  "$(p_search_write "${C_AUTH}" "${D_NET}")" no
+p_expect "WRITE grantee IS included in a WRITE-filtered search" \
+  "$(p_search_write "${B_AUTH}" "${D_NET}")" yes
+p_expect "owner is included in a WRITE-filtered search" \
+  "$(p_search_write "${A_AUTH}" "${D_NET}")" yes
+p_expect "no-grant user is excluded from a WRITE-filtered search" \
+  "$(p_search_write "${D_AUTH}" "${D_NET}")" no
+# ...and the READ grantee is still there unfiltered, so the exclusion above is the filter working
+# rather than the network having become unreachable.
+p_expect "READ grantee still finds it without a permission filter" \
+  "$(p_search "${C_AUTH}" "${D_NET}")" yes
+
+# Revoking the only grant removes it from all three surfaces at once, with no reindex.
+D_REVOKE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' \
+  -d "{\"files\":{\"${D_NET}\":\"NETWORK\"},\"members\":{\"${P_UID3}\":null}}" \
+  "${BASE_URL}/v3/files/sharing/members")
+[[ "${D_REVOKE}" =~ ^2 ]] || api_fail "#165 direct-grant: revoke returned HTTP ${D_REVOKE}"
+p_expect "after revoke the grantee GET is denied"      "$(p_code "${C_AUTH}" GET "${BASE_URL}/v3/networks/${D_NET}")" 401
+p_expect "after revoke it is gone from their search"   "$(p_search "${C_AUTH}" "${D_NET}")" no
+p_expect "after revoke it is gone from shared-with-me" "$(p_shared "${C_AUTH}")" no
+p_expect "the owner still reaches it"                  "$(p_code "${A_AUTH}" GET "${BASE_URL}/v3/networks/${D_NET}")" 200
+
 
 fi
 

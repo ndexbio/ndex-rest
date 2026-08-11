@@ -229,7 +229,8 @@ public class PostgresFilePermissionResolver implements FilePermissionResolver {
 	}
 
 	@Override
-	public Set<UUID> reachableNetworkIds(UUID userId, Set<UUID> grantedFolderIds) throws SQLException {
+	public Set<UUID> reachableNetworkIds(UUID userId, Set<UUID> grantedFolderIds, Permissions atLeast)
+			throws SQLException {
 		Set<UUID> ids = new HashSet<>();
 		if (userId == null)
 			return ids;
@@ -241,10 +242,17 @@ public class PostgresFilePermissionResolver implements FilePermissionResolver {
 		//      folder owner from widening access to a network they do not own.
 		String grantedIn = folderIdSetSql(grantedFolderIds);
 
+		// Narrow to write grants when a write search asked for it, exactly as conditionSql does for the
+		// SQL surfaces. The folder arm is already narrowed — grantedFolderIds was resolved at the same
+		// level — so leaving this one open would return networks the caller can only read.
+		String grantFilter = (atLeast == Permissions.WRITE)
+				? "m.permission_type::text = 'WRITE'"
+				: "m.permission_type::text IN " + GRANT_VALUES;
+
 		StringBuilder sql = new StringBuilder(
 				"SELECT m.network_id FROM user_network_membership m"
 				+ " JOIN network n ON n.\"UUID\" = m.network_id AND n.is_deleted = false"
-				+ " WHERE m.user_id = ? AND m.permission_type::text IN " + GRANT_VALUES);
+				+ " WHERE m.user_id = ? AND " + grantFilter);
 
 		if (grantedIn != null) {
 			sql.append(" UNION SELECT n.\"UUID\" FROM network n"
@@ -323,7 +331,7 @@ public class PostgresFilePermissionResolver implements FilePermissionResolver {
 
 		// One downward expansion of the hierarchy, reused by both id queries rather than walked again.
 		Set<UUID> granted = grantedFolderIds(userId, atLeast);
-		return new SearchScope(granted, reachableNetworkIds(userId, granted),
+		return new SearchScope(granted, reachableNetworkIds(userId, granted, atLeast),
 				readableShortcutIds(userId, granted));
 	}
 
