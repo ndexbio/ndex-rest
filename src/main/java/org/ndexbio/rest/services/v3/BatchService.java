@@ -56,6 +56,7 @@ import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.importexport.ImporterExporterEntry;
 import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -177,7 +178,7 @@ public class BatchService extends NdexService {
 
 	    User user = getLoggedInUser();
 	    Map<UUID, VisibilityType> moved = new LinkedHashMap<>();
-	    try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()) {
+	    try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
 	        for (UUID netId : request.getNetworks()) {
 	        	if (!networkDao.isAdmin(netId, userId)) {
 	                throw new NdexException("User does not own network " + netId);

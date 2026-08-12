@@ -34,15 +34,22 @@ clean: ## run mvn clean and docs clean
 lint: ## check style with checkstyle:checkstyle
 	mvn checkstyle:checkstyle
 
-test: ## run tests with mvn test
-	mvn test -Dmaven.compiler.useIncrementalCompilation=false
+# Compiles from clean on purpose. maven-compiler-plugin's staleness detection does not
+# reliably notice edited sources in this project: it prints "Nothing to compile - all
+# classes are up to date" followed by BUILD SUCCESS, so tests run against stale classes
+# and real compilation errors go unreported. -Dmaven.compiler.useIncrementalCompilation
+# does not fix that — despite the name it selects a timestamp-based stale-source scanner
+# rather than forcing a full compile, and that scanner is what does the skipping. A clean
+# build is the only deterministic option, and costs a few seconds.
+test: ## run tests (always recompiles; incremental detection is unreliable here)
+	mvn clean test
 
 coverage: ## check code coverage with jacoco
-	mvn test jacoco:report
+	mvn clean test jacoco:report
 	$(BROWSER) target/site/jacoco/index.html
 
-compile: ## compile sources
-	mvn compile
+compile: ## compile sources (always from clean, same reason as test)
+	mvn clean compile
 
 install: clean ## install the package to local repo
 	mvn install

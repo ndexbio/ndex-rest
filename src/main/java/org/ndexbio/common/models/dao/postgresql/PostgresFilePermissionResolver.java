@@ -397,7 +397,10 @@ public class PostgresFilePermissionResolver implements FilePermissionResolver {
 		}
 	}
 
-	/** A shortcut is readable/writable exactly when its target is; its own parent is never consulted. */
+	/**
+	 * A shortcut is readable/writable when the shortcut <em>itself</em> is reachable AND its target is —
+	 * both arms are required. See the conjunction note below for why containment is part of the test.
+	 */
 	private String shortcutDelegation(String a, UUID userId, Set<UUID> granted, boolean write) {
 		// Conjunction: the shortcut must itself be reachable AND its target must be reachable.
 		//

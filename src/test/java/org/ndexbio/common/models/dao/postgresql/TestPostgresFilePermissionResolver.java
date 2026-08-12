@@ -146,7 +146,7 @@ public class TestPostgresFilePermissionResolver {
 		verify(conn, pst, rs);
 	}
 
-	// ── shortcuts delegate to their target, never to their own parent ───────────
+	// ── shortcuts: reachable shortcut AND reachable target, both required ───────
 
 	@Test
 	public void testShortcutOwnedByCallerDelegatesToNetworkTarget() throws SQLException {
@@ -361,7 +361,7 @@ public class TestPostgresFilePermissionResolver {
 		assertTrue("direct membership must be write-typed", sql.contains("permission_type::text = 'WRITE'"));
 	}
 
-	/** The shortcut fragment resolves through the target and never references the shortcut's parent. */
+	/** The shortcut fragment ANDs two arms: the shortcut's own reachability, and its target's. */
 	@Test
 	public void testShortcutFragmentIsAConjunctionOfContainmentAndTarget() {
 		Set<UUID> granted = new HashSet<>();

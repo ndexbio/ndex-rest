@@ -73,8 +73,15 @@ public interface FilePermissionResolver {
 	Permissions effectiveNetworkPermission(UUID networkId, UUID userId) throws SQLException;
 
 	/**
-	 * @return the effective permission on the shortcut's <em>target</em>, which is by definition the
-	 *         shortcut's own permission. Returns null for a dangling or deleted target.
+	 * The permission a shortcut yields, which is by definition its <em>target's</em> — a shortcut never
+	 * carries one of its own.
+	 *
+	 * <p>Subject to the reachability conjunction described above: reaching the target is necessary but
+	 * not sufficient, because the shortcut itself must also be reachable.</p>
+	 *
+	 * @return null in any of three cases — the shortcut itself is not reachable (not public, not owned by
+	 *         the caller, and not in a folder the caller can read); the target is not reachable; or the
+	 *         target is dangling or deleted.
 	 */
 	Permissions effectiveShortcutPermission(UUID shortcutId, UUID userId) throws SQLException;
 

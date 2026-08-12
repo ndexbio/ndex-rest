@@ -70,8 +70,13 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	
 	/**
 	 * A shortcut holds no permission of its own — per the folder/shortcut specification it "inherits
-	 * permission of what the Shortcut targets", so readability is delegated to the target and the
-	 * shortcut's own parent folder is deliberately not consulted.
+	 * permission of what the Shortcut targets".
+	 *
+	 * <p>Readability is a <strong>conjunction</strong>: the shortcut must itself be reachable — public,
+	 * owned by the caller, or sitting in a folder the caller can read — <em>and</em> its target must be
+	 * reachable. Target delegation alone would let anyone holding the id read an entry inside a private
+	 * folder, revealing its name, target and parent. The containment arm is what keeps fetch-by-id,
+	 * listing and search in agreement; search has no traversal to gate it.</p>
 	 */
 	@Override
 	public boolean isReadable(UUID shortcutID, UUID userId) throws SQLException, ObjectNotFoundException {

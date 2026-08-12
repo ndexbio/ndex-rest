@@ -1,5 +1,6 @@
 package org.ndexbio.common.models.dao.postgresql;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -27,6 +28,12 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
 
     public PostgresTrashDAO() throws SQLException {
         super();
+        this.permissionResolver = new PostgresFilePermissionResolver(db);
+    }
+
+    /** Package-private so unit tests can supply a mock connection, as the sibling DAOs do. */
+    PostgresTrashDAO(Connection conn) throws SQLException {
+        super(conn);
         this.permissionResolver = new PostgresFilePermissionResolver(db);
     }
 

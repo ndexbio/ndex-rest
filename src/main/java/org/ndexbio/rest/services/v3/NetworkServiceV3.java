@@ -432,7 +432,7 @@ public class NetworkServiceV3  extends NdexService {
 				   extraIndexOnNodes.add(f);
 			   }
 		   }
-		   try (UserDAO dao = new UserDAO()) {
+		   try (UserDAO dao = Configuration.getInstance().getDAOFactory().getUserDAO()) {
 			   dao.checkDiskSpace(getLoggedInUserId());
 		   }
 
@@ -544,7 +544,7 @@ public class NetworkServiceV3  extends NdexService {
 					extraIndexOnNodes.add(f);
 				}
 			}
-			try (UserDAO dao = new UserDAO()) {
+			try (UserDAO dao = Configuration.getInstance().getDAOFactory().getUserDAO()) {
 				dao.checkDiskSpace(getLoggedInUserId());
 			}
 
@@ -642,7 +642,7 @@ public class NetworkServiceV3  extends NdexService {
 				extraIndexOnNodes.add(f);
 		}
 
-		try (UserDAO dao = new UserDAO()) {
+		try (UserDAO dao = Configuration.getInstance().getDAOFactory().getUserDAO()) {
 			dao.checkDiskSpace(getLoggedInUserId());
 		}
 
