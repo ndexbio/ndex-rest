@@ -94,7 +94,16 @@ public interface FolderDAO extends AutoCloseable {
 	void removeFolderPermission(UUID folderId, UUID userId) throws SQLException;
 	
 	Map<String, String> getFolderPermissions(UUID folderId) throws SQLException;
-	Map<String, String> getFolderPermissionsWithUsernames(UUID folderId) throws SQLException;
+
+	/**
+	 * The permission {@code userId} effectively holds on {@code folderId}, or null for none.
+	 *
+	 * <p>Unlike {@link #getFolderPermissions(UUID)}, which returns only rows stored directly on the
+	 * folder, this accounts for ownership and for permissions inherited from ancestor folders. Callers
+	 * deciding whether a user may write into a folder must use this — a direct-row check reports "no
+	 * access" for a user whose write permission comes from a parent.</p>
+	 */
+	Permissions getEffectivePermission(UUID folderId, UUID userId) throws SQLException;
 
 	String getFolderAccessKey(UUID folderId) throws SQLException, ObjectNotFoundException;
 

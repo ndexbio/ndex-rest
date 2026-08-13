@@ -28,6 +28,7 @@ import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.exceptions.mappers.BadRequestExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 import jakarta.ws.rs.core.MediaType;
 
@@ -50,6 +51,7 @@ public class TestFolderServiceV3 {
         dispatcher = MockDispatcherFactory.createDispatcher();
         dispatcher.getRegistry().addSingletonResource(new TestFolderServiceV3NoIndex(mockHttpServletRequest));
         dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(BadRequestExceptionMapper.class);
         response = new MockHttpResponse();
     }
     
@@ -346,6 +348,7 @@ public class TestFolderServiceV3 {
         Configuration.getInstance().setDAOFactory(daoFactory);
 
         dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(BadRequestExceptionMapper.class);
 
         MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId + "/count");
         dispatcher.invoke(request, response);
@@ -410,6 +413,7 @@ public class TestFolderServiceV3 {
         Configuration.getInstance().setDAOFactory(daoFactory);
 
         dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(BadRequestExceptionMapper.class);
 
         MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId + "/list");
         dispatcher.invoke(request, response);

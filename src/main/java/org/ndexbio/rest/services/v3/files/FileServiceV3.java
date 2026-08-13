@@ -40,7 +40,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.BadRequestException;
+// NDEx's own BadRequestException, not the JAX-RS one: DefaultExceptionMapper is registered as
+// ExceptionMapper<Throwable>, so it intercepts a JAX-RS WebApplicationException and reports it as
+// a 500 "Uncaught exception" instead of the 400 the caller should see.
+import org.ndexbio.model.exceptions.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
@@ -398,6 +401,18 @@ public class FileServiceV3 extends NdexService {
 		Map<String,String> result = new HashMap<>();            // <target‑UUID, status>
 
     	Map<UUID, FileType> files = request.getFiles();
+
+    	// READ and WRITE are the only grantable levels — ownership is not a grant, it is a property of
+    	// the object. The permission column is an unvalidated varchar, so without this check a request
+    	// carrying any other value was stored and then ignored by every read path: the grant appeared to
+    	// succeed while conferring nothing. Reject it instead of accepting a lie.
+        for (Map.Entry<UUID, Permissions> entry : request.getMembers().entrySet()) {
+            Permissions requested = entry.getValue();
+            if (requested != null && requested != Permissions.READ && requested != Permissions.WRITE) {
+                throw new BadRequestException(
+                        "Unsupported permission '" + requested + "'. Only READ and WRITE can be granted.");
+            }
+        }
 
         for (Map.Entry<UUID, Permissions> entry : request.getMembers().entrySet()) {
             UUID memberId = entry.getKey();

@@ -1,6 +1,7 @@
 package org.ndexbio.common.models.dao.postgresql;
 
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -9,6 +10,7 @@ import java.sql.Types;
 import java.util.*;
 import java.util.logging.Logger;
 
+import org.ndexbio.common.models.dao.FilePermissionResolver;
 import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -24,8 +26,22 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	
 	private static Logger logger = Logger.getLogger(PostgresShortcutDAO.class.getName());
 
+	/* Effective-permission resolution over the folder hierarchy. Injectable for tests. */
+	private FilePermissionResolver permissionResolver;
+
 	public PostgresShortcutDAO() throws SQLException {
 		super();
+		this.permissionResolver = new PostgresFilePermissionResolver(db);
+	}
+
+	PostgresShortcutDAO(Connection conn) throws SQLException {
+		super(conn);
+		this.permissionResolver = new PostgresFilePermissionResolver(db);
+	}
+
+	/** Package-private injection seam so unit tests can supply a mock resolver. */
+	void setPermissionResolver(FilePermissionResolver resolver) {
+		this.permissionResolver = resolver;
 	}
 	
 	@Override
@@ -52,31 +68,28 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 		return result;
 	}
 	
-	protected static String createIsReadableConditionStr(UUID userId) {
-	    if (userId == null) {
-	        // Anonymous user => only PUBLIC is allowed
-	        return "s.visibility='PUBLIC'";
-	    }
-	    // Non-anonymous => public or same owner
-	    return "( s.visibility='PUBLIC' "
-	         + "  OR s.owneruuid = '" + userId + "'::uuid "
-	         + ")";
-	}
-	
+	/**
+	 * A shortcut holds no permission of its own — per the folder/shortcut specification it "inherits
+	 * permission of what the Shortcut targets".
+	 *
+	 * <p>Readability is a <strong>conjunction</strong>: the shortcut must itself be reachable — public,
+	 * owned by the caller, or sitting in a folder the caller can read — <em>and</em> its target must be
+	 * reachable. Target delegation alone would let anyone holding the id read an entry inside a private
+	 * folder, revealing its name, target and parent. The containment arm is what keeps fetch-by-id,
+	 * listing and search in agreement; search has no traversal to gate it.</p>
+	 */
 	@Override
 	public boolean isReadable(UUID shortcutID, UUID userId) throws SQLException, ObjectNotFoundException {
-		String sqlStr = "select (" + createIsReadableConditionStr(userId) + ") from shortcut s where s.\"UUID\" = ? and s.is_deleted=false ";		
-			
-		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
+		// Distinguish "shortcut does not exist" from "target denies access": the former is a 404.
+		try (PreparedStatement pst = db.prepareStatement(
+				"select 1 from shortcut s where s.\"UUID\" = ? and s.is_deleted=false")) {
 			pst.setObject(1, shortcutID);
-
-			try ( ResultSet rs = pst.executeQuery()) {
-				if ( rs.next()) 
-					return rs.getBoolean(1);
-				 
-				throw new ObjectNotFoundException("Shortcut", shortcutID);
+			try (ResultSet rs = pst.executeQuery()) {
+				if (!rs.next())
+					throw new ObjectNotFoundException("Shortcut", shortcutID);
 			}
 		}
+		return permissionResolver.effectiveShortcutPermission(shortcutID, userId) != null;
 	}
 
 	private NdexShortcut mapResultSetToNdexShortcut(ResultSet rs) throws SQLException {
