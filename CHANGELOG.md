@@ -98,9 +98,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **WAR and Container deployments must run this one-time search reindex** Required to enable accurate search results that reflect current folder permissions. Run **one** of:
 
-  # Option A — CLI when you have access to shell on server host refer to SolrIndexBuilder-CLI.md on how to run the cli from shell command line and you you want to do it for `nfs` command to rebuild indexes.
+  * Option A — CLI when you have access to shell on server host refer to SolrIndexBuilder-CLI.md on how to run the cli from shell command line and you you want to do it for `nfs` command to rebuild indexes.
 
-  # Option B — External REST endpoint (either deployment type)
+  * Option B — External REST endpoint (either deployment type)
   ```
   curl "http://<host>:8080/v3/admin/reindex-v3?password=<MigrationPassword>"
   ```
