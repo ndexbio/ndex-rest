@@ -14,16 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `docker/k8s-ndex-deployment.yml` now sets `strategy: type: Recreate`. All service state lives on a
     single ReadWriteOnce PVC, and the default RollingUpdate briefly runs two pods against it. Operators
     applying that manifest should take this change with the release.
-- `POST /v3/search/files` now reports `visibility` on FOLDER results. The folder mapper never set it and `FileItemSummary` is `@JsonInclude(NON_NULL)`, so the key was dropped from the response entirely while NETWORK and SHORTCUT items carried it, leaving clients unable to distinguish a public folder from a private one. [#173](https://github.com/ndexbio/ndex-rest/pull/173)
-- **Folder `read`/`write` permissions now propagate to everything nested inside the folder (#165).** [#172](https://github.com/ndexbio/ndex-rest/pull/172)
+- `POST /v3/search/files` now reports `visibility` on FOLDER results. [#173](https://github.com/ndexbio/ndex-rest/pull/173)
+- **Folder `read`/`write` permissions now propagate to everything nested inside the folder.** [#172](https://github.com/ndexbio/ndex-rest/pull/172)
   - Granting a user access to a folder gives them that access on the networks, subfolders and shortcuts
-  it contains — including items added *after* the grant was made. Previously a grant was copied onto
-  the folder's contents at the moment it was issued, so it only ever covered what already existed:
-  anything created, uploaded or moved into the folder afterwards was invisible and unopenable to the
-  people the folder was shared with, and re-sharing the folder was the only way to pick it up. Access
-  is now resolved from the folder hierarchy at request time, so a grant covers the whole subtree
-  continuously and follows objects as they are moved between folders, exactly as the folder/shortcut
-  specification describes.
+  it contains — including items added *after* the grant was made. 
   - **A folder's owner can now see and edit what collaborators put in it.** Propagation previously wrote
   records only for the person being granted access, never for the owner, so the person who created and
   shared a folder could not open or update the networks their collaborators had added to it. This
@@ -31,19 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Shortcuts resolve from their target.** A shortcut is readable exactly when the thing it points at is
   readable, per the specification's rule that permissions cannot be set on a shortcut directly. A folder
   full of shortcuts — which is what every migrated network set is — now lists and opens correctly for
-  the people it is shared with. A shortcut created by one user pointing at another user's network
-  confers nothing, so a folder owner cannot widen access to content they do not own.
+  the people it is shared with. folder owner cannot widen access to content they do not own.
   - **Revoking a folder share no longer revokes unrelated network shares.** This is a separate,
   pre-existing defect hardened as part of this work. Removing someone's access to a folder used to
-  cascade over the entire subtree and delete their access to *every* network beneath it — including
-  networks that had been shared with them directly through the network sharing endpoints, with no
-  relationship to the folder. Un-sharing a folder therefore silently un-shared those networks too, and
-  nothing recorded which had been removed as collateral, so the loss was neither visible nor
-  recoverable. Revocation now removes only the folder grant itself; direct network grants are untouched.
+  cascade over the entire subtree and delete their access to *every* network beneath it. Revocation now removes only the folder grant itself; direct network grants are untouched.
 
 ### Changed
 
-- **Folder `read`/`write` permissions now propagate to everything nested inside the folder (#165).** [#172](https://github.com/ndexbio/ndex-rest/pull/172)
+- **Folder `read`/`write` permissions now propagate to everything nested inside the folder.** [#172](https://github.com/ndexbio/ndex-rest/pull/172)
   - **Restoring from trash now agrees with what folder listings show.** Restoring an item into a folder you hold *inherited* write access on returns it to that folder. Previously the check looked only for access granted directly on that folder, so a user who was fully entitled to restore the item had it silently relocated to their home instead.
   - **The "shared" indicator reflects effective sharing.** An object exposed only through a grant on an
   ancestor folder previously displayed as *not shared*, leaving an owner with no signal that it was
@@ -53,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now reached by opening the shared parent. This is an intentional change: the list is shorter and
   reflects what was actually shared.
   - **`POST /v3/networks?folderId=` and `POST /v3/batch/networks/move` now authorize the target folder.**
-  Neither previously checked it at all, so a network could be placed into any folder by id — including
+  a network could be placed into any folder by id — including
   one belonging to a user the caller had no relationship with. Both now require ownership or effective
   write access on the destination. A **read-only** grantee can no longer place or move networks into a
   folder shared with them. Requests are rejected before the network is created, so a refused upload
@@ -63,19 +52,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   appeared to succeed while conferring nothing.
   - **An unlisted file is no longer surfaced to people it was shared with.** The specification is that an
   unlisted file is searchable by its owner alone — being unlisted removes it from *results*, it does not
-  restrict who may open it by id. A search filtered to `WRITE` previously matched unlisted files for
-  anyone holding edit access, so a file the owner had deliberately unlisted could still appear in a
-  collaborator's results. It no longer does, and no folder grant surfaces it either. Opening an unlisted
-  file by id is unaffected.
+  restrict who may open it by id. A file the owner had deliberately unlisted would still appear in a
+  collaborator's search results. It no longer does, folder grant does not surface it either. Opening an unlisted file by id does follow folder grants.
   - **A shortcut you cannot reach is no longer readable just because you can read its target.**
   `GET /v3/files/shortcuts/{id}` previously succeeded for a shortcut sitting in a folder the caller could
   not open, provided they could read whatever it pointed at — disclosing the name, target and location of
   an entry inside a private folder to anyone holding or guessing its id. A shortcut is now readable only
-  when the shortcut *itself* is reachable **and** its target is. Folder listings and network-set member
-  listings are unaffected: a caller who got there by opening the folder has already satisfied the first
-  condition. This is a deliberate reading of the specification, which describes what a shortcut inherits
-  but is silent on containment; search made the difference visible, and one rule across fetch, list and
-  search is worth more than the literal reading.
+  when the shortcut *itself* is reachable **and** its target is.
   - **Moving a network between folders updates the search index.** `POST /v3/batch/networks/move` and
   removing a network from a network set previously left the index recording the old location, so the
   network stayed findable under the folder it had left and could not be found in the one it had joined.
