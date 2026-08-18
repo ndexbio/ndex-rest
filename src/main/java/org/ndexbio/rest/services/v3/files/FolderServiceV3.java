@@ -358,8 +358,10 @@ public class FolderServiceV3 extends NdexService {
             description = """
                           Returns counts of the networks, subfolders, and shortcuts directly under the specified folder that the caller is allowed to see (matches the /list result for the same caller). When a valid folder access key is provided on the request, the counts cover the key-accessible children — folders, networks, and same-owner NETWORK shortcuts whose target networks the key now unlocks.
                           
+                          If *folderid* is the literal string **"home"**, returns counts of all top-level items owned by the signed-in user (parent = NULL). The caller must be authenticated.
+                          
                           Path Parameters:
-                          - folderid: UUID of the folder to count items in
+                          - folderid: UUID of the folder to count items in, or the literal string "home" for the caller's home directory
                           
                           Query Parameters:
                           - accesskey: Optional. Access key for anonymous access
@@ -376,9 +378,20 @@ public class FolderServiceV3 extends NdexService {
 	        @QueryParam("accesskey") String accessKey
 	) throws Exception {
 
-	    UUID folderUUID = UUID.fromString(folderIdStr);
-
 	    UUID userId = getLoggedInUserId();
+
+	    /* ---------------------------------------------------------------- home case */
+	    if ("home".equalsIgnoreCase(folderIdStr)) {
+	        if (userId == null) {
+	            throw new UnauthorizedOperationException("You must be logged in to count your home folder.");
+	        }
+	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	            return dao.getRootChildCountsOfUser(userId);
+	        }
+	    }
+
+	    /* ------------------------------------------------------------- normal folder */
+	    UUID folderUUID = UUID.fromString(folderIdStr);
 
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        // If the request provides a valid access key, return the key-accessible child counts —

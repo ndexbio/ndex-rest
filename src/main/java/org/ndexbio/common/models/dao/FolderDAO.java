@@ -86,6 +86,12 @@ public interface FolderDAO extends AutoCloseable {
 	List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type) throws SQLException;
 
 	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException;
+
+	/**
+	 * Counts the root-level (home directory) items owned by the given user — folders, networks,
+	 * and shortcuts whose parent is NULL. Mirrors {@link #listRootItemsOfUser}.
+	 */
+	FileCount getRootChildCountsOfUser(UUID ownerId) throws SQLException;
 	
 	List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException;
 	
