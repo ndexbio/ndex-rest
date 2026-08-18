@@ -315,8 +315,6 @@ public class FileServiceV3 extends NdexService {
 
                           To copy a network or shortcut to your home directory, set `targetId` to `null` or omit it entirely from the request body.
 
-                          Copying folders is not supported – suggest creating a shortcut instead.
-
                           
                           Database Tables:
                           - shortcut: Creates new record with copied metadata
