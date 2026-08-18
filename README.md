@@ -1,6 +1,31 @@
 ndex-rest
 =========
 
+## Overview
+
+**NDEx** (Network Data Exchange) is an open-source framework for storing, sharing, and publishing biological network data. It provides a web-based platform where researchers can upload, curate, and distribute networks in community-standard formats, and programmatically access them via a REST API.
+
+This repository contains the **NDEx REST server** — the core back-end service powering the NDEx platform.
+
+### Citation
+
+If you use NDEx in your research, please cite:
+
+> Pratt D, Chen J, Pillich R, Rynkov V, Frank A, Ragan-Kelley B, Cerami E, Gross B, Verbeke G, Pillich M, Ideker T. **NDEx 2.0: A Clearinghouse for Research on Cancer Pathways.** *Cancer Research.* 2017;77(21):e58–e61. doi:[10.1158/0008-5472.CAN-17-0606](https://doi.org/10.1158/0008-5472.CAN-17-0606)
+
+> Pratt D, Chen J, Welker D, Rivas R, Pillich R, Rynkov V, Ono K, Milosavljevic A, Huang W, Yao E, Tanimoto S, Paschall G, Regante P, Klopfenstein D, Beutler B, Snyder M, Ideker T, Bader GD. **NDEx, the Network Data Exchange.** *Cell Systems.* 2015;1(4):302–305. doi:[10.1016/j.cels.2015.10.001](https://doi.org/10.1016/j.cels.2015.10.001)
+
+### Related Projects
+
+| Project | Description | Repository |
+|---------|-------------|------------|
+| **ndex3** | NDEx web application (front-end) | [ndexbio/ndex-webapp](https://github.com/ndexbio/ndex-webapp) |
+| **ndex2-client** | Python client library for the NDEx REST API | [ndexbio/ndex2-client](https://github.com/ndexbio/ndex2-client) |
+| **ndexjs / js4cytoscape** | JavaScript client & Cytoscape.js integration | [ndexbio/ndexjs](https://github.com/ndexbio/ndexjs) |
+| **ndex-object-model** | Java object model shared across NDEx services | [ndexbio/ndex-object-model](https://github.com/ndexbio/ndex-object-model) |
+
+---
+
 NDEx Rest Server
 
 ## Container Deployments
