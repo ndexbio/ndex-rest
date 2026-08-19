@@ -152,10 +152,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                     String ownerName = getUsernameById(ownerId, dao);
                     folder.setOwner(ownerName);
 
-                    // Load folder permissions
-                    Map<String, List<String>> perms = loadFolderPermissions(folderId, dao);
-
-                    fim.createIndex(folder, vis, perms.get("READ"), perms.get("WRITE"));
+                    fim.createIndex(folder, vis);
 
                     foldersProcessed++;
                     if (foldersProcessed % 100 == 0) {
@@ -208,8 +205,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                     String ownerName = getUsernameById(ownerId, dao);
                     shortcut.setOwner(ownerName);
 
-                    // Shortcuts have no shareable permissions — only owner + visibility govern access (see PostgresShortcutDAO.isReadable)
-                    sim.createIndex(shortcut, vis, null, null);
+                    sim.createIndex(shortcut, vis);
                     
                     shortcutsProcessed++;
                     if (shortcutsProcessed % 500 == 0) {
@@ -239,31 +235,6 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
         }
     }
 
-    /**
-     * Load folder permissions and resolve user IDs to usernames.
-     * Returns map with "READ" and "WRITE" keys, each containing a list of usernames.
-     */
-    private Map<String, List<String>> loadFolderPermissions(UUID folderId, V3Migrator.DaoSet dao) throws SQLException {
-        Map<String, List<String>> result = new HashMap<>();
-        result.put("READ", new ArrayList<>());
-        result.put("WRITE", new ArrayList<>());
-
-        String sql = "SELECT fp.user_id, fp.permission FROM folder_permission fp WHERE fp.folder_id = ?";
-        try (PreparedStatement pst = db.prepareStatement(sql)) {
-            pst.setObject(1, folderId);
-            try (ResultSet rs = pst.executeQuery()) {
-                while (rs.next()) {
-                    UUID userId = (UUID) rs.getObject(1);
-                    String perm = rs.getString(2);
-                    String username = getUsernameById(userId, dao);
-                    if (username != null && result.containsKey(perm)) {
-                        result.get(perm).add(username);
-                    }
-                }
-            }
-        }
-        return result;
-    }
     public void reIndexNetworks(V3Migrator.DaoSet dao) throws Exception {
         int totalNetworks = 0;
         try (PreparedStatement countPst = db.prepareStatement(REINDEX_COUNT_SQL);
@@ -359,11 +330,11 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
 
 
 
-                // build the solr document obj
-                Map<Permissions, Collection<String>> userMemberships = dao
-                        .getAllMembershipsOnNetwork(fileId);
+                // Supplying the folder here is what backfills parentUuid across the whole index during
+                // the one-time reindex. The manager consumes it per document, so a network with no
+                // folder cannot inherit the previous one's value as this loop advances.
                 globalNetworkIndexManager.prepareIndexDocument(summary, visibilityType,
-                        userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
+                        dao.getNetworkFolder(fileId));
 
                 String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
                 String cx2AspectPath = pathPrefix + id + "/" + CX2NetworkLoader.cx2AspectDirName + "/";

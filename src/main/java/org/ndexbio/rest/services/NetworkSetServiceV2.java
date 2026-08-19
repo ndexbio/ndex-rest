@@ -21,6 +21,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 
 import org.ndexbio.common.models.dao.DeletedFileIds;
+import org.ndexbio.common.models.dao.NetworkDAO;
 import org.ndexbio.common.networkset.NetworkSetFolderService;
 import org.ndexbio.common.networkset.NetworkSetFolderService.RemovedMembers;
 import org.ndexbio.common.networkset.NetworkSetFolderService.UpsertOutcome;
@@ -31,6 +32,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NetworkSet;
+import org.ndexbio.model.object.User;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.task.NdexServerQueue;
@@ -263,12 +265,24 @@ public class NetworkSetServiceV2 extends NdexService {
 
 		// Deleted shortcuts must lose their index docs. One batch task covers them all, and it clears
 		// both cores per id, which also spares us looking up a visibility whose row is already gone.
-		// A network that was merely reparented needs nothing: only folder and shortcut docs carry
-		// parentUuid (see ShortcutIndexManager / FolderIndexManager), so a network's doc is unchanged by
-		// the move. Neither list is reported to the client — this endpoint stays a 204.
+		// Neither list is reported to the client — this endpoint stays a 204.
 		if (!removed.deletedShortcutIds().isEmpty()) {
 			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFiles(setId,
 					new DeletedFileIds(List.of(), List.of(), removed.deletedShortcutIds())));
+		}
+
+		// A reparented network needs its own document rebuilt: network docs now carry parentUuid, and
+		// search decides visibility from it, so leaving it stale would keep the network findable under
+		// the set it was just removed from. The rows are already committed, so the task reads the new
+		// parent (null — removal moves the network to home root).
+		if (!removed.movedNetworkIds().isEmpty()) {
+			User user = getLoggedInUser();
+			try (NetworkDAO networkDao = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
+				for (UUID networkId : removed.movedNetworkIds()) {
+					createFileIndex(networkId, user, networkDao.getNetworkVisibility(networkId),
+							FileType.NETWORK, false);
+				}
+			}
 		}
 	}
 

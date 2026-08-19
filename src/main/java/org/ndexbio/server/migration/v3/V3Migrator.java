@@ -278,10 +278,8 @@ public class V3Migrator implements AutoCloseable {
 			}
 
 			// build the solr document obj
-			Map<Permissions, Collection<String>> userMemberships = dao
-					.getAllMembershipsOnNetwork(fileId);
 			globalNetworkIndexManager.prepareIndexDocument(summary, visibilityType,
-					userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
+					dao.getNetworkFolder(fileId));
 
 			String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
 			String cx2AspectPath = pathPrefix + id + "/" + CX2NetworkLoader.cx2AspectDirName + "/";

@@ -4,6 +4,8 @@ package org.ndexbio.common.solr;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
+import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
+import org.ndexbio.model.exceptions.NdexException;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrRequest;
@@ -75,6 +77,75 @@ public class TestSolrClientWrapperImpl {
         solrClientWrapper.dropCore(coreName);
 		verify(mockFactory);
     }
+
+	/**
+	 * A core that is not there is the normal drop-before-rebuild case, so it must be swallowed
+	 * silently rather than failing the caller's rebuild.
+	 */
+	@Test
+	public void dropCoreSwallowsAnAbsentCore() throws Exception {
+		String coreName = "testCore";
+
+		SolrObjectFactory mockFactory = createMock(SolrObjectFactory.class);
+		expect(mockFactory.getSolrClient(null)).andReturn(null);
+		expect(mockFactory.getCoreAdminRequestUnloadCore(coreName, true, true))
+				.andThrow(new BaseHttpSolrClient.RemoteSolrException(
+						"http://localhost:8983/solr", 400,
+						"Cannot unload non-existent core [" + coreName + "]", null));
+		replay(mockFactory);
+
+		var solrClientWrapper = new SolrClientWrapperImpl(mockFactory);
+		solrClientWrapper.dropCore(coreName);
+
+		verify(mockFactory);
+	}
+
+	/**
+	 * A null message cannot be classified as the benign case, so it must surface as an NdexException
+	 * rather than NPE while trying to inspect the message.
+	 */
+	@Test
+	public void dropCoreRethrowsWhenTheMessageIsNull() throws Exception {
+		String coreName = "testCore";
+
+		SolrObjectFactory mockFactory = createMock(SolrObjectFactory.class);
+		expect(mockFactory.getSolrClient(null)).andReturn(null);
+		expect(mockFactory.getCoreAdminRequestUnloadCore(coreName, true, true))
+				.andThrow(new BaseHttpSolrClient.RemoteSolrException(
+						"http://localhost:8983/solr", 500, null, null));
+		replay(mockFactory);
+
+		var solrClientWrapper = new SolrClientWrapperImpl(mockFactory);
+		try {
+			solrClientWrapper.dropCore(coreName);
+			fail("an unclassifiable Solr failure must not be swallowed");
+		} catch (NdexException expected) {
+			assertNotNull(expected.getMessage());
+		}
+		verify(mockFactory);
+	}
+
+	/** Anything other than the absent-core case is the caller's problem to log and handle. */
+	@Test
+	public void dropCoreRethrowsUnexpectedSolrErrors() throws Exception {
+		String coreName = "testCore";
+
+		SolrObjectFactory mockFactory = createMock(SolrObjectFactory.class);
+		expect(mockFactory.getSolrClient(null)).andReturn(null);
+		expect(mockFactory.getCoreAdminRequestUnloadCore(coreName, true, true))
+				.andThrow(new BaseHttpSolrClient.RemoteSolrException(
+						"http://localhost:8983/solr", 500, "something else went wrong", null));
+		replay(mockFactory);
+
+		var solrClientWrapper = new SolrClientWrapperImpl(mockFactory);
+		try {
+			solrClientWrapper.dropCore(coreName);
+			fail("an unexpected Solr failure must be rethrown");
+		} catch (NdexException expected) {
+			assertTrue(expected.getMessage().contains("something else went wrong"));
+		}
+		verify(mockFactory);
+	}
 /*
     @Test
     public void testCommit_WithDocuments() throws Exception {

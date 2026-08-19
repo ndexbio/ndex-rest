@@ -13,6 +13,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.easymock.Capture;
 import org.easymock.CaptureType;
+import org.ndexbio.common.models.dao.SearchScope;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.Permissions;
@@ -309,7 +310,7 @@ public class TestFolderIndexManager {
         List<String> readers = Arrays.asList("reader1", "reader2");
         List<String> editors = Arrays.asList("editor1");
 
-        manager.prepareIndexDocument(folder, VisibilityType.PUBLIC, readers, editors);
+        manager.prepareIndexDocument(folder, VisibilityType.PUBLIC);
 
         SolrInputDocument doc = manager.doc;
         assertEquals("PUBLIC", doc.getFieldValue("visibility"));
@@ -319,24 +320,20 @@ public class TestFolderIndexManager {
     }
 
     @Test
-    public void testPrepareIndexDocument_PrivateVisibility_HasPermissionFields() {
+    public void testPrepareIndexDocument_PrivateVisibility_WritesNoAccessList() {
         manager = createManagerWithMock();
         NdexFolder folder = createTestFolder("Private Folder", "Private");
 
-        List<String> readers = Arrays.asList("reader1", "reader2");
-        List<String> editors = Arrays.asList("editor1");
-
-        manager.prepareIndexDocument(folder, VisibilityType.PRIVATE, readers, editors);
+        manager.prepareIndexDocument(folder, VisibilityType.PRIVATE);
 
         SolrInputDocument doc = manager.doc;
         assertEquals("PRIVATE", doc.getFieldValue("visibility"));
-        Collection<Object> readValues = doc.getFieldValues("userRead");
-        assertNotNull(readValues);
-        assertTrue(readValues.contains("reader1"));
-        assertTrue(readValues.contains("reader2"));
-        Collection<Object> editValues = doc.getFieldValues("userEdit");
-        assertNotNull(editValues);
-        assertTrue(editValues.contains("editor1"));
+
+        // The index holds structure only. Permissions used to be copied onto the document at index time
+        // and went stale on every share, move or revoke; they are resolved per query from the database
+        // instead, so a document must carry no access list at all.
+        assertNull(doc.getFieldValue("userRead"));
+        assertNull(doc.getFieldValue("userEdit"));
     }
 
     @Test
@@ -344,7 +341,7 @@ public class TestFolderIndexManager {
         manager = createManagerWithMock();
         NdexFolder folder = createTestFolder("Private Folder", "Private");
 
-        manager.prepareIndexDocument(folder, VisibilityType.PRIVATE, null, null);
+        manager.prepareIndexDocument(folder, VisibilityType.PRIVATE);
 
         SolrInputDocument doc = manager.doc;
         assertEquals("PRIVATE", doc.getFieldValue("visibility"));
@@ -352,27 +349,7 @@ public class TestFolderIndexManager {
         assertNull(doc.getFieldValue("userEdit"));
     }
 
-    @Test
-    public void testPrepareIndexDocument_PrivateVisibility_BlankValuesSkipped() {
-        manager = createManagerWithMock();
-        NdexFolder folder = createTestFolder("Private Folder", "Private");
-
-        List<String> readers = Arrays.asList("reader1", "", "  ", null, "reader2");
-        List<String> editors = Arrays.asList("", null);
-
-        manager.prepareIndexDocument(folder, VisibilityType.PRIVATE, readers, editors);
-
-        SolrInputDocument doc = manager.doc;
-        Collection<Object> readValues = doc.getFieldValues("userRead");
-        assertNotNull(readValues);
-        assertEquals("Should only have 2 valid readers", 2, readValues.size());
-        assertTrue(readValues.contains("reader1"));
-        assertTrue(readValues.contains("reader2"));
-        // All editors were blank/null
-        assertNull(doc.getFieldValue("userEdit"));
-    }
-
-    // ========================================================================
+        // ========================================================================
     // CREATE INDEX - VERIFIES COMMIT TO CORRECT CORE
     // ========================================================================
 
@@ -391,7 +368,7 @@ public class TestFolderIndexManager {
         manager = new FolderIndexManager(mockWrapper);
         NdexFolder folder = createTestFolder("Test", "Test");
 
-        manager.createIndex(folder, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder, VisibilityType.PUBLIC);
 
         verify(mockWrapper);
         assertEquals("public-nfs", coreCapture.getValue());
@@ -419,16 +396,14 @@ public class TestFolderIndexManager {
         NdexFolder folder = createTestFolder("Private", "Private folder");
         List<String> readers = Arrays.asList("user1");
 
-        manager.createIndex(folder, VisibilityType.PRIVATE, readers, null);
+        manager.createIndex(folder, VisibilityType.PRIVATE);
 
         verify(mockWrapper);
         assertEquals("private-nfs", coreCapture.getValue());
 
         SolrInputDocument committed = docsCapture.getValue().iterator().next();
         assertEquals("PRIVATE", committed.getFieldValue("visibility"));
-        Collection<Object> readValues = committed.getFieldValues("userRead");
-        assertNotNull(readValues);
-        assertTrue(readValues.contains("user1"));
+        assertNull(committed.getFieldValue("userRead"));
     }
 
     // ========================================================================
@@ -498,7 +473,7 @@ public class TestFolderIndexManager {
 
         manager = new FolderIndexManager(mockWrapper);
         SolrDocumentList results = manager.search(
-                "*:*", null, VisibilityType.PUBLIC, 10, 0, null, null);
+                "*:*", null, VisibilityType.PUBLIC, 10, 0, null, null, SearchScope.EMPTY);
 
         verify(mockWrapper);
         assertEquals("public-nfs", coreCapture.getValue());
@@ -535,7 +510,7 @@ public class TestFolderIndexManager {
 
         manager = new FolderIndexManager(mockWrapper);
         SolrDocumentList results = manager.search(
-                "*:*", null, VisibilityType.PRIVATE, 10, 0, null, null);
+                "*:*", null, VisibilityType.PRIVATE, 10, 0, null, null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue("Anonymous private filter should match nothing",
@@ -560,7 +535,7 @@ public class TestFolderIndexManager {
         replay(mockWrapper);
 
         manager = new FolderIndexManager(mockWrapper);
-        manager.search("test", "user1", VisibilityType.PUBLIC, 10, 0, "specificOwner", null);
+        manager.search("test", "user1", VisibilityType.PUBLIC, 10, 0, "specificOwner", null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue("Should contain owner filter",
@@ -585,7 +560,7 @@ public class TestFolderIndexManager {
         replay(mockWrapper);
 
         manager = new FolderIndexManager(mockWrapper);
-        manager.search("test", null, VisibilityType.PUBLIC, 25, 50, null, null);
+        manager.search("test", null, VisibilityType.PUBLIC, 25, 50, null, null, SearchScope.EMPTY);
 
         SolrQuery captured = queryCapture.getValue();
         assertEquals(Integer.valueOf(50), captured.getStart());
@@ -610,12 +585,14 @@ public class TestFolderIndexManager {
         replay(mockWrapper);
 
         manager = new FolderIndexManager(mockWrapper);
-        manager.search("*:*", "charlie", VisibilityType.PRIVATE, 10, 0, null, Permissions.READ);
+        manager.search("*:*", "charlie", VisibilityType.PRIVATE, 10, 0, null, Permissions.READ, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("owner:\"charlie\""));
-        assertTrue(fq[0].contains("userRead:\"charlie\""));
-        assertTrue(fq[0].contains("userEdit:\"charlie\""));
+        // No permission state is read from the index: with no folder scope resolved, ownership is the
+        // only reason a private document can match.
+        assertFalse(fq[0].contains("userRead"));
+        assertFalse(fq[0].contains("userEdit"));
     }
 
     @Test
@@ -636,11 +613,11 @@ public class TestFolderIndexManager {
         replay(mockWrapper);
 
         manager = new FolderIndexManager(mockWrapper);
-        manager.search("*:*", "david", VisibilityType.PRIVATE, 10, 0, null, Permissions.WRITE);
+        manager.search("*:*", "david", VisibilityType.PRIVATE, 10, 0, null, Permissions.WRITE, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("owner:\"david\""));
-        assertTrue(fq[0].contains("userEdit:\"david\""));
+        assertFalse(fq[0].contains("userEdit"));
         assertFalse("WRITE should not include userRead", fq[0].contains("userRead"));
     }
 
@@ -662,7 +639,7 @@ public class TestFolderIndexManager {
         replay(mockWrapper);
 
         manager = new FolderIndexManager(mockWrapper);
-        manager.search("*:*", "admin", VisibilityType.PRIVATE, 10, 0, null, Permissions.ADMIN);
+        manager.search("*:*", "admin", VisibilityType.PRIVATE, 10, 0, null, Permissions.ADMIN, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("owner:\"admin\""));
@@ -688,11 +665,13 @@ public class TestFolderIndexManager {
         replay(mockWrapper);
 
         manager = new FolderIndexManager(mockWrapper);
-        manager.search("*:*", "bob", VisibilityType.PUBLIC, 10, 0, null, Permissions.WRITE);
+        manager.search("*:*", "bob", VisibilityType.PUBLIC, 10, 0, null, Permissions.WRITE, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
+        // userEdit was only ever written onto PRIVATE/UNLISTED documents, so on the public core it
+        // served solely to surface UNLISTED files to non-owner editors.
         assertTrue(fq[0].contains("owner:\"bob\""));
-        assertTrue(fq[0].contains("userEdit:\"bob\""));
+        assertFalse(fq[0].contains("userEdit"));
         assertFalse(fq[0].contains("userRead"));
     }
 
@@ -719,7 +698,7 @@ public class TestFolderIndexManager {
 
         manager = new FolderIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "FOLDER", true);
+                null, null, "FOLDER", true, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("entityType:\"FOLDER\""));
@@ -749,7 +728,7 @@ public class TestFolderIndexManager {
 
         manager = new FolderIndexManager(mockWrapper);
         SolrDocumentList results = manager.searchInFolder(
-                "*:*", "testUser", 10, 0, parentId.toString(), null, VisibilityType.PUBLIC);
+                "*:*", "testUser", 10, 0, parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         verify(mockWrapper);
         String[] fq = queryCapture.getValue().getFilterQueries();
@@ -778,7 +757,7 @@ public class TestFolderIndexManager {
         // parentFolderId must be escaped so it cannot break out of the phrase.
         String injection = "x\") OR (*:*) OR (parentUuid:\"x";
         manager = new FolderIndexManager(mockWrapper);
-        manager.searchInFolder("*:*", "user", 10, 0, injection, null, VisibilityType.PUBLIC);
+        manager.searchInFolder("*:*", "user", 10, 0, injection, null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         // Escaped quotes keep the value inside the parentUuid phrase; no injected (*:*) clause.
@@ -803,7 +782,7 @@ public class TestFolderIndexManager {
         replay(mockWrapper);
 
         manager = new FolderIndexManager(mockWrapper);
-        manager.searchInFolder("*:*", "user", 10, 0, null, null, VisibilityType.PUBLIC);
+        manager.searchInFolder("*:*", "user", 10, 0, null, null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue("Should contain entity type filter", fq[0].contains("entityType:FOLDER"));
@@ -830,7 +809,7 @@ public class TestFolderIndexManager {
 
         manager = new FolderIndexManager(mockWrapper);
         manager.searchInFolder("*:*", "alice", 10, 0, parentId.toString(),
-                Permissions.ADMIN, VisibilityType.PRIVATE);
+                Permissions.ADMIN, VisibilityType.PRIVATE, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue("Should contain admin permission filter", fq[0].contains("owner:\"alice\""));
@@ -858,7 +837,7 @@ public class TestFolderIndexManager {
 
         manager = new FolderIndexManager(mockWrapper);
         manager.searchInFolder("*:*", null, 10, 0, UUID.randomUUID().toString(),
-                null, VisibilityType.PRIVATE);
+                null, VisibilityType.PRIVATE, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue("Anonymous private should match nothing",
@@ -978,61 +957,61 @@ public class TestFolderIndexManager {
     public void testBuildPermissionFilter_PublicCore_Anonymous() {
         manager = createManagerWithMock();
         String noUnlisted = "(*:* NOT visibility:UNLISTED)";
-        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
-        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
+        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null, SearchScope.EMPTY));
+        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedAdmin() {
         manager = createManagerWithMock();
         assertEquals("owner:\"admin\"",
-                manager.buildPermissionFilter("admin", VisibilityType.PUBLIC, Permissions.ADMIN));
+                manager.buildPermissionFilter("admin", VisibilityType.PUBLIC, Permissions.ADMIN, SearchScope.EMPTY));
     }
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedWrite() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("bob", VisibilityType.PUBLIC, Permissions.WRITE);
-        assertEquals("(owner:\"bob\") OR (userEdit:\"bob\")", filter);
+        String filter = manager.buildPermissionFilter("bob", VisibilityType.PUBLIC, Permissions.WRITE, SearchScope.EMPTY);
+        assertEquals("owner:\"bob\"", filter);
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_Anonymous_MatchesNothing() {
         manager = createManagerWithMock();
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, null));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, null, SearchScope.EMPTY));
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.READ));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.READ, SearchScope.EMPTY));
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.WRITE));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.WRITE, SearchScope.EMPTY));
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.ADMIN));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.ADMIN, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_AuthenticatedRead() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("jane", VisibilityType.PRIVATE, Permissions.READ);
-        assertEquals("(owner:\"jane\") OR (userRead:\"jane\") OR (userEdit:\"jane\")", filter);
+        String filter = manager.buildPermissionFilter("jane", VisibilityType.PRIVATE, Permissions.READ, SearchScope.EMPTY);
+        assertEquals("(owner:\"jane\")", filter);
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_AuthenticatedWrite() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("david", VisibilityType.PRIVATE, Permissions.WRITE);
-        assertEquals("(owner:\"david\") OR (userEdit:\"david\")", filter);
+        String filter = manager.buildPermissionFilter("david", VisibilityType.PRIVATE, Permissions.WRITE, SearchScope.EMPTY);
+        assertEquals("(owner:\"david\")", filter);
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_AuthenticatedAdmin() {
         manager = createManagerWithMock();
         assertEquals("owner:\"superadmin\"",
-                manager.buildPermissionFilter("superadmin", VisibilityType.PRIVATE, Permissions.ADMIN));
+                manager.buildPermissionFilter("superadmin", VisibilityType.PRIVATE, Permissions.ADMIN, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_SpecialCharsInUsername() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("user@example.com", VisibilityType.PUBLIC, Permissions.ADMIN);
+        String filter = manager.buildPermissionFilter("user@example.com", VisibilityType.PUBLIC, Permissions.ADMIN, SearchScope.EMPTY);
         assertEquals("owner:\"user@example.com\"", filter);
     }
 
@@ -1103,28 +1082,28 @@ public class TestFolderIndexManager {
         UUID parentId = UUID.randomUUID();
         NdexFolder parent = createTestFolder("Parent Folder", "Parent description");
         parent.setExternalId(parentId);
-        manager.createIndex(parent, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(parent, VisibilityType.PUBLIC);
 
         NdexFolder child1 = createTestFolder("Child Folder 1", "First child");
         child1.setParent(parentId);
-        manager.createIndex(child1, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(child1, VisibilityType.PUBLIC);
 
         NdexFolder child2 = createTestFolder("Child Folder 2", "Second child");
         child2.setParent(parentId);
-        manager.createIndex(child2, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(child2, VisibilityType.PUBLIC);
 
         NdexFolder orphan = createTestFolder("Orphan Folder", "No parent");
         orphan.setParent(UUID.randomUUID());
-        manager.createIndex(orphan, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(orphan, VisibilityType.PUBLIC);
 
         NdexFolder root = createTestFolder("Root Folder", "No parent at all");
-        manager.createIndex(root, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(root, VisibilityType.PUBLIC);
 
         Thread.sleep(2000);
 
         SolrDocumentList results = manager.searchInFolder(
                 "*:*", "testOwner", 100, 0,
-                parentId.toString(), null, VisibilityType.PUBLIC);
+                parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertNotNull(results);
         assertEquals("Should find exactly 2 children", 2, results.getNumFound());
@@ -1144,20 +1123,20 @@ public class TestFolderIndexManager {
         manager = createIntegrationManager();
 
         NdexFolder folder1 = createTestFolder("Folder 1", "First");
-        manager.createIndex(folder1, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder1, VisibilityType.PUBLIC);
 
         NdexFolder folder2 = createTestFolder("Folder 2", "Second");
         folder2.setParent(UUID.randomUUID());
-        manager.createIndex(folder2, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder2, VisibilityType.PUBLIC);
 
         NdexFolder folder3 = createTestFolder("Folder 3", "Third");
-        manager.createIndex(folder3, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder3, VisibilityType.PUBLIC);
 
         Thread.sleep(1000);
 
         SolrDocumentList results = manager.searchInFolder(
                 "*:*", "testOwner", 100, 0,
-                null, null, VisibilityType.PUBLIC);
+                null, null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertNotNull(results);
         assertTrue("Should find all folders", results.getNumFound() >= 3);
@@ -1171,27 +1150,26 @@ public class TestFolderIndexManager {
 
         NdexFolder publicFolder = createTestFolder("Public Child", "Public");
         publicFolder.setParent(parentId);
-        manager.createIndex(publicFolder, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(publicFolder, VisibilityType.PUBLIC);
 
         NdexFolder privateFolder = createTestFolder("Private Child", "Private");
         privateFolder.setParent(parentId);
         privateFolder.setOwner("otherOwner");
-        manager.createIndex(privateFolder, VisibilityType.PRIVATE,
-                Arrays.asList("otherOwner"), null);
+        manager.createIndex(privateFolder, VisibilityType.PRIVATE);
 
         Thread.sleep(1000);
 
         // Anonymous user searching public core
         SolrDocumentList publicResults = manager.searchInFolder(
                 "*:*", null, 100, 0,
-                parentId.toString(), null, VisibilityType.PUBLIC);
+                parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertTrue("Anonymous should see public folder", publicResults.getNumFound() >= 1);
 
         // Anonymous user searching private core (should see nothing)
         SolrDocumentList privateResults = manager.searchInFolder(
                 "*:*", null, 100, 0,
-                parentId.toString(), null, VisibilityType.PRIVATE);
+                parentId.toString(), null, VisibilityType.PRIVATE, SearchScope.EMPTY);
 
         assertEquals("Anonymous should see no private folders", 0, privateResults.getNumFound());
     }
@@ -1204,21 +1182,21 @@ public class TestFolderIndexManager {
 
         NdexFolder cancer1 = createTestFolder("Cancer Research Data", "Cancer study");
         cancer1.setParent(parentId);
-        manager.createIndex(cancer1, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(cancer1, VisibilityType.PUBLIC);
 
         NdexFolder cancer2 = createTestFolder("Lung Cancer Analysis", "Another cancer study");
         cancer2.setParent(parentId);
-        manager.createIndex(cancer2, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(cancer2, VisibilityType.PUBLIC);
 
         NdexFolder diabetes = createTestFolder("Diabetes Study", "Diabetes research");
         diabetes.setParent(parentId);
-        manager.createIndex(diabetes, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(diabetes, VisibilityType.PUBLIC);
 
         Thread.sleep(1000);
 
         SolrDocumentList results = manager.searchInFolder(
                 "cancer", "testOwner", 100, 0,
-                parentId.toString(), null, VisibilityType.PUBLIC);
+                parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertNotNull(results);
         assertEquals("Should find 2 cancer-related folders", 2, results.getNumFound());
@@ -1241,7 +1219,7 @@ public class TestFolderIndexManager {
         for (int i = 0; i < 10; i++) {
             NdexFolder folder = createTestFolder("Folder " + i, "Description " + i);
             folder.setParent(parentId);
-            manager.createIndex(folder, VisibilityType.PUBLIC, null, null);
+            manager.createIndex(folder, VisibilityType.PUBLIC);
             folderIds.add(folder.getExternalId());
         }
 
@@ -1249,14 +1227,14 @@ public class TestFolderIndexManager {
 
         SolrDocumentList page1 = manager.searchInFolder(
                 "*:*", "testOwner", 5, 0,
-                parentId.toString(), null, VisibilityType.PUBLIC);
+                parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertEquals("First page should have 5 results", 5, page1.size());
         assertEquals("Total should be 10", 10, page1.getNumFound());
 
         SolrDocumentList page2 = manager.searchInFolder(
                 "*:*", "testOwner", 5, 5,
-                parentId.toString(), null, VisibilityType.PUBLIC);
+                parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertEquals("Second page should have 5 results", 5, page2.size());
         assertEquals("Total should still be 10", 10, page2.getNumFound());
@@ -1280,18 +1258,18 @@ public class TestFolderIndexManager {
         NdexFolder myFolder = createTestFolder("My Folder", "I own this");
         myFolder.setOwner("testOwner");
         myFolder.setParent(parentId);
-        manager.createIndex(myFolder, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(myFolder, VisibilityType.PUBLIC);
 
         NdexFolder theirFolder = createTestFolder("Their Folder", "They own this");
         theirFolder.setOwner("otherOwner");
         theirFolder.setParent(parentId);
-        manager.createIndex(theirFolder, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(theirFolder, VisibilityType.PUBLIC);
 
         Thread.sleep(1000);
 
         SolrDocumentList results = manager.searchInFolder(
                 "*:*", "testOwner", 100, 0,
-                parentId.toString(), Permissions.ADMIN, VisibilityType.PUBLIC);
+                parentId.toString(), Permissions.ADMIN, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertEquals("Should only see owned folder", 1, results.getNumFound());
         assertEquals(myFolder.getExternalId().toString(),
@@ -1308,25 +1286,25 @@ public class TestFolderIndexManager {
         NdexFolder oldest = createTestFolder("Oldest", "First created");
         oldest.setParent(parentId);
         oldest.setModificationTime(Timestamp.from(now.minusSeconds(3600)));
-        manager.createIndex(oldest, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(oldest, VisibilityType.PUBLIC);
         Thread.sleep(100);
 
         NdexFolder middle = createTestFolder("Middle", "Second created");
         middle.setParent(parentId);
         middle.setModificationTime(Timestamp.from(now.minusSeconds(1800)));
-        manager.createIndex(middle, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(middle, VisibilityType.PUBLIC);
         Thread.sleep(100);
 
         NdexFolder newest = createTestFolder("Newest", "Last created");
         newest.setParent(parentId);
         newest.setModificationTime(Timestamp.from(now));
-        manager.createIndex(newest, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(newest, VisibilityType.PUBLIC);
 
         Thread.sleep(1000);
 
         SolrDocumentList results = manager.searchInFolder(
                 "*:*", "testOwner", 100, 0,
-                parentId.toString(), null, VisibilityType.PUBLIC);
+                parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertEquals("Should find all 3 folders", 3, results.getNumFound());
         assertEquals("First should be newest",
@@ -1345,13 +1323,13 @@ public class TestFolderIndexManager {
 
         NdexFolder folder = createTestFolder("Test Folder", "A folder");
         folder.setParent(parentId);
-        manager.createIndex(folder, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder, VisibilityType.PUBLIC);
 
         Thread.sleep(1000);
 
         SolrDocumentList results = manager.searchInFolder(
                 "*:*", "testOwner", 100, 0,
-                parentId.toString(), null, VisibilityType.PUBLIC);
+                parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertNotNull(results);
         assertTrue(results.getNumFound() >= 1);
@@ -1370,16 +1348,16 @@ public class TestFolderIndexManager {
 
         NdexFolder folder1 = createTestFolder("Folder 1", "Different parent");
         folder1.setParent(UUID.randomUUID());
-        manager.createIndex(folder1, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder1, VisibilityType.PUBLIC);
 
         NdexFolder folder2 = createTestFolder("Folder 2", "No parent");
-        manager.createIndex(folder2, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder2, VisibilityType.PUBLIC);
 
         Thread.sleep(1000);
 
         SolrDocumentList results = manager.searchInFolder(
                 "*:*", "testOwner", 100, 0,
-                emptyParentId.toString(), null, VisibilityType.PUBLIC);
+                emptyParentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertNotNull(results);
         assertEquals("Empty parent should return no results", 0, results.getNumFound());
@@ -1393,21 +1371,21 @@ public class TestFolderIndexManager {
 
         NdexFolder folder1 = createTestFolder("Data Folder", "Contains pathway analysis");
         folder1.setParent(parentId);
-        manager.createIndex(folder1, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder1, VisibilityType.PUBLIC);
 
         NdexFolder folder2 = createTestFolder("Research Folder", "Gene expression studies");
         folder2.setParent(parentId);
-        manager.createIndex(folder2, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder2, VisibilityType.PUBLIC);
 
         NdexFolder folder3 = createTestFolder("Analysis Folder", "Pathway enrichment results");
         folder3.setParent(parentId);
-        manager.createIndex(folder3, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(folder3, VisibilityType.PUBLIC);
 
         Thread.sleep(1000);
 
         SolrDocumentList results = manager.searchInFolder(
                 "pathway", "testOwner", 100, 0,
-                parentId.toString(), null, VisibilityType.PUBLIC);
+                parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertNotNull(results);
         assertEquals("Should find 2 folders with 'pathway' in description",
@@ -1428,34 +1406,34 @@ public class TestFolderIndexManager {
         UUID rootId = UUID.randomUUID();
         NdexFolder root = createTestFolder("Root", "Root folder");
         root.setExternalId(rootId);
-        manager.createIndex(root, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(root, VisibilityType.PUBLIC);
 
         UUID parentId = UUID.randomUUID();
         NdexFolder parent = createTestFolder("Parent", "Parent folder");
         parent.setExternalId(parentId);
         parent.setParent(rootId);
-        manager.createIndex(parent, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(parent, VisibilityType.PUBLIC);
 
         NdexFolder child1 = createTestFolder("Child 1", "First child");
         child1.setParent(parentId);
-        manager.createIndex(child1, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(child1, VisibilityType.PUBLIC);
 
         NdexFolder child2 = createTestFolder("Child 2", "Second child");
         child2.setParent(parentId);
-        manager.createIndex(child2, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(child2, VisibilityType.PUBLIC);
 
         Thread.sleep(1000);
 
         SolrDocumentList rootResults = manager.searchInFolder(
                 "*:*", "testOwner", 100, 0,
-                rootId.toString(), null, VisibilityType.PUBLIC);
+                rootId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertEquals("Root should contain only parent folder", 1, rootResults.getNumFound());
         assertEquals(parentId.toString(), rootResults.get(0).getFieldValue("uuid"));
 
         SolrDocumentList parentResults = manager.searchInFolder(
                 "*:*", "testOwner", 100, 0,
-                parentId.toString(), null, VisibilityType.PUBLIC);
+                parentId.toString(), null, VisibilityType.PUBLIC, SearchScope.EMPTY);
 
         assertEquals("Parent should contain 2 children", 2, parentResults.getNumFound());
     }
@@ -1470,22 +1448,20 @@ public class TestFolderIndexManager {
         NdexFolder privateFolder = createTestFolder("Secret Folder", "Private data");
         privateFolder.setParent(parentId);
         privateFolder.setOwner("bob");
-        manager.createIndex(privateFolder, VisibilityType.PRIVATE,
-                Arrays.asList("alice", "bob"), Arrays.asList("bob"));
+        manager.createIndex(privateFolder, VisibilityType.PRIVATE);
 
         // Another private folder alice can't see
         NdexFolder hiddenFolder = createTestFolder("Hidden Folder", "No access for alice");
         hiddenFolder.setParent(parentId);
         hiddenFolder.setOwner("charlie");
-        manager.createIndex(hiddenFolder, VisibilityType.PRIVATE,
-                Arrays.asList("charlie"), Arrays.asList("charlie"));
+        manager.createIndex(hiddenFolder, VisibilityType.PRIVATE);
 
         Thread.sleep(1000);
 
         // Alice should see the first folder (she's in userRead)
         SolrDocumentList aliceResults = manager.searchInFolder(
                 "*:*", "alice", 100, 0,
-                parentId.toString(), null, VisibilityType.PRIVATE);
+                parentId.toString(), null, VisibilityType.PRIVATE, SearchScope.EMPTY);
 
         assertEquals("Alice should see 1 private folder", 1, aliceResults.getNumFound());
         assertEquals(privateFolder.getExternalId().toString(),
@@ -1494,14 +1470,14 @@ public class TestFolderIndexManager {
         // Bob should see his folder
         SolrDocumentList bobResults = manager.searchInFolder(
                 "*:*", "bob", 100, 0,
-                parentId.toString(), null, VisibilityType.PRIVATE);
+                parentId.toString(), null, VisibilityType.PRIVATE, SearchScope.EMPTY);
 
         assertEquals("Bob should see 1 private folder", 1, bobResults.getNumFound());
 
         // Charlie should see his folder
         SolrDocumentList charlieResults = manager.searchInFolder(
                 "*:*", "charlie", 100, 0,
-                parentId.toString(), null, VisibilityType.PRIVATE);
+                parentId.toString(), null, VisibilityType.PRIVATE, SearchScope.EMPTY);
 
         assertEquals("Charlie should see 1 private folder", 1, charlieResults.getNumFound());
     }

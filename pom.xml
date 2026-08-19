@@ -7,7 +7,7 @@
 	<groupId>org.ndexbio</groupId>
 	<artifactId>ndexbio-rest</artifactId>
 	<packaging>war</packaging>
-	<version>3.0.4</version>
+	<version>3.0.5</version>
 	<name>ndexbio-rest</name>
 	<url>http://maven.apache.org</url>
 	<inceptionYear>2013</inceptionYear>
@@ -95,7 +95,7 @@
 		<dependency>
 			<groupId>org.ndexbio</groupId>
 			<artifactId>ndex-object-model</artifactId>
-			<version>3.0.2</version>
+			<version>3.0.3</version>
 		</dependency>
 
 		<dependency>

@@ -11,7 +11,6 @@ import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.ConfigSetAdminRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.ConfigSetAdminResponse;
@@ -199,10 +198,12 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	public void dropCore(final String coreName) throws IOException, SolrServerException, NdexException {
 		try {
 			_factory.getCoreAdminRequestUnloadCore(coreName, true, true);
-		} catch (HttpSolrClient.RemoteSolrException e4) {
+		} catch (BaseHttpSolrClient.RemoteSolrException e4) {
 			// A core that isn't there is the normal drop-before-rebuild case, so it is not worth
-			// reporting. Anything else is rethrown, and the caller logs it with its own context.
-			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
+			// reporting. Anything else - including a null message we cannot classify - is rethrown,
+			// and the caller logs it with its own context.
+			if ( e4.getMessage() == null
+					|| e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
 				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
 			}
 		}

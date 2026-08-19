@@ -3,6 +3,7 @@ package org.ndexbio.common.solr;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
+import org.ndexbio.common.models.dao.SearchScope;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.cx2.aspect.element.core.CxNetworkAttribute;
@@ -54,15 +55,52 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     // members will be added to the represent field as additional lists.
     private Map<Long, Set<String>> nodeMembers;
 
+    /**
+     * Folder this network sits in, supplied by the caller for the next document only.
+     *
+     * <p>{@code NetworkSummary} does not carry the parent — {@code PostgresNetworkDAO} selects
+     * {@code n.parent} but never surfaces it, and the class lives in a separate repository — so the id
+     * has to come in from a caller that already holds a DAO.</p>
+     *
+     * <p><b>Consumed once.</b> {@code setupIndexDocument} clears it immediately after reading, because
+     * callers such as {@code NFSReIndexer} reuse a single manager across a whole loop of networks; a
+     * value left behind would be silently stamped onto the next network, including ones with no folder
+     * at all.</p>
+     */
+    private UUID pendingParentFolderId;
+
     public GlobalNetworkIndexManager(SolrClientWrapper solrClientWrapper){
         super(solrClientWrapper);
         nodeMembers = new TreeMap<>();
+    }
+
+    /** {@link #createIndex} variant that records the network's folder on the document. */
+    public void createIndex(NetworkSummary summary, VisibilityType visibilityType,
+                            UUID parentFolderId) {
+        this.pendingParentFolderId = parentFolderId;
+        createIndex(summary, visibilityType);
+    }
+
+    /** {@link #prepareIndexDocument} variant that records the network's folder on the document. */
+    public void prepareIndexDocument(NetworkSummary summary, VisibilityType visibilityType,
+                                     UUID parentFolderId) {
+        this.pendingParentFolderId = parentFolderId;
+        prepareIndexDocument(summary, visibilityType);
     }
 
     @Override
     protected SolrInputDocument setupIndexDocument(NetworkSummary summary, VisibilityType visibilityType) {
         doc = new SolrInputDocument();
         doc.addField(UUID,  summary.getExternalId().toString() );
+
+        // Indexing the folder is what lets search resolve folder permissions at query time: the caller
+        // computes the folders it can reach and filters on this field, so no permission state has to be
+        // stored on the document. Read-and-clear — see pendingParentFolderId.
+        if (pendingParentFolderId != null) {
+            doc.addField(PARENT_UUID, pendingParentFolderId.toString());
+            pendingParentFolderId = null;
+        }
+
         doc.addField(EDGE_COUNT, summary.getEdgeCount());
         doc.addField(NODE_COUNT, summary.getNodeCount());
         doc.addField(ENTITY_TYPE, FileType.NETWORK.toString());
@@ -136,10 +174,11 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
             int offset,
             String adminedBy,
             Permissions permission,
-            boolean includeShortcuts) throws IOException, SolrServerException, NdexException {
+            boolean includeShortcuts,
+            SearchScope scope) throws IOException, SolrServerException, NdexException {
 
         return searchByType(searchTerms, userAccount, visibilityType, limit, offset,
-                adminedBy, permission, FileType.NETWORK.toString(), includeShortcuts);
+                adminedBy, permission, FileType.NETWORK.toString(), includeShortcuts, scope);
     }
 
     public void addCX2NodeToIndex(CxNode node, Map<String, Map.Entry<String, DeclarationEntry>> attributeNameMapping)  {

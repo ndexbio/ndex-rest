@@ -5,7 +5,6 @@ import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.ndexbio.common.solr.GlobalNetworkIndexManager;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;

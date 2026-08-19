@@ -55,7 +55,7 @@ terminal (see the `unlist-public-none` section for an example).
 | `all-networks-online` | All networks | Rebuilds network indexes without the `islocked=false` precondition; tolerates per-network failures and keeps going. |
 | `global-networks` | Global network index | Rebuilds the global network index only (no per-network query cores). |
 | `all-local` | Per-network query cores | Creates the per-network Solr query cores for networks at or above the autocreate node-count threshold. |
-| `nfs` | NFS indexes | Placeholder; currently a no-op. |
+| `nfs` | NFS indexes | Clears `public-nfs` and `private-nfs`, then rebuilds every folder, shortcut and network document from PostgreSQL. Offline equivalent of `GET /v3/admin/reindex-v3`. |
 | `unlist-public-none` | Maintenance | Flips `PUBLIC` + `solr_idx_lvl=NONE` networks to `UNLISTED` and moves them from `public-nfs` to `private-nfs`. |
 | `<networkUUID>` | Single network | Rebuilds the index for one network by UUID. |
 
@@ -127,7 +127,12 @@ Logs how many were checked vs. created.
 java -cp "..." org.ndexbio.common.solr.SolrIndexBuilder nfs
 ```
 
-Currently a placeholder with no implementation. Running it does nothing.
+Rebuilds the two file-search indexes. It empties `public-nfs` and `private-nfs`, then rebuilds every
+folder, shortcut and network document from PostgreSQL. This is the offline equivalent of
+`GET /v3/admin/reindex-v3`.
+
+**Both indexes are emptied before the rebuild starts, so search returns nothing until it finishes.** Run
+it in a maintenance window.
 
 ### `unlist-public-none`
 

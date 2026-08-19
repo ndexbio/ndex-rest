@@ -8,20 +8,28 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.ndexbio.common.solr.SolrClientWrapper;
+import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileSearchResult;
+import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.SimpleFileQuery;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.sql.Timestamp;
+import java.util.UUID;
 
 import static org.easymock.EasyMock.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 /**
- * Unit tests for NFSSearchProvider's Solr query configuration.
+ * Unit tests for NFSSearchProvider's Solr query configuration and result mapping.
  * Verifies the edgeless-network demotion boost (issue #116) is applied to the
- * unified file-search path via the mocked SolrClientWrapper. No live Solr required.
+ * unified file-search path via the mocked SolrClientWrapper, and that each
+ * per-type mapper populates the fields the FileItemSummary contract promises
+ * (issue #162). No live Solr required.
  */
 public class TestNFSSearchProvider {
 
@@ -119,5 +127,62 @@ public class TestNFSSearchProvider {
 
         verify(mockWrapper);
         assertEquals(50L, result.getStart());
+    }
+
+    // ── Issue #162: FOLDER search results must carry visibility ──────────────
+    // searchFiles hydrates Solr hits from Postgres and maps them per type. The
+    // NETWORK mapper sets visibility (mapNetworkToSummary) and the SHORTCUT path
+    // sets it in PostgresShortcutDAO, but mapFolderToSummary omits it — and since
+    // FileItemSummary is @JsonInclude(NON_NULL), the key disappears from the JSON
+    // entirely rather than serializing as null. These tests exercise the mapper
+    // directly: the tests above deliberately use empty Solr result sets so DAO
+    // hydration never runs, because hydration needs a live DAOFactory, so there is
+    // no way to reach the mapper through searchFiles here. Reflection is used
+    // rather than widening the mapper's visibility (this class already reflects on
+    // Configuration.INSTANCE above).
+
+    private static FileItemSummary mapFolder(NdexFolder folder) throws Exception {
+        NFSSearchProvider provider = new NFSSearchProvider(createMock(SolrClientWrapper.class), 100);
+        Method mapper = NFSSearchProvider.class.getDeclaredMethod("mapFolderToSummary", NdexFolder.class);
+        mapper.setAccessible(true);
+        return (FileItemSummary) mapper.invoke(provider, folder);
+    }
+
+    /** owner_id must be a parseable UUID string: the mapper calls UUID.fromString on it unguarded. */
+    private static NdexFolder folderFixture(VisibilityType visibility) {
+        NdexFolder folder = new NdexFolder();
+        folder.setExternalId(UUID.randomUUID());
+        folder.setName("NCI PID");
+        folder.setDescription("curated collection");
+        folder.setOwner("nci-pid");
+        folder.setOwner_id(UUID.randomUUID().toString());
+        folder.setCreationTime(new Timestamp(1_500_000_000_000L));
+        folder.setModificationTime(new Timestamp(1_600_000_000_000L));
+        folder.setVisibility(visibility);
+        return folder;
+    }
+
+    @Test
+    public void testMapFolderToSummary_ReportsPublicVisibility() throws Exception {
+        FileItemSummary summary = mapFolder(folderFixture(VisibilityType.PUBLIC));
+
+        assertEquals("PUBLIC", summary.getVisibility());
+    }
+
+    @Test
+    public void testMapFolderToSummary_ReportsPrivateVisibility() throws Exception {
+        // Pins that the value comes from the folder row rather than a hardcoded constant.
+        FileItemSummary summary = mapFolder(folderFixture(VisibilityType.PRIVATE));
+
+        assertEquals("PRIVATE", summary.getVisibility());
+    }
+
+    @Test
+    public void testMapFolderToSummary_ToleratesNullVisibility() throws Exception {
+        // Legacy rows can have a null visibility column; mapNetworkToSummary already
+        // guards for this, so the folder mapper must not NPE either.
+        FileItemSummary summary = mapFolder(folderFixture(null));
+
+        assertNull(summary.getVisibility());
     }
 }

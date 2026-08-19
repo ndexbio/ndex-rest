@@ -15,12 +15,153 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Collections;
+import java.util.Set;
+
+import org.easymock.Capture;
 import org.ndexbio.common.models.dao.AccessKeyResolver;
+import org.ndexbio.common.models.dao.FilePermissionResolver;
 import org.ndexbio.model.exceptions.BadRequestException;
+import org.ndexbio.model.object.FileType;
+import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.VisibilityType;
 
 public class TestPostgresNetworkDAO {
+
+    private static final UUID NET = UUID.fromString("33333333-3333-3333-3333-333333333333");
+    private static final UUID VIEWER = UUID.fromString("55555555-5555-5555-5555-555555555555");
+    private static final String FRAGMENT = "__RESOLVER_FRAGMENT__";
+
+    // ── read/write authorization goes through the injected resolver (issue #165) ──
+    //
+    // The predicate is built by the resolver and embedded in the query, so these assert both that the
+    // resolver is consulted with the right arguments and that its output reaches the executed SQL. A
+    // sentinel fragment is used so the assertion cannot pass by coincidence against real SQL keywords.
+
+    /**
+     * Read checks must ask for {@code READ}-granted folders. Asking for {@code WRITE} here would hide
+     * content a user can legitimately read.
+     */
+    @Test
+    public void testIsReadableUsesReadableFragmentAndReadGrantedFolders() throws Exception {
+        Connection conn = createMock(Connection.class);
+        PreparedStatement pst = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+
+        Set<UUID> granted = Collections.singleton(UUID.randomUUID());
+        expect(resolver.grantedFolderIds(VIEWER, Permissions.READ)).andReturn(granted);
+        expect(resolver.readableConditionSql(FileType.NETWORK, "n", VIEWER, granted)).andReturn(FRAGMENT);
+
+        Capture<String> sql = newCapture();
+        expect(conn.prepareStatement(capture(sql))).andReturn(pst);
+        pst.setObject(anyInt(), anyObject());
+        expectLastCall().anyTimes();
+        expect(pst.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(true);
+        expect(rs.getBoolean(1)).andReturn(true);
+        rs.close();
+        expectLastCall();
+        pst.close();
+        expectLastCall();
+        replay(conn, pst, rs, resolver);
+
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
+        dao.setPermissionResolver(resolver);
+
+        assertTrue(dao.isReadable(NET, VIEWER));
+        assertTrue(sql.getValue().contains(FRAGMENT));
+        verify(conn, pst, rs, resolver);
+    }
+
+    /**
+     * Write checks must use the <em>writable</em> fragment and ask for {@code WRITE}-granted folders.
+     *
+     * <p>Both halves matter. Using the readable fragment would let public visibility confer write, and
+     * asking for {@code READ}-granted folders would let a read-only grantee edit everything in a shared
+     * folder. The strict mock fails the test if either argument is wrong.</p>
+     */
+    @Test
+    public void testIsWriteableUsesWritableFragmentAndWriteGrantedFolders() throws Exception {
+        Connection conn = createMock(Connection.class);
+        PreparedStatement pst = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+
+        Set<UUID> granted = Collections.singleton(UUID.randomUUID());
+        expect(resolver.grantedFolderIds(VIEWER, Permissions.WRITE)).andReturn(granted);
+        expect(resolver.writableConditionSql(FileType.NETWORK, "n", VIEWER, granted)).andReturn(FRAGMENT);
+
+        Capture<String> sql = newCapture();
+        expect(conn.prepareStatement(capture(sql))).andReturn(pst);
+        pst.setObject(anyInt(), anyObject());
+        expectLastCall().anyTimes();
+        expect(pst.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(true);   // a row means the predicate matched
+        rs.close();
+        expectLastCall();
+        pst.close();
+        expectLastCall();
+        replay(conn, pst, rs, resolver);
+
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
+        dao.setPermissionResolver(resolver);
+
+        assertTrue(dao.isWriteable(NET, VIEWER));
+        assertTrue(sql.getValue().contains(FRAGMENT));
+        verify(conn, pst, rs, resolver);
+    }
+
+    /** No row means the predicate did not match, so write access is denied. */
+    @Test
+    public void testIsWriteableDeniedWhenPredicateMatchesNoRow() throws Exception {
+        Connection conn = createMock(Connection.class);
+        PreparedStatement pst = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+
+        expect(resolver.grantedFolderIds(VIEWER, Permissions.WRITE))
+                .andReturn(Collections.<UUID>emptySet());
+        expect(resolver.writableConditionSql(eq(FileType.NETWORK), eq("n"), eq(VIEWER), anyObject()))
+                .andReturn(FRAGMENT);
+        expect(conn.prepareStatement(anyString())).andReturn(pst);
+        pst.setObject(anyInt(), anyObject());
+        expectLastCall().anyTimes();
+        expect(pst.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(false);
+        rs.close();
+        expectLastCall();
+        pst.close();
+        expectLastCall();
+        replay(conn, pst, rs, resolver);
+
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
+        dao.setPermissionResolver(resolver);
+
+        assertFalse(dao.isWriteable(NET, VIEWER));
+        verify(resolver);
+    }
+
+    /** The Solr audience lookup must come from the resolver, not a direct-row query. */
+    @Test
+    public void testGetAllMembershipsOnNetworkDelegatesToEffectiveMembers() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+
+        java.util.Map<Permissions, java.util.Collection<String>> expected = new java.util.HashMap<>();
+        expected.put(Permissions.ADMIN, java.util.Arrays.asList("owner"));
+        expected.put(Permissions.WRITE, java.util.Arrays.asList("writer"));
+        expected.put(Permissions.READ, java.util.Arrays.asList("reader"));
+        expect(resolver.effectiveMembers(NET, FileType.NETWORK)).andReturn(expected);
+        replay(conn, resolver);   // conn strict: no direct-row query may be issued
+
+        PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
+        dao.setPermissionResolver(resolver);
+
+        assertEquals(expected, dao.getAllMembershipsOnNetwork(NET));
+        verify(conn, resolver);
+    }
 
     @Test
     public void testAccessKeyIsValidDelegatesToResolver() throws SQLException {

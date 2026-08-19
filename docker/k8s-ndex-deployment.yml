@@ -34,6 +34,11 @@ metadata:
     app: ndex
 spec:
   replicas: 1
+  # All service state lives on a single ReadWriteOnce PVC. The default
+  # RollingUpdate strategy leaves two pods accessing the same PVC at same time
+  # instead need Recreate which terminates the old pod first.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: ndex

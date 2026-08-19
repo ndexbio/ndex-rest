@@ -10,6 +10,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.ndexbio.common.models.dao.SearchScope;
 import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -356,7 +357,7 @@ public class TestGlobalNetworkIndexManager {
         List<String> readers = Arrays.asList("reader1", "reader2");
         List<String> editors = Arrays.asList("editor1");
 
-        manager.prepareIndexDocument(s, VisibilityType.PUBLIC, readers, editors);
+        manager.prepareIndexDocument(s, VisibilityType.PUBLIC);
 
         SolrInputDocument doc = manager.doc;
         assertEquals("PUBLIC", doc.getFieldValue("visibility"));
@@ -365,28 +366,20 @@ public class TestGlobalNetworkIndexManager {
     }
 
     @Test
-    public void testPrepareIndexDocument_PrivateVisibility_HasPermissionFields() {
+    public void testPrepareIndexDocument_PrivateVisibility_WritesNoAccessList() {
         manager = createManagerWithMock();
         NetworkSummary s = createTestSummary("Private Network", "Private");
 
-        List<String> readers = Arrays.asList("reader1", "reader2");
-        List<String> editors = Arrays.asList("editor1");
-
-        manager.prepareIndexDocument(s, VisibilityType.PRIVATE, readers, editors);
+        manager.prepareIndexDocument(s, VisibilityType.PRIVATE);
 
         SolrInputDocument doc = manager.doc;
         assertEquals("PRIVATE", doc.getFieldValue("visibility"));
 
-        Collection<Object> readValues = doc.getFieldValues("userRead");
-        assertNotNull(readValues);
-        assertEquals(2, readValues.size());
-        assertTrue(readValues.contains("reader1"));
-        assertTrue(readValues.contains("reader2"));
-
-        Collection<Object> editValues = doc.getFieldValues("userEdit");
-        assertNotNull(editValues);
-        assertEquals(1, editValues.size());
-        assertTrue(editValues.contains("editor1"));
+        // The index holds structure only. Permissions used to be copied onto the document at index time
+        // and went stale on every share, move or revoke; they are resolved per query from the database
+        // instead, so a document must carry no access list at all.
+        assertNull(doc.getFieldValue("userRead"));
+        assertNull(doc.getFieldValue("userEdit"));
     }
 
     @Test
@@ -394,7 +387,7 @@ public class TestGlobalNetworkIndexManager {
         manager = createManagerWithMock();
         NetworkSummary s = createTestSummary("Private Network", "Private");
 
-        manager.prepareIndexDocument(s, VisibilityType.PRIVATE, null, null);
+        manager.prepareIndexDocument(s, VisibilityType.PRIVATE);
 
         SolrInputDocument doc = manager.doc;
         assertEquals("PRIVATE", doc.getFieldValue("visibility"));
@@ -402,26 +395,7 @@ public class TestGlobalNetworkIndexManager {
         assertNull(doc.getFieldValue("userEdit"));
     }
 
-    @Test
-    public void testPrepareIndexDocument_PrivateVisibility_BlankValuesSkipped() {
-        manager = createManagerWithMock();
-        NetworkSummary s = createTestSummary("Private Network", "Private");
-
-        List<String> readers = Arrays.asList("reader1", "", "  ", null, "reader2");
-        List<String> editors = Arrays.asList("", null);
-
-        manager.prepareIndexDocument(s, VisibilityType.PRIVATE, readers, editors);
-
-        SolrInputDocument doc = manager.doc;
-        Collection<Object> readValues = doc.getFieldValues("userRead");
-        assertNotNull(readValues);
-        assertEquals(2, readValues.size());
-        assertTrue(readValues.contains("reader1"));
-        assertTrue(readValues.contains("reader2"));
-        assertNull(doc.getFieldValue("userEdit"));
-    }
-
-    // ========================================================================
+        // ========================================================================
     // CREATE INDEX - VERIFIES COMMIT TO CORRECT CORE
     // ========================================================================
 
@@ -440,7 +414,7 @@ public class TestGlobalNetworkIndexManager {
         NetworkSummary s = createTestSummary("Test", "Test");
 
         // Verify document via prepareIndexDocument
-        manager.prepareIndexDocument(s, VisibilityType.PUBLIC, null, null);
+        manager.prepareIndexDocument(s, VisibilityType.PUBLIC);
         assertEquals("NETWORK", manager.doc.getFieldValue("entityType"));
         assertEquals("Test", manager.doc.getFieldValue("name"));
 
@@ -453,7 +427,7 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.createIndex(s, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(s, VisibilityType.PUBLIC);
 
         verify(mockWrapper);
         assertEquals("public-nfs", coreCapture.getValue());
@@ -475,9 +449,9 @@ public class TestGlobalNetworkIndexManager {
         List<String> readers = Arrays.asList("user1");
 
         // Verify document
-        manager.prepareIndexDocument(s, VisibilityType.PRIVATE, readers, null);
+        manager.prepareIndexDocument(s, VisibilityType.PRIVATE);
         assertEquals("PRIVATE", manager.doc.getFieldValue("visibility"));
-        assertNotNull(manager.doc.getFieldValues("userRead"));
+        assertNull(manager.doc.getFieldValue("userRead"));
 
         // Test commit routing
         reset(mockWrapper);
@@ -488,7 +462,7 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.createIndex(s, VisibilityType.PRIVATE, readers, null);
+        manager.createIndex(s, VisibilityType.PRIVATE);
 
         verify(mockWrapper);
         assertEquals("private-nfs", coreCapture.getValue());
@@ -559,7 +533,7 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, null, null);
+        manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, null, null, SearchScope.EMPTY);
 
         verify(mockWrapper);
         assertEquals("public-nfs", coreCapture.getValue());
@@ -594,7 +568,7 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("*:*", null, VisibilityType.PRIVATE, 10, 0, null, null);
+        manager.search("*:*", null, VisibilityType.PRIVATE, 10, 0, null, null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("(*:* AND NOT *:*)"));
@@ -618,7 +592,7 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("test", "user1", VisibilityType.PUBLIC, 10, 0, "specificOwner", null);
+        manager.search("test", "user1", VisibilityType.PUBLIC, 10, 0, "specificOwner", null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("owner:\"specificOwner\""));
@@ -642,7 +616,7 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("test", null, VisibilityType.PUBLIC, 25, 50, null, null);
+        manager.search("test", null, VisibilityType.PUBLIC, 25, 50, null, null, SearchScope.EMPTY);
 
         SolrQuery captured = queryCapture.getValue();
         assertEquals(Integer.valueOf(50), captured.getStart());
@@ -667,12 +641,14 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("*:*", "charlie", VisibilityType.PRIVATE, 10, 0, null, Permissions.READ);
+        manager.search("*:*", "charlie", VisibilityType.PRIVATE, 10, 0, null, Permissions.READ, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("owner:\"charlie\""));
-        assertTrue(fq[0].contains("userRead:\"charlie\""));
-        assertTrue(fq[0].contains("userEdit:\"charlie\""));
+        // No permission state is read from the index: with no folder scope resolved, ownership is the
+        // only reason a private document can match.
+        assertFalse(fq[0].contains("userRead"));
+        assertFalse(fq[0].contains("userEdit"));
     }
 
     @Test
@@ -693,11 +669,11 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("*:*", "david", VisibilityType.PRIVATE, 10, 0, null, Permissions.WRITE);
+        manager.search("*:*", "david", VisibilityType.PRIVATE, 10, 0, null, Permissions.WRITE, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("owner:\"david\""));
-        assertTrue(fq[0].contains("userEdit:\"david\""));
+        assertFalse(fq[0].contains("userEdit"));
         assertFalse(fq[0].contains("userRead"));
     }
 
@@ -719,7 +695,7 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("*:*", "admin", VisibilityType.PRIVATE, 10, 0, null, Permissions.ADMIN);
+        manager.search("*:*", "admin", VisibilityType.PRIVATE, 10, 0, null, Permissions.ADMIN, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("owner:\"admin\""));
@@ -745,11 +721,13 @@ public class TestGlobalNetworkIndexManager {
         replay(mockWrapper);
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("*:*", "bob", VisibilityType.PUBLIC, 10, 0, null, Permissions.WRITE);
+        manager.search("*:*", "bob", VisibilityType.PUBLIC, 10, 0, null, Permissions.WRITE, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
+        // userEdit was only ever written onto PRIVATE/UNLISTED documents, so on the public core it
+        // served solely to surface UNLISTED files to non-owner editors.
         assertTrue(fq[0].contains("owner:\"bob\""));
-        assertTrue(fq[0].contains("userEdit:\"bob\""));
+        assertFalse(fq[0].contains("userEdit"));
         assertFalse(fq[0].contains("userRead"));
         assertFalse(fq[0].contains("UNLISTED"));
     }
@@ -777,7 +755,7 @@ public class TestGlobalNetworkIndexManager {
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "NETWORK", true);
+                null, null, "NETWORK", true, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("entityType:\"NETWORK\""));
@@ -802,7 +780,7 @@ public class TestGlobalNetworkIndexManager {
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "NETWORK", true);
+                null, null, "NETWORK", true, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         // Base entityType clause is always present
@@ -831,7 +809,7 @@ public class TestGlobalNetworkIndexManager {
 
         manager = new GlobalNetworkIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "NETWORK", false);
+                null, null, "NETWORK", false, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         // Base entityType clause is still present
@@ -1035,70 +1013,70 @@ public class TestGlobalNetworkIndexManager {
     public void testBuildPermissionFilter_PublicCore_Anonymous() {
         manager = createManagerWithMock();
         String noUnlisted = "(*:* NOT visibility:UNLISTED)";
-        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
-        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
+        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null, SearchScope.EMPTY));
+        assertEquals(noUnlisted, manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedNullPermission() {
         manager = createManagerWithMock();
         assertEquals("(*:* NOT visibility:UNLISTED) OR (owner:\"alice\")",
-                manager.buildPermissionFilter("alice", VisibilityType.PUBLIC, null));
+                manager.buildPermissionFilter("alice", VisibilityType.PUBLIC, null, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedRead() {
         manager = createManagerWithMock();
         assertEquals("(*:* NOT visibility:UNLISTED) OR (owner:\"alice\")",
-                manager.buildPermissionFilter("alice", VisibilityType.PUBLIC, Permissions.READ));
+                manager.buildPermissionFilter("alice", VisibilityType.PUBLIC, Permissions.READ, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedAdmin() {
         manager = createManagerWithMock();
         assertEquals("owner:\"admin\"",
-                manager.buildPermissionFilter("admin", VisibilityType.PUBLIC, Permissions.ADMIN));
+                manager.buildPermissionFilter("admin", VisibilityType.PUBLIC, Permissions.ADMIN, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedWrite() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("bob", VisibilityType.PUBLIC, Permissions.WRITE);
-        assertEquals("(owner:\"bob\") OR (userEdit:\"bob\")", filter);
+        String filter = manager.buildPermissionFilter("bob", VisibilityType.PUBLIC, Permissions.WRITE, SearchScope.EMPTY);
+        assertEquals("owner:\"bob\"", filter);
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_Anonymous_MatchesNothing() {
         manager = createManagerWithMock();
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, null));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, null, SearchScope.EMPTY));
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.READ));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.READ, SearchScope.EMPTY));
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.WRITE));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.WRITE, SearchScope.EMPTY));
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.ADMIN));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.ADMIN, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_AuthenticatedRead() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("jane", VisibilityType.PRIVATE, Permissions.READ);
-        assertEquals("(owner:\"jane\") OR (userRead:\"jane\") OR (userEdit:\"jane\")", filter);
+        String filter = manager.buildPermissionFilter("jane", VisibilityType.PRIVATE, Permissions.READ, SearchScope.EMPTY);
+        assertEquals("(owner:\"jane\")", filter);
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_AuthenticatedWrite() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("david", VisibilityType.PRIVATE, Permissions.WRITE);
-        assertEquals("(owner:\"david\") OR (userEdit:\"david\")", filter);
+        String filter = manager.buildPermissionFilter("david", VisibilityType.PRIVATE, Permissions.WRITE, SearchScope.EMPTY);
+        assertEquals("(owner:\"david\")", filter);
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_AuthenticatedAdmin() {
         manager = createManagerWithMock();
         assertEquals("owner:\"superadmin\"",
-                manager.buildPermissionFilter("superadmin", VisibilityType.PRIVATE, Permissions.ADMIN));
+                manager.buildPermissionFilter("superadmin", VisibilityType.PRIVATE, Permissions.ADMIN, SearchScope.EMPTY));
     }
 
     // ========================================================================
@@ -1184,15 +1162,15 @@ public class TestGlobalNetworkIndexManager {
         manager = createIntegrationManager();
 
         NetworkSummary cancer = createTestSummary("Cancer Pathway Network", "Signaling pathways in cancer");
-        manager.createIndex(cancer, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(cancer, VisibilityType.PUBLIC);
 
         NetworkSummary diabetes = createTestSummary("Diabetes Signaling", "Insulin signaling network");
-        manager.createIndex(diabetes, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(diabetes, VisibilityType.PUBLIC);
 
         Thread.sleep(2000);
 
         SolrDocumentList results = manager.searchByType("cancer", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, "NETWORK", true);
+                100, 0, null, null, "NETWORK", true, SearchScope.EMPTY);
 
         assertNotNull(results);
         assertEquals(1, results.getNumFound());
@@ -1204,16 +1182,16 @@ public class TestGlobalNetworkIndexManager {
 
         NetworkSummary s1 = createTestSummary("My Network", "Owned by me");
         s1.setOwner("owner1");
-        manager.createIndex(s1, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(s1, VisibilityType.PUBLIC);
 
         NetworkSummary s2 = createTestSummary("Their Network", "Owned by them");
         s2.setOwner("owner2");
-        manager.createIndex(s2, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(s2, VisibilityType.PUBLIC);
 
         Thread.sleep(2000);
 
         SolrDocumentList results = manager.search("*:*", "owner1", VisibilityType.PUBLIC,
-                100, 0, "owner1", Permissions.ADMIN);
+                100, 0, "owner1", Permissions.ADMIN, SearchScope.EMPTY);
 
         assertNotNull(results);
         assertEquals(1, results.getNumFound());
@@ -1225,18 +1203,18 @@ public class TestGlobalNetworkIndexManager {
 
         for (int i = 0; i < 10; i++) {
             NetworkSummary s = createTestSummary("Network " + i, "Description " + i);
-            manager.createIndex(s, VisibilityType.PUBLIC, null, null);
+            manager.createIndex(s, VisibilityType.PUBLIC);
         }
 
         Thread.sleep(2000);
 
         SolrDocumentList page1 = manager.search("*:*", "testOwner", VisibilityType.PUBLIC,
-                5, 0, null, null);
+                5, 0, null, null, SearchScope.EMPTY);
         assertEquals(5, page1.size());
         assertEquals(10, page1.getNumFound());
 
         SolrDocumentList page2 = manager.search("*:*", "testOwner", VisibilityType.PUBLIC,
-                5, 5, null, null);
+                5, 5, null, null, SearchScope.EMPTY);
         assertEquals(5, page2.size());
     }
 
@@ -1247,24 +1225,24 @@ public class TestGlobalNetworkIndexManager {
         NetworkSummary s = createTestSummary("Private Network", "Secret data");
         s.setOwner("owner");
         List<String> readers = Arrays.asList("reader1", "reader2");
-        manager.createIndex(s, VisibilityType.PRIVATE, readers, null);
+        manager.createIndex(s, VisibilityType.PRIVATE);
 
         Thread.sleep(2000);
 
         SolrDocumentList anonResults = manager.search("*:*", null, VisibilityType.PRIVATE,
-                100, 0, null, null);
+                100, 0, null, null, SearchScope.EMPTY);
         assertEquals(0, anonResults.getNumFound());
 
         SolrDocumentList ownerResults = manager.search("*:*", "owner", VisibilityType.PRIVATE,
-                100, 0, null, null);
+                100, 0, null, null, SearchScope.EMPTY);
         assertEquals(1, ownerResults.getNumFound());
 
         SolrDocumentList readerResults = manager.search("*:*", "reader1", VisibilityType.PRIVATE,
-                100, 0, null, null);
+                100, 0, null, null, SearchScope.EMPTY);
         assertEquals(1, readerResults.getNumFound());
 
         SolrDocumentList strangerResults = manager.search("*:*", "stranger", VisibilityType.PRIVATE,
-                100, 0, null, null);
+                100, 0, null, null, SearchScope.EMPTY);
         assertEquals(0, strangerResults.getNumFound());
     }
 
@@ -1275,17 +1253,17 @@ public class TestGlobalNetworkIndexManager {
         NetworkSummary highScore = createTestSummary("Cancer Network High", "High quality");
         highScore.setNodeCount(10000);
         highScore.setEdgeCount(50000);
-        manager.createIndex(highScore, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(highScore, VisibilityType.PUBLIC);
 
         NetworkSummary lowScore = createTestSummary("Cancer Network Low", "Low quality");
         lowScore.setNodeCount(10);
         lowScore.setEdgeCount(5);
-        manager.createIndex(lowScore, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(lowScore, VisibilityType.PUBLIC);
 
         Thread.sleep(2000);
 
         SolrDocumentList results = manager.search("cancer", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null);
+                100, 0, null, null, SearchScope.EMPTY);
 
         assertEquals(2, results.getNumFound());
         assertEquals(highScore.getExternalId().toString(),
@@ -1299,7 +1277,7 @@ public class TestGlobalNetworkIndexManager {
                 new SolrClientWrapperImpl(Configuration.getInstance().getSolrObjectFactory()));
 
         NetworkSummary network = createTestSummary("Test Network", "A network");
-        manager.createIndex(network, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(network, VisibilityType.PUBLIC);
 
         NdexFolder folder = new NdexFolder();
         folder.setExternalId(UUID.randomUUID());
@@ -1308,12 +1286,12 @@ public class TestGlobalNetworkIndexManager {
         folder.setOwner("testOwner");
         folder.setCreationTime(Timestamp.from(Instant.now()));
         folder.setModificationTime(Timestamp.from(Instant.now()));
-        folderMgr.createIndex(folder, VisibilityType.PUBLIC, null, null);
+        folderMgr.createIndex(folder, VisibilityType.PUBLIC);
 
         Thread.sleep(2000);
 
         SolrDocumentList results = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, "NETWORK", true);
+                100, 0, null, null, "NETWORK", true, SearchScope.EMPTY);
 
         assertEquals(1, results.getNumFound());
 
@@ -1343,7 +1321,7 @@ public class TestGlobalNetworkIndexManager {
         // Classic injection: try to OR-in a match-all clause via the ownedBy value.
         String injection = "zzz\") OR (*:*) OR (owner:\"zzz";
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, injection, null);
+        manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, injection, null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         // The payload's double-quotes are backslash-escaped, so the whole value stays
@@ -1372,7 +1350,7 @@ public class TestGlobalNetworkIndexManager {
         // Try to break out of the phrase and OR-in another owner via userAccount.
         String injection = "me\" OR owner:\"admin";
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.search("*:*", injection, VisibilityType.PRIVATE, 10, 0, null, Permissions.READ);
+        manager.search("*:*", injection, VisibilityType.PRIVATE, 10, 0, null, Permissions.READ, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         // Quotes escaped -> value stays a single literal owner term; no breakout.
@@ -1399,7 +1377,7 @@ public class TestGlobalNetworkIndexManager {
 
         String injection = "x\") OR (*:*) OR (owner:\"x";
         manager = new GlobalNetworkIndexManager(mockWrapper);
-        manager.searchByType("*:*", null, VisibilityType.PUBLIC, 10, 0, injection, null, "NETWORK", true);
+        manager.searchByType("*:*", null, VisibilityType.PUBLIC, 10, 0, injection, null, "NETWORK", true, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         // Escaped owner clause present; entityType filter still intact (no regression).
