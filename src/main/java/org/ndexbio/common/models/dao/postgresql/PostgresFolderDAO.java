@@ -795,7 +795,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    String sql = "SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description, visibility " +
 	                 " FROM folder " +
-	                 " WHERE owneruuid=? AND is_deleted=false " +
+	                 " WHERE owneruuid=? AND parent IS NULL AND is_deleted=false " +
 	                 " ORDER BY name " +
 	                 " LIMIT ?";
 
@@ -824,7 +824,21 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	    return result;
 	}
-	
+
+	@Override
+	public int countRootFoldersOfUser(UUID ownerId) throws SQLException {
+	    String sql = "SELECT COUNT(*) FROM folder WHERE owneruuid=? AND parent IS NULL AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, ownerId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            if (rs.next()) {
+	                return rs.getInt(1);
+	            }
+	        }
+	    }
+	    return 0;
+	}
+
 	/**
 	 * Adds new or updates a permission row. 
 	 * @return 

@@ -638,6 +638,21 @@ public class TestNetworkSetFolderServiceImpl {
 		assertEquals(SET_ID, sets.get(0).getExternalId());
 	}
 
+	@Test
+	public void countSetsOfUserDelegatesToCountRootFoldersOfUser() throws Exception {
+		FolderDAO folderDao = createMock(FolderDAO.class);
+		expect(folderDao.countRootFoldersOfUser(OWNER_ID)).andReturn(7);
+		folderDao.close();
+		expectLastCall().anyTimes();
+		replay(folderDao);
+
+		int count = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null))
+				.countSetsOfUser(OWNER_ID);
+
+		assertEquals(7, count);
+		verify(folderDao);
+	}
+
 	// ── delete ───────────────────────────────────────────────────────────────
 
 	@Test

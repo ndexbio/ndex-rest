@@ -88,6 +88,8 @@ public interface FolderDAO extends AutoCloseable {
 	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException;
 	
 	List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException;
+
+	int countRootFoldersOfUser(UUID ownerId) throws SQLException;
 	
 	NdexObjectUpdateStatus setFolderPermission(UUID folderId, UUID userId, Permissions permission) throws SQLException, NdexException;
 	

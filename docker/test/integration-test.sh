@@ -2096,7 +2096,38 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     || api_fail "networkSetCount (${NS_SET_COUNT}) must equal the networksets list length (${NS_LIST_LEN})"
   api_pass "networkSetCount (${NS_SET_COUNT}) equals the unpaged /networksets length"
 
-  # ── 8) PUT /{id}/systemproperty → showcase is a documented no-op ────────────────────────────────
+  # ── 7b) Nested (non-root) folder must NOT appear in /v2/user/{id}/networksets ─────────────────
+  # Issue #164: the endpoint was scanning ALL folders owned by a user, including deeply nested ones.
+  # Only top-level (home-root) folders should be returned.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (subfolder under ${NS_ID}) — nested folder for issue #164"
+  NS_SUB_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"NS sub-folder\",\"parent\":\"${NS_ID}\"}" \
+    "${BASE_URL}/v3/files/folders/")
+  NS_SUB_HTTP=$(echo "${NS_SUB_RESP}" | tail -1); NS_SUB_BODY=$(echo "${NS_SUB_RESP}" | head -1)
+  [[ "${NS_SUB_HTTP}" == "201" ]] || api_fail "create sub-folder → HTTP ${NS_SUB_HTTP} (expected 201). Body: ${NS_SUB_BODY:0:300}"
+  NS_SUB_ID=$(echo "${NS_SUB_BODY}" | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 || true)
+  [[ -n "${NS_SUB_ID}" ]] || api_fail "no uuid in sub-folder create response. Body: ${NS_SUB_BODY:0:300}"
+  api_pass "sub-folder ${NS_SUB_ID} created under root set ${NS_ID}"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v2/user/${NS_OWNER_ID}/networksets — nested folder must NOT appear"
+  NSU_NESTED=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?summary=true")
+  echo "${NSU_NESTED}" | grep -q "${NS_ID}" \
+    || api_fail "root set ${NS_ID} is missing after sub-folder creation. Body: ${NSU_NESTED:0:500}"
+  if echo "${NSU_NESTED}" | grep -q "${NS_SUB_ID}"; then
+    api_fail "nested folder ${NS_SUB_ID} must NOT appear in /v2/user/{id}/networksets. Body: ${NSU_NESTED:0:500}"
+  fi
+  # Count must still equal the list length (sub-folder excluded from both)
+  NS_SET_COUNT2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networkcount" \
+    | grep -oE '"networkSetCount"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
+  NS_LIST_LEN2=$(echo "${NSU_NESTED}" | grep -oE '"externalId"' | wc -l | tr -d '[:space:]')
+  [[ "${NS_SET_COUNT2}" == "${NS_LIST_LEN2}" ]] \
+    || api_fail "after sub-folder creation: networkSetCount (${NS_SET_COUNT2}) != list length (${NS_LIST_LEN2})"
+  api_pass "GET /v2/user/{id}/networksets excludes nested (non-root) folders (issue #164)"
+
+
   NS_BEFORE=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
   assert_networkset_ok PUT "${BASE_URL}/v2/networkset/${NS_ID}/systemproperty" 204 \
     -H "Content-Type: application/json" -d '{"showcase":true}'

@@ -119,10 +119,10 @@ public class NetworkSetFolderServiceImpl implements NetworkSetFolderService {
 
 	@Override
 	public int countSetsOfUser(UUID ownerId) throws SQLException, NdexException {
-		// Same predicate as listFoldersOfUser (owneruuid=? AND is_deleted=false), so this count always
-		// equals the unpaged length of listSetsOfUser for a self-caller.
-		try (var dao = daoFactory.getFileDAO()) {
-			return (int) dao.getOwnedFileCounts(ownerId).getFolder();
+		// Same predicate as listFoldersOfUser (owneruuid=? AND parent IS NULL AND is_deleted=false),
+		// so this count always equals the unpaged length of listSetsOfUser for a self-caller.
+		try (FolderDAO dao = daoFactory.getFolderDAO()) {
+			return dao.countRootFoldersOfUser(ownerId);
 		} catch (SQLException e) {
 			throw e;
 		} catch (Exception e) {
