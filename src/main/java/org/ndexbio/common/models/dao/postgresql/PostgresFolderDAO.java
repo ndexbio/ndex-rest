@@ -14,12 +14,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 import java.util.Arrays;
 
 import org.ndexbio.common.models.dao.AccessKeyResolver;
 import org.ndexbio.common.models.dao.DeletedFileIds;
+import org.ndexbio.common.models.dao.FilePermissionResolver;
 import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
@@ -46,19 +48,29 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	/* Shared access-key validation logic (folder-hierarchy accrual). Injectable for tests. */
 	private AccessKeyResolver accessKeyResolver;
 
+	/* Effective-permission resolution over the folder hierarchy. Injectable for tests. */
+	private FilePermissionResolver permissionResolver;
+
 	public PostgresFolderDAO() throws SQLException {
 		super();
 		this.accessKeyResolver = new PostgresAccessKeyResolver(db);
+		this.permissionResolver = new PostgresFilePermissionResolver(db);
 	}
 
 	PostgresFolderDAO(Connection conn) throws SQLException {
 		super(conn);
 		this.accessKeyResolver = new PostgresAccessKeyResolver(db);
+		this.permissionResolver = new PostgresFilePermissionResolver(db);
 	}
 
 	/** Package-private injection seam so unit tests can supply a mock resolver. */
 	void setAccessKeyResolver(AccessKeyResolver resolver) {
 		this.accessKeyResolver = resolver;
+	}
+
+	/** Package-private injection seam so unit tests can supply a mock resolver. */
+	void setPermissionResolver(FilePermissionResolver resolver) {
+		this.permissionResolver = resolver;
 	}
 	
 	@Override
@@ -84,33 +96,25 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		return result;
 	}
 	
-	protected static String createIsReadableConditionStr(UUID userId) {
-	    if (userId == null) {
-	        // Anonymous user => only PUBLIC is allowed
-	        return "(f.visibility='PUBLIC' or f.visibility='UNLISTED')";
-	    }
-	    // Non-anonymous => public or same owner or has permission
-	    return "( f.visibility='PUBLIC' or f.visibility='UNLISTED' "
-	         + "  OR f.owneruuid = '" + userId + "'::uuid "
-	         + "  OR EXISTS ( "
-	         + "       SELECT 1 "
-	         + "       FROM folder_permission fp "
-	         + "       WHERE fp.folder_id = f.\"UUID\" "
-	         + "         AND fp.user_id = '" + userId + "'::uuid "
-	         + "       LIMIT 1 "
-	         + "     ) "
-	         + ")";
+	/**
+	 * Readable-folder SQL predicate (alias {@code f}) for a viewer, including permissions inherited
+	 * from ancestor folders. Resolves the viewer's granted folder set once, so callers embedding the
+	 * fragment more than once in a statement must hoist it into a local.
+	 */
+	String readableFolderCondition(UUID userId) throws SQLException {
+	    return permissionResolver.readableConditionSql(FileType.FOLDER, "f", userId,
+	            permissionResolver.grantedFolderIds(userId, Permissions.READ));
 	}
-	
+
 	@Override
 	public boolean isReadable(UUID folderID, UUID userId) throws SQLException, ObjectNotFoundException {
-		String sqlStr = "SELECT (" 
-		        + createIsReadableConditionStr(userId) 
+		String sqlStr = "SELECT ("
+		        + readableFolderCondition(userId)
 		        + ") "
 		        + "FROM folder f "
 		        + "WHERE f.\"UUID\" = ? "
 		        + "  AND f.is_deleted = false";
-		
+
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
 			pst.setObject(1, folderID);
 		
@@ -470,13 +474,11 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 
 	@Override
 	public FileCount getReadableFolderChildCounts(UUID folderId, UUID viewerUserId) throws SQLException {
+	    ChildReadClauses clauses = readClausesFor(viewerUserId);
 	    FileCount fc = new FileCount();
-	    fc.setFolder(countReadableChildren("folder", "f", folderId,
-	            createIsReadableConditionStr(viewerUserId)));
-	    fc.setNetwork(countReadableChildren("network", "n", folderId,
-	            PostgresNetworkDAO.createIsReadableConditionStr(viewerUserId)));
-	    fc.setShortcut(countReadableChildren("shortcut", "s", folderId,
-	            PostgresShortcutDAO.createIsReadableConditionStr(viewerUserId)));
+	    fc.setFolder(countReadableChildren("folder", "f", folderId, clauses.folder()));
+	    fc.setNetwork(countReadableChildren("network", "n", folderId, clauses.network()));
+	    fc.setShortcut(countReadableChildren("shortcut", "s", folderId, clauses.shortcut()));
 	    return fc;
 	}
 
@@ -499,11 +501,17 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	/** Per-entity-type readable SQL predicates (aliases f/n/s) for a given viewer. */
 	private record ChildReadClauses(String folder, String network, String shortcut) {}
 
-	private static ChildReadClauses readClausesFor(UUID viewerUserId) {
+	/**
+	 * Builds all three child predicates from a <em>single</em> resolution of the viewer's granted
+	 * folder set, so listing a folder costs one hierarchy query rather than one per candidate row.
+	 * Shortcut readability delegates to the shortcut's target, never to its parent folder.
+	 */
+	private ChildReadClauses readClausesFor(UUID viewerUserId) throws SQLException {
+	    Set<UUID> granted = permissionResolver.grantedFolderIds(viewerUserId, Permissions.READ);
 	    return new ChildReadClauses(
-	        createIsReadableConditionStr(viewerUserId),
-	        PostgresNetworkDAO.createIsReadableConditionStr(viewerUserId),
-	        PostgresShortcutDAO.createIsReadableConditionStr(viewerUserId));
+	        permissionResolver.readableConditionSql(FileType.FOLDER, "f", viewerUserId, granted),
+	        permissionResolver.readableConditionSql(FileType.NETWORK, "n", viewerUserId, granted),
+	        permissionResolver.readableConditionSql(FileType.SHORTCUT, "s", viewerUserId, granted));
 	}
 	
 	@Override
@@ -613,7 +621,16 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
             folderSql.append(", f.description, f.visibility");
         }
         folderSql.append(", f.owneruuid AS owner_id, u.user_name AS owner_name");
-        folderSql.append(", EXISTS (SELECT 1 FROM folder_permission fp WHERE fp.folder_id = f.\"UUID\" AND fp.user_id <> f.owneruuid LIMIT 1) AS is_shared ");
+        // is_shared reflects EFFECTIVE sharing: a grant on any ancestor exposes this folder too, so a
+        // direct-row check would show an inherited-shared folder as private and give its owner no
+        // signal that it is exposed.
+        folderSql.append(", EXISTS ( WITH RECURSIVE chain AS ("
+                + "   SELECT f2.\"UUID\" AS fid, f2.parent FROM folder f2 WHERE f2.\"UUID\" = f.\"UUID\""
+                + "   UNION"
+                + "   SELECT pf.\"UUID\", pf.parent FROM folder pf JOIN chain c ON pf.\"UUID\" = c.parent"
+                + "    WHERE pf.is_deleted = false )"
+                + " SELECT 1 FROM chain JOIN folder_permission fp ON fp.folder_id = chain.fid"
+                + "  WHERE fp.user_id <> f.owneruuid LIMIT 1 ) AS is_shared ");
         folderSql.append("FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" WHERE ");
 	        folderSql.append(home ? "f.owneruuid=? AND f.parent IS NULL" : "f.parent=?");
 	        folderSql.append(" AND f.is_deleted=false");
@@ -654,7 +671,19 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
             networkSql.append(", n.description, n.edgecount, n.visibility");
         }
         networkSql.append(", n.owneruuid AS owner_id, u.user_name AS owner_name");
-        networkSql.append(", EXISTS (SELECT 1 FROM user_network_membership nm WHERE nm.network_id = n.\"UUID\" AND nm.user_id <> n.owneruuid LIMIT 1) AS is_shared ");
+        // is_shared reflects EFFECTIVE sharing: a direct membership row OR a grant anywhere on the
+        // network's ancestor folder chain. Without the second arm, a network sitting in a shared folder
+        // reports as private to its owner while collaborators can read and edit it.
+        networkSql.append(", ( EXISTS (SELECT 1 FROM user_network_membership nm"
+                + "   WHERE nm.network_id = n.\"UUID\" AND nm.user_id <> n.owneruuid LIMIT 1)"
+                + " OR EXISTS ( WITH RECURSIVE chain AS ("
+                + "     SELECT f2.\"UUID\" AS fid, f2.parent FROM folder f2"
+                + "      WHERE f2.\"UUID\" = n.parent AND f2.is_deleted = false"
+                + "     UNION"
+                + "     SELECT pf.\"UUID\", pf.parent FROM folder pf JOIN chain c ON pf.\"UUID\" = c.parent"
+                + "      WHERE pf.is_deleted = false )"
+                + "   SELECT 1 FROM chain JOIN folder_permission fp ON fp.folder_id = chain.fid"
+                + "    WHERE fp.user_id <> n.owneruuid LIMIT 1 ) ) AS is_shared ");
         networkSql.append("FROM network n JOIN ndex_user u ON n.owneruuid = u.\"UUID\" WHERE ");
 	        networkSql.append(home ? "n.owneruuid=? AND n.parent IS NULL" : "n.parent=?");
 	        networkSql.append(" AND n.is_deleted=false");
@@ -827,121 +856,57 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	 * Adds new or updates a permission row. 
 	 * @return 
 	 */
+	/**
+	 * Records the grant on <em>this folder only</em>.
+	 *
+	 * <p>Permissions are no longer copied down to descendant folders and networks. Inheritance is
+	 * resolved live at read time by {@link org.ndexbio.common.models.dao.FilePermissionResolver}, which
+	 * walks the folder ancestry, so a single row here covers the whole subtree — including objects
+	 * created or moved in after the grant, which a copy-down could never reach (issue #165).</p>
+	 */
 	@Override
 	public NdexObjectUpdateStatus setFolderPermission(UUID folderId, UUID userId, Permissions permission) throws SQLException, NdexException {
-	    // Get all descendant folders
-	    List<UUID> descendantFolders = getDescendantFolders(folderId);
-	    
-	    // Create placeholders for the SQL query
-	    String placeholders = String.join(",", Collections.nCopies(1 + descendantFolders.size(), "(?, ?, ?)"));
-	    
-	    // Insert/update permissions for the parent folder and all descendants
-	    String sql = 
-	        "INSERT INTO folder_permission (folder_id, user_id, permission) " +
-	        "VALUES " + placeholders + " " +
+	    String sql =
+	        "INSERT INTO folder_permission (folder_id, user_id, permission) VALUES (?, ?, ?) " +
 	        "ON CONFLICT (folder_id, user_id) DO UPDATE SET permission = EXCLUDED.permission";
 
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
-	        int paramIndex = 1;
-	        // Add parent folder
-	        pst.setObject(paramIndex++, folderId);
-	        pst.setObject(paramIndex++, userId);
-	        pst.setString(paramIndex++, permission.toString());
-	        
-	        // Add all descendant folders
-	        for (UUID descendantId : descendantFolders) {
-	            pst.setObject(paramIndex++, descendantId);
-	            pst.setObject(paramIndex++, userId);
-	            pst.setString(paramIndex++, permission.toString());
-	        }
+	        pst.setObject(1, folderId);
+	        pst.setObject(2, userId);
+	        pst.setString(3, permission.toString());
 	        pst.executeUpdate();
 	    }
 
-	    // Get all networks in the folder tree
-	    String networkSql = "SELECT n.\"UUID\" FROM network n " +
-	                       "WHERE n.parent IN (" + String.join(",", Collections.nCopies(1 + descendantFolders.size(), "?")) + ")";
-	    try (PreparedStatement pst = db.prepareStatement(networkSql)) {
-	        int paramIndex = 1;
-	        // Add parent folder
-	        pst.setObject(paramIndex++, folderId);
-	        
-	        // Add all descendant folders
-	        for (UUID descendantId : descendantFolders) {
-	            pst.setObject(paramIndex++, descendantId);
-	        }
-	        
-	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next()) {
-	                UUID networkId = (UUID) rs.getObject(1);
-	                String networkPermissionSql =  "insert into user_network_membership ( user_id,network_id, permission_type) values (?,?,'"+ permission.toString() + "') "
-    				+ "ON CONFLICT (user_id,network_id) DO UPDATE set permission_type = EXCLUDED.permission_type";
-	                try (PreparedStatement pst2 = db.prepareStatement(networkPermissionSql)) {
-	                    pst2.setObject(1, userId);
-	                    pst2.setObject(2, networkId);
-	                    pst2.executeUpdate();
-	                }
-	            }
-	        }
-	    }
-	    
 	    Timestamp t = new Timestamp(System.currentTimeMillis());
 	    NdexObjectUpdateStatus result = new NdexObjectUpdateStatus();
 	    result.setModificationTime(t);
 	    return result;
 	}
 
+	/**
+	 * Revokes the grant on <em>this folder only</em>.
+	 *
+	 * <p>The subtree is deliberately untouched. Because inheritance is resolved live, deleting this one
+	 * row withdraws access from the whole subtree immediately. The previous cascade also deleted
+	 * {@code user_network_membership} rows for every network beneath the folder, which destroyed direct
+	 * per-network grants a user had been given independently of the folder — revoking a folder share
+	 * silently revoked unrelated network shares.</p>
+	 */
 	@Override
 	public void removeFolderPermission(UUID folderId, UUID userId) throws SQLException {
-	    // Get all descendant folders
-	    List<UUID> descendantFolders = getDescendantFolders(folderId);
-	    
-	    // Create placeholders for the SQL query
-	    String placeholders = String.join(",", Collections.nCopies(1 + descendantFolders.size(), "?"));
-	    
-	    // Delete permissions for the parent folder and all descendants
-	    String sql = "DELETE FROM folder_permission WHERE folder_id IN (" + placeholders + ") AND user_id = ?";
+	    String sql = "DELETE FROM folder_permission WHERE folder_id = ? AND user_id = ?";
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
-	        int paramIndex = 1;
-	        // Add parent folder
-	        pst.setObject(paramIndex++, folderId);
-	        
-	        // Add all descendant folders
-	        for (UUID descendantId : descendantFolders) {
-	            pst.setObject(paramIndex++, descendantId);
-	        }
-	        
-	        // Add user ID
-	        pst.setObject(paramIndex, userId);
+	        pst.setObject(1, folderId);
+	        pst.setObject(2, userId);
 	        pst.executeUpdate();
-	    }
-
-	    // Remove permissions from all networks in the folder tree
-	    String networkSql = "SELECT n.\"UUID\" FROM network n " +
-	                       "WHERE n.parent IN (" + placeholders + ")";
-	    try (PreparedStatement pst = db.prepareStatement(networkSql)) {
-	        int paramIndex = 1;
-	        // Add parent folder
-	        pst.setObject(paramIndex++, folderId);
-	        
-	        // Add all descendant folders
-	        for (UUID descendantId : descendantFolders) {
-	            pst.setObject(paramIndex++, descendantId);
-	        }
-	        
-	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next()) {
-	                UUID networkId = (UUID) rs.getObject(1);
-	                String networkPermissionSql = "DELETE FROM user_network_membership WHERE user_id = ? AND network_id = ?";
-	                try (PreparedStatement pst2 = db.prepareStatement(networkPermissionSql)) {
-	                    pst2.setObject(1, userId);
-	                    pst2.setObject(2, networkId);
-	                    pst2.executeUpdate();
-	                }
-	            }
-	        }
 	    }
 	}
 	
+	@Override
+	public Permissions getEffectivePermission(UUID folderId, UUID userId) throws SQLException {
+	    return permissionResolver.effectiveFolderPermission(folderId, userId);
+	}
+
 	@Override
 	public Map<String, String> getFolderPermissions(UUID folderId) throws SQLException {
 	    Map<String, String> permissionsMap = new HashMap<>();
@@ -959,26 +924,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 	    return permissionsMap;
 	}
-	@Override
-	public Map<String, String> getFolderPermissionsWithUsernames(UUID folderId) throws SQLException {
-		Map<String, String> permissionsMap = new HashMap<>();
-		String sql = "SELECT u.user_name, fp.permission FROM folder_permission fp " +
-				"JOIN ndex_user u ON fp.user_id = u.\"UUID\" " +
-				"WHERE fp.folder_id=?";
-		try (PreparedStatement pst = db.prepareStatement(sql)) {
-			pst.setObject(1, folderId);
-			try (ResultSet rs = pst.executeQuery()) {
-				while (rs.next()) {
-					permissionsMap.put(
-							rs.getString("user_name"),
-							rs.getString("permission")
-					);
-				}
-			}
-		}
-		return permissionsMap;
-	}
-
 
 	@Override
 	public String getFolderAccessKey(UUID folderId) throws SQLException, ObjectNotFoundException {

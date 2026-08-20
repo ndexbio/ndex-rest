@@ -20,8 +20,9 @@
 #
 #   Path 2 — tracked upgrade (core.schema_version table present):
 #     Query current version from core.schema_version.
-#     Apply schema_update_A_to_B.sql files where from_ver == current_ver in order.
-#     Insert a new to_ver row after each applied file.
+#     Apply schema_update_A_to_B.sql files where from_ver == current_ver, inserting a new to_ver row
+#     after each. Repeat the whole sweep until a pass applies nothing, so a multi-step upgrade always
+#     completes in one run regardless of how the filenames happen to sort.
 #
 # All update files use IF NOT EXISTS / IF EXISTS guards and are therefore idempotent.
 set -euo pipefail
@@ -101,19 +102,41 @@ else
     2>/dev/null || true)
   echo "==> NDEx schema version: ${current_ver}"
 
+  # Repeat until a full pass applies nothing.
+  #
+  # A single pass is not enough: files are visited in filename order, which is not upgrade order.
+  # `schema_update_3.0.3_to_3.0.5.sql` sorts BEFORE `schema_update_3.0_to_3.0.3.sql` ('.' = 0x2E
+  # precedes '_' = 0x5F), so starting at 3.0 the first file is skipped as not-yet-applicable, the
+  # second advances the version to 3.0.3, and the pass ends — leaving the database one step short
+  # and needing another container start to finish. Looping makes the result independent of how the
+  # files happen to sort, so future migrations cannot reintroduce the problem by name alone.
   applied=0
-  while IFS= read -r -d '' f; do
-    fname=$(basename "${f}")
-    from_ver=$(echo "${fname}" | sed 's/schema_update_\([0-9.]*\)_to_.*/\1/')
-    to_ver=$(echo "${fname}"   | sed 's/schema_update_[0-9.]*_to_\([0-9.]*\)\.sql/\1/')
-    if [[ "${from_ver}" == "${current_ver}" ]]; then
-      echo "==> Applying ${fname} (${from_ver} → ${to_ver})..."
-      _strip_compat < "${f}" | _psql
-      _psql -c "INSERT INTO core.schema_version (version) VALUES ('${to_ver}');"
-      current_ver="${to_ver}"
-      (( applied++ )) || true
+  passes=0
+  while :; do
+    applied_this_pass=0
+    while IFS= read -r -d '' f; do
+      fname=$(basename "${f}")
+      from_ver=$(echo "${fname}" | sed 's/schema_update_\([0-9.]*\)_to_.*/\1/')
+      to_ver=$(echo "${fname}"   | sed 's/schema_update_[0-9.]*_to_\([0-9.]*\)\.sql/\1/')
+      if [[ "${from_ver}" == "${current_ver}" ]]; then
+        echo "==> Applying ${fname} (${from_ver} → ${to_ver})..."
+        _strip_compat < "${f}" | _psql
+        _psql -c "INSERT INTO core.schema_version (version) VALUES ('${to_ver}');"
+        current_ver="${to_ver}"
+        (( applied++ )) || true
+        (( applied_this_pass++ )) || true
+      fi
+    done < <(find "${SQL_DIR}" -maxdepth 1 -name "schema_update_*.sql" -print0 | sort -z)
+
+    [[ "${applied_this_pass}" -eq 0 ]] && break
+
+    # Guard against a malformed chain (e.g. a file whose from_ver equals its to_ver) spinning forever.
+    (( passes++ )) || true
+    if [[ "${passes}" -gt 50 ]]; then
+      echo "ERROR: schema upgrade did not converge after ${passes} passes (currently v${current_ver})." >&2
+      exit 1
     fi
-  done < <(find "${SQL_DIR}" -maxdepth 1 -name "schema_update_*.sql" -print0 | sort -z)
+  done
 
   if [[ "${applied}" -eq 0 ]]; then
     echo "==> NDEx schema is up to date (v${current_ver})."

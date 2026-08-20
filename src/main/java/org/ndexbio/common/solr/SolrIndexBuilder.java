@@ -16,6 +16,7 @@ import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.ndexbio.common.access.NdexDatabase;
+import org.ndexbio.server.migration.v3.NFSReIndexer;
 import org.ndexbio.cxio.core.AspectIterator;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
@@ -511,8 +512,28 @@ public class SolrIndexBuilder implements AutoCloseable {
 		logger.info("User index has been rebuilt.");
 	}
 	
-	private static void rebuildNFSIdx(){
-
+	/**
+	 * Offline equivalent of {@code GET /v3/admin/reindex-v3}: clears {@code public-nfs} and
+	 * {@code private-nfs}, then rebuilds every folder, shortcut and network document from PostgreSQL.
+	 *
+	 * <p>Preferred over the endpoint on a large instance, because the endpoint runs the whole rebuild
+	 * synchronously inside a single HTTP request.</p>
+	 *
+	 * <p><b>{@code all-networks-online} is not a substitute.</b> It rebuilds network documents only, so
+	 * folder and shortcut documents would keep whatever they were last written with — a half-migrated
+	 * index, and a silent one.</p>
+	 *
+	 * <p>Both cores are emptied before the rebuild starts, so search returns nothing until it finishes.
+	 * Run it in a maintenance window.</p>
+	 */
+	private static void rebuildNFSIdx() throws Exception {
+		logger.info("Clearing public-nfs and private-nfs, then rebuilding folders, shortcuts and networks.");
+		// try-with-resources: NFSReIndexer holds Solr clients whose non-daemon threads would otherwise
+		// keep this CLI process alive after the rebuild finishes.
+		try (NFSReIndexer reIndexer = new NFSReIndexer()) {
+			reIndexer.run();
+		}
+		logger.info("NFS indexes have been rebuilt.");
 	}
 
 	/** Executes the Solr delete+rebuild tasks for one network during unlist. */

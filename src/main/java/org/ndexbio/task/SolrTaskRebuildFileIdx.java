@@ -33,7 +33,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 
@@ -113,11 +112,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			checkRecordExists(folder);
 			folder.setOwner(username);
 			try(FolderIndexManager globalIdx = solrObjectFactory.getFolderIndexManager()) {
-				Map<String, String> folderPermissions = dao.getFolderPermissionsWithUsernames(fileId);
- 				globalIdx.createIndex(folder,
-						visibilityType,
-						getFolderUserReads(folderPermissions),
-						getFolderUserWrites(folderPermissions));
+				globalIdx.createIndex(folder, visibilityType);
 			}
 
 		}
@@ -137,7 +132,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			checkRecordExists(shortcut);
 			shortcut.setOwner(username);
 			try(ShortcutIndexManager globalIdx = solrObjectFactory.getShortcutIndexManager()) {
-				globalIdx.createIndex(shortcut, visibilityType,null, null);
+				globalIdx.createIndex(shortcut, visibilityType);
 			}
 		}
 	}
@@ -180,11 +175,9 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			}
 
             try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {
-				// build the solr document obj
-                Map<Permissions, Collection<String>> userMemberships = dao
-                        .getAllMembershipsOnNetwork(fileId);
-                globalIdx.prepareIndexDocument(summary, visibilityType,
-                        userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
+				// The folder is supplied here because NetworkSummary does not carry it; search filters
+                // on this field to resolve folder permissions without storing them in the index.
+                globalIdx.prepareIndexDocument(summary, visibilityType, dao.getNetworkFolder(fileId));
 
                 String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
 				String cx2AspectPath = pathPrefix + id + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
@@ -362,18 +355,6 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 		return taskType;
 	}
 
-	public static Set<String> getFolderUserReads(Map<String, String> folderPermissions){
-		return folderPermissions.entrySet().stream()
-				.filter(entry -> entry.getValue().equals(Permissions.READ.toString()))
-				.map(Map.Entry::getKey)
-				.collect(Collectors.toSet());
-	}
-	public static Set<String> getFolderUserWrites(Map<String, String> folderPermissions){
-		return folderPermissions.entrySet().stream()
-				.filter(entry -> entry.getValue().equals(Permissions.WRITE.toString()))
-				.map(Map.Entry::getKey)
-				.collect(Collectors.toSet());
-	}
 	private void checkRecordExists(Object r) throws NdexException {
 		if (r == null){
 			throw new NdexException("No " + fileType + " record found with id " + fileId);

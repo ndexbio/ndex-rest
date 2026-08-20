@@ -19,9 +19,12 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.TestConfigHelper;
 import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
+import static org.easymock.EasyMock.expectLastCall;
 import static org.easymock.EasyMock.replay;
+import static org.easymock.EasyMock.verify;
 import org.jboss.resteasy.mock.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.Before;
@@ -37,6 +40,7 @@ import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.TrashRestoreRequest;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.exceptions.mappers.BadRequestExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 import jakarta.ws.rs.core.MediaType;
 import org.ndexbio.model.object.CopyRequest;
@@ -73,6 +77,7 @@ public class TestFileServiceV3 {
 		//if test causes an exception to be thrown be sure to 
 		//register the mapper for that exception
 		dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(BadRequestExceptionMapper.class);
 		
 		// create mock response
 		response = new MockHttpResponse();
@@ -478,6 +483,114 @@ public class TestFileServiceV3 {
 
 	    NDExError er = mapper.readValue(response.getOutput(), NDExError.class);
 	    assertEquals("You must be logged in to add members.", er.getMessage());
+	}
+
+	// ── share-members permission validation (issue #165) ─────────────────────
+	//
+	// folder_permission.permission is an unvalidated varchar, so before this check a request carrying
+	// any other Permissions value was stored and then ignored by every read path — the grant reported
+	// success while conferring nothing. These assert the gate both ways: the accepted levels still get
+	// through, and a rejected one writes nothing at all.
+
+	/** Builds a share-members request body granting {@code permission} on one folder. */
+	private byte[] shareMembersBody(UUID folderId, UUID memberId, Permissions permission) throws Exception {
+	    SharingMemberRequest request = new SharingMemberRequest();
+	    Map<UUID, FileType> files = new HashMap<>();
+	    files.put(folderId, FileType.FOLDER);
+	    request.setFiles(files);
+
+	    Map<UUID, Permissions> members = new HashMap<>();
+	    members.put(memberId, permission);
+	    request.setMembers(members);
+
+	    return new ObjectMapper().writeValueAsBytes(request);
+	}
+
+	/**
+	 * ADMIN is not a grantable level — it denotes ownership, which is a property of the object rather
+	 * than something a share can confer. The request must be rejected, and critically <em>nothing may be
+	 * written</em>: the DAOFactory is a strict mock with no expectations, so any attempt to reach the
+	 * handler fails the test.
+	 */
+	@Test
+	public void testShareMembersRejectsAdminPermissionAndWritesNothing() throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser).anyTimes();
+	    replay(mockHttpServletRequest);
+
+	    DAOFactory strictFactory = createMock(DAOFactory.class);
+	    replay(strictFactory);   // no DAO may be requested
+	    Configuration.getInstance().setDAOFactory(strictFactory);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/members")
+	        .content(shareMembersBody(UUID.randomUUID(), UUID.randomUUID(), Permissions.ADMIN))
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+	    NDExError er = new ObjectMapper().readValue(response.getOutput(), NDExError.class);
+	    assertTrue("message should name the offending value: " + er.getMessage(),
+	            er.getMessage().contains("ADMIN"));
+
+	    verify(strictFactory);   // proves no grant was attempted
+	}
+
+	/** The two grantable levels must pass the gate and reach the handler. */
+	private void assertShareMembersAccepts(Permissions permission) throws Exception {
+	    UUID userID = UUID.randomUUID();
+	    User fakeUser = new User();
+	    fakeUser.setExternalId(userID);
+	    expect(mockHttpServletRequest.getAttribute("User")).andReturn(fakeUser).anyTimes();
+	    replay(mockHttpServletRequest);
+
+	    UUID folderId = UUID.randomUUID();
+	    UUID memberId = UUID.randomUUID();
+
+	    // handler: owner check then the grant
+	    FolderDAO handlerDAO = createMock(FolderDAO.class);
+	    expect(handlerDAO.isFolderOwner(folderId, userID)).andReturn(true);
+	    expect(handlerDAO.setFolderPermission(folderId, memberId, permission)).andReturn(null);
+	    handlerDAO.commit();
+	    expectLastCall();
+	    handlerDAO.close();
+	    expectLastCall();
+	    replay(handlerDAO);
+
+	    // reindex pass reads the folder's visibility through a second DAO
+	    FolderDAO visibilityDAO = createMock(FolderDAO.class);
+	    expect(visibilityDAO.getFolderVisibility(folderId)).andReturn(VisibilityType.PRIVATE);
+	    visibilityDAO.close();
+	    expectLastCall();
+	    replay(visibilityDAO);
+
+	    DAOFactory mockDAOFactory = createMock(DAOFactory.class);
+	    expect(mockDAOFactory.getFolderDAO()).andReturn(handlerDAO);
+	    expect(mockDAOFactory.getFolderDAO()).andReturn(visibilityDAO);
+	    replay(mockDAOFactory);
+	    Configuration.getInstance().setDAOFactory(mockDAOFactory);
+
+	    MockHttpRequest httpRequest = MockHttpRequest.post("/v3/files/sharing/members")
+	        .content(shareMembersBody(folderId, memberId, permission))
+	        .contentType(MediaType.APPLICATION_JSON);
+
+	    dispatcher.invoke(httpRequest, response);
+
+	    assertEquals(permission + " must be accepted", Status.OK.getStatusCode(), response.getStatus());
+	    // the grant actually reached the DAO with the requested level
+	    verify(handlerDAO);
+	}
+
+	@Test
+	public void testShareMembersAcceptsRead() throws Exception {
+	    assertShareMembersAccepts(Permissions.READ);
+	}
+
+	@Test
+	public void testShareMembersAcceptsWrite() throws Exception {
+	    assertShareMembersAccepts(Permissions.WRITE);
 	}
 
 	@Test
