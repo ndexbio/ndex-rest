@@ -95,7 +95,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		result.setUuid(folderUUID);
 		return result;
 	}
-	
 	/**
 	 * Readable-folder SQL predicate (alias {@code f}) for a viewer, including permissions inherited
 	 * from ancestor folders. Resolves the viewer's granted folder set once, so callers embedding the
@@ -587,7 +586,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        }
 	    }
 	    return 0L;
-	}
 	}
 
 	/**
