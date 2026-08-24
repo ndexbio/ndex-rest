@@ -1794,6 +1794,18 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   [[ "${NS_PARENT}" == "NULL" ]] || api_fail "a new set must sit at home root (parent IS NULL), got '${NS_PARENT}'"
   api_pass "POST /v2/networkset created a v3 folder at home root with the posted name/description"
 
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/count — folder total matches home root"
+  NS_HOME_COUNT=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/count")
+  NS_HOME_COUNT_HTTP=$(echo "${NS_HOME_COUNT}" | tail -1); NS_HOME_COUNT_BODY=$(echo "${NS_HOME_COUNT}" | head -1)
+  [[ "${NS_HOME_COUNT_HTTP}" == "200" ]] \
+    || api_fail "GET /v3/files/folders/home/count → HTTP ${NS_HOME_COUNT_HTTP}. Body: ${NS_HOME_COUNT_BODY:0:400}"
+  NS_HOME_FOLDER_COUNT=$(echo "${NS_HOME_COUNT_BODY}" | grep -oE '"folder"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+  NS_ROOT_FOLDER_TOTAL=$(psql_ndex "SELECT count(*) FROM folder WHERE owneruuid='${NS_OWNER_ID}' AND parent IS NULL AND is_deleted=false;")
+  { [[ -n "${NS_HOME_FOLDER_COUNT}" ]] && [[ "${NS_HOME_FOLDER_COUNT}" == "${NS_ROOT_FOLDER_TOTAL}" ]]; } \
+    || api_fail "GET /v3/files/folders/home/count folder=${NS_HOME_FOLDER_COUNT} but DB root total=${NS_ROOT_FOLDER_TOTAL}. Body: ${NS_HOME_COUNT_BODY:0:400}"
+  api_pass "GET /v3/files/folders/home/count matches the owner's root-folder total"
+
   # Solr: v2-created sets must be searchable through v3. Indexing is async, hence the poll.
   poll_files_until_present PRIVATE "${NS_NAME}" "${NS_ID}" "networkset create indexing"
   api_pass "new set is indexed in private-nfs and findable via POST /v3/search/files"

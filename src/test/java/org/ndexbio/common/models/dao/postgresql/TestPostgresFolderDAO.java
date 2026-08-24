@@ -19,6 +19,7 @@ import org.easymock.Capture;
 import org.junit.Test;
 import org.ndexbio.common.models.dao.AccessKeyResolver;
 import org.ndexbio.common.models.dao.DeletedFileIds;
+import org.ndexbio.model.object.FileCount;
 import org.ndexbio.common.models.dao.FilePermissionResolver;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.FileType;
@@ -47,6 +48,64 @@ public class TestPostgresFolderDAO {
         assertFalse(dao.accessKeyIsValid(folder, "bad"));
 
         verify(resolver);
+    }
+
+    @Test
+    public void testGetRootChildCountsOfUserQueriesEachRootTable() throws SQLException {
+        UUID ownerId = UUID.randomUUID();
+
+        Connection conn = createMock(Connection.class);
+        PreparedStatement folderStmt = createMock(PreparedStatement.class);
+        PreparedStatement networkStmt = createMock(PreparedStatement.class);
+        PreparedStatement shortcutStmt = createMock(PreparedStatement.class);
+        ResultSet folderRs = createMock(ResultSet.class);
+        ResultSet networkRs = createMock(ResultSet.class);
+        ResultSet shortcutRs = createMock(ResultSet.class);
+
+        expect(conn.prepareStatement("SELECT COUNT(*) FROM folder WHERE owneruuid=? AND parent IS NULL AND is_deleted=false"))
+                .andReturn(folderStmt);
+        folderStmt.setObject(1, ownerId);
+        expectLastCall();
+        expect(folderStmt.executeQuery()).andReturn(folderRs);
+        expect(folderRs.next()).andReturn(true);
+        expect(folderRs.getLong(1)).andReturn(2L);
+        folderRs.close();
+        expectLastCall();
+        folderStmt.close();
+        expectLastCall();
+
+        expect(conn.prepareStatement("SELECT COUNT(*) FROM network WHERE owneruuid=? AND parent IS NULL AND is_deleted=false"))
+                .andReturn(networkStmt);
+        networkStmt.setObject(1, ownerId);
+        expectLastCall();
+        expect(networkStmt.executeQuery()).andReturn(networkRs);
+        expect(networkRs.next()).andReturn(true);
+        expect(networkRs.getLong(1)).andReturn(3L);
+        networkRs.close();
+        expectLastCall();
+        networkStmt.close();
+        expectLastCall();
+
+        expect(conn.prepareStatement("SELECT COUNT(*) FROM shortcut WHERE owneruuid=? AND parent IS NULL AND is_deleted=false"))
+                .andReturn(shortcutStmt);
+        shortcutStmt.setObject(1, ownerId);
+        expectLastCall();
+        expect(shortcutStmt.executeQuery()).andReturn(shortcutRs);
+        expect(shortcutRs.next()).andReturn(true);
+        expect(shortcutRs.getLong(1)).andReturn(4L);
+        shortcutRs.close();
+        expectLastCall();
+        shortcutStmt.close();
+        expectLastCall();
+
+        replay(conn, folderStmt, networkStmt, shortcutStmt, folderRs, networkRs, shortcutRs);
+
+        FileCount counts = new PostgresFolderDAO(conn).getRootChildCountsOfUser(ownerId);
+
+        assertEquals(2L, counts.getFolder());
+        assertEquals(3L, counts.getNetwork());
+        assertEquals(4L, counts.getShortcut());
+        verify(conn, folderStmt, networkStmt, shortcutStmt, folderRs, networkRs, shortcutRs);
     }
 
     // ── read authorization goes through the injected resolver (issue #165) ────

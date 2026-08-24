@@ -95,7 +95,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 		result.setUuid(folderUUID);
 		return result;
 	}
-	
 	/**
 	 * Readable-folder SQL predicate (alias {@code f}) for a viewer, including permissions inherited
 	 * from ancestor folders. Resolves the viewer's granted folder set once, so callers embedding the
@@ -561,6 +560,32 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	@Override
 	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException {
 	    return listItemsInFolderOrHome(ownerId, compact, true, type);
+	}
+
+	@Override
+	public FileCount getRootChildCountsOfUser(UUID ownerId) throws SQLException {
+	    FileCount fc = new FileCount();
+	    fc.setFolder(countHomeChildren("folder", ownerId));
+	    fc.setNetwork(countHomeChildren("network", ownerId));
+	    fc.setShortcut(countHomeChildren("shortcut", ownerId));
+	    return fc;
+	}
+
+	private long countHomeChildren(String table, UUID ownerId) throws SQLException {
+	    if (!table.equals("folder") && !table.equals("network") && !table.equals("shortcut")) {
+	        throw new IllegalArgumentException("Unexpected table name: " + table);
+	    }
+	    String sql = "SELECT COUNT(*) FROM " + table
+	        + " WHERE owneruuid=? AND parent IS NULL AND is_deleted=false";
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        pst.setObject(1, ownerId);
+	        try (ResultSet rs = pst.executeQuery()) {
+	            if (rs.next()) {
+	                return rs.getLong(1);
+	            }
+	        }
+	    }
+	    return 0L;
 	}
 
 	/**
