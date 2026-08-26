@@ -163,6 +163,9 @@ public class NFSSearchProvider implements SearchProvider {
         fis.setIsCompleted(networkSummary.isCompleted());
         fis.setIsValid(networkSummary.getIsValid());
         fis.setDoi(networkSummary.getDoi());
+        // Top-level, matching the folder/home/shared listings. Also left in the
+        // attributes map below so existing consumers of that key keep working.
+        fis.setIsCertified(networkSummary.getIsCertified());
 
         Map<String, Object> attr = new HashMap<>();
         attr.put("description", networkSummary.getDescription());

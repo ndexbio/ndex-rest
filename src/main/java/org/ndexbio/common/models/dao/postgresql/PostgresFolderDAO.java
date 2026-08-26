@@ -664,7 +664,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    if (type == null || type == FileType.NETWORK) {
 	        StringBuilder networkSql = new StringBuilder();
         networkSql.append("SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, ");
-        networkSql.append("n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi");
+        networkSql.append("n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi, n.certified");
         if (compact) {
             networkSql.append(", n.description, n.edgecount, n.visibility");
         }
@@ -740,6 +740,11 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                        summary.setIsValid(null);
 	                    }
 	                    summary.setDoi(rs.getString("ndexdoi"));
+	                    // A network with a DOI that is not yet certified is "pre-certified": its
+	                    // reference can still be added, which certifies it. Callers cannot tell that
+	                    // apart from the DOI alone, since a DOI may be minted before certification.
+	                    boolean certifiedValue = rs.getBoolean("certified");
+	                    summary.setIsCertified(rs.wasNull() ? null : Boolean.valueOf(certifiedValue));
 	                    results.add(summary);
 	                }
 	            }
@@ -1160,7 +1165,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    // Networks
 		if (fileType == null || fileType == FileType.NETWORK) {
 	    String sqlNetworks = "SELECT " + baseCols
-	            + ", readonly, error, warnings, iscomplete, is_validated, ndexdoi"
+	            + ", readonly, error, warnings, iscomplete, is_validated, ndexdoi, certified"
 	            + (compact ? ", description, edgecount, visibility" : "")
 	            + " FROM network WHERE owneruuid = ? AND parent IS NULL AND visibility = 'PUBLIC' AND is_deleted = false";
 	    try (PreparedStatement pst = db.prepareStatement(sqlNetworks)) {
@@ -1204,6 +1209,8 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                    summary.setIsValid(isValidValue);
 	                }
 	                summary.setDoi(doi);
+	                boolean certifiedValue = rs.getBoolean("certified");
+	                summary.setIsCertified(rs.wasNull() ? null : Boolean.valueOf(certifiedValue));
 	                result.add(summary);
 	            }
 	        }

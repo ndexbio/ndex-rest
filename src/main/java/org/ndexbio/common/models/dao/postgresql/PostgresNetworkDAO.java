@@ -2313,7 +2313,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 
 	public List<FileItemSummary> listSharedNetworks(UUID userId) throws SQLException {
 		String sql = "SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, n.description, n.edgecount, n.visibility, n.owneruuid, n.owner, "
-		            + "n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi, nm.permission_type " +
+		            + "n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi, n.certified, nm.permission_type " +
 		            "FROM user_network_membership nm " +
 		            "JOIN network n ON n.\"UUID\" = nm.network_id " +
 		            "WHERE nm.user_id=? " +
@@ -2350,6 +2350,8 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 					networkSummary.setIsCompleted(rs.getBoolean("iscomplete"));
 					networkSummary.setIsValid(rs.getBoolean("is_validated"));
 					networkSummary.setDoi(rs.getString("ndexdoi"));
+					boolean certifiedValue = rs.getBoolean("certified");
+					networkSummary.setIsCertified(rs.wasNull() ? null : Boolean.valueOf(certifiedValue));
 
 					networkSummary.setEdges((Integer) rs.getObject("edgecount"));
 					networkSummary.setVisibility(rs.getString("visibility"));
