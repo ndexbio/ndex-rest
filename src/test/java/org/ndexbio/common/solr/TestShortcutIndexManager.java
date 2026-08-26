@@ -11,6 +11,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.ndexbio.common.models.dao.SearchScope;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.NdexShortcut;
@@ -306,7 +307,7 @@ public class TestShortcutIndexManager {
         List<String> readers = Arrays.asList("reader1");
         List<String> editors = Arrays.asList("editor1");
 
-        manager.prepareIndexDocument(shortcut, VisibilityType.PUBLIC, readers, editors);
+        manager.prepareIndexDocument(shortcut, VisibilityType.PUBLIC);
 
         SolrInputDocument doc = manager.doc;
         assertEquals("PUBLIC", doc.getFieldValue("visibility"));
@@ -315,45 +316,23 @@ public class TestShortcutIndexManager {
     }
 
     @Test
-    public void testPrepareIndexDocument_PrivateVisibility_HasPermissionFields() {
+    public void testPrepareIndexDocument_PrivateVisibility_WritesNoAccessList() {
         manager = createManagerWithMock();
         NdexShortcut shortcut = createTestShortcut("Private Shortcut");
 
-        List<String> readers = Arrays.asList("reader1", "reader2");
-        List<String> editors = Arrays.asList("editor1");
-
-        manager.prepareIndexDocument(shortcut, VisibilityType.PRIVATE, readers, editors);
+        manager.prepareIndexDocument(shortcut, VisibilityType.PRIVATE);
 
         SolrInputDocument doc = manager.doc;
         assertEquals("PRIVATE", doc.getFieldValue("visibility"));
-        Collection<Object> readValues = doc.getFieldValues("userRead");
-        assertNotNull(readValues);
-        assertTrue(readValues.contains("reader1"));
-        assertTrue(readValues.contains("reader2"));
-        Collection<Object> editValues = doc.getFieldValues("userEdit");
-        assertNotNull(editValues);
-        assertTrue(editValues.contains("editor1"));
-    }
 
-    @Test
-    public void testPrepareIndexDocument_PrivateVisibility_BlankValuesSkipped() {
-        manager = createManagerWithMock();
-        NdexShortcut shortcut = createTestShortcut("Private Shortcut");
-
-        List<String> readers = Arrays.asList("reader1", "", "  ", null, "reader2");
-
-        manager.prepareIndexDocument(shortcut, VisibilityType.PRIVATE, readers, null);
-
-        SolrInputDocument doc = manager.doc;
-        Collection<Object> readValues = doc.getFieldValues("userRead");
-        assertNotNull(readValues);
-        assertEquals(2, readValues.size());
-        assertTrue(readValues.contains("reader1"));
-        assertTrue(readValues.contains("reader2"));
+        // The index holds structure only. Permissions used to be copied onto the document at index time
+        // and went stale on every share, move or revoke; they are resolved per query from the database
+        // instead, so a document must carry no access list at all.
+        assertNull(doc.getFieldValue("userRead"));
         assertNull(doc.getFieldValue("userEdit"));
     }
 
-    // ========================================================================
+        // ========================================================================
     // CREATE INDEX - VERIFIES COMMIT TO CORRECT CORE
     // ========================================================================
 
@@ -372,7 +351,7 @@ public class TestShortcutIndexManager {
         NdexShortcut shortcut = createTestShortcut("Test");
 
         // Verify document contents via prepareIndexDocument
-        manager.prepareIndexDocument(shortcut, VisibilityType.PUBLIC, null, null);
+        manager.prepareIndexDocument(shortcut, VisibilityType.PUBLIC);
         SolrInputDocument preparedDoc = manager.doc;
         assertEquals("SHORTCUT", preparedDoc.getFieldValue("entityType"));
         assertEquals("Test", preparedDoc.getFieldValue("name"));
@@ -386,7 +365,7 @@ public class TestShortcutIndexManager {
         replay(mockWrapper);
 
         manager = new ShortcutIndexManager(mockWrapper);
-        manager.createIndex(shortcut, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(shortcut, VisibilityType.PUBLIC);
 
         verify(mockWrapper);
         assertEquals("public-nfs", coreCapture.getValue());
@@ -408,9 +387,9 @@ public class TestShortcutIndexManager {
         List<String> readers = Arrays.asList("user1");
 
         // Verify document
-        manager.prepareIndexDocument(shortcut, VisibilityType.PRIVATE, readers, null);
+        manager.prepareIndexDocument(shortcut, VisibilityType.PRIVATE);
         assertEquals("PRIVATE", manager.doc.getFieldValue("visibility"));
-        assertNotNull(manager.doc.getFieldValues("userRead"));
+        assertNull(manager.doc.getFieldValue("userRead"));
 
         // Test commit routing
         reset(mockWrapper);
@@ -421,7 +400,7 @@ public class TestShortcutIndexManager {
         replay(mockWrapper);
 
         manager = new ShortcutIndexManager(mockWrapper);
-        manager.createIndex(shortcut, VisibilityType.PRIVATE, readers, null);
+        manager.createIndex(shortcut, VisibilityType.PRIVATE);
 
         verify(mockWrapper);
         assertEquals("private-nfs", coreCapture.getValue());
@@ -492,7 +471,7 @@ public class TestShortcutIndexManager {
         replay(mockWrapper);
 
         manager = new ShortcutIndexManager(mockWrapper);
-        manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, null, null);
+        manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, null, null, SearchScope.EMPTY);
 
         verify(mockWrapper);
         assertEquals("public-nfs", coreCapture.getValue());
@@ -527,7 +506,7 @@ public class TestShortcutIndexManager {
         replay(mockWrapper);
 
         manager = new ShortcutIndexManager(mockWrapper);
-        manager.search("*:*", null, VisibilityType.PRIVATE, 10, 0, null, null);
+        manager.search("*:*", null, VisibilityType.PRIVATE, 10, 0, null, null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("(*:* AND NOT *:*)"));
@@ -551,7 +530,7 @@ public class TestShortcutIndexManager {
         replay(mockWrapper);
 
         manager = new ShortcutIndexManager(mockWrapper);
-        manager.search("test", "user1", VisibilityType.PUBLIC, 10, 0, "specificOwner", null);
+        manager.search("test", "user1", VisibilityType.PUBLIC, 10, 0, "specificOwner", null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("owner:\"specificOwner\""));
@@ -575,11 +554,11 @@ public class TestShortcutIndexManager {
         replay(mockWrapper);
 
         manager = new ShortcutIndexManager(mockWrapper);
-        manager.search("*:*", "david", VisibilityType.PRIVATE, 10, 0, null, Permissions.WRITE);
+        manager.search("*:*", "david", VisibilityType.PRIVATE, 10, 0, null, Permissions.WRITE, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("owner:\"david\""));
-        assertTrue(fq[0].contains("userEdit:\"david\""));
+        assertFalse(fq[0].contains("userEdit"));
         assertFalse(fq[0].contains("userRead"));
     }
 
@@ -606,7 +585,7 @@ public class TestShortcutIndexManager {
 
         manager = new ShortcutIndexManager(mockWrapper);
         manager.searchByType("test", "user", VisibilityType.PUBLIC, 10, 0,
-                null, null, "SHORTCUT", true);
+                null, null, "SHORTCUT", true, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
         assertTrue(fq[0].contains("entityType:\"SHORTCUT\""));
@@ -701,56 +680,56 @@ public class TestShortcutIndexManager {
     @Test
     public void testBuildPermissionFilter_PublicCore_Anonymous() {
         manager = createManagerWithMock();
-        assertEquals("(*:* NOT visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null));
-        assertEquals("(*:* NOT visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ));
+        assertEquals("(*:* NOT visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null, SearchScope.EMPTY));
+        assertEquals("(*:* NOT visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedAdmin() {
         manager = createManagerWithMock();
         assertEquals("owner:\"admin\"",
-                manager.buildPermissionFilter("admin", VisibilityType.PUBLIC, Permissions.ADMIN));
+                manager.buildPermissionFilter("admin", VisibilityType.PUBLIC, Permissions.ADMIN, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PublicCore_AuthenticatedWrite() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("bob", VisibilityType.PUBLIC, Permissions.WRITE);
-        assertEquals("(owner:\"bob\") OR (userEdit:\"bob\")", filter);
+        String filter = manager.buildPermissionFilter("bob", VisibilityType.PUBLIC, Permissions.WRITE, SearchScope.EMPTY);
+        assertEquals("owner:\"bob\"", filter);
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_Anonymous_MatchesNothing() {
         manager = createManagerWithMock();
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, null));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, null, SearchScope.EMPTY));
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.READ));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.READ, SearchScope.EMPTY));
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.WRITE));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.WRITE, SearchScope.EMPTY));
         assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.ADMIN));
+                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.ADMIN, SearchScope.EMPTY));
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_AuthenticatedRead() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("jane", VisibilityType.PRIVATE, Permissions.READ);
-        assertEquals("(owner:\"jane\") OR (userRead:\"jane\") OR (userEdit:\"jane\")", filter);
+        String filter = manager.buildPermissionFilter("jane", VisibilityType.PRIVATE, Permissions.READ, SearchScope.EMPTY);
+        assertEquals("(owner:\"jane\")", filter);
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_AuthenticatedWrite() {
         manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("david", VisibilityType.PRIVATE, Permissions.WRITE);
-        assertEquals("(owner:\"david\") OR (userEdit:\"david\")", filter);
+        String filter = manager.buildPermissionFilter("david", VisibilityType.PRIVATE, Permissions.WRITE, SearchScope.EMPTY);
+        assertEquals("(owner:\"david\")", filter);
     }
 
     @Test
     public void testBuildPermissionFilter_PrivateCore_AuthenticatedAdmin() {
         manager = createManagerWithMock();
         assertEquals("owner:\"superadmin\"",
-                manager.buildPermissionFilter("superadmin", VisibilityType.PRIVATE, Permissions.ADMIN));
+                manager.buildPermissionFilter("superadmin", VisibilityType.PRIVATE, Permissions.ADMIN, SearchScope.EMPTY));
     }
 
     // ========================================================================
@@ -825,16 +804,16 @@ public class TestShortcutIndexManager {
 
         NdexShortcut cancerShortcut = createTestShortcut("Cancer Network Link");
         cancerShortcut.setTarget(UUID.randomUUID());
-        manager.createIndex(cancerShortcut, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(cancerShortcut, VisibilityType.PUBLIC);
 
         NdexShortcut diabetesShortcut = createTestShortcut("Diabetes Pathway Link");
         diabetesShortcut.setTarget(UUID.randomUUID());
-        manager.createIndex(diabetesShortcut, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(diabetesShortcut, VisibilityType.PUBLIC);
 
         Thread.sleep(2000);
 
         var results = manager.searchByType("cancer", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, FileType.SHORTCUT.toString(), true);
+                100, 0, null, null, FileType.SHORTCUT.toString(), true, SearchScope.EMPTY);
 
         assertNotNull(results);
         assertEquals(1, results.getNumFound());
@@ -847,18 +826,18 @@ public class TestShortcutIndexManager {
         for (int i = 0; i < 10; i++) {
             NdexShortcut shortcut = createTestShortcut("Shortcut " + i);
             shortcut.setTarget(UUID.randomUUID());
-            manager.createIndex(shortcut, VisibilityType.PUBLIC, null, null);
+            manager.createIndex(shortcut, VisibilityType.PUBLIC);
         }
 
         Thread.sleep(2000);
 
         var page1 = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
-                5, 0, null, null, FileType.SHORTCUT.toString(), true);
+                5, 0, null, null, FileType.SHORTCUT.toString(), true, SearchScope.EMPTY);
         assertEquals(5, page1.size());
         assertEquals(10, page1.getNumFound());
 
         var page2 = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
-                5, 5, null, null, FileType.SHORTCUT.toString(), true);
+                5, 5, null, null, FileType.SHORTCUT.toString(), true, SearchScope.EMPTY);
         assertEquals(5, page2.size());
     }
 
@@ -870,7 +849,7 @@ public class TestShortcutIndexManager {
 
         NdexShortcut shortcut = createTestShortcut("Test Shortcut");
         shortcut.setTarget(UUID.randomUUID());
-        manager.createIndex(shortcut, VisibilityType.PUBLIC, null, null);
+        manager.createIndex(shortcut, VisibilityType.PUBLIC);
 
         NdexFolder folder = new NdexFolder();
         folder.setExternalId(UUID.randomUUID());
@@ -878,12 +857,12 @@ public class TestShortcutIndexManager {
         folder.setOwner("testOwner");
         folder.setCreationTime(Timestamp.from(Instant.now()));
         folder.setModificationTime(Timestamp.from(Instant.now()));
-        folderMgr.createIndex(folder, VisibilityType.PUBLIC, null, null);
+        folderMgr.createIndex(folder, VisibilityType.PUBLIC);
 
         Thread.sleep(2000);
 
         var results = manager.searchByType("*:*", "testOwner", VisibilityType.PUBLIC,
-                100, 0, null, null, FileType.SHORTCUT.toString(), true);
+                100, 0, null, null, FileType.SHORTCUT.toString(), true, SearchScope.EMPTY);
 
         assertEquals(1, results.getNumFound());
 

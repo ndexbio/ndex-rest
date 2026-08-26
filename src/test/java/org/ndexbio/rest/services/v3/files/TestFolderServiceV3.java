@@ -28,6 +28,7 @@ import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.FolderRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.exceptions.mappers.BadRequestExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 import jakarta.ws.rs.core.MediaType;
 
@@ -50,6 +51,7 @@ public class TestFolderServiceV3 {
         dispatcher = MockDispatcherFactory.createDispatcher();
         dispatcher.getRegistry().addSingletonResource(new TestFolderServiceV3NoIndex(mockHttpServletRequest));
         dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(BadRequestExceptionMapper.class);
         response = new MockHttpResponse();
     }
     
@@ -346,6 +348,7 @@ public class TestFolderServiceV3 {
         Configuration.getInstance().setDAOFactory(daoFactory);
 
         dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(BadRequestExceptionMapper.class);
 
         MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId + "/count");
         dispatcher.invoke(request, response);
@@ -388,6 +391,61 @@ public class TestFolderServiceV3 {
         dispatcher.invoke(request, response);
         assertEquals(Status.OK.getStatusCode(), response.getStatus());
     }
+
+    @Test
+    public void testGetHomeChildCountUsesRootCounts() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).anyTimes();
+        replay(mockHttpServletRequest);
+
+        FileCount count = new FileCount();
+        count.setFolder(4);
+        count.setNetwork(5);
+        count.setShortcut(6);
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.getRootChildCountsOfUser(userId)).andReturn(count);
+        folderDAO.close();
+        expectLastCall();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/HoMe/count");
+        dispatcher.invoke(request, response);
+
+        assertEquals(Status.OK.getStatusCode(), response.getStatus());
+
+        ObjectMapper mapper = new ObjectMapper();
+        FileCount result = mapper.readValue(response.getOutput(), FileCount.class);
+        assertEquals(count.getFolder(), result.getFolder());
+        assertEquals(count.getNetwork(), result.getNetwork());
+        assertEquals(count.getShortcut(), result.getShortcut());
+    }
+
+    @Test
+    public void testGetHomeChildCountUnauthorizedDoesNotOpenDao() throws Exception {
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        replay(daoFactory);
+
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/home/count");
+        dispatcher.invoke(request, response);
+
+        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+        verify(daoFactory);
+    }
     
     @Test
     public void testListItemsInFolderUnauthorized() throws Exception {
@@ -410,6 +468,7 @@ public class TestFolderServiceV3 {
         Configuration.getInstance().setDAOFactory(daoFactory);
 
         dispatcher.getProviderFactory().registerProvider(UnauthorizedOperationExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(BadRequestExceptionMapper.class);
 
         MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId + "/list");
         dispatcher.invoke(request, response);

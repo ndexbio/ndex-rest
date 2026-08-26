@@ -34,15 +34,22 @@ clean: ## run mvn clean and docs clean
 lint: ## check style with checkstyle:checkstyle
 	mvn checkstyle:checkstyle
 
-test: ## run tests with mvn test
-	mvn test -Dmaven.compiler.useIncrementalCompilation=false
+# Compiles from clean on purpose. maven-compiler-plugin's staleness detection does not
+# reliably notice edited sources in this project: it prints "Nothing to compile - all
+# classes are up to date" followed by BUILD SUCCESS, so tests run against stale classes
+# and real compilation errors go unreported. -Dmaven.compiler.useIncrementalCompilation
+# does not fix that — despite the name it selects a timestamp-based stale-source scanner
+# rather than forcing a full compile, and that scanner is what does the skipping. A clean
+# build is the only deterministic option, and costs a few seconds.
+test: ## run tests (always recompiles; incremental detection is unreliable here)
+	mvn clean test
 
 coverage: ## check code coverage with jacoco
-	mvn test jacoco:report
+	mvn clean test jacoco:report
 	$(BROWSER) target/site/jacoco/index.html
 
-compile: ## compile sources
-	mvn compile
+compile: ## compile sources (always from clean, same reason as test)
+	mvn clean compile
 
 install: clean ## install the package to local repo
 	mvn install
@@ -122,8 +129,11 @@ push-docker: docker-multi-platform ## push multi-platform manifest to registry v
 	    $(DOCKER_BUILD_ARGS) \
 	    -t $(DOCKER_REPO):$(DOCKER_TAG) .
 
-integration-test: ## run integration tests
+integration-test: ## run integration tests (functional group, then the upgrade group)
 	docker/test/integration-test.sh
+
+migration-test: ## run only the released-image -> current upgrade test
+	docker/test/migration-test.sh
 
 integration-test-mcp: ## run MCP integration tests (standalone)
 	docker/test/integration-mcp-test.sh

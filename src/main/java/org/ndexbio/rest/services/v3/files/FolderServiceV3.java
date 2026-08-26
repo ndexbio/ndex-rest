@@ -35,7 +35,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.BadRequestException;
+// NDEx's own BadRequestException, not the JAX-RS one: DefaultExceptionMapper is registered as
+// ExceptionMapper<Throwable>, so it intercepts a JAX-RS WebApplicationException and reports it as
+// a 500 "Uncaught exception" instead of the 400 the caller should see.
+import org.ndexbio.model.exceptions.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
@@ -364,10 +367,10 @@ public class FolderServiceV3 extends NdexService {
             description = """
                           Returns counts of the networks, subfolders, and shortcuts directly under the specified folder that the caller is allowed to see (matches the /list result for the same caller). When a valid folder access key is provided on the request, the counts cover the key-accessible children — folders, networks, and same-owner NETWORK shortcuts whose target networks the key now unlocks.
                           
-                          Note: This endpoint does NOT support the "home" folder. The folderid must be a valid UUID.
+                          If *folderid* is the literal string **"home"**, returns counts of all top-level items owned by the signed-in user (parent = NULL). The caller must be authenticated.
                           
                           Path Parameters:
-                          - folderid: UUID of the folder to count items in
+                          - folderid: UUID of the folder to count items in, or the literal string "home" for the caller's home directory
                           
                           Query Parameters:
                           - accesskey: Optional. Access key for anonymous access
@@ -384,9 +387,20 @@ public class FolderServiceV3 extends NdexService {
 	        @QueryParam("accesskey") String accessKey
 	) throws Exception {
 
-	    UUID folderUUID = UUID.fromString(folderIdStr);
-
 	    UUID userId = getLoggedInUserId();
+
+	    /* ---------------------------------------------------------------- home case */
+	    if ("home".equalsIgnoreCase(folderIdStr)) {
+	        if (userId == null) {
+	            throw new UnauthorizedOperationException("You must be logged in to count your home folder.");
+	        }
+	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+	            return dao.getRootChildCountsOfUser(userId);
+	        }
+	    }
+
+	    /* ------------------------------------------------------------- normal folder */
+	    UUID folderUUID = UUID.fromString(folderIdStr);
 
 	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
 	        // If the request provides a valid access key, return the key-accessible child counts —
