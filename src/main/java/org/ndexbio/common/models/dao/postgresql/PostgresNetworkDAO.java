@@ -2368,7 +2368,10 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	}
 	
 	public List<FileItemSummary> listNetworksSharedBySpecificUser(UUID userId, UUID ownerId, boolean compact) throws SQLException {
-	    String baseCols = "n.\"UUID\", n.name, n.modification_time, n.updated_by" +
+	    // Status columns match listSharedNetworks and the folder DAO's listings, so the three
+		// branches of GET /users/{id}/home return the same fields regardless of who is asking.
+		String baseCols = "n.\"UUID\", n.name, n.modification_time, n.updated_by, "
+		        + "n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi, n.certified" +
                 (compact ? ", n.description, n.edgecount, n.visibility" : "");
 
 		String sql = "SELECT DISTINCT " + baseCols +
@@ -2388,17 +2391,46 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		          Map<String, Object> attr = null;
 		          if (compact) {
 		              attr = new HashMap<>();
-		              attr.put("description", rs.getString(5));
+		              attr.put("description", rs.getString("description"));
 		          }
+
+		          Boolean isReadOnly = null;
+		          boolean readOnlyValue = rs.getBoolean("readonly");
+		          if (!rs.wasNull()) {
+		              isReadOnly = readOnlyValue;
+		          }
+
+		          List<String> warnings = null;
+		          Array warningsArray = rs.getArray("warnings");
+		          if (warningsArray != null) {
+		              try {
+		                  warnings = Arrays.asList((String[]) warningsArray.getArray());
+		              } finally {
+		                  warningsArray.free();
+		              }
+		          }
+
+		          Boolean isCompleted = null;
+		          boolean completedValue = rs.getBoolean("iscomplete");
+		          if (!rs.wasNull()) {
+		              isCompleted = completedValue;
+		          }
+
 		          FileItemSummary summary = new FileItemSummary(
-		              (UUID) rs.getObject(1), FileType.NETWORK,
-		              rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-		              attr
+		              (UUID) rs.getObject("UUID"), FileType.NETWORK,
+		              rs.getString("name"), rs.getTimestamp("modification_time"),
+		              rs.getString("updated_by"), attr,
+		              isReadOnly, rs.getString("error"), warnings, isCompleted
 		          );
 		          if (compact) {
-		              summary.setEdges((Integer) rs.getObject(6));
-		              summary.setVisibility(rs.getString(7));
+		              summary.setEdges((Integer) rs.getObject("edgecount"));
+		              summary.setVisibility(rs.getString("visibility"));
 		          }
+		          boolean isValidValue = rs.getBoolean("is_validated");
+		          summary.setIsValid(rs.wasNull() ? null : Boolean.valueOf(isValidValue));
+		          summary.setDoi(rs.getString("ndexdoi"));
+		          boolean certifiedValue = rs.getBoolean("certified");
+		          summary.setIsCertified(rs.wasNull() ? null : Boolean.valueOf(certifiedValue));
 		          result.add(summary);
 		      }
 		  }
