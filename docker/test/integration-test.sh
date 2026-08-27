@@ -195,6 +195,21 @@ psql_ndex() {
   " 2>/dev/null | tr -d '[:space:]'
 }
 
+# Block until no system task is in flight, so a DB row a test is about to assert on has stopped
+# moving. Solr indexing is queued asynchronously and several of its failure handlers write to
+# network.error, so any assertion on that column has to be made against a settled row rather than
+# against whichever write happened to land first. Args: label (used in the timeout message)
+wait_for_task_queue_drain() {
+  local label="$1"
+  local elapsed=0
+  until [[ "$(psql_ndex "SELECT count(*) FROM core.task WHERE status IN ('QUEUED','PROCESSING')")" == "0" ]]; do
+    [[ ${elapsed} -ge ${LOAD_TIMEOUT} ]] \
+      && api_fail "background tasks still pending ${LOAD_TIMEOUT}s after ${label}; the assertion that follows would be racing them"
+    echo -e "  ${CYAN}Waiting for background tasks to drain (${label})... (${elapsed}s)${NC}"
+    sleep 2; elapsed=$((elapsed + 2))
+  done
+}
+
 # ── Cleanup trap ──────────────────────────────────────────────────────────────
 
 _remove_test_containers() {
@@ -1149,22 +1164,10 @@ while true; do
   sleep 5; NAME161_ELAPSED=$((NAME161_ELAPSED + 5))
 done
 
-# completed:true is not the end of the story. It is set by the load-failure path, but a Solr index
-# task for this network can still be queued, and its failure handler calls setErrorMessage — which
-# OVERWRITES the validation message this step asserts on with "Failed to create Index on network...".
-# Waiting only on completed therefore samples a row that is still moving, and the assertion below
-# passes or fails on machine speed. Drain the async queue so the row has stopped changing.
-#
-# Deliberately NOT a poll for "the message looks right": that would also hide a genuine regression in
-# which the index error legitimately wins and the validation message is lost. This waits for the
-# settled state and then asserts on whatever it actually is.
-NAME161_ELAPSED=0
-until [[ "$(psql_ndex "SELECT count(*) FROM core.task WHERE status IN ('QUEUED','PROCESSING')")" == "0" ]]; do
-  [[ ${NAME161_ELAPSED} -ge ${LOAD_TIMEOUT} ]] \
-    && api_fail "background tasks still pending ${LOAD_TIMEOUT}s after the invalid network completed; the errorMessage assertion below would be racing them"
-  echo -e "  ${CYAN}Waiting for background tasks to drain before asserting... (${NAME161_ELAPSED}s)${NC}"
-  sleep 2; NAME161_ELAPSED=$((NAME161_ELAPSED + 2))
-done
+# completed:true is not the end of the story: the load-failure path sets it before the load task
+# itself is marked done. Settle the queue here so the row has stopped moving before the step
+# continues.
+wait_for_task_queue_drain "the invalid network completed"
 echo "  invalid network ${NAME161_UUID} — completed (load failed as intended), queue drained"
 
 CALL_NUM=$((CALL_NUM+1))
@@ -1195,6 +1198,18 @@ NAME161_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
 [[ "${NAME161_MOVE_HTTP}" == "200" || "${NAME161_MOVE_HTTP}" == "204" ]] \
   || api_fail "POST /v3/batch/networks/move (#161) → HTTP ${NAME161_MOVE_HTTP}"
 api_pass "Moved invalid (${NAME161_UUID}) + valid (${V3_PUB_UUID}) networks into #161 folder"
+
+# The move is what actually endangers the assertion below. POST /v3/batch/networks/move reindexes
+# each moved network (BatchService.moveNetworksToFolder -> createFileIndex), queuing an async
+# SolrTaskRebuildFileIdx whose failure handler writes to network.error. Read the listing before that
+# task lands and the step passes; read it after and it sees whatever the index task left behind. So
+# drain again HERE, after the move, not just after the load.
+#
+# Deliberately NOT a poll for "the message looks right": that would also hide a genuine regression in
+# which the index error wins and the validation message is lost. This waits for the settled state and
+# then asserts on whatever it actually is — which is what makes the assertion below a regression test
+# for the error-precedence rule in SolrTaskRebuildFileIdx rather than a coin flip.
+wait_for_task_queue_drain "the #161 batch move"
 
 # The invalid load forces the network PRIVATE, so the listing must be read as the owner — an
 # anonymous caller would get an empty list and the "no name" assertion would pass vacuously.
