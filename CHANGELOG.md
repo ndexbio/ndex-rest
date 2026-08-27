@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.6] - 2026-08-26
+
+### Added
+
+- **`isCertified` on file listings** — network entries from `GET /v3/files/folders/{folderid}/list`, `GET /v3/users/{userid}/home`, "shared with me", and `POST /v3/search/files` now report `isCertified` alongside the existing `doi`. Further details in [ndex-object-model/60](https://github.com/ndexbio/ndex-object-model/pull/60). [#195](https://github.com/ndexbio/ndex-rest/pull/195)
+  - The `ndex-object-model` dependency advances 3.0.3 → 3.0.6, which is what carries the new field.
+  - **Why it is needed:** `doi` alone cannot distinguish a *pre-certified* network from a certified
+  one. A DOI requested with `isCertified=false` leaves the network locked but still able to receive
+  its reference via `PUT /v2/network/{networkid}/reference`, and a DOI may be minted before that
+  happens — so a network can carry a real DOI while `certified` is still false. A client asking "can
+  this network still take a reference?" previously had to fetch the full network summary for every
+  row in a listing.
+  - `POST /v3/search/files` keeps its existing `attributes.isCertified` copy, so consumers of that
+  key continue to work.
+  - The field is omitted rather than sent as null for folders and shortcuts, which have no
+  certification state. Treat an absent value as *unknown*, not as *not certified*: deployments older
+  than this release omit it from folder and home listings entirely.
+  - No database migration is required; the `certified` column already existed and was simply not
+  selected.
+
+### Fixed
+
+- **`POST /v3/batch/files/setvisibility` let an owner change the visibility of a network with a DOI.** [#195](https://github.com/ndexbio/ndex-rest/pull/195)
+  - `PUT /v2/network/{networkid}/systemproperty` has always refused this, but the v3 files path reaches
+  the same field through a different handler that checked ownership only. ndex3 and other v3 clients use
+  that path, so the restriction was effectively unenforced.
+  - **Why it matters:** a DOI's target URL is registered with EZID once, at mint time, and is never
+  updated. A certified network is minted PUBLIC and therefore carries no access key in that URL, so
+  making it PRIVATE afterwards leaves the published DOI resolving to a network readers cannot open,
+  with no way to repair it.
+  - The guard keys off `hasDOI`, matching the v2 endpoint, so a network left read-only by a failed mint
+  is frozen too. Cancelling the DOI request clears the DOI and releases the restriction.
+
+- **`GET /v3/users/{userid}/home` returned different fields depending on who was asking.** [#195](https://github.com/ndexbio/ndex-rest/pull/195)
+  - A signed-in user viewing **someone else's** page received network entries with no `isReadOnly`,
+  `errorMessage`, `warnings`, `isCompleted`, `isValid`, `doi` or `isCertified` — strictly less than
+  an **anonymous** visitor to the same page received. Client apps therefore dropped DOI badges,
+  read-only indicators and validation warnings for signed-in viewers only.
+  - `listNetworksSharedBySpecificUser` now selects the same status columns as the owner and anonymous
+  branches, so all three return the same shape.
+  - That method also read its result set **positionally**, with indices that shifted on the `compact`
+  flag; it now reads by column label like its siblings.
+
 ## [3.0.5] - 2026-08-17
 
 ### Fixed
