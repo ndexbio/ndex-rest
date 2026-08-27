@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Swagger documentation for `GET`, `DELETE`, `PUT /v3/files/folders/{folderid}` and `GET /v3/files/folders/{folderid}/accesskey` now explicitly states that these endpoints do not support the `"home"` folder literal and require a valid UUID. [#176](https://github.com/ndexbio/ndex-rest/issues/176)
 
+### Fixed
+
+- **A failed Solr index no longer erases the reason a network failed to load.**
+  - Reindexing a network read `aspects_cx2/attributeDeclarations` after checking only that
+    `aspects_cx2/networkAttributes` existed. A network whose CX2 failed validation has the first file
+    and not the second — the loader throws before writing it — so the read failed with
+    `FileNotFoundException`, and the handler wrote `"Failed to create Index on network. Cause: ..."`
+    over the CX2 validation message that was the only record of what was actually wrong.
+  - An index failure is now recorded only when the network carries no error or already carries an
+    index error. The same precedence
+    `SolrTaskRebuildNetworkIdx` and `NFSReIndexer` apply when clearing an index error.
+
 ## [3.0.5] - 2026-08-17
 
 ### Fixed

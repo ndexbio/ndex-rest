@@ -96,6 +96,8 @@ public interface NetworkDAO extends AutoCloseable {
     int revokeUserPrivilege(UUID networkUUID, UUID userUUID) throws SQLException;
     
     void setErrorMessage(UUID networkId, String errorMessage);
+
+    String getErrorMessage(UUID networkId) throws SQLException;
     
     void setWarning(UUID networkId, List<String> warnings) throws SQLException, NdexException;
     
