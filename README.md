@@ -1,6 +1,31 @@
 ndex-rest
 =========
 
+## Overview
+
+**NDEx** (Network Data Exchange) is an open-source framework for storing, sharing, and publishing biological network data. It provides a web-based platform where researchers can upload, curate, and distribute networks in community-standard formats, and programmatically access them via a REST API.
+
+This repository contains the **NDEx REST server** — the core back-end service powering the NDEx platform.
+
+### Citation
+
+If you use NDEx in your research, please cite:
+
+> Pratt D, Chen J, Pillich R, Rynkov V, Frank A, Ragan-Kelley B, Cerami E, Gross B, Verbeke G, Pillich M, Ideker T. **NDEx 2.0: A Clearinghouse for Research on Cancer Pathways.** *Cancer Research.* 2017;77(21):e58–e61. doi:[10.1158/0008-5472.CAN-17-0606](https://doi.org/10.1158/0008-5472.CAN-17-0606)
+
+> Pratt D, Chen J, Welker D, Rivas R, Pillich R, Rynkov V, Ono K, Milosavljevic A, Huang W, Yao E, Tanimoto S, Paschall G, Regante P, Klopfenstein D, Beutler B, Snyder M, Ideker T, Bader GD. **NDEx, the Network Data Exchange.** *Cell Systems.* 2015;1(4):302–305. doi:[10.1016/j.cels.2015.10.001](https://doi.org/10.1016/j.cels.2015.10.001)
+
+### Related Projects
+
+| Project | Description | Repository |
+|---------|-------------|------------|
+| **ndex3** | NDEx web application (front-end) | [ndexbio/ndex-webapp](https://github.com/ndexbio/ndex-webapp) |
+| **ndex2-client** | Python client library for the NDEx REST API | [ndexbio/ndex2-client](https://github.com/ndexbio/ndex2-client) |
+| **ndexjs / js4cytoscape** | JavaScript client & Cytoscape.js integration | [ndexbio/ndexjs](https://github.com/ndexbio/ndexjs) |
+| **ndex-object-model** | Java object model shared across NDEx services | [ndexbio/ndex-object-model](https://github.com/ndexbio/ndex-object-model) |
+
+---
+
 NDEx Rest Server
 
 ## Container Deployments
@@ -27,19 +52,21 @@ For complete setup, configuration, testing, and persistence instructions, see **
 
 ---
 
-## Admin: Reindex Repair (`/v3/admin/reindex-v3`)
+## Admin: Full Reindex (`/v3/admin/reindex-v3`)
 
-The reindex endpoint rebuilds Solr search indexes for networks that are either unindexed or stuck in an index-failure error state. It is intended as an operational repair tool — run it after a Solr outage, a partial migration, or when networks appear unsearchable due to a prior indexing failure.
+The reindex endpoint clears the `public-nfs` and `private-nfs` Solr indexes and rebuilds every folder, shortcut and network document from PostgreSQL. It is a full rebuild, not a targeted repair.
+
+> **Search returns nothing while the rebuild runs**, because both indexes are emptied before it starts. Run it in a maintenance window.
 
 ### When to use it
 
-- Networks are missing from search results and show an `errorMessage` like `"Failed to create Index on network."` in their summary
 - After restoring Solr from a backup or recreating Solr cores
+- Networks are missing from search results and show an `errorMessage` like `"Failed to create Index on network."` in their summary
 - After a server restart that interrupted an in-progress reindex
 
 ### Which networks are reindexed
 
-The endpoint processes a targeted subset of non-deleted networks — not every network indiscriminately:
+Every folder and shortcut is rebuilt unconditionally. Networks are filtered — a network is reindexed unless its error state suggests a data problem rather than an indexing one:
 
 | Network error state | Included? |
 |---|---|
@@ -49,7 +76,7 @@ The endpoint processes a targeted subset of non-deleted networks — not every n
 
 After a network is successfully reindexed, its `errorMessage` is cleared to `null` automatically.
 
-The operation is **synchronous** — the HTTP response is not returned until all eligible networks have been processed. For large deployments with many networks, this call may take several minutes.
+The operation is **synchronous** — the HTTP response is not returned until the entire rebuild has finished. On a large deployment this can take a long time, and the whole rebuild runs inside that single HTTP request.
 
 ### How to invoke it
 
@@ -66,16 +93,11 @@ curl "http://localhost:8080/v3/admin/reindex-v3?password=changeme"
 
 Returns `200 OK` with body `Reindexing complete` on success. Returns `401` if the password is wrong, or `500` with an error message if reindexing fails partway through.
 
-### Verifying the result
+### CLI equivalent 
 
-After the call completes, fetch a network summary to confirm the `errorMessage` field is cleared:
+`SolrIndexBuilder nfs` performs the identical rebuild from the command line, without tying it to a single HTTP request:
 
-```bash
-curl -u username:password \
-  "http://localhost:8080/v3/networks/<uuid>/summary" | python3 -m json.tool | grep errorMessage
-```
-
-A missing or `null` `errorMessage` field confirms the network was successfully reindexed.
+See [SolrIndexBuilder-CLI.md](SolrIndexBuilder-CLI.md) for classpath and configuration details. Note that `all-networks-online` is **not** a substitute — it rebuilds network documents only and leaves folder and shortcut documents stale.
 
 ---
 

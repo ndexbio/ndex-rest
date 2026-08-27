@@ -33,7 +33,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 
@@ -113,11 +112,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			checkRecordExists(folder);
 			folder.setOwner(username);
 			try(FolderIndexManager globalIdx = solrObjectFactory.getFolderIndexManager()) {
-				Map<String, String> folderPermissions = dao.getFolderPermissionsWithUsernames(fileId);
- 				globalIdx.createIndex(folder,
-						visibilityType,
-						getFolderUserReads(folderPermissions),
-						getFolderUserWrites(folderPermissions));
+				globalIdx.createIndex(folder, visibilityType);
 			}
 
 		}
@@ -137,7 +132,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			checkRecordExists(shortcut);
 			shortcut.setOwner(username);
 			try(ShortcutIndexManager globalIdx = solrObjectFactory.getShortcutIndexManager()) {
-				globalIdx.createIndex(shortcut, visibilityType,null, null);
+				globalIdx.createIndex(shortcut, visibilityType);
 			}
 		}
 	}
@@ -180,21 +175,19 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			}
 
             try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {
-				// build the solr document obj
-                Map<Permissions, Collection<String>> userMemberships = dao
-                        .getAllMembershipsOnNetwork(fileId);
-                globalIdx.prepareIndexDocument(summary, visibilityType,
-                        userMemberships.get(Permissions.READ), userMemberships.get(Permissions.WRITE));
+				// The folder is supplied here because NetworkSummary does not carry it; search filters
+                // on this field to resolve folder permissions without storing them in the index.
+                globalIdx.prepareIndexDocument(summary, visibilityType, dao.getNetworkFolder(fileId));
 
                 String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
 				String cx2AspectPath = pathPrefix + id + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
 				File attrFile = new File(cx2AspectPath + CxNetworkAttribute.ASPECT_NAME);
+				File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
 				File functionAspectFile = new File(cx2AspectPath + FunctionTermElement.ASPECT_NAME);
 
 				// Always index network attributes (META + ALL behavior)
-				if (attrFile.exists() && !ignoreCxFiles) {
+				if (canReadCx2NetworkAttributes(attrFile, declFile)) {
 
-					File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
 					ObjectMapper om = new ObjectMapper();
 
 					CxAttributeDeclaration[] declarations = om.readValue(declFile, CxAttributeDeclaration[].class);
@@ -278,13 +271,43 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 		} catch (SQLException | IOException | NdexException | SolrServerException e1) {
 			e1.printStackTrace();
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
-				dao.setErrorMessage(fileId, NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX
-						+ " Cause: " + e1.getMessage());
-				dao.commit();
+				if (shouldRecordIndexError(dao.getErrorMessage(fileId))) {
+					dao.setErrorMessage(fileId, NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX
+							+ " Cause: " + e1.getMessage());
+					dao.commit();
+				}
+			} catch (SQLException e2) {
+				// Could not read back what is already recorded, so leave the row alone rather than
+				// risk writing over a load-time diagnosis. e1 is the failure worth propagating.
+				e2.printStackTrace();
 			}
 			throw e1;
 		}
 
+	}
+
+	/**
+	 * Whether the CX2 network-attribute aspects can be read directly off disk. The two files are
+	 * consumed together - attributeDeclarations types the values carried in networkAttributes - so
+	 * one without the other is not usable and the caller falls back to the aspect iterator. A load
+	 * that failed CX2 validation leaves exactly that state behind: networkAttributes written,
+	 * attributeDeclarations never reached. Reading declFile unguarded threw FileNotFoundException
+	 * there, which surfaced as a spurious index error on the network.
+	 */
+	boolean canReadCx2NetworkAttributes(File attrFile, File declFile) {
+		return attrFile.exists() && declFile.exists() && !ignoreCxFiles;
+	}
+
+	/**
+	 * Whether this task's own failure should be recorded on the network. An error already on the row
+	 * that did not come from indexing is a load-time diagnosis and outranks anything indexing has to
+	 * say - overwriting it replaces the reason the network is broken with a mere symptom of it. This
+	 * is the same precedence {@code SolrTaskRebuildNetworkIdx} and {@code NFSReIndexer} apply in the
+	 * other direction, where they clear an index error but leave any other error untouched.
+	 */
+	boolean shouldRecordIndexError(String currentError) {
+		return currentError == null
+				|| currentError.startsWith(NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX);
 	}
 
 	private static void processCx2Nodes(String cx2AspectPath, ObjectMapper om, GlobalNetworkIndexManager globalIdx) throws JsonParseException, JsonMappingException, IOException {
@@ -362,18 +385,6 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 		return taskType;
 	}
 
-	public static Set<String> getFolderUserReads(Map<String, String> folderPermissions){
-		return folderPermissions.entrySet().stream()
-				.filter(entry -> entry.getValue().equals(Permissions.READ.toString()))
-				.map(Map.Entry::getKey)
-				.collect(Collectors.toSet());
-	}
-	public static Set<String> getFolderUserWrites(Map<String, String> folderPermissions){
-		return folderPermissions.entrySet().stream()
-				.filter(entry -> entry.getValue().equals(Permissions.WRITE.toString()))
-				.map(Map.Entry::getKey)
-				.collect(Collectors.toSet());
-	}
 	private void checkRecordExists(Object r) throws NdexException {
 		if (r == null){
 			throw new NdexException("No " + fileType + " record found with id " + fileId);

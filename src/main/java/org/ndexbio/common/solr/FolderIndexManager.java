@@ -7,6 +7,7 @@ import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
+import org.ndexbio.common.models.dao.SearchScope;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexFolder;
@@ -65,12 +66,13 @@ public class FolderIndexManager extends NFSIndexManager<NdexFolder> {
             int limit,
             int offset,
             String parentFolderId,
-            Permissions permission, VisibilityType visibilityType) throws IOException, SolrServerException, NdexException {
+            Permissions permission, VisibilityType visibilityType,
+            SearchScope scope) throws IOException, SolrServerException, NdexException {
 
         SolrQuery solrQuery = new SolrQuery();
         String coreName = getCoreNameFromVisibility(visibilityType);
 
-        String permissionFilter = buildPermissionFilter(userAccount, visibilityType,permission);
+        String permissionFilter = buildPermissionFilter(userAccount, visibilityType, permission, scope);
         String typeFilter = " AND (" + ENTITY_TYPE + ":FOLDER)";
         String parentFilter = "";
 

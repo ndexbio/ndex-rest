@@ -11,8 +11,12 @@
 #   manifest → get_connection_status → anon-allowed tools → auth barriers → request_network_upload → profile/properties →
 #   systemproperties → download → get_user_networks → get_user_info → share → folder management → delete
 #
-# Exits 0 if all 43 API calls pass, exits 1 on the first failure.
+# Exits 0 if all API calls pass, exits 1 on the first failure.
 # Deps: docker, make, curl (no python, no jq, no uv)
+#
+# Adding a test: call `step "..."`, then for each API call bump CALL_NUM, echo the progress line, and
+# assert with mcp_pass/mcp_fail (or api_pass/api_fail directly for non-MCP calls). There is no total
+# to update — see the counter notes below.
 
 set -euo pipefail
 
@@ -26,7 +30,23 @@ TEST_USER="ndextest"
 TEST_PASS="NDExTest1!"
 TEST_EMAIL="ndextest@ndex-integration.local"
 
-TOTAL_API_CALLS=47
+# ── Counters ──────────────────────────────────────────────────────────────────
+# Both counters are self-maintaining: ADDING OR REMOVING API CALLS REQUIRES NO BOOKKEEPING HERE.
+# There is deliberately no hand-maintained expected total. Just call `step`, bump CALL_NUM, and
+# assert; the totals follow. Mirrors the same scheme in integration-test.sh.
+#
+#   CALL_NUM — numbered progress lines emitted so far ("API call N: ...").
+#   PASSED   — assertions that reported success, i.e. api_pass invocations (mcp_pass/mcp_fail wrap it).
+#
+# PASSED CAN LEGITIMATELY DIFFER FROM CALL_NUM, so do not "fix" a mismatch between them — a step may
+# make several numbered calls and assert on them together under one pass. Both numbers are reported
+# at the end so the difference is visible rather than surprising.
+#
+# Why there is no expected-total constant: a total would have to be known before the first call, but
+# it is only reliably knowable by running — whole blocks are skipped under --remote-ndex-url, and any
+# hardcoded number rots the moment a call is added or removed. This file previously carried both a
+# `TOTAL_API_CALLS=47` constant and a header claiming "all 43 API calls"; the two had already drifted
+# apart from each other. Progress is now a plain sequence number instead.
 PASSED=0
 CALL_NUM=0
 STEP_NUM=0
@@ -71,13 +91,12 @@ api_pass() {
 
 api_fail() {
   local reason="$1"
-  local remaining=$(( TOTAL_API_CALLS - PASSED ))
   echo ""
   echo -e "  ${RED}✗ FAIL${NC}: ${reason}"
   echo ""
   echo -e "${RED}${BOLD}TEST FAILED${NC}"
-  echo -e "  Passed : ${PASSED} / ${TOTAL_API_CALLS}"
-  echo -e "  Remaining unrun: ${remaining}"
+  echo -e "  API calls attempted : ${CALL_NUM}"
+  echo -e "  Assertions passed   : ${PASSED}"
   echo -e "  Reason : ${reason}"
   exit 1
 }
@@ -222,7 +241,7 @@ fi
 
 step "Creating test user"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user"
+echo "  API call ${CALL_NUM}: POST /v2/user"
 
 USER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/v2/user" \
   -H "Content-Type: application/json" \
@@ -250,7 +269,7 @@ TEST_USER2_EMAIL="ndextest2@ndex-integration.local"
 TEST_USER2_UUID=""
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v2/user [ndextest2]"
+echo "  API call ${CALL_NUM}: POST /v2/user [ndextest2]"
 
 USER2_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/v2/user" \
   -H "Content-Type: application/json" \
@@ -279,7 +298,7 @@ MCP_PRIVATE_UUID=""
 CX2_FIXTURE="${FIXTURES_DIR}/C. burnetii Network.cx2"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks?visibility=PUBLIC  [C. burnetii Network.cx2]"
+echo "  API call ${CALL_NUM}: POST /v3/networks?visibility=PUBLIC  [C. burnetii Network.cx2]"
 PUB_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
@@ -296,7 +315,7 @@ else
 fi
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: POST /v3/networks?visibility=PRIVATE  [C. burnetii Network.cx2]"
+echo "  API call ${CALL_NUM}: POST /v3/networks?visibility=PRIVATE  [C. burnetii Network.cx2]"
 PRIV_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   -u "${TEST_USER}:${TEST_PASS}" \
   -H "Content-Type: application/json" \
@@ -338,7 +357,7 @@ echo "  Both setup networks confirmed complete"
 
 step "MCP Manifest and Session Init"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: GET /mcp/manifest"
+echo "  API call ${CALL_NUM}: GET /mcp/manifest"
 
 MANIFEST_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/mcp/manifest")
 if [[ "${MANIFEST_HTTP}" == "200" ]]; then
@@ -360,7 +379,7 @@ echo "  Session ID: ${MCP_SESSION_ID}"
 step "MCP get_connection_status: anonymous and authenticated"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_connection_status (anon)"
+echo "  API call ${CALL_NUM}: get_connection_status (anon)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-cs-anon","method":"tools/call","params":{"name":"get_connection_status","arguments":{}}}'
 mcp_pass "get_connection_status (anon)"
 echo "${MCP_JSON}" | grep -q '"authenticated":false' \
@@ -371,7 +390,7 @@ echo "${MCP_JSON}" | grep -q '"server":' \
   || api_fail "get_connection_status anon → expected server field: ${MCP_JSON:0:300}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_connection_status (auth)"
+echo "  API call ${CALL_NUM}: get_connection_status (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-cs-auth","method":"tools/call","params":{"name":"get_connection_status","arguments":{}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_connection_status (auth)"
@@ -387,34 +406,34 @@ echo "  Both tools must work unauthenticated on public data and also with auth."
 echo "  get_network_summary on a private network without auth must reject."
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search_network (anon)"
+echo "  API call ${CALL_NUM}: search_network (anon)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-5","method":"tools/call","params":{"name":"search_network","arguments":{"searchString":"burnetii","size":5}}}'
 mcp_pass "search_network (anon)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: search_network (auth)"
+echo "  API call ${CALL_NUM}: search_network (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-6","method":"tools/call","params":{"name":"search_network","arguments":{"searchString":"burnetii","size":5}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "search_network (auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_network_summary public (anon)"
+echo "  API call ${CALL_NUM}: get_network_summary public (anon)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-7","method":"tools/call","params":{"name":"get_network_summary","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'"}}}'
 mcp_pass "get_network_summary public (anon)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_network_summary public (auth)"
+echo "  API call ${CALL_NUM}: get_network_summary public (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-8","method":"tools/call","params":{"name":"get_network_summary","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_network_summary public (auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_network_summary private (anon — expect rejection)"
+echo "  API call ${CALL_NUM}: get_network_summary private (anon — expect rejection)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-9","method":"tools/call","params":{"name":"get_network_summary","arguments":{"networkId":"'"${MCP_PRIVATE_UUID}"'"}}}'
 mcp_fail_expected "get_network_summary private (anon)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_network_summary private (auth/owner)"
+echo "  API call ${CALL_NUM}: get_network_summary private (auth/owner)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-10","method":"tools/call","params":{"name":"get_network_summary","arguments":{"networkId":"'"${MCP_PRIVATE_UUID}"'"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_network_summary private (auth/owner)"
@@ -425,67 +444,67 @@ step "MCP auth barrier: no credentials must be rejected by all auth-required too
 echo "  Tool makes a visibility pre-check; public networks allow anonymous, private require auth."
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_upload (no auth, create)"
+echo "  API call ${CALL_NUM}: request_network_upload (no auth, create)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-11","method":"tools/call","params":{"name":"request_network_upload","arguments":{"file_path":"/tmp/test.cx2"}}}'
 mcp_fail_expected "request_network_upload (no auth, create)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_upload (no auth, update)"
+echo "  API call ${CALL_NUM}: request_network_upload (no auth, update)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-12","method":"tools/call","params":{"name":"request_network_upload","arguments":{"file_path":"/tmp/test.cx2","network_id":"00000000-0000-0000-0000-000000000000"}}}'
 mcp_fail_expected "request_network_upload (no auth, update)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_download public (no auth — expect success)"
+echo "  API call ${CALL_NUM}: request_network_download public (no auth — expect success)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-nd-na","method":"tools/call","params":{"name":"request_network_download","arguments":{"network_id":"'"${MCP_PUBLIC_UUID}"'","file_path":"/tmp/test_dl.cx2"}}}'
 mcp_pass "request_network_download public (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_download private (no auth — expect rejection)"
+echo "  API call ${CALL_NUM}: request_network_download private (no auth — expect rejection)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-nd-na-priv","method":"tools/call","params":{"name":"request_network_download","arguments":{"network_id":"'"${MCP_PRIVATE_UUID}"'","file_path":"/tmp/test_dl_priv.cx2"}}}'
 mcp_fail_expected "request_network_download private (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: delete_network (no auth, fake UUID)"
+echo "  API call ${CALL_NUM}: delete_network (no auth, fake UUID)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-13","method":"tools/call","params":{"name":"delete_network","arguments":{"networkId":"00000000-0000-0000-0000-000000000000"}}}'
 mcp_fail_expected "delete_network (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: update_network_profile (no auth)"
+echo "  API call ${CALL_NUM}: update_network_profile (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-14","method":"tools/call","params":{"name":"update_network_profile","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'","name":"x","visibility":"PUBLIC"}}}'
 mcp_fail_expected "update_network_profile (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: set_network_properties (no auth)"
+echo "  API call ${CALL_NUM}: set_network_properties (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-15","method":"tools/call","params":{"name":"set_network_properties","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'","properties":[]}}}'
 mcp_fail_expected "set_network_properties (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: set_network_systemproperties (no auth)"
+echo "  API call ${CALL_NUM}: set_network_systemproperties (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-16","method":"tools/call","params":{"name":"set_network_systemproperties","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'","visibility":"PUBLIC"}}}'
 mcp_fail_expected "set_network_systemproperties (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_folder mode=list (no auth)"
+echo "  API call ${CALL_NUM}: get_folder mode=list (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-17","method":"tools/call","params":{"name":"get_folder","arguments":{"mode":"list"}}}'
 mcp_fail_expected "get_folder mode=list (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: manage_folder mode=create (no auth)"
+echo "  API call ${CALL_NUM}: manage_folder mode=create (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-18","method":"tools/call","params":{"name":"manage_folder","arguments":{"mode":"create","name":{"waived":false,"parameter":"barrier-test"}}}}'
 mcp_fail_expected "manage_folder mode=create (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: share_network (no auth)"
+echo "  API call ${CALL_NUM}: share_network (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-sn-noauth","method":"tools/call","params":{"name":"share_network","arguments":{"networkId":"'"${MCP_PUBLIC_UUID}"'","userId":"00000000-0000-0000-0000-000000000000","permission":"READ"}}}'
 mcp_fail_expected "share_network (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_networks (no auth)"
+echo "  API call ${CALL_NUM}: get_user_networks (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-gun-noauth","method":"tools/call","params":{"name":"get_user_networks","arguments":{}}}'
 mcp_fail_expected "get_user_networks (no auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_info (no auth)"
+echo "  API call ${CALL_NUM}: get_user_info (no auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-gui-noauth","method":"tools/call","params":{"name":"get_user_info","arguments":{}}}'
 mcp_fail_expected "get_user_info (no auth)"
 
@@ -499,7 +518,7 @@ LAST_PRESIGNED_URL=""
 
 # Sub-step A: create via pre-signed URL
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_upload create (auth)"
+echo "  API call ${CALL_NUM}: request_network_upload create (auth)"
 mcp_call "{\"jsonrpc\":\"2.0\",\"id\":\"mcp-19\",\"method\":\"tools/call\",\"params\":{\"name\":\"request_network_upload\",\"arguments\":{\"file_path\":\"${MCP_CX2_FILE}\",\"visibility\":\"PRIVATE\"}}}" \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "request_network_upload create (auth)"
@@ -526,7 +545,7 @@ echo "  MCP-created network confirmed complete"
 
 # Sub-step B: 401 for invalid token
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: pre-signed upload 401 for invalid token"
+echo "  API call ${CALL_NUM}: pre-signed upload 401 for invalid token"
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   "${BASE_URL}/mcp/upload?upload_token=invalid-token-xyz")
 [[ "${HTTP_STATUS}" == "401" ]] \
@@ -535,7 +554,7 @@ api_pass "pre-signed upload 401 for invalid token"
 
 # Sub-step C: update via pre-signed URL
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_upload update (auth)"
+echo "  API call ${CALL_NUM}: request_network_upload update (auth)"
 mcp_call "{\"jsonrpc\":\"2.0\",\"id\":\"mcp-20\",\"method\":\"tools/call\",\"params\":{\"name\":\"request_network_upload\",\"arguments\":{\"file_path\":\"${MCP_CX2_FILE}\",\"network_id\":\"${MCP_NETWORK_UUID}\"}}}" \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "request_network_upload update (auth)"
@@ -561,7 +580,7 @@ echo "  MCP-updated network confirmed complete"
 
 # Sub-step D: 401 for reused (single-use) token
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: pre-signed upload 401 for reused token"
+echo "  API call ${CALL_NUM}: pre-signed upload 401 for reused token"
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   -F "CXNetworkStream=@${MCP_CX2_FILE};type=application/json" \
   "${LAST_PRESIGNED_URL}")
@@ -574,31 +593,31 @@ api_pass "pre-signed upload 401 for reused token"
 step "MCP update_network_profile, set_network_properties, set_network_systemproperties"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: update_network_profile (auth)"
+echo "  API call ${CALL_NUM}: update_network_profile (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-21","method":"tools/call","params":{"name":"update_network_profile","arguments":{"networkId":"'"${MCP_NETWORK_UUID}"'","name":"MCP Integration Test","visibility":"PRIVATE","description":"Created by integration-mcp-test.sh"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "update_network_profile (auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: set_network_properties (auth)"
+echo "  API call ${CALL_NUM}: set_network_properties (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-22","method":"tools/call","params":{"name":"set_network_properties","arguments":{"networkId":"'"${MCP_NETWORK_UUID}"'","properties":[{"predicateString":"author","value":"MCP Test"},{"predicateString":"organism","value":"Test species"}]}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "set_network_properties (auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: set_network_systemproperties visibility=PUBLIC (auth)"
+echo "  API call ${CALL_NUM}: set_network_systemproperties visibility=PUBLIC (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-23","method":"tools/call","params":{"name":"set_network_systemproperties","arguments":{"networkId":"'"${MCP_NETWORK_UUID}"'","visibility":"PUBLIC"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "set_network_systemproperties visibility=PUBLIC (auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: set_network_systemproperties readonly=false (auth)"
+echo "  API call ${CALL_NUM}: set_network_systemproperties readonly=false (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-24","method":"tools/call","params":{"name":"set_network_systemproperties","arguments":{"networkId":"'"${MCP_NETWORK_UUID}"'","readonly":false}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "set_network_systemproperties readonly=false (auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_network_summary after systemproperties update (auth)"
+echo "  API call ${CALL_NUM}: get_network_summary after systemproperties update (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-25","method":"tools/call","params":{"name":"get_network_summary","arguments":{"networkId":"'"${MCP_NETWORK_UUID}"'"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_network_summary MCP-created network (auth)"
@@ -612,7 +631,7 @@ LAST_DOWNLOAD_URL=""
 
 # Sub-step A: request download token (auth)
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: request_network_download (auth)"
+echo "  API call ${CALL_NUM}: request_network_download (auth)"
 mcp_call "{\"jsonrpc\":\"2.0\",\"id\":\"mcp-dl\",\"method\":\"tools/call\",\"params\":{\"name\":\"request_network_download\",\"arguments\":{\"network_id\":\"${MCP_NETWORK_UUID}\",\"file_path\":\"${MCP_DOWNLOAD_FILE}\"}}}" \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "request_network_download (auth)"
@@ -629,7 +648,7 @@ echo "  Downloaded file size: $(wc -c < "${MCP_DOWNLOAD_FILE}") bytes"
 
 # Sub-step B: 401 for invalid token
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: pre-signed download 401 for invalid token"
+echo "  API call ${CALL_NUM}: pre-signed download 401 for invalid token"
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
   "${BASE_URL}/mcp/download?download_token=invalid-token-xyz")
 [[ "${HTTP_STATUS}" == "401" ]] \
@@ -638,7 +657,7 @@ api_pass "pre-signed download 401 for invalid token"
 
 # Sub-step C: 401 for reused (single-use) token
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: pre-signed download 401 for reused token"
+echo "  API call ${CALL_NUM}: pre-signed download 401 for reused token"
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${LAST_DOWNLOAD_URL}")
 [[ "${HTTP_STATUS}" == "401" ]] \
   || api_fail "reused download token: expected 401, got ${HTTP_STATUS}"
@@ -649,7 +668,7 @@ api_pass "pre-signed download 401 for reused token"
 step "MCP get_user_networks: happy-path"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_networks (auth)"
+echo "  API call ${CALL_NUM}: get_user_networks (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-gun","method":"tools/call","params":{"name":"get_user_networks","arguments":{}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_user_networks (auth)"
@@ -663,7 +682,7 @@ echo "${MCP_JSON}" | grep -q '"networks":\[' \
 step "MCP get_user_info: happy-path"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_user_info (auth)"
+echo "  API call ${CALL_NUM}: get_user_info (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-gui","method":"tools/call","params":{"name":"get_user_info","arguments":{}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_user_info (auth)"
@@ -679,13 +698,13 @@ echo "${MCP_JSON}" | grep -q "\"userName\":\"${TEST_USER}\"" \
 step "MCP share_network: validation and happy-path tests"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: share_network no subject (auth, expect isError)"
+echo "  API call ${CALL_NUM}: share_network no subject (auth, expect isError)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-sn-nosubject","method":"tools/call","params":{"name":"share_network","arguments":{"networkId":"'"${MCP_NETWORK_UUID}"'","permission":"READ"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_fail_expected "share_network no userId/groupId (auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: share_network userId READ (auth)"
+echo "  API call ${CALL_NUM}: share_network userId READ (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-sn-read","method":"tools/call","params":{"name":"share_network","arguments":{"networkId":"'"${MCP_NETWORK_UUID}"'","userId":"'"${TEST_USER2_UUID}"'","permission":"READ"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "share_network userId READ (auth)"
@@ -701,7 +720,7 @@ step "MCP folder management: manage_folder create/delete, get_folder list"
 MCP_FOLDER_ID=""
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: manage_folder mode=create with visibility=PUBLIC (auth)"
+echo "  API call ${CALL_NUM}: manage_folder mode=create with visibility=PUBLIC (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-28","method":"tools/call","params":{"name":"manage_folder","arguments":{"mode":"create","name":{"waived":false,"parameter":"mcp-integration-test-folder"},"visibility":"PUBLIC"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "manage_folder mode=create with visibility=PUBLIC (auth)"
@@ -711,7 +730,7 @@ MCP_FOLDER_ID=$(echo "${MCP_JSON}" | grep -o '"folderId":"[^"]*"' | head -1 | cu
 
 # get_folder mode=get must report the visibility set at create time (write-accept + read-report)
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_folder mode=get (visibility populated)"
+echo "  API call ${CALL_NUM}: get_folder mode=get (visibility populated)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-28b","method":"tools/call","params":{"name":"get_folder","arguments":{"mode":"get","folderId":{"waived":false,"parameter":"'"${MCP_FOLDER_ID}"'"}}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 # get_folder embeds the folder JSON as an escaped string inside the MCP text content,
@@ -721,13 +740,13 @@ echo "${MCP_JSON}" | grep -qE 'visibility[^A-Za-z]+PUBLIC' \
 mcp_pass "get_folder mode=get reports visibility=PUBLIC (MCP write-accept + read-report)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: get_folder mode=list (auth)"
+echo "  API call ${CALL_NUM}: get_folder mode=list (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-29","method":"tools/call","params":{"name":"get_folder","arguments":{"mode":"list"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_folder mode=list (auth)"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: manage_folder mode=delete (auth)"
+echo "  API call ${CALL_NUM}: manage_folder mode=delete (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-30","method":"tools/call","params":{"name":"manage_folder","arguments":{"mode":"delete","folderId":{"waived":false,"parameter":"'"${MCP_FOLDER_ID}"'"}}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "manage_folder mode=delete (auth)"
@@ -737,15 +756,19 @@ mcp_pass "manage_folder mode=delete (auth)"
 step "MCP delete_network — permanent delete of MCP-created network"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}/${TOTAL_API_CALLS}: delete_network permanent (auth)"
+echo "  API call ${CALL_NUM}: delete_network permanent (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-31","method":"tools/call","params":{"name":"delete_network","arguments":{"networkId":"'"${MCP_NETWORK_UUID}"'","permanent":true}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "delete_network permanent (auth)"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
+# Both counters are printed because they measure different things — see the counter notes at the top
+# of this file before "correcting" either number.
 
 echo ""
 echo -e "${GREEN}${BOLD}================================================${NC}"
-echo -e "${GREEN}${BOLD}  ✓ ALL ${PASSED} API CALLS PASSED — TEST PASSED${NC}"
+echo -e "${GREEN}${BOLD}  ✓ TEST PASSED${NC}"
+echo -e "${GREEN}${BOLD}    API calls attempted : ${CALL_NUM}${NC}"
+echo -e "${GREEN}${BOLD}    Assertions passed   : ${PASSED}${NC}"
 echo -e "${GREEN}${BOLD}================================================${NC}"
 exit 0

@@ -1,5 +1,6 @@
 package org.ndexbio.common.models.dao.postgresql;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -12,6 +13,7 @@ import java.util.UUID;
 import java.sql.Timestamp;
 
 import org.ndexbio.common.models.dao.DeletedFileIds;
+import org.ndexbio.common.models.dao.FilePermissionResolver;
 import org.ndexbio.common.models.dao.TrashDAO;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileType;
@@ -21,8 +23,49 @@ import org.ndexbio.model.object.TrashRestoreRequest;
 
 public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
 
+    /* Effective-permission resolution over the folder hierarchy. Injectable for tests. */
+    private FilePermissionResolver permissionResolver;
+
     public PostgresTrashDAO() throws SQLException {
         super();
+        this.permissionResolver = new PostgresFilePermissionResolver(db);
+    }
+
+    /** Package-private so unit tests can supply a mock connection, as the sibling DAOs do. */
+    PostgresTrashDAO(Connection conn) throws SQLException {
+        super(conn);
+        this.permissionResolver = new PostgresFilePermissionResolver(db);
+    }
+
+    /** Package-private injection seam so unit tests can supply a mock resolver. */
+    void setPermissionResolver(FilePermissionResolver resolver) {
+        this.permissionResolver = resolver;
+    }
+
+    /**
+     * Whether a restored item may go back into its original parent folder, rather than being relocated
+     * to the user's home.
+     *
+     * <p>Requires the parent to still be live and the user to hold write on it — by ownership, a direct
+     * grant, or <em>inheritance from an ancestor folder</em>. The previous direct-row check reported
+     * "no access" for a user whose write came from a parent folder, so an item they were fully entitled
+     * to restore was silently relocated to their home instead, disagreeing with what the folder
+     * listings told them they could do.</p>
+     */
+    private boolean canRestoreInto(UUID parentFolderId, UUID userId) throws SQLException {
+        if (parentFolderId == null)
+            return false;
+
+        try (PreparedStatement pst = db.prepareStatement(
+                "SELECT 1 FROM folder WHERE \"UUID\"=? AND is_deleted=false")) {
+            pst.setObject(1, parentFolderId);
+            try (ResultSet rs = pst.executeQuery()) {
+                if (!rs.next())
+                    return false;   // parent gone or trashed — restore to home
+            }
+        }
+
+        return Permissions.WRITE == permissionResolver.effectiveFolderPermission(parentFolderId, userId);
     }
 
     /**
@@ -119,22 +162,8 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     }
                 }
                 
-                // If parent exists and is not deleted, check if user has write access
-                boolean restoreToParent = false;
-                if (parentId != null) {
-                    String checkParentAccessSql = "SELECT 1 FROM folder WHERE \"UUID\"=? AND is_deleted=false AND " +
-                        "(owneruuid=? OR EXISTS (SELECT 1 FROM folder_permission WHERE folder_id=? AND user_id=? AND permission=?))";
-                    try (PreparedStatement pst = db.prepareStatement(checkParentAccessSql)) {
-                        pst.setObject(1, parentId);
-                        pst.setObject(2, userId);
-                        pst.setObject(3, parentId);
-                        pst.setObject(4, userId);
-                        pst.setObject(5, Permissions.WRITE.toString());
-                        try (ResultSet rs = pst.executeQuery()) {
-                            restoreToParent = rs.next();
-                        }
-                    }
-                }
+                // Restore into the original parent only if the user can write there — inherited write included.
+                boolean restoreToParent = canRestoreInto(parentId, userId);
                 
                 // Restore folder
                 String restoreFolderSql = "UPDATE folder SET is_deleted=false, show_in_trash=false, modification_time=? WHERE \"UUID\"=?";
@@ -173,23 +202,9 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     }
                 }
                 
-                // If parent exists and is not deleted, check if user has access
-                boolean restoreToParent = false;
-                if (parentId != null) {
-                    String checkParentAccessSql = "SELECT 1 FROM folder WHERE \"UUID\"=? AND is_deleted=false AND " +
-                        "(owneruuid=? OR EXISTS (SELECT 1 FROM folder_permission WHERE folder_id=? AND user_id=? AND permission=?))";
-                    try (PreparedStatement pst = db.prepareStatement(checkParentAccessSql)) {
-                        pst.setObject(1, parentId);
-                        pst.setObject(2, userId);
-                        pst.setObject(3, parentId);
-                        pst.setObject(4, userId);
-                        pst.setObject(5, Permissions.WRITE.toString());
-                        try (ResultSet rs = pst.executeQuery()) {
-                            restoreToParent = rs.next();
-                        }
-                    }
-                }
-                
+                // Restore into the original parent only if the user can write there — inherited write included.
+                boolean restoreToParent = canRestoreInto(parentId, userId);
+
                 // Restore network
                 String restoreNetworkSql = "UPDATE network SET is_deleted=false, show_in_trash=false, modification_time=? WHERE \"UUID\"=?";
                 try (PreparedStatement pst = db.prepareStatement(restoreNetworkSql)) {
@@ -224,22 +239,11 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                     }
                 }
                 
-                // If parent exists and is not deleted, check if user has access
-                boolean restoreToParent = false;
-                if (parentId != null) {
-                    String checkParentAccessSql = "SELECT 1 FROM folder WHERE \"UUID\"=? AND is_deleted=false AND " +
-                        "(owneruuid=? OR EXISTS (SELECT 1 FROM folder_permission WHERE folder_id=? AND user_id=? AND permission=?))";
-                    try (PreparedStatement pst = db.prepareStatement(checkParentAccessSql)) {
-                        pst.setObject(1, parentId);
-                        pst.setObject(2, userId);
-                        pst.setObject(3, parentId);
-                        pst.setObject(4, userId);
-                        try (ResultSet rs = pst.executeQuery()) {
-                            restoreToParent = rs.next();
-                        }
-                    }
-                }
-                
+                // Restore into the original parent only if the user can write there — inherited write included.
+                // (The previous inline check here bound only 4 of its 5 placeholders, so restoring a
+                // shortcut whose parent still existed raised a JDBC parameter error.)
+                boolean restoreToParent = canRestoreInto(parentId, userId);
+
                 // Restore shortcut
                 String restoreShortcutSql = "UPDATE shortcut SET is_deleted=false, show_in_trash=false, modification_time=? WHERE \"UUID\"=?";
                 try (PreparedStatement pst = db.prepareStatement(restoreShortcutSql)) {
