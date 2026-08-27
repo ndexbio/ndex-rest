@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Pending]
+
+### Changed
+
+- Swagger documentation for `GET`, `DELETE`, `PUT /v3/files/folders/{folderid}` and `GET /v3/files/folders/{folderid}/accesskey` now explicitly states that these endpoints do not support the `"home"` folder literal and require a valid UUID. [#176](https://github.com/ndexbio/ndex-rest/issues/176)
 
 ### Fixed
 
@@ -16,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `FileNotFoundException`, and the handler wrote `"Failed to create Index on network. Cause: ..."`
     over the CX2 validation message that was the only record of what was actually wrong.
   - An index failure is now recorded only when the network carries no error or already carries an
-    index error. the same precedence
+    index error. The same precedence
     `SolrTaskRebuildNetworkIdx` and `NFSReIndexer` apply when clearing an index error.
 
 ## [3.0.5] - 2026-08-17
