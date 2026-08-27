@@ -143,6 +143,8 @@ public class FolderServiceV3 extends NdexService {
             description = """
                           Retrieves the specified folder if the current user has read access or if valid access key is provided.
                           
+                          Note: This endpoint does NOT support the "home" folder. The folderid must be a valid UUID.
+                          
                           Path Parameters:
                           - folderid: UUID of the folder to retrieve
                           
@@ -193,7 +195,7 @@ public class FolderServiceV3 extends NdexService {
 	@Produces(MediaType.APPLICATION_JSON)
     @Operation(
             summary = "Get Access Key of Folder",
-            description = "Returns the access key for a folder when access key sharing is enabled. Only the folder owner may call this endpoint."
+            description = "Returns the access key for a folder when access key sharing is enabled. Only the folder owner may call this endpoint. Note: This endpoint does NOT support the \"home\" folder. The folderid must be a valid UUID."
     )
 	public Map<String, String> getFolderAccessKey(
 	        @PathParam("folderid") final String folderIdStr
@@ -227,6 +229,8 @@ public class FolderServiceV3 extends NdexService {
             summary = "Delete a Folder",
             description = """
                           Deletes the specified folder if the current user is the owner.
+                          
+                          Note: This endpoint does NOT support the "home" folder. The folderid must be a valid UUID.
                           
                           Path Parameters:
                           - folderid: UUID of the folder to delete
@@ -295,6 +299,8 @@ public class FolderServiceV3 extends NdexService {
             summary = "Update a Folder",
             description = """
                           Renames or moves a folder based on data passed in the request body. The user must be the folder's owner.
+                          
+                          Note: This endpoint does NOT support the "home" folder. The folderid must be a valid UUID.
                           
                           Path Parameters:
                           - folderid: UUID of the folder to update

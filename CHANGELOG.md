@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Pending]
+
+### Changed
+
+- Swagger documentation for `GET`, `DELETE`, `PUT /v3/files/folders/{folderid}` and `GET /v3/files/folders/{folderid}/accesskey` now explicitly states that these endpoints do not support the `"home"` folder literal and require a valid UUID. [#176](https://github.com/ndexbio/ndex-rest/issues/176)
+
 ## [3.0.5] - 2026-08-17
 
 ### Fixed
