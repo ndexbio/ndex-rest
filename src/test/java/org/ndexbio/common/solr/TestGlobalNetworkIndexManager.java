@@ -10,7 +10,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.models.dao.SearchScope;
+import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
 import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -156,6 +158,25 @@ public class TestGlobalNetworkIndexManager {
         NetworkSummary s = createTestSummary("   ", "Description");
         SolrInputDocument doc = manager.setupIndexDocument(s, VisibilityType.PUBLIC);
         assertNull(doc.getFieldValue("name"));
+    }
+
+    /**
+     * The CX networkAttributes aspect is regenerated from the NetworkSummary, so it carries a "name"
+     * element holding the string setupIndexDocument has already indexed. Re-adding it appended a
+     * second value, and name is multiValued="false" on the -nfs cores, so Solr rejected the entire
+     * document — which is what left certified networks stranded at completed:false (#197).
+     */
+    @Test
+    public void testCXNameAttributeDoesNotDuplicateNameField() {
+        manager = createManagerWithMock();
+        NetworkSummary s = createTestSummary("Test Network", "Description");
+        SolrInputDocument doc = manager.setupIndexDocument(s, VisibilityType.PUBLIC);
+
+        manager.addCXNetworkAttrToIndex(
+                new NetworkAttributesElement(null, NdexClasses.Network_P_name, "Test Network"));
+
+        assertEquals(1, doc.getFieldValues("name").size());
+        assertEquals("Test Network", doc.getFieldValue("name"));
     }
 
     @Test

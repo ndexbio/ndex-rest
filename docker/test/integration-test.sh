@@ -1883,11 +1883,34 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     || api_fail "REGRESSION (#194): an uncertified network omits isCertified in the folder listing; it must be present as false. Entry: ${CERT_ENTRY:0:400}"
   api_pass "GET /v3/files/folders/home/list → uncertified network reports isCertified:false"
 
-  # Certify it. The DOI goes on the row too: isCertified is only meaningful next to doi, and the
-  # trash assertion below covers both columns the trash projection newly selects.
-  psql_ndex "UPDATE network SET certified = true, ndexdoi = '10.18119/ndex-it-194' WHERE \\\"UUID\\\" = '${CERT_NET}'" >/dev/null
+  # Seed only the DOI — minting one needs an EZID service this container does not run. Certification
+  # itself goes through the real endpoint, which is what queues the reindex that #197 was about. The
+  # DOI stays on the row because isCertified is only meaningful next to doi, and the trash assertion
+  # below covers both columns the trash projection newly selects.
+  psql_ndex "UPDATE network SET ndexdoi = '10.18119/ndex-it-194' WHERE \\\"UUID\\\" = '${CERT_NET}'" >/dev/null
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: PUT /v2/network/{networkid}/reference — certifies the pre-certified network"
+  CERT_REF_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" -d '{"reference":"NDEx integration test reference"}' \
+    "${BASE_URL}/v2/network/${CERT_NET}/reference")
+  [[ "${CERT_REF_HTTP}" == "200" || "${CERT_REF_HTTP}" == "204" ]] \
+    || api_fail "#197: PUT /v2/network/${CERT_NET}/reference → HTTP ${CERT_REF_HTTP}"
   CERT_DB=$(psql_ndex "SELECT certified FROM network WHERE \\\"UUID\\\" = '${CERT_NET}'")
-  [[ "${CERT_DB}" == "t" ]] || api_fail "#194: could not set certified=true on ${CERT_NET} (got '${CERT_DB}')"
+  [[ "${CERT_DB}" == "t" ]] || api_fail "#194: the reference endpoint did not set certified=true on ${CERT_NET} (got '${CERT_DB}')"
+  api_pass "PUT /v2/network/{networkid}/reference → certified=true"
+
+  # Certification queues a global reindex. That reindex used to throw on a duplicate name field and,
+  # because the exception was a RuntimeException that escaped the task's catch, left the network at
+  # completed:false with no error recorded and its Solr document already deleted (#197).
+  wait_for_task_queue_drain "the #197 certification reindex"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/networks/{networkid}/summary — completed:true after certification"
+  CERT_SUMM=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${CERT_NET}/summary")
+  echo "${CERT_SUMM}" | grep -q '"completed":true' \
+    || api_fail "REGRESSION (#197): certified network ${CERT_NET} stuck at completed:false — the reindex queued by certification failed. Summary: ${CERT_SUMM:0:400}"
+  api_pass "GET /v3/networks/{networkid}/summary → completed:true after certification (#197)"
 
   CALL_NUM=$((CALL_NUM+1))
   echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list — certified network reports isCertified:true, folder omits it"

@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.common.SolrException;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
@@ -217,7 +218,10 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 				dao.setErrorMessage(networkId, null);
 			}
 
-		} catch (SQLException | IOException | NdexException | SolrServerException e1) {
+		// SolrException is included because it is a RuntimeException: a rejected update arrives as
+		// BaseHttpSolrClient.RemoteSolrException, which used to escape this catch entirely and leave
+		// the row at iscomplete=false with no error recorded at all (#197).
+		} catch (SQLException | IOException | NdexException | SolrServerException | SolrException e1) {
 			e1.printStackTrace();
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				dao.setErrorMessage(networkId, NdexClasses.NETWORK_INDEX_FAILED_MSG_PREFIX + " Index type: " + this.idxScope

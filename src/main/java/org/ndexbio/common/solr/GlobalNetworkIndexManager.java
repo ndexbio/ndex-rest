@@ -248,9 +248,13 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     public List<String> addCXNetworkAttrToIndex(NetworkAttributesElement e)  {
 
         List<String> warnings = new ArrayList<>();
-        if ( e.getName().equals(NdexClasses.Network_P_name) ) {
-            addStringAttrFromAttributeElement(e, NAME, warnings);
-        } else if ( e.getName().equals(NdexClasses.Network_P_desc ) ) {
+        // name is deliberately not handled here. prepareIndexDocument already sets it from the
+        // NetworkSummary, and the CX networkAttributes aspect is regenerated from that same summary,
+        // so re-adding it appends a second, identical value. name is multiValued="false" on the -nfs
+        // cores, which rejects the whole document. addCX2NetworkAttrToIndex omits it for the same
+        // reason. A name attribute reaching here falls through to the otherAttributes check below,
+        // which does not contain "name", so it is simply dropped.
+        if ( e.getName().equals(NdexClasses.Network_P_desc ) ) {
             addStringAttrFromAttributeElement(e, DESC, warnings);
         } else if ( e.getName().equals(NdexClasses.Network_P_version)  ) {
             addStringAttrFromAttributeElement(e, VERSION, warnings);

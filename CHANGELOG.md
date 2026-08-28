@@ -5,25 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Pending]
-
-### Changed
-
-- Swagger documentation for `GET`, `DELETE`, `PUT /v3/files/folders/{folderid}` and `GET /v3/files/folders/{folderid}/accesskey` now explicitly states that these endpoints do not support the `"home"` folder literal and require a valid UUID. [#176](https://github.com/ndexbio/ndex-rest/issues/176)
-
-### Fixed
-
-- **A failed Solr index no longer erases the reason a network failed to load.**
-  - Reindexing a network read `aspects_cx2/attributeDeclarations` after checking only that
-    `aspects_cx2/networkAttributes` existed. A network whose CX2 failed validation has the first file
-    and not the second — the loader throws before writing it — so the read failed with
-    `FileNotFoundException`, and the handler wrote `"Failed to create Index on network. Cause: ..."`
-    over the CX2 validation message that was the only record of what was actually wrong.
-  - An index failure is now recorded only when the network carries no error or already carries an
-    index error. The same precedence
-    `SolrTaskRebuildNetworkIdx` and `NFSReIndexer` apply when clearing an index error.
-
-## [3.0.6] - 2026-08-26
+## [3.0.6] - pending
 
 ### Added
 
@@ -57,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Swagger documentation for `GET`, `DELETE`, `PUT /v3/files/folders/{folderid}` and `GET /v3/files/folders/{folderid}/accesskey` now explicitly states that these endpoints do not support the `"home"` folder literal and require a valid UUID. [#176](https://github.com/ndexbio/ndex-rest/issues/176)
+
+- **Certifying a network no longer leaves it stuck at `completed:false`.** `PUT /v2/network/{networkid}/reference` queues a reindex that added the network's `name` twice — once from the summary and again from the CX `networkAttributes` aspect — which the `-nfs` cores reject because `name` is not multi-valued. The duplicate is gone, and a Solr rejection is now recorded as an index error instead of escaping the task uncaught and leaving no diagnostic. [#197](https://github.com/ndexbio/ndex-rest/issues/197)
+
 - **`POST /v3/batch/files/setvisibility` let an owner change the visibility of a network with a DOI.** [#195](https://github.com/ndexbio/ndex-rest/pull/195)
   - `PUT /v2/network/{networkid}/systemproperty` has always refused this, but the v3 files path reaches
   the same field through a different handler that checked ownership only. ndex3 and other v3 clients use
@@ -77,6 +63,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   branches, so all three return the same shape.
   - That method also read its result set **positionally**, with indices that shifted on the `compact`
   flag; it now reads by column label like its siblings.
+
+- **A failed Solr index no longer erases the reason a network failed to load.**
+  - Reindexing a network read `aspects_cx2/attributeDeclarations` after checking only that
+    `aspects_cx2/networkAttributes` existed. A network whose CX2 failed validation has the first file
+    and not the second — the loader throws before writing it — so the read failed with
+    `FileNotFoundException`, and the handler wrote `"Failed to create Index on network. Cause: ..."`
+    over the CX2 validation message that was the only record of what was actually wrong.
+  - An index failure is now recorded only when the network carries no error or already carries an
+    index error. The same precedence
+    `SolrTaskRebuildNetworkIdx` and `NFSReIndexer` apply when clearing an index error.
+
 
 ## [3.0.5] - 2026-08-17
 
